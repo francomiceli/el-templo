@@ -20,7 +20,8 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue'
+import { onMounted, onUnmounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useConquerStore } from '../stores/conquerStore'
 import ConquerBlocked from './ConquerBlocked.vue'
 import ConquerHome from './ConquerHome.vue'
@@ -28,10 +29,21 @@ import CqSky from './brand/CqSky.vue'
 import CqCloudButton from './brand/CqCloudButton.vue'
 
 // Fase 201 D-12, D-17, §7.1: raíz de la tab Conquer. Pide el estado al montar y pinta la pantalla
-// que corresponde (`resolveConquerView`): Bloqueado/pedido o Inicio. Cada pantalla trae su propio
+// que corresponde (`resolveConquerView`): Bloqueado/pedido, el control del día 0 o Inicio. Cada pantalla trae su propio
 // `CqSky` (tokens `--cq-*` solo adentro de Conquer, D-09). Se carga con `defineAsyncComponent`
 // desde Entrenar y la vidriera: la fuente y el CSS quedan en el chunk de Conquer.
 const store = useConquerStore()
+const router = useRouter()
+
+// D-15: la primera vez que entra, lo primero que ve el alumno activo es el control físico. `replace`
+// para que el atrás no vuelva a la tab (que lo mandaría de nuevo al control).
+watch(
+  () => store.view,
+  (view) => {
+    if (view === 'dia0') void router.replace({ name: 'conquer-control', query: { dia0: '1' } })
+  },
+  { immediate: true },
+)
 
 onMounted(() => {
   void store.loadState()

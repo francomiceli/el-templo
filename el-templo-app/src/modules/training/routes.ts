@@ -60,6 +60,13 @@ const routes: RouteRecordRaw[] = [
     component: () => import('src/modules/conquer/pages/ConquerSaturdayPage.vue'),
     meta: { requiresAuth: true },
   },
+  // Fase 201 §6, D-15: control físico (día 0 con query `dia0=1`, o el periódico de cada 4 semanas)
+  {
+    path: 'training/conquer/control',
+    name: 'conquer-control',
+    component: () => import('src/modules/conquer/pages/ConquerBodyCheckPage.vue'),
+    meta: { requiresAuth: true },
+  },
   {
     path: 'training/guia',
     name: 'guia',

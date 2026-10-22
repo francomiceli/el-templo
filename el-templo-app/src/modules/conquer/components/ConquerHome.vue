@@ -64,7 +64,10 @@
 
     <div v-if="bodyCheckNotice" class="cq-toast cq-home__notice" role="status">
       <i aria-hidden="true" />
-      <span>{{ bodyCheckNotice }}</span>
+      <span class="cq-home__notice-text">{{ bodyCheckNotice }}</span>
+      <router-link :to="{ name: 'conquer-control' }" class="cq-small cq-small--fill">
+        Hacerlo ahora
+      </router-link>
     </div>
 
     <router-link :to="{ name: 'conquer-progreso' }" class="cq-link cq-home__access">
@@ -318,12 +321,19 @@ const bodyCheckNotice = computed<string | null>(() => {
   text-decoration: none;
 }
 
-// Aviso fijo del control físico (sol + texto). En este plan es solo texto: 201-20 le suma el botón.
+// Aviso fijo del control físico (sol + texto + botón "Hacerlo ahora")
 .cq-home__notice {
   display: flex;
   align-items: center;
   gap: 12px;
   min-height: 44px;
+
+  .cq-small {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    text-decoration: none;
+  }
 
   i {
     width: 10px;
@@ -333,5 +343,10 @@ const bodyCheckNotice = computed<string | null>(() => {
     background: var(--cq-sun);
     box-shadow: 0 0 12px var(--cq-sun);
   }
+}
+
+.cq-home__notice-text {
+  flex: 1;
+  min-width: 0;
 }
 </style>

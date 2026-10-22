@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import { createLogger } from 'src/utils/logger'
 import { ConquerApiError, isConquerCanceled, useConquerApi } from '../composables/useConquerApi'
 import { resolveConquerView } from '../utils/conquerView'
-import type { ConquerStateResponse } from '../types'
+import type { BodyCheckSummary, ConquerStateResponse } from '../types'
 
 const log = createLogger('conquerStore')
 
@@ -84,6 +84,16 @@ export const useConquerStore = defineStore('conquer', () => {
     state.value = next
   }
 
+  /**
+   * Reemplaza solo las banderas del control físico con la respuesta de una acción (p. ej. "Lo hago
+   * después"), para que la tab no vuelva a pedir el día 0 mientras se recarga el estado (D-15).
+   */
+  function applyBodyCheck(summary: BodyCheckSummary): void {
+    const current = state.value
+    if (!current?.member) return
+    state.value = { ...current, member: { ...current.member, bodyCheck: summary } }
+  }
+
   /** Aborta lo que siga en vuelo; la vista lo llama al desmontarse. */
   function cleanup(): void {
     loadSeq++
@@ -92,5 +102,16 @@ export const useConquerStore = defineStore('conquer', () => {
     requesting.value = false
   }
 
-  return { state, loading, error, requesting, view, loadState, requestUnlock, applyState, cleanup }
+  return {
+    state,
+    loading,
+    error,
+    requesting,
+    view,
+    loadState,
+    requestUnlock,
+    applyState,
+    applyBodyCheck,
+    cleanup,
+  }
 })

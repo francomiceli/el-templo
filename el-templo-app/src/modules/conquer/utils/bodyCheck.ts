@@ -1,4 +1,11 @@
-import type { PhotoMime, Pose } from '../types'
+import type {
+  BodyCheckView,
+  CheckComparison,
+  CheckMeasure,
+  PhotoMime,
+  Pose,
+  UpsertBodyCheckBody,
+} from '../types'
 
 // Fase 201 §6, D-15: piezas puras del control físico (poses, medidas, formato de la foto y copy de
 // los fallos de subida). Sin Vue ni Capacitor: las usan la cámara, la pantalla del control y el
@@ -71,6 +78,134 @@ export function formatDiff(diff: number, unit: 'cm' | 'kg'): string {
   if (rounded === 0) return `0 ${unit}`
   const sign = rounded > 0 ? '+' : '−'
   return `${sign}${formatNumberEs(Math.abs(rounded))} ${unit}`
+}
+
+export type MeasureKey = CheckMeasure['key']
+
+export interface MeasureField {
+  key: MeasureKey
+  label: string
+  unit: 'cm' | 'kg'
+  /** Clave en el body de `POST /body-checks`. */
+  bodyKey: keyof UpsertBodyCheckBody
+  /** Clave en `BodyCheckView`. */
+  viewKey: 'armCm' | 'chestCm' | 'shouldersCm' | 'waistCm' | 'weightKg'
+}
+
+/** Los 4 perímetros y el peso (opcional), en el orden de la pantalla (§6). */
+export const MEASURE_FIELDS: readonly MeasureField[] = [
+  { key: 'arm', label: 'Brazo', unit: 'cm', bodyKey: 'armCm', viewKey: 'armCm' },
+  { key: 'chest', label: 'Pecho', unit: 'cm', bodyKey: 'chestCm', viewKey: 'chestCm' },
+  {
+    key: 'shoulders',
+    label: 'Hombros',
+    unit: 'cm',
+    bodyKey: 'shouldersCm',
+    viewKey: 'shouldersCm',
+  },
+  { key: 'waist', label: 'Cintura', unit: 'cm', bodyKey: 'waistCm', viewKey: 'waistCm' },
+  { key: 'weight', label: 'Peso (opcional)', unit: 'kg', bodyKey: 'weightKg', viewKey: 'weightKg' },
+]
+
+/** Texto de cada campo, por medida. */
+export type MeasureDrafts = Record<MeasureKey, string>
+
+export function emptyDrafts(): MeasureDrafts {
+  return { arm: '', chest: '', shoulders: '', waist: '', weight: '' }
+}
+
+/** Los campos arrancan con lo ya guardado del control de hoy (si lo hay), en formato argentino. */
+export function draftsFromCheck(check: BodyCheckView | null): MeasureDrafts {
+  const drafts = emptyDrafts()
+  if (!check) return drafts
+  for (const field of MEASURE_FIELDS) {
+    const saved = check[field.viewKey]
+    if (saved !== null) drafts[field.key] = formatNumberEs(saved)
+  }
+  return drafts
+}
+
+export type MeasuresResult =
+  | { ok: true; body: UpsertBodyCheckBody; filled: number }
+  | { ok: false; errors: Partial<Record<MeasureKey, string>> }
+
+/**
+ * Body de `POST /body-checks` con lo que escribió el alumno. Valida todo junto para mostrar todos
+ * los errores a la vez. Un campo vacío no se manda (el API solo escribe lo que viene y no borra).
+ */
+export function buildMeasuresBody(drafts: MeasureDrafts): MeasuresResult {
+  const errors: Partial<Record<MeasureKey, string>> = {}
+  const body: UpsertBodyCheckBody = {}
+  let filled = 0
+  for (const field of MEASURE_FIELDS) {
+    const parsed =
+      field.key === 'weight' ? parseWeight(drafts.weight) : parseMeasure(drafts[field.key])
+    if (!parsed.ok) {
+      errors[field.key] = parsed.message
+    } else if (parsed.value !== null) {
+      body[field.bodyKey] = parsed.value
+      filled += 1
+    }
+  }
+  if (Object.keys(errors).length > 0) return { ok: false, errors }
+  return { ok: true, body, filled }
+}
+
+// ── Comparador antes/después ────────────────────────────────────────
+
+/** "2026-10-21" del reloj local del teléfono (para reconocer el control de hoy en la lista). */
+export function localIsoDate(date: Date): string {
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${date.getFullYear()}-${month}-${day}`
+}
+
+/** El control de hoy dentro de la lista del API (más nuevo primero), o `null`. */
+export function findTodayCheck(
+  checks: readonly BodyCheckView[],
+  todayIso: string,
+): BodyCheckView | null {
+  return checks.find((check) => check.checkDate === todayIso) ?? null
+}
+
+/** Título de la hornacina del control más viejo del par. */
+export function fromLabel(check: Pick<BodyCheckView, 'kind'>): string {
+  return check.kind === 'dia0' ? 'Día 0' : 'Primer control'
+}
+
+/** Título de la hornacina del control más nuevo del par: "Semana 4" ("Hoy" si es el mismo día). */
+export function toLabel(weeks: number): string {
+  return weeks > 0 ? `Semana ${weeks}` : 'Hoy'
+}
+
+export interface MeasureRow {
+  key: MeasureKey
+  label: string
+  from: string
+  to: string
+  change: string
+}
+
+const MEASURE_UNITS: Record<MeasureKey, 'cm' | 'kg'> = {
+  arm: 'cm',
+  chest: 'cm',
+  shoulders: 'cm',
+  waist: 'cm',
+  weight: 'kg',
+}
+
+/** Fila de la tabla MEDIDA / DÍA 0 / HOY / CAMBIO: lo que falta se muestra "—". */
+export function measureRows(compare: CheckComparison): MeasureRow[] {
+  return compare.measures.map((m) => {
+    const unit = MEASURE_UNITS[m.key]
+    return {
+      key: m.key,
+      label: m.label,
+      from: m.from === null ? '—' : formatNumberEs(m.from),
+      to: m.to === null ? '—' : formatNumberEs(m.to),
+      change: m.diff === null ? '—' : formatDiff(m.diff, unit),
+    }
+  })
 }
 
 // ── Foto: formato y archivo a subir ─────────────────────────────────

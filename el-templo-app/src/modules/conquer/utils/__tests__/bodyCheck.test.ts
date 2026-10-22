@@ -1,17 +1,27 @@
 import { describe, it, expect } from 'vitest'
+import type { BodyCheckView, CheckComparison } from '../../types'
 import {
   CONQUER_POSES,
+  MEASURE_FIELDS,
   POSE_LABELS,
   POSE_TIPS,
   REJECTED_PHOTO_TEXT,
   STORAGE_PHOTO_TEXT,
   UNAVAILABLE_PHOTO_TEXT,
+  buildMeasuresBody,
+  draftsFromCheck,
+  emptyDrafts,
+  findTodayCheck,
   formatDiff,
   formatNumberEs,
+  fromLabel,
   isRetryable,
+  localIsoDate,
+  measureRows,
   mimeFromCameraFormat,
   parseMeasure,
   parseWeight,
+  toLabel,
   toUploadFile,
   uploadFailureText,
   type UploadFailureKind,
@@ -166,5 +176,130 @@ describe('toUploadFile', () => {
 
   it('un base64 inválido tira', () => {
     expect(() => toUploadFile('%%%', 'image/webp', 'espalda')).toThrow()
+  })
+})
+
+function checkView(overrides: Partial<BodyCheckView>): BodyCheckView {
+  return {
+    id: 1,
+    checkDate: '2026-10-21',
+    kind: 'dia0',
+    photos: { frente: false, perfil: false, espalda: false },
+    armCm: null,
+    chestCm: null,
+    shouldersCm: null,
+    waistCm: null,
+    weightKg: null,
+    ...overrides,
+  }
+}
+
+describe('buildMeasuresBody', () => {
+  it('manda solo los campos cargados, con coma o punto', () => {
+    const result = buildMeasuresBody({
+      ...emptyDrafts(),
+      arm: '34,5',
+      waist: '80.2',
+      weight: '70',
+    })
+    expect(result).toEqual({
+      ok: true,
+      body: { armCm: 34.5, waistCm: 80.2, weightKg: 70 },
+      filled: 3,
+    })
+  })
+
+  it('todo vacío es válido y no manda nada (filled 0)', () => {
+    expect(buildMeasuresBody(emptyDrafts())).toEqual({ ok: true, body: {}, filled: 0 })
+  })
+
+  it('junta TODOS los errores y no manda body', () => {
+    const result = buildMeasuresBody({ ...emptyDrafts(), arm: '9', chest: 'x', weight: '19' })
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(Object.keys(result.errors).sort()).toEqual(['arm', 'chest', 'weight'])
+      expect(result.errors.weight).toBe('Entre 20 y 400 kg')
+      expect(result.errors.arm).toBe('Entre 10 y 300 cm')
+    }
+  })
+
+  it('el peso usa el rango del peso y no el de los perímetros', () => {
+    expect(buildMeasuresBody({ ...emptyDrafts(), weight: '350' }).ok).toBe(true)
+    expect(buildMeasuresBody({ ...emptyDrafts(), arm: '350' }).ok).toBe(false)
+  })
+
+  it('hay 4 perímetros y el peso, en ese orden', () => {
+    expect(MEASURE_FIELDS.map((f) => [f.key, f.unit])).toEqual([
+      ['arm', 'cm'],
+      ['chest', 'cm'],
+      ['shoulders', 'cm'],
+      ['waist', 'cm'],
+      ['weight', 'kg'],
+    ])
+  })
+})
+
+describe('draftsFromCheck', () => {
+  it('sin control, campos vacíos', () => {
+    expect(draftsFromCheck(null)).toEqual(emptyDrafts())
+  })
+
+  it('precarga lo guardado en formato argentino', () => {
+    expect(draftsFromCheck(checkView({ armCm: 31.5, waistCm: 80, weightKg: 70.2 }))).toEqual({
+      arm: '31,5',
+      chest: '',
+      shoulders: '',
+      waist: '80',
+      weight: '70,2',
+    })
+  })
+})
+
+describe('control de hoy en la lista', () => {
+  it('localIsoDate arma YYYY-MM-DD con el reloj local', () => {
+    expect(localIsoDate(new Date(2026, 0, 5, 23, 59))).toBe('2026-01-05')
+    expect(localIsoDate(new Date(2026, 11, 31, 0, 1))).toBe('2026-12-31')
+  })
+
+  it('findTodayCheck devuelve el de la fecha de hoy o null', () => {
+    const checks = [
+      checkView({ id: 3, checkDate: '2026-10-21', kind: 'periodico' }),
+      checkView({ id: 1, checkDate: '2026-09-23' }),
+    ]
+    expect(findTodayCheck(checks, '2026-10-21')?.id).toBe(3)
+    expect(findTodayCheck(checks, '2026-10-22')).toBeNull()
+    expect(findTodayCheck([], '2026-10-21')).toBeNull()
+  })
+})
+
+describe('comparador', () => {
+  const compare: CheckComparison = {
+    from: { id: 1, checkDate: '2026-09-23' },
+    to: { id: 3, checkDate: '2026-10-21' },
+    weeks: 4,
+    measures: [
+      { key: 'arm', label: 'Brazo', from: 30, to: 31.5, diff: 1.5 },
+      { key: 'chest', label: 'Pecho', from: 100, to: 99.5, diff: -0.5 },
+      { key: 'shoulders', label: 'Hombros', from: null, to: 120, diff: null },
+      { key: 'waist', label: 'Cintura', from: 82, to: 82, diff: 0 },
+      { key: 'weight', label: 'Peso', from: 70, to: 72.5, diff: 2.5 },
+    ],
+  }
+
+  it('títulos de las hornacinas', () => {
+    expect(fromLabel({ kind: 'dia0' })).toBe('Día 0')
+    expect(fromLabel({ kind: 'periodico' })).toBe('Primer control')
+    expect(toLabel(4)).toBe('Semana 4')
+    expect(toLabel(0)).toBe('Hoy')
+  })
+
+  it('las filas llevan el cambio con signo y la unidad de cada medida', () => {
+    expect(measureRows(compare).map((r) => [r.key, r.from, r.to, r.change])).toEqual([
+      ['arm', '30', '31,5', '+1,5 cm'],
+      ['chest', '100', '99,5', '−0,5 cm'],
+      ['shoulders', '—', '120', '—'],
+      ['waist', '82', '82', '0 cm'],
+      ['weight', '70', '72,5', '+2,5 kg'],
+    ])
   })
 })
