@@ -67,6 +67,13 @@ const routes: RouteRecordRaw[] = [
     component: () => import('src/modules/conquer/pages/ConquerBodyCheckPage.vue'),
     meta: { requiresAuth: true },
   },
+  // Fase 201 §6, §7.1 Evolución: antes y después, y permiso de publicación
+  {
+    path: 'training/conquer/evolucion',
+    name: 'conquer-evolucion',
+    component: () => import('src/modules/conquer/pages/ConquerEvolutionPage.vue'),
+    meta: { requiresAuth: true },
+  },
   {
     path: 'training/guia',
     name: 'guia',

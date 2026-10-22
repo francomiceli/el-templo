@@ -6,6 +6,7 @@ import type {
   Pose,
   UpsertBodyCheckBody,
 } from '../types'
+import { shortDate } from './format'
 
 // Fase 201 §6, D-15: piezas puras del control físico (poses, medidas, formato de la foto y copy de
 // los fallos de subida). Sin Vue ni Capacitor: las usan la cámara, la pantalla del control y el
@@ -176,6 +177,19 @@ export function fromLabel(check: Pick<BodyCheckView, 'kind'>): string {
 /** Título de la hornacina del control más nuevo del par: "Semana 4" ("Hoy" si es el mismo día). */
 export function toLabel(weeks: number): string {
   return weeks > 0 ? `Semana ${weeks}` : 'Hoy'
+}
+
+/** Un control con foto confirmada o alguna medida (el de hoy puede estar vacío). */
+export function hasContent(check: BodyCheckView): boolean {
+  const hasPhoto = CONQUER_POSES.some((pose) => check.photos[pose])
+  return hasPhoto || MEASURE_FIELDS.some((field) => check[field.viewKey] !== null)
+}
+
+/** Aviso del próximo control periódico; sin fecha, todavía no hay ninguno hecho. */
+export function nextControlText(nextDueDate: string | null): string {
+  return nextDueDate === null
+    ? 'Todavía no hiciste ningún control.'
+    : `Tu próximo control es el ${shortDate(nextDueDate)}`
 }
 
 export interface MeasureRow {

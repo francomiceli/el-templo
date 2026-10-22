@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import { createLogger } from 'src/utils/logger'
 import { ConquerApiError, isConquerCanceled, useConquerApi } from '../composables/useConquerApi'
 import { resolveConquerView } from '../utils/conquerView'
-import type { BodyCheckSummary, ConquerStateResponse } from '../types'
+import type { BodyCheckSummary, ConquerStateResponse, PublishPermission } from '../types'
 
 const log = createLogger('conquerStore')
 
@@ -94,6 +94,20 @@ export const useConquerStore = defineStore('conquer', () => {
     state.value = { ...current, member: { ...current.member, bodyCheck: summary } }
   }
 
+  /** Refleja en el estado el permiso de publicación que guardó el API (§6). */
+  function applyPublishPermission(permission: PublishPermission): void {
+    const current = state.value
+    if (!current?.member) return
+    state.value = {
+      ...current,
+      member: {
+        ...current.member,
+        publishEnabled: permission.enabled,
+        publishNoFace: permission.noFace,
+      },
+    }
+  }
+
   /** Aborta lo que siga en vuelo; la vista lo llama al desmontarse. */
   function cleanup(): void {
     loadSeq++
@@ -112,6 +126,7 @@ export const useConquerStore = defineStore('conquer', () => {
     requestUnlock,
     applyState,
     applyBodyCheck,
+    applyPublishPermission,
     cleanup,
   }
 })

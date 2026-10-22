@@ -74,7 +74,10 @@
       <span>Progreso</span>
       <span aria-hidden="true">›</span>
     </router-link>
-    <!-- 201-20: accesos (Evolución y el botón del aviso de control) -->
+    <router-link :to="{ name: 'conquer-evolucion' }" class="cq-link cq-home__access">
+      <span>Evolución</span>
+      <span aria-hidden="true">›</span>
+    </router-link>
 
     <div class="cq-grow" />
 

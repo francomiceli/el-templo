@@ -15,9 +15,11 @@ import {
   formatDiff,
   formatNumberEs,
   fromLabel,
+  hasContent,
   isRetryable,
   localIsoDate,
   measureRows,
+  nextControlText,
   mimeFromCameraFormat,
   parseMeasure,
   parseWeight,
@@ -301,5 +303,29 @@ describe('comparador', () => {
       ['waist', '82', '82', '0 cm'],
       ['weight', '70', '72,5', '+2,5 kg'],
     ])
+  })
+})
+
+describe('hasContent', () => {
+  it('un control vacío no cuenta', () => {
+    expect(hasContent(checkView({}))).toBe(false)
+  })
+
+  it('una foto o una sola medida alcanzan', () => {
+    expect(hasContent(checkView({ photos: { frente: false, perfil: true, espalda: false } }))).toBe(
+      true,
+    )
+    expect(hasContent(checkView({ waistCm: 80 }))).toBe(true)
+    expect(hasContent(checkView({ weightKg: 70 }))).toBe(true)
+  })
+})
+
+describe('nextControlText', () => {
+  it('con fecha dice el día y mes', () => {
+    expect(nextControlText('2026-11-18')).toBe('Tu próximo control es el 18/11')
+  })
+
+  it('sin fecha avisa que todavía no hay controles', () => {
+    expect(nextControlText(null)).toBe('Todavía no hiciste ningún control.')
   })
 })
