@@ -171,3 +171,8 @@ con preguntas.
 - (orquestador, 2026-10-21) La rama se rebaseó sobre `origin/staging` con la fase 200 adentro (migraciones 0287 y 0288 ya
   existen; la 200 reservó hasta 0289). `node_modules` de los tres paquetes están como symlinks puestos por el orquestador:
   el pre-flight `test -d` pasa; no tocarlos.
+- (201-01) `decimal` de Drizzle devuelve `string` (`armCm`, `weightKg`…): convertir a número en el servicio. Los `date` son
+  `mode: "string"` (YYYY-MM-DD). `schema/conquer.ts` exporta `CONQUER_LEVELS`, `CONQUER_STEP_KEYS`, `CONQUER_MODES`,
+  `CONQUER_UNITS` (`as const`): usarlos, no redeclarar uniones. `conquer_session_steps` solo tiene `created_at`.
+  El test de la semilla (201-02) va en el mismo `test/migrations/0290-0292-conquer.test.ts`. Conteos de tenancy tras 201-01:
+  114 gym-owned / 119 schema.
