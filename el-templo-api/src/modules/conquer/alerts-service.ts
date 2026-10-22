@@ -54,12 +54,14 @@ export async function upsertEventAlert(
       }),
     )
     .onDuplicateKeyUpdate({
-      // MySQL evalúa las asignaciones de izquierda a derecha y cada una ve las
-      // anteriores: `resolved_at` va ANTES que `status` para leer el estado viejo.
+      // Drizzle arma el SET en el orden de las columnas de la tabla (status antes
+      // que resolved_at) y MySQL deja que cada asignación vea las anteriores:
+      // `resolved_at` NO puede depender de `status`. Sin `resolved_by` la fila
+      // solo tiene `resolved_at` si la cerró el sistema, así que se limpia al reabrir.
       set: {
         detail: input.detail,
-        resolvedAt: sql`IF(${autoResolved}, NULL, ${resolvedAt})`,
         status: sql`IF(${autoResolved}, 'abierta', ${status})`,
+        resolvedAt: sql`IF(${resolvedBy} IS NULL, NULL, ${resolvedAt})`,
       },
     });
 }
