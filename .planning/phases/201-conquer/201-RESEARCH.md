@@ -638,18 +638,18 @@ vm.createContext(ctx); vm.runInContext(js, ctx);
 | AS-14 | ISO-03 no aplica a `/api/{admin,members}/conquer` | 6 | Casos ISO-03 adicionales |
 | AS-15 | Precarga igual al objetivo sin exigir toque (como el oráculo) | 9.2 A9 | Progresión inflada por "Guardar" sin hacer nada |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **¿La calibración mueve solo el E1 o todo el ejercicio?** (AS-2, A5 de 9.2) Default: todo el ejercicio; Nacho valida.
-2. **¿Qué es un "bloque" y cuánto dura?** (§3.2, AS-6, A11 de 9.2) Default: semanas desde la activación, sin rotación.
-3. **Recorte 6 (Ternero/Novillo): ¿qué escalón baja si la molestia es por sesión?** Default: lo elige el coach al aceptar.
-4. **¿Alumno sin plan puede abrir Conquer?** (AS-4) Default: no (vidriera).
-5. **Finishers de las plantillas de 2 y 3 días, marcas `brazos_rectos`/`unilateral` por peldaño y zonas por ejercicio**: no están en la síntesis; hay semilla propuesta que Nacho valida.
-6. **¿Exigir un toque por ejercicio antes de guardar?** (AS-15) Default: no.
-7. **Coordinación de migraciones con la 200** (sección 7): confirmar 0287-0289 para ella y 0290+ para la 201.
-8. **Aprobación de `@fontsource/jost`** (instalar dependencias requiere OK de Franco).
-9. **Infra:** bucket R2 privado + CORS + secrets (`R2_PRIVATE_BUCKET_NAME`, `STAGING_R2_PRIVATE_BUCKET_NAME`) los crea Franco; sin eso el control físico responde 503.
-10. **¿D-01 dice base `origin/master` pero D-10 y la rama real usan `origin/staging`?** Verificado: la rama está sobre staging (tiene 0285/0286); tomar staging como base.
+1. **¿La calibración mueve solo el E1 o todo el ejercicio?** (AS-2, A5 de 9.2) RESOLVED: D-20 — se adopta el default (todo el ejercicio); Nacho lo valida en el UAT.
+2. **¿Qué es un "bloque" y cuánto dura?** (§3.2, AS-6, A11 de 9.2) RESOLVED: D-20 — semanas calendario desde la activación, sin rotación; Nacho valida.
+3. **Recorte 6 (Ternero/Novillo): ¿qué escalón baja si la molestia es por sesión?** RESOLVED: D-20 — lo elige el coach al aceptar; Nacho valida.
+4. **¿Alumno sin plan puede abrir Conquer?** (AS-4) RESOLVED: revertido por D-17 — SÍ puede abrir la tab sin plan, ve Bloqueado, pide el desbloqueo y, si se lo activan, entrena Conquer sin plan del Templo.
+5. **Finishers de las plantillas de 2 y 3 días, marcas `brazos_rectos`/`unilateral` por peldaño y zonas por ejercicio.** RESOLVED: D-20 — se siembra la propuesta de la research, editable desde el admin; Nacho valida.
+6. **¿Exigir un toque por ejercicio antes de guardar?** (AS-15) RESOLVED: D-18 — no; la precarga cuenta como objetivo cumplido.
+7. **Coordinación de migraciones con la 200** (sección 7). RESOLVED: D-21 — la 200 se queda con 0287-0289 y la 201 arranca en 0290 (re-chequeo obligatorio antes del primer `.sql`).
+8. **Aprobación de `@fontsource/jost`.** RESOLVED: D-19 — NO se instala Jost ni ninguna dependencia; cuerpo con la letra de El Templo y Cormorant (ya instalada) para títulos.
+9. **Infra:** bucket R2 privado + CORS + secrets (`R2_PRIVATE_BUCKET_NAME`, `STAGING_R2_PRIVATE_BUCKET_NAME`). RESOLVED: infra de Franco, no bloquea planificar ni ejecutar; sin bucket el control físico responde 503.
+10. **¿D-01 dice base `origin/master` pero D-10 y la rama real usan `origin/staging`?** RESOLVED: base `origin/staging` verificada (tiene 0285/0286 de la 197); D-01 se corrigió en CONTEXT.
 
 ## Environment Availability
 

@@ -13,11 +13,12 @@ con preguntas.
   `cd X && git ...` compuesto, separar en dos llamadas.
 - El checkout principal `/home/franco/projects/el-templo` y la rama 196 (`/home/franco/projects/et-196-personalizados`,
   la "cantera", D-03/D-04) son de SOLO LECTURA. Se copian piezas de la 196 leyendo por ruta absoluta; nunca se escribe ahí.
-- **Prerrequisito de `node_modules`:** los gates locales (`npx tsc --noEmit`, `pnpm lint:tenant`, `pnpm typecheck:tests`,
-  `pnpm lint`, `vue-tsc`) necesitan `node_modules` en los paquetes del worktree. Los instala el ORQUESTADOR (con OK de
-  Franco) antes del plan 201-01. El ejecutor **NUNCA** corre `pnpm install`, `pnpm add`, `npm i`, `pnpm update`, ni crea
-  symlinks a `node_modules` ajenos. Si faltan: correr igual los gates estáticos (grep, `node` sobre los módulos puros),
-  escribir en el SUMMARY "gates de tipos/lint NO corridos: falta node_modules" y seguir.
+- **GATE DE PRE-FLIGHT (`node_modules`):** los gates locales (`npx tsc --noEmit`, `pnpm lint:tenant`, `pnpm typecheck:tests`,
+  `pnpm lint`, `vue-tsc`) necesitan `node_modules` en `el-templo-api`, `el-templo-app` y `el-templo-admin` del worktree. Los instala
+  el ORQUESTADOR (con OK de Franco) ANTES del plan 201-01. Primer comando de CADA plan:
+  `test -d /home/franco/projects/et-201-conquer/el-templo-api/node_modules && test -d /home/franco/projects/et-201-conquer/el-templo-app/node_modules && test -d /home/franco/projects/et-201-conquer/el-templo-admin/node_modules`.
+  Si falla: PARAR el plan sin tocar nada y reportarlo (sin node_modules, 201-01 no arranca). El ejecutor **NUNCA** corre
+  `pnpm install`, `pnpm add`, `npm i`, `pnpm update`, ni crea symlinks a `node_modules` ajenos.
 - `vue-tsc` no está en app ni admin y NO se instala. Se usa EN SOLO LECTURA el binario
   `/home/franco/projects/et-195-seo/el-templo-web/node_modules/.bin/vue-tsc` (fallback:
   `/home/franco/projects/el-templo/el-templo-web/node_modules/.bin/vue-tsc`). Criterio: ningún error en archivos del
