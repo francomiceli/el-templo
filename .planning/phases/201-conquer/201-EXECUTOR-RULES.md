@@ -196,3 +196,9 @@ con preguntas.
   probar el 404 cross-tenant usar owner/admin. Campos nuevos de `GET /state` (`home` en 201-07, `bodyCheck` en 201-12) van
   en `conquerStateResponseSchema` de `schemas.ts` o el serializador los borra. `saveConquerSettings` (201-14) reusa
   `CONQUER_SETTING_KEYS` y `CONQUER_SETTING_RANGES`. Contratos JSON exactos de las rutas: `201-05-SUMMARY.md`.
+- (201-06) `INSERT` multi-fila: `.values(rows)` falla `lint:tenant`; escribir `.values(rows.map((r) => tenantValues(ctx, r)))`
+  inline en la llamada. `handleServiceError` NO manda `code`: para `{ error, code }` existe `sendConquerError` (hoy privado
+  en `admin-routes.ts`); si lo necesitás en otra ruta, moverlo a un archivo compartido del módulo (p. ej. `errors.ts`) y
+  reusarlo, no duplicarlo. Helpers de test: `readConquerSteps` (Map `"ejercicio:e1|e2|e3|hold"` → code de peldaño) y
+  `createActiveConquerMember` (crea un admin nuevo por llamada). 4 escalones por ejercicio: Toro 4 días = 48 filas.
+  Manifiesto: 484 entradas tras 201-06.
