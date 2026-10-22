@@ -41,7 +41,6 @@
         @prev-week="prevWeek"
         @next-week="nextWeek"
         @start="openSession"
-        @redo="openSession"
         @summary="openSummary"
         @go-libre="activeTab = 'libre'"
       />

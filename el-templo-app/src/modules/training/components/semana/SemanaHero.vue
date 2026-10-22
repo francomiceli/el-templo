@@ -1,6 +1,6 @@
 <template>
   <section v-if="day" class="semana-hero">
-    <div class="semana-hero__head">
+    <div class="semana-hero__head" :class="{ 'semana-hero__head--solo': !cta.showButton }">
       <div class="semana-hero__text">
         <p class="semana-hero__kicker">{{ dayKicker(day.date, today) }}</p>
         <h1 class="semana-hero__title">{{ title }}</h1>
@@ -10,6 +10,7 @@
         </span>
       </div>
       <button
+        v-if="cta.showButton"
         type="button"
         class="semana-hero__cta"
         :class="{
@@ -41,7 +42,6 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useQuasar } from 'quasar'
 import { FREE_BLOCKS_ENABLED } from 'src/config/featureFlags'
 import type { WeekDay } from '../../types/session'
 import { sessionTitle } from '../../utils/blockMeta'
@@ -60,12 +60,9 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   start: [date: string]
-  redo: [date: string]
   summary: []
   'go-libre': []
 }>()
-
-const $q = useQuasar()
 
 const title = computed(() => {
   const session = props.day?.session
@@ -97,19 +94,6 @@ function onCta(): void {
     case 'libre':
       emit('go-libre')
       break
-    case 'redo':
-      // Pisa el registro previo de ese día: se pide confirmación (T-197-32)
-      $q.dialog({
-        title: 'Hacerla igual',
-        message:
-          'Vas a reiniciar la sesión de este día. El progreso registrado anteriormente se perderá.',
-        cancel: { label: 'Cancelar', flat: true },
-        ok: { label: 'Hacerla igual', color: 'primary' },
-        persistent: true,
-      }).onOk(() => {
-        emit('redo', date)
-      })
-      break
     default:
       break
   }
@@ -130,6 +114,11 @@ function onCta(): void {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 12px;
     align-items: center;
+
+    // Sin botón (días pasados): el texto usa todo el ancho
+    &--solo {
+      grid-template-columns: minmax(0, 1fr);
+    }
   }
 
   &__text {
