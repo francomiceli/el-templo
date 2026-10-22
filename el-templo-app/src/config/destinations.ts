@@ -17,6 +17,7 @@ export type AppSectionKey =
   | 'volver'
   | 'guia'
   | 'empeza_aca'
+  | 'conquer'
 
 export interface AppSection {
   key: AppSectionKey
@@ -78,6 +79,12 @@ export const APP_SECTIONS: readonly AppSection[] = [
     key: 'empeza_aca',
     label: 'Empezá acá',
     route: '/training/guia',
+  },
+  // Fase 201 D-11: destino del pop-up de lanzamiento de Conquer, Entrenar ▸ Conquer.
+  {
+    key: 'conquer',
+    label: 'Conquer',
+    route: '/training?tab=conquer',
   },
 ]
 
