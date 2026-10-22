@@ -9,13 +9,17 @@
 //      hoja Simulacion, calibracion y A1/A3/A6/A8 (imprime MOTOR OK (<n> casos)).
 //   4. reglas (plan 201-04): calendario, recortes, combos, paso de nivel y encendido
 //      muscular (12 casos, uno por funcion; imprime REGLAS OK).
+//   5. anexo (plan 201-25): arma el catalogo en memoria desde 0292 + 0293 y lo
+//      compara con el anexo de Nacho (fixtures/conquer-catalogo.md) con el mismo
+//      annexDiffs que usa el test de CI (imprime ANEXO OK).
 //      Los planes siguientes suman sus secciones al final, antes del resumen.
 //
-// Imprime ORACULO OK / SEMILLA OK / MOTOR OK / REGLAS OK (o la lista de diferencias) y sale con codigo 1 si algo falla.
+// Imprime ORACULO OK / SEMILLA OK / MOTOR OK / REGLAS OK / ANEXO OK (o la lista de diferencias) y sale con codigo 1 si algo falla.
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { loadOracle } from "./oracle.ts";
+import { annexDiffs, loadAnnex } from "./annex.ts";
 import {
   DEFAULT_INC,
   accuracy,
@@ -49,6 +53,10 @@ const FIXTURE = fileURLToPath(new URL("fixtures/conquer-app.html", HERE));
 const SEED_SQL = fileURLToPath(
   new URL("../../src/db/migrations/0292_conquer_catalog_seed.sql", HERE),
 );
+const ANNEX_SQL = fileURLToPath(
+  new URL("../../src/db/migrations/0293_conquer_catalogo_anexo.sql", HERE),
+);
+const ANNEX_MD = fileURLToPath(new URL("fixtures/conquer-catalogo.md", HERE));
 
 /** Salida por stdout (sin console: el chequeo es un CLI, no logging de la app). */
 function out(line) {
@@ -464,6 +472,163 @@ function reglasDiffs() {
     failed = true;
     out(`REGLAS FALLA (${diffs.length}):`);
     for (const d of diffs) out(`  - ${d}`);
+  }
+}
+
+// ------------------------------------------------- 5. anexo (plan 201-25)
+
+// Plantillas de linea de las migraciones 0292 y 0293 (un statement de datos por
+// linea, ver los encabezados de los .sql).
+const LADDER_INSERT_RE =
+  /^INSERT IGNORE INTO conquer_ladders .*VALUES \(1, '([^']+)', '([^']+)', (\d+), (\d)\);/;
+const LADDER_UPDATE_RE =
+  /^UPDATE conquer_ladders SET name = '([^']+)', sort_order = (\d+), is_active = (\d) WHERE tenant_id = 1 AND code = '([^']+)';/;
+const RUNG_INSERT_RE =
+  /^INSERT IGNORE INTO conquer_rungs .*SELECT 1, l\.id, '([^']+)', '([^']+)', (\d+), (\d), (\d), (\d) FROM conquer_ladders l WHERE l\.tenant_id = 1 AND l\.code = '([^']+)'/;
+const EXERCISE_INSERT_RE =
+  /^INSERT IGNORE INTO conquer_exercises .*SELECT 1, '([^']+)', '([^']+)', l\.id, '([^']+)', '(\[.*?\])', '(\[.*?\])', (\d+), (\d) FROM conquer_ladders l WHERE l\.tenant_id = 1 AND l\.code = '([^']+)'/;
+const EXERCISE_UPDATE_RE =
+  /^UPDATE conquer_exercises SET ladder_id = \(SELECT l\.id FROM conquer_ladders l WHERE l\.tenant_id = 1 AND l\.code = '([^']+)'\), hold_ladder_id = (NULL|\(SELECT h\.id FROM conquer_ladders h WHERE h\.tenant_id = 1 AND h\.code = '([^']+)'\)), brazos_rectos = (\d), muscles = '(\[.*?\])', start_steps_novillo = '(\[.*?\])', start_steps_ternero = '(\[.*?\])' WHERE tenant_id = 1 AND code = '([^']+)';/;
+const TEMPLATE_INSERT_RE =
+  /^INSERT IGNORE INTO conquer_template_days .*VALUES \(1, (\d), '([^']+)', '([^']+)', (\d+), '([^']*)', '(\[.*?\])', (NULL|'[^']*')\)/;
+const TEMPLATE_UPDATE_RE =
+  /^UPDATE conquer_template_days SET finisher_text = '([^']*)' WHERE tenant_id = 1 AND days_count = (\d) AND day_key = '([^']+)';/;
+
+/** Aplica una linea de migracion al modelo en memoria (INSERT IGNORE no pisa). */
+function applyModelLine(model, line) {
+  let m = LADDER_INSERT_RE.exec(line);
+  if (m) {
+    if (!model.ladders.has(m[1])) {
+      model.ladders.set(m[1], {
+        code: m[1],
+        name: m[2],
+        isActive: m[4] === "1",
+        rungs: [],
+      });
+    }
+    return;
+  }
+  m = LADDER_UPDATE_RE.exec(line);
+  if (m) {
+    const ladder = model.ladders.get(m[4]);
+    if (ladder) {
+      ladder.name = m[1];
+      ladder.isActive = m[3] === "1";
+    }
+    return;
+  }
+  m = RUNG_INSERT_RE.exec(line);
+  if (m) {
+    const ladder = model.ladders.get(m[7]);
+    if (ladder && !ladder.rungs.some((r) => r.code === m[1])) {
+      ladder.rungs.push({
+        code: m[1],
+        name: m[2],
+        position: Number(m[3]),
+        unilateral: m[5] === "1",
+        isActive: m[6] === "1",
+      });
+    }
+    return;
+  }
+  m = EXERCISE_INSERT_RE.exec(line);
+  if (m) {
+    model.exercises.set(m[1], {
+      code: m[1],
+      name: m[2],
+      unit: m[3],
+      ladderCode: m[8],
+      holdLadderCode: null,
+      brazosRectos: false,
+      muscles: JSON.parse(m[4]),
+      startSteps: { toro: JSON.parse(m[5]), novillo: [], ternero: [] },
+    });
+    return;
+  }
+  m = EXERCISE_UPDATE_RE.exec(line);
+  if (m) {
+    const ex = model.exercises.get(m[8]);
+    if (ex) {
+      ex.ladderCode = m[1];
+      ex.holdLadderCode = m[2] === "NULL" ? null : m[3];
+      ex.brazosRectos = m[4] === "1";
+      ex.muscles = JSON.parse(m[5]);
+      ex.startSteps.novillo = JSON.parse(m[6]);
+      ex.startSteps.ternero = JSON.parse(m[7]);
+    }
+    return;
+  }
+  m = TEMPLATE_INSERT_RE.exec(line);
+  if (m) {
+    model.templates.push({
+      daysCount: Number(m[1]),
+      dayKey: m[2],
+      label: m[3],
+      sortOrder: Number(m[4]),
+      finisherText: m[5],
+      exerciseCodes: JSON.parse(m[6]),
+    });
+    return;
+  }
+  m = TEMPLATE_UPDATE_RE.exec(line);
+  if (m) {
+    const tpl = model.templates.find(
+      (t) => t.daysCount === Number(m[2]) && t.dayKey === m[3],
+    );
+    if (tpl) tpl.finisherText = m[1];
+  }
+}
+
+/** Catalogo en memoria tal como queda tras aplicar 0292 y luego 0293. */
+function buildCatalogModel(sqlTexts) {
+  const model = {
+    ladders: new Map(),
+    exercises: new Map(),
+    templates: [],
+  };
+  for (const sql of sqlTexts) {
+    for (const line of sql.split("\n")) applyModelLine(model, line);
+  }
+  return {
+    ladders: [...model.ladders.values()],
+    exercises: [...model.exercises.values()],
+    templates: model.templates,
+  };
+}
+
+/** Chequeos de forma de la 0293: 111 statements y ningun `;` en comentarios. */
+function annexSqlShapeDiffs(sql) {
+  const diffs = [];
+  const breakpoints = sql
+    .split("\n")
+    .filter((l) => l.startsWith("--> statement-breakpoint")).length;
+  if (breakpoints !== 110) {
+    diffs.push(`0293: ${breakpoints} statement-breakpoint, esperaba 110`);
+  }
+  for (const [i, l] of sql.split("\n").entries()) {
+    if (/^\s*--/.test(l) && l.includes(";")) {
+      diffs.push(`0293 linea ${i + 1}: punto y coma en un comentario`);
+    }
+  }
+  return diffs;
+}
+
+if (!existsSync(ANNEX_SQL)) {
+  failed = true;
+  out("ANEXO PENDIENTE");
+} else {
+  const seedSql = readFileSync(SEED_SQL, "utf8");
+  const annexSql = readFileSync(ANNEX_SQL, "utf8");
+  const diffs = [
+    ...annexSqlShapeDiffs(annexSql),
+    ...annexDiffs(loadAnnex(ANNEX_MD), buildCatalogModel([seedSql, annexSql])),
+  ];
+  if (diffs.length === 0) {
+    out("ANEXO OK");
+  } else {
+    failed = true;
+    out(`ANEXO FALLA (${diffs.length}):`);
+    for (const d of diffs.slice(0, 40)) out(`  - ${d}`);
   }
 }
 

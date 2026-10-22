@@ -26,6 +26,10 @@ import { tenantIdColumn } from "./tenant-column";
  * `conquer_exercises`, `conquer_template_days`) las siembra la migración 0292
  * y NO se limpian en tests. Las 6 de estado del alumno sí.
  *
+ * Plan 201-25: la migración 0293 alinea el catálogo con el anexo de Nacho
+ * (una escalera por ejercicio, escalera de hold aparte, marca de brazos
+ * rectos y tablas de arranque por nivel en el ejercicio).
+ *
  * Todas son gym-owned y nacen strict (tenant_id NOT NULL DEFAULT 1 + FK).
  * Todo UNIQUE empieza por `tenantId`.
  */
@@ -97,6 +101,8 @@ export const conquerRungs = mysqlTable(
     name: varchar("name", { length: 60 }).notNull(),
     // 0 = peldaño más difícil
     position: smallint("position").notNull(),
+    // 0293 (DA-4): SIN USO. La marca de brazos rectos vive ahora en
+    // `conquer_exercises.brazos_rectos`. Se conserva porque la 0292 la siembra.
     brazosRectos: boolean("brazos_rectos").default(false).notNull(),
     unilateral: boolean("unilateral").default(false).notNull(),
     isActive: boolean("is_active").default(true).notNull(),
@@ -129,7 +135,15 @@ export const conquerExercises = mysqlTable(
       .notNull(),
     unit: mysqlEnum("unit", CONQUER_UNITS).notNull(),
     muscles: json("muscles").$type<ConquerMuscle[]>().notNull(),
+    // Tabla de arranque de Toro. Novillo y Ternero tienen la suya (0293, DA-5).
     startSteps: json("start_steps").$type<ConquerStartStep[]>().notNull(),
+    // 0293 (DA-3): escalera propia del hold final. NULL = el hold usa `ladderId`.
+    holdLadderId: int("hold_ladder_id").references(() => conquerLadders.id),
+    // 0293 (DA-4): la marca de brazos rectos vive en el ejercicio (anexo §1).
+    brazosRectos: boolean("brazos_rectos").default(false).notNull(),
+    // 0293 (DA-5): tablas explícitas del anexo §3. NULL = usa la de Toro.
+    startStepsNovillo: json("start_steps_novillo").$type<ConquerStartStep[]>(),
+    startStepsTernero: json("start_steps_ternero").$type<ConquerStartStep[]>(),
     sortOrder: int("sort_order").default(0).notNull(),
     isActive: boolean("is_active").default(true).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
