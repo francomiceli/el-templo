@@ -217,6 +217,9 @@ export interface FichaMember extends AdminMemberView {
   firstName: string;
   lastName: string;
   email: string | null;
+  /** El alumno autorizó usar sus fotos (A19) y, si sí, si es sin cara. */
+  publishEnabled: boolean;
+  publishNoFace: boolean;
 }
 
 export interface FichaResponse {

@@ -1030,6 +1030,8 @@ export interface FichaBody {
     firstName: string;
     lastName: string;
     email: string | null;
+    publishEnabled: boolean;
+    publishNoFace: boolean;
   };
   progress: ProgressBody;
   alerts: BoardAlertBody[];

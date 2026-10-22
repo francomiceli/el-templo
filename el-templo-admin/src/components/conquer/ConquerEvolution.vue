@@ -4,8 +4,7 @@
   diferencia y las banderas de publicación del alumno ("Autorizó publicar", "Sin cara"). Las fotos
   son privadas: ConquerPhoto pide la URL firmada de la pose visible y no la guarda ni la loguea.
   El par es el que arma el API (`compare`: el control con contenido más viejo contra el más nuevo).
-  Las banderas no vienen en la ficha: se leen de la galería (un alumno sin controles con contenido
-  no aparece y las banderas no se muestran).
+  Las banderas vienen en la ficha (`FichaMember`) y llegan como props: no se pide la galería.
 -->
 <template>
   <div>
@@ -26,23 +25,17 @@
     </q-banner>
 
     <template v-else-if="data">
-      <div v-if="flags" class="row q-gutter-xs q-mb-md" data-test="conquer-evolution-flags">
+      <div class="row q-gutter-xs q-mb-md" data-test="conquer-evolution-flags">
         <q-chip
           dense
           square
-          :color="flags.publishEnabled ? 'secondary' : 'grey-3'"
-          :text-color="flags.publishEnabled ? 'white' : 'accent'"
+          :color="publishEnabled ? 'secondary' : 'grey-3'"
+          :text-color="publishEnabled ? 'white' : 'accent'"
           class="q-ma-none q-mr-xs"
         >
-          {{ flags.publishEnabled ? 'Autorizó publicar' : 'No autorizó publicar' }}
+          {{ publishEnabled ? 'Autorizó publicar' : 'No autorizó publicar' }}
         </q-chip>
-        <q-chip
-          v-if="flags.publishEnabled && flags.publishNoFace"
-          dense
-          square
-          outline
-          color="accent"
-        >
+        <q-chip v-if="publishEnabled && publishNoFace" dense square outline color="accent">
           Sin cara
         </q-chip>
       </div>
@@ -132,7 +125,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import ConquerPhoto from 'src/components/conquer/ConquerPhoto.vue';
 import { useConquerAdminApi } from 'src/composables/useConquerAdminApi';
-import type { BodyCheckView, BodyChecksResponse, GalleryItem, Pose } from 'src/types/conquer';
+import type { BodyCheckView, BodyChecksResponse, Pose } from 'src/types/conquer';
 import {
   POSE_LABELS,
   checkHasContent,
@@ -145,6 +138,8 @@ import { formatDate } from 'src/utils/format-date';
 
 const props = defineProps<{
   userId: number;
+  publishEnabled: boolean;
+  publishNoFace: boolean;
 }>();
 
 const conquerApi = useConquerAdminApi();
@@ -152,7 +147,6 @@ const conquerApi = useConquerAdminApi();
 const data = ref<BodyChecksResponse | null>(null);
 const loading = ref(false);
 const loadError = ref<string | null>(null);
-const flags = ref<Pick<GalleryItem, 'publishEnabled' | 'publishNoFace'> | null>(null);
 const pose = ref<Pose | null>(null);
 
 interface MeasureRow {
@@ -242,25 +236,11 @@ watch(
   { immediate: true }
 );
 
-async function loadFlags(): Promise<void> {
-  try {
-    const gallery = await conquerApi.getGallery();
-    const item = gallery.items.find((i) => i.userId === props.userId);
-    flags.value = item
-      ? { publishEnabled: item.publishEnabled, publishNoFace: item.publishNoFace }
-      : null;
-  } catch {
-    // Las banderas son un extra: si la galería falla, la evolución se muestra igual.
-    flags.value = null;
-  }
-}
-
 async function load(): Promise<void> {
   loading.value = true;
   loadError.value = null;
   try {
     data.value = await conquerApi.getMemberBodyChecks(props.userId);
-    void loadFlags();
   } catch (err: unknown) {
     loadError.value =
       err instanceof Error ? err.message : 'No pudimos cargar los controles del alumno';

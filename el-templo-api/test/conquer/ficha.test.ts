@@ -146,6 +146,25 @@ describe("GET /api/admin/conquer/members/:userId (§7.2)", () => {
     expect(ficha.progress).toEqual(await fetchProgress(app, m.token));
   });
 
+  it("trae las banderas de publicación del alumno (autorizó y sin cara)", async () => {
+    const m = await escenario("toro", 4);
+    const antes = await fetchFicha(app, m.admin.token, m.userId);
+    expect(antes.member.publishEnabled).toBe(false);
+    expect(antes.member.publishNoFace).toBe(false);
+
+    const put = await app.inject({
+      method: "PUT",
+      url: "/api/members/conquer/publish-permission",
+      headers: { authorization: `Bearer ${m.token}` },
+      payload: { enabled: true, noFace: true },
+    });
+    expect(put.statusCode).toBe(200);
+
+    const despues = await fetchFicha(app, m.admin.token, m.userId);
+    expect(despues.member.publishEnabled).toBe(true);
+    expect(despues.member.publishNoFace).toBe(true);
+  });
+
   it("las alertas son las del tablero (mismas guardadas y derivadas)", async () => {
     const m = await escenario("toro", 4);
     const hoy = await memberToday(app, m.userId);

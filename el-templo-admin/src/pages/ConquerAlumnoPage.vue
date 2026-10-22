@@ -54,7 +54,11 @@
           <ConquerProgressTable :ficha="ficha" :catalog="catalog" @updated="onFichaUpdated" />
         </q-tab-panel>
         <q-tab-panel name="evolucion" class="q-pa-none">
-          <ConquerEvolution :user-id="ficha.member.userId" />
+          <ConquerEvolution
+            :user-id="ficha.member.userId"
+            :publish-enabled="ficha.member.publishEnabled"
+            :publish-no-face="ficha.member.publishNoFace"
+          />
         </q-tab-panel>
       </q-tab-panels>
     </template>

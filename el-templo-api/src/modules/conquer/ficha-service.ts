@@ -38,6 +38,9 @@ export interface FichaResponse {
     firstName: string;
     lastName: string;
     email: string | null;
+    /** Fase 201 §6, A19: el alumno autorizó usar sus fotos (y si es sin cara). */
+    publishEnabled: boolean;
+    publishNoFace: boolean;
   };
   progress: ProgressResponse;
   /** Guardadas pendientes (con `id`) y derivadas por tiempo (`id` null). */
@@ -92,6 +95,8 @@ export async function buildFicha(
       firstName: board.firstName,
       lastName: board.lastName,
       email,
+      publishEnabled: row.publishEnabled,
+      publishNoFace: row.publishNoFace,
     },
     progress,
     alerts: board.alerts,
