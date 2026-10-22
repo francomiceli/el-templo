@@ -1597,6 +1597,18 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     categoria: "templo-module",
     modulo: "templo-training",
   },
+  "GET /api/members/conquer/progress": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/members/conquer/steps/:exerciseId/:step/subir": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/members/conquer/calibration/:exerciseId": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
 
   // ── templo-training · programs ────────────────────────────────────────────
   "GET /api/admin/programs": {

@@ -351,6 +351,26 @@ const sessionValueSchema = {
   maximum: 600,
 } as const;
 
+/** `CalibrationProposal` (PUT /sessions y Progreso). */
+const calibrationProposalSchema = {
+  type: "object",
+  properties: {
+    exerciseId: { type: "integer" },
+    exerciseName: { type: "string" },
+    proposal: { type: "string", enum: ["subir", "quedarse", "bajar"] },
+    fromRungName: { type: "string" },
+    toRungName: { type: ["string", "null"] },
+  },
+  required: [
+    "exerciseId",
+    "exerciseName",
+    "proposal",
+    "fromRungName",
+    "toRungName",
+  ],
+  additionalProperties: false,
+} as const;
+
 /** `PUT /sessions` (alumno). La fecha y el prev NO existen en el body (T-201-21). */
 export const saveSessionSchema = {
   body: {
@@ -395,8 +415,9 @@ export const saveSessionSchema = {
           required: ["primary", "secondary"],
           additionalProperties: false,
         },
+        calibration: { type: "array", items: calibrationProposalSchema },
       },
-      required: ["sessionId", "date", "dayKey", "lighting"],
+      required: ["sessionId", "date", "dayKey", "lighting", "calibration"],
       additionalProperties: false,
     },
   },
@@ -422,4 +443,148 @@ export const changeStepSchema = {
     additionalProperties: false,
   },
   response: { 200: todayStepSchema },
+} as const;
+
+// ── Progreso, Subir y calibración (plan 201-08) ─────────────────────
+
+const COUNTED_STEP_ENUM = ["e1", "e2", "e3"] as const;
+
+const progressStepSchema = {
+  type: "object",
+  properties: {
+    step: { type: "string", enum: [...STEP_ENUM] },
+    rungId: { type: "integer" },
+    rungName: { type: "string" },
+    mode: { type: "string", enum: [...MODE_ENUM] },
+    last: { type: ["integer", "null"] },
+    target: { type: ["integer", "null"] },
+    estado: { type: ["string", "null"], enum: [...ESTADO_ENUM, null] },
+  },
+  required: ["step", "rungId", "rungName", "mode", "last", "target", "estado"],
+  additionalProperties: false,
+} as const;
+
+const progressExerciseSchema = {
+  type: "object",
+  properties: {
+    exerciseId: { type: "integer" },
+    name: { type: "string" },
+    unit: { type: "string", enum: [...UNIT_ENUM] },
+    e1Curve: { type: "array", items: { type: "integer" } },
+    steps: { type: "array", items: progressStepSchema },
+  },
+  required: ["exerciseId", "name", "unit", "e1Curve", "steps"],
+  additionalProperties: false,
+} as const;
+
+/** `ProgressResponse`: respuesta de `GET /progress`, `POST .../subir` y `POST /calibration/:id`. */
+export const progressResponseSchema = {
+  200: {
+    type: "object",
+    properties: {
+      sessionsCount: { type: "integer" },
+      accuracy: {
+        type: "object",
+        properties: {
+          n: { type: "integer" },
+          hits: { type: "integer" },
+          pct: { type: ["integer", "null"] },
+          delta: { type: ["number", "null"] },
+        },
+        required: ["n", "hits", "pct", "delta"],
+        additionalProperties: false,
+      },
+      weekLighting: {
+        type: "object",
+        properties: {
+          primary: { type: "array", items: { type: "string" } },
+          secondary: { type: "array", items: { type: "string" } },
+        },
+        required: ["primary", "secondary"],
+        additionalProperties: false,
+      },
+      subir: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            exerciseId: { type: "integer" },
+            exerciseName: { type: "string" },
+            step: { type: "string", enum: [...COUNTED_STEP_ENUM] },
+            fromRungName: { type: "string" },
+            toRungName: { type: ["string", "null"] },
+          },
+          required: [
+            "exerciseId",
+            "exerciseName",
+            "step",
+            "fromRungName",
+            "toRungName",
+          ],
+          additionalProperties: false,
+        },
+      },
+      calibrations: { type: "array", items: calibrationProposalSchema },
+      days: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            dayKey: { type: "string" },
+            label: { type: "string" },
+            sessionsCount: { type: "integer" },
+            exercises: { type: "array", items: progressExerciseSchema },
+          },
+          required: ["dayKey", "label", "sessionsCount", "exercises"],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: [
+      "sessionsCount",
+      "accuracy",
+      "weekLighting",
+      "subir",
+      "calibrations",
+      "days",
+    ],
+    additionalProperties: false,
+  },
+} as const;
+
+/** `GET /progress` (alumno). */
+export const progressSchema = { response: progressResponseSchema } as const;
+
+/** `POST /steps/:exerciseId/:step/subir` (alumno): sin body (se tolera `{}`). */
+export const subirStepSchema = {
+  params: {
+    type: "object",
+    properties: {
+      exerciseId: { type: "integer", minimum: 1 },
+      step: { type: "string", enum: [...COUNTED_STEP_ENUM] },
+    },
+    required: ["exerciseId", "step"],
+  },
+  body: {
+    type: ["object", "null"],
+    properties: {},
+    additionalProperties: false,
+  },
+  response: progressResponseSchema,
+} as const;
+
+/** `POST /calibration/:exerciseId` (alumno): acepta o no la propuesta. */
+export const resolveCalibrationSchema = {
+  params: {
+    type: "object",
+    properties: { exerciseId: { type: "integer", minimum: 1 } },
+    required: ["exerciseId"],
+  },
+  body: {
+    type: "object",
+    properties: { accept: { type: "boolean" } },
+    required: ["accept"],
+    additionalProperties: false,
+  },
+  response: progressResponseSchema,
 } as const;

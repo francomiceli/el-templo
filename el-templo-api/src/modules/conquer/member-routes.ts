@@ -7,18 +7,23 @@ import type { FastifyPluginAsync } from "fastify";
 import { attachCountryScope } from "../shared/country-scope";
 import { handleServiceError } from "../shared/error-handler";
 import { assertTenant } from "../shared/tenant";
-import type { StepKey } from "./engine";
+import { resolveCalibration } from "./calibration-service";
+import type { CountedStep, StepKey } from "./engine";
 import { sendConquerError } from "./errors";
 import { getConquerState, requestUnlock } from "./member-service";
+import { buildProgress } from "./progress-service";
 import {
   changeStepSchema,
   conquerStateResponseSchema,
+  progressSchema,
+  resolveCalibrationSchema,
   saveSessionSchema,
+  subirStepSchema,
   todaySchema,
   unlockRequestSchema,
 } from "./schemas";
 import { saveSession, type SaveSessionBody } from "./session-service";
-import { changeStep, type ChangeStepBody } from "./step-service";
+import { changeStep, subirStep, type ChangeStepBody } from "./step-service";
 import { buildToday } from "./today-service";
 
 export const conquerMemberRoutes: FastifyPluginAsync = async (fastify) => {
@@ -119,6 +124,70 @@ export const conquerMemberRoutes: FastifyPluginAsync = async (fastify) => {
         );
       } catch (err: unknown) {
         sendConquerError(err, reply, request.log, "conquer.member.steps");
+      }
+    },
+  );
+
+  // GET /progress — Progreso: acierto, "Hoy toca subir", calibración, figura de la semana.
+  fastify.get(
+    "/progress",
+    { onRequest: [fastify.authenticate], schema: progressSchema },
+    async (request, reply) => {
+      try {
+        await attachCountryScope(request, fastify.db);
+        const ctx = assertTenant(request.scope, "conquer.member.progress");
+        return await buildProgress(fastify.db, ctx, request.user.userId);
+      } catch (err: unknown) {
+        sendConquerError(err, reply, request.log, "conquer.member.progress");
+      }
+    },
+  );
+
+  // POST /steps/:exerciseId/:step/subir — botón Subir, sin aprobación del coach (§4.5, D-06).
+  fastify.post<{ Params: { exerciseId: number; step: CountedStep } }>(
+    "/steps/:exerciseId/:step/subir",
+    { onRequest: [fastify.authenticate], schema: subirStepSchema },
+    async (request, reply) => {
+      try {
+        await attachCountryScope(request, fastify.db);
+        const ctx = assertTenant(request.scope, "conquer.member.subir");
+        const userId = request.user.userId;
+        await subirStep(
+          fastify.db,
+          ctx,
+          userId,
+          request.params.exerciseId,
+          request.params.step,
+        );
+        return await buildProgress(fastify.db, ctx, userId);
+      } catch (err: unknown) {
+        sendConquerError(err, reply, request.log, "conquer.member.subir");
+      }
+    },
+  );
+
+  // POST /calibration/:exerciseId — acepta o no la propuesta de la semana 1 (§4.3).
+  fastify.post<{
+    Params: { exerciseId: number };
+    Body: { accept: boolean };
+  }>(
+    "/calibration/:exerciseId",
+    { onRequest: [fastify.authenticate], schema: resolveCalibrationSchema },
+    async (request, reply) => {
+      try {
+        await attachCountryScope(request, fastify.db);
+        const ctx = assertTenant(request.scope, "conquer.member.calibration");
+        const userId = request.user.userId;
+        await resolveCalibration(
+          fastify.db,
+          ctx,
+          userId,
+          request.params.exerciseId,
+          request.body.accept,
+        );
+        return await buildProgress(fastify.db, ctx, userId);
+      } catch (err: unknown) {
+        sendConquerError(err, reply, request.log, "conquer.member.calibration");
       }
     },
   );

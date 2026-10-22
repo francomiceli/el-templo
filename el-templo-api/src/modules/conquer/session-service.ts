@@ -4,7 +4,7 @@
 // el peldaño y el modo los fija el servidor; del body solo salen el día, la
 // molestia y los valores. D-18: el contador viene precargado con el objetivo,
 // así que guardar sin tocar nada deja `value == prev_target`.
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../db/schema";
 import { AppError } from "../shared/errors";
@@ -13,7 +13,13 @@ import {
   tenantWhere,
   type TenantContext,
 } from "../shared/tenant";
+import { autoResolveEventAlert } from "./alerts-service";
 import {
+  calibrationProposals,
+  type CalibrationProposal,
+} from "./calibration-service";
+import {
+  neighborRung,
   planDays,
   type ExerciseView,
   type TemplateDayView,
@@ -21,6 +27,7 @@ import {
 import {
   nextTarget,
   selectReales,
+  type CountedStep,
   type MarkRow,
   type StepKey,
   type Unit,
@@ -32,6 +39,8 @@ import {
   type MemberContext,
 } from "./history-loader";
 import { exerciseWorked, lightZones } from "./lighting";
+import { emitTopeAlert, topeDedupeKey } from "./step-service";
+import { computeTodayStep } from "./today-service";
 
 type DbInstance = MySql2Database<typeof schema>;
 type Tx = Parameters<Parameters<DbInstance["transaction"]>[0]>[0];
@@ -58,6 +67,8 @@ export interface SaveSessionResult {
   date: string;
   dayKey: string;
   lighting: { primary: string[]; secondary: string[] };
+  /** §4.3: propuestas de calibración de los ejercicios del día (puede ser vacío). */
+  calibration: CalibrationProposal[];
 }
 
 type SessionStepInsert = Omit<
@@ -65,7 +76,7 @@ type SessionStepInsert = Omit<
   "tenantId" | "sessionId"
 >;
 
-const COUNTED: readonly Exclude<StepKey, "hold">[] = ["e1", "e2", "e3"];
+const COUNTED: readonly CountedStep[] = ["e1", "e2", "e3"];
 
 function invalidExercisesError(): AppError {
   return new AppError(
@@ -126,7 +137,7 @@ function assertValueRanges(unit: Unit, entry: SaveSessionExercise): void {
  */
 function buildSessionStepRows(
   mctx: MemberContext,
-  matched: { exercise: ExerciseView; entry: SaveSessionExercise }[],
+  matched: Matched,
   marks: ReadonlyMap<string, MarkRow[]>,
 ): SessionStepInsert[] {
   const rows: SessionStepInsert[] = [];
@@ -163,6 +174,111 @@ function buildSessionStepRows(
     }
   }
   return rows;
+}
+
+type Matched = { exercise: ExerciseView; entry: SaveSessionExercise }[];
+
+/** Historial con las marcas recién armadas de hoy (sin releer la base). */
+function withSessionMarks(
+  marks: ReadonlyMap<string, MarkRow[]>,
+  date: string,
+  rows: readonly SessionStepInsert[],
+): Map<string, MarkRow[]> {
+  const merged = new Map<string, MarkRow[]>();
+  for (const [key, list] of marks) merged.set(key, [...list]);
+  for (const row of rows) {
+    const key = markKey(row.exerciseId, row.step);
+    const list = merged.get(key) ?? [];
+    list.push({
+      date,
+      value: row.value,
+      rungId: row.rungId,
+      prevTarget: row.prevTarget ?? null,
+    });
+    merged.set(key, list);
+  }
+  return merged;
+}
+
+/**
+ * §4.3 / A5: cierra la calibración de los ejercicios del día. Las propuestas
+ * `quedarse` no necesitan respuesta del alumno y desde la 2ª sesión del E1
+ * corre el §4.4, así que ambos casos pasan a `resuelta`. Devuelve las
+ * propuestas de los ejercicios del día para que el app las muestre.
+ */
+async function settleCalibration(
+  tx: Tx,
+  ctx: TenantContext,
+  mctx: MemberContext,
+  matched: Matched,
+  marksAfter: ReadonlyMap<string, MarkRow[]>,
+): Promise<CalibrationProposal[]> {
+  const dayIds = new Set(matched.map(({ exercise }) => exercise.id));
+  const proposals = calibrationProposals(mctx, marksAfter).filter((p) =>
+    dayIds.has(p.exerciseId),
+  );
+  const quedarse = new Set(
+    proposals.filter((p) => p.proposal === "quedarse").map((p) => p.exerciseId),
+  );
+
+  const settleIds: number[] = [];
+  for (const { exercise } of matched) {
+    const e1 = mctx.steps.get(markKey(exercise.id, "e1"));
+    if (!e1 || e1.calibration !== "pendiente") continue;
+    const reales = selectReales(
+      marksAfter.get(markKey(exercise.id, "e1")) ?? [],
+      e1.sinceDate,
+      e1.rungId,
+    );
+    if (reales.length >= 2 || quedarse.has(exercise.id)) settleIds.push(e1.id);
+  }
+  if (settleIds.length > 0) {
+    await tx
+      .update(schema.conquerSteps)
+      .set({ calibration: "resuelta" })
+      .where(
+        and(
+          tenantWhere(schema.conquerSteps, ctx),
+          inArray(schema.conquerSteps.id, settleIds),
+        ),
+      );
+  }
+  return proposals;
+}
+
+/**
+ * A2 / §5: un escalón E1-E3 en `subir` sin peldaño más difícil avisa al coach
+ * (una alerta por ejercicio, escalón y peldaño: T-201-28). Si el escalón está en
+ * el tope pero ya no está en `subir`, la alerta se auto-resuelve.
+ */
+async function syncTopeAlerts(
+  tx: Tx,
+  ctx: TenantContext,
+  mctx: MemberContext,
+  matched: Matched,
+  marksAfter: ReadonlyMap<string, MarkRow[]>,
+): Promise<void> {
+  for (const { exercise } of matched) {
+    for (const step of COUNTED) {
+      const row = mctx.steps.get(markKey(exercise.id, step));
+      if (!row) continue;
+      const atTop =
+        neighborRung(mctx.catalog, exercise.ladderId, row.rungId, "harder") ===
+        null;
+      if (!atTop) continue;
+      const rung = mctx.catalog.rungById.get(row.rungId);
+      const { estado } = computeTodayStep(mctx, exercise, row, marksAfter);
+      if (estado === "subir" && rung) {
+        await emitTopeAlert(tx, ctx, mctx.userId, exercise, step, rung);
+      } else {
+        await autoResolveEventAlert(tx, ctx, {
+          userId: mctx.userId,
+          type: "tope_escalera",
+          dedupeKey: topeDedupeKey(exercise.id, step, row.rungId),
+        });
+      }
+    }
+  }
 }
 
 /** Sesión ya guardada hoy para ese día, si existe. */
@@ -226,7 +342,9 @@ export async function saveSession(
   );
   const rows = buildSessionStepRows(mctx, matched, marks);
 
+  const marksAfter = withSessionMarks(marks, date, rows);
   let sessionId = null as number | null;
+  let calibration: CalibrationProposal[] = [];
   await db.transaction(async (tx) => {
     await tx
       .insert(schema.conquerSessions)
@@ -260,6 +378,9 @@ export async function saveSession(
       .values(
         rows.map((row) => tenantValues(ctx, { ...row, sessionId: savedId })),
       );
+    // Fase 201 §4.3, A2: calibración y alertas de tope, en la misma transacción.
+    calibration = await settleCalibration(tx, ctx, mctx, matched, marksAfter);
+    await syncTopeAlerts(tx, ctx, mctx, matched, marksAfter);
   });
   if (sessionId === null)
     throw new AppError("No pudimos guardar la sesión", 500);
@@ -271,5 +392,5 @@ export async function saveSession(
       worked: exerciseWorked(entry),
     })),
   );
-  return { sessionId, date, dayKey: day.dayKey, lighting };
+  return { sessionId, date, dayKey: day.dayKey, lighting, calibration };
 }
