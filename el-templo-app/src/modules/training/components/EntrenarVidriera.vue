@@ -49,7 +49,7 @@
       </div>
     </div>
 
-    <!-- Conquer: sin desenfoque ni tarjeta. 201-17 lo reemplaza por la tab real. -->
+    <!-- Conquer: sin desenfoque ni tarjeta; el API decide qué ve (Bloqueado si no está activo) -->
     <section
       v-else
       :id="paneId('conquer')"
@@ -57,13 +57,13 @@
       :aria-labelledby="tabId('conquer')"
       class="vidriera__pane"
     >
-      <ComingSoonPane kind="conquer" />
+      <ConquerTab />
     </section>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, defineAsyncComponent, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import PremiumDialogCard from 'src/components/PremiumDialogCard.vue'
 import { ENTRENAR_TABS_ENABLED } from 'src/config/featureFlags'
@@ -74,9 +74,13 @@ import { buildVidrieraWeek } from '../data/vidriera-sample'
 import { mondayOfDate } from '../utils/weekLabels'
 import { ENTRENAR_TAB_FLAGS, queryTabKeys, tabFromQuery } from '../utils/entrenarTabs'
 import type { TabKey } from '../utils/entrenarTabs'
-import ComingSoonPane from './ComingSoonPane.vue'
 import EntrenarTabs, { paneId, tabId } from './EntrenarTabs.vue'
 import SemanaTab from './semana/SemanaTab.vue'
+
+// Fase 201 D-09: chunk aparte, igual que en EntrenarView
+const ConquerTab = defineAsyncComponent(
+  () => import('src/modules/conquer/components/ConquerTab.vue'),
+)
 
 // Fase 197 D-06: vidriera de quien no tiene plan. Se ve Entrenar (Semana con figura) desenfocado
 // y no interactivo, con la tarjeta "Activá Tu Plan" (y su CTA de WhatsApp) encima. El contenido

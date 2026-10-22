@@ -74,13 +74,13 @@
       :aria-labelledby="tabId('conquer')"
       class="entrenar-view__pane"
     >
-      <ComingSoonPane kind="conquer" />
+      <ConquerTab />
     </section>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onUnmounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import TemploLoader from 'src/components/TemploLoader.vue'
 import { ENTRENAR_TABS_ENABLED } from 'src/config/featureFlags'
@@ -93,6 +93,11 @@ import { ENTRENAR_TAB_FLAGS, queryTabKeys, tabFromQuery } from '../utils/entrena
 import ComingSoonPane from '../components/ComingSoonPane.vue'
 import SemanaTab from '../components/semana/SemanaTab.vue'
 import LibreTab from '../components/libre/LibreTab.vue'
+
+// Fase 201 D-09, D-17: Conquer en un chunk aparte (su fuente y su CSS no pesan en el resto de Entrenar)
+const ConquerTab = defineAsyncComponent(
+  () => import('src/modules/conquer/components/ConquerTab.vue'),
+)
 
 // Fase 197 D-02, D-05: Entrenar con tabs. Fase 201 D-10: hoy Semana y Conquer. Siempre abre en
 // Semana; `?tab=conquer` (destino del pop-up de lanzamiento, D-11) abre Conquer. `?tab=libre` abre
