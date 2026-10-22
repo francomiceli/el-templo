@@ -39,6 +39,13 @@ const routes: RouteRecordRaw[] = [
     component: () => import('src/modules/conquer/pages/ConquerLevelsPage.vue'),
     meta: { requiresAuth: true },
   },
+  // Fase 201 DA-23: la guía "¿Cómo funciona?" (la tab la abre una vez después del día 0; sin flag)
+  {
+    path: 'training/conquer/como-funciona',
+    name: 'conquer-guia',
+    component: () => import('src/modules/conquer/pages/ConquerGuidePage.vue'),
+    meta: { requiresAuth: true },
+  },
   // Fase 201 §7.1 Hoy: la sesión del día de Conquer (query `day` opcional, D-16)
   {
     path: 'training/conquer/hoy',
