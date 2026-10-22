@@ -5,14 +5,24 @@
 // Secciones:
 //   1. oraculo: carga conquer-app.html con node:vm (oracle.ts) y verifica un caso conocido.
 //   2. semilla (plan 201-02): paridad de 0292_conquer_catalog_seed.sql con LAD y DIAS.
-//   3. motor (plan 201-03, ver abajo): paridad de engine.ts con next() del oraculo.
+//   3. motor (plan 201-03): paridad de engine.ts con next() del oraculo, dorados,
+//      hoja Simulacion, calibracion y A1/A3/A6/A8 (imprime MOTOR OK (<n> casos)).
 //      Los planes 201-03 y 201-04 suman sus secciones al final, antes del resumen.
 //
-// Imprime ORACULO OK / SEMILLA OK (o la lista de diferencias) y sale con codigo 1 si algo falla.
+// Imprime ORACULO OK / SEMILLA OK / MOTOR OK (o la lista de diferencias) y sale con codigo 1 si algo falla.
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { loadOracle } from "./oracle.ts";
+import {
+  DEFAULT_INC,
+  accuracy,
+  calibracion,
+  caidaE1,
+  nextTarget,
+  pickSubir,
+  selectReales,
+} from "../../src/modules/conquer/engine.ts";
 
 const HERE = new URL(".", import.meta.url);
 const FIXTURE = fileURLToPath(new URL("fixtures/conquer-app.html", HERE));
@@ -175,6 +185,162 @@ if (!existsSync(SEED_SQL)) {
   }
 }
 
-// ------------------------------------------------- 3. motor (lo suma 201-03)
+// ------------------------------------------------- 3. motor (plan 201-03)
+
+const ESTADO_DEL_ORACULO = {
+  "sin datos": "sin_datos",
+  rango: "rango",
+  techo1: "techo1",
+  bajo: "bajo",
+  subir: "subir",
+};
+
+function motorDiffs() {
+  const diffs = [];
+  let cases = 0;
+  const same = (label, got, want) => {
+    cases += 1;
+    if (JSON.stringify(got) !== JSON.stringify(want)) {
+      diffs.push(
+        `${label}: motor=${JSON.stringify(got)} esperado=${JSON.stringify(want)}`,
+      );
+    }
+  };
+
+  // Diferencial completo: todas las secuencias de 0 a 4 marcas, por unidad.
+  const alphabet = [0, 2, 3, 5, 6, 7, 8, 9, 12];
+  let level = [[]];
+  const sequences = [[]];
+  for (let len = 1; len <= 4; len++) {
+    const next = [];
+    for (const seq of level) for (const v of alphabet) next.push([...seq, v]);
+    sequences.push(...next);
+    level = next;
+  }
+  for (const unit of ["reps", "s"]) {
+    for (const seq of sequences) {
+      const want = oracle.next(seq, unit);
+      same(
+        `diferencial ${unit} [${seq}]`,
+        nextTarget(seq, unit, DEFAULT_INC[unit]),
+        { target: want.obj, estado: ESTADO_DEL_ORACULO[want.est] },
+      );
+    }
+  }
+
+  // Dorados clave (research 9.1).
+  const dorados = [
+    [[6, 7, 8, 8], "reps", 3, "subir"],
+    [[12, 12], "s", 4, "subir"],
+    [[8, 7], "reps", 8, "rango"],
+    [[2], "reps", 3, "bajo"],
+    [[10, 12], "s", 12, "techo1"],
+    [[], "reps", 3, "sin_datos"],
+  ];
+  for (const [values, unit, target, estado] of dorados) {
+    same(
+      `dorado ${unit} [${values}]`,
+      nextTarget(values, unit, DEFAULT_INC[unit]),
+      { target, estado },
+    );
+  }
+
+  // Hoja Simulacion del xlsx: cambio de progresion tras la 5a sesion.
+  const reales = [5, 6, 7, 8, 8, 3, 4, 5, 6, 7, 8, 8];
+  const day = (i) => `2026-03-${String(i + 1).padStart(2, "0")}`;
+  const rows = [];
+  let rungId = 1;
+  let sinceDate = null;
+  const targets = [];
+  const estados = [];
+  reales.forEach((value, i) => {
+    if (i === 5) {
+      rungId = 2;
+      sinceDate = day(4);
+    }
+    rows.push({ date: day(i), value, rungId, prevTarget: null });
+    const marks = selectReales(rows, sinceDate, rungId).map((r) => r.value);
+    const res = nextTarget(marks, "reps", 1);
+    targets.push(res.target);
+    estados.push(res.estado);
+  });
+  same("simulacion objetivos", targets, [6, 7, 8, 8, 3, 4, 5, 6, 7, 8, 8, 3]);
+  same("simulacion estados", estados, [
+    "rango",
+    "rango",
+    "rango",
+    "techo1",
+    "subir",
+    "rango",
+    "rango",
+    "rango",
+    "rango",
+    "rango",
+    "techo1",
+    "subir",
+  ]);
+
+  // Calibracion (3 casos por unidad en los bordes).
+  same("calibracion reps 2", calibracion(2, "reps"), "bajar");
+  same("calibracion reps 5", calibracion(5, "reps"), "quedarse");
+  same("calibracion reps 6", calibracion(6, "reps"), "subir");
+  same("calibracion s 3", calibracion(3, "s"), "bajar");
+  same("calibracion s 8", calibracion(8, "s"), "quedarse");
+  same("calibracion s 9", calibracion(9, "s"), "subir");
+
+  // A1: el dia del cambio.
+  const a1 = (date, rung) => [
+    { date, value: 3, rungId: rung, prevTarget: null },
+  ];
+  same(
+    "A1 mismo dia, peldano nuevo",
+    selectReales(a1("2026-03-05", 2), "2026-03-05", 2).length,
+    1,
+  );
+  same(
+    "A1 mismo dia, peldano viejo",
+    selectReales(a1("2026-03-05", 1), "2026-03-05", 2).length,
+    0,
+  );
+
+  // A3: un SUBIR por ejercicio, en orden e1, e2, e3.
+  same("A3 e1+e2", pickSubir({ e1: "subir", e2: "subir", e3: "rango" }), "e1");
+  same("A3 e2+e3", pickSubir({ e1: "rango", e2: "subir", e3: "subir" }), "e2");
+  same(
+    "A3 ninguno",
+    pickSubir({ e1: "rango", e2: "rango", e3: "rango" }),
+    null,
+  );
+
+  // A6: caida del E1.
+  same("A6 5,6,4,3", caidaE1([5, 6, 4, 3]), true);
+  same("A6 5,6,4,5", caidaE1([5, 6, 4, 5]), false);
+  same("A6 9,8,7", caidaE1([9, 8, 7]), false);
+
+  // A8: acierto sobre todo el historial.
+  same(
+    "A8 acierto",
+    accuracy([
+      { value: 7, prevTarget: 7 },
+      { value: 5, prevTarget: 8 },
+      { value: 9, prevTarget: 8 },
+      { value: 6, prevTarget: null },
+    ]),
+    { n: 3, hits: 2, pct: 67, delta: -0.7 },
+  );
+
+  return { diffs, cases };
+}
+
+{
+  const { diffs, cases } = motorDiffs();
+  if (diffs.length === 0) {
+    out(`MOTOR OK (${cases} casos)`);
+  } else {
+    failed = true;
+    out(`MOTOR FALLA (${diffs.length} de ${cases}):`);
+    for (const d of diffs.slice(0, 40)) out(`  - ${d}`);
+  }
+}
 
 if (failed) process.exit(1);
