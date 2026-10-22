@@ -276,10 +276,13 @@ const claveUltima = computed<string | null>(() =>
       : null
 );
 
+// La hoja no se muestra mientras la ficha está abierta (WR-02): en una carga en frío con
+// `?zona=…&ruta=…` las dos aparecían a la vez y la hoja tapaba media ficha. Al cerrarse la
+// ficha la hoja vuelve sola, porque la zona sigue en la URL.
 const hojaModel = computed<boolean>({
-  get: () => hojaAbierta.value,
+  get: () => hojaAbierta.value && !fichaAbierta.value,
   set: (abierta) => {
-    if (!abierta) cerrarPanel();
+    if (!abierta && !fichaAbierta.value) cerrarPanel();
   },
 });
 
