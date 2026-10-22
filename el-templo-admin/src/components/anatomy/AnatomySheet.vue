@@ -27,7 +27,7 @@
       <button type="button" class="anat-sheet__x" aria-label="Cerrar" @click="cerrar">
         <span aria-hidden="true">✕</span>
       </button>
-      <div class="anat-sheet__body">
+      <div ref="cuerpo" class="anat-sheet__body">
         <slot />
       </div>
     </q-card>
@@ -41,12 +41,23 @@
  * toque la alterna. Sin backdrop: se puede tocar otra zona del cuerpo detrás. Escape cierra.
  * Pointer events solo sobre el handle (nada global que limpiar).
  */
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 
 const props = defineProps<{
   modelValue: boolean;
   full: boolean;
+  /** Cuando cambia (otra zona u otro músculo), el contenido vuelve arriba. */
+  resetKey?: string | null;
 }>();
+
+const cuerpo = ref<HTMLElement | null>(null);
+
+watch(
+  () => props.resetKey,
+  () => {
+    if (cuerpo.value) cuerpo.value.scrollTop = 0;
+  }
+);
 
 const emit = defineEmits<{
   'update:modelValue': [value: boolean];
