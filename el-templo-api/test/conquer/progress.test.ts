@@ -315,6 +315,45 @@ describe("GET /api/members/conquer/progress — días del plan y conteos", () =>
     }
   });
 
+  it("cada escalón trae unilateral del peldaño ACTUAL: One arm / archer arranca por lado y pasa a bilateral al cambiar el peldaño (§1.4)", async () => {
+    const { token } = await createActiveConquerMember(app, {
+      level: "toro",
+      daysCount: 4,
+    });
+    const ids = await conquerExerciseIds(app);
+    const archerId = ids.get("one_arm_archer") ?? 0;
+    const pressId = ids.get("planche_press") ?? 0;
+
+    const before = await fetchProgress(app, token);
+
+    const archer = exerciseIn(before, archerId);
+    expect(archer.steps.map((s) => [s.step, s.unilateral])).toEqual([
+      ["e1", true],
+      ["e2", true],
+      ["e3", false],
+      ["hold", false],
+    ]);
+    expect(exerciseIn(before, pressId).steps.map((s) => s.unilateral)).toEqual([
+      false,
+      false,
+      false,
+      false,
+    ]);
+
+    await changeE1Rung(
+      token,
+      archerId,
+      await conquerRungId(app, "trac", "dominada"),
+    );
+
+    const after = await fetchProgress(app, token);
+    expect(exerciseIn(after, archerId).steps[0]).toMatchObject({
+      step: "e1",
+      rungName: "dominada",
+      unilateral: false,
+    });
+  });
+
   it("sessionsCount total y por día cuentan todo el historial", async () => {
     const { userId, token } = await createActiveConquerMember(app, {
       level: "toro",

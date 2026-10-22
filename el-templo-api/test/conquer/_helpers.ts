@@ -566,6 +566,7 @@ export interface ProgressStepBody {
   step: StepKey;
   rungId: number;
   rungName: string;
+  unilateral: boolean;
   mode: string;
   last: number | null;
   target: number | null;

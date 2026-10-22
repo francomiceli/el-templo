@@ -225,6 +225,8 @@ export interface ProgressStep {
   step: StepKey
   rungId: number
   rungName: string
+  /** El peldaño ACTUAL del escalón se carga por lado (§1.4). */
+  unilateral: boolean
   mode: Mode
   last: number | null
   target: number | null

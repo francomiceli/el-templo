@@ -577,12 +577,22 @@ const progressStepSchema = {
     step: { type: "string", enum: [...STEP_ENUM] },
     rungId: { type: "integer" },
     rungName: { type: "string" },
+    unilateral: { type: "boolean" },
     mode: { type: "string", enum: [...MODE_ENUM] },
     last: { type: ["integer", "null"] },
     target: { type: ["integer", "null"] },
     estado: { type: ["string", "null"], enum: [...ESTADO_ENUM, null] },
   },
-  required: ["step", "rungId", "rungName", "mode", "last", "target", "estado"],
+  required: [
+    "step",
+    "rungId",
+    "rungName",
+    "unilateral",
+    "mode",
+    "last",
+    "target",
+    "estado",
+  ],
   additionalProperties: false,
 } as const;
 

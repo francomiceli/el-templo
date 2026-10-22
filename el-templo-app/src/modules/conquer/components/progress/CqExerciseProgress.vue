@@ -47,8 +47,8 @@ const rows = computed<Row[]>(() =>
       return {
         step: s.step,
         label: `E${i + 1} · ${s.rungName}${s.mode === 'negativa' ? ' neg.' : ''}`,
-        last: s.last === null ? '—' : unitText(s.last, props.exercise.unit, false),
-        target: s.target === null ? '—' : unitText(s.target, props.exercise.unit, false),
+        last: s.last === null ? '—' : unitText(s.last, props.exercise.unit, s.unilateral),
+        target: s.target === null ? '—' : unitText(s.target, props.exercise.unit, s.unilateral),
         chipLabel: chip.label,
         chipClass: chip.tone === 'neutro' ? '' : `cq-chip--${chip.tone}`,
       }

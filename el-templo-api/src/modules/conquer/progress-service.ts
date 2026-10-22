@@ -56,6 +56,8 @@ export interface ProgressStep {
   step: StepKey;
   rungId: number;
   rungName: string;
+  /** Fase 201 §1.4: el peldaño ACTUAL del escalón se carga por lado. */
+  unilateral: boolean;
   mode: "completa" | "negativa" | "hold";
   /** Última marca desde el último cambio de peldaño, o `null`. */
   last: number | null;
@@ -212,6 +214,7 @@ function buildProgressExercise(
       step,
       rungId: row.rungId,
       rungName: view.rungName,
+      unilateral: view.unilateral,
       mode: view.mode,
       last: reales.length > 0 ? reales[reales.length - 1] : null,
       target: view.target,
