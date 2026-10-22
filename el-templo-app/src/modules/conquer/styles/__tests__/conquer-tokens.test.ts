@@ -168,10 +168,64 @@ describe('alcance de .cq-root (T-201-103)', () => {
   it.each(SUBMARCA_HEX)('el hex %s no aparece fuera de .cq-root', (hex) => {
     expect(new RegExp(hex, 'i').test(outside)).toBe(false)
   })
+})
 
-  it('el LEGADO también vive dentro de .cq-root', () => {
-    expect(TOKENS.has('--cq-sky1')).toBe(true)
-    expect(TOKENS.get('--cq-display')).toBe('var(--cq-font-head)')
+// Fase 201 plan 34 (hallazgo 2): el cielo, el sol y las nubes ya no existen. Estos tokens y clases
+// eran de la versión vieja (bloque LEGADO de la hoja); que no vuelvan a definirse.
+const TOKENS_DEL_CIELO = [
+  'sky1',
+  'sky2',
+  'sky3',
+  'deep',
+  'sun',
+  'muted',
+  'cloud',
+  'cloud2',
+  'cloud3',
+  'ink',
+  'ink2',
+  'glass',
+  'hair',
+  'hair2',
+  'display',
+  'body',
+  'pad-x',
+  'pad-top',
+  'pad-bottom',
+  'gold',
+  'gold-hi',
+  'cream',
+  'subir-bg',
+  'subir-ink',
+]
+
+const CLASES_DEL_CIELO = [
+  '.cq-foot',
+  '.cq-cta',
+  '.cq-display',
+  '.cq-ital',
+  '.cq-caps',
+  '.cq-small',
+  '.cq-toast',
+  '.cq-link',
+  '.cq-rule',
+  '.cq-grow',
+  '.cq-sky',
+]
+
+describe('sin restos del cielo (hallazgo 2)', () => {
+  it.each(TOKENS_DEL_CIELO)('--cq-%s no está definido', (name) => {
+    const definition = new RegExp(`(?<![a-z0-9-])--cq-${name}\\s*:`)
+    expect(definition.test(inside + outside)).toBe(false)
+  })
+
+  it.each(CLASES_DEL_CIELO)('%s no existe como selector', (selector) => {
+    const escaped = selector.replace('.', '\\.')
+    expect(new RegExp(`${escaped}(?![a-z0-9_-])`).test(inside + outside)).toBe(false)
+  })
+
+  it('la hoja no tiene un bloque LEGADO', () => {
+    expect(/LEGADO/.test(SCSS)).toBe(false)
   })
 })
 
