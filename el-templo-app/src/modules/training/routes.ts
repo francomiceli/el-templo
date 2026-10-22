@@ -1,5 +1,5 @@
 import type { RouteRecordRaw } from 'vue-router'
-import { FREE_BLOCKS_ENABLED } from 'src/config/featureFlags'
+import { ANATOMIA_ALUMNOS_ENABLED, FREE_BLOCKS_ENABLED } from 'src/config/featureFlags'
 
 const routes: RouteRecordRaw[] = [
   {
@@ -38,6 +38,31 @@ const routes: RouteRecordRaw[] = [
     component: () => import('./pages/GuiaPage.vue'),
     meta: { requiresAuth: true },
   },
+  // Fase 200 P1/D13: la portada de la Guía y Tu cuerpo viven en rutas NUEVAS bajo /training/guia/…
+  // La ruta `guia` de arriba sigue siendo las historias (deep links, avisos, auto-abrir de socios
+  // nuevos). Con ANATOMIA_ALUMNOS_ENABLED apagado estas tres rutas no existen.
+  ...(ANATOMIA_ALUMNOS_ENABLED
+    ? [
+        {
+          path: 'training/guia/inicio',
+          name: 'guia-inicio',
+          component: () => import('src/modules/anatomy/pages/GuiaHomePage.vue'),
+          meta: { requiresAuth: true },
+        } satisfies RouteRecordRaw,
+        {
+          path: 'training/guia/cuerpo',
+          name: 'tu-cuerpo',
+          component: () => import('src/modules/anatomy/pages/TuCuerpoPage.vue'),
+          meta: { requiresAuth: true },
+        } satisfies RouteRecordRaw,
+        {
+          path: 'training/guia/cuerpo/:slug',
+          name: 'tu-cuerpo-ficha',
+          component: () => import('src/modules/anatomy/pages/TuCuerpoFichaPage.vue'),
+          meta: { requiresAuth: true },
+        } satisfies RouteRecordRaw,
+      ]
+    : []),
 ]
 
 export default routes

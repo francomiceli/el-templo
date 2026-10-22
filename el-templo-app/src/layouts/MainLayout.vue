@@ -57,7 +57,7 @@
           :key="'rail-' + tab.to"
           :to="tab.to"
           class="desktop-rail__tab"
-          :class="{ 'desktop-rail__tab--active': isTabActive(tab.to) }"
+          :class="{ 'desktop-rail__tab--active': isTabActive(tab) }"
         >
           <q-icon :name="tab.icon" :size="tab.size ?? '24px'" />
           <span class="desktop-rail__label">{{ tab.label }}</span>
@@ -151,7 +151,7 @@
           :key="tab.to"
           :to="tab.to"
           class="mobile-tab"
-          :class="{ 'mobile-tab--active': isTabActive(tab.to) }"
+          :class="{ 'mobile-tab--active': isTabActive(tab) }"
         >
           <q-icon :name="tab.icon" :size="tab.size ?? '24px'" />
           <span class="mobile-tab__label">{{ tab.label }}</span>
@@ -218,6 +218,7 @@ import VeteranSeal from 'src/components/VeteranSeal.vue'
 import { useTipsSeenStorage } from 'src/composables/useTipsSeenStorage'
 import { TIPS_CONTENT } from 'src/config/tips-content'
 import { isNewMember } from 'src/modules/guia/new-member'
+import { ANATOMIA_ALUMNOS_ENABLED } from 'src/config/featureFlags'
 
 const $q = useQuasar()
 const router = useRouter()
@@ -400,12 +401,23 @@ interface MobileTab {
   badge?: boolean
   /** Pelotita roja con "1" mientras el socio no abrió "Empezá acá". */
   introBadge?: boolean
+  /** Prefijo de ruta con el que la tab se marca activa, si no es el propio `to`. */
+  match?: string
 }
 
 const mobileTabs = computed<MobileTab[]>(() => {
   const tabs: MobileTab[] = [
     { to: '/mi-templo', icon: 'account_balance', label: 'Mi Templo', badge: true },
-    { to: '/training/guia', icon: 'menu_book', label: 'Guía', size: '26px', introBadge: true },
+    {
+      // Fase 200 P1/D12: con el flag ON la tab abre la portada (Empezá acá + Tu cuerpo); apagado,
+      // las historias directo como hoy. `match` mantiene la tab activa en todo /training/guia*.
+      to: ANATOMIA_ALUMNOS_ENABLED ? '/training/guia/inicio' : '/training/guia',
+      match: '/training/guia',
+      icon: 'menu_book',
+      label: 'Guía',
+      size: '26px',
+      introBadge: true,
+    },
     { to: '/training', icon: 'img:/icons/entrenar.svg', label: 'Entrenar', size: '26px' },
   ]
   tabs.push({ to: '/reservas', icon: 'event_available', label: 'Reservas' })
@@ -413,7 +425,8 @@ const mobileTabs = computed<MobileTab[]>(() => {
   return tabs
 })
 
-function isTabActive(tabTo: string): boolean {
+function isTabActive(tab: MobileTab): boolean {
+  const tabTo = tab.match ?? tab.to
   // Exact match for /training to avoid matching /training/guia
   if (tabTo === '/training') {
     return (
