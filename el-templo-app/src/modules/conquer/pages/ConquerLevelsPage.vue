@@ -1,43 +1,42 @@
 <template>
-  <CqSky class="cq-levels">
+  <CqScreen class="cq-levels">
     <CqPageHeader
-      title="EL CAMINO"
+      title="El camino"
       subtitle="La leyenda de Milón de Crotona"
       :back-to="BACK_TO"
       back-label="Volver al inicio de Conquer"
     />
 
-    <p class="cq-levels__legend">
-      {{ CQ_TEXTOS.leyenda_milon }}
-    </p>
+    <div class="cq-card">
+      <div class="cq-meander" aria-hidden="true" />
+      <p class="cq-levels__legend">{{ CQ_TEXTOS.leyenda_milon }}</p>
+    </div>
 
-    <div class="cq-caps cq-rule">Tres niveles, un método</div>
+    <h2 class="cq-block-title">Tres niveles, un método</h2>
 
     <div
       v-for="lv in LEVELS"
       :key="lv"
-      class="cq-levels__lvl"
-      :class="{ 'cq-levels__lvl--on': lv === currentLevel }"
+      class="cq-card cq-levels__lvl"
+      :class="{ 'cq-dark': lv === currentLevel }"
     >
-      <CqLevelIcon :level="lv" :size="58" />
+      <CqLevelIcon :level="lv" :size="48" />
       <div class="cq-levels__text">
-        <div class="cq-caps">{{ LEVEL_INFO[lv].kicker }}</div>
-        <b class="cq-levels__name">
+        <p class="cq-kicker">{{ LEVEL_INFO[lv].kicker }}</p>
+        <h3 class="cq-levels__name">
           {{ LEVEL_INFO[lv].name }}
-          <span v-if="lv === currentLevel" class="cq-levels__tag">Tu nivel</span>
-        </b>
-        <p>{{ LEVEL_INFO[lv].text }}</p>
+          <span v-if="lv === currentLevel" class="cq-chip cq-levels__tag">Tu nivel</span>
+        </h3>
+        <p class="cq-levels__body">{{ LEVEL_INFO[lv].text }}</p>
       </div>
     </div>
 
-    <div class="cq-sub cq-levels__note">
+    <p class="cq-sub cq-levels__note">
       En los tres niveles la sesión es la misma: 3 ejercicios × 3 series.
-    </div>
+    </p>
 
-    <div class="cq-grow" />
-
-    <CqCloudButton label="Volver al inicio" @click="goBack" />
-  </CqSky>
+    <CqButton label="Volver al inicio" variant="secondary" @click="goBack" />
+  </CqScreen>
 </template>
 
 <script setup lang="ts">
@@ -46,13 +45,14 @@ import { useRouter } from 'vue-router'
 import { useConquerStore } from '../stores/conquerStore'
 import { CQ_TEXTOS, LEVEL_INFO } from '../utils/format'
 import type { Level } from '../types'
-import CqSky from '../components/brand/CqSky.vue'
+import CqScreen from '../components/brand/CqScreen.vue'
 import CqPageHeader from '../components/brand/CqPageHeader.vue'
 import CqLevelIcon from '../components/brand/CqLevelIcon.vue'
-import CqCloudButton from '../components/brand/CqCloudButton.vue'
+import CqButton from '../components/brand/CqButton.vue'
 
-// Fase 201 D-22, §7.1 Niveles: la leyenda de Milón y los tres niveles; el del alumno va marcado
-// "Tu nivel". Se abre desde Inicio; si se entra directo (recarga) pide el estado una vez.
+// Fase 201 D-22, DA-30, §7.1 Niveles: la leyenda de Milón y los tres niveles; el del alumno es la
+// pieza oscura de la pantalla y va marcado "Tu nivel". Se abre desde Inicio; si se entra directo
+// (recarga) pide el estado una vez.
 const LEVELS: readonly Level[] = ['ternero', 'novillo', 'toro']
 const BACK_TO = { path: '/training', query: { tab: 'conquer' } }
 
@@ -75,71 +75,63 @@ onUnmounted(() => {
 </script>
 
 <style scoped lang="scss">
-.cq-levels.cq-sky {
-  // Alto de la pantalla menos el header y la barra de abajo (igual que la vidriera de Entrenar)
-  min-height: calc(var(--app-vh) - 50px - var(--mobile-tabs-height));
-}
-
 .cq-levels__legend {
   margin: 0;
-  font-family: var(--cq-display);
-  font-style: italic;
-  font-size: 20px;
-  line-height: 1.3;
-  text-align: center;
-  text-wrap: balance;
-  color: var(--cq-cream);
+  font-size: 16px;
+  line-height: 1.5;
+  text-wrap: pretty;
+  color: var(--cq-text);
 }
 
-.cq-levels__lvl {
-  display: flex;
+// Una card por nivel: ícono a la izquierda y texto a la derecha (la card base es una columna)
+.cq-levels__lvl.cq-card {
+  flex-direction: row;
   align-items: center;
   gap: 14px;
-  padding: 14px 16px;
-  border-radius: 16px;
-  border: 1px solid var(--cq-hair2);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.085), rgba(255, 255, 255, 0.035));
-  color: var(--cq-muted);
-
-  &--on {
-    border-color: var(--cq-gold);
-    color: var(--cq-gold-hi);
-    box-shadow: 0 0 30px rgba(253, 241, 208, 0.12);
-  }
-
-  p {
-    margin: 3px 0 0;
-    font-size: 13px;
-    color: var(--cq-muted);
-  }
 }
 
 .cq-levels__text {
+  flex: 1;
   min-width: 0;
 }
 
 .cq-levels__name {
-  display: block;
-  font-family: var(--cq-display);
-  font-size: 25px;
-  font-weight: 600;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin: 2px 0 0;
+  font-family: var(--cq-font-head);
+  font-weight: 800;
+  font-size: 22px;
   line-height: 1.1;
-  color: var(--cq-cream);
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--cq-night);
 }
 
-.cq-levels__tag {
-  display: inline-block;
-  margin-left: 8px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--cq-sun);
-  color: var(--cq-ink);
-  font-family: var(--cq-body);
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  vertical-align: middle;
+.cq-levels__body {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--cq-text-2);
+}
+
+// En la card del alumno (oscura) todo el texto pasa a los tonos de la pieza oscura
+.cq-dark .cq-levels__name {
+  color: var(--cq-on-night-hi);
+}
+
+.cq-dark .cq-levels__body {
+  color: var(--cq-on-night);
+}
+
+// Chip "Tu nivel": crema con texto azul noche (la regla doble le gana a `.cq-chip`)
+.cq-levels__tag.cq-chip {
+  height: 24px;
+  padding: 0 10px;
+  background: var(--cq-tint-cream);
+  color: var(--cq-night);
+  font-size: 11.5px;
+  letter-spacing: 0;
 }
 
 .cq-levels__note {
