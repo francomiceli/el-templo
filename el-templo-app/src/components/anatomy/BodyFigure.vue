@@ -207,6 +207,8 @@ function onPick(slug: string, key: ViewKey) {
 // Como `fitFigures` del sketch: el viewBox sale del bbox real de la figura (+2 px de margen).
 function measure() {
   for (const key of ['front', 'back'] as const) {
+    // Ya medida: la geometría no cambia al girar (refit la borra cuando cambia el género).
+    if (viewBoxes.value[key] !== undefined) continue
     const svg = svgs[key]
     const g = svg?.querySelector(':scope > g')
     if (!(g instanceof SVGGraphicsElement)) continue
@@ -248,6 +250,16 @@ watch(
   () => props.gender === 'female',
   async () => {
     if (anatomy.value) await refit()
+  },
+)
+
+// Fase 200: con `side` solo hay un svg montado; al girar se monta el de la otra vista y hay que medirlo.
+watch(
+  () => props.side,
+  async () => {
+    if (!anatomy.value) return
+    await nextTick()
+    measure()
   },
 )
 </script>
