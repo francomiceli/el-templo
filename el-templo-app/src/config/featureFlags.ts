@@ -32,8 +32,9 @@ export const FREE_BLOCKS_ENABLED = false
 export const ENTRENAR_TABS_ENABLED = false
 
 /**
- * Fase 200 P1: lo de anatomía para socios (Guía en dos cards, Tu cuerpo, cuerpo tocable de
- * Entrenar). Apagado hasta la validación humana del contenido (D5). Con false, la Guía abre las
- * historias como hoy y el cuerpo de Entrenar no es tocable.
+ * Fase 200: lo de anatomía para socios (Guía en dos cards, Tu cuerpo, cuerpo tocable de
+ * Entrenar). Prendido en todos los entornos por decisión de Franco (2026-10-22), con el
+ * contenido en borrador. Con false, la Guía abre las historias como antes y el cuerpo de
+ * Entrenar no es tocable.
  */
-export const ANATOMIA_ALUMNOS_ENABLED = false
+export const ANATOMIA_ALUMNOS_ENABLED = true
