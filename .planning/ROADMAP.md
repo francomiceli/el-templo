@@ -479,5 +479,5 @@ Plans:
 - [x] 200-20-PLAN.md — Fichas L, QC, SS, SU, DS
 - [x] 200-21-PLAN.md — Fichas HT, NC, REVERSE HYPER, SPAGAT
 - [x] 200-22-PLAN.md — Fichas BRIDGE, SIDE PCK, PIKE, AF
-- [ ] 200-23-PLAN.md — Cierre: coherencia estricta, barrido, UAT y firma de validación
+- [x] 200-23-PLAN.md — Cierre: coherencia estricta, barrido, UAT y firma de validación
 
