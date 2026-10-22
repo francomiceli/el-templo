@@ -264,3 +264,8 @@ con preguntas.
   **Encargo del orquestador para 201-18:** `HomeLastByDay.e1` del API no trae `unilateral`, así que Inicio nunca dice
   "por lado". Sumar `unilateral` a esa vista en el API (servicio + `schemas.ts` + un `expect` en el test de Hoy existente)
   y usarlo en `ConquerHome`. Commit propio `fix(201-18): ...`.
+- (201-18) `q-dialog`/`q-menu`/`q-select` se TELETRANSPORTAN fuera de `.cq-root` y pierden los tokens: todo diálogo u hoja de
+  Conquer lleva su propia raíz `.cq-root` (padding = `--cq-pad-x`/`--cq-pad-bottom`); para desplegables usar `<select>`
+  nativo `.cq-select`. 201-19 registra la ruta del sábado con nombre EXACTO `conquer-sabado` (Hoy/Inicio ya la usan con
+  `hasRoute`). Reusar `CqComboCard` (max 13), `CqCounter`, `.cq-select` en el sábado y `CqBodyMap` en Progreso.
+  `GET /today` de un Toro con los 4 días hechos devuelve la vista del sábado (`exercises` vacío). `shortDate` está en `format.ts`.
