@@ -186,3 +186,7 @@ con preguntas.
   posiciones activas y devuelven una POSICIÓN (la ruta resuelve `rung_id` por `(ladder_id, position)`). Subir se ofrece
   con `pickSubir` && `harderPosition !== null`; si es `null` → alerta `tope_escalera`. `caidaE1` espera marcas ya
   filtradas con `selectReales` (≥ 4). El motor trata `0` como marca válida: la ruta decide antes qué escalón está sin cargar.
+- (201-04) Posición MAYOR en la escalera = escalón MÁS FÁCIL. `rules.ts` no sabe de fechas: el servicio calcula `blockWeek`,
+  `daysDone`/`maxPain` (sin contar `sabado`) con "hoy" de `todayInTz(sede)`. `lightZones` espera `worked` ya calculado con
+  `exerciseWorked({e1,e2,e3})` e ignora zonas fuera de las 15 (p. ej. `tibialis` de la 200). Tests de CI importan
+  `../../src/modules/conquer/{calendar,rules,lighting}` sin extensión.
