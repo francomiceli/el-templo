@@ -1,57 +1,67 @@
 <template>
-  <CqSky v-if="member" class="cq-home">
-    <CqSun
-      title="CONQUER"
-      :caps="`Semana ${member.blockWeek}`"
-      :big="levelInfo ? levelInfo.name : 'Conquer'"
-      small="Tu nivel"
-    >
-      <CqLevelIcon v-if="member.level" :level="member.level" :size="44" />
-    </CqSun>
+  <CqScreen v-if="member" class="cq-home">
+    <CqPortico>
+      <p class="cq-kicker">Conquer · Semana {{ member.blockWeek }} del bloque</p>
 
-    <router-link
-      :to="{ name: 'conquer-niveles' }"
-      class="cq-home__path"
-      aria-label="Ver el camino de niveles"
-    >
-      <template v-for="(lv, i) in LEVELS" :key="lv">
-        <span v-if="i > 0" class="cq-home__ln" aria-hidden="true" />
-        <span
-          class="cq-home__lv"
-          :class="{
-            'cq-home__lv--on': i === levelIndex,
-            'cq-home__lv--past': levelIndex > i,
-          }"
-        >
-          <CqLevelIcon :level="lv" :size="i === levelIndex ? 46 : 38" />
-          {{ LEVEL_INFO[lv].name }}
-        </span>
-      </template>
-      <span class="cq-home__more">El camino de Milón ›</span>
-    </router-link>
+      <div class="cq-home__lvl">
+        <CqLevelIcon v-if="member.level" :level="member.level" :size="56" />
+        <div class="cq-home__lvl-text">
+          <h2 class="cq-home__lvl-name">{{ levelInfo ? levelInfo.name : 'Conquer' }}</h2>
+          <p class="cq-sub">{{ levelInfo ? `Tu nivel · ${levelInfo.text}` : 'Tu nivel' }}</p>
+        </div>
+      </div>
 
-    <div class="cq-caps cq-rule">Tu semana</div>
-    <ul class="cq-home__week">
-      <li v-for="d in member.home.plan" :key="d.dayKey">
-        <router-link
-          :to="dayTarget(d.dayKey)"
-          class="cq-home__day"
-          :class="{
-            'cq-home__day--done': d.done,
-            'cq-home__day--next': !d.done && d.dayKey === member.home.nextDayKey,
-          }"
-        >
-          <span>{{ dayStatus(d) }}</span>
-          <strong>{{ d.label }}</strong>
-        </router-link>
-      </li>
-    </ul>
-    <div v-if="member.home.weekComplete" class="cq-toast cq-home__complete" role="status">
-      Semana completa
+      <router-link
+        :to="{ name: 'conquer-niveles' }"
+        class="cq-home__path"
+        aria-label="Ver el camino de niveles"
+      >
+        <template v-for="(lv, i) in LEVELS" :key="lv">
+          <span v-if="i > 0" class="cq-home__ln" aria-hidden="true" />
+          <span class="cq-home__lv" :class="{ 'cq-home__lv--on': i === levelIndex }">
+            <CqLevelIcon :level="lv" :size="i === levelIndex ? 38 : 30" />
+            {{ LEVEL_INFO[lv].name }}
+          </span>
+        </template>
+        <span class="cq-textlink cq-home__more">El camino de Milón ›</span>
+      </router-link>
+
+      <CqButton :label="ctaLabel" variant="on-night" @click="goToday" />
+    </CqPortico>
+
+    <div v-if="bodyCheckNotice" class="cq-notice" role="status">
+      <span class="cq-home__notice-text">{{ bodyCheckNotice }}</span>
+      <router-link :to="{ name: 'conquer-control' }" class="cq-btn cq-btn--secondary cq-btn--small">
+        Hacerlo ahora
+      </router-link>
     </div>
 
-    <div class="cq-caps cq-rule">Última marca</div>
-    <div v-if="marks.length > 0" class="cq-card cq-home__marks">
+    <div class="cq-row">
+      <h2 class="cq-block-title">Tu semana</h2>
+      <span v-if="member.home.weekComplete" class="cq-chip cq-chip--hecha" role="status">
+        Semana completa
+      </span>
+    </div>
+    <div class="cq-card cq-card--flush">
+      <router-link
+        v-for="d in member.home.plan"
+        :key="d.dayKey"
+        :to="dayTarget(d.dayKey)"
+        class="cq-home__wrow"
+        :class="{ 'cq-home__wrow--next': isNext(d) }"
+      >
+        <span class="cq-home__wday">{{ d.label }}</span>
+        <span v-if="d.done" class="cq-chip cq-chip--hecha">
+          <span aria-hidden="true">✓</span>
+          {{ dayStatus(d) }}
+        </span>
+        <span v-else-if="isNext(d)" class="cq-chip cq-chip--techo">{{ dayStatus(d) }}</span>
+        <span v-else class="cq-sub">{{ dayStatus(d) }}</span>
+      </router-link>
+    </div>
+
+    <h2 class="cq-block-title">Última marca</h2>
+    <div v-if="marks.length > 0" class="cq-card cq-card--flush">
       <div v-for="m in marks" :key="m.key" class="cq-home__mark">
         <div class="cq-home__mark-text">
           <div class="cq-home__mark-name">{{ m.name }}</div>
@@ -60,29 +70,24 @@
         <b class="cq-num cq-home__mark-value">{{ m.value }}</b>
       </div>
     </div>
-    <div v-else class="cq-sub cq-home__empty">Todavía no cargaste marcas.</div>
+    <p v-else class="cq-sub">Todavía no cargaste marcas.</p>
 
-    <div v-if="bodyCheckNotice" class="cq-toast cq-home__notice" role="status">
-      <i aria-hidden="true" />
-      <span class="cq-home__notice-text">{{ bodyCheckNotice }}</span>
-      <router-link :to="{ name: 'conquer-control' }" class="cq-small cq-small--fill">
-        Hacerlo ahora
+    <div class="cq-card cq-card--flush">
+      <router-link :to="{ name: 'conquer-guia' }" class="cq-rowlink">
+        <span class="cq-q" aria-hidden="true">?</span>
+        ¿Cómo funciona?
+        <span class="cq-rowlink__chev" aria-hidden="true">›</span>
+      </router-link>
+      <router-link :to="{ name: 'conquer-progreso' }" class="cq-rowlink">
+        Progreso
+        <span class="cq-rowlink__chev" aria-hidden="true">›</span>
+      </router-link>
+      <router-link :to="{ name: 'conquer-evolucion' }" class="cq-rowlink">
+        Evolución
+        <span class="cq-rowlink__chev" aria-hidden="true">›</span>
       </router-link>
     </div>
-
-    <router-link :to="{ name: 'conquer-progreso' }" class="cq-link cq-home__access">
-      <span>Progreso</span>
-      <span aria-hidden="true">›</span>
-    </router-link>
-    <router-link :to="{ name: 'conquer-evolucion' }" class="cq-link cq-home__access">
-      <span>Evolución</span>
-      <span aria-hidden="true">›</span>
-    </router-link>
-
-    <div class="cq-grow" />
-
-    <CqCloudButton :label="ctaLabel" @click="goToday" />
-  </CqSky>
+  </CqScreen>
 </template>
 
 <script setup lang="ts">
@@ -92,14 +97,15 @@ import type { RouteLocationRaw } from 'vue-router'
 import { useConquerStore } from '../stores/conquerStore'
 import { LEVEL_INFO, shortDate, unitText } from '../utils/format'
 import type { Level, PlanDayView } from '../types'
-import CqSky from './brand/CqSky.vue'
-import CqSun from './brand/CqSun.vue'
+import CqScreen from './brand/CqScreen.vue'
+import CqPortico from './brand/CqPortico.vue'
+import CqButton from './brand/CqButton.vue'
 import CqLevelIcon from './brand/CqLevelIcon.vue'
-import CqCloudButton from './brand/CqCloudButton.vue'
 
-// Fase 201 §7.1 Inicio, D-22: sol con el nivel y la semana del bloque, camino de niveles, la semana
-// del plan (D-16), la última marca de cada día y el aviso de control físico. El app no recalcula
-// nada: pinta lo que manda `GET /state` (`member.home`, `member.bodyCheck`).
+// Fase 201 §7.1 Inicio, DA-29: el pórtico del nivel (semana del bloque, camino de niveles y el botón
+// de entrenar, todo en la única pieza oscura), el aviso de control físico, la semana del plan (D-16),
+// la última marca de cada día y los accesos fijos (¿Cómo funciona?, Progreso, Evolución). El app no
+// recalcula nada: pinta lo que manda `GET /state` (`member.home`, `member.bodyCheck`).
 const LEVELS: readonly Level[] = ['ternero', 'novillo', 'toro']
 
 const router = useRouter()
@@ -131,9 +137,14 @@ function goToday(): void {
   void router.push(next === 'sabado' ? { name: 'conquer-sabado' } : { name: 'conquer-hoy' })
 }
 
+// El día que toca: el primero sin hacer según el API (lleva chip "Te toca" y la barrita dorada)
+function isNext(d: PlanDayView): boolean {
+  return !d.done && d.dayKey === member.value?.home.nextDayKey
+}
+
 function dayStatus(d: PlanDayView): string {
   if (d.done) return 'Hecha'
-  return d.dayKey === member.value?.home.nextDayKey ? 'Te toca' : 'Pendiente'
+  return isNext(d) ? 'Te toca' : 'Pendiente'
 }
 
 interface MarkRow {
@@ -169,18 +180,36 @@ const bodyCheckNotice = computed<string | null>(() => {
 </script>
 
 <style scoped lang="scss">
-// Camino de niveles: tres cabezas unidas por filetes (prototipo `.path`)
+// Pórtico: nivel (ícono + nombre) y su frase
+.cq-home__lvl {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.cq-home__lvl-text {
+  min-width: 0;
+}
+
+.cq-home__lvl-name {
+  margin: 0 0 4px;
+  font-family: var(--cq-font-head);
+  font-weight: 800;
+  font-size: 36px;
+  line-height: 0.95;
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--cq-on-night-hi);
+}
+
+// Camino de niveles: tres cabezas unidas por filetes dorados, todo el bloque es UN enlace
 .cq-home__path {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 26px minmax(0, 1fr) 26px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) 22px minmax(0, 1fr) 22px minmax(0, 1fr);
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   min-height: 44px;
-  padding: 14px 12px 12px;
-  border-radius: 16px;
-  border: 1px solid var(--cq-hair2);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.085), rgba(255, 255, 255, 0.035));
-  color: var(--cq-muted);
+  color: inherit;
   text-align: center;
   text-decoration: none;
 }
@@ -189,112 +218,94 @@ const bodyCheckNotice = computed<string | null>(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  font-size: 9.5px;
+  gap: 3px;
+  font-family: var(--cq-font-head);
   font-weight: 600;
-  letter-spacing: 0.2em;
+  font-size: 11px;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  opacity: 0.6;
+  color: var(--cq-on-night-2);
 
   &--on {
-    opacity: 1;
-    color: var(--cq-gold-hi);
-  }
-
-  &--past {
-    opacity: 0.85;
-    color: var(--cq-gold);
+    font-weight: 800;
+    color: var(--cq-on-night-hi);
   }
 }
 
+// Las cabezas que no son la del alumno van en dorado apagado (el de la pieza oscura). Con el
+// selector del camino delante le ganan a la regla de `.cq-dark` sobre el ícono.
+.cq-home__path .cq-home__lv .cq-level-icon {
+  color: var(--cq-on-night-gold);
+}
+
+.cq-home__path .cq-home__lv--on .cq-level-icon {
+  color: var(--cq-on-night-hi);
+}
+
 .cq-home__ln {
-  height: 1px;
-  background: var(--cq-hair);
+  height: 1.5px;
+  background: var(--cq-deco-gold);
 }
 
 .cq-home__more {
   grid-column: 1 / -1;
-  margin-top: 6px;
-  font-family: var(--cq-display);
-  font-style: italic;
-  font-size: 16px;
-  color: var(--cq-muted);
+  justify-self: center;
 }
 
-// Semana del plan: una celda por día; con 5 días (Toro) la última baja de renglón
-.cq-home__week {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(76px, 1fr));
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.cq-home__day {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+// Aviso del control físico: el texto cede lugar y el botón baja si no entran en una fila
+.cq-home__notice-text {
+  flex: 1 1 150px;
   min-width: 0;
-  height: 100%;
-  min-height: 44px;
+}
+
+.cq-notice .cq-btn {
   text-decoration: none;
-  padding: 12px 4px;
-  border: 1px solid var(--cq-hair2);
-  border-radius: 14px;
-  text-align: center;
-  font-size: 10px;
+}
+
+// Semana del plan: una fila de 52 px por día; la que toca lleva la barrita dorada a la izquierda
+.cq-home__wrow {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 52px;
+  color: var(--cq-text);
+  text-decoration: none;
+
+  & + & {
+    border-top: 1px solid var(--cq-line);
+  }
+
+  &--next::before {
+    content: '';
+    position: absolute;
+    left: -16px;
+    top: 8px;
+    bottom: 8px;
+    width: 3px;
+    border-radius: 0 3px 3px 0;
+    background: var(--cq-deco-gold);
+  }
+}
+
+.cq-home__wday {
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-weight: 500;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--cq-muted);
-
-  strong {
-    overflow-wrap: anywhere;
-    font-family: var(--cq-display);
-    font-size: 17px;
-    font-weight: 600;
-    letter-spacing: 0;
-    text-transform: none;
-    color: var(--cq-cream);
-  }
-
-  &--done {
-    background: var(--cq-glass);
-    color: var(--cq-gold);
-  }
-
-  &--next {
-    background: var(--cq-sun);
-    border-color: var(--cq-sun);
-    color: var(--cq-ink2);
-    box-shadow: 0 0 26px rgba(253, 241, 208, 0.28);
-
-    strong {
-      color: var(--cq-ink);
-    }
-  }
+  font-size: 15px;
 }
 
-.cq-home__complete {
-  text-align: center;
-}
-
-.cq-home__marks {
-  gap: 0;
-  padding-block: 5px;
-}
-
+// Última marca: nombre y fecha a la izquierda, valor grande a la derecha
 .cq-home__mark {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  padding: 11px 0;
-  border-top: 1px solid var(--cq-hair2);
+  min-height: 56px;
 
-  &:first-child {
-    border-top: 0;
+  & + & {
+    border-top: 1px solid var(--cq-line);
   }
 }
 
@@ -303,53 +314,14 @@ const bodyCheckNotice = computed<string | null>(() => {
 }
 
 .cq-home__mark-name {
+  overflow-wrap: anywhere;
   font-weight: 500;
+  font-size: 15px;
 }
 
 .cq-home__mark-value {
   flex-shrink: 0;
-  font-family: var(--cq-display);
   font-size: 24px;
-  font-weight: 600;
   white-space: nowrap;
-  color: var(--cq-gold-hi);
-}
-
-.cq-home__empty {
-  text-align: center;
-}
-
-// Acceso a Progreso: fila-enlace de la submarca (`.cq-link`) sobre un <a>
-.cq-home__access {
-  text-decoration: none;
-}
-
-// Aviso fijo del control físico (sol + texto + botón "Hacerlo ahora")
-.cq-home__notice {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-height: 44px;
-
-  .cq-small {
-    display: inline-flex;
-    flex-shrink: 0;
-    align-items: center;
-    text-decoration: none;
-  }
-
-  i {
-    width: 10px;
-    height: 10px;
-    flex-shrink: 0;
-    border-radius: 50%;
-    background: var(--cq-sun);
-    box-shadow: 0 0 12px var(--cq-sun);
-  }
-}
-
-.cq-home__notice-text {
-  flex: 1;
-  min-width: 0;
 }
 </style>
