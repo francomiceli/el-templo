@@ -435,6 +435,42 @@ export async function limpiarSegundoGimnasio(
   await app.db.execute(
     sql`DELETE FROM extra_blocks_completed WHERE tenant_id = ${TENANT_DOS}`,
   );
+  // Fase 201 (Conquer v2, 0291): estado del alumno. Hijas antes que padres y
+  // todas ANTES del `DELETE FROM users` (members/sessions/alerts/body_checks
+  // tienen FK a users) y del `DELETE FROM tenants` final.
+  await app.db.execute(
+    sql`DELETE FROM conquer_session_steps WHERE tenant_id = ${TENANT_DOS}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM conquer_sessions WHERE tenant_id = ${TENANT_DOS}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM conquer_steps WHERE tenant_id = ${TENANT_DOS}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM conquer_alerts WHERE tenant_id = ${TENANT_DOS}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM conquer_body_checks WHERE tenant_id = ${TENANT_DOS}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM conquer_members WHERE tenant_id = ${TENANT_DOS}`,
+  );
+  // Catálogo (0290): el gimnasio 2 no debería tener filas (lo siembra la 0292
+  // solo para el tenant 1), pero si un test las crea tienen que irse antes del
+  // `DELETE FROM tenants`. Orden de FK: plantillas, ejercicios, peldaños, escaleras.
+  await app.db.execute(
+    sql`DELETE FROM conquer_template_days WHERE tenant_id = ${TENANT_DOS}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM conquer_exercises WHERE tenant_id = ${TENANT_DOS}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM conquer_rungs WHERE tenant_id = ${TENANT_DOS}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM conquer_ladders WHERE tenant_id = ${TENANT_DOS}`,
+  );
   await app.db.execute(
     sql`DELETE FROM user_branches WHERE tenant_id = ${TENANT_DOS}`,
   );

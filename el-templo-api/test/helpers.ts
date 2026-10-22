@@ -244,6 +244,16 @@ const TABLES_TO_CLEAN = [
   schema.attendance,
   // Bloque libre (0286): FK a users, basura de test genuina.
   schema.extraBlocksCompleted,
+  // Fase 201 (Conquer v2, 0291): las 6 tablas de ESTADO del alumno, en orden de
+  // FK (hijas antes que padres) y antes de users. El catálogo (conquer_ladders,
+  // conquer_rungs, conquer_exercises, conquer_template_days) NO va acá: lo
+  // siembra la 0292 una vez y un DELETE global lo borraría para el resto del worker.
+  schema.conquerSessionSteps,
+  schema.conquerSessions,
+  schema.conquerSteps,
+  schema.conquerAlerts,
+  schema.conquerBodyChecks,
+  schema.conquerMembers,
   schema.auraTransactions,
   // Fase 157: vínculo de referido + registro auditable. FK a users/subscriptions
   // (FK checks off durante el DELETE), se limpian para no filtrar vínculos entre tests.

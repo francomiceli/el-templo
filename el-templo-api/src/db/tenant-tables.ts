@@ -94,6 +94,18 @@ export const GYM_OWNED_TABLES = [
   "class_coach_assignments",
   "coach_ratings",
   "completed_sessions",
+  // Conquer v2 (fase 201, migs 0290-0291): nacen con tenant_id y strict, ver
+  // TENANT_STRICT_MODULES.conquer. Las 4 de catálogo las siembra la 0292.
+  "conquer_alerts",
+  "conquer_body_checks",
+  "conquer_exercises",
+  "conquer_ladders",
+  "conquer_members",
+  "conquer_rungs",
+  "conquer_session_steps",
+  "conquer_sessions",
+  "conquer_steps",
+  "conquer_template_days",
   "contraction_rules",
   "cost_centers",
   "day_modes",
@@ -654,6 +666,19 @@ export const TENANT_STRICT_MODULES: Record<string, readonly string[]> = {
     "novedad_views",
     "novedades",
     "tv_avisos",
+  ],
+  // Fase 201 (Conquer v2): el módulo nace strict, no hay deuda previa que tolerar.
+  conquer: [
+    "conquer_alerts",
+    "conquer_body_checks",
+    "conquer_exercises",
+    "conquer_ladders",
+    "conquer_members",
+    "conquer_rungs",
+    "conquer_session_steps",
+    "conquer_sessions",
+    "conquer_steps",
+    "conquer_template_days",
   ],
   // Fase 197: el módulo nace strict, no hay deuda previa que tolerar.
   "free-blocks": ["extra_blocks_completed"],

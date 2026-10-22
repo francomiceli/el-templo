@@ -121,12 +121,14 @@ describe("tenant-tables — clasificación canónica de tablas (COL-01)", () => 
     // fase 199, mig 0279: 102 -> 103, 4 -> 5, 106 -> 108.
     // 2026-10-20 sumó `extra_blocks_completed` (fase 197, mig 0286, nace strict
     // en `free-blocks`): 103 -> 104, 108 -> 109.
-    expect(GYM_OWNED_TABLES.length).toBe(104);
+    // 2026-10-21 sumó las 10 tablas `conquer_*` (fase 201, migs 0290-0291, nacen
+    // strict en `conquer`): 104 -> 114, 109 -> 119.
+    expect(GYM_OWNED_TABLES.length).toBe(114);
     expect(TENANT_EXEMPT_TABLES.length).toBe(5);
     // Sin duplicados dentro de cada lista.
     expect(gymOwned.size).toBe(GYM_OWNED_TABLES.length);
     expect(exempt.size).toBe(TENANT_EXEMPT_TABLES.length);
-    expect(schemaTables.size).toBe(109);
+    expect(schemaTables.size).toBe(119);
     expect(gymOwned.size + exempt.size).toBe(schemaTables.size);
   });
 
@@ -454,6 +456,19 @@ describe("TENANT_STRICT_MODULES (fase 170, D-05/D-06)", () => {
       "novedad_views",
       "novedades",
       "tv_avisos",
+    ],
+    // Fase 201 (Conquer v2): el módulo nace strict.
+    conquer: [
+      "conquer_alerts",
+      "conquer_body_checks",
+      "conquer_exercises",
+      "conquer_ladders",
+      "conquer_members",
+      "conquer_rungs",
+      "conquer_session_steps",
+      "conquer_sessions",
+      "conquer_steps",
+      "conquer_template_days",
     ],
     // Fase 197: el módulo nace strict.
     "free-blocks": ["extra_blocks_completed"],
