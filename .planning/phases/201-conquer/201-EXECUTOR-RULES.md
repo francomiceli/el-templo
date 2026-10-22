@@ -221,3 +221,9 @@ con preguntas.
   `updateAlertStatus(..., "resuelta")` (guarda `resolved_by`, el sistema no la reabre). Vista de alerta: `alert-view.ts`
   (`getBoardAlert`); `BoardAlert`/`toBoardAlert` en `board-service.ts`. Manifiesto: 492 tras 201-09. Contratos
   `BoardResponse`/`BoardAlert`: `201-09-SUMMARY.md`.
+- (201-10) Toro tiene 5 días en la semana del plan (el sábado al final). Tests con historial de combos insertado directo:
+  fijar `combo_state` antes con `setComboState` y correr `activationDate` hacia atrás (la fábrica activa HOY y filtra el
+  historial anterior). `session_steps` no admite `.values([])`: saltear el insert si no hay filas. Campo nuevo en
+  `ComboView` → `comboViewSchema`. Sábado: sin `lighting` y zonas vacías al guardar (D-13 no define zonas para combos; el
+  app no muestra mapa en el sábado). `opening` llega siempre precargado; el sábado trae `push`/`pull` sin `exercises`.
+  Manifiesto: 493 tras 201-10.
