@@ -7,9 +7,11 @@
 //   2. semilla (plan 201-02): paridad de 0292_conquer_catalog_seed.sql con LAD y DIAS.
 //   3. motor (plan 201-03): paridad de engine.ts con next() del oraculo, dorados,
 //      hoja Simulacion, calibracion y A1/A3/A6/A8 (imprime MOTOR OK (<n> casos)).
-//      Los planes 201-03 y 201-04 suman sus secciones al final, antes del resumen.
+//   4. reglas (plan 201-04): calendario, recortes, combos, paso de nivel y encendido
+//      muscular (12 casos, uno por funcion; imprime REGLAS OK).
+//      Los planes siguientes suman sus secciones al final, antes del resumen.
 //
-// Imprime ORACULO OK / SEMILLA OK / MOTOR OK (o la lista de diferencias) y sale con codigo 1 si algo falla.
+// Imprime ORACULO OK / SEMILLA OK / MOTOR OK / REGLAS OK (o la lista de diferencias) y sale con codigo 1 si algo falla.
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -23,6 +25,24 @@ import {
   pickSubir,
   selectReales,
 } from "../../src/modules/conquer/engine.ts";
+import {
+  blockWeek,
+  comboSubirReady,
+  levelUpStreak,
+  mondayOfIso,
+  nextPendingDay,
+} from "../../src/modules/conquer/calendar.ts";
+import {
+  exerciseWorked,
+  lightZones,
+} from "../../src/modules/conquer/lighting.ts";
+import {
+  cutProposal,
+  openingTarget,
+  saturdayPlan,
+  shiftStartPosition,
+  worstLight,
+} from "../../src/modules/conquer/rules.ts";
 
 const HERE = new URL(".", import.meta.url);
 const FIXTURE = fileURLToPath(new URL("fixtures/conquer-app.html", HERE));
@@ -340,6 +360,110 @@ function motorDiffs() {
     failed = true;
     out(`MOTOR FALLA (${diffs.length} de ${cases}):`);
     for (const d of diffs.slice(0, 40)) out(`  - ${d}`);
+  }
+}
+
+// ---------------------------------------------------------------- 4. reglas
+function reglasDiffs() {
+  const diffs = [];
+  const same = (label, got, want) => {
+    if (JSON.stringify(got) !== JSON.stringify(want)) {
+      diffs.push(
+        `${label}: obtuve ${JSON.stringify(got)}, esperaba ${JSON.stringify(want)}`,
+      );
+    }
+  };
+  const w = (monday, hit) => ({ monday, hit });
+  const wk = (monday, daysDone, maxPain) => ({ monday, daysDone, maxPain });
+  const plan = ["plancha", "front", "vertical", "dominadas", "sabado"];
+
+  // calendar.ts (D-16, A11, D-14, A13)
+  same("mondayOfIso domingo", mondayOfIso("2026-10-25"), "2026-10-19");
+  same("mondayOfIso cruce de anio", mondayOfIso("2027-01-01"), "2026-12-28");
+  same("blockWeek +14 dias", blockWeek("2026-10-21", "2026-11-04"), 3);
+  same("nextPendingDay todo hecho", nextPendingDay(plan, plan), null);
+  same(
+    "nextPendingDay salta lo hecho",
+    nextPendingDay(plan, ["plancha", "vertical"]),
+    "front",
+  );
+  same(
+    "comboSubirReady con hueco",
+    comboSubirReady([w("2026-10-05", true), w("2026-10-19", true)], 2),
+    false,
+  );
+  same(
+    "comboSubirReady consecutivas",
+    comboSubirReady([w("2026-10-12", true), w("2026-10-19", true)], 2),
+    true,
+  );
+  same(
+    "levelUpStreak molestia corta",
+    levelUpStreak(
+      [wk("2026-10-05", 4, 0), wk("2026-10-12", 4, 4), wk("2026-10-19", 4, 0)],
+      4,
+      4,
+      "2026-10-19",
+    ),
+    1,
+  );
+
+  // rules.ts (8.2, 5.1, 3.2, 5)
+  same(
+    "shiftStartPosition clamp",
+    shiftStartPosition(5, 2, [0, 1, 2, 3, 4, 5, 6]),
+    6,
+  );
+  same("shiftStartPosition inactivo", shiftStartPosition(0, 1, [0, 2, 3]), 2);
+  same("cutProposal toro 4", cutProposal("toro", 4).stage, 5);
+  same("cutProposal toro 5", cutProposal("toro", 5).kind, "bajar_escalon");
+  same("cutProposal novillo", cutProposal("novillo", 0).kind, "bajar_escalon");
+  same("openingTarget semana 2", openingTarget("toro", 2, 0), 3);
+  same("openingTarget semana 3", openingTarget("toro", 3, 0), 4);
+  same("openingTarget etapa 4", openingTarget("toro", 3, 4), 3);
+  same("openingTarget etapa 5", openingTarget("toro", 3, 5), null);
+  same("saturdayPlan etapa 2", saturdayPlan("toro", 2)?.target, 8);
+  same("saturdayPlan etapa 3", saturdayPlan("toro", 3), null);
+  same(
+    "worstLight amarillo",
+    worstLight(["paso_nivel", "inactivo"]),
+    "amarillo",
+  );
+  same("worstLight vacio", worstLight([]), "ok");
+
+  // lighting.ts (D-13)
+  same(
+    "exerciseWorked solo ceros",
+    exerciseWorked({ e1: 0, e2: 0, e3: 0 }),
+    false,
+  );
+  same("exerciseWorked e3", exerciseWorked({ e1: 0, e2: 0, e3: 1 }), true);
+  const tri = { zone: "triceps", role: "secundario" };
+  same(
+    "lightZones secundaria con un ejercicio",
+    lightZones([{ muscles: [tri], worked: true }]),
+    { primary: [], secondary: [] },
+  );
+  same(
+    "lightZones secundaria con dos ejercicios",
+    lightZones([
+      { muscles: [tri], worked: true },
+      { muscles: [tri], worked: true },
+    ]),
+    { primary: [], secondary: ["triceps"] },
+  );
+
+  return diffs;
+}
+
+{
+  const diffs = reglasDiffs();
+  if (diffs.length === 0) {
+    out("REGLAS OK");
+  } else {
+    failed = true;
+    out(`REGLAS FALLA (${diffs.length}):`);
+    for (const d of diffs) out(`  - ${d}`);
   }
 }
 
