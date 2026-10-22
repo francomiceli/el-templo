@@ -9,7 +9,7 @@ import {
   isZoneSlug,
 } from '../zones'
 
-// Las 15 zonas de `TvZonaMuscular` del API (D-10).
+// Las 16 zonas de `REGIONES` del API: las 15 de la TV (D-10) y `tibialis` (fase 200 D4).
 const ALL_ZONES = [
   'chest',
   'deltoids',
@@ -26,13 +26,14 @@ const ALL_ZONES = [
   'hamstring',
   'adductors',
   'calves',
+  'tibialis',
 ]
 
 describe('zones', () => {
-  it('los 6 grupos cubren exactamente las 15 zonas sin repetir', () => {
+  it('los 6 grupos cubren exactamente las 16 zonas sin repetir', () => {
     const flat = ZONE_GROUP_ORDER.flatMap((g) => [...ZONE_GROUPS[g]])
-    expect(flat).toHaveLength(15)
-    expect(new Set(flat).size).toBe(15)
+    expect(flat).toHaveLength(16)
+    expect(new Set(flat).size).toBe(16)
     expect([...flat].sort()).toEqual([...ALL_ZONES].sort())
   })
 
@@ -55,6 +56,12 @@ describe('zones', () => {
     expect(groupOfSlug('forearm')).toBe('brazos')
   })
 
+  it('tibialis es una zona del grupo piernas (fase 200 D4) y no una parte no muscular', () => {
+    expect(groupOfSlug('tibialis')).toBe('piernas')
+    expect(isZoneSlug('tibialis')).toBe(true)
+    expect(NON_MUSCLE_SLUGS.has('tibialis')).toBe(false)
+  })
+
   it('groupOfSlug devuelve null para partes no musculares y desconocidas', () => {
     expect(groupOfSlug('head')).toBeNull()
     expect(groupOfSlug('hair')).toBeNull()
@@ -68,12 +75,12 @@ describe('zones', () => {
     expect(groupsOfZones(['head', 'chest'])).toEqual(['pecho'])
   })
 
-  it('NON_MUSCLE_SLUGS tiene las 8 partes y ninguna es zona', () => {
-    expect(NON_MUSCLE_SLUGS.size).toBe(8)
+  it('NON_MUSCLE_SLUGS tiene las 7 partes y ninguna es zona', () => {
+    expect(NON_MUSCLE_SLUGS.size).toBe(7)
     for (const slug of NON_MUSCLE_SLUGS) expect(isZoneSlug(slug)).toBe(false)
   })
 
-  it('isZoneSlug reconoce las 15 zonas', () => {
+  it('isZoneSlug reconoce las 16 zonas', () => {
     for (const zone of ALL_ZONES) expect(isZoneSlug(zone)).toBe(true)
     expect(isZoneSlug('knees')).toBe(false)
   })

@@ -1,12 +1,13 @@
 /**
- * Zonas musculares y grupos de la tab Libre (fase 197 D-10).
+ * Zonas musculares y grupos de la tab Libre (fase 197 D-10) y de Tu cuerpo (fase 200 D4).
  *
- * `ZONE_GROUPS` es espejo A PROPÓSITO de `GRUPOS_ZONA` de
- * `el-templo-api/src/modules/tv/muscle-zones.ts`: el API calcula zonas y grupos de cada bloque,
- * el app solo necesita agrupar los slugs que toca en la figura. Sin imports de valor.
+ * `ZoneSlug` y `ZONE_GROUPS` son espejo A PROPÓSITO de `REGIONES` y `GRUPOS_ZONA` de
+ * `el-templo-api/src/modules/anatomy/` (verificado por `test/anatomy/sync-front.test.ts`): el API
+ * calcula zonas y grupos de cada bloque, el app solo necesita agrupar los slugs que toca en la
+ * figura. Sin imports de valor.
  */
 
-/** Las 15 zonas del API (`TvZonaMuscular`), mismo texto. */
+/** Las 16 zonas (`REGIONES` del API): las 15 de la TV y `tibialis` al final (fase 200 D4). */
 export type ZoneSlug =
   | 'chest'
   | 'deltoids'
@@ -23,6 +24,7 @@ export type ZoneSlug =
   | 'hamstring'
   | 'adductors'
   | 'calves'
+  | 'tibialis'
 
 export type ZoneGroup = 'hombros' | 'pecho' | 'espalda' | 'core' | 'piernas' | 'brazos'
 
@@ -36,13 +38,13 @@ export const ZONE_GROUP_ORDER: readonly ZoneGroup[] = [
   'brazos',
 ]
 
-/** Cada una de las 15 zonas está en exactamente un grupo. */
+/** Cada una de las 16 zonas está en exactamente un grupo. */
 export const ZONE_GROUPS: Readonly<Record<ZoneGroup, readonly ZoneSlug[]>> = {
   hombros: ['deltoids'],
   pecho: ['chest'],
   espalda: ['upper-back', 'lower-back', 'trapezius'],
   core: ['abs', 'obliques'],
-  piernas: ['quadriceps', 'hamstring', 'gluteal', 'calves', 'adductors'],
+  piernas: ['quadriceps', 'hamstring', 'gluteal', 'calves', 'adductors', 'tibialis'],
   brazos: ['biceps', 'triceps', 'forearm'],
 }
 
@@ -64,7 +66,6 @@ export const NON_MUSCLE_SLUGS: ReadonlySet<string> = new Set([
   'feet',
   'ankles',
   'knees',
-  'tibialis',
 ])
 
 const GROUP_BY_SLUG: ReadonlyMap<string, ZoneGroup> = new Map(

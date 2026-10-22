@@ -30,3 +30,10 @@ export const FREE_BLOCKS_ENABLED = false
  * la vidriera sin plan) y cualquier `?tab=` abre Semana. El código de las tabs queda.
  */
 export const ENTRENAR_TABS_ENABLED = false
+
+/**
+ * Fase 200 P1: lo de anatomía para socios (Guía en dos cards, Tu cuerpo, cuerpo tocable de
+ * Entrenar). Apagado hasta la validación humana del contenido (D5). Con false, la Guía abre las
+ * historias como hoy y el cuerpo de Entrenar no es tocable.
+ */
+export const ANATOMIA_ALUMNOS_ENABLED = false

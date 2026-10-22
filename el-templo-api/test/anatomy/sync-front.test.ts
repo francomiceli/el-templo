@@ -4,7 +4,9 @@
 // con su copia: si una diverge, el mismo ejercicio se llama distinto segun la
 // pantalla. Este test es la red que lo evita, como `destinations-sync`.
 //
-// El plan 200-14 suma aca el espejo de zonas del app (zones.ts).
+// Tambien verifica el espejo de zonas del app (`zones.ts`, plan 200-14): los 16
+// slugs de `ZoneSlug` y los grupos de `ZONE_GROUPS` contra `REGIONES` y
+// `GRUPOS_ZONA`.
 //
 // FAIL-CLOSED: si una copia no se puede leer, el test FALLA con el path en el
 // mensaje (no hay skip silencioso).
@@ -13,6 +15,8 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { ROUTE_LABELS } from "../../src/modules/tv/route-labels";
 import { RUTAS } from "../../src/modules/anatomy/content/rutas";
+import { REGIONES } from "../../src/modules/anatomy/content/regiones";
+import { GRUPOS_ZONA } from "../../src/modules/anatomy/projection";
 
 // Clave (con o sin comillas) -> valor entre comillas simples o dobles. Acepta
 // el estilo de cada copia (la del API ya trae comillas simples, la de app y
@@ -122,5 +126,85 @@ describe("anatomy/sync-front — route-labels en API, app y admin", () => {
       }
     }
     expect(faltantes).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Espejo de zonas del app (fase 200 D4): `zones.ts` repite a mano `REGIONES`
+// (slugs, en el mismo orden) y `GRUPOS_ZONA` (como conjuntos: el app ordena
+// piernas como la 197 y el API por orden de regiones).
+// ---------------------------------------------------------------------------
+
+function literales(texto: string): string[] {
+  return [...texto.matchAll(/'([^']+)'/g)].map((m) => m[1]);
+}
+
+/** Texto entre la primera aparición de `inicio` y el primer `fin` posterior. */
+function bloque(contenido: string, inicio: string, fin: string): string {
+  const desde = contenido.indexOf(inicio);
+  if (desde < 0) {
+    throw new Error(`sync-front: zones.ts no contiene "${inicio}"`);
+  }
+  const hasta = contenido.indexOf(fin, desde + inicio.length);
+  if (hasta < 0) {
+    throw new Error(`sync-front: zones.ts no cierra "${inicio}" con "${fin}"`);
+  }
+  return contenido.slice(desde + inicio.length, hasta);
+}
+
+describe("anatomy/sync-front — espejo de zonas del app", () => {
+  const zonesPath = path.resolve(
+    __dirname,
+    "../../../el-templo-app/src/components/anatomy/zones.ts",
+  );
+  let contenido: string;
+  try {
+    contenido = readFileSync(zonesPath, "utf-8");
+  } catch (err: unknown) {
+    const reason = err instanceof Error ? err.message : String(err);
+    throw new Error(
+      `sync-front: no se pudo leer ${zonesPath} (${reason}) — el espejo ` +
+        `no existe o el path relativo cambió`,
+    );
+  }
+
+  const slugsApp = literales(
+    bloque(contenido, "export type ZoneSlug =", "export type ZoneGroup"),
+  );
+  const gruposApp: Record<string, string[]> = Object.fromEntries(
+    [
+      ...bloque(
+        contenido,
+        "export const ZONE_GROUPS",
+        "export const ZONE_GROUP_LABELS",
+      ).matchAll(/^\s+([a-z]+):\s*\[([^\]]*)\]/gm),
+    ].map((m): [string, string[]] => [m[1], literales(m[2])]),
+  );
+  const noMusculares = literales(
+    bloque(contenido, "export const NON_MUSCLE_SLUGS", "])"),
+  );
+
+  it("ZoneSlug del app son los 16 slugs de REGIONES, en el mismo orden", () => {
+    expect(slugsApp).toHaveLength(16);
+    expect(slugsApp).toEqual(REGIONES.map((r) => r.slug));
+  });
+
+  it("ZONE_GROUPS del app tiene los mismos grupos que GRUPOS_ZONA", () => {
+    expect(Object.keys(gruposApp).sort()).toEqual(
+      Object.keys(GRUPOS_ZONA).sort(),
+    );
+  });
+
+  it.each(Object.entries(GRUPOS_ZONA))(
+    "el grupo %s del app tiene las mismas zonas que GRUPOS_ZONA (como conjunto)",
+    (grupo, zonas) => {
+      expect([...(gruposApp[grupo] ?? [])].sort()).toEqual([...zonas].sort());
+    },
+  );
+
+  it("tibialis está en piernas y no es una parte no muscular del app (D4)", () => {
+    expect(gruposApp.piernas).toContain("tibialis");
+    expect(noMusculares).not.toContain("tibialis");
+    expect(noMusculares).toHaveLength(7);
   });
 });
