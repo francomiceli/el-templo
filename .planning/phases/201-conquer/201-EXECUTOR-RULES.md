@@ -293,3 +293,9 @@ con preguntas.
   `publishEnabled` y `publishNoFace` a `FichaMember` en el API (servicio + `schemas.ts` + un `expect` en el test de ficha
   existente), usarlos en `ConquerEvolution` y quitar la llamada a la galería. Commit propio `fix(201-23): ...`. Y enlazar
   "Extendé la escalera desde Catálogo" con `?tab=catalogo` cuando exista la tab.
+- (201-23) Encargo de banderas de publicación hecho (`FichaMember.publishEnabled/publishNoFace`). Para 201-24: sumar al UAT
+  (además de lo del plan) los puntos que los ejecutores dejaron para mirar a ojo: picker de 5 días de Toro a 390 px, hoja de
+  guardado con figura + calibración, `<select>` nativos en iOS, curva del E1 en pantallas anchas (`preserveAspectRatio`),
+  comparador de 226 px y tabla de 4 columnas del control, letras griegas que caen a Georgia (Cormorant sin subset griego),
+  y que el sábado de Toro NO muestra mapa muscular (D-13 no define zonas para combos: validación de Nacho).
+  Y una sección "Probar en local" (antes de staging): migrar la base LOCAL, levantar API + app + admin, cuentas de prueba.
