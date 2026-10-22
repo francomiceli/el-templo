@@ -233,3 +233,9 @@ con preguntas.
   `applyCut`. Revertir mutantes con `git -C /home/franco/projects/et-201-conquer checkout -- <ruta>` (ruta relativa al
   repo) y verificar `git status`. Las acciones de la ficha devuelven la `FichaResponse` completa: el admin (201-22)
   reemplaza su estado con esa respuesta. Manifiesto: 497 tras 201-11.
+- (201-12) `privateMediaResolver.resolve` TIRA el 503 (no devuelve `null`). `fastify.r2` solo existe con las 4 variables
+  `R2_*` del bucket de videos: sin ellas, fotos → 503 aunque esté `R2_PRIVATE_BUCKET_NAME`. `member.bodyCheck` viene en
+  `GET /state` solo con `status = activo`. Helpers de test: `insertBodyCheckRow(..., { empty: true })`, `mockPrivateMedia()`.
+  Validaciones que deben quedar DETRÁS de 404/503 se hacen en el servicio, no con `enum` en el JSON-schema.
+  `.github/workflows/deploy-staging.yml` es CRLF: si se toca, respetar CRLF. Manifiesto: 503 tras 201-12. Contratos
+  del control físico para el app (201-20): `201-12-SUMMARY.md`.
