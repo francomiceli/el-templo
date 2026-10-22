@@ -214,6 +214,8 @@ export const conquerMembers = mysqlTable(
     publishEnabled: boolean("publish_enabled").default(false).notNull(),
     publishNoFace: boolean("publish_no_face").default(false).notNull(),
     publishChangedAt: datetime("publish_changed_at"),
+    // Fase 201 DA-21: cuándo vio la guía "¿Cómo funciona?" (la PRIMERA vez; NULL = no la vio).
+    guideSeenAt: datetime("guide_seen_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
   },
