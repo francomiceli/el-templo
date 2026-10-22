@@ -210,10 +210,18 @@ export interface ConquerSessionStepInput {
   rungCode?: string;
 }
 
+/** Combo de una sesión insertada (201-10): peldaño de Palanca por código, series y objetivo. */
+export interface ConquerComboInput {
+  rungCode: string;
+  series: number;
+  target: number;
+}
+
 /**
  * Inserta DIRECTO una sesión del historial (días pasados) con sus marcas
  * (201-07). Resuelve ids por `code`; `rung_id`/`mode` salen del escalón actual
- * del alumno salvo que se pase `rungCode`. Devuelve el id de la sesión.
+ * del alumno salvo que se pase `rungCode`. `combo` (apertura), `push` y `pull`
+ * (sábado) llenan las columnas de combo (201-10). Devuelve el id de la sesión.
  */
 export async function insertConquerSession(
   app: FastifyInstance,
@@ -223,8 +231,12 @@ export async function insertConquerSession(
     dayKey: string;
     pain?: number;
     steps: ConquerSessionStepInput[];
+    combo?: ConquerComboInput;
+    push?: ConquerComboInput;
+    pull?: ConquerComboInput;
   },
 ): Promise<number> {
+  const comboColumns = await comboInsertColumns(app, input);
   const exercises = await app.db
     .select({
       id: schema.conquerExercises.id,
@@ -245,6 +257,7 @@ export async function insertConquerSession(
         dayKey: input.dayKey,
         pain: input.pain ?? 0,
         savedAt: sql`NOW()`,
+        ...comboColumns,
       }),
     )
     .$returningId();
@@ -287,6 +300,41 @@ export async function insertConquerSession(
     );
   }
   return session.id;
+}
+
+/** Columnas `combo_*`/`push_*`/`pull_*` de una sesión insertada, con los ids de Palanca resueltos por código. */
+async function comboInsertColumns(
+  app: FastifyInstance,
+  input: {
+    combo?: ConquerComboInput;
+    push?: ConquerComboInput;
+    pull?: ConquerComboInput;
+  },
+) {
+  const resolve = async (c: ConquerComboInput | undefined) =>
+    c === undefined
+      ? null
+      : {
+          rungId: await conquerRungId(app, "palanca", c.rungCode),
+          series: c.series,
+          target: c.target,
+        };
+  const [combo, push, pull] = await Promise.all([
+    resolve(input.combo),
+    resolve(input.push),
+    resolve(input.pull),
+  ]);
+  return {
+    comboRungId: combo?.rungId ?? null,
+    comboSeries: combo?.series ?? null,
+    comboTarget: combo?.target ?? null,
+    pushRungId: push?.rungId ?? null,
+    pushSeries: push?.series ?? null,
+    pushTarget: push?.target ?? null,
+    pullRungId: pull?.rungId ?? null,
+    pullSeries: pull?.series ?? null,
+    pullTarget: pull?.target ?? null,
+  };
 }
 
 // ── Hoy, guardado y cambio de escalón (201-07) ──────────────────────
@@ -340,6 +388,8 @@ export interface TodayBody {
   finisher: string;
   level: string;
   exercises: TodayExerciseBody[];
+  opening: ComboBody | null;
+  saturday: { warmup: string; push: ComboBody; pull: ComboBody } | null;
 }
 
 /** "Hoy" del alumno: el de su sede, igual que lo calcula el servidor (A16). */
@@ -538,6 +588,12 @@ export interface ProgressBody {
     exerciseId: number;
     exerciseName: string;
     step: "e1" | "e2" | "e3";
+    fromRungName: string;
+    toRungName: string | null;
+  }[];
+  comboSubir: {
+    comboKey: string;
+    label: string;
     fromRungName: string;
     toRungName: string | null;
   }[];
@@ -836,4 +892,106 @@ export async function insertBodyCheckRow(
     )
     .$returningId();
   return row.id;
+}
+
+// ── Combos de Toro (201-10) ─────────────────────────────────────────
+
+export interface ComboBody {
+  comboKey: string;
+  label: string;
+  press: string;
+  push: string;
+  hold: string;
+  rungs: { id: number; code: string; name: string; position: number }[];
+  rungId: number;
+  rungName: string;
+  target: number;
+  value: number;
+  maxSeries: number | null;
+  drops: number | null;
+  subir: { ready: boolean; toRungName: string | null };
+}
+
+export function conquerComboSubirUrl(comboKey: string): string {
+  return `/api/members/conquer/combos/${comboKey}/subir`;
+}
+
+/** `POST /combos/:comboKey/subir` crudo. */
+export async function postComboSubir(
+  app: FastifyInstance,
+  token: string,
+  comboKey: string,
+) {
+  return app.inject({
+    method: "POST",
+    url: conquerComboSubirUrl(comboKey),
+    headers: bearer(token),
+  });
+}
+
+/** Parche directo a la fila `conquer_members` del alumno (recorte, activación, combo_state...). */
+export async function patchConquerMember(
+  app: FastifyInstance,
+  userId: number,
+  patch: Partial<typeof schema.conquerMembers.$inferInsert>,
+): Promise<void> {
+  await app.db
+    .update(schema.conquerMembers)
+    .set(patch)
+    .where(
+      and(
+        tenantWhere(schema.conquerMembers, TEMPLO_CTX),
+        eq(schema.conquerMembers.userId, userId),
+      ),
+    );
+}
+
+/**
+ * Fija `combo_state` del alumno a partir de códigos de peldaño de Palanca:
+ * `{ plancha: { rungCode: "half_lay", since } }`.
+ */
+export async function setComboState(
+  app: FastifyInstance,
+  userId: number,
+  state: Record<string, { rungCode: string; since: string }>,
+): Promise<void> {
+  const resolved: Record<string, { rungId: number; since: string }> = {};
+  for (const [comboKey, entry] of Object.entries(state)) {
+    resolved[comboKey] = {
+      rungId: await conquerRungId(app, "palanca", entry.rungCode),
+      since: entry.since,
+    };
+  }
+  await patchConquerMember(app, userId, { comboState: resolved });
+}
+
+/** `combo_state` crudo del alumno (o `null`). */
+export async function readComboState(
+  app: FastifyInstance,
+  userId: number,
+): Promise<Record<string, { rungId: number; since: string }> | null> {
+  const [row] = await app.db
+    .select({ comboState: schema.conquerMembers.comboState })
+    .from(schema.conquerMembers)
+    .where(
+      and(
+        tenantWhere(schema.conquerMembers, TEMPLO_CTX),
+        eq(schema.conquerMembers.userId, userId),
+      ),
+    );
+  return row?.comboState ?? null;
+}
+
+/** Body de `PUT /sessions` del sábado de Toro (sin ejercicios, 201-10). */
+export function saturdayBody(opts: {
+  push: { rungId: number; series: number };
+  pull: { rungId: number; series: number };
+  pain?: number;
+}) {
+  return {
+    dayKey: "sabado",
+    pain: opts.pain ?? 0,
+    push: opts.push,
+    pull: opts.pull,
+  };
 }

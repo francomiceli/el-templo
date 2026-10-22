@@ -177,11 +177,13 @@ describe("GET /api/members/conquer/today", () => {
     expect(body.finisher).toBe("Tuck planche hold o lean, 20–30 s");
     expect(body.weekComplete).toBe(false);
     expect(body.nextDayKey).toBe("plancha");
+    // Toro suma el sábado de combos al final del plan (201-10, §3.2, D-16).
     expect(body.plan.map((d) => [d.dayKey, d.done])).toEqual([
       ["plancha", false],
       ["front", false],
       ["vertical", false],
       ["dominadas", false],
+      ["sabado", false],
     ]);
     expect(body.exercises.map((e) => e.code)).toEqual([
       "planche_hold",
@@ -375,6 +377,7 @@ describe("PUT /api/members/conquer/sessions — qué día toca (D-16) y Semana c
     expect(siguiente.nextDayKey).toBe("front");
     expect(siguiente.plan.map((d) => d.done)).toEqual([
       true,
+      false,
       false,
       false,
       false,
