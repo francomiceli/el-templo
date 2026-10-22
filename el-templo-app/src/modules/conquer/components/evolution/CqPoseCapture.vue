@@ -1,42 +1,42 @@
 <template>
-  <div class="cq-pose" :class="{ 'cq-pose--done': status === 'done' }">
-    <div class="cq-pose__niche" aria-hidden="true">
+  <div class="cq-pose cq-card" :class="{ 'cq-pose--done': status === 'done' }">
+    <div class="cq-pose__tile" aria-hidden="true">
       <span v-if="status === 'uploading'" class="cq-pose__spin" />
       <span v-else-if="status === 'done'" class="cq-pose__mark">✓</span>
       <span v-else class="cq-pose__letter">{{ POSE_LABELS[pose].charAt(0) }}</span>
     </div>
 
     <div class="cq-pose__body">
-      <div class="cq-caps">{{ POSE_LABELS[pose] }}</div>
-      <p class="cq-sub cq-pose__tip">{{ POSE_TIPS[pose] }}</p>
+      <h2 class="cq-pose__name">{{ POSE_LABELS[pose] }}</h2>
+      <p class="cq-sub">{{ POSE_TIPS[pose] }}</p>
 
-      <p v-if="status === 'uploading'" class="cq-pose__state" role="status">Subiendo la foto…</p>
-      <p v-else-if="status === 'done'" class="cq-pose__state cq-pose__state--ok" role="status">
-        Foto guardada
+      <p v-if="status === 'uploading'" class="cq-sub cq-pose__state" role="status">
+        Subiendo la foto…
       </p>
-      <p v-else-if="status === 'error'" class="cq-pose__state cq-pose__state--err" role="alert">
-        {{ message }}
+      <p v-else-if="status === 'done'" class="cq-pose__state" role="status">
+        <span class="cq-chip cq-chip--hecha">Foto guardada</span>
+      </p>
+      <p v-else-if="status === 'error'" class="cq-notice cq-pose__notice" role="alert">
+        ! {{ message }}
       </p>
 
       <div class="cq-pose__actions">
-        <button
+        <CqButton
           v-if="status === 'error' && canRetry"
-          type="button"
-          class="cq-small cq-small--fill"
+          label="Reintentar"
+          variant="secondary"
+          small
           :disabled="disabled"
           @click="emit('retry')"
-        >
-          Reintentar
-        </button>
-        <button
-          type="button"
-          class="cq-small"
+        />
+        <CqButton
+          :label="actionLabel"
+          variant="secondary"
+          small
           :disabled="disabled || status === 'uploading'"
           :aria-label="`${actionLabel} de ${POSE_LABELS[pose].toLowerCase()}`"
           @click="emit('capture')"
-        >
-          {{ actionLabel }}
-        </button>
+        />
       </div>
     </div>
   </div>
@@ -46,8 +46,9 @@
 import { computed } from 'vue'
 import type { Pose } from '../../types'
 import { POSE_LABELS, POSE_TIPS } from '../../utils/bodyCheck'
+import CqButton from '../brand/CqButton.vue'
 
-// Fase 201 §6, D-15: una hornacina del control físico (prototipo `.ph` + `.plinth`) con la pose, su
+// Fase 201 §6, D-15: una card del control físico (DA-36) con la pose, su
 // consejo y el botón para sacar la foto. No sabe de la cámara ni del API: muestra el estado que le
 // pasa la pantalla y emite `capture` / `retry`.
 export type PoseStatus = 'idle' | 'uploading' | 'done' | 'error'
@@ -71,102 +72,98 @@ const actionLabel = computed(() => (props.status === 'done' ? 'Volver a sacar' :
 </script>
 
 <style scoped lang="scss">
-.cq-pose {
-  display: grid;
-  grid-template-columns: 84px minmax(0, 1fr);
+// `.cq-pose.cq-card` (dos clases en el mismo elemento) le gana a `.cq-root .cq-card` (0,2,0): fila en
+// vez de columna y borde punteado dorado mientras la pose esta vacia.
+.cq-pose.cq-card {
+  flex-direction: row;
+  align-items: flex-start;
   gap: 14px;
-  align-items: start;
-  padding: 14px;
-  border: 1px solid var(--cq-hair2);
-  border-radius: 16px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.085), rgba(255, 255, 255, 0.035));
+  border: 1.5px dashed var(--cq-edge-gold);
+  box-shadow: none;
+}
 
-  &--done {
-    border-color: var(--cq-hair);
-  }
+.cq-pose.cq-pose--done {
+  border-style: solid;
+  border-color: var(--cq-edge);
+}
 
-  // Hornacina: arco arriba, pedestal dorado abajo
-  &__niche {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 84px;
-    height: 112px;
-    margin-bottom: 9px;
-    border-radius: 42px 42px 4px 4px;
-    border: 1px solid var(--cq-hair2);
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.03));
+// Recuadro de la pose: radio 12, sin foto en memoria (la privacidad de la foto no se toca aca)
+.cq-pose__tile {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
+  background: var(--cq-sand);
+  box-shadow: inset 0 0 0 1px var(--cq-line);
+}
 
-    &::after {
-      content: '';
-      position: absolute;
-      left: 6px;
-      right: 6px;
-      bottom: -9px;
-      height: 5px;
-      border-radius: 1px;
-      background: var(--cq-gold);
-      opacity: 0.55;
-    }
-  }
+.cq-pose--done .cq-pose__tile {
+  background: var(--cq-night);
+}
 
-  &--done &__niche {
-    border-color: var(--cq-gold);
+.cq-pose__letter,
+.cq-pose__mark {
+  font-family: var(--cq-font-head);
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--cq-night);
+}
 
-    &::after {
-      opacity: 1;
-    }
-  }
+.cq-pose--done .cq-pose__mark {
+  color: var(--cq-on-night-hi);
+}
 
-  &__letter,
-  &__mark {
-    font-family: var(--cq-display);
-    font-size: 34px;
-    font-weight: 600;
-    color: var(--cq-gold-hi);
-  }
+.cq-pose__spin {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 3px solid var(--cq-edge-gold);
+  border-right-color: transparent;
+}
 
-  &__spin {
-    width: 26px;
-    height: 26px;
-    border-radius: 50%;
-    border: 3px solid var(--cq-gold);
-    border-right-color: transparent;
-  }
+.cq-pose__body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
 
-  &__body {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    min-width: 0;
-  }
+// Un `h2` lleva todo fijado: Quasar tiene estilos globales de h1-h6
+.cq-pose__name {
+  margin: 0;
+  font-family: var(--cq-font-head);
+  font-weight: 700;
+  font-size: 16px;
+  line-height: 1.2;
+  letter-spacing: 0;
+  color: var(--cq-night);
+}
 
-  &__tip {
-    margin: 0;
-  }
+.cq-pose__state {
+  margin: 0;
+}
 
-  &__state {
-    margin: 0;
-    font-size: 13px;
-    color: var(--cq-cream);
+// Aviso dentro de la card (incluye el 503 de fotos no disponibles): sin rojo, texto sobre blanco
+.cq-pose .cq-pose__notice {
+  margin: 0;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
 
-    &--ok {
-      color: var(--cq-gold-hi);
-    }
-
-    &--err {
-      color: var(--cq-gold-hi);
-      font-weight: 500;
-    }
-  }
-
-  &__actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 4px;
-  }
+.cq-pose__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
 }
 
 @media (prefers-reduced-motion: no-preference) {

@@ -1,16 +1,11 @@
 <template>
-  <CqSky class="cq-bc">
-    <CqPageHeader
-      title="CONTROL FÍSICO"
-      :subtitle="subtitle"
-      :back-to="backTo"
-      back-label="Volver a Conquer"
-    />
+  <CqScreen class="cq-bc">
+    <CqPageHeader title="Control físico" :back-to="backTo" back-label="Volver a Conquer" />
 
     <div v-if="loading || loadError" class="cq-bc__center" role="status" aria-live="polite">
       <template v-if="loadError">
-        <p class="cq-sub" role="alert">{{ loadError }}</p>
-        <button type="button" class="cq-small cq-small--fill" @click="reload">Reintentar</button>
+        <p class="cq-notice" role="alert">{{ loadError }}</p>
+        <CqButton label="Reintentar" variant="secondary" small @click="reload" />
       </template>
       <template v-else>
         <span class="cq-bc__spin" aria-hidden="true" />
@@ -19,9 +14,14 @@
     </div>
 
     <template v-else>
-      <p class="cq-sub cq-bc__intro">
-        Tres fotos y cuatro medidas. Te lleva menos de 3 minutos y podés hacerlo en otro momento.
-      </p>
+      <!-- DA-36: la pieza oscura es la cabecera con la consigna del anexo -->
+      <header class="cq-bc__head cq-dark">
+        <p class="cq-kicker">Control físico</p>
+        <h3 class="cq-bc__headtitle">{{ subtitle }}</h3>
+        <p class="cq-sub">
+          Tres fotos y cuatro medidas. Te lleva menos de 3 minutos y podés hacerlo en otro momento.
+        </p>
+      </header>
 
       <CqPoseCapture
         v-for="pose in CONQUER_POSES"
@@ -36,13 +36,15 @@
       />
 
       <div class="cq-card">
-        <div class="cq-caps">Medidas</div>
+        <h2 class="cq-block-title">Medidas</h2>
         <div v-for="field in MEASURE_FIELDS" :key="field.key" class="cq-bc__field">
           <label :for="`cq-bc-${field.key}`" class="cq-bc__label">{{ field.label }}</label>
-          <div class="cq-bc__box" :class="{ 'cq-bc__box--err': errors[field.key] }">
+          <div class="cq-bc__box">
             <input
               :id="`cq-bc-${field.key}`"
               v-model="drafts[field.key]"
+              class="cq-field"
+              :class="{ 'cq-bc__input--err': errors[field.key] }"
               type="text"
               inputmode="decimal"
               autocomplete="off"
@@ -59,33 +61,32 @@
             class="cq-bc__error"
             role="alert"
           >
-            {{ errors[field.key] }}
+            ! {{ errors[field.key] }}
           </p>
         </div>
       </div>
 
-      <div class="cq-grow" />
-
-      <CqCloudButton
-        label="Guardar control"
-        :loading="saving"
-        :disabled="uploading || skipping"
-        @click="onSave"
-      >
-        <div v-if="uploading" class="cq-sub" role="status">Esperá a que termine la foto</div>
+      <div class="cq-bc__foot">
+        <p v-if="uploading" class="cq-sub" role="status">Esperá a que termine la foto</p>
+        <CqButton
+          label="Guardar control"
+          :loading="saving"
+          :disabled="uploading || skipping"
+          @click="onSave"
+        />
         <button
           v-if="showSkip"
           type="button"
-          class="cq-bc__later"
+          class="cq-textlink cq-bc__later"
           :disabled="saving || skipping || uploading"
           :aria-busy="skipping ? 'true' : undefined"
           @click="onSkip"
         >
           Lo hago después
         </button>
-      </CqCloudButton>
+      </div>
     </template>
-  </CqSky>
+  </CqScreen>
 </template>
 
 <script setup lang="ts">
@@ -109,9 +110,9 @@ import {
 } from '../utils/bodyCheck'
 import type { MeasureKey } from '../utils/bodyCheck'
 import type { BodyCheckView, Pose } from '../types'
-import CqSky from '../components/brand/CqSky.vue'
+import CqScreen from '../components/brand/CqScreen.vue'
 import CqPageHeader from '../components/brand/CqPageHeader.vue'
-import CqCloudButton from '../components/brand/CqCloudButton.vue'
+import CqButton from '../components/brand/CqButton.vue'
 import CqPoseCapture from '../components/evolution/CqPoseCapture.vue'
 import type { PoseStatus } from '../components/evolution/CqPoseCapture.vue'
 
@@ -340,7 +341,7 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped lang="scss">
-.cq-bc.cq-sky {
+.cq-bc {
   // Alto de la pantalla menos el header y la barra de abajo (igual que Hoy)
   min-height: calc(var(--app-vh) - 50px - var(--mobile-tabs-height));
 }
@@ -358,12 +359,29 @@ onBeforeUnmount(() => {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  border: 3px solid var(--cq-gold);
+  border: 3px solid var(--cq-edge-gold);
   border-right-color: transparent;
 }
 
-.cq-bc__intro {
+// Cabecera oscura (`.cq-dark` suelto: radio 16 y padding 16, como pide DA-36). `.cq-bc__head.cq-dark`
+// mide una clase mas que `.cq-root .cq-dark`, asi que le gana al padding de la utilidad.
+.cq-bc__head.cq-dark {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px;
+  border-radius: 16px;
+}
+
+// Un `h3` lleva todo fijado: Quasar tiene estilos globales de h1-h6
+.cq-bc__headtitle {
   margin: 0;
+  font-family: var(--cq-font-head);
+  font-weight: 700;
+  font-size: 20px;
+  line-height: 1.15;
+  letter-spacing: 0;
+  color: var(--cq-on-night-hi);
 }
 
 .cq-bc__field {
@@ -373,67 +391,59 @@ onBeforeUnmount(() => {
 }
 
 .cq-bc__label {
+  font-family: var(--cq-font-body);
+  font-weight: 600;
   font-size: 14px;
-  color: var(--cq-cream);
+  color: var(--cq-text);
 }
 
 .cq-bc__box {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 48px;
-  padding: 0 12px;
-  border-radius: 10px;
-  border: 1px solid var(--cq-hair2);
-  background: #1a2656;
+  min-width: 0;
 
-  &:focus-within {
-    border-color: var(--cq-gold-hi);
-  }
-
-  &--err {
-    border-color: var(--cq-gold-hi);
-    box-shadow: 0 0 0 1px var(--cq-gold-hi);
-  }
-
-  input {
-    flex: 1;
-    min-width: 0;
-    height: 46px;
-    padding: 0;
-    border: 0;
-    outline: 0;
-    background: transparent;
-    color: var(--cq-cream);
-    font: inherit;
-    font-size: 16px;
+  .cq-field {
+    flex: 1 1 auto;
     font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  // Con error el borde pasa a dorado de texto (sin rojo dentro de Conquer). Dos clases en el mismo
+  // elemento para ganarle a `.cq-root .cq-field` (0,2,0).
+  .cq-field.cq-bc__input--err {
+    border-color: var(--cq-text-gold);
+    box-shadow: 0 0 0 1px var(--cq-text-gold);
   }
 }
 
 .cq-bc__unit {
+  flex: none;
+  min-width: 24px;
   font-size: 13px;
-  color: var(--cq-muted);
+  color: var(--cq-text-2);
 }
 
 .cq-bc__error {
   margin: 0;
   font-size: 13px;
   font-weight: 500;
-  color: var(--cq-gold-hi);
+  color: var(--cq-text);
 }
 
-// "Lo hago después": chico y en el pie de nubes (texto sólido, hitbox de 44 px)
-.cq-bc__later {
+.cq-bc__foot {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+// "Lo hago despues": chico y a la vista debajo del boton (D-15, hitbox de 44 px)
+.cq-bc__foot .cq-bc__later {
   align-self: center;
-  min-height: 44px;
+  justify-content: center;
   padding: 0 14px;
-  border: 0;
-  background: transparent;
-  color: var(--cq-ink2);
   font-size: 13px;
-  text-decoration: underline;
-  cursor: pointer;
 
   &:disabled {
     opacity: 0.55;
