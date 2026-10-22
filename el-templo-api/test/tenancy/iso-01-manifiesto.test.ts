@@ -363,7 +363,9 @@ import {
 // 2026-10-22: 490 -> 492 por Conquer v2 (fase 201, plan 09): GET
 // /api/admin/conquer/members y PATCH /api/admin/conquer/alerts/:id,
 // templo-module.
-const ENTRADAS_BASELINE = 492;
+// 2026-10-22: 492 -> 493 por Conquer v2 (fase 201, plan 10): POST
+// /api/members/conquer/combos/:comboKey/subir, templo-module.
+const ENTRADAS_BASELINE = 493;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -506,7 +508,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 492 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 493 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(

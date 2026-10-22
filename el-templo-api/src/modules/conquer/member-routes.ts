@@ -8,6 +8,8 @@ import { attachCountryScope } from "../shared/country-scope";
 import { handleServiceError } from "../shared/error-handler";
 import { assertTenant } from "../shared/tenant";
 import { resolveCalibration } from "./calibration-service";
+import { subirCombo } from "./combo-service";
+import type { ComboKey } from "./combos";
 import type { CountedStep, StepKey } from "./engine";
 import { sendConquerError } from "./errors";
 import { getConquerState, requestUnlock } from "./member-service";
@@ -18,6 +20,7 @@ import {
   progressSchema,
   resolveCalibrationSchema,
   saveSessionSchema,
+  subirComboSchema,
   subirStepSchema,
   todaySchema,
   unlockRequestSchema,
@@ -188,6 +191,26 @@ export const conquerMemberRoutes: FastifyPluginAsync = async (fastify) => {
         return await buildProgress(fastify.db, ctx, userId);
       } catch (err: unknown) {
         sendConquerError(err, reply, request.log, "conquer.member.calibration");
+      }
+    },
+  );
+
+  // POST /combos/:comboKey/subir — Subir la progresión de arranque de un combo (D-14, §4.5).
+  fastify.post<{ Params: { comboKey: ComboKey } }>(
+    "/combos/:comboKey/subir",
+    { onRequest: [fastify.authenticate], schema: subirComboSchema },
+    async (request, reply) => {
+      try {
+        await attachCountryScope(request, fastify.db);
+        const ctx = assertTenant(request.scope, "conquer.member.combo_subir");
+        return await subirCombo(
+          fastify.db,
+          ctx,
+          request.user.userId,
+          request.params.comboKey,
+        );
+      } catch (err: unknown) {
+        sendConquerError(err, reply, request.log, "conquer.member.combo_subir");
       }
     },
   );

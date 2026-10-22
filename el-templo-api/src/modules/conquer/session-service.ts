@@ -15,6 +15,13 @@ import {
 } from "../shared/tenant";
 import { autoResolveEventAlert, evaluateAfterSave } from "./alerts-service";
 import {
+  applyComboStateWrites,
+  planComboWrites,
+  type ComboEntry,
+  type ComboWrites,
+} from "./combo-service";
+import { SATURDAY_DAY_KEY } from "./combos";
+import {
   calibrationProposals,
   type CalibrationProposal,
 } from "./calibration-service";
@@ -39,8 +46,9 @@ import {
   type MemberContext,
 } from "./history-loader";
 import { exerciseWorked, lightZones } from "./lighting";
+import { saturdayPlan } from "./rules";
 import { emitTopeAlert, topeDedupeKey } from "./step-service";
-import { computeTodayStep } from "./today-service";
+import { computeTodayStep, invalidDayError } from "./today-service";
 
 type DbInstance = MySql2Database<typeof schema>;
 type Tx = Parameters<Parameters<DbInstance["transaction"]>[0]>[0];
@@ -59,7 +67,13 @@ export interface SaveSessionExercise {
 export interface SaveSessionBody {
   dayKey: string;
   pain: number;
-  exercises: SaveSessionExercise[];
+  /** Obligatorio salvo el sábado de Toro (que no lleva ejercicios). */
+  exercises?: SaveSessionExercise[];
+  /** §3.3: combo de apertura (Toro). Opcional en el API, el app lo manda siempre. */
+  opening?: ComboEntry;
+  /** §3.2: combos del sábado (Toro), obligatorios ese día. */
+  push?: ComboEntry;
+  pull?: ComboEntry;
 }
 
 export interface SaveSessionResult {
@@ -90,18 +104,15 @@ function invalidExercisesError(): AppError {
 function matchDayExercises(
   mctx: MemberContext,
   day: TemplateDayView,
-  body: SaveSessionBody,
-): { exercise: ExerciseView; entry: SaveSessionExercise }[] {
+  entries: readonly SaveSessionExercise[],
+): Matched {
   const exercises: ExerciseView[] = [];
   for (const code of day.exerciseCodes) {
     const exercise = mctx.catalog.exerciseByCode.get(code);
     if (exercise) exercises.push(exercise);
   }
-  const byId = new Map(body.exercises.map((e) => [e.exerciseId, e]));
-  if (
-    body.exercises.length !== exercises.length ||
-    byId.size !== exercises.length
-  ) {
+  const byId = new Map(entries.map((e) => [e.exerciseId, e]));
+  if (entries.length !== exercises.length || byId.size !== exercises.length) {
     throw invalidExercisesError();
   }
   return exercises.map((exercise) => {
@@ -305,62 +316,96 @@ async function findSessionId(
 }
 
 /**
- * Guarda la sesión de hoy. Una sola transacción: upsert de la sesión (T-201-25,
- * UNIQUE tenant+user+fecha+día) y reemplazo completo de sus marcas. El upsert
- * toma el lock de la fila, así que dos guardados simultáneos se serializan.
+ * Día a guardar: el de la plantilla, o `null` para el sábado de Toro (§3.2). Un
+ * día fuera del plan es 400, también el sábado de quien no lo tiene (Ternero,
+ * Novillo o Toro con el recorte 3).
  */
-export async function saveSession(
-  db: DbInstance,
-  ctx: TenantContext,
-  userId: number,
-  body: SaveSessionBody,
-): Promise<SaveSessionResult> {
-  const mctx = await loadMemberContext(db, ctx, userId);
-  const day = planDays(mctx.catalog, mctx.daysCount).find(
-    (d) => d.dayKey === body.dayKey,
-  );
-  if (!day) {
-    throw new AppError(
-      "Ese día no es parte de tu plan",
-      400,
-      "CONQUER_DIA_INVALIDO",
-    );
+function resolveSaveDay(
+  mctx: MemberContext,
+  dayKey: string,
+): TemplateDayView | null {
+  if (dayKey === SATURDAY_DAY_KEY) {
+    if (saturdayPlan(mctx.level, mctx.member.cutStage) === null) {
+      throw invalidDayError();
+    }
+    return null;
   }
-  const matched = matchDayExercises(mctx, day, body);
+  const day = planDays(mctx.catalog, mctx.daysCount).find(
+    (d) => d.dayKey === dayKey,
+  );
+  if (!day) throw invalidDayError();
+  return day;
+}
+
+/** Ejercicios de la sesión: los 3 del día, o ninguno el sábado (que solo lleva combos). */
+function resolveMatched(
+  mctx: MemberContext,
+  day: TemplateDayView | null,
+  body: SaveSessionBody,
+): Matched {
+  if (day === null) {
+    if (body.exercises !== undefined) throw invalidExercisesError();
+    return [];
+  }
+  if (body.exercises === undefined) throw invalidExercisesError();
+  const matched = matchDayExercises(mctx, day, body.exercises);
   for (const { exercise, entry } of matched) {
     assertValueRanges(exercise.unit, entry);
   }
+  return matched;
+}
 
-  // §9: la fecha la fija el servidor con la zona de la sede (A16).
-  const date = mctx.today;
-  const existingId = await findSessionId(db, ctx, userId, date, day.dayKey);
-  const marks = await loadMarks(
-    db,
-    ctx,
-    userId,
-    existingId === null ? {} : { excludeSessionId: existingId },
-  );
-  const rows = buildSessionStepRows(mctx, matched, marks);
+interface PersistInput {
+  date: string;
+  dayKey: string;
+  pain: number;
+  matched: Matched;
+  rows: SessionStepInsert[];
+  marksAfter: ReadonlyMap<string, MarkRow[]>;
+  combos: ComboWrites;
+}
 
-  const marksAfter = withSessionMarks(marks, date, rows);
+/**
+ * Una sola transacción: estado de los combos (con `FOR UPDATE` primero), upsert
+ * de la sesión (T-201-25, UNIQUE tenant+user+fecha+día) y reemplazo completo de
+ * sus marcas. El upsert toma el lock de la fila, así que dos guardados
+ * simultáneos se serializan. Devuelve el id y las propuestas de calibración.
+ */
+async function persistSession(
+  db: DbInstance,
+  ctx: TenantContext,
+  mctx: MemberContext,
+  input: PersistInput,
+): Promise<{ sessionId: number; calibration: CalibrationProposal[] }> {
+  const { date, dayKey, pain, matched, rows, marksAfter, combos } = input;
   let sessionId = null as number | null;
   let calibration: CalibrationProposal[] = [];
   await db.transaction(async (tx) => {
+    // Fase 201 §4.5, D-14: cambiar el peldaño de arranque de un combo reinicia su cuenta.
+    await applyComboStateWrites(
+      tx,
+      ctx,
+      mctx.member.id,
+      date,
+      combos.stateWrites,
+    );
+    // Fase 201 S12-3: las columnas de combo se pisan siempre (NULL si no vinieron).
     await tx
       .insert(schema.conquerSessions)
       .values(
         tenantValues(ctx, {
-          userId,
+          userId: mctx.userId,
           sessionDate: date,
-          dayKey: day.dayKey,
-          pain: body.pain,
+          dayKey,
+          pain,
           savedAt: sql`NOW()`,
+          ...combos.columns,
         }),
       )
       .onDuplicateKeyUpdate({
-        set: { pain: body.pain, savedAt: sql`NOW()` },
+        set: { pain, savedAt: sql`NOW()`, ...combos.columns },
       });
-    sessionId = await findSessionId(tx, ctx, userId, date, day.dayKey);
+    sessionId = await findSessionId(tx, ctx, mctx.userId, date, dayKey);
     if (sessionId === null) {
       throw new AppError("No pudimos guardar la sesión", 500);
     }
@@ -373,13 +418,19 @@ export async function saveSession(
         ),
       );
     const savedId = sessionId;
-    await tx
-      .insert(schema.conquerSessionSteps)
-      .values(
-        rows.map((row) => tenantValues(ctx, { ...row, sessionId: savedId })),
-      );
+    // El sábado no tiene escalones: no hay marcas ni calibración ni caída (§3.2).
+    if (rows.length > 0) {
+      await tx
+        .insert(schema.conquerSessionSteps)
+        .values(
+          rows.map((row) => tenantValues(ctx, { ...row, sessionId: savedId })),
+        );
+    }
     // Fase 201 §4.3, A2: calibración y alertas de tope, en la misma transacción.
-    calibration = await settleCalibration(tx, ctx, mctx, matched, marksAfter);
+    calibration =
+      matched.length === 0
+        ? []
+        : await settleCalibration(tx, ctx, mctx, matched, marksAfter);
     await syncTopeAlerts(tx, ctx, mctx, matched, marksAfter);
     // Fase 201 §5, A6, A13: molestia, caída y paso de nivel, también en la tx.
     await evaluateAfterSave(
@@ -389,8 +440,8 @@ export async function saveSession(
       {
         sessionId: savedId,
         date,
-        dayKey: day.dayKey,
-        pain: body.pain,
+        dayKey,
+        pain,
         exerciseIds: matched.map(({ exercise }) => exercise.id),
       },
       marksAfter,
@@ -398,6 +449,45 @@ export async function saveSession(
   });
   if (sessionId === null)
     throw new AppError("No pudimos guardar la sesión", 500);
+  return { sessionId, calibration };
+}
+
+/**
+ * Guarda la sesión de hoy (un día del plan o el sábado de Toro). La fecha, el
+ * `prev_target`, el peldaño y el modo los fija el servidor (T-201-21).
+ */
+export async function saveSession(
+  db: DbInstance,
+  ctx: TenantContext,
+  userId: number,
+  body: SaveSessionBody,
+): Promise<SaveSessionResult> {
+  const mctx = await loadMemberContext(db, ctx, userId);
+  const day = resolveSaveDay(mctx, body.dayKey);
+  const dayKey = day === null ? SATURDAY_DAY_KEY : day.dayKey;
+  const combos = planComboWrites(mctx, day, body);
+  const matched = resolveMatched(mctx, day, body);
+
+  // §9: la fecha la fija el servidor con la zona de la sede (A16).
+  const date = mctx.today;
+  const existingId = await findSessionId(db, ctx, userId, date, dayKey);
+  const marks = await loadMarks(
+    db,
+    ctx,
+    userId,
+    existingId === null ? {} : { excludeSessionId: existingId },
+  );
+  const rows = buildSessionStepRows(mctx, matched, marks);
+  const marksAfter = withSessionMarks(marks, date, rows);
+  const { sessionId, calibration } = await persistSession(db, ctx, mctx, {
+    date,
+    dayKey,
+    pain: body.pain,
+    matched,
+    rows,
+    marksAfter,
+    combos,
+  });
 
   // D-13 (a): zonas que se encendieron hoy (cada ejercicio con E1-E3 > 0).
   const lighting = lightZones(
@@ -406,5 +496,5 @@ export async function saveSession(
       worked: exerciseWorked(entry),
     })),
   );
-  return { sessionId, date, dayKey: day.dayKey, lighting, calibration };
+  return { sessionId, date, dayKey, lighting, calibration };
 }

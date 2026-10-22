@@ -5,6 +5,7 @@
 // entrada acá o el serializador lo borra en silencio.
 import { CONQUER_LEVELS } from "../../db/schema/conquer";
 import { CONQUER_INC_RANGES } from "./activation-service";
+import { COMBO_KEYS } from "./combos";
 
 // ── Hoy e Inicio (plan 201-07) ──────────────────────────────────────
 
@@ -244,6 +245,63 @@ export const updateMemberSchema = {
 const STEP_ENUM = ["e1", "e2", "e3", "hold"] as const;
 const ESTADO_ENUM = ["sin_datos", "rango", "techo1", "bajo", "subir"] as const;
 
+/** `ComboView` (Hoy, sábado y Subir del combo): peldaño de arranque y series completadas (§3.3). */
+const comboViewSchema = {
+  type: "object",
+  properties: {
+    comboKey: { type: "string", enum: [...COMBO_KEYS] },
+    label: { type: "string" },
+    press: { type: "string" },
+    push: { type: "string" },
+    hold: { type: "string" },
+    rungs: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          id: { type: "integer" },
+          code: { type: "string" },
+          name: { type: "string" },
+          position: { type: "integer" },
+        },
+        required: ["id", "code", "name", "position"],
+        additionalProperties: false,
+      },
+    },
+    rungId: { type: "integer" },
+    rungName: { type: "string" },
+    target: { type: "integer" },
+    value: { type: "integer" },
+    maxSeries: { type: ["integer", "null"] },
+    drops: { type: ["integer", "null"] },
+    subir: {
+      type: "object",
+      properties: {
+        ready: { type: "boolean" },
+        toRungName: { type: ["string", "null"] },
+      },
+      required: ["ready", "toRungName"],
+      additionalProperties: false,
+    },
+  },
+  required: [
+    "comboKey",
+    "label",
+    "press",
+    "push",
+    "hold",
+    "rungs",
+    "rungId",
+    "rungName",
+    "target",
+    "value",
+    "maxSeries",
+    "drops",
+    "subir",
+  ],
+  additionalProperties: false,
+} as const;
+
 const todayStepSchema = {
   type: "object",
   properties: {
@@ -327,6 +385,18 @@ export const todaySchema = {
         finisher: { type: "string" },
         level: { type: "string", enum: [...CONQUER_LEVELS] },
         exercises: { type: "array", items: todayExerciseSchema },
+        // S12-3: solo Toro. `opening` en los días con combo, `saturday` el sábado.
+        opening: { ...comboViewSchema, type: ["object", "null"] },
+        saturday: {
+          type: ["object", "null"],
+          properties: {
+            warmup: { type: "string" },
+            push: comboViewSchema,
+            pull: comboViewSchema,
+          },
+          required: ["warmup", "push", "pull"],
+          additionalProperties: false,
+        },
       },
       required: [
         ...PLAN_WEEK_REQUIRED,
@@ -338,6 +408,8 @@ export const todaySchema = {
         "finisher",
         "level",
         "exercises",
+        "opening",
+        "saturday",
       ],
       additionalProperties: false,
     },
@@ -371,13 +443,33 @@ const calibrationProposalSchema = {
   additionalProperties: false,
 } as const;
 
-/** `PUT /sessions` (alumno). La fecha y el prev NO existen en el body (T-201-21). */
+/** Combo del body (§3.3): peldaño de arranque y series completadas (T-201-35: tope por combo). */
+function comboEntrySchema(maxSeries: number) {
+  return {
+    type: "object",
+    properties: {
+      rungId: { type: "integer", minimum: 1 },
+      series: { type: "integer", minimum: 0, maximum: maxSeries },
+    },
+    required: ["rungId", "series"],
+    additionalProperties: false,
+  } as const;
+}
+
+/**
+ * `PUT /sessions` (alumno). La fecha y el prev NO existen en el body (T-201-21).
+ * `exercises` es obligatorio salvo el sábado de Toro (lo exige el servicio, que
+ * conoce el día); `opening` es opcional y `push`/`pull` son del sábado.
+ */
 export const saveSessionSchema = {
   body: {
     type: "object",
     properties: {
       dayKey: { type: "string", pattern: "^[a-z_]{1,20}$" },
       pain: { type: "integer", minimum: 0, maximum: 10 },
+      opening: comboEntrySchema(10),
+      push: comboEntrySchema(13),
+      pull: comboEntrySchema(13),
       exercises: {
         type: "array",
         minItems: 1,
@@ -396,7 +488,7 @@ export const saveSessionSchema = {
         },
       },
     },
-    required: ["dayKey", "pain", "exercises"],
+    required: ["dayKey", "pain"],
     additionalProperties: false,
   },
   response: {
@@ -524,6 +616,20 @@ export const progressResponseSchema = {
           additionalProperties: false,
         },
       },
+      comboSubir: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            comboKey: { type: "string", enum: [...COMBO_KEYS] },
+            label: { type: "string" },
+            fromRungName: { type: "string" },
+            toRungName: { type: ["string", "null"] },
+          },
+          required: ["comboKey", "label", "fromRungName", "toRungName"],
+          additionalProperties: false,
+        },
+      },
       calibrations: { type: "array", items: calibrationProposalSchema },
       days: {
         type: "array",
@@ -545,6 +651,7 @@ export const progressResponseSchema = {
       "accuracy",
       "weekLighting",
       "subir",
+      "comboSubir",
       "calibrations",
       "days",
     ],
@@ -587,6 +694,28 @@ export const resolveCalibrationSchema = {
     additionalProperties: false,
   },
   response: progressResponseSchema,
+} as const;
+
+/** `POST /combos/:comboKey/subir` (alumno): sube la progresión de arranque del combo (D-14). */
+export const subirComboSchema = {
+  params: {
+    type: "object",
+    properties: { comboKey: { type: "string", enum: [...COMBO_KEYS] } },
+    required: ["comboKey"],
+  },
+  body: {
+    type: ["object", "null"],
+    properties: {},
+    additionalProperties: false,
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: { combo: comboViewSchema },
+      required: ["combo"],
+      additionalProperties: false,
+    },
+  },
 } as const;
 
 // ── Tablero y alertas del coach (plan 201-09) ───────────────────────

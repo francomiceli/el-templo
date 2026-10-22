@@ -120,6 +120,17 @@
 //   ─────────────────────────
 //   TOTAL          400 → 405   (+5)
 //
+// 2026-10-22 — **493 rutas**: Conquer v2 (fase 201, plan 10): Subir la
+// progresión de arranque de un combo de Toro (`POST
+// /api/members/conquer/combos/:comboKey/subir`). Es `templo-module`
+// (`moduleScope` de `templo-training`).
+//
+//   tenant-scoped  sin cambio
+//   templo-module  +1   (la ruta nueva)
+//   global         sin cambio
+//   ─────────────────────────
+//   TOTAL          492 → 493   (+1)
+//
 // 2026-10-22 — **492 rutas**: Conquer v2 (fase 201, plan 09): tablero con
 // semáforo (`GET /api/admin/conquer/members`) y estado de una alerta (`PATCH
 // /api/admin/conquer/alerts/:id`) para owner/admin. Las 2 son `templo-module`
@@ -1625,6 +1636,10 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     modulo: "templo-training",
   },
   "PATCH /api/admin/conquer/alerts/:id": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/members/conquer/combos/:comboKey/subir": {
     categoria: "templo-module",
     modulo: "templo-training",
   },

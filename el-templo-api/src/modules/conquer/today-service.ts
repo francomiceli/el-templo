@@ -325,7 +325,7 @@ async function loadSavedValues(
   return new Map(rows.map((r) => [markKey(r.exerciseId, r.step), r.value]));
 }
 
-function invalidDayError(): AppError {
+export function invalidDayError(): AppError {
   return new AppError(
     "Ese día no es parte de tu plan",
     400,
