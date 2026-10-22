@@ -242,3 +242,10 @@ con preguntas.
 - (201-13) Galería: `day0` = control con contenido más viejo, `last` = el más nuevo (`null` si hay uno solo); solo alumnos
   `activo`. `canViewConquerPhotos` es alias de `canManageConquer`. La lista de controles del admin trae el de hoy aunque
   esté vacío (igual que `listChecks`). Manifiesto: 507 tras 201-13. Contratos para 201-20/22: `201-13-SUMMARY.md`.
+- (201-14) Los 400 de Ajv (`maxLength`, `minProperties`…) NO traen `code`: solo las validaciones del servicio devuelven
+  `{ error, code }` (el front muestra `error` igual). Las mutaciones del catálogo devuelven la vista actualizada: el admin
+  (201-23) reemplaza su estado con esa respuesta. Al reordenar escaleras, mandar TODOS los ids (también los desactivados).
+  Un peldaño en uso se puede desactivar (solo se prohíben los de la tabla de arranque). Manifiesto: 515 tras 201-14 (fin
+  del API). Contratos de las 8 rutas del catálogo: `201-14-SUMMARY.md`.
+- (orquestador, antes de 201-15) Desde acá son planes de app/admin. Baseline `pnpm lint` y `vue-tsc` de app y admin
+  tomados por el orquestador antes de 201-15: si algo de Conquer/Entrenar aparece en `vue-tsc`, es del plan en curso.
