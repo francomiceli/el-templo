@@ -47,6 +47,21 @@
           />
         </div>
 
+        <!-- Equivalente accesible del cuerpo (el SVG es aria-hidden): se ve al enfocarlo con teclado -->
+        <nav class="tu-cuerpo__zonas" aria-label="Zonas del cuerpo">
+          <ul class="tu-cuerpo__zonas-lista">
+            <li v-for="r in regionesVisibles" :key="r.slug">
+              <button
+                type="button"
+                class="tu-cuerpo__pill"
+                @click="onSelectZone(r.slug, vistaDeRegion(r.vista))"
+              >
+                {{ r.nombre }}
+              </button>
+            </li>
+          </ul>
+        </nav>
+
         <div v-show="!sheetOpen && store.profundos.length > 0" class="tu-cuerpo__deep">
           <p class="tu-cuerpo__deep-lbl">Los que no se ven (están más adentro):</p>
           <div class="tu-cuerpo__pills">
@@ -95,6 +110,7 @@ import type { ZoneSlug } from 'src/components/anatomy/zones'
 import AnatomySheet from '../components/AnatomySheet.vue'
 import ZonaAlumno from '../components/ZonaAlumno.vue'
 import { useAnatomyStore } from '../stores/anatomyStore'
+import type { VistaFigura } from '../types'
 
 type VistaCuerpo = 'front' | 'back'
 
@@ -125,6 +141,16 @@ const bottomOffset = computed(() => {
   const footer = document.querySelector('.mobile-footer')
   return footer instanceof HTMLElement ? footer.offsetHeight : TAB_BAR_FALLBACK
 })
+
+// Zonas de la vista que se está mirando (las `both` salen en las dos), para la lista accesible.
+const regionesVisibles = computed(() =>
+  (store.vista?.regiones ?? []).filter((r) => r.vista === 'both' || r.vista === vistaActual.value),
+)
+
+/** Una zona `both` se abre en la vista que se está mirando; las demás, en la suya. */
+function vistaDeRegion(vista: VistaFigura): VistaCuerpo {
+  return vista === 'both' ? vistaActual.value : vista
+}
 
 function volverALaGuia(): void {
   void router.push({ name: 'guia-inicio' })
@@ -349,6 +375,25 @@ onMounted(async () => {
 // El rótulo Frente/Espalda de la figura sobra: ya lo dice el selector.
 .tu-cuerpo__fig :deep(.body-figure__caption) {
   display: none;
+}
+
+// Lista de zonas para teclado y lector de pantalla: invisible hasta que algo recibe el foco.
+.tu-cuerpo__zonas:not(:focus-within) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.tu-cuerpo__zonas-lista {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
 }
 
 .tu-cuerpo__deep {
