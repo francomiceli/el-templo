@@ -239,3 +239,6 @@ con preguntas.
   Validaciones que deben quedar DETRÁS de 404/503 se hacen en el servicio, no con `enum` en el JSON-schema.
   `.github/workflows/deploy-staging.yml` es CRLF: si se toca, respetar CRLF. Manifiesto: 503 tras 201-12. Contratos
   del control físico para el app (201-20): `201-12-SUMMARY.md`.
+- (201-13) Galería: `day0` = control con contenido más viejo, `last` = el más nuevo (`null` si hay uno solo); solo alumnos
+  `activo`. `canViewConquerPhotos` es alias de `canManageConquer`. La lista de controles del admin trae el de hoy aunque
+  esté vacío (igual que `listChecks`). Manifiesto: 507 tras 201-13. Contratos para 201-20/22: `201-13-SUMMARY.md`.
