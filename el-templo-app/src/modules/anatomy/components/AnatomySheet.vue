@@ -44,7 +44,8 @@
  * sube la hoja por encima de la tab bar (Entrenar pasa su alto). Pointer events solo sobre el handle
  * (nada global que limpiar).
  */
-import { computed, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
+import { useBackButtonClose } from 'src/composables/useBackButtonClose'
 
 const props = withDefaults(
   defineProps<{
@@ -91,6 +92,23 @@ function onDialogUpdate(value: boolean): void {
 function cerrar(): void {
   emit('update:modelValue', false)
 }
+
+// Android: el QDialog no engancha el botón atrás en Capacitor (fase 199, L40). El listener vive
+// solo mientras la hoja está abierta, así atrás la cierra en vez de salir de la pantalla.
+const backClose = useBackButtonClose(cerrar)
+
+watch(
+  () => props.modelValue,
+  (abierta) => {
+    if (abierta) void backClose.attach()
+    else backClose.cleanup()
+  },
+  { immediate: true },
+)
+
+onUnmounted(() => {
+  backClose.cleanup()
+})
 
 function onHandleDown(e: PointerEvent): void {
   y0.value = e.clientY
