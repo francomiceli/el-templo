@@ -52,6 +52,7 @@ import {
 } from "./modules/check-ins";
 import { programRoutes } from "./modules/programs";
 import { anatomyRoutes } from "./modules/anatomy";
+import { conquerMemberRoutes, conquerAdminRoutes } from "./modules/conquer";
 import { notificationRoutes } from "./modules/notifications";
 import { communicationsRoutes, tvAvisosRoutes } from "./modules/communications";
 import { referralMemberRoutes } from "./modules/referrals/routes";
@@ -388,6 +389,15 @@ export async function buildApp(opts: BuildAppOptions = {}) {
 
   // Fase 200: contenido de anatomía (solo lectura)
   await moduleScope(app, "templo-training", anatomyRoutes, { prefix: "/api" });
+
+  // Fase 201: Conquer v2, exclusivo de El Templo (404 en gimnasios sin el
+  // módulo). Alumno bajo /api/members/conquer, admin bajo /api/admin/conquer.
+  await moduleScope(app, "templo-training", conquerMemberRoutes, {
+    prefix: "/api/members/conquer",
+  });
+  await moduleScope(app, "templo-training", conquerAdminRoutes, {
+    prefix: "/api/admin/conquer",
+  });
 
   // Notification routes (push notifications, preferences, admin templates)
   await app.register(notificationRoutes, { prefix: "/api/notifications" });

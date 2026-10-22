@@ -120,6 +120,18 @@
 //   ─────────────────────────
 //   TOTAL          400 → 405   (+5)
 //
+// 2026-10-21 — **482 rutas**: Conquer v2 (fase 201, plan 05): estado y pedido
+// de desbloqueo del alumno (`GET /api/members/conquer/state`, `POST
+// /api/members/conquer/unlock-request`) y lista + contador de pedidos para
+// owner/admin (`GET /api/admin/conquer/requests`, `.../requests/count`). Las 4
+// son `templo-module` (`moduleScope` de `templo-training`).
+//
+//   tenant-scoped  sin cambio
+//   templo-module  +4   (las rutas nuevas)
+//   global         sin cambio
+//   ─────────────────────────
+//   TOTAL          478 → 482   (+4)
+//
 // 2026-10-21 — **478 rutas**: la anatomía funcional (fase 200) agregó
 // `GET /api/admin/anatomy` (vista de profe, ANATOMIA_STAFF_ROLES) y
 // `GET /api/anatomy` (vista de alumno, cualquier autenticado). Las 2 son
@@ -1521,6 +1533,24 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     modulo: "templo-training",
   },
   "GET /api/anatomy": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+
+  // ── templo-training · conquer (fase 201) ─────────────────────────────────
+  "GET /api/members/conquer/state": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/members/conquer/unlock-request": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/admin/conquer/requests": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/admin/conquer/requests/count": {
     categoria: "templo-module",
     modulo: "templo-training",
   },
