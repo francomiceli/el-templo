@@ -249,3 +249,7 @@ con preguntas.
   del API). Contratos de las 8 rutas del catálogo: `201-14-SUMMARY.md`.
 - (orquestador, antes de 201-15) Desde acá son planes de app/admin. Baseline `pnpm lint` y `vue-tsc` de app y admin
   tomados por el orquestador antes de 201-15 (lint OK en ambos; único error preexistente de vue-tsc que matchea es `src/router/routes.ts(139,29) TS7016 ErrorNotFound.vue`, ajeno): si algo de Conquer/Entrenar aparece en `vue-tsc`, es del plan en curso.
+- (201-15) Hay DOS panes de Conquer a reemplazar en 201-17: `ComingSoonPane kind="conquer"` en `EntrenarView.vue` (rama
+  `v-else`) y en `EntrenarVidriera.vue` (`.vidriera__pane`, sin blur). Ids: `paneId('conquer')`/`tabId('conquer')`.
+  `TabKey` se importa de `../utils/entrenarTabs`; flags en `ENTRENAR_TAB_FLAGS`. No pasar prettier sobre archivos enteros
+  ajenos (los espejos `destinations.ts` reformatean líneas que no son del plan): formatear a mano lo propio.
