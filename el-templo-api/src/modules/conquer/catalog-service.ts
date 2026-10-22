@@ -16,6 +16,7 @@ import {
   type ConquerUnit,
 } from "../../db/schema/conquer";
 import { tenantWhere, type TenantContext } from "../shared/tenant";
+import { easierPosition, harderPosition } from "./engine";
 
 type DbInstance = MySql2Database<typeof schema>;
 
@@ -230,4 +231,28 @@ export function planDays(
   return catalog.templateDays
     .filter((d) => d.daysCount === daysCount)
     .sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id);
+}
+
+/**
+ * Peldaño vecino en la escalera (A2, §4.5): `harder` = el activo más difícil
+ * que el actual (position menor), `easier` = el activo más fácil. `null` si ya
+ * está en el extremo o el peldaño actual no es de la escalera.
+ */
+export function neighborRung(
+  catalog: ConquerCatalog,
+  ladderId: number,
+  currentRungId: number,
+  direction: "harder" | "easier",
+): RungView | null {
+  const ladder = catalog.ladders.get(ladderId);
+  const current = catalog.rungById.get(currentRungId);
+  if (!ladder || !current || current.ladderId !== ladderId) return null;
+  const active = ladder.rungs.filter((r) => r.isActive);
+  const positions = active.map((r) => r.position);
+  const target =
+    direction === "harder"
+      ? harderPosition(positions, current.position)
+      : easierPosition(positions, current.position);
+  if (target === null) return null;
+  return active.find((r) => r.position === target) ?? null;
 }
