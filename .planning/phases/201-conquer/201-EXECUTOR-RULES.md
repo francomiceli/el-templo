@@ -248,4 +248,4 @@ con preguntas.
   Un peldaño en uso se puede desactivar (solo se prohíben los de la tabla de arranque). Manifiesto: 515 tras 201-14 (fin
   del API). Contratos de las 8 rutas del catálogo: `201-14-SUMMARY.md`.
 - (orquestador, antes de 201-15) Desde acá son planes de app/admin. Baseline `pnpm lint` y `vue-tsc` de app y admin
-  tomados por el orquestador antes de 201-15: si algo de Conquer/Entrenar aparece en `vue-tsc`, es del plan en curso.
+  tomados por el orquestador antes de 201-15 (lint OK en ambos; único error preexistente de vue-tsc que matchea es `src/router/routes.ts(139,29) TS7016 ErrorNotFound.vue`, ajeno): si algo de Conquer/Entrenar aparece en `vue-tsc`, es del plan en curso.
