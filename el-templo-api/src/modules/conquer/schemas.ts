@@ -3,10 +3,11 @@
 // Fastify con `additionalProperties: false` DESCARTA las claves que falten en
 // el schema de respuesta: cada campo nuevo de una respuesta necesita su
 // entrada acá o el serializador lo borra en silencio.
-import { CONQUER_LEVELS } from "../../db/schema/conquer";
+import { CONQUER_LEVELS, CONQUER_STEP_KEYS } from "../../db/schema/conquer";
 import { CONQUER_INC_RANGES } from "./activation-service";
 import { COMBO_KEYS } from "./combos";
 import { CONQUER_POSES } from "./private-media";
+import { CONQUER_SETTING_RANGES } from "./settings";
 
 // ── Hoy e Inicio (plan 201-07) ──────────────────────────────────────
 
@@ -1269,4 +1270,345 @@ export const gallerySchema = {
       additionalProperties: false,
     },
   },
+} as const;
+
+// ── Edición del catálogo y de los parámetros (plan 201-14, D-14) ────
+
+const rungAdminSchema = {
+  type: "object",
+  properties: {
+    id: { type: "integer" },
+    code: { type: "string" },
+    name: { type: "string" },
+    position: { type: "integer" },
+    brazosRectos: { type: "boolean" },
+    unilateral: { type: "boolean" },
+    isActive: { type: "boolean" },
+    inUse: { type: "boolean" },
+  },
+  required: [
+    "id",
+    "code",
+    "name",
+    "position",
+    "brazosRectos",
+    "unilateral",
+    "isActive",
+    "inUse",
+  ],
+  additionalProperties: false,
+} as const;
+
+const ladderAdminSchema = {
+  type: "object",
+  properties: {
+    id: { type: "integer" },
+    code: { type: "string" },
+    name: { type: "string" },
+    sortOrder: { type: "integer" },
+    isActive: { type: "boolean" },
+    rungs: { type: "array", items: rungAdminSchema },
+  },
+  required: ["id", "code", "name", "sortOrder", "isActive", "rungs"],
+  additionalProperties: false,
+} as const;
+
+const exerciseAdminSchema = {
+  type: "object",
+  properties: {
+    id: { type: "integer" },
+    code: { type: "string" },
+    name: { type: "string" },
+    ladderId: { type: "integer" },
+    ladderCode: { type: "string" },
+    unit: { type: "string", enum: [...UNIT_ENUM] },
+    muscles: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          zone: { type: "string" },
+          role: { type: "string", enum: ["principal", "secundario"] },
+        },
+        required: ["zone", "role"],
+        additionalProperties: false,
+      },
+    },
+    startSteps: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          step: { type: "string", enum: [...CONQUER_STEP_KEYS] },
+          rung: { type: "string" },
+          mode: { type: "string", enum: [...MODE_ENUM] },
+        },
+        required: ["step", "rung", "mode"],
+        additionalProperties: false,
+      },
+    },
+    sortOrder: { type: "integer" },
+    isActive: { type: "boolean" },
+  },
+  required: [
+    "id",
+    "code",
+    "name",
+    "ladderId",
+    "ladderCode",
+    "unit",
+    "muscles",
+    "startSteps",
+    "sortOrder",
+    "isActive",
+  ],
+  additionalProperties: false,
+} as const;
+
+const templateDayAdminSchema = {
+  type: "object",
+  properties: {
+    id: { type: "integer" },
+    daysCount: { type: "integer" },
+    dayKey: { type: "string" },
+    label: { type: "string" },
+    sortOrder: { type: "integer" },
+    finisherText: { type: "string" },
+    exerciseCodes: { type: "array", items: { type: "string" } },
+    openingComboKey: { type: ["string", "null"] },
+  },
+  required: [
+    "id",
+    "daysCount",
+    "dayKey",
+    "label",
+    "sortOrder",
+    "finisherText",
+    "exerciseCodes",
+    "openingComboKey",
+  ],
+  additionalProperties: false,
+} as const;
+
+/** `GET /catalog` (admin): el catálogo completo para el editor. */
+export const catalogAdminSchema = {
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        ladders: { type: "array", items: ladderAdminSchema },
+        exercises: { type: "array", items: exerciseAdminSchema },
+        templateDays: { type: "array", items: templateDayAdminSchema },
+        zones: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              slug: { type: "string" },
+              label: { type: "string" },
+            },
+            required: ["slug", "label"],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["ladders", "exercises", "templateDays", "zones"],
+      additionalProperties: false,
+    },
+  },
+} as const;
+
+const ladderIdParams = {
+  type: "object",
+  properties: { ladderId: { type: "integer", minimum: 1 } },
+  required: ["ladderId"],
+} as const;
+
+/** `POST /ladders/:ladderId/rungs` (admin): agrega un peldaño al final. */
+export const createRungSchema = {
+  params: ladderIdParams,
+  body: {
+    type: "object",
+    properties: {
+      name: { type: "string", maxLength: 60 },
+      brazosRectos: { type: "boolean" },
+      unilateral: { type: "boolean" },
+    },
+    required: ["name", "brazosRectos", "unilateral"],
+    additionalProperties: false,
+  },
+  response: { 201: ladderAdminSchema },
+} as const;
+
+/** `PUT /rungs/:rungId` (admin): renombra, marca o activa y desactiva. */
+export const updateRungSchema = {
+  params: {
+    type: "object",
+    properties: { rungId: { type: "integer", minimum: 1 } },
+    required: ["rungId"],
+  },
+  body: {
+    type: "object",
+    properties: {
+      name: { type: "string", maxLength: 60 },
+      brazosRectos: { type: "boolean" },
+      unilateral: { type: "boolean" },
+      isActive: { type: "boolean" },
+    },
+    minProperties: 1,
+    additionalProperties: false,
+  },
+  response: { 200: ladderAdminSchema },
+} as const;
+
+/** `PUT /ladders/:ladderId/order` (admin): todos los peldaños, del más difícil al más fácil. */
+export const reorderRungsSchema = {
+  params: ladderIdParams,
+  body: {
+    type: "object",
+    properties: {
+      rungIds: {
+        type: "array",
+        items: { type: "integer", minimum: 1 },
+        minItems: 1,
+      },
+    },
+    required: ["rungIds"],
+    additionalProperties: false,
+  },
+  response: { 200: ladderAdminSchema },
+} as const;
+
+/**
+ * `PUT /exercises/:exerciseId` (admin). La estructura de `startSteps` y
+ * `muscles` se valida en el servicio (detrás del 404, con `code`).
+ */
+export const updateExerciseSchema = {
+  params: {
+    type: "object",
+    properties: { exerciseId: { type: "integer", minimum: 1 } },
+    required: ["exerciseId"],
+  },
+  body: {
+    type: "object",
+    properties: {
+      name: { type: "string", maxLength: 80 },
+      startSteps: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            step: { type: "string" },
+            rung: { type: "string" },
+            mode: { type: "string" },
+          },
+        },
+      },
+      muscles: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: { zone: { type: "string" }, role: { type: "string" } },
+        },
+      },
+    },
+    minProperties: 1,
+    additionalProperties: false,
+  },
+  response: { 200: exerciseAdminSchema },
+} as const;
+
+/** `PUT /template-days/:id` (admin): nombre, finisher y los 3 ejercicios del día. */
+export const updateTemplateDaySchema = {
+  params: {
+    type: "object",
+    properties: { id: { type: "integer", minimum: 1 } },
+    required: ["id"],
+  },
+  body: {
+    type: "object",
+    properties: {
+      label: { type: "string", maxLength: 40 },
+      finisherText: { type: "string", maxLength: 200 },
+      exerciseCodes: { type: "array", items: { type: "string" } },
+    },
+    minProperties: 1,
+    additionalProperties: false,
+  },
+  response: { 200: templateDayAdminSchema },
+} as const;
+
+const rangeSchema = {
+  type: "object",
+  properties: { min: { type: "integer" }, max: { type: "integer" } },
+  required: ["min", "max"],
+  additionalProperties: false,
+} as const;
+
+const settingsResponseSchema = {
+  200: {
+    type: "object",
+    properties: {
+      settings: {
+        type: "object",
+        properties: {
+          startOffset: {
+            type: "object",
+            properties: {
+              ternero: { type: "integer" },
+              novillo: { type: "integer" },
+              toro: { type: "integer" },
+            },
+            required: ["ternero", "novillo", "toro"],
+            additionalProperties: false,
+          },
+          comboWeeksN: { type: "integer" },
+        },
+        required: ["startOffset", "comboWeeksN"],
+        additionalProperties: false,
+      },
+      ranges: {
+        type: "object",
+        properties: {
+          startOffsetTernero: rangeSchema,
+          startOffsetNovillo: rangeSchema,
+          comboWeeksN: rangeSchema,
+        },
+        required: ["startOffsetTernero", "startOffsetNovillo", "comboWeeksN"],
+        additionalProperties: false,
+      },
+    },
+    required: ["settings", "ranges"],
+    additionalProperties: false,
+  },
+} as const;
+
+/** `GET /settings` (admin): parámetros de Nacho y sus rangos. */
+export const getSettingsSchema = { response: settingsResponseSchema } as const;
+
+/** `PUT /settings` (admin): rangos tomados de `CONQUER_SETTING_RANGES` (fuente única). */
+export const putSettingsSchema = {
+  body: {
+    type: "object",
+    properties: {
+      startOffsetTernero: {
+        type: "integer",
+        minimum: CONQUER_SETTING_RANGES.startOffsetTernero.min,
+        maximum: CONQUER_SETTING_RANGES.startOffsetTernero.max,
+      },
+      startOffsetNovillo: {
+        type: "integer",
+        minimum: CONQUER_SETTING_RANGES.startOffsetNovillo.min,
+        maximum: CONQUER_SETTING_RANGES.startOffsetNovillo.max,
+      },
+      comboWeeksN: {
+        type: "integer",
+        minimum: CONQUER_SETTING_RANGES.comboWeeksN.min,
+        maximum: CONQUER_SETTING_RANGES.comboWeeksN.max,
+      },
+    },
+    minProperties: 1,
+    additionalProperties: false,
+  },
+  response: settingsResponseSchema,
 } as const;

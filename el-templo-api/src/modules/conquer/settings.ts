@@ -3,7 +3,8 @@
 // Los parámetros que Nacho valida en la prueba viven en `tenant_settings`
 // (clave `conquer.*`) con DEFAULT EN CÓDIGO cuando no hay fila. La lectura
 // valida: un valor corrupto o fuera de rango cae al default (fail-safe). La
-// escritura (`saveConquerSettings`) la agrega el plan 201-14.
+// escritura (`saveConquerSettings`, plan 201-14) valida el patch ENTERO contra
+// los rangos antes de tocar la base (D-14).
 //
 //   conquer.start_offset.ternero  peldaños más fáciles que Toro al arrancar (2, 0-4)
 //   conquer.start_offset.novillo  idem para Novillo (1, 0-4)
@@ -12,7 +13,12 @@ import { and, like } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type * as schema from "../../db/schema";
 import { tenantSettings } from "../../db/schema";
-import { tenantWhere, type TenantContext } from "../shared/tenant";
+import { AppError } from "../shared/errors";
+import {
+  tenantValues,
+  tenantWhere,
+  type TenantContext,
+} from "../shared/tenant";
 
 type DbInstance = MySql2Database<typeof schema>;
 
@@ -105,4 +111,75 @@ export async function getConquerSettings(
       ),
     );
   return parseConquerSettings(rows);
+}
+
+/** Parámetros numéricos editables desde el admin (D-14). */
+export type ConquerSettingName = keyof typeof CONQUER_SETTING_RANGES;
+
+export type ConquerSettingsPatch = Partial<Record<ConquerSettingName, number>>;
+
+const SETTING_NAMES = Object.keys(
+  CONQUER_SETTING_RANGES,
+) as ConquerSettingName[];
+
+function invalidSettingError(message: string): AppError {
+  return new AppError(message, 400, "CONQUER_PARAMETRO_INVALIDO");
+}
+
+/**
+ * Valida el patch COMPLETO sin tocar la base: o se escribe todo o nada. Devuelve
+ * los pares (nombre, valor) presentes, ya validados.
+ */
+function validateSettingsPatch(
+  patch: ConquerSettingsPatch,
+): [ConquerSettingName, number][] {
+  for (const key of Object.keys(patch)) {
+    if (!(SETTING_NAMES as string[]).includes(key)) {
+      throw invalidSettingError(`Parámetro desconocido: ${key}`);
+    }
+  }
+  const entries: [ConquerSettingName, number][] = [];
+  for (const name of SETTING_NAMES) {
+    const value = patch[name];
+    if (value === undefined) continue;
+    const { min, max } = CONQUER_SETTING_RANGES[name];
+    if (typeof value !== "number" || !Number.isInteger(value)) {
+      throw invalidSettingError(`${name} debe ser un número entero`);
+    }
+    if (value < min || value > max) {
+      throw invalidSettingError(`${name} debe estar entre ${min} y ${max}`);
+    }
+    entries.push([name, value]);
+  }
+  if (entries.length === 0) {
+    throw invalidSettingError("No hay ningún parámetro para guardar");
+  }
+  return entries;
+}
+
+/**
+ * Escribe los parámetros presentes en `patch` para el gimnasio de `ctx` (D-14):
+ * valida contra {@link CONQUER_SETTING_RANGES} y hace upsert por clave dentro de
+ * una transacción. Los alumnos ya activos no se tocan: los parámetros se usan al
+ * crear escalones nuevos y al evaluar Subir de los combos.
+ */
+export async function saveConquerSettings(
+  db: DbInstance,
+  ctx: TenantContext,
+  patch: ConquerSettingsPatch,
+): Promise<void> {
+  const entries = validateSettingsPatch(patch);
+  await db.transaction(async (tx) => {
+    for (const [name, value] of entries) {
+      await tx
+        .insert(tenantSettings)
+        .values(
+          tenantValues(ctx, {
+            settingKey: CONQUER_SETTING_KEYS[name],
+            settingValue: String(value),
+          }),
+        )
+        .onDuplicateKeyUpdate({ set: { settingValue: String(value) } });
+    }
+  });
 }

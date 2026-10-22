@@ -17,6 +17,19 @@ import { updateAlertStatus } from "./alerts-service";
 import { getBoardAlert } from "./alert-view";
 import { buildBoard } from "./board-service";
 import { getPhotoUrlForAdmin, listChecksForAdmin } from "./body-check-service";
+import {
+  createRung,
+  getCatalogForAdmin,
+  reorderRungs,
+  updateExercise,
+  updateRung,
+  updateTemplateDay,
+  type CreateRungBody,
+  type ReorderRungsBody,
+  type UpdateExerciseBody,
+  type UpdateRungBody,
+  type UpdateTemplateDayBody,
+} from "./catalog-admin-service";
 import { applyCut, parseCutBody, type CutRequestBody } from "./cuts-service";
 import type { StepKey } from "./engine";
 import { buildFicha, correctStep } from "./ficha-service";
@@ -27,21 +40,35 @@ import { sendConquerError } from "./errors";
 import { canManageConquer, canViewConquerPhotos } from "./permissions";
 import type { ConquerPose } from "./private-media";
 import type { Level } from "./rules";
+import {
+  CONQUER_SETTING_RANGES,
+  getConquerSettings,
+  saveConquerSettings,
+  type ConquerSettingsPatch,
+} from "./settings";
 import type { ChangeStepBody } from "./step-service";
 import {
   activateMemberSchema,
   adminBodyChecksSchema,
   adminPhotoUrlSchema,
   boardSchema,
+  catalogAdminSchema,
   correctStepSchema,
+  createRungSchema,
   cutSchema,
   fichaSchema,
   gallerySchema,
+  getSettingsSchema,
   levelUpSchema,
+  putSettingsSchema,
+  reorderRungsSchema,
   unlockRequestsCountResponseSchema,
   unlockRequestsResponseSchema,
   updateAlertSchema,
+  updateExerciseSchema,
   updateMemberSchema,
+  updateRungSchema,
+  updateTemplateDaySchema,
 } from "./schemas";
 
 interface ActivateBody {
@@ -337,6 +364,175 @@ export const conquerAdminRoutes: FastifyPluginAsync = async (fastify) => {
         });
       } catch (err: unknown) {
         sendConquerError(err, reply, request.log, "conquer.admin.gallery");
+      }
+    },
+  );
+
+  // ── Edición del catálogo y de los parámetros (D-14, D-20, §8.1) ──────
+  // Guard de plugin (owner/admin): sin permiso, 403 antes de cualquier handler.
+
+  // GET /catalog — escaleras con peldaños, ejercicios, plantillas y zonas.
+  fastify.get(
+    "/catalog",
+    { schema: catalogAdminSchema },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(request.scope, "conquer.admin.catalog");
+        return await getCatalogForAdmin(fastify.db, ctx);
+      } catch (err: unknown) {
+        sendConquerError(err, reply, request.log, "conquer.admin.catalog");
+      }
+    },
+  );
+
+  // POST /ladders/:ladderId/rungs — agrega un peldaño al final (el más fácil).
+  fastify.post<{ Params: { ladderId: number }; Body: CreateRungBody }>(
+    "/ladders/:ladderId/rungs",
+    { schema: createRungSchema },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(request.scope, "conquer.admin.rung-create");
+        const ladder = await createRung(
+          fastify.db,
+          ctx,
+          request.params.ladderId,
+          request.body,
+        );
+        return reply.code(201).send(ladder);
+      } catch (err: unknown) {
+        sendConquerError(err, reply, request.log, "conquer.admin.rung-create");
+      }
+    },
+  );
+
+  // PUT /rungs/:rungId — renombra, marca brazos rectos / unilateral, activa o desactiva.
+  fastify.put<{ Params: { rungId: number }; Body: UpdateRungBody }>(
+    "/rungs/:rungId",
+    { schema: updateRungSchema },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(request.scope, "conquer.admin.rung-update");
+        return await updateRung(
+          fastify.db,
+          ctx,
+          request.params.rungId,
+          request.body,
+        );
+      } catch (err: unknown) {
+        sendConquerError(err, reply, request.log, "conquer.admin.rung-update");
+      }
+    },
+  );
+
+  // PUT /ladders/:ladderId/order — reordena todos los peldaños (0 = el más difícil).
+  fastify.put<{ Params: { ladderId: number }; Body: ReorderRungsBody }>(
+    "/ladders/:ladderId/order",
+    { schema: reorderRungsSchema },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(request.scope, "conquer.admin.rung-reorder");
+        return await reorderRungs(
+          fastify.db,
+          ctx,
+          request.params.ladderId,
+          request.body,
+        );
+      } catch (err: unknown) {
+        sendConquerError(err, reply, request.log, "conquer.admin.rung-reorder");
+      }
+    },
+  );
+
+  // PUT /exercises/:exerciseId — nombre, tabla de arranque y zonas del ejercicio.
+  fastify.put<{ Params: { exerciseId: number }; Body: UpdateExerciseBody }>(
+    "/exercises/:exerciseId",
+    { schema: updateExerciseSchema },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(
+          request.scope,
+          "conquer.admin.exercise-update",
+        );
+        return await updateExercise(
+          fastify.db,
+          ctx,
+          request.params.exerciseId,
+          request.body,
+        );
+      } catch (err: unknown) {
+        sendConquerError(
+          err,
+          reply,
+          request.log,
+          "conquer.admin.exercise-update",
+        );
+      }
+    },
+  );
+
+  // PUT /template-days/:id — nombre, finisher y ejercicios de un día de la plantilla.
+  fastify.put<{ Params: { id: number }; Body: UpdateTemplateDayBody }>(
+    "/template-days/:id",
+    { schema: updateTemplateDaySchema },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(
+          request.scope,
+          "conquer.admin.template-update",
+        );
+        return await updateTemplateDay(
+          fastify.db,
+          ctx,
+          request.params.id,
+          request.body,
+        );
+      } catch (err: unknown) {
+        sendConquerError(
+          err,
+          reply,
+          request.log,
+          "conquer.admin.template-update",
+        );
+      }
+    },
+  );
+
+  // GET /settings — parámetros de Nacho y sus rangos (D-14).
+  fastify.get(
+    "/settings",
+    { schema: getSettingsSchema },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(request.scope, "conquer.admin.settings");
+        return {
+          settings: await getConquerSettings(fastify.db, ctx),
+          ranges: CONQUER_SETTING_RANGES,
+        };
+      } catch (err: unknown) {
+        sendConquerError(err, reply, request.log, "conquer.admin.settings");
+      }
+    },
+  );
+
+  // PUT /settings — guarda uno o más parámetros (validados contra los rangos).
+  fastify.put<{ Body: ConquerSettingsPatch }>(
+    "/settings",
+    { schema: putSettingsSchema },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(request.scope, "conquer.admin.settings-save");
+        await saveConquerSettings(fastify.db, ctx, request.body);
+        return {
+          settings: await getConquerSettings(fastify.db, ctx),
+          ranges: CONQUER_SETTING_RANGES,
+        };
+      } catch (err: unknown) {
+        sendConquerError(
+          err,
+          reply,
+          request.log,
+          "conquer.admin.settings-save",
+        );
       }
     },
   );
