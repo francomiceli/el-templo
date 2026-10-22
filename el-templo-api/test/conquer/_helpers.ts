@@ -10,6 +10,7 @@ import { and, eq, like, sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import * as schema from "../../src/db/schema";
 import type { ConquerMode } from "../../src/db/schema/conquer";
+import { addDaysIso, mondayOfIso } from "../../src/modules/conquer/calendar";
 import type { StepKey } from "../../src/modules/conquer/engine";
 import { resolveMemberTimezone } from "../../src/modules/conquer/member-service";
 import type { Level } from "../../src/modules/conquer/rules";
@@ -484,4 +485,204 @@ export function sessionBodyFromToday(
       };
     }),
   };
+}
+
+// ── Progreso, Subir y calibración (201-08) ──────────────────────────
+
+export const CONQUER_PROGRESS_URL = "/api/members/conquer/progress";
+
+export function conquerSubirUrl(exerciseId: number, step: string): string {
+  return `/api/members/conquer/steps/${exerciseId}/${step}/subir`;
+}
+
+export function conquerCalibrationUrl(exerciseId: number): string {
+  return `/api/members/conquer/calibration/${exerciseId}`;
+}
+
+export interface CalibrationBody {
+  exerciseId: number;
+  exerciseName: string;
+  proposal: "subir" | "quedarse" | "bajar";
+  fromRungName: string;
+  toRungName: string | null;
+}
+
+export interface ProgressStepBody {
+  step: StepKey;
+  rungId: number;
+  rungName: string;
+  mode: string;
+  last: number | null;
+  target: number | null;
+  estado: string | null;
+}
+
+export interface ProgressExerciseBody {
+  exerciseId: number;
+  name: string;
+  unit: "reps" | "s";
+  e1Curve: number[];
+  steps: ProgressStepBody[];
+}
+
+export interface ProgressBody {
+  sessionsCount: number;
+  accuracy: {
+    n: number;
+    hits: number;
+    pct: number | null;
+    delta: number | null;
+  };
+  weekLighting: { primary: string[]; secondary: string[] };
+  subir: {
+    exerciseId: number;
+    exerciseName: string;
+    step: "e1" | "e2" | "e3";
+    fromRungName: string;
+    toRungName: string | null;
+  }[];
+  calibrations: CalibrationBody[];
+  days: {
+    dayKey: string;
+    label: string;
+    sessionsCount: number;
+    exercises: ProgressExerciseBody[];
+  }[];
+}
+
+export interface ConquerErrorBody {
+  error: string;
+  code?: string;
+}
+
+export interface SavedSessionBody {
+  sessionId: number;
+  date: string;
+  dayKey: string;
+  lighting: { primary: string[]; secondary: string[] };
+  calibration: CalibrationBody[];
+}
+
+const bearer = (token: string) => ({ authorization: `Bearer ${token}` });
+
+/** `GET /today` que tiene que responder 200; devuelve el body tipado. */
+export async function fetchToday(
+  app: FastifyInstance,
+  token: string,
+  day?: string,
+): Promise<TodayBody> {
+  const res = await app.inject({
+    method: "GET",
+    url:
+      day === undefined ? CONQUER_TODAY_URL : `${CONQUER_TODAY_URL}?day=${day}`,
+    headers: bearer(token),
+  });
+  if (res.statusCode !== 200) {
+    throw new Error(`fetchToday: ${res.statusCode} ${res.body}`);
+  }
+  return res.json<TodayBody>();
+}
+
+/** `PUT /sessions` crudo: el test decide qué afirmar. */
+export async function putSessionRaw(
+  app: FastifyInstance,
+  token: string,
+  payload: unknown,
+) {
+  return app.inject({
+    method: "PUT",
+    url: CONQUER_SESSIONS_URL,
+    headers: bearer(token),
+    payload: payload as Record<string, unknown>,
+  });
+}
+
+/**
+ * Guarda la sesión de HOY del día `day` (por defecto el que toca) con los
+ * contadores precargados más `edits`. Falla fuerte si no responde 200.
+ */
+export async function saveTodaySession(
+  app: FastifyInstance,
+  token: string,
+  opts: {
+    day?: string;
+    edits?: Parameters<typeof sessionBodyFromToday>[1];
+    pain?: number;
+  } = {},
+): Promise<SavedSessionBody> {
+  const vista = await fetchToday(app, token, opts.day);
+  const res = await putSessionRaw(
+    app,
+    token,
+    sessionBodyFromToday(vista, opts.edits ?? {}, opts.pain ?? 0),
+  );
+  if (res.statusCode !== 200) {
+    throw new Error(`saveTodaySession: ${res.statusCode} ${res.body}`);
+  }
+  return res.json<SavedSessionBody>();
+}
+
+export async function getProgressRaw(app: FastifyInstance, token: string) {
+  return app.inject({
+    method: "GET",
+    url: CONQUER_PROGRESS_URL,
+    headers: bearer(token),
+  });
+}
+
+/** `GET /progress` que tiene que responder 200. */
+export async function fetchProgress(
+  app: FastifyInstance,
+  token: string,
+): Promise<ProgressBody> {
+  const res = await getProgressRaw(app, token);
+  if (res.statusCode !== 200) {
+    throw new Error(`fetchProgress: ${res.statusCode} ${res.body}`);
+  }
+  return res.json<ProgressBody>();
+}
+
+export async function postSubir(
+  app: FastifyInstance,
+  token: string,
+  exerciseId: number,
+  step: string,
+) {
+  return app.inject({
+    method: "POST",
+    url: conquerSubirUrl(exerciseId, step),
+    headers: bearer(token),
+  });
+}
+
+export async function postCalibration(
+  app: FastifyInstance,
+  token: string,
+  exerciseId: number,
+  payload: unknown,
+) {
+  return app.inject({
+    method: "POST",
+    url: conquerCalibrationUrl(exerciseId),
+    headers: bearer(token),
+    payload: payload as Record<string, unknown>,
+  });
+}
+
+/** Lunes de la semana de `hoy` corrido `n` semanas atrás (siempre anterior a hoy si n >= 1). */
+export function weeksAgo(hoy: string, n: number): string {
+  return addDaysIso(mondayOfIso(hoy), -7 * n);
+}
+
+/** Alertas del alumno en `conquer_alerts` (todas las filas). */
+export async function readConquerAlerts(app: FastifyInstance, userId: number) {
+  return app.db
+    .select()
+    .from(schema.conquerAlerts)
+    .where(
+      and(
+        tenantWhere(schema.conquerAlerts, TEMPLO_CTX),
+        eq(schema.conquerAlerts.userId, userId),
+      ),
+    );
 }
