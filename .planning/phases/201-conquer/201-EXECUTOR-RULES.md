@@ -209,3 +209,10 @@ con preguntas.
   `timezone.ts`; `sendConquerError` en `errors.ts` (compartido). Ojo con imports circulares entre servicios del módulo.
   En 201-12, `bodyCheck` de `GET /state` con UNA query más, sin otro `loadMemberContext`. Manifiesto: 487 tras 201-07.
   Contratos `TodayResponse`, `HomeView` y PUT de sesión: `201-07-SUMMARY.md`.
+- (201-08) Drizzle arma el `SET` de `ON DUPLICATE KEY UPDATE` en el ORDEN DE COLUMNAS DE LA TABLA, no del objeto: una
+  columna del SET no puede depender de otra que se reasigna en el mismo SET. `alerts-service.ts` ya tiene
+  `upsertEventAlert` y `autoResolveEventAlert` (ampliar ahí, no duplicar). La alerta de tope se emite dentro de la tx del
+  guardado (`syncTopeAlerts`). `buildProgress(db, ctx, userId)` sirve tal cual para la ficha del admin (201-11).
+  `neighborRung` vive en `catalog-service.ts`. Los servicios que mutan devuelven `void` y la ruta responde con el builder
+  (evita imports circulares). Fastify descarta claves extra del body (`removeAdditional`): no hay 400 por campo extra.
+  Manifiesto: 490 tras 201-08.
