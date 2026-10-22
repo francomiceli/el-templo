@@ -113,21 +113,27 @@ export const SEVERITY_CHIP_COLOR: Record<AlertSeverity, string> = {
 export type AlertActionKind =
   | 'aceptar_etapa'
   | 'bajar_escalon'
+  | 'sin_recorte'
   | 'extender_escalera'
   | 'confirmar_nivel'
   | 'aviso';
 
+/** Anexo §8 (201-26 DA-12): Toro después de la etapa 5 no tiene propuesta de recorte. */
+export const NO_CUT_TEXT = 'Toro no tiene más pasos de recorte: escribile';
+
 /**
  * Acción principal de una alerta. Molestia y caída proponen el recorte vigente del alumno (una
- * etapa del sábado/combo o bajar un escalón); el tope de escalera se resuelve en el Catálogo; el
+ * etapa del sábado/combo o bajar un escalón); con `cutKind === null` (Toro tras la etapa 5) no hay
+ * recorte y la acción es escribirle al alumno; el tope de escalera se resuelve en el Catálogo; el
  * paso de nivel se confirma solo si hay un nivel siguiente; el resto son avisos por tiempo.
  */
 export function alertActionKind(
   kind: AlertKind,
-  cutKind: CutProposal['kind'],
+  cutKind: CutProposal['kind'] | null,
   hasNextLevel: boolean
 ): AlertActionKind {
   if (kind === 'molestia' || kind === 'caida') {
+    if (cutKind === null) return 'sin_recorte';
     return cutKind === 'etapa' ? 'aceptar_etapa' : 'bajar_escalon';
   }
   if (kind === 'tope_escalera') return 'extender_escalera';

@@ -110,6 +110,8 @@ export interface BoardAlert {
   kind: AlertKind;
   severity: AlertSeverity;
   label: string;
+  /** La frase de la alerta con sus datos (anexo §8, DA-13): "Molestia 6/10 en Plancha el 21/10". */
+  text: string;
   status: AlertStatus | null;
   createdAt: string | null;
   detail: AlertDetail;
@@ -226,7 +228,8 @@ export interface FichaResponse {
   member: FichaMember;
   progress: ProgressResponse;
   alerts: BoardAlert[];
-  cutProposal: CutProposal;
+  /** `null` = Toro después de la etapa 5: no tiene más pasos de recorte (anexo §8, DA-12). */
+  cutProposal: CutProposal | null;
   levelUp: { to: Level | null; validDays: number[] };
 }
 
@@ -322,7 +325,6 @@ export interface AdminRung {
   name: string;
   /** 0 = el más difícil; una posición mayor es un peldaño más fácil. */
   position: number;
-  brazosRectos: boolean;
   unilateral: boolean;
   isActive: boolean;
   /** Algún escalón de algún alumno apunta a este peldaño. */
@@ -354,11 +356,22 @@ export interface AdminExercise {
   id: number;
   code: string;
   name: string;
+  /** Escalera de E1-E3 (y del hold si `holdLadderId` es null). */
   ladderId: number;
   ladderCode: string;
+  /** Escalera propia del hold final (anexo §2). `null` = usa la de E1-E3. */
+  holdLadderId: number | null;
+  holdLadderCode: string | null;
+  /** Marca de brazos rectos del ejercicio (anexo §1): decide el texto de fallo del alumno. */
+  brazosRectos: boolean;
   unit: Unit;
   muscles: ExerciseMuscle[];
+  /** Tabla de arranque de Toro. */
   startSteps: StartStep[];
+  /** Tabla de arranque de Novillo (anexo §3). `[]` = no cargada. */
+  startStepsNovillo: StartStep[];
+  /** Tabla de arranque de Ternero (anexo §3). `[]` = no cargada. */
+  startStepsTernero: StartStep[];
   sortOrder: number;
   isActive: boolean;
 }
@@ -388,20 +401,21 @@ export interface AdminCatalog {
 
 export interface CreateRungBody {
   name: string;
-  brazosRectos: boolean;
   unilateral: boolean;
 }
 
 export interface UpdateRungBody {
   name?: string;
-  brazosRectos?: boolean;
   unilateral?: boolean;
   isActive?: boolean;
 }
 
 export interface UpdateExerciseBody {
   name?: string;
+  brazosRectos?: boolean;
   startSteps?: StartStep[];
+  startStepsNovillo?: StartStep[];
+  startStepsTernero?: StartStep[];
   muscles?: ExerciseMuscle[];
 }
 
@@ -416,14 +430,12 @@ export interface SettingRange {
   max: number;
 }
 
+/** Fase 201 201-25 (anexo §3): el arranque por nivel son tablas por ejercicio, ya no un offset. */
 export interface ConquerSettings {
-  startOffset: { ternero: number; novillo: number; toro: number };
   comboWeeksN: number;
 }
 
 export interface ConquerSettingsRanges {
-  startOffsetTernero: SettingRange;
-  startOffsetNovillo: SettingRange;
   comboWeeksN: SettingRange;
 }
 
@@ -434,7 +446,5 @@ export interface ConquerSettingsResponse {
 
 /** Body de `PUT /settings`: al menos una clave. */
 export interface ConquerSettingsPatch {
-  startOffsetTernero?: number;
-  startOffsetNovillo?: number;
   comboWeeksN?: number;
 }

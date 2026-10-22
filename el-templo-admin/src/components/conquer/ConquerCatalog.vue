@@ -1,7 +1,7 @@
 <!--
   Catálogo de Conquer (fase 201, D-14, D-20, §8.1): lo que Nacho valida en la prueba sin tocar
-  código. Sub-tabs: Escaleras (peldaños, más difícil arriba), Ejercicios (arranque y zonas) y
-  Plantillas (los días de 4, 3 y 2). El catálogo se
+  código. Sub-tabs: Escaleras (peldaños, más difícil arriba), Ejercicios (marca de brazos rectos,
+  arranque de Toro, Novillo y Ternero, y zonas) y Plantillas (los días de 4, 3 y 2). El catálogo se
   carga una vez y cada mutación del API devuelve la vista actualizada, con la que se reemplaza la
   copia local; si algo falla se relee entero. Los q-tab-panel desmontan el panel inactivo: la
   pestaña carga en onMounted y recarga con `reloadToken`.
@@ -15,8 +15,8 @@
       data-test="conquer-catalog-banner"
     >
       <template #avatar><q-icon name="rule" color="secondary" /></template>
-      Las escaleras, el arranque, las zonas y las plantillas de 2 y 3 días son la propuesta de
-      Nacho: se validan en la prueba.
+      Las escaleras, el arranque de cada nivel, las zonas y las plantillas de 2 y 3 días son la
+      propuesta de Nacho: se validan en la prueba.
     </q-banner>
 
     <div v-if="loading && !catalog" class="row justify-center q-pa-lg">
@@ -81,6 +81,7 @@
                 <ConquerExerciseEditor
                   :exercise="exercise"
                   :ladder="ladderOf(exercise)"
+                  :hold-ladder="holdLadderOf(exercise)"
                   :zones="catalog.zones"
                   @changed="replaceExercise"
                 />
@@ -133,6 +134,12 @@ function ladderCaption(ladder: AdminLadder): string {
 
 function ladderOf(exercise: AdminExercise): AdminLadder | null {
   return catalog.value?.ladders.find((l) => l.id === exercise.ladderId) ?? null;
+}
+
+/** Escalera del hold final: la propia (anexo §2) o, sin ella, la de E1-E3. */
+function holdLadderOf(exercise: AdminExercise): AdminLadder | null {
+  if (exercise.holdLadderId === null) return ladderOf(exercise);
+  return catalog.value?.ladders.find((l) => l.id === exercise.holdLadderId) ?? null;
 }
 
 function exerciseCaption(exercise: AdminExercise): string {

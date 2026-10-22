@@ -1,8 +1,10 @@
 <!--
   Acciones sobre las alertas del alumno (fase 201, §5, §5.1, §2.2, S12-6). Una fila por alerta con
-  su color y su `label`, y la acción que corresponde (`alertActionKind`):
-  - molestia / caída: aceptar el recorte de una etapa (`cutProposal.label`) o, si ya no quedan
-    etapas, elegir qué escalón bajar (ConquerCutDialog);
+  su color y su `label`, la frase con los datos (`text`, anexo §8) y la acción que corresponde
+  (`alertActionKind`):
+  - molestia / caída: aceptar el recorte de una etapa (`cutProposal.label`); Ternero y Novillo,
+    elegir qué escalón bajar (ConquerCutDialog); Toro tras la etapa 5 no tiene más pasos (DA-12):
+    solo se ve "Toro no tiene más pasos de recorte: escribile";
   - tope de escalera: texto "extendé la escalera desde Catálogo" con el link a ?tab=catalogo;
   - paso de nivel: confirmar el nivel nuevo con los días (ConquerLevelUpDialog);
   - inactivo, control vencido, día 0 pendiente: solo el texto de lo que propone §5.
@@ -33,6 +35,7 @@
               :label="a.label"
               class="q-ma-none"
             />
+            <span class="text-body2" data-test="conquer-alert-text">{{ a.text }}</span>
           </div>
 
           <div class="q-mt-sm row items-center q-gutter-sm">
@@ -41,7 +44,7 @@
                 unelevated
                 no-caps
                 color="secondary"
-                :label="`Aceptar: ${ficha.cutProposal.label}`"
+                :label="`Aceptar: ${ficha.cutProposal?.label ?? ''}`"
                 :loading="busy === busyKey('etapa', a)"
                 :disable="busy !== null"
                 style="min-height: 44px"
@@ -61,8 +64,16 @@
                 data-test="conquer-alert-lower-step"
                 @click="openCutDialog(a)"
               />
-              <span class="text-caption text-grey-8">{{ ficha.cutProposal.label }}</span>
+              <span class="text-caption text-grey-8">{{ ficha.cutProposal?.label }}</span>
             </template>
+
+            <span
+              v-else-if="actionOf(a) === 'sin_recorte'"
+              class="text-body2 text-accent"
+              data-test="conquer-alert-no-cut"
+            >
+              {{ NO_CUT_TEXT }}
+            </span>
 
             <template v-else-if="actionOf(a) === 'confirmar_nivel'">
               <q-btn
@@ -157,6 +168,7 @@ import { useConquerAdminApi } from 'src/composables/useConquerAdminApi';
 import { LEVEL_LABELS, type BoardAlert, type FichaResponse } from 'src/types/conquer';
 import {
   ALERT_HINTS,
+  NO_CUT_TEXT,
   SEVERITY_CHIP_COLOR,
   alertActionKind,
   type AlertActionKind,
@@ -187,7 +199,11 @@ const nextLevelText = computed(() =>
 );
 
 function actionOf(alert: BoardAlert): AlertActionKind {
-  return alertActionKind(alert.kind, props.ficha.cutProposal.kind, props.ficha.levelUp.to !== null);
+  return alertActionKind(
+    alert.kind,
+    props.ficha.cutProposal?.kind ?? null,
+    props.ficha.levelUp.to !== null
+  );
 }
 
 function hintOf(alert: BoardAlert): string | null {

@@ -1,8 +1,9 @@
 <!--
   Editor de una escalera de Conquer (fase 201, §8.1, D-04, D-14): los peldaños de más difícil
-  (arriba) a más fácil (abajo). Por peldaño: subir/bajar de lugar, renombrar, marcar brazos rectos
-  (fallo técnico) y por lado (unilateral), activar/desactivar (nunca se borra) y el chip "En uso"
-  si algún alumno lo tiene como progresión. Abajo, el alta de un peldaño nuevo, que entra como el
+  (arriba) a más fácil (abajo). Por peldaño: subir/bajar de lugar, renombrar, marcar por lado
+  (unilateral), activar/desactivar (nunca se borra) y el chip "En uso" si algún alumno lo tiene
+  como progresión. La marca de brazos rectos ya no es del peldaño: es del ejercicio (anexo §1,
+  se edita en Ejercicios). Abajo, el alta de un peldaño nuevo, que entra como el
   más fácil. Cada mutación devuelve la escalera completa (`changed`): el catálogo reemplaza su
   copia con esa respuesta. El API valida todo (arranque, último activo, orden completo) y su
   mensaje en español se muestra tal cual; si algo falla se pide releer el catálogo (`failed`).
@@ -78,15 +79,6 @@
           </div>
 
           <div class="row items-center q-gutter-x-md q-mt-xs">
-            <q-checkbox
-              :model-value="rung.brazosRectos"
-              dense
-              color="secondary"
-              label="Brazos rectos (fallo técnico)"
-              :disable="busy"
-              data-test="conquer-rung-straight"
-              @update:model-value="patch(rung, { brazosRectos: Boolean($event) })"
-            />
             <q-checkbox
               :model-value="rung.unilateral"
               dense
@@ -245,7 +237,7 @@ async function addRung(): Promise<void> {
   const name = newName.value.trim();
   if (name === '' || busy.value) return;
   const ok = await run(NEW_RUNG, () =>
-    conquerApi.createRung(props.ladder.id, { name, brazosRectos: false, unilateral: false })
+    conquerApi.createRung(props.ladder.id, { name, unilateral: false })
   );
   if (ok) newName.value = '';
 }

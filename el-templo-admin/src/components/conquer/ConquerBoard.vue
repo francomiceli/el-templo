@@ -80,8 +80,15 @@
                 >
                   <q-tooltip v-if="a.proposal">{{ a.proposal.label }}</q-tooltip>
                 </q-chip>
+                <span class="text-body2" data-test="conquer-alert-text">{{ a.text }}</span>
                 <span v-if="a.proposal" class="text-caption text-grey-8">
                   {{ a.proposal.label }}
+                </span>
+                <span
+                  v-else-if="a.kind === 'molestia' || a.kind === 'caida'"
+                  class="text-caption text-grey-8"
+                >
+                  {{ NO_CUT_TEXT }}
                 </span>
                 <q-space />
                 <template v-if="a.id !== null">
@@ -135,7 +142,13 @@ import {
   type BoardResponse,
   type Light,
 } from 'src/types/conquer';
-import { SEVERITY_CHIP_COLOR, agoText, daysSince, fullName } from 'src/utils/conquer-format';
+import {
+  NO_CUT_TEXT,
+  SEVERITY_CHIP_COLOR,
+  agoText,
+  daysSince,
+  fullName,
+} from 'src/utils/conquer-format';
 
 const props = defineProps<{
   /** Sube cuando la página necesita que se relea el tablero (después de activar a alguien). */

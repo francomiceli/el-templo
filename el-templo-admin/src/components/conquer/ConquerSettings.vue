@@ -1,10 +1,10 @@
 <!--
-  Ajustes de Conquer (fase 201, D-14, D-20, §8.2, §14.3): los parámetros del método que Nacho
-  valida en la prueba. Cuántos peldaños más fáciles que Toro arrancan Novillo y Ternero, y cuántas
-  semanas seguidas con el objetivo cumplido hacen falta para que los combos ofrezcan Subir. Los
-  rangos los manda el API (`ranges`) y el API vuelve a validarlos; "Guardar" manda solo lo que
-  cambió y la respuesta trae los valores guardados. El arranque se aplica a las altas nuevas: las
-  progresiones de los alumnos ya activos no cambian.
+  Ajustes de Conquer (fase 201, D-14, D-20, §14.3): los parámetros del método que Nacho valida en
+  la prueba. Hoy es uno solo: cuántas semanas seguidas con el objetivo cumplido hacen falta para
+  que los combos ofrezcan Subir. El arranque de cada nivel ya no es un parámetro (201-26, anexo §3):
+  son tres tablas por ejercicio que se editan en Catálogo. El rango lo manda el API (`ranges`) y el
+  API vuelve a validarlo; "Guardar" manda solo lo que cambió y la respuesta trae los valores
+  guardados.
 -->
 <template>
   <div data-test="conquer-settings">
@@ -25,45 +25,6 @@
     </q-banner>
 
     <q-card v-else-if="data" flat bordered>
-      <q-card-section>
-        <div class="text-subtitle1 text-weight-medium q-mb-sm">Arranque por nivel</div>
-        <div class="row q-col-gutter-md">
-          <div class="col-12 col-sm-6">
-            <q-input
-              v-model.number="form.startOffsetNovillo"
-              type="number"
-              dense
-              outlined
-              :min="data.ranges.startOffsetNovillo.min"
-              :max="data.ranges.startOffsetNovillo.max"
-              label="Novillo arranca N peldaños más fácil que Toro"
-              :hint="rangeHint(data.ranges.startOffsetNovillo)"
-              :disable="saving"
-              data-test="conquer-setting-novillo"
-            />
-          </div>
-          <div class="col-12 col-sm-6">
-            <q-input
-              v-model.number="form.startOffsetTernero"
-              type="number"
-              dense
-              outlined
-              :min="data.ranges.startOffsetTernero.min"
-              :max="data.ranges.startOffsetTernero.max"
-              label="Ternero arranca N peldaños más fácil que Toro"
-              :hint="rangeHint(data.ranges.startOffsetTernero)"
-              :disable="saving"
-              data-test="conquer-setting-ternero"
-            />
-          </div>
-        </div>
-        <div class="text-caption text-grey-8 q-mt-md">
-          Se aplica a las altas nuevas; las progresiones de los alumnos ya activos no cambian.
-        </div>
-      </q-card-section>
-
-      <q-separator />
-
       <q-card-section>
         <div class="text-subtitle1 text-weight-medium q-mb-sm">Combos de Toro</div>
         <div class="row q-col-gutter-md">
@@ -122,8 +83,6 @@ const $q = useQuasar();
 const conquerApi = useConquerAdminApi();
 
 interface SettingsForm {
-  startOffsetNovillo: number | null;
-  startOffsetTernero: number | null;
   comboWeeksN: number | null;
 }
 
@@ -132,8 +91,6 @@ const loading = ref(false);
 const loadError = ref<string | null>(null);
 const saving = ref(false);
 const form = reactive<SettingsForm>({
-  startOffsetNovillo: null,
-  startOffsetTernero: null,
   comboWeeksN: null,
 });
 
@@ -142,8 +99,6 @@ function rangeHint(range: SettingRange): string {
 }
 
 function applyToForm(response: ConquerSettingsResponse): void {
-  form.startOffsetNovillo = response.settings.startOffset.novillo;
-  form.startOffsetTernero = response.settings.startOffset.ternero;
   form.comboWeeksN = response.settings.comboWeeksN;
 }
 
@@ -152,12 +107,6 @@ const patch = computed<ConquerSettingsPatch>(() => {
   const saved = data.value?.settings;
   if (!saved) return {};
   const out: ConquerSettingsPatch = {};
-  if (form.startOffsetNovillo !== null && form.startOffsetNovillo !== saved.startOffset.novillo) {
-    out.startOffsetNovillo = form.startOffsetNovillo;
-  }
-  if (form.startOffsetTernero !== null && form.startOffsetTernero !== saved.startOffset.ternero) {
-    out.startOffsetTernero = form.startOffsetTernero;
-  }
   if (form.comboWeeksN !== null && form.comboWeeksN !== saved.comboWeeksN) {
     out.comboWeeksN = form.comboWeeksN;
   }
@@ -171,8 +120,6 @@ function invalidField(): string | null {
   const ranges = data.value?.ranges;
   if (!ranges) return null;
   const checks: [number | null, SettingRange, string][] = [
-    [form.startOffsetNovillo, ranges.startOffsetNovillo, 'El arranque de Novillo'],
-    [form.startOffsetTernero, ranges.startOffsetTernero, 'El arranque de Ternero'],
     [form.comboWeeksN, ranges.comboWeeksN, 'Las semanas de los combos'],
   ];
   for (const [value, range, label] of checks) {
