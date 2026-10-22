@@ -1,6 +1,7 @@
 <!--
   Catálogo de Conquer (fase 201, D-14, D-20, §8.1): lo que Nacho valida en la prueba sin tocar
-  código. Sub-tabs: Escaleras (peldaños de cada ejercicio, más difícil arriba). El catálogo se
+  código. Sub-tabs: Escaleras (peldaños, más difícil arriba), Ejercicios (arranque y zonas) y
+  Plantillas (los días de 4, 3 y 2). El catálogo se
   carga una vez y cada mutación del API devuelve la vista actualizada, con la que se reemplaza la
   copia local; si algo falla se relee entero. Los q-tab-panel desmontan el panel inactivo: la
   pestaña carga en onMounted y recarga con `reloadToken`.
@@ -40,6 +41,8 @@
         class="q-mb-md"
       >
         <q-tab name="escaleras" label="Escaleras" />
+        <q-tab name="ejercicios" label="Ejercicios" />
+        <q-tab name="plantillas" label="Plantillas" />
       </q-tabs>
 
       <q-tab-panels v-model="subTab" animated>
@@ -63,6 +66,36 @@
             </q-expansion-item>
           </q-list>
         </q-tab-panel>
+
+        <q-tab-panel name="ejercicios" class="q-pa-none">
+          <q-list bordered separator class="rounded-borders">
+            <q-expansion-item
+              v-for="exercise in catalog.exercises"
+              :key="exercise.id"
+              :label="exercise.name"
+              :caption="exerciseCaption(exercise)"
+              header-class="text-weight-medium"
+              data-test="conquer-catalog-exercise"
+            >
+              <div class="q-pa-md">
+                <ConquerExerciseEditor
+                  :exercise="exercise"
+                  :ladder="ladderOf(exercise)"
+                  :zones="catalog.zones"
+                  @changed="replaceExercise"
+                />
+              </div>
+            </q-expansion-item>
+          </q-list>
+        </q-tab-panel>
+
+        <q-tab-panel name="plantillas" class="q-pa-none">
+          <ConquerTemplateDays
+            :template-days="catalog.templateDays"
+            :exercises="catalog.exercises"
+            @changed="replaceTemplateDay"
+          />
+        </q-tab-panel>
       </q-tab-panels>
     </template>
   </div>
@@ -71,9 +104,11 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue';
 import { useQuasar } from 'quasar';
+import ConquerExerciseEditor from 'src/components/conquer/ConquerExerciseEditor.vue';
 import ConquerLadderEditor from 'src/components/conquer/ConquerLadderEditor.vue';
+import ConquerTemplateDays from 'src/components/conquer/ConquerTemplateDays.vue';
 import { useConquerAdminApi } from 'src/composables/useConquerAdminApi';
-import type { AdminCatalog, AdminLadder } from 'src/types/conquer';
+import type { AdminCatalog, AdminExercise, AdminLadder, AdminTemplateDay } from 'src/types/conquer';
 
 const props = defineProps<{
   /** Sube cuando la página necesita que se relea el catálogo. */
@@ -83,7 +118,7 @@ const props = defineProps<{
 const $q = useQuasar();
 const conquerApi = useConquerAdminApi();
 
-type SubTab = 'escaleras';
+type SubTab = 'escaleras' | 'ejercicios' | 'plantillas';
 
 const catalog = ref<AdminCatalog | null>(null);
 const loading = ref(false);
@@ -94,6 +129,31 @@ function ladderCaption(ladder: AdminLadder): string {
   const active = ladder.rungs.filter((r) => r.isActive).length;
   const total = ladder.rungs.length;
   return active === total ? `${total} peldaños` : `${active} activos de ${total} peldaños`;
+}
+
+function ladderOf(exercise: AdminExercise): AdminLadder | null {
+  return catalog.value?.ladders.find((l) => l.id === exercise.ladderId) ?? null;
+}
+
+function exerciseCaption(exercise: AdminExercise): string {
+  const ladder = ladderOf(exercise);
+  return `${ladder?.name ?? exercise.ladderCode} · ${exercise.unit === 's' ? 'segundos' : 'repeticiones'}`;
+}
+
+function replaceExercise(updated: AdminExercise): void {
+  if (!catalog.value) return;
+  catalog.value = {
+    ...catalog.value,
+    exercises: catalog.value.exercises.map((e) => (e.id === updated.id ? updated : e)),
+  };
+}
+
+function replaceTemplateDay(updated: AdminTemplateDay): void {
+  if (!catalog.value) return;
+  catalog.value = {
+    ...catalog.value,
+    templateDays: catalog.value.templateDays.map((d) => (d.id === updated.id ? updated : d)),
+  };
 }
 
 function replaceLadder(updated: AdminLadder): void {
