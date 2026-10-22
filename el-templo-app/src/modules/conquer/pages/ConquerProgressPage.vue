@@ -1,11 +1,16 @@
 <template>
-  <CqSky class="cq-progress">
-    <CqPageHeader title="PROGRESO" :back-to="BACK_TO" back-label="Volver al inicio de Conquer" />
+  <CqScreen>
+    <CqPageHeader
+      title="Progreso"
+      :subtitle="weekSubtitle"
+      :back-to="BACK_TO"
+      back-label="Volver al inicio de Conquer"
+    />
 
     <div v-if="!progress" class="cq-progress__center" role="status" aria-live="polite">
       <template v-if="error">
-        <p class="cq-sub" role="alert">{{ error }}</p>
-        <button type="button" class="cq-small cq-small--fill" @click="reload">Reintentar</button>
+        <p class="cq-notice" role="alert">{{ error }}</p>
+        <CqButton label="Reintentar" variant="secondary" small @click="reload" />
       </template>
       <template v-else>
         <span class="cq-progress__spin" aria-hidden="true" />
@@ -14,15 +19,16 @@
     </div>
 
     <template v-else>
+      <!-- DA-35: los dos KPIs son piezas oscuras -->
       <div class="cq-progress__kpis">
-        <div class="cq-progress__kpi">
+        <div class="cq-progress__kpi cq-dark">
           <b class="cq-num">{{ progress.sessionsCount }}</b>
-          <span>sesiones</span>
+          <span class="cq-sub">sesiones</span>
         </div>
-        <div class="cq-progress__kpi">
+        <div class="cq-progress__kpi cq-dark">
           <b class="cq-num">{{ accuracyText(progress.accuracy.pct) }}</b>
-          <span>acierto del modelo</span>
-          <small v-if="progress.accuracy.delta !== null" class="cq-num">
+          <span class="cq-sub">acierto del modelo</span>
+          <small v-if="progress.accuracy.delta !== null" class="cq-sub">
             Δ {{ deltaText(progress.accuracy.delta) }} en promedio
           </small>
         </div>
@@ -30,9 +36,7 @@
 
       <div v-if="progress.sessionsCount === 0" class="cq-card cq-progress__empty">
         <p class="cq-sub">Todavía no hay sesiones cargadas. Cargá la primera en Hoy.</p>
-        <router-link :to="{ name: 'conquer-hoy' }" class="cq-small cq-small--fill">
-          Ir a Hoy
-        </router-link>
+        <router-link :to="{ name: 'conquer-hoy' }" class="cq-textlink">Ir a Hoy</router-link>
       </div>
 
       <template v-else>
@@ -46,31 +50,28 @@
         />
 
         <div v-for="item in progress.calibrations" :key="item.exerciseId" class="cq-card">
-          <div class="cq-caps">Calibración</div>
+          <p class="cq-kicker">Calibración</p>
           <div class="cq-progress__calib-text">{{ calibrationText(item) }}</div>
           <div v-if="canResolveCalibration(item)" class="cq-progress__calib-actions">
-            <button
-              type="button"
-              class="cq-small cq-small--fill"
+            <CqButton
+              label="Aceptar"
+              small
               :disabled="busyKey !== null"
-              :aria-busy="busyKey === calibrationKey(item.exerciseId) ? 'true' : undefined"
+              :loading="busyKey === calibrationKey(item.exerciseId)"
               @click="onCalibration(item.exerciseId, true)"
-            >
-              Aceptar
-            </button>
-            <button
-              type="button"
-              class="cq-small"
+            />
+            <CqButton
+              label="Ahora no"
+              variant="secondary"
+              small
               :disabled="busyKey !== null"
               @click="onCalibration(item.exerciseId, false)"
-            >
-              Ahora no
-            </button>
+            />
           </div>
         </div>
 
         <!-- D-13 b: BodyFigure mide con getBBox; se monta recién con los datos ya cargados -->
-        <div class="cq-caps cq-rule">Tu semana</div>
+        <h2 class="cq-block-title">Tu semana</h2>
         <div class="cq-card cq-progress__week">
           <CqBodyMap
             v-if="weekHasZones"
@@ -85,8 +86,8 @@
         </div>
 
         <div v-for="day in days" :key="day.dayKey" class="cq-card">
-          <div class="cq-row">
-            <h2 class="cq-display cq-progress__day">{{ day.label.toUpperCase() }}</h2>
+          <div class="cq-progress__dayh">
+            <h2 class="cq-block-title">{{ day.label }}</h2>
             <span class="cq-sub">{{ sessionsText(day.sessionsCount) }}</span>
           </div>
           <CqExerciseProgress
@@ -97,7 +98,7 @@
         </div>
       </template>
     </template>
-  </CqSky>
+  </CqScreen>
 </template>
 
 <script setup lang="ts">
@@ -105,10 +106,12 @@ import { computed, onBeforeUnmount, onMounted, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import { useUserStore } from 'src/stores/useUserStore'
 import { useConquerProgress } from '../composables/useConquerProgress'
+import { useConquerStore } from '../stores/conquerStore'
 import { calibrationText, canResolveCalibration } from '../utils/format'
 import { accuracyText, calibrationKey, deltaText, sessionsText } from '../utils/progressView'
 import type { ComboKey, CountedStep } from '../types'
-import CqSky from '../components/brand/CqSky.vue'
+import CqScreen from '../components/brand/CqScreen.vue'
+import CqButton from '../components/brand/CqButton.vue'
 import CqPageHeader from '../components/brand/CqPageHeader.vue'
 import CqBodyMap from '../components/CqBodyMap.vue'
 import CqSubirCard from '../components/progress/CqSubirCard.vue'
@@ -122,8 +125,15 @@ const BACK_TO = { path: '/training', query: { tab: 'conquer' } }
 
 const $q = useQuasar()
 const userStore = useUserStore()
+const conquerStore = useConquerStore()
 const { progress, busyKey, error, load, subir, subirCombo, resolveCalibration, cleanup } =
   useConquerProgress()
+
+// Solo lee lo que el store ya tiene (no dispara carga): sin estado cargado, sin subtítulo
+const weekSubtitle = computed(() => {
+  const week = conquerStore.state?.member?.blockWeek
+  return week ? `Semana ${week} del bloque` : ''
+})
 
 const gender = computed(() => userStore.profile?.gender ?? null)
 
@@ -167,11 +177,6 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped lang="scss">
-.cq-progress.cq-sky {
-  // Alto de la pantalla menos el header y la barra de abajo (igual que Hoy)
-  min-height: calc(var(--app-vh) - 50px - var(--mobile-tabs-height));
-}
-
 .cq-progress__center {
   display: flex;
   flex-direction: column;
@@ -185,7 +190,7 @@ onBeforeUnmount(() => {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  border: 2px solid var(--cq-gold);
+  border: 2px solid var(--cq-edge-gold);
   border-right-color: transparent;
 }
 
@@ -204,67 +209,46 @@ onBeforeUnmount(() => {
 .cq-progress__kpis {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: 10px;
 }
 
-.cq-progress__kpi {
+// Pieza oscura suelta: radio 16 y padding 14 16 (dos clases en el mismo elemento le ganan a
+// `.cq-root .cq-dark`; el número y los textos de abajo, con la clase del padre adelante)
+.cq-progress__kpi.cq-dark {
   display: flex;
   flex-direction: column;
-  align-items: center;
   gap: 2px;
-  padding: 10px;
-  border-radius: 12px;
-  border: 1px solid var(--cq-hair2);
-  background: var(--cq-glass);
-  text-align: center;
+  min-width: 0;
+  padding: 14px 16px;
+  border-radius: 16px;
 
-  b {
-    font-family: var(--cq-display);
-    font-size: 26px;
-    font-weight: 600;
-    line-height: 1.1;
-    color: var(--cq-gold-hi);
+  .cq-num {
+    font-size: 36px;
+    line-height: 1.05;
+    color: var(--cq-on-night-hi);
   }
 
-  span {
-    font-size: 10.5px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--cq-muted);
-  }
-
-  small {
-    font-size: 12px;
-    color: var(--cq-gold);
+  .cq-sub {
+    font-size: 13px;
+    color: var(--cq-on-night-2);
   }
 }
 
 .cq-progress__empty {
   align-items: center;
   text-align: center;
-
-  p {
-    margin: 0;
-  }
-
-  .cq-small {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    text-decoration: none;
-  }
 }
 
 .cq-progress__calib-text {
   font-size: 14px;
-  color: var(--cq-cream);
+  color: var(--cq-text);
 }
 
 .cq-progress__calib-actions {
   display: flex;
   gap: 8px;
 
-  button {
+  > * {
     flex: 1;
   }
 }
@@ -274,11 +258,13 @@ onBeforeUnmount(() => {
 }
 
 .cq-progress__week-empty {
-  margin: 0;
   text-align: center;
 }
 
-.cq-progress__day {
-  font-size: 20px;
+.cq-progress__dayh {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
 }
 </style>
