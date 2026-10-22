@@ -8,10 +8,15 @@
  */
 import { and, eq, like, sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
+import { vi } from "vitest";
 import * as schema from "../../src/db/schema";
 import type { ConquerMode } from "../../src/db/schema/conquer";
 import { addDaysIso, mondayOfIso } from "../../src/modules/conquer/calendar";
 import type { StepKey } from "../../src/modules/conquer/engine";
+import {
+  privateMediaResolver,
+  type PrivateMediaStore,
+} from "../../src/modules/conquer/private-media";
 import { resolveMemberTimezone } from "../../src/modules/conquer/member-service";
 import type { Level } from "../../src/modules/conquer/rules";
 import { todayInTz } from "../../src/modules/shared/date-utils";
@@ -1171,4 +1176,22 @@ export async function patchConquerStep(
         eq(schema.conquerSteps.step, step),
       ),
     );
+}
+
+// ── Control físico (201-12) ─────────────────────────────────────────
+
+/**
+ * Reemplaza la tienda privada de fotos por un doble: `presignPut` y `presignGet`
+ * devuelven `https://r2.test/...` y `head` por defecto es una foto JPG de 1 KB.
+ * Cualquier operación se pisa con `overrides`. Devuelve el spy del resolver
+ * (`mockRestore()` o `vi.restoreAllMocks()` en `afterEach`).
+ */
+export function mockPrivateMedia(overrides: Partial<PrivateMediaStore> = {}) {
+  const fakeStore: PrivateMediaStore = {
+    presignPut: async (key) => `https://r2.test/put/${key}`,
+    presignGet: async (key) => `https://r2.test/get/${key}`,
+    head: async () => ({ contentLength: 1024, contentType: "image/jpeg" }),
+    ...overrides,
+  };
+  return vi.spyOn(privateMediaResolver, "resolve").mockReturnValue(fakeStore);
 }
