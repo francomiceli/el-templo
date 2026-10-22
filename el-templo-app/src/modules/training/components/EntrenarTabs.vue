@@ -31,7 +31,11 @@
 </template>
 
 <script lang="ts">
-export type TabKey = 'semana' | 'libre' | 'desafios' | 'conquer'
+import { ENTRENAR_TAB_FLAGS, visibleTabKeys } from '../utils/entrenarTabs'
+import type { TabKey } from '../utils/entrenarTabs'
+
+// El tipo vive en el util puro; se re-exporta para no romper los imports existentes
+export type { TabKey }
 
 /** Ids compartidos con los `role="tabpanel"` de EntrenarView (aria-controls / aria-labelledby) */
 export function tabId(key: TabKey): string {
@@ -45,11 +49,10 @@ export function paneId(key: TabKey): string {
 
 <script setup lang="ts">
 import { nextTick, ref } from 'vue'
-import { FREE_BLOCKS_ENABLED } from 'src/config/featureFlags'
 
-// Fase 197 D-02: 4 tabs "puertas" SIN íconos (sketch 015 ronda 3). Desafíos y Conquer llevan un
-// punto ocre de "pronto" (D-05). Tablist accesible: flechas izquierda/derecha mueven la selección.
-// Libre solo existe con FREE_BLOCKS_ENABLED (apagada no aparece ni como "pronto").
+// Fase 197 D-02: tabs "puertas" SIN íconos (sketch 015 ronda 3). Tablist accesible: flechas
+// izquierda/derecha mueven la selección. Fase 201 D-10: hoy son Semana y Conquer; qué tabs hay lo
+// decide `visibleTabKeys` según los flags (Libre y Desafíos apagados no aparecen ni como "pronto").
 const props = withDefaults(
   defineProps<{
     modelValue: TabKey
@@ -69,14 +72,15 @@ interface TabDef {
   soon: boolean
 }
 
-const ALL_TABS: readonly TabDef[] = [
-  { key: 'semana', label: 'Semana', soon: false },
-  { key: 'libre', label: 'Libre', soon: false },
-  { key: 'desafios', label: 'Desafíos', soon: true },
-  { key: 'conquer', label: 'Conquer', soon: true },
-]
+// Punto ocre de "pronto" solo en Desafíos: Conquer ya existe (Fase 201 D-10)
+const ALL_TABS: Readonly<Record<TabKey, TabDef>> = {
+  semana: { key: 'semana', label: 'Semana', soon: false },
+  libre: { key: 'libre', label: 'Libre', soon: false },
+  desafios: { key: 'desafios', label: 'Desafíos', soon: true },
+  conquer: { key: 'conquer', label: 'Conquer', soon: false },
+}
 
-const TABS: readonly TabDef[] = ALL_TABS.filter((t) => t.key !== 'libre' || FREE_BLOCKS_ENABLED)
+const TABS: readonly TabDef[] = visibleTabKeys(ENTRENAR_TAB_FLAGS).map((key) => ALL_TABS[key])
 
 const rootRef = ref<HTMLElement | null>(null)
 
@@ -119,7 +123,7 @@ function onKeydown(event: KeyboardEvent, key: TabKey): void {
 
   &__doors {
     display: grid;
-    grid-template-columns: repeat(var(--entrenar-tabs-count, 4), minmax(0, 1fr));
+    grid-template-columns: repeat(var(--entrenar-tabs-count, 2), minmax(0, 1fr));
     gap: 6px;
   }
 

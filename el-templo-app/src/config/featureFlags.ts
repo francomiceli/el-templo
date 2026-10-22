@@ -25,11 +25,17 @@ export const IN_SESSION_ADJUST_ENABLED = false
 export const FREE_BLOCKS_ENABLED = false
 
 /**
- * Fase 197: tabs de Entrenar (Semana / Libre / Desafíos / Conquer). Apagadas por ahora
- * (2026-10-21): Entrenar muestra solo el contenido de Semana, sin la barra de tabs (tampoco en
- * la vidriera sin plan) y cualquier `?tab=` abre Semana. El código de las tabs queda.
+ * Fase 197: tabs de Entrenar. Fase 201 D-10: vuelven prendidas, pero solo Semana y Conquer
+ * (Libre sigue con FREE_BLOCKS_ENABLED y Desafíos con ENTRENAR_DESAFIOS_ENABLED, ambos apagados).
+ * Con false Entrenar muestra solo Semana, sin barra de tabs, y cualquier `?tab=` abre Semana.
  */
-export const ENTRENAR_TABS_ENABLED = false
+export const ENTRENAR_TABS_ENABLED = true
+
+/**
+ * Fase 201 D-10: tab Desafíos de Entrenar. Apagada (mismo patrón que Libre): sin tab, ni como
+ * "pronto", y sin `?tab=desafios`. El pane "Próximamente" queda en el código.
+ */
+export const ENTRENAR_DESAFIOS_ENABLED = false
 
 /**
  * Fase 200 P1: lo de anatomía para socios (Guía en dos cards, Tu cuerpo, cuerpo tocable de

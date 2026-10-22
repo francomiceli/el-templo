@@ -83,44 +83,40 @@
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import TemploLoader from 'src/components/TemploLoader.vue'
-import { ENTRENAR_TABS_ENABLED, FREE_BLOCKS_ENABLED } from 'src/config/featureFlags'
+import { ENTRENAR_TABS_ENABLED } from 'src/config/featureFlags'
 import { useUserStore } from 'src/stores/useUserStore'
 import { useTrainingWeek } from '../composables/useTrainingWeek'
 import { useFreeBlocksStore } from '../stores/freeBlocksStore'
 import EntrenarTabs, { paneId, tabId } from '../components/EntrenarTabs.vue'
 import type { TabKey } from '../components/EntrenarTabs.vue'
+import { ENTRENAR_TAB_FLAGS, queryTabKeys, tabFromQuery } from '../utils/entrenarTabs'
 import ComingSoonPane from '../components/ComingSoonPane.vue'
 import SemanaTab from '../components/semana/SemanaTab.vue'
 import LibreTab from '../components/libre/LibreTab.vue'
 
-// Fase 197 D-02, D-05: Entrenar en 4 tabs. Siempre abre en Semana; `?tab=libre` (resumen del
-// bloque libre, link de Mi Templo) abre Libre, solo con FREE_BLOCKS_ENABLED. Reemplaza a WeeklyView.
+// Fase 197 D-02, D-05: Entrenar con tabs. Fase 201 D-10: hoy Semana y Conquer. Siempre abre en
+// Semana; `?tab=conquer` (destino del pop-up de lanzamiento, D-11) abre Conquer. `?tab=libre` abre
+// Libre solo con FREE_BLOCKS_ENABLED. Reemplaza a WeeklyView.
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 const freeBlocks = useFreeBlocksStore()
 
 // ── Tab activa ──
-// Con ENTRENAR_TABS_ENABLED apagado no hay tabs: ningún `?tab=` sale de Semana.
-const QUERY_TABS: readonly TabKey[] = !ENTRENAR_TABS_ENABLED
-  ? []
-  : FREE_BLOCKS_ENABLED
-    ? ['libre', 'desafios', 'conquer']
-    : ['desafios', 'conquer']
+// Lista blanca según los flags (T-201-53): sin tabs no hay ninguna y todo `?tab=` abre Semana.
+const QUERY_TABS: readonly TabKey[] = queryTabKeys(ENTRENAR_TAB_FLAGS)
 
-/** Solo valores conocidos: cualquier otra cosa abre Semana (T-197-45) */
-function tabFromQuery(raw: unknown): TabKey {
-  const value = Array.isArray(raw) ? raw[0] : raw
-  return QUERY_TABS.find((tab) => tab === value) ?? 'semana'
+function tabFromRoute(raw: unknown): TabKey {
+  return tabFromQuery(raw, QUERY_TABS)
 }
 
-const activeTab = ref<TabKey>(tabFromQuery(route.query.tab))
+const activeTab = ref<TabKey>(tabFromRoute(route.query.tab))
 
 // La página ya montada recibe otro `?tab=` (por ejemplo, tocar de nuevo "Entrenar")
 watch(
   () => route.query.tab,
   (raw) => {
-    activeTab.value = tabFromQuery(raw)
+    activeTab.value = tabFromRoute(raw)
   },
 )
 
