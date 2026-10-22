@@ -167,3 +167,7 @@ con preguntas.
 ## Lecciones acumuladas de la fase 201
 
 (El orquestador agrega acá, entre planes, las trampas que encontraron los ejecutores anteriores. Leerlas.)
+
+- (orquestador, 2026-10-21) La rama se rebaseó sobre `origin/staging` con la fase 200 adentro (migraciones 0287 y 0288 ya
+  existen; la 200 reservó hasta 0289). `node_modules` de los tres paquetes están como symlinks puestos por el orquestador:
+  el pre-flight `test -d` pasa; no tocarlos.
