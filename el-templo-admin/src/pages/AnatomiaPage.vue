@@ -113,13 +113,55 @@
         @open-ruta="onOpenRuta"
       />
     </AnatomySheet>
+
+    <!-- Fase 200 D11: ficha de la ruta (?ruta=<slug>) sobre la hoja. Celular: pantalla completa -->
+    <q-dialog
+      v-if="esMovil"
+      :model-value="fichaAbierta"
+      maximized
+      transition-show="slide-left"
+      transition-hide="slide-right"
+      @update:model-value="onFichaModel"
+    >
+      <q-card class="anatomia__ficha" role="dialog" aria-label="Ficha de la ruta">
+        <RutaFicha
+          v-if="rutaMostrada"
+          :key="rutaMostrada.slug"
+          :ruta="rutaMostrada"
+          :volver-a="volverA"
+          @volver="cerrarFicha"
+        />
+      </q-card>
+    </q-dialog>
+
+    <!-- Escritorio: panel a la derecha (decisión 4 del planner) -->
+    <q-dialog
+      v-else
+      :model-value="fichaAbierta"
+      position="right"
+      @update:model-value="onFichaModel"
+    >
+      <q-card
+        class="anatomia__ficha anatomia__ficha--lado"
+        role="dialog"
+        aria-label="Ficha de la ruta"
+      >
+        <RutaFicha
+          v-if="rutaMostrada"
+          :key="rutaMostrada.slug"
+          :ruta="rutaMostrada"
+          :volver-a="volverA"
+          @volver="cerrarFicha"
+        />
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
 <script setup lang="ts">
 /**
- * Fase 200 D6-D10/R1: Admin › Anatomía. El estado vive en la URL (`?zona=&vista=` o `?musculo=`, y
- * `?ruta=` que usa el plan 200-13), así el back del navegador cierra la hoja. Celular: cuerpo en
+ * Fase 200 D6-D11/R1: Admin › Anatomía. El estado vive en la URL (`?zona=&vista=` o `?musculo=`, y
+ * `?ruta=` para la ficha), así el back del navegador cierra la hoja y la ficha. Celular: cuerpo en
  * vista única + hoja desde abajo. Escritorio: cuerpo a la izquierda y panel a la derecha, sin hoja.
  * Los parámetros se validan contra el store: un slug o id inexistente no abre nada (T-200-33).
  */
@@ -129,9 +171,10 @@ import { useRoute, useRouter } from 'vue-router';
 import type { LocationQuery, LocationQueryValue } from 'vue-router';
 import AnatomyFigure from 'components/anatomy/AnatomyFigure.vue';
 import AnatomySheet from 'components/anatomy/AnatomySheet.vue';
+import RutaFicha from 'components/anatomy/RutaFicha.vue';
 import ZonaPanel from 'components/anatomy/ZonaPanel.vue';
 import { useAnatomyStore } from 'stores/useAnatomyStore';
-import type { RegionVista, Vista } from 'src/types/anatomy';
+import type { RegionVista, RutaProfe, Vista } from 'src/types/anatomy';
 
 type VistaUnica = 'front' | 'back';
 
@@ -177,6 +220,37 @@ const musculoSel = computed<string | null>(() => {
   if (!id) return null;
   return anatomyStore.profundos.some((m) => m.id === id) ? id : null;
 });
+
+/** Ruta de la URL, solo si existe en el store (slug inexistente = no abre nada, T-200-33). */
+const rutaSel = computed<RutaProfe | null>(() => {
+  const slug = unico(route.query.ruta);
+  if (!slug) return null;
+  return anatomyStore.rutaPorSlug(slug) ?? null;
+});
+
+const fichaAbierta = computed<boolean>(() => rutaSel.value !== null);
+
+// Última ficha mostrada: sigue pintada mientras el diálogo se desliza al cerrar.
+const rutaMostrada = ref<RutaProfe | null>(null);
+watch(
+  rutaSel,
+  (r) => {
+    if (r) rutaMostrada.value = r;
+  },
+  { immediate: true }
+);
+
+// Texto del "←" de la ficha: la zona (o el músculo profundo) desde donde se abrió.
+const volverA = computed<string>(() => {
+  if (zonaSel.value) {
+    return anatomyStore.vista?.regiones.find((r) => r.slug === zonaSel.value)?.nombre ?? 'Anatomía';
+  }
+  if (musculoSel.value) return anatomyStore.musculoPorId(musculoSel.value)?.nombre ?? 'Anatomía';
+  return 'Anatomía';
+});
+
+// La ficha se abrió con push desde esta página: volver = back (deja el historial como estaba).
+let fichaPorPush = false;
 
 const panelActivo = computed<boolean>(() => zonaSel.value !== null || musculoSel.value !== null);
 const hojaAbierta = computed<boolean>(() => panelActivo.value);
@@ -274,8 +348,28 @@ function cerrarPanel(): void {
 }
 
 function onOpenRuta(slug: string): void {
-  // Fase 200 D11: la ficha la abre el plan 200-13 (por ahora la ruta solo queda en la URL).
+  fichaPorPush = true;
   void router.push({ query: { ...route.query, ruta: slug } });
+}
+
+function quitarRuta(): void {
+  const resto: LocationQuery = { ...route.query };
+  delete resto.ruta;
+  void router.replace({ query: resto });
+}
+
+// Cerrar la ficha: back si la abrimos con push; si llegó por link directo, replace sin `ruta`.
+function cerrarFicha(): void {
+  if (fichaPorPush) {
+    fichaPorPush = false;
+    router.back();
+    return;
+  }
+  quitarRuta();
+}
+
+function onFichaModel(abierta: boolean): void {
+  if (!abierta) cerrarFicha();
 }
 
 async function cargar(): Promise<void> {
@@ -293,6 +387,19 @@ watch(
   {
     immediate: true,
   }
+);
+
+// `?ruta=` con un slug que no existe: no abre nada y se limpia de la URL (T-200-33).
+watch(
+  [() => route.query.ruta, () => anatomyStore.vista],
+  ([ruta, vistaCargada]) => {
+    if (!ruta) {
+      fichaPorPush = false;
+      return;
+    }
+    if (vistaCargada && rutaSel.value === null) quitarRuta();
+  },
+  { immediate: true }
 );
 
 // Al abrir la hoja se asegura que el cuerpo (ya achicado) quede a la vista.
@@ -509,6 +616,20 @@ onMounted(() => {
   margin: 0 0 6px;
   font-size: 12px;
   color: $anat-ink-2;
+}
+
+.anatomia__ficha {
+  overflow: hidden;
+  background: $anat-page;
+}
+
+// Escritorio: panel a la derecha de alto completo (pisa los máximos de q-dialog minimizado)
+.anatomia__ficha--lado {
+  width: min(720px, 70vw);
+  max-width: none;
+  height: 100vh;
+  max-height: 100vh;
+  border-radius: 0;
 }
 
 .anatomia__chips {
