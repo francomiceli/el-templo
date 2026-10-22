@@ -995,3 +995,180 @@ export function saturdayBody(opts: {
     pull: opts.pull,
   };
 }
+
+// ── Ficha, recortes y paso de nivel (201-11) ────────────────────────
+
+export function conquerFichaUrl(userId: number | string): string {
+  return `/api/admin/conquer/members/${userId}`;
+}
+
+export interface CutProposalBody {
+  kind: "etapa" | "bajar_escalon";
+  stage?: number;
+  label: string;
+}
+
+export interface FichaBody {
+  member: {
+    userId: number;
+    status: "pedido" | "activo";
+    level: string | null;
+    daysCount: number | null;
+    incReps: number;
+    incS: number;
+    coachUserId: number | null;
+    activatedAt: string | null;
+    activationDate: string | null;
+    levelSince: string | null;
+    cutStage: number;
+    firstName: string;
+    lastName: string;
+    email: string | null;
+  };
+  progress: ProgressBody;
+  alerts: BoardAlertBody[];
+  cutProposal: CutProposalBody;
+  levelUp: { to: string | null; validDays: number[] };
+}
+
+/** `GET /members/:userId` crudo (la ficha). */
+export async function getFichaRaw(
+  app: FastifyInstance,
+  token: string | undefined,
+  userId: number | string,
+) {
+  return app.inject({
+    method: "GET",
+    url: conquerFichaUrl(userId),
+    headers: token === undefined ? {} : bearer(token),
+  });
+}
+
+/** La ficha, que tiene que responder 200. */
+export async function fetchFicha(
+  app: FastifyInstance,
+  token: string,
+  userId: number,
+): Promise<FichaBody> {
+  const res = await getFichaRaw(app, token, userId);
+  if (res.statusCode !== 200) {
+    throw new Error(`fetchFicha: ${res.statusCode} ${res.body}`);
+  }
+  return res.json<FichaBody>();
+}
+
+/** `POST /members/:userId/recortes` crudo. */
+export async function postCutRaw(
+  app: FastifyInstance,
+  token: string | undefined,
+  userId: number | string,
+  payload: unknown,
+) {
+  return app.inject({
+    method: "POST",
+    url: `${conquerFichaUrl(userId)}/recortes`,
+    headers: token === undefined ? {} : bearer(token),
+    payload: payload as Record<string, unknown>,
+  });
+}
+
+/** `POST /members/:userId/level-up` crudo. */
+export async function postLevelUpRaw(
+  app: FastifyInstance,
+  token: string | undefined,
+  userId: number | string,
+  payload: unknown,
+) {
+  return app.inject({
+    method: "POST",
+    url: `${conquerFichaUrl(userId)}/level-up`,
+    headers: token === undefined ? {} : bearer(token),
+    payload: payload as Record<string, unknown>,
+  });
+}
+
+/** `PUT /members/:userId/steps/:exerciseId/:step` crudo (corrección del coach). */
+export async function putFichaStepRaw(
+  app: FastifyInstance,
+  token: string | undefined,
+  userId: number | string,
+  exerciseId: number | string,
+  step: string,
+  payload: unknown,
+) {
+  return app.inject({
+    method: "PUT",
+    url: `${conquerFichaUrl(userId)}/steps/${exerciseId}/${step}`,
+    headers: token === undefined ? {} : bearer(token),
+    payload: payload as Record<string, unknown>,
+  });
+}
+
+/**
+ * Pisa DIRECTO un escalón del alumno (peldaño por código dentro de la escalera
+ * del ejercicio, calibración y `since_date`). Solo para armar el escenario.
+ */
+export async function patchConquerStep(
+  app: FastifyInstance,
+  userId: number,
+  exerciseCode: string,
+  step: StepKey,
+  patch: {
+    rungCode?: string;
+    calibration?: "pendiente" | "resuelta";
+    sinceDate?: string | null;
+  },
+): Promise<void> {
+  const [exercise] = await app.db
+    .select({
+      id: schema.conquerExercises.id,
+      ladderId: schema.conquerExercises.ladderId,
+    })
+    .from(schema.conquerExercises)
+    .where(
+      and(
+        tenantWhere(schema.conquerExercises, TEMPLO_CTX),
+        eq(schema.conquerExercises.code, exerciseCode),
+      ),
+    );
+  const [member] = await app.db
+    .select({ id: schema.conquerMembers.id })
+    .from(schema.conquerMembers)
+    .where(
+      and(
+        tenantWhere(schema.conquerMembers, TEMPLO_CTX),
+        eq(schema.conquerMembers.userId, userId),
+      ),
+    );
+  if (!exercise || !member) {
+    throw new Error(`patchConquerStep: ${exerciseCode} / alumno ${userId}`);
+  }
+  const set: Partial<typeof schema.conquerSteps.$inferInsert> = {};
+  if (patch.rungCode !== undefined) {
+    const [rung] = await app.db
+      .select({ id: schema.conquerRungs.id })
+      .from(schema.conquerRungs)
+      .where(
+        and(
+          tenantWhere(schema.conquerRungs, TEMPLO_CTX),
+          eq(schema.conquerRungs.ladderId, exercise.ladderId),
+          eq(schema.conquerRungs.code, patch.rungCode),
+        ),
+      );
+    if (!rung) throw new Error(`patchConquerStep: peldaño ${patch.rungCode}`);
+    set.rungId = rung.id;
+  }
+  if (patch.calibration !== undefined) set.calibration = patch.calibration;
+  if (patch.sinceDate !== undefined) set.sinceDate = patch.sinceDate;
+  await app.db
+    .update(schema.conquerSteps)
+    .set(set)
+    .where(
+      and(
+        tenantWhere(schema.conquerSteps, TEMPLO_CTX),
+        eq(schema.conquerSteps.memberId, member.id),
+        eq(schema.conquerSteps.exerciseId, exercise.id),
+        eq(schema.conquerSteps.step, step),
+      ),
+    );
+}
