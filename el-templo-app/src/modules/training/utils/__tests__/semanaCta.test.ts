@@ -74,6 +74,17 @@ describe('resolveSemanaCta (D-03)', () => {
     expect(r.hint).toBeNull()
   })
 
+  it('hoy es domingo: sin botón, sin hint y sin link a Libre (con o sin plani)', () => {
+    const SUNDAY = '2026-10-18'
+    for (const hasSession of [true, false]) {
+      const r = resolveSemanaCta(input({ date: SUNDAY, today: SUNDAY, isSunday: true, hasSession }))
+      expect(r.showButton).toBe(false)
+      expect(r.action).toBeNull()
+      expect(r.hint).toBeNull()
+      expect(r.showLibreLink).toBe(false)
+    }
+  })
+
   it('hoy y días futuros siguen con botón', () => {
     expect(resolveSemanaCta(input({})).showButton).toBe(true)
     expect(resolveSemanaCta(input({ date: '2026-10-17' })).showButton).toBe(true)

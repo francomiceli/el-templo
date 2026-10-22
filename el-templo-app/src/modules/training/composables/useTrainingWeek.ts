@@ -111,11 +111,11 @@ export function useTrainingWeek(): UseTrainingWeekReturn {
     if (date) weekStore.selectDate(date)
   }
 
-  /** Hoy si está en la semana; si no, el primer día con sesión; si no, el lunes. */
+  /** Hoy si está en la semana; si no, el primer día con sesión (nunca el domingo); si no, el lunes. */
   function defaultSelection(): string | null {
     const list = days.value
     if (list.some((d) => d.date === today.value)) return today.value
-    const firstWithSession = list.find((d) => d.session !== null)
+    const firstWithSession = list.find((d) => d.session !== null && d.dayOfWeek !== 0)
     return (firstWithSession ?? list[0])?.date ?? null
   }
 

@@ -1,42 +1,53 @@
 <template>
-  <section v-if="day" class="semana-hero">
-    <div class="semana-hero__head" :class="{ 'semana-hero__head--solo': !cta.showButton }">
-      <div class="semana-hero__text">
-        <p class="semana-hero__kicker">{{ dayKicker(day.date, today) }}</p>
-        <h1 class="semana-hero__title">{{ title }}</h1>
-        <span v-if="cta.showDoneChip" class="semana-hero__done">
-          <q-icon name="check" size="16px" />
-          Hecha
-        </span>
+  <section v-if="day" class="semana-hero" :class="{ 'semana-hero--rest': restToday }">
+    <!-- Hoy es domingo: todo el contenido se ve desenfocado, inerte y oculto a lectores de pantalla -->
+    <div
+      class="semana-hero__body"
+      :aria-hidden="restToday ? 'true' : undefined"
+      :inert="restToday ? true : undefined"
+    >
+      <div class="semana-hero__head" :class="{ 'semana-hero__head--solo': !cta.showButton }">
+        <div class="semana-hero__text">
+          <p class="semana-hero__kicker">{{ dayKicker(day.date, today) }}</p>
+          <h1 class="semana-hero__title">{{ title }}</h1>
+          <span v-if="cta.showDoneChip" class="semana-hero__done">
+            <q-icon name="check" size="16px" />
+            Hecha
+          </span>
+        </div>
+        <button
+          v-if="cta.showButton"
+          type="button"
+          class="semana-hero__cta"
+          :class="{
+            'semana-hero__cta--secondary': cta.variant === 'secondary',
+            'semana-hero__cta--unavailable': cta.variant === 'unavailable',
+          }"
+          :disabled="cta.variant === 'unavailable'"
+          @click="onCta"
+        >
+          <q-icon v-if="cta.startsTraining" name="play_arrow" size="20px" aria-hidden="true" />
+          <span>{{ cta.label }}</span>
+        </button>
       </div>
+
+      <!-- Área de bloques (197-13): figura, chips y lista de ejercicios del bloque elegido -->
+      <slot />
+
       <button
-        v-if="cta.showButton"
+        v-if="cta.showLibreLink"
         type="button"
-        class="semana-hero__cta"
-        :class="{
-          'semana-hero__cta--secondary': cta.variant === 'secondary',
-          'semana-hero__cta--unavailable': cta.variant === 'unavailable',
-        }"
-        :disabled="cta.variant === 'unavailable'"
-        @click="onCta"
+        class="semana-hero__link"
+        @click="emit('go-libre')"
       >
-        <q-icon v-if="cta.startsTraining" name="play_arrow" size="20px" aria-hidden="true" />
-        <span>{{ cta.label }}</span>
+        ¿Te quedaste con ganas? Sumá un bloque libre
       </button>
+      <p v-if="cta.hint" class="semana-hero__hint">{{ cta.hint }}</p>
     </div>
 
-    <!-- Área de bloques (197-13): figura, chips y lista de ejercicios del bloque elegido -->
-    <slot />
-
-    <button
-      v-if="cta.showLibreLink"
-      type="button"
-      class="semana-hero__link"
-      @click="emit('go-libre')"
-    >
-      ¿Te quedaste con ganas? Sumá un bloque libre
-    </button>
-    <p v-if="cta.hint" class="semana-hero__hint">{{ cta.hint }}</p>
+    <p v-if="restToday" class="semana-hero__rest" role="status">
+      Hoy es día de descanso. Nos vemos el lunes.
+    </p>
   </section>
 </template>
 
@@ -68,6 +79,9 @@ const title = computed(() => {
   const session = props.day?.session
   return (session ? sessionTitle(session) : '') || 'Sin plani'
 })
+
+// Hoy es domingo: día de descanso (el chip del domingo tampoco se puede elegir)
+const restToday = computed(() => props.day?.dayOfWeek === 0 && props.day.date === props.today)
 
 const cta = computed(() =>
   resolveSemanaCta({
@@ -105,9 +119,40 @@ function onCta(): void {
 @import 'src/css/premium-card';
 
 .semana-hero {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 12px;
+
+  &__body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  // Domingo de hoy: contenido desenfocado y mensaje encima (sin botón)
+  &--rest &__body {
+    min-height: 180px;
+    filter: blur(6px);
+    opacity: 0.7;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  &__rest {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    margin: 0;
+    padding: 0 24px;
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 700;
+    font-size: 20px;
+    line-height: 1.3;
+    text-align: center;
+    color: $pd-ink;
+  }
 
   &__head {
     display: grid;

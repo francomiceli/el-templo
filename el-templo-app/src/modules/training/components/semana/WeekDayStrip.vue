@@ -10,7 +10,9 @@
         'week-strip__day--today': day.date === today,
         'week-strip__day--done': day.state === 'completed',
         'week-strip__day--rest': !day.session,
+        'week-strip__day--sunday': isSunday(day),
       }"
+      :disabled="isSunday(day)"
       :aria-pressed="day.date === selectedDate"
       :aria-label="dayLabel(day)"
       @click="emit('select', day.date)"
@@ -27,7 +29,7 @@ import type { WeekDay } from '../../types/session'
 import { dayChip, dayKicker } from '../../utils/weekLabels'
 
 // Fase 197 D-03: tira de 7 días. Elegido = borde terracota SIN relleno; hoy = borde de tinta;
-// completado = punto salvia; domingo / sin plani = borde punteado.
+// completado = punto salvia; domingo / sin plani = borde punteado. El domingo no se elige (D-02).
 const props = defineProps<{
   days: WeekDay[]
   selectedDate: string | null
@@ -39,10 +41,16 @@ const emit = defineEmits<{
   select: [date: string]
 }>()
 
+/** El domingo es día de descanso: su chip no se puede elegir */
+function isSunday(day: WeekDay): boolean {
+  return day.dayOfWeek === 0
+}
+
 /** "Hoy · viernes 16, completada" para lectores de pantalla (la fecha larga, no solo "VIE 16") */
 function dayLabel(day: WeekDay): string {
   const base = dayKicker(day.date, props.today)
   if (day.state === 'completed') return `${base}, completada`
+  if (isSunday(day)) return `${base}, día de descanso`
   if (!day.session) return `${base}, sin plani`
   return base
 }
@@ -73,6 +81,12 @@ function dayLabel(day: WeekDay): string {
     &:focus-visible {
       outline: 2px solid $pd-terra-ink;
       outline-offset: 2px;
+    }
+
+    // Domingo: no se puede elegir
+    &--sunday,
+    &:disabled {
+      cursor: default;
     }
 
     // Domingo / sin plani: sin fondo y borde punteado

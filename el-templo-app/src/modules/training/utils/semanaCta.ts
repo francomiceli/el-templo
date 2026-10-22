@@ -54,6 +54,20 @@ export function resolveSemanaCta(i: SemanaCtaInput): SemanaCta {
     }
   }
 
+  // Hoy es domingo: día de descanso, sin botón (la pantalla muestra el aviso sobre el contenido)
+  if (i.isSunday && i.date === i.today) {
+    return {
+      showButton: false,
+      label: '',
+      variant: 'unavailable',
+      action: null,
+      startsTraining: false,
+      showDoneChip: false,
+      showLibreLink: false,
+      hint: null,
+    }
+  }
+
   // Sin plani y Libre apagado: no hay a dónde ir, el CTA queda deshabilitado y sin hint
   if (!i.hasSession && !i.libreEnabled) {
     return {
