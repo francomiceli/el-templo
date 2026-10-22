@@ -199,6 +199,15 @@ function mejorRol(a: Rol | undefined, b: Rol): Rol {
   return a === undefined || prioridad(b) < prioridad(a) ? b : a;
 }
 
+/**
+ * Vistas concretas donde se dibuja una zona: `both` se abre en frente y
+ * espalda para que una entrada de una sola vista no le gane (ni le pierda) a
+ * una de ambas al combinar roles por zona.
+ */
+function vistasConcretas(vista: Vista): ("front" | "back")[] {
+  return vista === "both" ? ["front", "back"] : [vista];
+}
+
 function rolesVacios(): Record<Rol, string[]> {
   return {
     motor: [],
@@ -252,7 +261,9 @@ function musculosDeRuta(ruta: RutaContenido): { m: string; rol: Rol }[] {
 
 /**
  * D11: por cada (zona, vista) de un músculo de la ruta, el rol de MAYOR
- * prioridad entre los músculos que la comparten. Orden: el de las regiones.
+ * prioridad entre los músculos que la comparten. Las zonas `both` se expanden
+ * a frente y espalda antes de combinar (el payload nunca trae `both`).
+ * Orden: el de las regiones.
  */
 function zonasFichaDe(
   ruta: RutaContenido,
@@ -265,13 +276,15 @@ function zonasFichaDe(
     const def = MUSCULO_POR_ID.get(m);
     const zona = def ? zonaDe(def) : null;
     if (!zona) continue;
-    const clave = `${zona.slug}|${zona.vista}`;
-    const actual = porClave.get(clave);
-    porClave.set(clave, {
-      slug: zona.slug,
-      vista: zona.vista,
-      rol: mejorRol(actual?.rol, rol),
-    });
+    for (const vista of vistasConcretas(zona.vista)) {
+      const clave = `${zona.slug}|${vista}`;
+      const actual = porClave.get(clave);
+      porClave.set(clave, {
+        slug: zona.slug,
+        vista,
+        rol: mejorRol(actual?.rol, rol),
+      });
+    }
   }
   const orden = REGIONES_DEF.map((r) => r.slug);
   return [...porClave.values()].sort(
@@ -436,7 +449,10 @@ function gruposDeMusculo(id: string): MusculoAlumno["grupos"] {
   return out;
 }
 
-/** Zonas de la ruta para el alumno: fuerte > sostiene, una por (slug, vista). */
+/**
+ * Zonas de la ruta para el alumno: fuerte > sostiene, una por (slug, vista).
+ * Las zonas `both` se expanden a frente y espalda antes de combinar.
+ */
 function zonasAlumnoDe(ruta: RutaContenido): RutaAlumno["zonas"] {
   const porClave = new Map<
     string,
@@ -448,10 +464,12 @@ function zonasAlumnoDe(ruta: RutaContenido): RutaAlumno["zonas"] {
     const def = MUSCULO_POR_ID.get(m);
     const zona = def ? zonaDe(def) : null;
     if (!zona) continue;
-    const clave = `${zona.slug}|${zona.vista}`;
-    const actual = porClave.get(clave);
-    if (actual?.grupo === "fuerte") continue;
-    porClave.set(clave, { slug: zona.slug, vista: zona.vista, grupo });
+    for (const vista of vistasConcretas(zona.vista)) {
+      const clave = `${zona.slug}|${vista}`;
+      const actual = porClave.get(clave);
+      if (actual?.grupo === "fuerte") continue;
+      porClave.set(clave, { slug: zona.slug, vista, grupo });
+    }
   }
   const orden = REGIONES_DEF.map((r) => r.slug);
   return [...porClave.values()].sort(

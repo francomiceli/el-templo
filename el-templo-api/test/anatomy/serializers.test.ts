@@ -169,6 +169,20 @@ describe("vistaAlumno (D14, D15, T-200-21)", () => {
     expect(lowerBack).toBeUndefined();
   });
 
+  it("zonas de HSPU: el trapecio de espalda es 'fuerte' (trap-sup 'both' gana a trap-inf 'back') y no hay vista 'both'", () => {
+    const hspu = vista.rutas.find((r) => r.slug === "handstand-push-up");
+    expect(hspu).toBeDefined();
+    const trapecio = (hspu?.zonas ?? []).filter((z) => z.slug === "trapezius");
+    expect(trapecio.find((z) => z.vista === "back")?.grupo).toBe("fuerte");
+    expect(trapecio.find((z) => z.vista === "front")?.grupo).toBe("fuerte");
+    for (const r of vista.rutas) {
+      expect(
+        r.zonas.filter((z) => z.vista === "both"),
+        r.slug,
+      ).toEqual([]);
+    }
+  });
+
   it("es memoizada y pura (misma referencia, mismo JSON)", () => {
     expect(vistaAlumno()).toBe(vista);
     expect(JSON.stringify(vistaAlumno())).toBe(JSON.stringify(vista));
@@ -270,6 +284,39 @@ describe("vistaProfe (D8-D11, T-200-22)", () => {
     // Una entrada por (slug, vista).
     const claves = (fl?.zonasFicha ?? []).map((z) => `${z.slug}|${z.vista}`);
     expect(new Set(claves).size).toBe(claves.length);
+  });
+
+  it("zonasFicha de HSPU: el trapecio de espalda es motor (trap-sup 'both' gana a trap-inf 'back')", () => {
+    const hspu = vista.rutas.find((r) => r.code === "HSPU");
+    const trapecio = (hspu?.zonasFicha ?? []).filter(
+      (z) => z.slug === "trapezius",
+    );
+    expect(trapecio.find((z) => z.vista === "back")?.rol).toBe("motor");
+    expect(trapecio.find((z) => z.vista === "front")?.rol).toBe("motor");
+  });
+
+  it("zonasFicha nunca trae vista 'both' y cada (zona, vista) lleva el rol de mayor prioridad", () => {
+    for (const ruta of RUTAS_POR_CODIGO.values()) {
+      const r = vista.rutas.find((x) => x.code === ruta.code);
+      const zonas = r?.zonasFicha ?? [];
+      expect(
+        zonas.filter((z) => z.vista === "both"),
+        ruta.code,
+      ).toEqual([]);
+      for (const z of zonas) {
+        const candidatos = ROLES.filter((rol) =>
+          ruta.relaciones[rol].some((rel) => {
+            const zona = MUSCULOS.find((m) => m.id === rel.m)?.zona;
+            return (
+              zona?.slug === z.slug &&
+              (zona.vista === "both" || zona.vista === z.vista)
+            );
+          }),
+        );
+        // ROLES viene ordenado por prioridad: el primero es el de mayor.
+        expect(z.rol, `${ruta.code} ${z.slug}@${z.vista}`).toBe(candidatos[0]);
+      }
+    }
   });
 
   it("sinDibujo de FL incluye psoas (zona null)", () => {

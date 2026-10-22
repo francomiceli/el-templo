@@ -123,13 +123,17 @@ const fuerteTexto = computed(() => {
   return nombres.length > 0 ? nombres.join(' · ') : '—'
 })
 
-// Roles de la figura: `slug@vista` si la zona es de una sola vista, `slug` si es de las dos.
+// Roles de la figura: clave `slug@vista`. El API ya resuelve fuerte > sostiene por (zona, vista)
+// y no manda `both` (WR-01); si llegara una, se abre en frente y espalda.
 // Si una misma clave llega con dos grupos, gana "fuerte".
 const roles = computed<Record<string, Rol>>(() => {
   const out: Record<string, Rol> = {}
   for (const z of ruta.value?.zonas ?? []) {
-    const clave = z.vista === 'both' ? z.slug : `${z.slug}@${z.vista}`
-    if (out[clave] !== 'fuerte') out[clave] = z.grupo
+    const vistas = z.vista === 'both' ? (['front', 'back'] as const) : [z.vista]
+    for (const v of vistas) {
+      const clave = `${z.slug}@${v}`
+      if (out[clave] !== 'fuerte') out[clave] = z.grupo
+    }
   }
   return out
 })

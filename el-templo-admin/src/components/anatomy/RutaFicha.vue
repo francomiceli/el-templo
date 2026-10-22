@@ -394,11 +394,14 @@ const secciones = computed(() => {
   };
 });
 
-// ---- Figura: roles por zona (vista both → clave `slug`; si no, `slug@vista`) ----
+// ---- Figura: roles por zona, clave `slug@vista` ----
+// El API ya resuelve el rol de mayor prioridad por (zona, vista) y no manda `both`
+// (WR-01); si llegara una, se abre en frente y espalda para no pisar a la específica.
 const rolesFigura = computed<Record<string, Rol>>(() => {
   const out: Record<string, Rol> = {};
   for (const z of props.ruta.zonasFicha) {
-    out[z.vista === 'both' ? z.slug : `${z.slug}@${z.vista}`] = z.rol;
+    const vistas = z.vista === 'both' ? (['front', 'back'] as const) : [z.vista];
+    for (const v of vistas) out[`${z.slug}@${v}`] = z.rol;
   }
   return out;
 });
