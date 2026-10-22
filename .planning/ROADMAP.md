@@ -470,7 +470,7 @@ Plans:
 - [x] 200-11-PLAN.md — Admin: tipos, store, figura por rol, ruta /anatomia y menú
 - [x] 200-12-PLAN.md — Admin: hoja desde abajo con roles como frase e (i), profundos y escritorio
 - [x] 200-13-PLAN.md — Admin: ficha de ruta a pantalla completa con marcas y glosario
-- [ ] 200-14-PLAN.md — App: flag ANATOMIA_ALUMNOS_ENABLED, tibialis, BodyFigure extensible, store y hoja de alumno
+- [x] 200-14-PLAN.md — App: flag ANATOMIA_ALUMNOS_ENABLED, tibialis, BodyFigure extensible, store y hoja de alumno
 - [ ] 200-15-PLAN.md — App: Guía en dos cards, Tu cuerpo y ficha corta
 - [ ] 200-16-PLAN.md — App: Semana tocable con Hoy en tu clase y modos sin mezclar
 - [ ] 200-17-PLAN.md — Fichas FLR, OAP, OAR, MU, TTB
