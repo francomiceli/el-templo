@@ -32,6 +32,13 @@ const routes: RouteRecordRaw[] = [
     component: () => import('./pages/SessionSummaryPage.vue'),
     meta: { requiresAuth: true },
   },
+  // Fase 201 D-22: el camino de niveles de Conquer se abre desde Inicio (la tab vive en /training)
+  {
+    path: 'training/conquer/niveles',
+    name: 'conquer-niveles',
+    component: () => import('src/modules/conquer/pages/ConquerLevelsPage.vue'),
+    meta: { requiresAuth: true },
+  },
   {
     path: 'training/guia',
     name: 'guia',
