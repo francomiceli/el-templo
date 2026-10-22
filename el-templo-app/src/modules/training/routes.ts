@@ -39,6 +39,13 @@ const routes: RouteRecordRaw[] = [
     component: () => import('src/modules/conquer/pages/ConquerLevelsPage.vue'),
     meta: { requiresAuth: true },
   },
+  // Fase 201 §7.1 Hoy: la sesión del día de Conquer (query `day` opcional, D-16)
+  {
+    path: 'training/conquer/hoy',
+    name: 'conquer-hoy',
+    component: () => import('src/modules/conquer/pages/ConquerTodayPage.vue'),
+    meta: { requiresAuth: true },
+  },
   {
     path: 'training/guia',
     name: 'guia',

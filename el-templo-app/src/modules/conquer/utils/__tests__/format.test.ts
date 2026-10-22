@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest'
-import { GREEK_STEP, LEVEL_INFO, effortHint, estadoChip, failureHint, unitText } from '../format'
+import {
+  GREEK_STEP,
+  LEVEL_INFO,
+  effortHint,
+  estadoChip,
+  failureHint,
+  shortDate,
+  unitText,
+} from '../format'
 import type { Estado, Level, StepKey } from '../../types'
 
 describe('GREEK_STEP', () => {
@@ -81,5 +89,15 @@ describe('failureHint', () => {
 
   it('brazos flexionados: fallo muscular', () => {
     expect(failureHint(false)).toBe('Fallo muscular')
+  })
+})
+
+describe('shortDate', () => {
+  it.each([
+    ['2026-10-21', '21/10'],
+    ['2026-01-05', '5/1'],
+    ['2026-12-31', '31/12'],
+  ] as const)('shortDate(%s) = %s', (iso, expected) => {
+    expect(shortDate(iso)).toBe(expected)
   })
 })

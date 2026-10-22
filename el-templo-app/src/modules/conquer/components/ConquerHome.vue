@@ -32,17 +32,18 @@
 
     <div class="cq-caps cq-rule">Tu semana</div>
     <ul class="cq-home__week">
-      <li
-        v-for="d in member.home.plan"
-        :key="d.dayKey"
-        class="cq-home__day"
-        :class="{
-          'cq-home__day--done': d.done,
-          'cq-home__day--next': !d.done && d.dayKey === member.home.nextDayKey,
-        }"
-      >
-        <span>{{ dayStatus(d) }}</span>
-        <strong>{{ d.label }}</strong>
+      <li v-for="d in member.home.plan" :key="d.dayKey">
+        <router-link
+          :to="dayTarget(d.dayKey)"
+          class="cq-home__day"
+          :class="{
+            'cq-home__day--done': d.done,
+            'cq-home__day--next': !d.done && d.dayKey === member.home.nextDayKey,
+          }"
+        >
+          <span>{{ dayStatus(d) }}</span>
+          <strong>{{ d.label }}</strong>
+        </router-link>
       </li>
     </ul>
     <div v-if="member.home.weekComplete" class="cq-toast cq-home__complete" role="status">
@@ -70,39 +71,64 @@
 
     <div class="cq-grow" />
 
-    <!-- 201-18: CTA principal -->
+    <CqCloudButton :label="ctaLabel" @click="goToday" />
   </CqSky>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useRouter } from 'vue-router'
+import type { RouteLocationRaw } from 'vue-router'
 import { useConquerStore } from '../stores/conquerStore'
-import { LEVEL_INFO, unitText } from '../utils/format'
+import { LEVEL_INFO, shortDate, unitText } from '../utils/format'
 import type { Level, PlanDayView } from '../types'
 import CqSky from './brand/CqSky.vue'
 import CqSun from './brand/CqSun.vue'
 import CqLevelIcon from './brand/CqLevelIcon.vue'
+import CqCloudButton from './brand/CqCloudButton.vue'
 
 // Fase 201 §7.1 Inicio, D-22: sol con el nivel y la semana del bloque, camino de niveles, la semana
 // del plan (D-16), la última marca de cada día y el aviso de control físico. El app no recalcula
 // nada: pinta lo que manda `GET /state` (`member.home`, `member.bodyCheck`).
 const LEVELS: readonly Level[] = ['ternero', 'novillo', 'toro']
 
+const router = useRouter()
 const store = useConquerStore()
 
 const member = computed(() => store.state?.member ?? null)
 const levelInfo = computed(() => (member.value?.level ? LEVEL_INFO[member.value.level] : null))
 const levelIndex = computed(() => (member.value?.level ? LEVELS.indexOf(member.value.level) : -1))
 
+// D-16: el sábado de Toro (combos) tiene su propia pantalla (201-19); mientras no exista la ruta,
+// Hoy lo resuelve solo y muestra el primer día del plan.
+function dayTarget(dayKey: string): RouteLocationRaw {
+  if (dayKey === 'sabado' && router.hasRoute('conquer-sabado')) return { name: 'conquer-sabado' }
+  return { name: 'conquer-hoy', query: { day: dayKey } }
+}
+
+const nextDay = computed(() => {
+  const home = member.value?.home
+  return home?.plan.find((d) => d.dayKey === home.nextDayKey) ?? null
+})
+
+// Con la semana completa se puede repetir cualquier día (D-16)
+const ctaLabel = computed(() => {
+  if (member.value?.home.weekComplete || !nextDay.value) return 'Repetir un día'
+  return `Entrenar hoy: ${nextDay.value.label}`
+})
+
+function goToday(): void {
+  const next = member.value?.home.nextDayKey
+  if (next === 'sabado' && router.hasRoute('conquer-sabado')) {
+    void router.push({ name: 'conquer-sabado' })
+    return
+  }
+  void router.push({ name: 'conquer-hoy' })
+}
+
 function dayStatus(d: PlanDayView): string {
   if (d.done) return 'Hecha'
   return d.dayKey === member.value?.home.nextDayKey ? 'Te toca' : 'Pendiente'
-}
-
-/** "2026-10-21" -> "21/10" (sin pasar por Date: no hay zona horaria que mezclar). */
-function shortDate(iso: string): string {
-  const [, month, day] = iso.split('-')
-  return `${Number(day)}/${Number(month)}`
 }
 
 interface MarkRow {
@@ -205,6 +231,9 @@ const bodyCheckNotice = computed<string | null>(() => {
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+  height: 100%;
+  min-height: 44px;
+  text-decoration: none;
   padding: 12px 4px;
   border: 1px solid var(--cq-hair2);
   border-radius: 14px;

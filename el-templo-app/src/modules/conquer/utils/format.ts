@@ -79,3 +79,9 @@ export function effortHint(level: Level, step: StepKey): string {
 export function failureHint(brazosRectos: boolean): string {
   return brazosRectos ? 'Fallo técnico: cortá cuando se rompe la línea' : 'Fallo muscular'
 }
+
+/** "2026-10-21" -> "21/10" (sin pasar por Date: no hay zona horaria que mezclar). */
+export function shortDate(iso: string): string {
+  const [, month, day] = iso.split('-')
+  return `${Number(day)}/${Number(month)}`
+}
