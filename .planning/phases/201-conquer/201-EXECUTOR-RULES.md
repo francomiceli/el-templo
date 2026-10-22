@@ -275,3 +275,7 @@ con preguntas.
   **Encargo del orquestador para 201-20:** `ProgressStep` del API no trae `unilateral` → Progreso nunca dice "por lado".
   Sumarlo en `progress-service` + `schemas.ts` (+ un `expect` en el test de Progreso existente), tomándolo del peldaño
   ACTUAL del escalón, y usarlo en la pantalla de Progreso con `unitText`. Commit propio `fix(201-20): ...`.
+- (201-20) Páginas de Conquer abiertas en frío: `loadState()` y redirigir a la tab si la vista es `bloqueado`/`pedido`.
+  El API no marca el control de "hoy" (el app compara con la fecha local). Store: `applyBodyCheck`, `applyPublishPermission`.
+  No agregar comentarios solo para satisfacer un grep de verify: si el grep del plan no calza con un buen diseño, anotarlo
+  en el SUMMARY como desvío.
