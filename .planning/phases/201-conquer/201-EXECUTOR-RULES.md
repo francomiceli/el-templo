@@ -190,3 +190,9 @@ con preguntas.
   `daysDone`/`maxPain` (sin contar `sabado`) con "hoy" de `todayInTz(sede)`. `lightZones` espera `worked` ya calculado con
   `exerciseWorked({e1,e2,e3})` e ignora zonas fuera de las 15 (p. ej. `tibialis` de la 200). Tests de CI importan
   `../../src/modules/conquer/{calendar,rules,lighting}` sin extensión.
+- (201-05) Manifiesto de rutas: 482 entradas tras 201-05 (sumar sobre el valor ACTUAL del archivo). En el API NO existe
+  `pnpm lint` (cae a un binario del sistema): gates del API = `tsc`, `lint:tenant`, `typecheck:tests`. En el admin, el
+  `onRequest` de rol corre antes del guard de módulo: un rol sin permiso recibe 403 aun en un gimnasio sin el módulo; para
+  probar el 404 cross-tenant usar owner/admin. Campos nuevos de `GET /state` (`home` en 201-07, `bodyCheck` en 201-12) van
+  en `conquerStateResponseSchema` de `schemas.ts` o el serializador los borra. `saveConquerSettings` (201-14) reusa
+  `CONQUER_SETTING_KEYS` y `CONQUER_SETTING_RANGES`. Contratos JSON exactos de las rutas: `201-05-SUMMARY.md`.
