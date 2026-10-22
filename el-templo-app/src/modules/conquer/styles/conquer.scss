@@ -1,15 +1,532 @@
-// Fase 201 D-09 / D-22: submarca de Conquer (Nacho, sintesis §10). Todo vive bajo `.cq-root`:
-// ni `app.scss` ni `_brand.scss` conocen estos tokens, asi que El Templo no cambia fuera de Conquer.
+// Fase 201 hallazgo 2 del UAT local (DA-15..DA-20): submarca de Conquer, variante B "Portico nocturno"
+// del sketch 022 con las fuentes del app. Conquer usa la pagina, las cards, los botones y la
+// tipografia de El Templo (Geologica para el texto, Montserrat para titulos y numeros, Cinzel solo en
+// el kicker); los colores de la submarca (azul noche y dorados) van en terminaciones y en UNA pieza
+// oscura por pantalla (`.cq-dark`, `CqPortico`).
 //
-// Fuentes (D-19): Cormorant Garamond 600/700 del paquete ya instalado (sin Jost, sin CDN) para
-// titulos y numeros grandes; el texto usa la letra actual de El Templo. OJO: los `@font-face` no se
-// encapsulan, asi que al cargarse el chunk de Conquer quedan registrados globalmente (hoy nadie mas
-// usa esos pesos; revisar en el UAT que los titulos de El Templo no cambien de peso).
-@import '@fontsource/cormorant-garamond/600.css';
-@import '@fontsource/cormorant-garamond/700.css';
+// Todo vive bajo `.cq-root`: ni `app.scss` ni `_brand.scss` conocen estos tokens. Las tres familias ya
+// las carga `app.scss` (D-19: sin `@fontsource` ni CDN en el chunk de Conquer); los componentes
+// usan siempre `var(--cq-font-*)`, nunca una familia literal. `conquer-tokens.test.ts` mide el
+// contraste de cada par de tokens y que nada de la submarca quede fuera de `.cq-root`.
+//
+// Al final queda el bloque LEGADO (lo borra 201-34) con lo que todavia usan las pantallas que
+// 201-29..33 no migraron.
+@import 'src/css/premium-card';
+@import 'src/css/brand';
 
 .cq-root {
-  // Paleta (prototipo `:root`)
+  // ── Neutros de El Templo (salen de `_premium-card.scss`, no se repiten hex) ──
+  --cq-surface: #fff;
+  --cq-surface-2: #{$pd-light-surface};
+  --cq-sand: #f3ede4;
+  --cq-text: #{$pd-ink};
+  --cq-text-2: #{$pd-ink-2};
+  --cq-line: #{$pd-light-line};
+  --cq-edge: #{$pd-light-edge};
+  --cq-field-edge: #{$pd-light-field-border};
+  --cq-sage: #{$pd-sage};
+  --cq-sage-tint: #{$pd-sage-tint};
+  --cq-on-sage: #fff;
+
+  // ── Submarca (sketch 022 `:root`) ──
+  --cq-night: #131d44;
+  --cq-night-2: #1f2b5c;
+  // Solo decoracion sobre claro (filetes, meandro, fronton, lineas): nunca `color:` de texto
+  --cq-deco-gold: #cfae6b;
+  // Dorado como texto sobre claro (6,4:1)
+  --cq-text-gold: #7a5a1c;
+  // Borde de controles sobre claro (3,5:1, WCAG 1.4.11)
+  --cq-edge-gold: #a08548;
+  // Tinte de fondo sobre claro
+  --cq-tint-cream: #fdf3d3;
+
+  // ── Texto SOBRE azul noche (solo dentro de `.cq-dark`, `CqPortico` o la guia) ──
+  --cq-on-night: #fdf3d3;
+  --cq-on-night-hi: #f6e2a4;
+  --cq-on-night-gold: #cfae6b;
+  --cq-on-night-2: #c3c9df;
+
+  // ── Fuentes del app (DA-15) ──
+  --cq-font-body: 'Geologica', sans-serif;
+  --cq-font-head: 'Montserrat', sans-serif;
+  --cq-font-kicker: 'Cinzel', serif;
+  // Montserrat y Cinzel del app no traen griego: las letras A B G y Omega van en Geologica
+  --cq-font-greek: 'Geologica', sans-serif;
+
+  color: var(--cq-text);
+  font-family: var(--cq-font-body);
+  font-size: 15px;
+  line-height: 1.4;
+
+  button {
+    font-family: inherit;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--cq-night);
+    outline-offset: 2px;
+  }
+
+  // ── Texto ──────────────────────────────────────────────────────────
+
+  // Titulo de pantalla (`.pghead h1`)
+  .cq-title {
+    margin: 0;
+    font-family: var(--cq-font-head);
+    font-weight: 700;
+    font-size: 22px;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums lining-nums;
+    color: var(--cq-night);
+    text-wrap: balance;
+  }
+
+  // Titulo de bloque (`.stitle`): el de Mi Templo, en azul noche
+  .cq-block-title {
+    @include mt-block-title;
+    margin: 0;
+    color: var(--cq-night);
+  }
+
+  // Rotulo en Cinzel (unico uso de esa fuente en Conquer, como la card de hoy)
+  .cq-kicker {
+    margin: 0;
+    font-family: var(--cq-font-kicker);
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--cq-text-gold);
+  }
+
+  .cq-sub {
+    margin: 0;
+    font-size: 13px;
+    color: var(--cq-text-2);
+  }
+
+  // Numero grande (`.num`)
+  .cq-num {
+    font-family: var(--cq-font-head);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums lining-nums;
+    color: var(--cq-night);
+  }
+
+  .cq-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  // ── Superficies ────────────────────────────────────────────────────
+
+  .cq-card {
+    @include pd-surface-light;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .cq-card--flush {
+    padding: 4px 16px;
+    gap: 0;
+  }
+
+  // Card elegida / destacada: filete dorado de control
+  .cq-card--sel {
+    border-color: var(--cq-edge-gold);
+  }
+
+  // La pieza oscura (DA-16): el lenguaje de la card de hoy en azul noche y oro. Va DESPUES de
+  // `.cq-card` para ganarle el fondo cuando una card es tambien oscura.
+  .cq-dark,
+  &.cq-dark {
+    --cq-paper: var(--cq-night);
+    position: relative;
+    overflow: hidden;
+    background: var(--cq-night);
+    border: 1px solid var(--cq-night);
+    color: var(--cq-on-night);
+    box-shadow: 0 14px 30px rgba(19, 29, 68, 0.28);
+
+    // Linea luminosa abajo
+    &::after {
+      content: '';
+      position: absolute;
+      left: 16px;
+      right: 16px;
+      bottom: 0;
+      height: 2px;
+      pointer-events: none;
+      background: linear-gradient(
+        90deg,
+        transparent,
+        var(--cq-edge-gold),
+        var(--cq-on-night-hi),
+        var(--cq-edge-gold),
+        transparent
+      );
+    }
+
+    .cq-kicker {
+      color: var(--cq-on-night-gold);
+    }
+
+    .cq-sub {
+      color: var(--cq-on-night-2);
+    }
+
+    .cq-num,
+    .cq-title {
+      color: var(--cq-on-night-hi);
+    }
+
+    :focus-visible {
+      outline-color: var(--cq-on-night-hi);
+    }
+  }
+
+  // ── Chips de estado (tono del motor, `estadoChip`) ─────────────────
+
+  .cq-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex: none;
+    height: 28px;
+    padding: 0 10px;
+    border-radius: 999px;
+    font-family: var(--cq-font-body);
+    font-weight: 600;
+    font-size: 12.5px;
+    white-space: nowrap;
+    background: var(--cq-sand);
+    color: var(--cq-text-2);
+  }
+
+  .cq-chip--rango {
+    background: var(--cq-sand);
+    color: var(--cq-text-2);
+  }
+
+  .cq-chip--techo {
+    background: var(--cq-night);
+    color: var(--cq-on-night-hi);
+  }
+
+  .cq-chip--bajo {
+    background: var(--cq-surface);
+    color: var(--cq-text-gold);
+    box-shadow: inset 0 0 0 1.5px var(--cq-edge-gold);
+  }
+
+  .cq-chip--neutro {
+    background: transparent;
+    color: var(--cq-text-2);
+    border: 1px dashed var(--cq-edge);
+  }
+
+  // Unico verde de la submarca, junto con `hecha`
+  .cq-chip--subir,
+  .cq-chip--hecha {
+    background: var(--cq-sage-tint);
+    color: var(--cq-sage);
+  }
+
+  // ── Botones ────────────────────────────────────────────────────────
+
+  .cq-btn {
+    position: relative;
+    overflow: hidden;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 52px;
+    padding: 0 16px;
+    border: 0;
+    border-radius: 12px;
+    font-family: var(--cq-font-body);
+    font-weight: 600;
+    font-size: 15px;
+    cursor: pointer;
+
+    &:disabled {
+      opacity: 0.55;
+      cursor: default;
+
+      &::after {
+        display: none;
+      }
+    }
+  }
+
+  // Principal (`.cta`): azul noche con filete dorado y destello
+  .cq-btn--primary {
+    background: var(--cq-night);
+    color: var(--cq-on-night);
+    box-shadow:
+      inset 0 0 0 1px rgba(246, 226, 164, 0.5),
+      0 8px 18px rgba(19, 29, 68, 0.22);
+  }
+
+  // Para usar DENTRO de la pieza oscura (`.vB .hero .cta`)
+  .cq-btn--on-night {
+    background: var(--cq-tint-cream);
+    color: var(--cq-night);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+  }
+
+  .cq-btn--primary::after,
+  .cq-btn--on-night::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: -60%;
+    width: 40%;
+    pointer-events: none;
+    background: linear-gradient(100deg, transparent, rgba(246, 226, 164, 0.32), transparent);
+  }
+
+  .cq-btn--on-night::after {
+    background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.7), transparent);
+  }
+
+  // Secundario (`.sec`)
+  .cq-btn--secondary {
+    background: var(--cq-surface);
+    color: var(--cq-night);
+    box-shadow: inset 0 0 0 1.5px var(--cq-night);
+  }
+
+  // "Atras" de la guia
+  .cq-btn--ghost-night {
+    background: transparent;
+    color: var(--cq-on-night);
+    box-shadow: inset 0 0 0 1.5px var(--cq-on-night-2);
+  }
+
+  // Subir de progresion (`.btn-subir`): unico verde de los botones
+  .cq-btn--subir {
+    background: var(--cq-sage);
+    color: var(--cq-on-sage);
+  }
+
+  .cq-btn--small {
+    width: auto;
+    min-height: 44px;
+    padding: 0 16px;
+    font-size: 14px;
+  }
+
+  // Enlace de texto (`.linkbtn`)
+  .cq-textlink {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--cq-night);
+    font-family: var(--cq-font-body);
+    font-weight: 600;
+    font-size: 14px;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    text-decoration-color: var(--cq-edge-gold);
+    cursor: pointer;
+  }
+
+  .cq-dark,
+  &.cq-dark {
+    .cq-textlink {
+      color: var(--cq-on-night);
+      text-decoration-color: var(--cq-deco-gold);
+    }
+  }
+
+  // Fila-enlace (`.rowlink`): 52 px, separador entre filas y chevron
+  .cq-rowlink {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 52px;
+    padding: 0;
+    border: 0;
+    background: none;
+    text-align: left;
+    text-decoration: none;
+    color: var(--cq-text);
+    font-family: var(--cq-font-body);
+    font-weight: 500;
+    font-size: 15px;
+    cursor: pointer;
+
+    & + & {
+      border-top: 1px solid var(--cq-line);
+    }
+
+    &__chev {
+      margin-left: auto;
+      color: var(--cq-night);
+      font-size: 20px;
+    }
+  }
+
+  // Disco "?" (`.q`)
+  .cq-q {
+    flex: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--cq-night);
+    color: var(--cq-on-night-hi);
+    font-family: var(--cq-font-head);
+    font-weight: 700;
+    font-size: 15px;
+  }
+
+  // Aviso fijo (card blanca con borde dorado de control)
+  .cq-notice {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border: 1.5px solid var(--cq-edge-gold);
+    border-radius: 16px;
+    background: var(--cq-surface);
+    color: var(--cq-text);
+  }
+
+  // ── Campos ─────────────────────────────────────────────────────────
+
+  // Desplegable nativo claro (`select.sel`): los de Quasar se teletransportan fuera de `.cq-root`
+  .cq-select {
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    padding: 0 30px 0 12px;
+    border-radius: 10px;
+    border: 1.5px solid var(--cq-edge-gold);
+    background: var(--cq-surface)
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23131d44' stroke-width='1.8'/%3E%3C/svg%3E")
+      no-repeat right 12px center;
+    color: var(--cq-text);
+    font-family: var(--cq-font-body);
+    font-weight: 500;
+    font-size: 14px;
+    appearance: none;
+    -webkit-appearance: none;
+    color-scheme: light;
+
+    &:disabled {
+      opacity: 0.55;
+    }
+  }
+
+  // Input nativo claro: 16 px para que iOS no haga zoom al enfocar
+  .cq-field {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    padding: 0 12px;
+    border-radius: 10px;
+    border: 1.5px solid var(--cq-field-edge);
+    background: var(--cq-surface);
+    color: var(--cq-text);
+    font-family: var(--cq-font-body);
+    font-weight: 400;
+    font-size: 16px;
+    color-scheme: light;
+
+    &::placeholder {
+      color: var(--cq-text-2);
+    }
+  }
+
+  // Segmentado: fondo arena, opcion elegida en azul noche
+  .cq-seg {
+    display: flex;
+    gap: 2px;
+    padding: 2px;
+    border-radius: 12px;
+    background: var(--cq-sand);
+
+    &__opt {
+      flex: 1;
+      min-width: 0;
+      min-height: 44px;
+      padding: 0 8px;
+      border: 0;
+      border-radius: 10px;
+      background: transparent;
+      color: var(--cq-text-2);
+      font-family: var(--cq-font-body);
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+
+      &--on,
+      &[aria-pressed='true'],
+      &[aria-checked='true'] {
+        background: var(--cq-night);
+        color: var(--cq-on-night);
+      }
+    }
+  }
+
+  // Meandro dorado (terminacion decorativa, `--cq-deco-gold` codificado en el data-URI)
+  .cq-meander {
+    height: 12px;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='12'%3E%3Cpath d='M0 10.5H20M16.5 10.5V1.5H4.5V7H11.5' fill='none' stroke='%23cfae6b' stroke-width='1.3'/%3E%3C/svg%3E")
+      repeat-x center;
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
+    mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
+  }
+
+  // ── Movimiento (todo bajo `no-preference`) ─────────────────────────
+
+  @media (prefers-reduced-motion: no-preference) {
+    // Entrada suave de una pantalla (clase `cq-enter` en un DESCENDIENTE de `.cq-root`)
+    .cq-enter {
+      animation: cq-enter 0.5s cubic-bezier(0.2, 0.7, 0.2, 1);
+    }
+
+    .cq-btn--primary::after,
+    .cq-btn--on-night::after {
+      animation: pd-sheen 5s ease-in-out 1.2s infinite;
+    }
+
+    .cq-btn:active:not(:disabled) {
+      transform: scale(0.985);
+    }
+  }
+}
+
+@include pd-sheen-keyframes;
+
+@keyframes cq-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+// ── LEGADO (lo borra 201-34) ─────────────────────────────────────────
+// Lo que todavia usan las pantallas que 201-29..33 no migraron (Inicio, Niveles, Hoy, Sabado,
+// Progreso, Control fisico, Evolucion y sus piezas). Nada nuevo debe usar estos tokens ni clases.
+.cq-root {
   --cq-sky1: #111838;
   --cq-sky2: #1c2c66;
   --cq-sky3: #2a4288;
@@ -24,36 +541,17 @@
   --cq-cloud3: #c3d2ee;
   --cq-ink: #141c44;
   --cq-ink2: #4a5685;
-  // Solo para el chip SUBIR (unico verde de la submarca, fondo claro con texto oscuro)
   --cq-subir-bg: #bfe3b4;
   --cq-subir-ink: #14301a;
-  // Fondos y bordes translucidos (el TEXTO nunca usa rgba)
   --cq-glass: rgba(255, 255, 255, 0.06);
   --cq-hair: rgba(246, 226, 164, 0.26);
   --cq-hair2: rgba(255, 255, 255, 0.11);
-  // Tipografia
-  --cq-display: 'Cormorant Garamond', 'Cormorant', Georgia, serif;
-  --cq-body: 'Geologica', sans-serif;
-  // Margenes de pantalla: el sol y el pie de nubes sangran hasta el borde con estos valores
+  // DA-15: el "display" de las pantallas viejas pasa a la fuente de titulos del app
+  --cq-display: var(--cq-font-head);
+  --cq-body: var(--cq-font-body);
   --cq-pad-x: 22px;
   --cq-pad-top: 24px;
   --cq-pad-bottom: 22px;
-
-  color: var(--cq-cream);
-  font-family: var(--cq-body);
-  font-size: 15px;
-  line-height: 1.4;
-
-  button {
-    font-family: inherit;
-  }
-
-  :focus-visible {
-    outline: 2px solid var(--cq-gold-hi);
-    outline-offset: 2px;
-  }
-
-  // ── Texto ──────────────────────────────────────────────────────────
 
   .cq-display {
     font-family: var(--cq-display);
@@ -81,16 +579,6 @@
     color: var(--cq-gold);
   }
 
-  .cq-sub {
-    color: var(--cq-muted);
-    font-size: 13px;
-  }
-
-  .cq-num {
-    font-variant-numeric: tabular-nums lining-nums;
-  }
-
-  // Titulo de seccion con filetes a los costados
   .cq-rule {
     display: flex;
     align-items: center;
@@ -105,32 +593,9 @@
     }
   }
 
-  .cq-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-  }
-
   .cq-grow {
     flex: 1;
     min-height: 40px;
-  }
-
-  // ── Superficies ────────────────────────────────────────────────────
-
-  .cq-card {
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.085), rgba(255, 255, 255, 0.035));
-    border: 1px solid var(--cq-hair2);
-    border-radius: 16px;
-    padding: 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-
-    &--sel {
-      border-color: var(--cq-hair);
-    }
   }
 
   .cq-toast {
@@ -141,7 +606,6 @@
     background: var(--cq-glass);
   }
 
-  // Fila-enlace (aviso fijo de Inicio): punto de sol + texto + flecha
   .cq-link {
     border: 1px solid var(--cq-hair);
     border-radius: 16px;
@@ -159,45 +623,6 @@
     width: 100%;
   }
 
-  // ── Chips de estado (tono del motor) ───────────────────────────────
-
-  .cq-chip {
-    display: inline-flex;
-    align-items: center;
-    border: 1px solid var(--cq-hair2);
-    border-radius: 10px;
-    padding: 7px 10px;
-    font-size: 12.5px;
-    color: var(--cq-muted);
-
-    &--rango {
-      color: var(--cq-cream);
-    }
-
-    &--techo {
-      background: var(--cq-sun);
-      border-color: var(--cq-sun);
-      color: var(--cq-ink);
-      font-weight: 600;
-    }
-
-    &--bajo {
-      border-color: var(--cq-gold);
-      color: var(--cq-gold-hi);
-    }
-
-    // Unico verde de la submarca
-    &--subir {
-      background: var(--cq-subir-bg);
-      border-color: var(--cq-subir-bg);
-      color: var(--cq-subir-ink);
-      font-weight: 600;
-    }
-  }
-
-  // ── Botones ────────────────────────────────────────────────────────
-
-  // Principal: azul noche con filete dorado, pensado para vivir sobre `.cq-foot` (nubes blancas)
   .cq-cta {
     min-height: 54px;
     border: 0;
@@ -226,7 +651,6 @@
     }
   }
 
-  // Secundario chico (dorado sobre el cielo)
   .cq-small {
     min-height: 44px;
     border-radius: 10px;
@@ -247,7 +671,6 @@
     }
   }
 
-  // Pie de nubes: donde vive el boton, como el borde blanco de la portada
   .cq-foot {
     margin: 0 calc(-1 * var(--cq-pad-x)) calc(-1 * var(--cq-pad-bottom));
     padding: 18px var(--cq-pad-x) var(--cq-pad-bottom);
@@ -299,49 +722,5 @@
     :focus-visible {
       outline-color: var(--cq-ink);
     }
-  }
-
-  // Desplegable nativo (progresion, modo): fondo azul noche, 44 px de alto (prototipo `select`)
-  .cq-select {
-    width: 100%;
-    min-width: 0;
-    min-height: 44px;
-    padding: 0 10px;
-    border-radius: 10px;
-    border: 1px solid var(--cq-hair2);
-    background: #1a2656;
-    color: var(--cq-cream);
-    font: inherit;
-    font-size: 14px;
-    color-scheme: dark;
-
-    &:disabled {
-      opacity: 0.55;
-    }
-  }
-
-  // Meandro dorado (cabeceras)
-  .cq-meander {
-    height: 12px;
-    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='12'%3E%3Cpath d='M0 10.5H20M16.5 10.5V1.5H4.5V7H11.5' fill='none' stroke='%23cfae6b' stroke-width='1.2'/%3E%3C/svg%3E")
-      repeat-x center;
-    -webkit-mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
-    mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
-  }
-
-  // ── Movimiento ─────────────────────────────────────────────────────
-
-  // Entrada suave de una pantalla (se aplica con la clase `cq-enter` en su raiz)
-  @media (prefers-reduced-motion: no-preference) {
-    .cq-enter {
-      animation: cq-enter 0.5s cubic-bezier(0.2, 0.7, 0.2, 1);
-    }
-  }
-}
-
-@keyframes cq-enter {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
   }
 }
