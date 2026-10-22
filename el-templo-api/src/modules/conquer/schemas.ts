@@ -238,3 +238,188 @@ export const updateMemberSchema = {
   },
   response: { 200: adminMemberViewSchema },
 } as const;
+
+// ── Hoy, guardado y cambio de escalón (plan 201-07) ─────────────────
+
+const STEP_ENUM = ["e1", "e2", "e3", "hold"] as const;
+const ESTADO_ENUM = ["sin_datos", "rango", "techo1", "bajo", "subir"] as const;
+
+const todayStepSchema = {
+  type: "object",
+  properties: {
+    step: { type: "string", enum: [...STEP_ENUM] },
+    rungId: { type: "integer" },
+    rungName: { type: "string" },
+    mode: { type: "string", enum: [...MODE_ENUM] },
+    target: { type: ["integer", "null"] },
+    estado: { type: ["string", "null"], enum: [...ESTADO_ENUM, null] },
+    value: { type: "integer" },
+    brazosRectos: { type: "boolean" },
+    unilateral: { type: "boolean" },
+  },
+  required: [
+    "step",
+    "rungId",
+    "rungName",
+    "mode",
+    "target",
+    "estado",
+    "value",
+    "brazosRectos",
+    "unilateral",
+  ],
+  additionalProperties: false,
+} as const;
+
+const todayExerciseSchema = {
+  type: "object",
+  properties: {
+    exerciseId: { type: "integer" },
+    code: { type: "string" },
+    name: { type: "string" },
+    unit: { type: "string", enum: [...UNIT_ENUM] },
+    rungs: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          id: { type: "integer" },
+          code: { type: "string" },
+          name: { type: "string" },
+          position: { type: "integer" },
+          brazosRectos: { type: "boolean" },
+          unilateral: { type: "boolean" },
+        },
+        required: [
+          "id",
+          "code",
+          "name",
+          "position",
+          "brazosRectos",
+          "unilateral",
+        ],
+        additionalProperties: false,
+      },
+    },
+    steps: { type: "array", items: todayStepSchema },
+  },
+  required: ["exerciseId", "code", "name", "unit", "rungs", "steps"],
+  additionalProperties: false,
+} as const;
+
+/** `GET /today?day=<dayKey>` (alumno). */
+export const todaySchema = {
+  querystring: {
+    type: "object",
+    properties: { day: { type: "string", pattern: "^[a-z_]{1,20}$" } },
+    additionalProperties: false,
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        ...planWeekProperties,
+        date: { type: "string" },
+        dayKey: { type: "string" },
+        label: { type: "string" },
+        alreadySaved: { type: "boolean" },
+        pain: { type: "integer" },
+        finisher: { type: "string" },
+        level: { type: "string", enum: [...CONQUER_LEVELS] },
+        exercises: { type: "array", items: todayExerciseSchema },
+      },
+      required: [
+        ...PLAN_WEEK_REQUIRED,
+        "date",
+        "dayKey",
+        "label",
+        "alreadySaved",
+        "pain",
+        "finisher",
+        "level",
+        "exercises",
+      ],
+      additionalProperties: false,
+    },
+  },
+} as const;
+
+/** Tope común del JSON-schema; el tope por unidad (reps 100) lo valida el servicio. */
+const sessionValueSchema = {
+  type: "integer",
+  minimum: 0,
+  maximum: 600,
+} as const;
+
+/** `PUT /sessions` (alumno). La fecha y el prev NO existen en el body (T-201-21). */
+export const saveSessionSchema = {
+  body: {
+    type: "object",
+    properties: {
+      dayKey: { type: "string", pattern: "^[a-z_]{1,20}$" },
+      pain: { type: "integer", minimum: 0, maximum: 10 },
+      exercises: {
+        type: "array",
+        minItems: 1,
+        maxItems: 3,
+        items: {
+          type: "object",
+          properties: {
+            exerciseId: { type: "integer", minimum: 1 },
+            e1: sessionValueSchema,
+            e2: sessionValueSchema,
+            e3: sessionValueSchema,
+            hold: sessionValueSchema,
+          },
+          required: ["exerciseId", "e1", "e2", "e3", "hold"],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: ["dayKey", "pain", "exercises"],
+    additionalProperties: false,
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        sessionId: { type: "integer" },
+        date: { type: "string" },
+        dayKey: { type: "string" },
+        lighting: {
+          type: "object",
+          properties: {
+            primary: { type: "array", items: { type: "string" } },
+            secondary: { type: "array", items: { type: "string" } },
+          },
+          required: ["primary", "secondary"],
+          additionalProperties: false,
+        },
+      },
+      required: ["sessionId", "date", "dayKey", "lighting"],
+      additionalProperties: false,
+    },
+  },
+} as const;
+
+/** `PUT /steps/:exerciseId/:step` (alumno): cambia peldaño y modo de un escalón. */
+export const changeStepSchema = {
+  params: {
+    type: "object",
+    properties: {
+      exerciseId: { type: "integer", minimum: 1 },
+      step: { type: "string", enum: [...STEP_ENUM] },
+    },
+    required: ["exerciseId", "step"],
+  },
+  body: {
+    type: "object",
+    properties: {
+      rungId: { type: "integer", minimum: 1 },
+      mode: { type: "string", enum: [...MODE_ENUM] },
+    },
+    required: ["rungId", "mode"],
+    additionalProperties: false,
+  },
+  response: { 200: todayStepSchema },
+} as const;
