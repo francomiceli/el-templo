@@ -9,6 +9,7 @@ import {
   TV_CONTROL_ROLES,
   PLANIS_ROLES,
   ANATOMIA_ROLES,
+  CONQUER_MANAGER_ROLES,
   PARTNERS_ROLES,
   JORNADA_ROLES,
   ANALITICAS_ROLES,
@@ -254,6 +255,14 @@ const routes: RouteRecordRaw[] = [
         path: 'anatomia',
         component: () => import('pages/AnatomiaPage.vue'),
         meta: { allowedRoles: ANATOMIA_ROLES },
+      },
+      {
+        // Conquer (fase 201 D-08): tablero, pedidos y alta para owner/admin. Las tabs viajan en
+        // ?tab=. La ficha (`conquer-alumno`) la suma el plan 201-22. El gate real es el API.
+        path: 'conquer',
+        name: 'conquer',
+        component: () => import('pages/ConquerPage.vue'),
+        meta: { allowedRoles: CONQUER_MANAGER_ROLES },
       },
       {
         path: 'analiticas',

@@ -199,6 +199,14 @@ export const PLANIS_ROLES: AdminRole[] = ['coach', 'admin', 'owner', 'coach_acti
 export const ANATOMIA_ROLES: AdminRole[] = ['coach', 'admin', 'owner', 'coach_actividad'];
 
 /**
+ * "Conquer" (fase 201 D-08): quién maneja el módulo — activa alumnos, ve el tablero y las fichas,
+ * acepta recortes y pasos de nivel. Espejo de `CONQUER_MANAGER_ROLES` del API
+ * (`modules/conquer/permissions.ts`); el gate real es el API (403), el nav y la ruta solo ordenan.
+ * Abrir a coach = sumar 'coach' acá y en el API.
+ */
+export const CONQUER_MANAGER_ROLES: AdminRole[] = ['admin', 'owner'];
+
+/**
  * "Mi jornada" (check-in/check-out de staff con el QR de la sede): jornada
  * laboral, el staff que trabaja en piso. Excluye `gestion` (decisión de
  * Franco 2026-09-07: no ve Check-in en absoluto) y `tv` (la cuenta dedicada
@@ -243,6 +251,7 @@ export interface NavItem {
    * - 'app-trials': SP nuevas desde la app pendientes de seguimiento (Reportes).
    * - 'landing-academy' | 'landing-labs' | 'landing-franquicias': leads del sitio
    *   público todavía en estado "new" (grupo Landing).
+   * - 'conquer-requests': pedidos de desbloqueo de Conquer sin activar (fase 201 D-12).
    */
   badge?: NavBadge;
 }
@@ -252,7 +261,8 @@ export type NavBadge =
   | 'app-trials'
   | 'landing-academy'
   | 'landing-labs'
-  | 'landing-franquicias';
+  | 'landing-franquicias'
+  | 'conquer-requests';
 
 export interface NavCategory {
   header: string;
@@ -288,6 +298,15 @@ export const NAV_MODEL: NavCategory[] = [
       { path: '/exercises', label: 'Ejercicios', icon: 'sports_gymnastics', trainingOnly: true },
       { path: '/tree-map', label: 'Árbol', icon: 'hub', trainingOnly: true },
       { path: '/anatomia', label: 'Anatomía', icon: 'accessibility_new', roles: ANATOMIA_ROLES },
+      {
+        // Conquer (fase 201 D-08, D-12): owner/admin; la pelotita cuenta los pedidos de desbloqueo.
+        path: '/conquer',
+        label: 'Conquer',
+        icon: 'military_tech',
+        roles: CONQUER_MANAGER_ROLES,
+        templo: true,
+        badge: 'conquer-requests',
+      },
     ],
   },
   {
