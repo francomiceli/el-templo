@@ -303,3 +303,9 @@ con preguntas.
   (anexo de Nacho, fuente de verdad del catálogo). La base LOCAL de Franco ya tiene 0290-0292 aplicadas: la 0293 tiene que
   correr sobre esa base sin romper (alumno Toro de prueba user 28 ya activado con historial). El orquestador corre
   `pnpm db:migrate` en local después de 201-25; el ejecutor NO.
+- (201-26) Las 9 trampas para 27-35 están en `201-26-SUMMARY.md` §"Trampas para los planes 27-35": leerlas. Resumen: el copy
+  del método vive en `CQ_TEXTOS` (`app utils/format.ts`), así que la guía y el rediseño lo IMPORTAN, no lo duplican. Los modos
+  y las frases de las alertas (`BoardAlert.text`) los manda el API. `TodayExercise.rungs` (E1-E3) es distinto de `holdRungs`
+  (hold final). El tope avisa al LLEGAR. `alert-text.ts` no puede tener imports.
+- (201-26) Para revertir un mutante en un archivo con cambios propios sin commitear, NO usar `git checkout -- <archivo>`:
+  borra toda la edición. Copiarlo a scratchpad con `cp`, mutar, restaurar con `cp` y verificar con `git diff`.
