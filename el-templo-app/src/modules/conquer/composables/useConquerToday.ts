@@ -36,6 +36,8 @@ export function useConquerToday() {
   const saving = ref(false)
   const changing = ref(false)
   const error = ref<string | null>(null)
+  /** La última carga la rechazó el API con un 4xx (p. ej. el sábado de un no-Toro): no hay reintento. */
+  const rejected = ref(false)
   const lastSave = ref<SaveSessionResponse | null>(null)
 
   /** Cada carga toma el siguiente número; solo la última aplica su respuesta. */
@@ -60,6 +62,7 @@ export function useConquerToday() {
     const seq = ++loadSeq
     loading.value = true
     error.value = null
+    rejected.value = false
     try {
       const data = await api.getToday(day)
       if (seq !== loadSeq) return
@@ -70,6 +73,7 @@ export function useConquerToday() {
       if (isConquerCanceled(err) || seq !== loadSeq) return
       logFailure('Failed to load Conquer today', err)
       error.value = failureMessage(err, LOAD_ERROR)
+      rejected.value = err instanceof ConquerApiError && err.isExpected
     } finally {
       if (seq === loadSeq) loading.value = false
     }
@@ -247,6 +251,7 @@ export function useConquerToday() {
     saving,
     changing,
     error,
+    rejected,
     lastSave,
     load,
     setValue,

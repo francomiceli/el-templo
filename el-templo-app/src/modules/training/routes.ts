@@ -46,6 +46,20 @@ const routes: RouteRecordRaw[] = [
     component: () => import('src/modules/conquer/pages/ConquerTodayPage.vue'),
     meta: { requiresAuth: true },
   },
+  // Fase 201 §7.1 Progreso: Subir, calibraciones y figura de la semana
+  {
+    path: 'training/conquer/progreso',
+    name: 'conquer-progreso',
+    component: () => import('src/modules/conquer/pages/ConquerProgressPage.vue'),
+    meta: { requiresAuth: true },
+  },
+  // Fase 201 §7.1 Sábado: combos de Toro (el nombre lo usan Inicio y Hoy con `hasRoute`)
+  {
+    path: 'training/conquer/sabado',
+    name: 'conquer-sabado',
+    component: () => import('src/modules/conquer/pages/ConquerSaturdayPage.vue'),
+    meta: { requiresAuth: true },
+  },
   {
     path: 'training/guia',
     name: 'guia',

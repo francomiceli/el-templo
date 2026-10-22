@@ -3,6 +3,7 @@ import {
   SATURDAY_MAX_SERIES,
   buildTodayForm,
   counterMax,
+  saturdayComboTitle,
   templeFilled,
   toSaveBody,
 } from '../todayForm'
@@ -236,6 +237,26 @@ describe('toSaveBody del sábado', () => {
 
   it('el tope de series de cada combo del sábado es 13', () => {
     expect(SATURDAY_MAX_SERIES).toBe(13)
+  })
+})
+
+describe('saturdayComboTitle', () => {
+  it('con máx y drops: "Combo push · 3 máx + 10 drops"', () => {
+    expect(saturdayComboTitle('push', saturdayCombo('push', 7, 13))).toBe(
+      'Combo push · 3 máx + 10 drops',
+    )
+  })
+
+  it('con el recorte 2 usa los números que manda el API', () => {
+    const combo = { ...saturdayCombo('pull', 8, 12), maxSeries: 2, drops: 6 }
+
+    expect(saturdayComboTitle('pull', combo)).toBe('Combo pull · 2 máx + 6 drops')
+  })
+
+  it('sin números del API, solo el nombre', () => {
+    const combo = { ...saturdayCombo('pull', 8, 12), maxSeries: null, drops: null }
+
+    expect(saturdayComboTitle('pull', combo)).toBe('Combo pull')
   })
 })
 

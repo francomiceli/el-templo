@@ -67,7 +67,11 @@
       <span>{{ bodyCheckNotice }}</span>
     </div>
 
-    <!-- 201-19/20: accesos (Progreso, Evolución y el botón del aviso de control) -->
+    <router-link :to="{ name: 'conquer-progreso' }" class="cq-link cq-home__access">
+      <span>Progreso</span>
+      <span aria-hidden="true">›</span>
+    </router-link>
+    <!-- 201-20: accesos (Evolución y el botón del aviso de control) -->
 
     <div class="cq-grow" />
 
@@ -99,10 +103,9 @@ const member = computed(() => store.state?.member ?? null)
 const levelInfo = computed(() => (member.value?.level ? LEVEL_INFO[member.value.level] : null))
 const levelIndex = computed(() => (member.value?.level ? LEVELS.indexOf(member.value.level) : -1))
 
-// D-16: el sábado de Toro (combos) tiene su propia pantalla (201-19); mientras no exista la ruta,
-// Hoy lo resuelve solo y muestra el primer día del plan.
+// D-16, S12-3: el sábado de Toro (combos) tiene su propia pantalla; los demás días abren Hoy.
 function dayTarget(dayKey: string): RouteLocationRaw {
-  if (dayKey === 'sabado' && router.hasRoute('conquer-sabado')) return { name: 'conquer-sabado' }
+  if (dayKey === 'sabado') return { name: 'conquer-sabado' }
   return { name: 'conquer-hoy', query: { day: dayKey } }
 }
 
@@ -119,11 +122,7 @@ const ctaLabel = computed(() => {
 
 function goToday(): void {
   const next = member.value?.home.nextDayKey
-  if (next === 'sabado' && router.hasRoute('conquer-sabado')) {
-    void router.push({ name: 'conquer-sabado' })
-    return
-  }
-  void router.push({ name: 'conquer-hoy' })
+  void router.push(next === 'sabado' ? { name: 'conquer-sabado' } : { name: 'conquer-hoy' })
 }
 
 function dayStatus(d: PlanDayView): string {
@@ -312,6 +311,11 @@ const bodyCheckNotice = computed<string | null>(() => {
 
 .cq-home__empty {
   text-align: center;
+}
+
+// Acceso a Progreso: fila-enlace de la submarca (`.cq-link`) sobre un <a>
+.cq-home__access {
+  text-decoration: none;
 }
 
 // Aviso fijo del control físico (sol + texto). En este plan es solo texto: 201-20 le suma el botón.

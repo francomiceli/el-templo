@@ -33,6 +33,12 @@ function comboEntry(combo: ComboView | null | undefined): ComboEntry | null {
   return combo ? entryOf(combo) : null
 }
 
+/** Título de un combo del sábado: "Combo push · 3 máx + 10 drops" (sin números si el API no los manda). */
+export function saturdayComboTitle(which: 'push' | 'pull', combo: ComboView): string {
+  if (combo.maxSeries === null || combo.drops === null) return `Combo ${which}`
+  return `Combo ${which} · ${combo.maxSeries} máx + ${combo.drops} drops`
+}
+
 /** Arma el formulario con los valores que mandó el API (D-18: guardar sin tocar = cumplido). */
 export function buildTodayForm(today: TodayResponse): TodayForm {
   const values: Record<number, StepValues> = {}
