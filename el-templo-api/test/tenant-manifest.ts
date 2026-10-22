@@ -1659,6 +1659,30 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     categoria: "templo-module",
     modulo: "templo-training",
   },
+  "POST /api/members/conquer/body-checks": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/members/conquer/body-checks": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/members/conquer/body-checks/:checkId/photos/:pose/upload-url": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/members/conquer/body-checks/:checkId/photos/:pose/confirm": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/members/conquer/body-checks/:checkId/photos/:pose/url": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/members/conquer/body-checks/skip-day0": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
 
   // ── templo-training · programs ────────────────────────────────────────────
   "GET /api/admin/programs": {

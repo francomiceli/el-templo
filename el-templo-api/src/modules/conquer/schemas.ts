@@ -6,6 +6,7 @@
 import { CONQUER_LEVELS } from "../../db/schema/conquer";
 import { CONQUER_INC_RANGES } from "./activation-service";
 import { COMBO_KEYS } from "./combos";
+import { CONQUER_POSES } from "./private-media";
 
 // ── Hoy e Inicio (plan 201-07) ──────────────────────────────────────
 
@@ -75,6 +76,32 @@ const homeSchema = {
   additionalProperties: false,
 } as const;
 
+/** `bodyCheck` dentro de `GET /state` (member.bodyCheck, D-15). */
+const bodyCheckSummarySchema = {
+  type: "object",
+  properties: {
+    hasDay0: { type: "boolean" },
+    day0Skipped: { type: "boolean" },
+    mustPromptDay0: { type: "boolean" },
+    day0Pending: { type: "boolean" },
+    lastCheckDate: { type: ["string", "null"] },
+    nextDueDate: { type: ["string", "null"] },
+    due: { type: "boolean" },
+    overdue: { type: "boolean" },
+  },
+  required: [
+    "hasDay0",
+    "day0Skipped",
+    "mustPromptDay0",
+    "day0Pending",
+    "lastCheckDate",
+    "nextDueDate",
+    "due",
+    "overdue",
+  ],
+  additionalProperties: false,
+} as const;
+
 const memberStateSchema = {
   type: ["object", "null"],
   properties: {
@@ -88,6 +115,7 @@ const memberStateSchema = {
     publishEnabled: { type: "boolean" },
     publishNoFace: { type: "boolean" },
     home: homeSchema,
+    bodyCheck: bodyCheckSummarySchema,
   },
   additionalProperties: false,
 } as const;
@@ -948,4 +976,196 @@ export const levelUpSchema = {
     additionalProperties: false,
   },
   response: fichaResponseSchema,
+} as const;
+
+// ── Control físico del alumno (plan 201-12) ─────────────────────────
+
+const nullableNumber = { type: ["number", "null"] } as const;
+
+/** `BodyCheckView`: NUNCA lleva claves de storage ni URLs (T-201-43). */
+const bodyCheckViewSchema = {
+  type: "object",
+  properties: {
+    id: { type: "integer" },
+    checkDate: { type: "string" },
+    kind: { type: "string", enum: ["dia0", "periodico"] },
+    photos: {
+      type: "object",
+      properties: {
+        frente: { type: "boolean" },
+        perfil: { type: "boolean" },
+        espalda: { type: "boolean" },
+      },
+      required: ["frente", "perfil", "espalda"],
+      additionalProperties: false,
+    },
+    armCm: nullableNumber,
+    chestCm: nullableNumber,
+    shouldersCm: nullableNumber,
+    waistCm: nullableNumber,
+    weightKg: nullableNumber,
+  },
+  required: [
+    "id",
+    "checkDate",
+    "kind",
+    "photos",
+    "armCm",
+    "chestCm",
+    "shouldersCm",
+    "waistCm",
+    "weightKg",
+  ],
+  additionalProperties: false,
+} as const;
+
+const checkComparisonSchema = {
+  type: ["object", "null"],
+  properties: {
+    from: {
+      type: "object",
+      properties: { id: { type: "integer" }, checkDate: { type: "string" } },
+      required: ["id", "checkDate"],
+      additionalProperties: false,
+    },
+    to: {
+      type: "object",
+      properties: { id: { type: "integer" }, checkDate: { type: "string" } },
+      required: ["id", "checkDate"],
+      additionalProperties: false,
+    },
+    weeks: { type: "integer" },
+    measures: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          key: {
+            type: "string",
+            enum: ["arm", "chest", "shoulders", "waist", "weight"],
+          },
+          label: { type: "string" },
+          from: nullableNumber,
+          to: nullableNumber,
+          diff: nullableNumber,
+        },
+        required: ["key", "label", "from", "to", "diff"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["from", "to", "weeks", "measures"],
+  additionalProperties: false,
+} as const;
+
+const photoParams = {
+  type: "object",
+  properties: {
+    checkId: { type: "integer", minimum: 1 },
+    pose: { type: "string", enum: [...CONQUER_POSES] },
+  },
+  required: ["checkId", "pose"],
+} as const;
+
+/** `POST /body-checks`: perímetros 10-300 cm y peso 20-400 kg, todos opcionales. */
+export const upsertBodyCheckSchema = {
+  body: {
+    type: "object",
+    properties: {
+      armCm: { type: "number", minimum: 10, maximum: 300 },
+      chestCm: { type: "number", minimum: 10, maximum: 300 },
+      shouldersCm: { type: "number", minimum: 10, maximum: 300 },
+      waistCm: { type: "number", minimum: 10, maximum: 300 },
+      weightKg: { type: "number", minimum: 20, maximum: 400 },
+    },
+    additionalProperties: false,
+  },
+  response: { 200: bodyCheckViewSchema },
+} as const;
+
+/** `GET /body-checks`. */
+export const listBodyChecksSchema = {
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        checks: { type: "array", items: bodyCheckViewSchema },
+        compare: checkComparisonSchema,
+        due: {
+          type: "object",
+          properties: {
+            nextDueDate: { type: ["string", "null"] },
+            due: { type: "boolean" },
+            overdue: { type: "boolean" },
+          },
+          required: ["nextDueDate", "due", "overdue"],
+          additionalProperties: false,
+        },
+      },
+      required: ["checks", "compare", "due"],
+      additionalProperties: false,
+    },
+  },
+} as const;
+
+/**
+ * `POST /body-checks/:checkId/photos/:pose/upload-url`. `contentType` NO lleva
+ * `enum`: el servicio lo valida DESPUÉS de la propiedad (404) y del storage (503).
+ */
+export const photoUploadUrlSchema = {
+  params: photoParams,
+  body: {
+    type: "object",
+    properties: { contentType: { type: "string" } },
+    required: ["contentType"],
+    additionalProperties: false,
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        uploadUrl: { type: "string" },
+        key: { type: "string" },
+        contentType: { type: "string" },
+        expiresIn: { type: "integer" },
+      },
+      required: ["uploadUrl", "key", "contentType", "expiresIn"],
+      additionalProperties: false,
+    },
+  },
+} as const;
+
+/** `POST /body-checks/:checkId/photos/:pose/confirm`. */
+export const photoConfirmSchema = {
+  params: photoParams,
+  body: {
+    type: "object",
+    properties: { key: { type: "string", minLength: 1, maxLength: 255 } },
+    required: ["key"],
+    additionalProperties: false,
+  },
+  response: { 200: bodyCheckViewSchema },
+} as const;
+
+/** `GET /body-checks/:checkId/photos/:pose/url`. */
+export const photoUrlSchema = {
+  params: photoParams,
+  response: {
+    200: {
+      type: "object",
+      properties: { url: { type: "string" }, expiresIn: { type: "integer" } },
+      required: ["url", "expiresIn"],
+      additionalProperties: false,
+    },
+  },
+} as const;
+
+/** `POST /body-checks/skip-day0`: sin body (se tolera `{}`). */
+export const skipDay0Schema = {
+  body: {
+    type: ["object", "null"],
+    properties: {},
+    additionalProperties: false,
+  },
+  response: { 200: bodyCheckSummarySchema },
 } as const;

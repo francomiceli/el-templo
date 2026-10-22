@@ -18,6 +18,7 @@ import {
   type TenantContext,
 } from "../shared/tenant";
 import { blockWeek } from "./calendar";
+import { bodyCheckSummary, type BodyCheckSummary } from "./body-check-service";
 import { loadMemberContext } from "./history-loader";
 import { buildHome, type HomeView } from "./today-service";
 
@@ -40,6 +41,8 @@ export interface ConquerMemberState {
   publishNoFace: boolean;
   /** Fase 201 §7.1: resumen de Inicio (semana del plan y última sesión por día). */
   home: HomeView;
+  /** Fase 201 §6, D-15: banderas del control físico (día 0 y vencimiento). */
+  bodyCheck: BodyCheckSummary;
 }
 
 export interface ConquerStateResponse {
@@ -95,6 +98,15 @@ export async function getConquerState(
   // "hoy" de su sede) y reusa el cargador único de historiales.
   const mctx = await loadMemberContext(db, ctx, userId);
   const home = await buildHome(db, ctx, mctx);
+  // Fase 201 D-15: banderas `mustPromptDay0` / `day0Pending` con UNA query más
+  // (sin otro `loadMemberContext`).
+  const bodyCheck = await bodyCheckSummary(
+    db,
+    ctx,
+    userId,
+    mctx.today,
+    row.day0SkippedAt,
+  );
   const week = row.activationDate
     ? blockWeek(row.activationDate, mctx.today)
     : 1;
@@ -112,6 +124,7 @@ export async function getConquerState(
       publishEnabled: row.publishEnabled,
       publishNoFace: row.publishNoFace,
       home,
+      bodyCheck,
     },
   };
 }

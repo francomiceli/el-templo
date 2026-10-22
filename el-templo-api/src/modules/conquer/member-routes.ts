@@ -9,21 +9,37 @@ import { handleServiceError } from "../shared/error-handler";
 import { assertTenant } from "../shared/tenant";
 import { resolveCalibration } from "./calibration-service";
 import { subirCombo } from "./combo-service";
+import {
+  confirmPhoto,
+  getPhotoUrl,
+  listChecks,
+  requestPhotoUpload,
+  skipDay0,
+  upsertTodayCheck,
+  type UpsertCheckBody,
+} from "./body-check-service";
 import type { ComboKey } from "./combos";
 import type { CountedStep, StepKey } from "./engine";
 import { sendConquerError } from "./errors";
 import { getConquerState, requestUnlock } from "./member-service";
+import type { ConquerPose } from "./private-media";
 import { buildProgress } from "./progress-service";
 import {
   changeStepSchema,
   conquerStateResponseSchema,
+  listBodyChecksSchema,
+  photoConfirmSchema,
+  photoUploadUrlSchema,
+  photoUrlSchema,
   progressSchema,
   resolveCalibrationSchema,
   saveSessionSchema,
+  skipDay0Schema,
   subirComboSchema,
   subirStepSchema,
   todaySchema,
   unlockRequestSchema,
+  upsertBodyCheckSchema,
 } from "./schemas";
 import { saveSession, type SaveSessionBody } from "./session-service";
 import { changeStep, subirStep, type ChangeStepBody } from "./step-service";
@@ -211,6 +227,147 @@ export const conquerMemberRoutes: FastifyPluginAsync = async (fastify) => {
         );
       } catch (err: unknown) {
         sendConquerError(err, reply, request.log, "conquer.member.combo_subir");
+      }
+    },
+  );
+
+  // ── Control físico (§6, D-15) ─────────────────────────────────────
+
+  // POST /body-checks — crea o continúa el control de HOY (body vacío permitido).
+  fastify.post<{ Body: UpsertCheckBody }>(
+    "/body-checks",
+    { onRequest: [fastify.authenticate], schema: upsertBodyCheckSchema },
+    async (request, reply) => {
+      try {
+        await attachCountryScope(request, fastify.db);
+        const ctx = assertTenant(request.scope, "conquer.member.body_checks");
+        return await upsertTodayCheck(
+          fastify.db,
+          ctx,
+          request.user.userId,
+          request.body,
+        );
+      } catch (err: unknown) {
+        sendConquerError(err, reply, request.log, "conquer.member.body_checks");
+      }
+    },
+  );
+
+  // GET /body-checks — controles, comparador día 0 vs último y vencimiento.
+  fastify.get(
+    "/body-checks",
+    { onRequest: [fastify.authenticate], schema: listBodyChecksSchema },
+    async (request, reply) => {
+      try {
+        await attachCountryScope(request, fastify.db);
+        const ctx = assertTenant(
+          request.scope,
+          "conquer.member.body_checks_list",
+        );
+        return await listChecks(fastify.db, ctx, request.user.userId);
+      } catch (err: unknown) {
+        sendConquerError(
+          err,
+          reply,
+          request.log,
+          "conquer.member.body_checks_list",
+        );
+      }
+    },
+  );
+
+  // POST /body-checks/skip-day0 — "Lo hago después" (D-15).
+  fastify.post(
+    "/body-checks/skip-day0",
+    { onRequest: [fastify.authenticate], schema: skipDay0Schema },
+    async (request, reply) => {
+      try {
+        await attachCountryScope(request, fastify.db);
+        const ctx = assertTenant(request.scope, "conquer.member.skip_day0");
+        return await skipDay0(fastify.db, ctx, request.user.userId);
+      } catch (err: unknown) {
+        sendConquerError(err, reply, request.log, "conquer.member.skip_day0");
+      }
+    },
+  );
+
+  // POST /body-checks/:checkId/photos/:pose/upload-url — URL firmada para subir.
+  fastify.post<{
+    Params: { checkId: number; pose: ConquerPose };
+    Body: { contentType: string };
+  }>(
+    "/body-checks/:checkId/photos/:pose/upload-url",
+    { onRequest: [fastify.authenticate], schema: photoUploadUrlSchema },
+    async (request, reply) => {
+      try {
+        await attachCountryScope(request, fastify.db);
+        const ctx = assertTenant(request.scope, "conquer.member.photo_upload");
+        return await requestPhotoUpload(
+          fastify,
+          ctx,
+          request.user.userId,
+          request.params.checkId,
+          request.params.pose,
+          request.body.contentType,
+        );
+      } catch (err: unknown) {
+        sendConquerError(
+          err,
+          reply,
+          request.log,
+          "conquer.member.photo_upload",
+        );
+      }
+    },
+  );
+
+  // POST /body-checks/:checkId/photos/:pose/confirm — valida clave y HEAD.
+  fastify.post<{
+    Params: { checkId: number; pose: ConquerPose };
+    Body: { key: string };
+  }>(
+    "/body-checks/:checkId/photos/:pose/confirm",
+    { onRequest: [fastify.authenticate], schema: photoConfirmSchema },
+    async (request, reply) => {
+      try {
+        await attachCountryScope(request, fastify.db);
+        const ctx = assertTenant(request.scope, "conquer.member.photo_confirm");
+        return await confirmPhoto(
+          fastify,
+          ctx,
+          request.user.userId,
+          request.params.checkId,
+          request.params.pose,
+          request.body.key,
+        );
+      } catch (err: unknown) {
+        sendConquerError(
+          err,
+          reply,
+          request.log,
+          "conquer.member.photo_confirm",
+        );
+      }
+    },
+  );
+
+  // GET /body-checks/:checkId/photos/:pose/url — URL firmada de lectura (5 min).
+  fastify.get<{ Params: { checkId: number; pose: ConquerPose } }>(
+    "/body-checks/:checkId/photos/:pose/url",
+    { onRequest: [fastify.authenticate], schema: photoUrlSchema },
+    async (request, reply) => {
+      try {
+        await attachCountryScope(request, fastify.db);
+        const ctx = assertTenant(request.scope, "conquer.member.photo_url");
+        return await getPhotoUrl(
+          fastify,
+          ctx,
+          request.user.userId,
+          request.params.checkId,
+          request.params.pose,
+        );
+      } catch (err: unknown) {
+        sendConquerError(err, reply, request.log, "conquer.member.photo_url");
       }
     },
   );
