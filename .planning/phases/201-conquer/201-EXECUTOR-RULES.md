@@ -269,3 +269,9 @@ con preguntas.
   nativo `.cq-select`. 201-19 registra la ruta del sábado con nombre EXACTO `conquer-sabado` (Hoy/Inicio ya la usan con
   `hasRoute`). Reusar `CqComboCard` (max 13), `CqCounter`, `.cq-select` en el sábado y `CqBodyMap` en Progreso.
   `GET /today` de un Toro con los 4 días hechos devuelve la vista del sábado (`exercises` vacío). `shortDate` está en `format.ts`.
+- (201-19) `POST /combos/:comboKey/subir` devuelve solo `{ combo }` (el app relee `GET /progress`). `progress.days` puede
+  traer días sin ejercicios (sábado de Toro): filtrarlos antes de pintar. `calibrationText`/`canResolveCalibration` están en
+  `format.ts`. En `ConquerHome` el gancho para 201-20 es `<!-- 201-20: accesos ... -->`; `.cq-link` sirve sobre `<router-link>`.
+  **Encargo del orquestador para 201-20:** `ProgressStep` del API no trae `unilateral` → Progreso nunca dice "por lado".
+  Sumarlo en `progress-service` + `schemas.ts` (+ un `expect` en el test de Progreso existente), tomándolo del peldaño
+  ACTUAL del escalón, y usarlo en la pantalla de Progreso con `unitText`. Commit propio `fix(201-20): ...`.
