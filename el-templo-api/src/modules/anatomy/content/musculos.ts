@@ -5,9 +5,11 @@ import type { MusculoDef } from "../types";
  * content/rutas/ (por ruta) y la vista por músculo se deriva.
  *
  * `zona` = región del dibujo + vista (D4). `null` = músculo profundo que no se
- * ve en el dibujo (D10): serrato, manguito, iliopsoas. `precision` es null si y
- * solo si `zona` es null. `queHaceAlumno` es anatomía estándar (L1) en tono
- * alumno (D14, sketch 020 `QUE_HACE`). Todo en borrador (D5).
+ * ve en el dibujo (D10): serrato, manguito, iliopsoas. `debajoDe` = región cuya
+ * hoja los muestra "más adentro" (obligatorio en los profundos, prohibido en
+ * el resto). `precision` es null si y solo si `zona` es null. `queHaceAlumno`
+ * es anatomía estándar (L1) en tono alumno (D14, sketch 020 `QUE_HACE`). Todo
+ * en borrador (D5).
  */
 export const MUSCULOS = [
   {
@@ -105,6 +107,7 @@ export const MUSCULOS = [
     nombre: "Serrato anterior",
     zona: null,
     precision: null,
+    debajoDe: "chest",
     queHaceAlumno:
       "Pega el omóplato a las costillas y lo lleva adelante y arriba.",
   },
@@ -113,6 +116,7 @@ export const MUSCULOS = [
     nombre: "Manguito rotador",
     zona: null,
     precision: null,
+    debajoDe: "deltoids",
     queHaceAlumno: "Mantiene el hombro centrado y firme.",
   },
   {
@@ -181,6 +185,7 @@ export const MUSCULOS = [
     nombre: "Iliopsoas (flexores de cadera)",
     zona: null,
     precision: null,
+    debajoDe: "abs",
     queHaceAlumno: "Levanta la pierna: dobla la cadera.",
   },
   {

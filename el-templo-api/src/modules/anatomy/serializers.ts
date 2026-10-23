@@ -131,6 +131,10 @@ export interface MusculoAlumno {
   id: string;
   nombre: string;
   zona: ZonaMusculo | null;
+  /** Profundo: región de cuya hoja cuelga ("más adentro"); `null` si se ve en el dibujo. */
+  debajoDe: ZonaSlug | null;
+  /** `true` si es profundo (`debajoDe !== null`): la hoja lo marca "más adentro". */
+  adentro: boolean;
   queHace: string;
   /** Slugs de ruta (nunca códigos). */
   grupos: { fuerte: string[]; sostiene: string[]; estira: string[] };
@@ -233,8 +237,19 @@ function rolesPorMusculo(): Map<string, Record<Rol, string[]>> {
   return out;
 }
 
-/** Regiones con los ids de los músculos que las usan (orden MUSCULOS). */
-function regionesVista(): RegionVista[] {
+/** Región de la que cuelga un músculo profundo (slug validado); `null` si no es profundo. */
+function debajoDeDe(m: MusculoDef): ZonaSlug | null {
+  if (m.zona || !m.debajoDe) return null;
+  return SLUG_DE_REGION.get(m.debajoDe) ?? null;
+}
+
+/**
+ * Regiones con los ids de los músculos que las usan (orden MUSCULOS).
+ * `conProfundos`: vista de alumno, suma al final de cada región los profundos
+ * que cuelgan de ella (la hoja los muestra "más adentro"); el profe sigue
+ * viendo solo los que el dibujo pinta.
+ */
+function regionesVista(conProfundos = false): RegionVista[] {
   return REGIONES_DEF.flatMap((r): RegionVista[] => {
     const slug = SLUG_DE_REGION.get(r.slug);
     if (!slug) return [];
@@ -244,9 +259,12 @@ function regionesVista(): RegionVista[] {
         nombre: r.nombre,
         vista: r.vista,
         grupo: r.grupo,
-        musculos: MUSCULOS_DEF.filter((m) => m.zona?.slug === r.slug).map(
-          (m) => m.id,
-        ),
+        musculos: [
+          ...MUSCULOS_DEF.filter((m) => m.zona?.slug === r.slug),
+          ...(conProfundos
+            ? MUSCULOS_DEF.filter((m) => debajoDeDe(m) === r.slug)
+            : []),
+        ].map((m) => m.id),
       },
     ];
   });
@@ -516,11 +534,13 @@ let alumnoMemo: VistaAlumno | null = null;
 export function vistaAlumno(): VistaAlumno {
   if (alumnoMemo) return alumnoMemo;
   alumnoMemo = {
-    regiones: regionesVista(),
+    regiones: regionesVista(true),
     musculos: MUSCULOS_DEF.map((m) => ({
       id: m.id,
       nombre: m.nombre,
       zona: zonaDe(m),
+      debajoDe: debajoDeDe(m),
+      adentro: debajoDeDe(m) !== null,
       queHace: m.queHaceAlumno,
       grupos: gruposDeMusculo(m.id),
     })),

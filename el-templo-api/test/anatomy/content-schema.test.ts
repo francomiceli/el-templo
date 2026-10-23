@@ -175,6 +175,28 @@ describe("contenido de anatomía — coherencia", () => {
     }
   });
 
+  it("los 3 profundos cuelgan de su zona: manguito en hombros, serrato en pecho, psoas en abdomen; el resto no lleva debajoDe", () => {
+    const debajoDe = Object.fromEntries(
+      MUSCULOS.filter((m) => m.zona === null).map((m) => [
+        m.id,
+        "debajoDe" in m ? m.debajoDe : undefined,
+      ]),
+    );
+    expect(debajoDe).toEqual({
+      serrato: "chest",
+      manguito: "deltoids",
+      psoas: "abs",
+    });
+    for (const m of MUSCULOS.filter((x) => x.zona !== null)) {
+      expect("debajoDe" in m ? m.debajoDe : undefined, m.id).toBeUndefined();
+    }
+    // Y cada destino es una región real del dibujo.
+    const regiones = new Set(REGIONES.map((r) => r.slug as string));
+    for (const destino of Object.values(debajoDe)) {
+      expect(regiones.has(destino ?? "")).toBe(true);
+    }
+  });
+
   it("el glosario tiene 5 roles en orden, 3 contracciones y 3 precisiones", () => {
     expect(GLOSARIO_ROLES.map((g) => g.rol)).toEqual([...ROLES]);
     expect(GLOSARIO_CONTRACCIONES.map((g) => g.clave)).toEqual(["C", "E", "I"]);
@@ -388,6 +410,54 @@ describe("validador — casos negativos (el validador muerde)", () => {
     expect(
       validarMusculos([musculo({ precision: null })], REGIONES_DEF).length,
     ).toBeGreaterThanOrEqual(1);
+  });
+
+  it("profundo válido: sin zona ni precisión y con debajoDe a una región", () => {
+    expect(
+      validarMusculos(
+        [
+          musculo({
+            zona: null,
+            precision: null,
+            debajoDe: "deltoids",
+          }),
+        ],
+        REGIONES_DEF,
+      ),
+    ).toEqual([]);
+  });
+
+  it("profundo sin debajoDe (huérfano), con null o ausente", () => {
+    for (const parcial of [
+      { zona: null, precision: null },
+      { zona: null, precision: null, debajoDe: null },
+    ] satisfies Partial<MusculoDef>[]) {
+      const errores = validarMusculos([musculo(parcial)], REGIONES_DEF);
+      expect(errores).toHaveLength(1);
+      expect(errores[0]).toContain("necesita debajoDe");
+    }
+  });
+
+  it("debajoDe que no es una región (deltoides en vez de deltoids)", () => {
+    const errores = validarMusculos(
+      [musculo({ zona: null, precision: null, debajoDe: "deltoides" })],
+      REGIONES_DEF,
+    );
+    expect(errores).toHaveLength(1);
+    expect(errores[0]).toContain('debajoDe "deltoides" no existe');
+  });
+
+  it("debajoDe en un músculo que sí tiene zona", () => {
+    const errores = validarMusculos(
+      [musculo({ debajoDe: "chest" })],
+      REGIONES_DEF,
+    );
+    expect(errores).toHaveLength(1);
+    expect(errores[0]).toContain("debajoDe solo se permite si no hay zona");
+    // null explícito sí es lo mismo que ausente.
+    expect(
+      validarMusculos([musculo({ debajoDe: null })], REGIONES_DEF),
+    ).toEqual([]);
   });
 
   it("id duplicado y id fuera de kebab-case", () => {
