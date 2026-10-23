@@ -215,7 +215,7 @@ export const OAR = {
     ],
   },
   fichaAlumno: {
-    que: "Remar con un solo brazo: llevás la mano hacia el costado mientras el tronco se queda quieto.",
+    que: "Remos con tu peso en escalones: de dos manos hacia uno solo, y cuanto más horizontal el cuerpo, más difícil. En todos tirás el pecho hacia el agarre con el tronco quieto.",
     siente: {
       pendiente:
         "La investigación no dice todavía dónde se siente este ejercicio.",
@@ -230,11 +230,12 @@ export const OAR = {
       {
         error: "El tronco gira para alcanzar",
         texto:
-          "El tirón de un solo lado hace girar: el tronco tiene que quedarse quieto.",
+          "Cuando tirás más de un lado (arquero, un brazo), el tronco tiende a girar: tiene que quedarse quieto.",
       },
       {
         error: "La mano libre empuja",
-        texto: "Repartís el peso y deja de ser un ejercicio a un solo brazo.",
+        texto:
+          "En el escalón de un brazo, si apoyás la otra mano repartís el peso: si la necesitás, quedate en el escalón anterior.",
       },
     ],
   },

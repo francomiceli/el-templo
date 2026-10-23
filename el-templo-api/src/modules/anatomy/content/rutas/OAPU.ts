@@ -222,25 +222,28 @@ export const OAPU = {
     ],
   },
   fichaAlumno: {
-    que: "Flexión de brazos con un solo brazo: empujás el piso con un brazo y el tronco se queda quieto.",
+    que: "Flexiones en escalones: arrancás con la común, de dos manos, y avanzás con apoyo y arquero hacia la de un solo brazo. En todas empujás el piso con el cuerpo firme como una tabla.",
     siente: {
       pendiente:
         "La investigación no dice todavía dónde se siente este ejercicio.",
       quien: "fuente",
     },
     tips: [
-      "Caderas cuadradas al suelo, no abras el pecho.",
+      "Cuerpo en una línea: que la cadera no caiga ni suba.",
       "Empujá el piso lejos.",
       "Codo a 45°.",
+      "En las de un brazo, caderas cuadradas al suelo: no abras el pecho.",
     ],
     errores: [
       {
         error: "El tronco gira hacia el brazo libre",
-        texto: "La carga es de un lado: el tronco tiene que quedarse quieto.",
+        texto:
+          "Cuando cargás más un lado (arquero, un brazo), el tronco tiene que quedarse quieto.",
       },
       {
         error: "La mano libre apoya",
-        texto: "Repartís el peso y deja de ser un ejercicio a un solo brazo.",
+        texto:
+          "En el escalón de un brazo, si apoyás la otra mano repartís el peso: si la necesitás, quedate en el escalón anterior.",
       },
       {
         error: "Codo muy abierto",
