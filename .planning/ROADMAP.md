@@ -401,7 +401,7 @@ Plans:
 **Goal**: Modo Conquer simple según la síntesis de Nacho del 2026-10-21. El coach activa al alumno eligiendo nivel y días. El alumno carga un número por escalón y la app calcula objetivos y cuándo subir. El coach trabaja por excepción con alertas.
 **Depends on**: Phase 197 (tabs de Entrenar, en staging); de cero, la rama 196 queda guardada como cantera
 **Requirements**: `.planning/phases/201-conquer/ref/conquer-desarrollo-sintesis.md` + decisiones en `201-CONTEXT.md`. Los criterios de éxito son el §12 de la síntesis.
-**Plans**: 24 plans (ejecución secuencial en un solo worktree, una ola por plan; ejecutor sonnet; tests en CI)
+**Plans**: 50 plans (ejecución secuencial en un solo worktree, una ola por plan; ejecutor sonnet; tests en CI). 201-25..35: hallazgos del UAT local; 201-36..50: pedidos del UAT en staging (D-25..D-29)
 
 Plans:
 
@@ -429,6 +429,32 @@ Plans:
 - [ ] 201-22-PLAN.md — Admin: ficha del alumno y galería
 - [ ] 201-23-PLAN.md — Admin: catálogo y ajustes
 - [ ] 201-24-PLAN.md — E2E del recorrido + UAT + checkpoint humano (Franco + Nacho)
+- [ ] 201-25-PLAN.md — Catálogo del anexo de Nacho, parte datos (0293)
+- [ ] 201-26-PLAN.md — Catálogo del anexo: reglas, modos, textos y alertas
+- [ ] 201-27-PLAN.md — Guía "¿Cómo funciona?": dato (0294), ruta y contenido
+- [ ] 201-28-PLAN.md — Estética variante B del sketch 022: base visual
+- [ ] 201-29-PLAN.md — Guía: pantalla, ruta y disparo después del día 0
+- [ ] 201-30-PLAN.md — Inicio y camino de niveles con la variante B
+- [ ] 201-31-PLAN.md — Hoy, hoja de guardado y Sábado con la variante B
+- [ ] 201-32-PLAN.md — Progreso con la variante B
+- [ ] 201-33-PLAN.md — Control físico y Evolución con la variante B
+- [ ] 201-34-PLAN.md — Fuera el cielo; UAT y CONTEXT al día (D-23, D-24)
+- [ ] 201-35-PLAN.md — Barrido final y prueba visual de Franco (checkpoint)
+- [ ] 201-36-PLAN.md — Tablas de correcciones y tutoriales (0298/0299) + tenancy
+- [ ] 201-37-PLAN.md — Reglas de video y almacenamiento privado para videos
+- [ ] 201-38-PLAN.md — API alumno: objetivos, URL de subida y alta de la corrección
+- [ ] 201-39-PLAN.md — API alumno: ver videos, respuestas vistas y contador en el estado
+- [ ] 201-40-PLAN.md — API coach: bandeja, contador, videos y borrar el del alumno
+- [ ] 201-41-PLAN.md — API coach: respuesta con texto y/o video
+- [ ] 201-42-PLAN.md — API tutoriales (bucket público, admin + alumno)
+- [ ] 201-43-PLAN.md — Admin: tutoriales en Catálogo y Ajustes de combos
+- [ ] 201-44-PLAN.md — Admin: bandeja de correcciones, contador del menú y borrado
+- [ ] 201-45-PLAN.md — Admin: respuesta del coach
+- [ ] 201-46-PLAN.md — App: datos, store y validación del video (puros con test)
+- [ ] 201-47-PLAN.md — App: "Ver cómo se hace" en Hoy, Progreso y combos
+- [ ] 201-48-PLAN.md — App: pantalla de correcciones y contador en Inicio
+- [ ] 201-49-PLAN.md — App: mandar un video (grabar/galería) + permiso de micrófono iOS
+- [ ] 201-50-PLAN.md — Barrido final y UAT (infra R2, casos D-25..D-29)
 
 ## Progress
 
