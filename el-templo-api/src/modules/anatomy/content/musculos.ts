@@ -25,30 +25,28 @@ export const MUSCULOS = [
     nombre: "Redondo mayor",
     zona: { slug: "upper-back", vista: "back" },
     precision: "agrupada",
-    queHaceAlumno: "Trabaja con el dorsal: baja el brazo desde arriba.",
+    queHaceAlumno: "Baja el brazo junto con el dorsal.",
   },
   {
     id: "romboides",
     nombre: "Romboides y trapecio medio",
     zona: { slug: "upper-back", vista: "back" },
     precision: "agrupada",
-    queHaceAlumno: "Juntan los omóplatos atrás, como cuando sacás pecho.",
+    queHaceAlumno: "Juntan los omóplatos hacia atrás.",
   },
   {
     id: "trap-inf",
     nombre: "Trapecio inferior",
     zona: { slug: "trapezius", vista: "back" },
     precision: "aproximada",
-    queHaceAlumno:
-      "Baja los omóplatos y los acomoda para que puedas subir los brazos por encima de la cabeza.",
+    queHaceAlumno: "Baja los omóplatos y los gira al subir los brazos.",
   },
   {
     id: "trap-sup",
     nombre: "Trapecio superior",
     zona: { slug: "trapezius", vista: "both" },
     precision: "exacta",
-    queHaceAlumno:
-      "Sube los hombros hacia las orejas y acompaña cuando levantás los brazos por encima de la cabeza.",
+    queHaceAlumno: "Encoge los hombros y gira los omóplatos al subir los brazos.",
     nota: {
       t: 'En los colgados no tiene que dominar: es el que "encoge los hombros".',
       c: [],
@@ -60,7 +58,7 @@ export const MUSCULOS = [
     zona: { slug: "chest", vista: "front" },
     precision: "exacta",
     queHaceAlumno:
-      "Lleva el brazo hacia adelante y hacia el centro, como al abrazar. Trabaja al empujar y también al tirar.",
+      "Lleva el brazo adelante y al centro: trabaja al empujar y al tirar.",
   },
   {
     id: "delt-ant",
@@ -74,16 +72,14 @@ export const MUSCULOS = [
     nombre: "Deltoides posterior",
     zona: { slug: "deltoids", vista: "back" },
     precision: "agrupada",
-    queHaceAlumno:
-      "Lleva el brazo hacia atrás y hacia afuera, como cuando abrís los brazos en cruz.",
+    queHaceAlumno: "Abre el brazo hacia atrás.",
   },
   {
     id: "triceps",
     nombre: "Tríceps braquial",
     zona: { slug: "triceps", vista: "both" },
     precision: "exacta",
-    queHaceAlumno:
-      "Endereza el codo. Es el que te empuja hacia arriba en las flexiones y los fondos.",
+    queHaceAlumno: "Endereza el codo.",
   },
   {
     id: "biceps",
@@ -104,8 +100,7 @@ export const MUSCULOS = [
     nombre: "Flexores de muñeca y dedos",
     zona: { slug: "forearm", vista: "both" },
     precision: "exacta",
-    queHaceAlumno:
-      "Cierran la mano para agarrar fuerte la barra. En la vertical, los dedos te mantienen en equilibrio.",
+    queHaceAlumno: "Cierran la mano: dan agarre y equilibrio.",
   },
   {
     id: "serrato",
@@ -114,7 +109,7 @@ export const MUSCULOS = [
     precision: null,
     debajoDe: "chest",
     queHaceAlumno:
-      "Pega el omóplato a las costillas. Lo empuja hacia adelante y lo sube cuando levantás los brazos.",
+      "Pega el omóplato a las costillas y lo lleva adelante y arriba.",
   },
   {
     id: "manguito",
@@ -122,8 +117,7 @@ export const MUSCULOS = [
     zona: null,
     precision: null,
     debajoDe: "deltoids",
-    queHaceAlumno:
-      "Son músculos chiquitos que mantienen el hombro en su lugar mientras movés el brazo.",
+    queHaceAlumno: "Mantiene el hombro centrado y firme.",
   },
   {
     id: "recto-abd",
@@ -131,61 +125,56 @@ export const MUSCULOS = [
     zona: { slug: "abs", vista: "front" },
     precision: "exacta",
     queHaceAlumno:
-      "Acerca las costillas a la cadera, como en un abdominal, y no deja que la espalda se arquee.",
+      "Acerca las costillas a la pelvis y evita que la espalda se arquee.",
   },
   {
     id: "oblicuos",
     nombre: "Oblicuos",
     zona: { slug: "obliques", vista: "front" },
     precision: "exacta",
-    queHaceAlumno:
-      "Giran el tronco y lo inclinan al costado. También lo frenan para que no gire cuando no querés.",
+    queHaceAlumno: "Giran e inclinan el tronco, o lo frenan.",
   },
   {
     id: "erectores",
     nombre: "Erectores espinales",
     zona: { slug: "lower-back", vista: "back" },
     precision: "agrupada",
-    queHaceAlumno:
-      "Van a los costados de la columna: enderezan la espalda y la mantienen derecha.",
+    queHaceAlumno: "Enderezan la espalda y la mantienen firme.",
   },
   {
     id: "cuadrado",
     nombre: "Cuadrado lumbar",
     zona: { slug: "lower-back", vista: "back" },
     precision: "aproximada",
-    queHaceAlumno: "Inclina el tronco al costado y mantiene firme la cadera.",
+    queHaceAlumno: "Inclina el tronco al costado y mantiene firme la pelvis.",
   },
   {
     id: "gluteo-mayor",
     nombre: "Glúteo mayor",
     zona: { slug: "gluteal", vista: "back" },
     precision: "agrupada",
-    queHaceAlumno:
-      "Es el que te levanta al subir de una sentadilla y lleva la cadera hacia adelante.",
+    queHaceAlumno: "Endereza la cadera: te levanta de la sentadilla.",
   },
   {
     id: "gluteo-medio",
     nombre: "Glúteo medio y menor",
     zona: { slug: "gluteal", vista: "back" },
     precision: "agrupada",
-    queHaceAlumno:
-      "Abren la pierna hacia el costado y mantienen la cadera derecha cuando estás en un pie.",
+    queHaceAlumno: "Abren la pierna y te nivelan la pelvis en un pie.",
   },
   {
     id: "vastos",
     nombre: "Cuádriceps (vastos)",
     zona: { slug: "quadriceps", vista: "front" },
     precision: "exacta",
-    queHaceAlumno: "Enderezan la rodilla, como al subir un escalón.",
+    queHaceAlumno: "Enderezan la rodilla.",
   },
   {
     id: "recto-fem",
     nombre: "Recto femoral",
     zona: { slug: "quadriceps", vista: "front" },
     precision: "agrupada",
-    queHaceAlumno:
-      "Endereza la rodilla y levanta la pierna hacia adelante. Es la parte del cuádriceps que llega hasta la cadera.",
+    queHaceAlumno: "Endereza la rodilla y levanta la pierna.",
     nota: {
       t: "También flexiona la cadera: en FL sostiene las piernas en línea (isométrico).",
       c: ["R"],
@@ -197,24 +186,21 @@ export const MUSCULOS = [
     zona: null,
     precision: null,
     debajoDe: "abs",
-    queHaceAlumno:
-      "Levanta la pierna hacia el pecho, como al subir la rodilla.",
+    queHaceAlumno: "Levanta la pierna: dobla la cadera.",
   },
   {
     id: "isquios",
     nombre: "Isquiotibiales",
     zona: { slug: "hamstring", vista: "back" },
     precision: "exacta",
-    queHaceAlumno:
-      "Están atrás del muslo: doblan la rodilla y llevan la pierna hacia atrás.",
+    queHaceAlumno: "Doblan la rodilla y enderezan la cadera.",
   },
   {
     id: "aductores",
     nombre: "Aductores",
     zona: { slug: "adductors", vista: "both" },
     precision: "agrupada",
-    queHaceAlumno:
-      "Están en la parte de adentro del muslo: juntan las piernas.",
+    queHaceAlumno: "Juntan las piernas.",
   },
   {
     id: "gemelo",
