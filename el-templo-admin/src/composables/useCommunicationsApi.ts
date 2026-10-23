@@ -23,10 +23,7 @@ import { ref } from 'vue';
 import { api } from 'src/boot/axios';
 import { extractError } from 'src/utils/extract-error';
 import type { AppSectionKey, Destination } from 'src/config/destinations';
-import type {
-  NotificationCategoryKey,
-  RuleTriggerType,
-} from 'src/config/rule-triggers';
+import type { NotificationCategoryKey, RuleTriggerType } from 'src/config/rule-triggers';
 
 // ── Avisos (el-templo-api/src/modules/communications/schemas.ts) ──────────
 
@@ -265,6 +262,12 @@ export interface AdminNovedad {
   /** ISO UTC. */
   publishAt: string;
   status: NovedadStatus;
+  /** Push opcional (mig 0297): el admin pidió además una notificación. */
+  pushRequested: boolean;
+  /** Título de la push. `null` = el server usa el nombre del gimnasio. */
+  pushTitle: string | null;
+  /** ISO UTC en que el server encoló la push. `null` = todavía no (y mientras sea null se puede editar). */
+  pushQueuedAt: string | null;
   createdBy: number | null;
   createdAt: string;
   views: number;
@@ -280,6 +283,10 @@ export interface CreateNovedadInput {
   /** ISO date-time. Omitido = ahora. */
   publishAt?: string;
   status?: NovedadStatus;
+  /** Enviar también como push al publicarse (default false). */
+  sendPush?: boolean;
+  /** 1-50 caracteres. `null`/omitido = nombre del gimnasio. Solo con `sendPush`. */
+  pushTitle?: string | null;
 }
 
 /**
@@ -357,7 +364,7 @@ export function useCommunicationsApi() {
     try {
       const { data } = await api.get<{ clickers: AvisoClicker[] }>(
         `/communications/admin/avisos/${id}/clickers`,
-        { params: limit ? { limit } : undefined },
+        { params: limit ? { limit } : undefined }
       );
       return data.clickers;
     } catch (err: unknown) {
@@ -404,7 +411,7 @@ export function useCommunicationsApi() {
     error.value = null;
     try {
       const { data } = await api.get<{ templates: TemplateRow[] }>(
-        '/notifications/admin/templates',
+        '/notifications/admin/templates'
       );
       return data.templates;
     } catch (err: unknown) {
@@ -419,10 +426,7 @@ export function useCommunicationsApi() {
     loading.value = true;
     error.value = null;
     try {
-      const { data } = await api.put<TemplateRow>(
-        `/notifications/admin/templates/${id}`,
-        input,
-      );
+      const { data } = await api.put<TemplateRow>(`/notifications/admin/templates/${id}`, input);
       return data;
     } catch (err: unknown) {
       error.value = extractError(err, 'No se pudo actualizar la plantilla');
@@ -438,7 +442,7 @@ export function useCommunicationsApi() {
     try {
       const { data } = await api.post<{ queued: number }>(
         '/notifications/admin/send-segment',
-        input,
+        input
       );
       return data;
     } catch (err: unknown) {
@@ -493,7 +497,7 @@ export function useCommunicationsApi() {
     try {
       const { data } = await api.post<{ count: number }>(
         '/notifications/admin/templates/preview-audience',
-        input,
+        input
       );
       return data.count;
     } catch (err: unknown) {
@@ -514,7 +518,7 @@ export function useCommunicationsApi() {
     try {
       const { data } = await api.post<SendTestTemplateResult>(
         '/notifications/admin/templates/send-test',
-        input,
+        input
       );
       return data;
     } catch (err: unknown) {
@@ -555,7 +559,7 @@ export function useCommunicationsApi() {
     error.value = null;
     try {
       const { data } = await api.post<RestoreSystemResult>(
-        '/communications/admin/avisos/restore-system',
+        '/communications/admin/avisos/restore-system'
       );
       return data;
     } catch (err: unknown) {
@@ -573,7 +577,7 @@ export function useCommunicationsApi() {
     error.value = null;
     try {
       const { data } = await api.get<{ avisos: TvAvisoRow[] }>(
-        '/communications/tv/admin/tv-avisos',
+        '/communications/tv/admin/tv-avisos'
       );
       return data.avisos;
     } catch (err: unknown) {
@@ -588,10 +592,7 @@ export function useCommunicationsApi() {
     loading.value = true;
     error.value = null;
     try {
-      const { data } = await api.post<TvAvisoRow>(
-        '/communications/tv/admin/tv-avisos',
-        input,
-      );
+      const { data } = await api.post<TvAvisoRow>('/communications/tv/admin/tv-avisos', input);
       return data;
     } catch (err: unknown) {
       error.value = extractError(err, 'No se pudo crear el aviso de TV');
@@ -605,10 +606,7 @@ export function useCommunicationsApi() {
     loading.value = true;
     error.value = null;
     try {
-      const { data } = await api.put<TvAvisoRow>(
-        `/communications/tv/admin/tv-avisos/${id}`,
-        input,
-      );
+      const { data } = await api.put<TvAvisoRow>(`/communications/tv/admin/tv-avisos/${id}`, input);
       return data;
     } catch (err: unknown) {
       error.value = extractError(err, 'No se pudo actualizar el aviso de TV');
@@ -638,7 +636,7 @@ export function useCommunicationsApi() {
     error.value = null;
     try {
       const { data } = await api.get<{ novedades: AdminNovedad[] }>(
-        '/communications/admin/novedades',
+        '/communications/admin/novedades'
       );
       return data.novedades;
     } catch (err: unknown) {

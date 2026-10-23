@@ -100,6 +100,8 @@ export const novedadesRoutes: FastifyPluginAsync = async (fastify) => {
             ? new Date(request.body.publishAt)
             : undefined,
           status: request.body.status,
+          sendPush: request.body.sendPush,
+          pushTitle: request.body.pushTitle,
           createdBy: request.user.userId,
         });
         reply.code(201);
@@ -143,6 +145,8 @@ export const novedadesRoutes: FastifyPluginAsync = async (fastify) => {
             ? new Date(request.body.publishAt)
             : undefined,
           status: request.body.status,
+          sendPush: request.body.sendPush,
+          pushTitle: request.body.pushTitle,
         });
       } catch (err: unknown) {
         handleServiceError(err, reply, fastify.log, "novedades.update");

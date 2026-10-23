@@ -63,6 +63,8 @@ type NovedadRow = typeof novedades.$inferSelect;
 export const NOVEDAD_TEXT_MAX_LENGTH = 120;
 /** D-4: cuántas novedades ve como máximo un socio. */
 export const NOVEDADES_MEMBER_LIMIT = 3;
+/** Mig 0297: largo máximo del título de la push (cabe en la notificación del SO). */
+export const NOVEDAD_PUSH_TITLE_MAX_LENGTH = 50;
 
 export type NovedadStatus = "active" | "paused";
 export type NovedadEventType = "seen" | "clicked";
@@ -79,6 +81,15 @@ export interface NovedadAdminItem {
   /** ISO 8601 (UTC). Futuro = programada. */
   publishAt: string;
   status: NovedadStatus;
+  /** Mig 0297: el admin pidió además una notificación push. */
+  pushRequested: boolean;
+  /** Título de la push. `null` = al enviar se usa el nombre del gimnasio. */
+  pushTitle: string | null;
+  /**
+   * ISO 8601 (UTC) del momento en que el tick de notificaciones encoló la
+   * push. `null` = todavía no. Con valor, la push queda congelada.
+   */
+  pushQueuedAt: string | null;
   createdBy: number | null;
   createdAt: string;
   /** Socios únicos que la vieron. */
@@ -121,6 +132,10 @@ export interface CreateNovedadInput {
   /** Sin valor = ahora. */
   publishAt?: Date;
   status?: NovedadStatus;
+  /** Mig 0297: pedir además una push al publicarse. Default `false`. */
+  sendPush?: boolean;
+  /** `null`/omitido = título por defecto (nombre del gimnasio) al enviar. */
+  pushTitle?: string | null;
   createdBy: number;
 }
 
@@ -138,6 +153,19 @@ export interface UpdateNovedadInput {
   whatsappText?: string | null;
   publishAt?: Date;
   status?: NovedadStatus;
+  /**
+   * Mig 0297. Solo se pueden cambiar mientras la push NO se encoló
+   * (`push_queued_at` NULL): después, un valor distinto del actual da 400.
+   * Apagar `sendPush` antes de que se encole cancela el pedido y limpia el título.
+   */
+  sendPush?: boolean;
+  pushTitle?: string | null;
+}
+
+/** Estado de la push de una novedad, normalizado y listo para persistir. */
+interface PushColumns {
+  pushRequested: boolean;
+  pushTitle: string | null;
 }
 
 /** Destino normalizado, listo para persistir. */
@@ -220,6 +248,10 @@ export class NovedadesService {
       destinationSection: input.destinationSection ?? null,
       whatsappText: input.whatsappText ?? null,
     });
+    const push = this.resolvePush(
+      input.sendPush ?? false,
+      input.pushTitle ?? null,
+    );
     await assertBranchesBelongToTenant(
       this.db,
       ctx,
@@ -231,6 +263,7 @@ export class NovedadesService {
         text,
         scopeBranchIds: this.normalizeScope(input.scopeBranchIds),
         ...destination,
+        ...push,
         publishAt: input.publishAt ?? new Date(),
         status: input.status ?? "active",
         createdBy: input.createdBy,
@@ -291,6 +324,10 @@ export class NovedadesService {
 
     if (input.publishAt !== undefined) updates.publishAt = input.publishAt;
     if (input.status !== undefined) updates.status = input.status;
+
+    if (input.sendPush !== undefined || input.pushTitle !== undefined) {
+      Object.assign(updates, this.resolvePushUpdate(existing, input));
+    }
 
     if (Object.keys(updates).length === 0) {
       throw new BadRequestError("No hay campos para actualizar");
@@ -524,6 +561,62 @@ export class NovedadesService {
     };
   }
 
+  /**
+   * Coherencia de la push (mig 0297). Apagada: no lleva título (se persiste
+   * `null`). Prendida: un `pushTitle` con valor se recorta y debe medir 1-50
+   * (un string vacío o de solo espacios es un error, no "usar el default");
+   * `null` = usar el nombre del gimnasio al enviar.
+   */
+  private resolvePush(sendPush: boolean, rawTitle: string | null): PushColumns {
+    if (!sendPush) return { pushRequested: false, pushTitle: null };
+    if (rawTitle === null) return { pushRequested: true, pushTitle: null };
+
+    const title = rawTitle.trim();
+    if (title.length === 0) {
+      throw new BadRequestError(
+        "El título de la notificación no puede estar vacío",
+      );
+    }
+    if (title.length > NOVEDAD_PUSH_TITLE_MAX_LENGTH) {
+      throw new BadRequestError(
+        `El título de la notificación no puede superar los ${NOVEDAD_PUSH_TITLE_MAX_LENGTH} caracteres`,
+      );
+    }
+    return { pushRequested: true, pushTitle: title };
+  }
+
+  /**
+   * Cambios de push de un PUT. Calcula el estado resultante mezclando lo que
+   * viene con lo que ya hay, lo valida con {@link resolvePush} y:
+   *  - si la push ya se encoló, cualquier diferencia con el estado actual es
+   *    400 (no se reenvía ni se edita; repetir los mismos valores es un no-op);
+   *  - si no, devuelve solo las columnas que cambian (vacío = nada que tocar).
+   */
+  private resolvePushUpdate(
+    existing: NovedadRow,
+    input: UpdateNovedadInput,
+  ): Partial<PushColumns> {
+    const next = this.resolvePush(
+      input.sendPush ?? existing.pushRequested,
+      input.pushTitle !== undefined ? input.pushTitle : existing.pushTitle,
+    );
+
+    const changes: Partial<PushColumns> = {};
+    if (next.pushRequested !== existing.pushRequested) {
+      changes.pushRequested = next.pushRequested;
+    }
+    if (next.pushTitle !== existing.pushTitle) {
+      changes.pushTitle = next.pushTitle;
+    }
+
+    if (existing.pushQueuedAt && Object.keys(changes).length > 0) {
+      throw new BadRequestError(
+        "La notificación push ya se envió: no se puede cambiar ni reenviar",
+      );
+    }
+    return changes;
+  }
+
   private toAdminItem(
     row: NovedadRow,
     views: number,
@@ -538,6 +631,9 @@ export class NovedadesService {
       whatsappText: row.whatsappText ?? null,
       publishAt: row.publishAt.toISOString(),
       status: row.status,
+      pushRequested: row.pushRequested,
+      pushTitle: row.pushTitle ?? null,
+      pushQueuedAt: row.pushQueuedAt ? row.pushQueuedAt.toISOString() : null,
       createdBy: row.createdBy ?? null,
       createdAt: row.createdAt.toISOString(),
       views,

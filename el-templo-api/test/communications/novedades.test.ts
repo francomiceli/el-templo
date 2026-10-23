@@ -98,6 +98,9 @@ interface AdminNovedad {
   whatsappText: string | null;
   publishAt: string;
   status: "active" | "paused";
+  pushRequested: boolean;
+  pushTitle: string | null;
+  pushQueuedAt: string | null;
   createdBy: number | null;
   createdAt: string;
   views: number;
@@ -668,6 +671,252 @@ describe("admin — CRUD", () => {
 // ═══════════════════════════════════════════════════════════════════════════
 // (2) Roles
 // ═══════════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════════
+// (1b) Push opcional (mig 0297) — campos y validaciones del CRUD
+//      El envío en sí (cron) se prueba en novedades-push.test.ts.
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("admin — push opcional", () => {
+  it("por defecto la push está apagada y sin título ni envío", async () => {
+    const res = await postComo("/admin/novedades", adminToken, {
+      text: "Sin push",
+    });
+    expect(res.statusCode, res.body).toBe(201);
+    const created = JSON.parse(res.body) as AdminNovedad;
+    expect(created.pushRequested).toBe(false);
+    expect(created.pushTitle).toBeNull();
+    expect(created.pushQueuedAt).toBeNull();
+
+    const [listed] = await listAdmin(adminToken);
+    expect(listed?.pushRequested).toBe(false);
+  });
+
+  it("crea con sendPush y título (recortado)", async () => {
+    const res = await postComo("/admin/novedades", adminToken, {
+      text: "Con push",
+      sendPush: true,
+      pushTitle: "  El Templo Alberti  ",
+    });
+    expect(res.statusCode, res.body).toBe(201);
+    const created = JSON.parse(res.body) as AdminNovedad;
+    expect(created.pushRequested).toBe(true);
+    expect(created.pushTitle).toBe("El Templo Alberti");
+    expect(created.pushQueuedAt).toBeNull();
+
+    const row = await novedadRow(created.id, CTX_TEMPLO);
+    expect(row?.pushRequested).toBe(true);
+    expect(row?.pushTitle).toBe("El Templo Alberti");
+    expect(row?.pushQueuedAt).toBeNull();
+  });
+
+  it("sendPush sin título (o con null) guarda null: se usa el nombre del gimnasio al enviar", async () => {
+    for (const extra of [{}, { pushTitle: null }]) {
+      const res = await postComo("/admin/novedades", adminToken, {
+        text: "Con push",
+        sendPush: true,
+        ...extra,
+      });
+      expect(res.statusCode, res.body).toBe(201);
+      const created = JSON.parse(res.body) as AdminNovedad;
+      expect(created.pushRequested).toBe(true);
+      expect(created.pushTitle).toBeNull();
+    }
+  });
+
+  it("acepta un título de exactamente 50 caracteres", async () => {
+    const res = await postComo("/admin/novedades", adminToken, {
+      text: "Con push",
+      sendPush: true,
+      pushTitle: "t".repeat(50),
+    });
+    expect(res.statusCode, res.body).toBe(201);
+  });
+
+  it.each([
+    ["de 51 caracteres", "t".repeat(51)],
+    ["vacío", ""],
+    ["solo espacios", "     "],
+  ])(
+    "rechaza un título %s con push prendida y no persiste",
+    async (_l, pushTitle) => {
+      const res = await postComo("/admin/novedades", adminToken, {
+        text: "Con push",
+        sendPush: true,
+        pushTitle,
+      });
+      expect(res.statusCode, res.body).toBe(400);
+      expect(await listAdmin(adminToken)).toHaveLength(0);
+    },
+  );
+
+  it("con la push apagada el título se ignora (queda null)", async () => {
+    const res = await postComo("/admin/novedades", adminToken, {
+      text: "Sin push",
+      sendPush: false,
+      pushTitle: "Ignorado",
+    });
+    expect(res.statusCode, res.body).toBe(201);
+    const created = JSON.parse(res.body) as AdminNovedad;
+    expect(created.pushRequested).toBe(false);
+    expect(created.pushTitle).toBeNull();
+  });
+
+  it("rechaza sendPush que no es booleano", async () => {
+    const res = await postComo("/admin/novedades", adminToken, {
+      text: "Con push",
+      sendPush: "si",
+    });
+    expect(res.statusCode, res.body).toBe(400);
+  });
+
+  it("PUT: prende la push, cambia el título y la apaga (limpia el título)", async () => {
+    const id = await insertNovedad();
+
+    const on = await putComo(`/admin/novedades/${id}`, adminToken, {
+      sendPush: true,
+      pushTitle: "Primero",
+    });
+    expect(on.statusCode, on.body).toBe(200);
+    expect(JSON.parse(on.body)).toMatchObject({
+      pushRequested: true,
+      pushTitle: "Primero",
+      pushQueuedAt: null,
+    });
+
+    // Solo el título: la push sigue prendida.
+    const retitled = await putComo(`/admin/novedades/${id}`, adminToken, {
+      pushTitle: "Segundo",
+    });
+    expect(retitled.statusCode, retitled.body).toBe(200);
+    expect(JSON.parse(retitled.body)).toMatchObject({
+      pushRequested: true,
+      pushTitle: "Segundo",
+    });
+
+    const off = await putComo(`/admin/novedades/${id}`, adminToken, {
+      sendPush: false,
+    });
+    expect(off.statusCode, off.body).toBe(200);
+    expect(JSON.parse(off.body)).toMatchObject({
+      pushRequested: false,
+      pushTitle: null,
+    });
+  });
+
+  it("PUT: valida el título al editar", async () => {
+    const id = await insertNovedad({ pushRequested: true, pushTitle: "Ok" });
+    for (const pushTitle of ["", "   ", "t".repeat(51)]) {
+      const res = await putComo(`/admin/novedades/${id}`, adminToken, {
+        pushTitle,
+      });
+      expect(res.statusCode, `título "${pushTitle}"`).toBe(400);
+    }
+    expect((await novedadRow(id, CTX_TEMPLO))?.pushTitle).toBe("Ok");
+  });
+
+  it("PUT: editar solo el texto de una novedad con push no toca la push", async () => {
+    const id = await insertNovedad({ pushRequested: true, pushTitle: "Ok" });
+    const res = await putComo(`/admin/novedades/${id}`, adminToken, {
+      text: "Texto nuevo",
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    expect(JSON.parse(res.body)).toMatchObject({
+      text: "Texto nuevo",
+      pushRequested: true,
+      pushTitle: "Ok",
+    });
+  });
+
+  describe("una vez encolada la push", () => {
+    const queuedAt = hoursAgo(2);
+
+    it("expone pushQueuedAt en el listado", async () => {
+      const id = await insertNovedad({
+        pushRequested: true,
+        pushTitle: "Ya salió",
+        pushQueuedAt: queuedAt,
+      });
+      const listed = (await listAdmin(adminToken)).find((n) => n.id === id);
+      expect(listed?.pushRequested).toBe(true);
+      expect(listed?.pushTitle).toBe("Ya salió");
+      expect(listed?.pushQueuedAt).not.toBeNull();
+      // DATETIME trunca los ms: tolerancia de 2 s.
+      expect(
+        Math.abs(
+          new Date(listed!.pushQueuedAt!).getTime() - queuedAt.getTime(),
+        ),
+      ).toBeLessThan(2000);
+    });
+
+    it.each([
+      ["apagar la push", { sendPush: false }],
+      ["cambiar el título", { pushTitle: "Otro" }],
+      ["borrar el título", { pushTitle: null }],
+      ["prender con otro título", { sendPush: true, pushTitle: "Otro" }],
+    ])("rechaza %s con 400 y un mensaje claro", async (_l, payload) => {
+      const id = await insertNovedad({
+        pushRequested: true,
+        pushTitle: "Ya salió",
+        pushQueuedAt: queuedAt,
+      });
+      const res = await putComo(`/admin/novedades/${id}`, adminToken, payload);
+      expect(res.statusCode, res.body).toBe(400);
+      expect(res.body).toContain("La notificación push ya se envió");
+
+      const row = await novedadRow(id, CTX_TEMPLO);
+      expect(row?.pushRequested).toBe(true);
+      expect(row?.pushTitle).toBe("Ya salió");
+      expect(row?.pushQueuedAt).not.toBeNull();
+    });
+
+    it("repetir los mismos valores de push junto con otro cambio es válido", async () => {
+      const id = await insertNovedad({
+        pushRequested: true,
+        pushTitle: "Ya salió",
+        pushQueuedAt: queuedAt,
+      });
+      const res = await putComo(`/admin/novedades/${id}`, adminToken, {
+        text: "Texto nuevo",
+        sendPush: true,
+        pushTitle: "Ya salió",
+      });
+      expect(res.statusCode, res.body).toBe(200);
+      expect(JSON.parse(res.body)).toMatchObject({
+        text: "Texto nuevo",
+        pushRequested: true,
+        pushTitle: "Ya salió",
+      });
+    });
+
+    it("el resto de la novedad sigue editable (texto, estado) y pushQueuedAt no cambia", async () => {
+      const id = await insertNovedad({
+        pushRequested: true,
+        pushQueuedAt: queuedAt,
+      });
+      const res = await putComo(`/admin/novedades/${id}`, adminToken, {
+        text: "Corregida",
+        status: "paused",
+      });
+      expect(res.statusCode, res.body).toBe(200);
+      const body = JSON.parse(res.body) as AdminNovedad;
+      expect(body.text).toBe("Corregida");
+      expect(body.status).toBe("paused");
+      expect(body.pushQueuedAt).not.toBeNull();
+      expect(
+        Math.abs(new Date(body.pushQueuedAt!).getTime() - queuedAt.getTime()),
+      ).toBeLessThan(2000);
+    });
+  });
+
+  it("un coach no puede crear con push (403)", async () => {
+    const res = await postComo("/admin/novedades", coachToken, {
+      text: "Intento",
+      sendPush: true,
+    });
+    expect(res.statusCode, res.body).toBe(403);
+  });
+});
 
 describe("roles", () => {
   it("un coach y un socio reciben 403 en las 4 rutas admin", async () => {
