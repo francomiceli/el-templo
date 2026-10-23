@@ -19,15 +19,6 @@ export interface GrupoEjercicios {
   rutas: { slug: string; nombre: string }[]
 }
 
-export interface EncabezadoZona {
-  /** Nombre de la zona: va arriba de todo, bajo el kicker "Zona". */
-  titulo: string
-  /** Kicker de la sección de músculos: "1 músculo", "3 músculos" (cuenta los de adentro). */
-  conteo: string
-  /** `true` si hay más de un músculo: se muestran las pills y el globo con flecha. */
-  conPills: boolean
-}
-
 /** Id del músculo que arranca elegido: el principal, el primero de la zona (los propios van antes que los de adentro). */
 export function musculoPorDefecto(musculos: readonly MusculoAlumno[]): string | null {
   return musculos[0]?.id ?? null
@@ -42,19 +33,16 @@ export function musculoElegido(
 }
 
 /**
- * Encabezados de la hoja (Franco, 2026-10-23): arriba la zona, después "En esta clase" (Entrenar) y
- * al final los músculos con su conteo. Con un solo músculo (contando los de adentro) no hay pills.
+ * `scrollLeft` que deja la pill elegida al principio de la fila (respetando su padding), así queda bien
+ * posicionada bajo el globo. Las medidas son de `getBoundingClientRect`; el navegador recorta el máximo.
  */
-export function encabezadoZona(
-  nombreZona: string,
-  musculos: readonly MusculoAlumno[],
-): EncabezadoZona {
-  const n = musculos.length
-  return {
-    titulo: nombreZona,
-    conteo: n === 1 ? '1 músculo' : `${n} músculos`,
-    conPills: n > 1,
-  }
+export function scrollParaPill(
+  scrollLeft: number,
+  pillLeft: number,
+  filaLeft: number,
+  paddingInicio: number,
+): number {
+  return Math.max(0, Math.round(scrollLeft + pillLeft - filaLeft - paddingInicio))
 }
 
 /** Texto del globo: lo que hace el músculo; los de adentro arrancan con "Más adentro ·". */

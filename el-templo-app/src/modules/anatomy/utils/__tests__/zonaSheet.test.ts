@@ -2,11 +2,11 @@ import { describe, it, expect } from 'vitest'
 import type { GrupoAlumnoInfo, MusculoAlumno, RutaAlumno } from '../../types'
 import {
   PREFIJO_ADENTRO,
-  encabezadoZona,
   gruposDelMusculo,
   musculoElegido,
   musculoPorDefecto,
   posicionFlecha,
+  scrollParaPill,
   textoQueHace,
 } from '../zonaSheet'
 
@@ -74,53 +74,24 @@ describe('musculoElegido', () => {
   })
 })
 
-describe('encabezadoZona', () => {
-  it('varios músculos: título con la zona, conteo en plural y pills', () => {
-    const ms = [musculo({ id: 'a' }), musculo({ id: 'b' }), musculo({ id: 'c' })]
-    expect(encabezadoZona('Espalda alta', ms)).toEqual({
-      titulo: 'Espalda alta',
-      conteo: '3 músculos',
-      conPills: true,
-    })
+describe('scrollParaPill', () => {
+  it('lleva la pill al principio de la fila respetando el padding', () => {
+    // Fila en x=0 con padding 18; pill a 230 px y la fila sin desplazar -> 212
+    expect(scrollParaPill(0, 230, 0, 18)).toBe(212)
   })
 
-  it('cuenta los de adentro: Hombros con manguito son 2 músculos', () => {
-    const ms = [
-      musculo({ id: 'deltoides' }),
-      musculo({ id: 'manguito', adentro: true, debajoDe: 'deltoids', zona: null }),
-    ]
-    expect(encabezadoZona('Hombros', ms)).toEqual({
-      titulo: 'Hombros',
-      conteo: '2 músculos',
-      conPills: true,
-    })
+  it('suma lo que la fila ya estaba desplazada', () => {
+    // Ya desplazada 100: la pill se ve en 130 -> 100 + 130 - 18
+    expect(scrollParaPill(100, 130, 0, 18)).toBe(212)
   })
 
-  it('un solo músculo: el título sigue siendo la zona, conteo en singular y sin pills', () => {
-    expect(
-      encabezadoZona('Bíceps', [musculo({ id: 'biceps', nombre: 'Bíceps braquial' })]),
-    ).toEqual({
-      titulo: 'Bíceps',
-      conteo: '1 músculo',
-      conPills: false,
-    })
+  it('la primera pill no desplaza nada (nunca negativo)', () => {
+    expect(scrollParaPill(0, 18, 0, 18)).toBe(0)
+    expect(scrollParaPill(0, 10, 0, 18)).toBe(0)
   })
 
-  it('un solo músculo de adentro: igual, la zona arriba y "1 músculo"', () => {
-    const m = musculo({ id: 'psoas', nombre: 'Iliopsoas', adentro: true, zona: null })
-    expect(encabezadoZona('Abdomen', [m])).toEqual({
-      titulo: 'Abdomen',
-      conteo: '1 músculo',
-      conPills: false,
-    })
-  })
-
-  it('sin músculos: "0 músculos" (la hoja muestra el vacío)', () => {
-    expect(encabezadoZona('Cuello', [])).toEqual({
-      titulo: 'Cuello',
-      conteo: '0 músculos',
-      conPills: false,
-    })
+  it('tiene en cuenta dónde arranca la fila en la pantalla y redondea', () => {
+    expect(scrollParaPill(0, 250.6, 20, 18)).toBe(213)
   })
 })
 
