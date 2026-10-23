@@ -1,4 +1,4 @@
-# Fase 202 — Hallazgos previos (2026-10-23)
+# Fase 203 — Hallazgos previos (2026-10-23)
 
 Reporte de Franco: "algunos datos se cargan tarde antes de que se dibujen cosas; durante un instante un texto dice una cosa y luego la correcta". Ejemplo: en **Planes** se ven los planes regulares arriba y un instante después aparece "Planes Por Objetivos" encima. "No sucedía hasta hace una semana, cuando empezamos a hacer crecer la app."
 

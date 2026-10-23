@@ -1,4 +1,4 @@
-# Phase 202: Carga sin parpadeos - Context
+# Phase 203: Carga sin parpadeos - Context
 
 **Gathered:** 2026-10-23
 **Status:** Ready for planning
@@ -14,7 +14,7 @@ La app de socios (`el-templo-app`) deja de mostrar contenido equivocado mientras
 
 Fuera de la fase: features nuevas, cambios de diseño o del orden de las cards de Mi Templo (fase 199), cambios en la API salvo que un endpoint lo exija para paralelizar, y el admin.
 
-Origen: reporte de Franco del 2026-10-23 ("durante un milisegundo un texto dice una cosa y luego la correcta"; en Planes se ven los regulares arriba y después aparece "Por Objetivos"). La evidencia completa está en `202-HALLAZGOS.md`.
+Origen: reporte de Franco del 2026-10-23 ("durante un milisegundo un texto dice una cosa y luego la correcta"; en Planes se ven los regulares arriba y después aparece "Por Objetivos"). La evidencia completa está en `203-HALLAZGOS.md`.
 
 </domain>
 
@@ -61,7 +61,7 @@ Origen: reporte de Franco del 2026-10-23 ("durante un milisegundo un texto dice 
 **Downstream agents MUST read these before planning or implementing.**
 
 ### Evidencia de la fase
-- `.planning/phases/202-carga-sin-parpadeos/202-HALLAZGOS.md`: métricas del server (tráfico plano, latencias p50 11 ms / p90 30 ms, API sin HTTP/2, CapacitorHttp), inventario de pedidos BEFORE `f6a4c9ae7` vs NOW `ab4342b27` por arranque y por pantalla, los 10 candidatos de parpadeo con archivo:línea y las palancas.
+- `.planning/phases/203-carga-sin-parpadeos/203-HALLAZGOS.md`: métricas del server (tráfico plano, latencias p50 11 ms / p90 30 ms, API sin HTTP/2, CapacitorHttp), inventario de pedidos BEFORE `f6a4c9ae7` vs NOW `ab4342b27` por arranque y por pantalla, los 10 candidatos de parpadeo con archivo:línea y las palancas.
 
 ### Reglas del repo
 - `CLAUDE.md`: logging con `createLogger()`, sin `any`, `catch (err: unknown)`, composables con `cleanup()`, Pinia composition API.
@@ -122,5 +122,5 @@ Origen: reporte de Franco del 2026-10-23 ("durante un milisegundo un texto dice 
 
 ---
 
-*Phase: 202-carga-sin-parpadeos*
+*Phase: 203-carga-sin-parpadeos*
 *Context gathered: 2026-10-23*
