@@ -10,7 +10,11 @@
  *
  * `relativeDaysLabel` replica D-7 (mismo texto que la app del socio).
  */
-import type { AdminNovedad } from 'src/composables/useCommunicationsApi';
+import type {
+  AdminNovedad,
+  CreateNovedadInput,
+  UpdateNovedadInput,
+} from 'src/composables/useCommunicationsApi';
 import { APP_SECTIONS } from 'src/config/destinations';
 import { COUNTRY_OPTIONS, countryLabel } from 'src/config/countries';
 import type { BranchOption } from 'src/types/member';
@@ -26,6 +30,16 @@ export const NOVEDAD_TEXT_MAX = 120;
  * celular de 375px — la vista previa del editor, al mismo ancho, es la que manda.
  */
 export const NOVEDAD_TEXT_WARN_FROM = 76;
+
+/** Largo máximo del título de la push (espejo de `NOVEDAD_PUSH_TITLE_MAX_LENGTH` del server). */
+export const NOVEDAD_PUSH_TITLE_MAX = 50;
+/**
+ * Título con el que arranca el campo de la push. El admin no conoce el nombre del
+ * gimnasio (no viaja en ninguna respuesta), así que arranca con el de El Templo:
+ * si queda tal cual, se manda `null` y el server pone `tenants.name` del
+ * gimnasio real (ver `pushTitleToSend`).
+ */
+export const DEFAULT_PUSH_TITLE = 'El Templo';
 
 /** Una novedad tal como la dibuja `NovedadPreview.vue` (réplica de la card de la app). */
 export interface NovedadPreviewItem {
@@ -98,6 +112,78 @@ export function novedadDestinationLabel(
     return APP_SECTIONS.find((s) => s.key === novedad.destinationSection)?.label ?? 'Mi Templo';
   }
   return null;
+}
+
+// ── Push opcional (mig 0297) ─────────────────────────────────────────────
+//
+// Se envía al PUBLICARSE (lo encola el cron del server, no el guardado). Una vez
+// encolada queda congelada: el server responde 400 si se intenta cambiarla, así
+// que el editor no manda campos de push de una novedad con `pushQueuedAt`.
+
+/** Estado de la push de una novedad: sin push, pedida y por enviar, o ya encolada. */
+export type NovedadPushStatus = 'none' | 'pending' | 'sent';
+
+export function novedadPushStatus(
+  novedad: Pick<AdminNovedad, 'pushRequested' | 'pushQueuedAt'>
+): NovedadPushStatus {
+  if (novedad.pushQueuedAt) return 'sent';
+  return novedad.pushRequested ? 'pending' : 'none';
+}
+
+/** Mensaje de error del título de la push, o null si es válido (1-50 caracteres tras recortar). */
+export function pushTitleError(title: string): string | null {
+  const len = title.trim().length;
+  if (len === 0) return 'Escribí un título para la notificación.';
+  if (len > NOVEDAD_PUSH_TITLE_MAX) {
+    return `El título no puede superar los ${NOVEDAD_PUSH_TITLE_MAX} caracteres.`;
+  }
+  return null;
+}
+
+/** Lo que se manda como `pushTitle`: el título recortado, o `null` (= nombre del gimnasio) si quedó el de por defecto. */
+export function pushTitleToSend(title: string): string | null {
+  const trimmed = title.trim();
+  return trimmed === DEFAULT_PUSH_TITLE ? null : trimmed;
+}
+
+/** Campos de push del formulario. */
+export interface NovedadPushFormState {
+  enabled: boolean;
+  title: string;
+}
+
+/** Estado inicial del bloque de push del editor: lo guardado, o apagado con el título por defecto. */
+export function pushFormStateFrom(
+  novedad: Pick<AdminNovedad, 'pushRequested' | 'pushTitle'> | null
+): NovedadPushFormState {
+  return {
+    enabled: novedad?.pushRequested ?? false,
+    title: novedad?.pushTitle ?? DEFAULT_PUSH_TITLE,
+  };
+}
+
+/** Campos de push del alta: nada si está apagada (el server la deja apagada por defecto). */
+export function pushFieldsForCreate(
+  state: NovedadPushFormState
+): Pick<CreateNovedadInput, 'sendPush' | 'pushTitle'> {
+  if (!state.enabled) return {};
+  return { sendPush: true, pushTitle: pushTitleToSend(state.title) };
+}
+
+/**
+ * Campos de push de la edición: solo lo que cambió respecto de lo guardado, y
+ * NADA si la push ya se encoló (el server la rechazaría con 400).
+ */
+export function pushFieldsForUpdate(
+  original: Pick<AdminNovedad, 'pushRequested' | 'pushTitle' | 'pushQueuedAt'>,
+  state: NovedadPushFormState
+): Pick<UpdateNovedadInput, 'sendPush' | 'pushTitle'> {
+  if (original.pushQueuedAt) return {};
+  if (!state.enabled) return original.pushRequested ? { sendPush: false } : {};
+
+  const title = pushTitleToSend(state.title);
+  if (!original.pushRequested) return { sendPush: true, pushTitle: title };
+  return title !== original.pushTitle ? { pushTitle: title } : {};
 }
 
 // ── Fecha/hora local <-> ISO UTC ─────────────────────────────────────────

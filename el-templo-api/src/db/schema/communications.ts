@@ -227,6 +227,13 @@ export const novedades = mysqlTable(
     whatsappText: varchar("whatsapp_text", { length: 300 }),
     publishAt: datetime("publish_at").notNull(),
     status: novedadStatusEnum.notNull().default("active"),
+    // 0297 — push opcional. `pushRequested` lo pide el admin; `pushTitle` NULL
+    // = título por defecto (nombre del gimnasio, `tenants.name`) al enviar;
+    // `pushQueuedAt` lo estampa el tick de notificaciones al reclamar la
+    // novedad (UPDATE condicional = idempotencia) y congela los 3 campos.
+    pushRequested: boolean("push_requested").notNull().default(false),
+    pushTitle: varchar("push_title", { length: 50 }),
+    pushQueuedAt: datetime("push_queued_at"),
     createdBy: int("created_by").references(() => users.id, {
       onDelete: "set null",
     }),
@@ -238,6 +245,11 @@ export const novedades = mysqlTable(
       table.tenantId,
       table.status,
       table.publishAt,
+    ),
+    index("idx_novedades_tenant_push").on(
+      table.tenantId,
+      table.pushRequested,
+      table.pushQueuedAt,
     ),
   ],
 );
