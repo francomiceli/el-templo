@@ -3,7 +3,7 @@
     <div class="ficha__top">
       <button type="button" class="ficha__back" @click="volver">
         <q-icon name="chevron_left" size="22px" aria-hidden="true" />
-        <span>Tu cuerpo</span>
+        <span>Tus músculos</span>
       </button>
     </div>
 
@@ -19,45 +19,50 @@
 
       <div v-else-if="!ruta" class="ficha__estado">
         <p class="ficha__aviso">No encontramos este ejercicio</p>
-        <button type="button" class="ficha__btn" @click="irATuCuerpo">Volver a Tu cuerpo</button>
+        <button type="button" class="ficha__btn" @click="irATuCuerpo">Volver a Tus músculos</button>
       </div>
 
       <article v-else class="ficha__body">
-        <p class="ficha__kicker">{{ patronLegible }}</p>
-        <h2 class="ficha__ttl">{{ ruta.nombre }}</h2>
-        <p v-if="ruta.fichaCorta?.que" class="ficha__que">{{ ruta.fichaCorta.que }}</p>
+        <!-- Una card blanca por sección (sketch 023, ficha A): el texto nunca queda suelto sobre el crema -->
+        <section class="ficha__card">
+          <p class="ficha__kicker">{{ patronLegible }}</p>
+          <h2 class="ficha__ttl">{{ ruta.nombre }}</h2>
+          <p v-if="ruta.fichaCorta?.que" class="ficha__que">{{ ruta.fichaCorta.que }}</p>
+        </section>
 
-        <div class="ficha__fig">
-          <BodyFigure side="both" :lit="[]" :roles="roles" :height="230" />
-        </div>
-        <div class="ficha__leg">
-          <span class="ficha__leg-item ficha__leg-item--fuerte">Hace el movimiento</span>
-          <span v-if="ruta.sostiene.length > 0" class="ficha__leg-item ficha__leg-item--sostiene">
-            Sostiene el movimiento
-          </span>
-        </div>
+        <section class="ficha__card">
+          <div class="ficha__fig">
+            <BodyFigure side="both" :lit="[]" :roles="roles" :height="230" />
+          </div>
+          <div class="ficha__leg">
+            <span class="ficha__leg-item ficha__leg-item--fuerte">Hace el movimiento</span>
+            <span v-if="ruta.sostiene.length > 0" class="ficha__leg-item ficha__leg-item--sostiene">
+              Sostiene el movimiento
+            </span>
+          </div>
 
-        <h3 class="ficha__h">Hace el movimiento</h3>
-        <p class="ficha__p">{{ fuerteTexto }}</p>
+          <h3 class="ficha__h ficha__h--tras-fig">Hace el movimiento</h3>
+          <p class="ficha__p">{{ fuerteTexto }}</p>
 
-        <template v-if="ruta.sostiene.length > 0">
-          <h3 class="ficha__h">Sostiene el movimiento</h3>
-          <p class="ficha__p">{{ ruta.sostiene.join(' · ') }}</p>
-        </template>
+          <template v-if="ruta.sostiene.length > 0">
+            <h3 class="ficha__h ficha__h--sep">Sostiene el movimiento</h3>
+            <p class="ficha__p">{{ ruta.sostiene.join(' · ') }}</p>
+          </template>
+        </section>
 
-        <template v-if="siente">
+        <section v-if="siente" class="ficha__card">
           <h3 class="ficha__h">Dónde lo tenés que sentir</h3>
           <p class="ficha__p">{{ siente }}</p>
-        </template>
+        </section>
 
-        <template v-if="tips.length > 0">
+        <section v-if="tips.length > 0" class="ficha__card">
           <h3 class="ficha__h">Tips</h3>
           <ul class="ficha__list">
             <li v-for="(tip, i) in tips" :key="i">{{ tip }}</li>
           </ul>
-        </template>
+        </section>
 
-        <template v-if="errores.length > 0">
+        <section v-if="errores.length > 0" class="ficha__card">
           <h3 class="ficha__h">Errores comunes</h3>
           <div class="ficha__errores">
             <div v-for="(e, i) in errores" :key="i" class="ficha__error">
@@ -65,7 +70,7 @@
               {{ e.texto }}
             </div>
           </div>
-        </template>
+        </section>
 
         <div v-if="sinSecciones" class="ficha__pronto">
           Pronto: dónde se siente, tips y errores comunes.
@@ -82,8 +87,9 @@
 
 <script setup lang="ts">
 /**
- * Fase 200 D15 (sketch 020 `rutaAlumno`): ficha corta de un ejercicio en tono alumno. Qué es, el cuerpo
- * pintado (trabaja fuerte / te sostiene), dónde se siente, tips y errores comunes. Las secciones sin
+ * Fase 200 D15 (sketch 020 `rutaAlumno`) + revisión 2026-10-23 (sketch 023, ficha A): ficha corta de un
+ * ejercicio en tono alumno, una card blanca por sección. Qué es, el cuerpo pintado (hace el movimiento /
+ * sostiene el movimiento), dónde se siente, tips y errores comunes. Las secciones sin
  * contenido (`null`) se omiten; sin nada de eso va "Pronto". La vista de alumno ya viene sin códigos de
  * ruta ni contenido de profe. Todo el texto va con interpolación. El `:slug` se resuelve contra el
  * store: si no existe, "No encontramos este ejercicio".
@@ -248,14 +254,30 @@ onMounted(() => {
 }
 
 .ficha__body {
-  padding: 4px 18px 30px;
+  padding: 6px 14px 30px;
   font-family: 'Geologica', sans-serif;
   color: $pd-ink;
 }
 
+// Una card blanca por sección
+.ficha__card {
+  padding: 14px 16px;
+  border: 1px solid $pd-light-line;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 4px 14px rgba(150, 89, 58, 0.06);
+
+  & + & {
+    margin-top: 12px;
+  }
+}
+
+// Kicker del patrón ("PUSH", "PULL") en sans bold, como el rol de los bloques: no Cinzel
 .ficha__kicker {
-  @include pd-kicker-light;
-  margin-top: 12px;
+  @include pd-role-label;
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.1em;
 }
 
 .ficha__ttl {
@@ -270,14 +292,14 @@ onMounted(() => {
 }
 
 .ficha__que {
-  margin: 6px 0 0;
+  margin: 8px 0 0;
   font-size: 15px;
   line-height: 1.5;
   color: $pd-ink-2;
 }
 
 .ficha__fig {
-  margin-top: 10px;
+  margin-top: 4px;
 }
 
 .ficha__leg {
@@ -310,13 +332,22 @@ onMounted(() => {
 }
 
 .ficha__h {
-  margin: 18px 0 6px;
+  margin: 0 0 6px;
   font-family: 'Montserrat', sans-serif;
   font-weight: 800;
   font-size: 12.5px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: $pd-terra-ink;
+}
+
+// Debajo de la leyenda de la figura, y separando "Sostiene" de "Hace" dentro de la misma card
+.ficha__h--tras-fig {
+  margin-top: 12px;
+}
+
+.ficha__h--sep {
+  margin-top: 14px;
 }
 
 .ficha__p {
@@ -332,18 +363,17 @@ onMounted(() => {
   line-height: 1.5;
 }
 
-.ficha__errores {
-  display: grid;
-  gap: 8px;
-}
-
+// Errores: una fila por error, separadas por una línea (ya están dentro de su card)
 .ficha__error {
-  padding: 10px 12px;
-  border: 1px solid $pd-light-line;
-  border-radius: 12px;
-  background: #fff;
+  padding: 9px 0;
+  border-top: 1px solid $pd-light-line;
   font-size: 14px;
   line-height: 1.4;
+
+  &:first-child {
+    padding-top: 0;
+    border-top: 0;
+  }
 
   b {
     display: block;
@@ -351,10 +381,11 @@ onMounted(() => {
 }
 
 .ficha__pronto {
-  margin-top: 16px;
+  margin-top: 12px;
   padding: 14px;
   border: 1px dashed $pd-light-edge;
   border-radius: 14px;
+  background: #fff;
   font-size: 14px;
   text-align: center;
   color: $pd-ink-2;
@@ -364,7 +395,7 @@ onMounted(() => {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  margin-top: 18px;
+  margin-top: 12px;
   padding: 11px 12px;
   border-radius: 12px;
   background: #f6efe6;
