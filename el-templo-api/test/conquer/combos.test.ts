@@ -218,8 +218,9 @@ describe("PUT /sessions — apertura (§3.3, T-201-34)", () => {
     );
 
     // Con la apertura cumplida esta semana (objetivo 4: semana >= 3 del bloque),
-    // la semana pasada + esta suman 2 seguidas.
-    const con = await putApertura(token, straddle, 4);
+    // la semana pasada + esta suman 2 seguidas. Se vuelve a guardar Plancha: sin
+    // `dayKey`, Hoy ya es el próximo día pendiente (D-16).
+    const con = await putApertura(token, straddle, 4, "plancha");
     expect(con.statusCode, con.body).toBe(200);
     expect((await fetchToday(app, token, "plancha")).opening?.subir.ready).toBe(
       true,
