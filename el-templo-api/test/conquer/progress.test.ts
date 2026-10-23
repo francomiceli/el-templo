@@ -254,13 +254,15 @@ describe("GET /api/members/conquer/progress — figura de la semana (D-13 b)", (
     const uno = await fetchProgress(app, token);
 
     // Principales con 3 series (>= 2). Las secundarias con 3 series (< 4) no se encienden.
+    // Anexo (0293): Planche hold tiene pecho y deltoides de principales.
     expect(uno.weekLighting).toEqual({
-      primary: ["chest", "deltoids", "abs"],
+      primary: ["chest", "deltoids"],
       secondary: [],
     });
 
-    // Vertical de hoy (inserción directa): HSPU suma deltoides y tríceps como
-    // principales y repite antebrazo como secundario: 3 + 3 = 6 series (>= 4).
+    // Vertical de hoy (inserción directa): HSPU (anexo, 0293) suma deltoides y
+    // tríceps como principales. Sus secundarias (trapecio) y las de Planche hold
+    // (bíceps, abdominales) quedan en 3 series (< 4): no se encienden.
     await insertConquerSession(app, {
       userId,
       date: hoy,
@@ -278,8 +280,8 @@ describe("GET /api/members/conquer/progress — figura de la semana (D-13 b)", (
     const dos = await fetchProgress(app, token);
 
     expect(dos.weekLighting).toEqual({
-      primary: ["chest", "deltoids", "triceps", "abs"],
-      secondary: ["forearm"],
+      primary: ["chest", "deltoids", "triceps"],
+      secondary: [],
     });
     expect(dos.weekLighting.primary).not.toContain("upper-back");
     expect(dos.weekLighting.primary).not.toContain("quadriceps");
@@ -420,8 +422,9 @@ describe("GET /api/members/conquer/progress — acceso", () => {
         {
           userId: socio2.id,
           status: "activo" as const,
-          level: "toro" as const,
-          daysCount: 4,
+          // Novillo: sin combos, así no pide la escalera de combos que el gimnasio 2 no tiene.
+          level: "novillo" as const,
+          daysCount: 3,
         },
       ),
     );

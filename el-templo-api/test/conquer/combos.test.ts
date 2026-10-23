@@ -217,8 +217,9 @@ describe("PUT /sessions — apertura (§3.3, T-201-34)", () => {
       false,
     );
 
-    // Con la apertura cumplida esta semana, la semana pasada + esta suman 2 seguidas.
-    const con = await putApertura(token, straddle, 3);
+    // Con la apertura cumplida esta semana (objetivo 4: semana >= 3 del bloque),
+    // la semana pasada + esta suman 2 seguidas.
+    const con = await putApertura(token, straddle, 4);
     expect(con.statusCode, con.body).toBe(200);
     expect((await fetchToday(app, token, "plancha")).opening?.subir.ready).toBe(
       true,

@@ -457,14 +457,14 @@ describe("POST /api/admin/conquer/members/:userId/recortes — bajar un escalón
   it("un escalón que no es del alumno (ejercicio fuera de su plan): 404", async () => {
     const m = await escenario("novillo", 3);
     const ids = await conquerExerciseIds(app);
-    // Front lever hold solo está en la plantilla de 4 días.
-    expect((await readConquerSteps(app, m.userId)).has("front_hold:e1")).toBe(
+    // Front raises solo está en la plantilla de 4 días (Front lever hold también está en Tracción de 3).
+    expect((await readConquerSteps(app, m.userId)).has("front_raises:e1")).toBe(
       false,
     );
 
     const res = await postCutRaw(app, m.admin.token, m.userId, {
       action: "bajar_escalon",
-      exerciseId: ids.get("front_hold"),
+      exerciseId: ids.get("front_raises"),
       step: "e1",
     });
 

@@ -114,7 +114,7 @@
 </template>
 
 <script setup lang="ts">
-// deploy: forzar build de la app tras el deploy fallido de ad6453fc4 (paths-filter, 2026-10-18)
+// deploy: forzar build de la app tras el CI rojo de c70d9cae3 (fase 201, paths-filter, 2026-10-23)
 /**
  * MiTemplo page — personalized daily briefing ("Tu Dia").
  *

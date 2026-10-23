@@ -348,8 +348,8 @@ describe("PUT /api/admin/conquer/members/:userId/steps/:exerciseId/:step (§7.2)
   it("el escalón tiene que ser del alumno: un ejercicio fuera de su plan es 404 (T-201-37)", async () => {
     const m = await escenario("novillo", 3);
     const ids = await conquerExerciseIds(app);
-    // Front lever hold solo está en la plantilla de 4 días.
-    expect((await readConquerSteps(app, m.userId)).has("front_hold:e1")).toBe(
+    // Front raises solo está en la plantilla de 4 días (Front lever hold también está en Tracción de 3).
+    expect((await readConquerSteps(app, m.userId)).has("front_raises:e1")).toBe(
       false,
     );
 
@@ -357,11 +357,11 @@ describe("PUT /api/admin/conquer/members/:userId/steps/:exerciseId/:step (§7.2)
       app,
       m.admin.token,
       m.userId,
-      ids.get("front_hold") ?? 0,
+      ids.get("front_raises") ?? 0,
       "e1",
       {
-        rungId: await conquerRungId(app, "front_hold", "tuck"),
-        mode: "hold",
+        rungId: await conquerRungId(app, "front_raises", "tuck"),
+        mode: "completa",
       },
     );
 

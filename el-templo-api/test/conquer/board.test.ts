@@ -282,7 +282,6 @@ describe("GET /api/admin/conquer/members (S12-7)", () => {
         await buildBoard(app.db, TEMPLO_CTX);
         expect(select).toHaveBeenCalledTimes(4);
 
-        select.mockClear();
         await cleanAllTestData(app);
         const solo = await createTestMember(app);
         await insertConquerMember(app, solo.id, {
@@ -290,6 +289,8 @@ describe("GET /api/admin/conquer/members (S12-7)", () => {
           level: "toro",
           daysCount: 4,
         });
+        // El limpiado y el alta también usan `select`: se cuentan desde acá.
+        select.mockClear();
         await buildBoard(app.db, TEMPLO_CTX);
         expect(select).toHaveBeenCalledTimes(4);
       } finally {

@@ -108,8 +108,8 @@ describe("POST /api/admin/conquer/members/:userId/level-up (§2.2, A13)", () => 
       sinceDate: hoy,
     });
     const antes = await readConquerSteps(app, m.userId);
-    // Front lever hold solo está en la plantilla de 4 días: nace con el paso de nivel.
-    expect(antes.has("front_hold:e1")).toBe(false);
+    // Front raises solo está en la plantilla de 4 días: nace con el paso de nivel.
+    expect(antes.has("front_raises:e1")).toBe(false);
 
     const res = await postLevelUpRaw(app, m.admin.token, m.userId, {
       daysCount: 4,
@@ -145,7 +145,7 @@ describe("POST /api/admin/conquer/members/:userId/level-up (§2.2, A13)", () => 
     expect(despues.get("planche_press:e1")?.rungCode).toBe("adv_tuck");
     expect(despues.get("planche_press:e1")?.calibration).toBe("resuelta");
     // Los escalones nuevos nacen con la tabla de arranque de Toro (anexo §3, 201-25).
-    expect(despues.get("front_hold:e1")?.rungCode).toBe("full");
+    expect(despues.get("front_raises:e1")?.rungCode).toBe("straddle");
   });
 
   it.each([

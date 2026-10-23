@@ -1156,9 +1156,8 @@ describe("PUT /api/members/conquer/sessions — mapa muscular (D-13 a)", () => {
       lsit_plancha: ceros,
     });
 
-    expect(body.lighting.primary).toEqual(
-      expect.arrayContaining(["deltoids", "chest", "abs"]),
-    );
+    // Anexo (0293): Planche press solo tiene deltoides de principal.
+    expect(body.lighting.primary).toEqual(["deltoids"]);
     expect(body.lighting.secondary).toEqual([]);
   });
 });
