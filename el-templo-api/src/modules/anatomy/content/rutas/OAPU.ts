@@ -222,7 +222,7 @@ export const OAPU = {
     ],
   },
   fichaAlumno: {
-    que: "Flexiones en escalones: arrancás con la común, de dos manos, y avanzás con apoyo y arquero hacia la de un solo brazo. En todas empujás el piso con el cuerpo firme como una tabla.",
+    que: "Flexiones de brazos. Empezás con las dos manos en el piso y, a medida que ganás fuerza, cargás cada vez más peso en un brazo hasta hacerla con uno solo. Siempre empujás el piso con el cuerpo recto, como una tabla.",
     siente: {
       pendiente:
         "La investigación no dice todavía dónde se siente este ejercicio.",
@@ -232,18 +232,18 @@ export const OAPU = {
       "Cuerpo en una línea: que la cadera no caiga ni suba.",
       "Empujá el piso lejos.",
       "Codo a 45°.",
-      "En las de un brazo, caderas cuadradas al suelo: no abras el pecho.",
+      "Cuando cargás más un brazo, caderas paralelas al piso: no gires el pecho.",
     ],
     errores: [
       {
         error: "El tronco gira hacia el brazo libre",
         texto:
-          "Cuando cargás más un lado (arquero, un brazo), el tronco tiene que quedarse quieto.",
+          "Cuando cargás más peso en un brazo, el tronco tiene que quedarse quieto.",
       },
       {
         error: "La mano libre apoya",
         texto:
-          "En el escalón de un brazo, si apoyás la otra mano repartís el peso: si la necesitás, quedate en el escalón anterior.",
+          "Repartís el peso entre los dos brazos. Si todavía la necesitás, está bien: usala de apoyo hasta ganar fuerza.",
       },
       {
         error: "Codo muy abierto",

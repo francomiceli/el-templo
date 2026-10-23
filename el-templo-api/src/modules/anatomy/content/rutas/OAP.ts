@@ -260,7 +260,7 @@ export const OAP = {
     ],
   },
   fichaAlumno: {
-    que: "Dominadas en escalones: arrancás con la común, de dos manos, y avanzás con apoyo de la otra mano y arquero hacia la de un solo brazo. En todas tirás tu cuerpo hacia la barra con el tronco quieto.",
+    que: "Colgado de la barra, tirás tu cuerpo hacia arriba. Empezás con las dos manos y, a medida que ganás fuerza, cargás cada vez más peso en un brazo hasta hacerla con uno solo. Siempre con el tronco quieto.",
     siente: {
       pendiente:
         "La investigación no dice todavía dónde se siente este ejercicio.",
@@ -275,7 +275,7 @@ export const OAP = {
       {
         error: "El tronco gira o se balancea",
         texto:
-          "Cuando cargás más un lado (arquero, un brazo), el tronco tiene que quedarse quieto.",
+          "Cuando cargás más peso en un brazo, el tronco tiene que quedarse quieto.",
       },
       {
         error: "Hombro encogido",
@@ -285,7 +285,7 @@ export const OAP = {
       {
         error: "La mano libre ayuda",
         texto:
-          "En el escalón de un brazo, si apoyás la otra mano repartís el peso: si la necesitás, quedate en el escalón anterior.",
+          "Repartís el peso entre los dos brazos. Si todavía la necesitás, está bien: usala de apoyo hasta ganar fuerza.",
       },
     ],
   },

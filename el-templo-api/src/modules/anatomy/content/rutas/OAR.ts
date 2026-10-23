@@ -215,7 +215,7 @@ export const OAR = {
     ],
   },
   fichaAlumno: {
-    que: "Remos con tu peso en escalones: de dos manos hacia uno solo, y cuanto más horizontal el cuerpo, más difícil. En todos tirás el pecho hacia el agarre con el tronco quieto.",
+    que: "Colgado debajo de la barra o las argollas, tirás el pecho hacia el agarre. Empezás con las dos manos y vas cargando más peso en un brazo hasta hacerlo con uno solo. Cuanto más acostado el cuerpo, más difícil.",
     siente: {
       pendiente:
         "La investigación no dice todavía dónde se siente este ejercicio.",
@@ -230,12 +230,12 @@ export const OAR = {
       {
         error: "El tronco gira para alcanzar",
         texto:
-          "Cuando tirás más de un lado (arquero, un brazo), el tronco tiende a girar: tiene que quedarse quieto.",
+          "Cuando tirás más con un brazo, el tronco tiende a girar: tiene que quedarse quieto.",
       },
       {
         error: "La mano libre empuja",
         texto:
-          "En el escalón de un brazo, si apoyás la otra mano repartís el peso: si la necesitás, quedate en el escalón anterior.",
+          "Repartís el peso entre los dos brazos. Si todavía la necesitás, está bien: usala de apoyo hasta ganar fuerza.",
       },
     ],
   },
