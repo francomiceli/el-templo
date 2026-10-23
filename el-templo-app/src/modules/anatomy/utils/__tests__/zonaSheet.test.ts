@@ -2,11 +2,11 @@ import { describe, it, expect } from 'vitest'
 import type { GrupoAlumnoInfo, MusculoAlumno, RutaAlumno } from '../../types'
 import {
   PREFIJO_ADENTRO,
-  encabezadoZona,
   gruposDelMusculo,
   musculoElegido,
   musculoPorDefecto,
   posicionFlecha,
+  scrollParaPill,
   textoQueHace,
 } from '../zonaSheet'
 
@@ -74,45 +74,24 @@ describe('musculoElegido', () => {
   })
 })
 
-describe('encabezadoZona', () => {
-  it('varios músculos: kicker con el conteo, título con la zona y pills', () => {
-    const ms = [musculo({ id: 'a' }), musculo({ id: 'b' }), musculo({ id: 'c' })]
-    expect(encabezadoZona('Espalda alta', ms)).toEqual({
-      kicker: '3 músculos',
-      titulo: 'Espalda alta',
-      conPills: true,
-    })
+describe('scrollParaPill', () => {
+  it('lleva la pill al principio de la fila respetando el padding', () => {
+    // Fila en x=0 con padding 18; pill a 230 px y la fila sin desplazar -> 212
+    expect(scrollParaPill(0, 230, 0, 18)).toBe(212)
   })
 
-  it('cuenta los de adentro: Hombros con manguito son 2 músculos', () => {
-    const ms = [
-      musculo({ id: 'deltoides' }),
-      musculo({ id: 'manguito', adentro: true, debajoDe: 'deltoids', zona: null }),
-    ]
-    expect(encabezadoZona('Hombros', ms)).toEqual({
-      kicker: '2 músculos',
-      titulo: 'Hombros',
-      conPills: true,
-    })
+  it('suma lo que la fila ya estaba desplazada', () => {
+    // Ya desplazada 100: la pill se ve en 130 -> 100 + 130 - 18
+    expect(scrollParaPill(100, 130, 0, 18)).toBe(212)
   })
 
-  it('un solo músculo: sin pills y el título es el músculo; el kicker, la zona', () => {
-    expect(
-      encabezadoZona('Bíceps', [musculo({ id: 'biceps', nombre: 'Bíceps braquial' })]),
-    ).toEqual({
-      kicker: 'Bíceps',
-      titulo: 'Bíceps braquial',
-      conPills: false,
-    })
+  it('la primera pill no desplaza nada (nunca negativo)', () => {
+    expect(scrollParaPill(0, 18, 0, 18)).toBe(0)
+    expect(scrollParaPill(0, 10, 0, 18)).toBe(0)
   })
 
-  it('un solo músculo y es de adentro: el kicker dice "Más adentro"', () => {
-    const m = musculo({ id: 'psoas', nombre: 'Iliopsoas', adentro: true, zona: null })
-    expect(encabezadoZona('Abdomen', [m])).toEqual({
-      kicker: 'Más adentro',
-      titulo: 'Iliopsoas',
-      conPills: false,
-    })
+  it('tiene en cuenta dónde arranca la fila en la pantalla y redondea', () => {
+    expect(scrollParaPill(0, 250.6, 20, 18)).toBe(213)
   })
 })
 

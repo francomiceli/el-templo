@@ -1,19 +1,20 @@
 <template>
   <div class="zona-alumno">
-    <slot name="antes" />
+    <p class="zona-alumno__kicker">Zona</p>
+    <h2 class="zona-alumno__ttl">{{ nombreZona }}</h2>
 
-    <p class="zona-alumno__kicker">{{ encabezado.kicker }}</p>
-    <h2 class="zona-alumno__ttl">{{ encabezado.titulo }}</h2>
+    <!-- "En esta clase" (Entrenar) va entre la zona y sus músculos -->
+    <slot name="antes" />
 
     <p v-if="musculos.length === 0" class="zona-alumno__vacio">
       Todavía no hay detalle para esta zona.
     </p>
 
     <template v-else-if="elegido">
+      <p class="zona-alumno__kicker zona-alumno__kicker--seccion">Músculos</p>
       <div class="zona-alumno__mus">
         <!-- Pills de los músculos: una fila que se desplaza. La elegida se funde con el globo. -->
         <div
-          v-if="encabezado.conPills"
           ref="filaEl"
           class="zona-alumno__fila"
           role="group"
@@ -41,11 +42,9 @@
         <div
           ref="globoEl"
           class="zona-alumno__globo"
-          :class="{ 'zona-alumno__globo--solo': !encabezado.conPills }"
           :style="{ '--flecha-x': `${flechaX}px` }"
           aria-live="polite"
         >
-          <p v-if="encabezado.conPills" class="zona-alumno__globo-ttl">{{ elegido.nombre }}</p>
           <p class="zona-alumno__hace">{{ textoQueHace(elegido) }}</p>
         </div>
       </div>
@@ -101,8 +100,8 @@
  * músculos (los de "más adentro" van al final, con borde punteado). Siempre hay uno elegido, el
  * principal: su explicación sale en un globo pegado a la pill (la flecha la sigue) y abajo van SUS
  * ejercicios en "Hace el movimiento en / Sostiene el movimiento en / Se estira en", con su (i) y las
- * rutas como pills que se abren con `open-ruta`. Una zona con un solo músculo no lleva pills: el
- * título es el músculo. Sin códigos de ruta ni contenido de profe: la vista de alumno ya viene
+ * rutas como pills que se abren con `open-ruta`. Arriba va la zona y siempre hay un músculo elegido
+ * (también si es uno solo); el globo no repite su nombre, que ya está en la pill. Sin códigos de ruta ni contenido de profe: la vista de alumno ya viene
  * recortada del server. Todo el texto va con interpolación. Slots: `antes` ("Hoy en tu clase") y
  * `despues` ("Ver en Tus músculos ›"). La lógica de elegir/agrupar vive en `../utils/zonaSheet.ts`.
  */
@@ -110,10 +109,10 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useAnatomyStore } from '../stores/anatomyStore'
 import type { GrupoAlumno, MusculoAlumno } from '../types'
 import {
-  encabezadoZona,
   gruposDelMusculo,
   musculoElegido,
   posicionFlecha,
+  scrollParaPill,
   textoQueHace,
 } from '../utils/zonaSheet'
 
@@ -130,11 +129,8 @@ const musculos = computed<MusculoAlumno[]>(() =>
   props.zona !== null ? store.musculosDeZona(props.zona) : [],
 )
 
-const encabezado = computed(() =>
-  encabezadoZona(
-    props.zona !== null ? (store.region(props.zona)?.nombre ?? '') : '',
-    musculos.value,
-  ),
+const nombreZona = computed(() =>
+  props.zona !== null ? (store.region(props.zona)?.nombre ?? '') : '',
 )
 
 // Músculo elegido: `null` = el principal. Al cambiar de zona vuelve al principal.
@@ -165,14 +161,19 @@ function alinearFlecha(): void {
   flechaX.value = posicionFlecha(p, g)
 }
 
-/** La pill elegida siempre a la vista (p. ej. el músculo de adentro, que va último). */
+/** La pill elegida se corre al principio de la fila (p. ej. el músculo de adentro, que va último). */
 function mostrarPillElegida(): void {
   const pill = pillElegida()
-  if (!pill || typeof pill.scrollIntoView !== 'function') return
+  const fila = filaEl.value
+  if (!pill || !fila || typeof fila.scrollTo !== 'function') return
   const reducido = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  pill.scrollIntoView({
-    inline: 'nearest',
-    block: 'nearest',
+  fila.scrollTo({
+    left: scrollParaPill(
+      fila.scrollLeft,
+      pill.getBoundingClientRect().left,
+      fila.getBoundingClientRect().left,
+      parseFloat(getComputedStyle(fila).paddingLeft) || 0,
+    ),
     behavior: reducido ? 'auto' : 'smooth',
   })
 }
@@ -233,6 +234,10 @@ function alternar(grupo: GrupoAlumno): void {
   margin: 0;
   font-size: 11.5px;
   letter-spacing: 0.1em;
+
+  &--seccion {
+    margin-top: 14px;
+  }
 }
 
 .zona-alumno__ttl {
@@ -334,23 +339,6 @@ function alternar(grupo: GrupoAlumno): void {
     border-top: 0;
     border-bottom-color: #f3ede4;
   }
-}
-
-// Un solo músculo: sin pills, sin flecha
-.zona-alumno__globo--solo {
-  margin-top: 10px;
-
-  &::before {
-    display: none;
-  }
-}
-
-.zona-alumno__globo-ttl {
-  margin: 0 0 3px;
-  font-family: 'Montserrat', sans-serif;
-  font-weight: 700;
-  font-size: 14.5px;
-  color: $pd-ink;
 }
 
 .zona-alumno__hace {
