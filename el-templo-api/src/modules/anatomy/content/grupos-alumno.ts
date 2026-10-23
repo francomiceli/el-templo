@@ -15,8 +15,7 @@ export const GRUPOS_ALUMNO = [
   {
     id: "sostiene",
     frase: "Te sostiene en",
-    definicion:
-      "No hace el movimiento: hace fuerza para que el cuerpo quede firme mientras otros trabajan.",
+    definicion: "No hace el movimiento pero sustenta los músculos que lo hacen.",
     roles: ["estabilizador"],
   },
   {
