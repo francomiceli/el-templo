@@ -18,7 +18,15 @@
      se hace el request (un body vacío da 400).
 
      Hora: los inputs date/time son la hora LOCAL del navegador; al guardar se
-     convierte a ISO UTC (`localInputsToIso`). -->
+     convierte a ISO UTC (`localInputsToIso`).
+
+     Push opcional (mig 0297): el toggle "Enviar también como notificación push"
+     (apagado por defecto) agrega un título editable (1-50). El cuerpo es el texto
+     de la novedad. La push NO sale al guardar: la encola el cron del server al
+     publicarse (ahora o a la hora programada). Una vez encolada (`pushQueuedAt`)
+     el toggle y el título quedan deshabilitados y la edición no manda campos de
+     push (el server respondería 400). Qué mandar lo decide `pushFieldsForCreate`/
+     `pushFieldsForUpdate` (utils/novedades.ts, con tests). -->
 <template>
   <q-dialog v-model="localOpen" persistent>
     <q-card style="min-width: 480px; max-width: 640px; width: 100%">
@@ -72,6 +80,44 @@
         </div>
         <div v-else class="text-caption text-grey-7">
           Solo informa: al tocarla en la app no pasa nada.
+        </div>
+
+        <q-separator />
+        <div class="text-subtitle2">Notificación push</div>
+        <q-toggle
+          v-model="form.push.enabled"
+          color="primary"
+          label="Enviar también como notificación push"
+          :disable="pushLocked"
+        />
+        <div v-if="pushLocked" class="text-caption text-positive">
+          <q-icon name="check_circle" size="16px" class="q-mr-xs" />
+          Push enviada el {{ pushSentLabel }}. No se puede editar ni reenviar.
+        </div>
+        <div v-if="form.push.enabled || pushLocked" class="q-gutter-y-xs">
+          <q-input
+            v-model="form.push.title"
+            label="Título de la notificación"
+            dense
+            outlined
+            :maxlength="NOVEDAD_PUSH_TITLE_MAX"
+            counter
+            :disable="pushLocked"
+            :error="!pushLocked && pushTitleErrorText !== null"
+            :error-message="pushTitleErrorText ?? ''"
+            hide-bottom-space
+            data-testid="novedad-push-title"
+          />
+          <div class="text-caption text-grey-7">
+            El texto de la novedad es el cuerpo de la notificación. Si dejás el título como está, se
+            usa el nombre del gimnasio.
+          </div>
+          <div v-if="!pushLocked" class="text-caption text-grey-7">
+            {{ pushHelpText }}
+          </div>
+        </div>
+        <div v-else class="text-caption text-grey-7">
+          Solo aparece en el feed de Mi Templo, sin notificación al celular.
         </div>
 
         <q-separator />
@@ -156,11 +202,16 @@ import { useAuthStore } from 'src/stores/useAuthStore';
 import type { AppSectionKey, Destination } from 'src/config/destinations';
 import type { BranchOption } from 'src/types/member';
 import {
+  NOVEDAD_PUSH_TITLE_MAX,
   NOVEDAD_TEXT_MAX,
   NOVEDAD_TEXT_WARN_FROM,
   formatPublishAt,
   isoToLocalInputs,
   localInputsToIso,
+  pushFieldsForCreate,
+  pushFieldsForUpdate,
+  pushFormStateFrom,
+  pushTitleError,
   relativeDaysLabel,
   scopeFromSelection,
   selectionFromScope,
@@ -217,6 +268,7 @@ const form = reactive({
   publishDate: '',
   publishTime: '',
   status: 'active' as NovedadStatus,
+  push: pushFormStateFrom(null),
 });
 
 // Sedes tildadas al abrir: al editar, el alcance se manda solo si cambió la
@@ -245,6 +297,7 @@ function resetForm(): void {
     form.publishDate = date;
     form.publishTime = time;
     form.status = n.status;
+    form.push = pushFormStateFrom(n);
   } else {
     form.text = '';
     form.hasDestination = false;
@@ -253,6 +306,7 @@ function resetForm(): void {
     form.publishDate = '';
     form.publishTime = '';
     form.status = 'active';
+    form.push = pushFormStateFrom(null);
   }
 }
 
@@ -294,6 +348,29 @@ const publishHint = computed<{ text: string; class: string } | null>(() => {
   return { text: 'Esa fecha ya pasó: se publica de inmediato.', class: 'text-grey-7' };
 });
 
+// ── Push opcional ───────────────────────────────────────────────────────
+
+/** La push ya se encoló: toggle y título quedan congelados. */
+const pushLocked = computed(() => props.novedad?.pushQueuedAt != null);
+const pushSentLabel = computed(() =>
+  props.novedad?.pushQueuedAt ? formatPublishAt(props.novedad.pushQueuedAt) : ''
+);
+const pushTitleErrorText = computed(() =>
+  form.push.enabled ? pushTitleError(form.push.title) : null
+);
+
+const pushHelpText = computed(() => {
+  const audience =
+    'La reciben los socios activos de las sedes elegidas que tengan prendidas las notificaciones de Novedades.';
+  const publishesLater =
+    publishIso.value !== null && new Date(publishIso.value).getTime() > Date.now();
+  const when = publishesLater
+    ? `Sale a la hora programada (${formatPublishAt(publishIso.value ?? '')}).`
+    : 'Sale al publicarse: en los próximos minutos después de guardar.';
+  const paused = form.status === 'paused' ? ' Mientras esté pausada no sale.' : '';
+  return `${audience} ${when}${paused} Una vez enviada no se puede editar ni reenviar.`;
+});
+
 const formScope = computed(() =>
   scopeFromSelection(form.selectedBranchIds, props.branches, isOwner.value)
 );
@@ -318,6 +395,7 @@ const canSave = computed(() => {
   if (len < 1 || len > NOVEDAD_TEXT_MAX) return false;
   if (form.selectedBranchIds.length === 0) return false;
   if (form.publishMode === 'date' && !publishIso.value) return false;
+  if (!pushLocked.value && pushTitleErrorText.value !== null) return false;
   return true;
 });
 
@@ -362,6 +440,7 @@ function buildCreatePayload(): CreateNovedadInput {
     scopeBranchIds: formScope.value,
     ...formDestination(),
     status: form.status,
+    ...pushFieldsForCreate(form.push),
   };
   // "Ahora" = sin publishAt (el server pone la hora actual).
   if (form.publishMode === 'date' && publishIso.value) payload.publishAt = publishIso.value;
@@ -396,6 +475,7 @@ function buildUpdatePayload(original: AdminNovedad): UpdateNovedadInput {
   }
 
   if (form.status !== original.status) payload.status = form.status;
+  Object.assign(payload, pushFieldsForUpdate(original, form.push));
   return payload;
 }
 
