@@ -8,15 +8,14 @@ import type { GrupoAlumnoDef } from "../types";
 export const GRUPOS_ALUMNO = [
   {
     id: "fuerte",
-    frase: "Trabaja fuerte en",
+    frase: "Hace el movimiento en",
     definicion: "Es uno de los que hacen el movimiento.",
     roles: ["motor", "sinergista"],
   },
   {
     id: "sostiene",
-    frase: "Te sostiene en",
-    definicion:
-      "No hace el movimiento: hace fuerza para que el cuerpo quede firme mientras otros trabajan.",
+    frase: "Sostiene el movimiento en",
+    definicion: "No hace el movimiento pero sustenta los músculos que lo hacen.",
     roles: ["estabilizador"],
   },
   {

@@ -5,7 +5,7 @@ describe('getGuiaLinkForRole (SPEC "Empezá acá" A1 / "La Guía pasa a ser las 
   it('mapea los 4 bloques documentados al slide "clase" ("Cada clase")', () => {
     expect(getGuiaLinkForRole('INITIUM')).toEqual({
       slide: 'clase',
-      question: '¿Qué es Initium?',
+      question: '¿Qué es Pyros?',
     })
     expect(getGuiaLinkForRole('NUCLEUS')).toEqual({
       slide: 'clase',

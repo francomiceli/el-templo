@@ -22,7 +22,10 @@ export interface RegionAlumno {
   nombre: string
   vista: VistaFigura
   grupo: ZoneGroup
-  /** Ids de los músculos con esta zona, en orden (más de uno = la zona es un grupo). */
+  /**
+   * Ids de los músculos con esta zona, en orden (más de uno = la zona es un grupo). Al final van los
+   * profundos que cuelgan de ella (`MusculoAlumno.adentro`), los "más adentro".
+   */
   musculos: string[]
 }
 
@@ -36,6 +39,10 @@ export interface MusculoAlumno {
   nombre: string
   /** `null` = músculo profundo, no se ve en el dibujo ("los que no se ven"). */
   zona: ZonaMusculoAlumno | null
+  /** Profundo: región de cuya hoja cuelga ("más adentro"); `null` si se ve en el dibujo. */
+  debajoDe: ZoneSlug | null
+  /** `true` si es profundo (`debajoDe !== null`): la hoja de su zona lo marca "más adentro". */
+  adentro: boolean
   /** Una frase en tono alumno. */
   queHace: string
   /** Slugs de ruta (nunca códigos) por grupo de alumno. */
@@ -76,15 +83,25 @@ export interface VistaAlumno {
   grupos: GrupoAlumnoInfo[]
 }
 
+/** Una ruta del bloque que toca la zona, con su grupo más fuerte en ella (fuerte > sostiene > estira). */
+export interface RutaHit {
+  /** Código de ruta normalizado (el mismo que traen los ejercicios del bloque). */
+  ruta: string
+  grupo: GrupoAlumno
+}
+
 /**
  * Qué pega un bloque en una zona (campo `zoneHits` de los bloques de /weekly y /daily):
- * ids de músculos por grupo. `movilidad` = bloque de ROM sin ruta; `sinDetalle` = bloque sin ruta
+ * ids de músculos por grupo (los profundos cuentan en la zona de la que cuelgan) y `rutas`: una
+ * entrada por ruta distinta del bloque que toca la zona (vacío en `movilidad`/`sinDetalle`).
+ * `movilidad` = bloque de ROM sin ruta; `sinDetalle` = bloque sin ruta
  * (p. ej. pliometría): la zona se marca pero no hay detalle por músculo.
  */
 export interface HitsZona {
   fuerte: string[]
   sostiene: string[]
   estira: string[]
+  rutas: RutaHit[]
   movilidad?: true
   sinDetalle?: true
 }

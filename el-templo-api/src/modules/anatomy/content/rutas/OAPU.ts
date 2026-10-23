@@ -222,25 +222,28 @@ export const OAPU = {
     ],
   },
   fichaAlumno: {
-    que: "Flexión de brazos con un solo brazo: empujás el piso con un brazo y el tronco se queda quieto.",
+    que: "Flexiones de brazos. Empezás con las dos manos en el piso y, a medida que ganás fuerza, cargás cada vez más peso en un brazo hasta hacerla con uno solo. Siempre empujás el piso con el cuerpo recto, como una tabla.",
     siente: {
       pendiente:
         "La investigación no dice todavía dónde se siente este ejercicio.",
       quien: "fuente",
     },
     tips: [
-      "Caderas cuadradas al suelo, no abras el pecho.",
+      "Cuerpo en una línea: que la cadera no caiga ni suba.",
       "Empujá el piso lejos.",
       "Codo a 45°.",
+      "Cuando cargás más un brazo, caderas paralelas al piso: no gires el pecho.",
     ],
     errores: [
       {
         error: "El tronco gira hacia el brazo libre",
-        texto: "La carga es de un lado: el tronco tiene que quedarse quieto.",
+        texto:
+          "Cuando cargás más peso en un brazo, el tronco tiene que quedarse quieto.",
       },
       {
         error: "La mano libre apoya",
-        texto: "Repartís el peso y deja de ser un ejercicio a un solo brazo.",
+        texto:
+          "Repartís el peso entre los dos brazos. Si todavía la necesitás, está bien: usala de apoyo hasta ganar fuerza.",
       },
       {
         error: "Codo muy abierto",

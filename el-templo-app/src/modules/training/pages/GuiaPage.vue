@@ -23,94 +23,98 @@
            CTA abajo) — nada centrado con bandas vacías. -->
       <Transition name="story-slide" mode="out-in">
         <div :key="currentSlide.id" class="guia-page__content">
-          <div class="guia-page__top">
-            <p class="story-slide__kicker">{{ currentSlide.kicker }}</p>
-            <h1 class="story-slide__title">
-              <template v-for="(line, li) in titleLines" :key="li">
-                <br v-if="li > 0" />
-                <span
-                  v-for="w in line"
-                  :key="w.index"
-                  class="story-slide__word"
-                  :style="{ animationDelay: `${w.index * 40}ms` }"
-                  >{{ w.word }}&nbsp;</span
-                >
-              </template>
-            </h1>
-          </div>
+          <!-- Panel: en las historias de día el texto va en una card blanca centrada (sketch 023);
+               en las de noche es transparente (`display: contents`) y nada cambia. -->
+          <div class="guia-page__panel">
+            <div class="guia-page__top">
+              <p class="story-slide__kicker">{{ currentSlide.kicker }}</p>
+              <h1 class="story-slide__title">
+                <template v-for="(line, li) in titleLines" :key="li">
+                  <br v-if="li > 0" />
+                  <span
+                    v-for="w in line"
+                    :key="w.index"
+                    class="story-slide__word"
+                    :style="{ animationDelay: `${w.index * 40}ms` }"
+                    >{{ w.word }}&nbsp;</span
+                  >
+                </template>
+              </h1>
+            </div>
 
-          <div class="guia-page__body">
-            <!-- Tipo A — texto + bullets -->
-            <template v-if="currentSlide.type === 'text'">
-              <p
-                v-for="(paragraph, i) in currentSlide.body"
-                :key="i"
-                class="story-slide__item story-slide__paragraph"
-                :style="itemDelay(i)"
-              >
-                {{ paragraph }}
-              </p>
-              <ul v-if="currentSlide.bullets?.length" class="story-bullets">
-                <li
-                  v-for="(bullet, i) in currentSlide.bullets"
+            <div class="guia-page__body">
+              <!-- Tipo A — texto + bullets -->
+              <template v-if="currentSlide.type === 'text'">
+                <p
+                  v-for="(paragraph, i) in currentSlide.body"
                   :key="i"
-                  class="story-slide__item"
+                  class="story-slide__item story-slide__paragraph"
                   :style="itemDelay(i)"
                 >
-                  <strong>{{ bullet.bold }}</strong
-                  >{{ bullet.rest }}
-                </li>
-              </ul>
-            </template>
+                  {{ paragraph }}
+                </p>
+                <ul v-if="currentSlide.bullets?.length" class="story-bullets">
+                  <li
+                    v-for="(bullet, i) in currentSlide.bullets"
+                    :key="i"
+                    class="story-slide__item"
+                    :style="itemDelay(i)"
+                  >
+                    <strong>{{ bullet.bold }}</strong
+                    >{{ bullet.rest }}
+                  </li>
+                </ul>
+              </template>
 
-            <!-- Tipo C — bloques -->
-            <template v-else-if="currentSlide.type === 'blocks'">
-              <div class="story-blocks">
-                <div
-                  v-for="(row, i) in currentSlide.blocks"
-                  :key="row.role"
-                  class="story-blocks__row story-slide__item"
-                  :style="{ borderColor: getBlockCSSColor(row.role), ...itemDelay(i) }"
-                >
-                  <div class="story-blocks__label">{{ row.label }}</div>
-                  <div class="story-blocks__desc">{{ row.description }}</div>
-                </div>
-              </div>
-            </template>
-
-            <!-- Tipo B — niveles -->
-            <template v-else-if="currentSlide.type === 'levels'">
-              <div class="story-levels">
-                <div
-                  v-for="(row, i) in currentSlide.levels"
-                  :key="row.level"
-                  class="story-levels__row story-slide__item"
-                  :style="itemDelay(i)"
-                >
-                  <span class="story-levels__glyph">{{ LEVEL_GREEK_MAP[row.level] }}</span>
-                  <div class="story-levels__info">
-                    <div class="story-levels__name">{{ LEVEL_DISPLAY_MAP[row.level] }}</div>
-                    <p class="story-levels__phrase">{{ row.phrase }}</p>
+              <!-- Tipo C — bloques -->
+              <template v-else-if="currentSlide.type === 'blocks'">
+                <div class="story-blocks">
+                  <div
+                    v-for="(row, i) in currentSlide.blocks"
+                    :key="row.role"
+                    class="story-blocks__row story-slide__item"
+                    :style="{ borderColor: getBlockCSSColor(row.role), ...itemDelay(i) }"
+                  >
+                    <div class="story-blocks__label">{{ row.label }}</div>
+                    <div class="story-blocks__desc">{{ row.description }}</div>
                   </div>
                 </div>
-              </div>
-            </template>
+              </template>
 
-            <!-- Tipo D — CTA final -->
-            <template v-else-if="currentSlide.type === 'cta'">
-              <p
-                v-for="(paragraph, i) in currentSlide.body"
-                :key="i"
-                class="story-slide__item story-slide__paragraph"
-                :style="itemDelay(i)"
-              >
-                {{ paragraph }}
+              <!-- Tipo B — niveles -->
+              <template v-else-if="currentSlide.type === 'levels'">
+                <div class="story-levels">
+                  <div
+                    v-for="(row, i) in currentSlide.levels"
+                    :key="row.level"
+                    class="story-levels__row story-slide__item"
+                    :style="itemDelay(i)"
+                  >
+                    <span class="story-levels__glyph">{{ LEVEL_GREEK_MAP[row.level] }}</span>
+                    <div class="story-levels__info">
+                      <div class="story-levels__name">{{ LEVEL_DISPLAY_MAP[row.level] }}</div>
+                      <p class="story-levels__phrase">{{ row.phrase }}</p>
+                    </div>
+                  </div>
+                </div>
+              </template>
+
+              <!-- Tipo D — CTA final -->
+              <template v-else-if="currentSlide.type === 'cta'">
+                <p
+                  v-for="(paragraph, i) in currentSlide.body"
+                  :key="i"
+                  class="story-slide__item story-slide__paragraph"
+                  :style="itemDelay(i)"
+                >
+                  {{ paragraph }}
+                </p>
+              </template>
+
+              <p v-if="currentSlide.footnote" class="story-slide__footnote">
+                {{ currentSlide.footnote }}
               </p>
-            </template>
-
-            <p v-if="currentSlide.footnote" class="story-slide__footnote">
-              {{ currentSlide.footnote }}
-            </p>
+            </div>
           </div>
 
           <!-- Pista "Tocá para seguir" (primer slide): no es un botón — el
@@ -196,7 +200,7 @@
 import { computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from 'src/stores/useUserStore'
-import { NOCHE_GRADIENT, sceneBackgroundStyle } from 'src/constants/sceneVeil'
+import { DIA_GRADIENT, NOCHE_GRADIENT, sceneBackgroundStyle } from 'src/constants/sceneVeil'
 import { useStoryNavigation } from '../composables/useStoryNavigation'
 import SegmentedProgressBar from '../components/player/SegmentedProgressBar.vue'
 import { LEVEL_GREEK_MAP, LEVEL_DISPLAY_MAP } from '../level-display'
@@ -239,14 +243,8 @@ const ariaAnnouncement = computed(
 // `TvScreenPage.vue` (diurno/nocturno), gradiente adaptado a vertical
 // (180deg, más denso arriba detrás de kicker+título) en vez del 100deg de la
 // TV (pensado para texto a la izquierda en horizontal).
-// Velo del día: en la mitad de abajo (donde caen bullets y niveles) el velo
-// era de 0.66 → 0.55 y la foto asomaba tanto que el texto terracotta quedaba
-// en 2.6:1; ahora 0.8 → 0.72 (fondo ≈ #ddd2c1, texto ≥ 5.1:1, 199-contraste).
-const DIA_GRADIENT =
-  'linear-gradient(180deg, rgba(242,236,226,0.9) 0%, rgba(242,236,226,0.84) 42%, rgba(240,232,220,0.8) 68%, rgba(238,229,214,0.72) 100%)'
-
-// El velo "noche" vive en `src/constants/sceneVeil.ts`: el player (transición entre bloques y 3-2-1)
-// usa el mismo.
+// Los velos viven en `src/constants/sceneVeil.ts` (el player usa el de noche). El de día es liviano:
+// el texto ya no se apoya sobre el velo sino sobre un panel blanco centrado (sketch 023, 2026-10-23).
 const sceneStyle = computed(() =>
   sceneBackgroundStyle(currentSlide.value.theme === 'noche' ? NOCHE_GRADIENT : DIA_GRADIENT),
 )
@@ -490,6 +488,37 @@ $story-glyph-size: 56px;
   overflow-y: auto; // 360x640: scroll interno antes que recortar texto
 }
 
+// Noche: el panel no existe (sus hijos son hijos directos del contenido, como siempre).
+.guia-page__panel {
+  display: contents;
+}
+
+// Día: el texto va en un panel blanco, centrado en vertical y horizontal (máx. 340 px). `margin: auto`
+// en vez de `justify-content: center`: si el contenido no entra en pantallas chicas, arranca arriba y
+// scrollea en lugar de recortar el título.
+.guia-page--dia .guia-page__panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 340px;
+  margin: auto;
+  padding: 22px 20px 16px;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 12px 30px rgba(44, 35, 24, 0.18);
+
+  .guia-page__body {
+    flex: none;
+    justify-content: flex-start;
+  }
+
+  .story-slide__title {
+    font-size: clamp(24px, 7vw, 28px);
+    margin-bottom: 16px;
+    text-shadow: none; // el halo claro era para el velo; sobre blanco ensucia
+  }
+}
+
 // Franja superior: kicker + título, pegados arriba del todo (no centrado).
 .guia-page__top {
   flex-shrink: 0;
@@ -707,6 +736,13 @@ $story-glyph-size: 56px;
   border-radius: 999px;
   background: #2c2318;
   color: #f0e6d6;
+}
+
+// Día: la pista queda abajo, centrada (el panel blanco ocupa el medio)
+.guia-page--dia .guia-page__tap-hint {
+  justify-content: center;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 @keyframes story-tap-hint {

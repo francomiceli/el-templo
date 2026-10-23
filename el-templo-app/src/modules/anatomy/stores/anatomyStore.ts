@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import { api } from 'src/boot/axios'
 import { createLogger } from 'src/utils/logger'
 import { extractError } from 'src/utils/extract-error'
@@ -7,12 +7,12 @@ import type { MusculoAlumno, RegionAlumno, RutaAlumno, VistaAlumno } from '../ty
 
 const log = createLogger('anatomyStore')
 
-const LOAD_ERROR = 'No pudimos cargar Tu cuerpo.'
+const LOAD_ERROR = 'No pudimos cargar Tus músculos.'
 
 /**
  * Vista de alumno de la anatomía funcional (fase 200 D14): regiones, músculos, rutas y textos de
  * los tres grupos, de `GET /api/anatomy`. Es contenido estático por deploy: se trae una vez y queda
- * cacheado. Lo usan Tu cuerpo (plan 15) y el cuerpo tocable de Entrenar (plan 16), ambos detrás de
+ * cacheado. Lo usan Tus músculos (plan 15) y el cuerpo tocable de Entrenar (plan 16), ambos detrás de
  * `ANATOMIA_ALUMNOS_ENABLED`.
  */
 export const useAnatomyStore = defineStore('anatomy', () => {
@@ -23,12 +23,6 @@ export const useAnatomyStore = defineStore('anatomy', () => {
 
   /** Pedido en curso: dos `cargar()` simultáneos comparten una sola llamada. */
   let enCurso: Promise<void> | null = null
-
-  // Getters
-  /** Músculos profundos (sin zona en el dibujo): "los que no se ven". */
-  const profundos = computed<MusculoAlumno[]>(() =>
-    (vista.value?.musculos ?? []).filter((m) => m.zona === null),
-  )
 
   // Helpers
   function region(slug: string): RegionAlumno | null {
@@ -80,7 +74,6 @@ export const useAnatomyStore = defineStore('anatomy', () => {
     vista,
     loading,
     error,
-    profundos,
     region,
     musculo,
     musculosDeZona,

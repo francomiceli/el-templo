@@ -22,15 +22,15 @@ import type { BlockRole } from '../modules/training/types/session'
  * el typecheck del app garantice cobertura exhaustiva: si `BlockRole` gana un
  * rol nuevo, este diccionario deja de compilar hasta que se agregue el label.
  *
- * Usa el canónico 'Initium' (no 'Pyros'). EXCEPCIÓN decidida por Franco:
- * `BlockProgressionView.vue` mantiene 'Pyros' vía un override LOCAL (plan
- * 160-05) — este diccionario no cambia por esa excepción.
+ * INITIUM se muestra como 'Pyros' en todo el app (Franco, 2026-10-23), igual
+ * que la TV y el PDF del admin. Antes era 'Initium' con 'Pyros' solo en el
+ * player (plan 160-05).
  *
  * Consumido por `BlockCard.vue` (formatRole) y por el plan 160-05 (resto de
  * las superficies del app: DayPlayer, BlockProgressionView, GoalPlanSession).
  */
 export const ROLE_LABELS: Record<BlockRole, string> = {
-  INITIUM: 'Initium',
+  INITIUM: 'Pyros',
   NUCLEUS: 'Nucleus',
   DEUTEROS_1: 'Deuteros 1',
   DEUTEROS_2: 'Deuteros 2',

@@ -11,7 +11,9 @@
           <MarqueeText tag="p" class="semana-hero__kicker">{{
             dayKicker(day.date, today)
           }}</MarqueeText>
-          <MarqueeText tag="h1" class="semana-hero__title">{{ title }}</MarqueeText>
+          <MarqueeText tag="h1" :lines="2" class="semana-hero__title">{{
+            title
+          }}</MarqueeText>
           <span v-if="cta.showDoneChip" class="semana-hero__done">
             <q-icon name="check" size="16px" />
             Hecha
@@ -178,7 +180,7 @@ function onCta(): void {
     @include pd-kicker-light;
   }
 
-  // Una sola línea: si el título no entra se desplaza (MarqueeText)
+  // Hasta dos líneas partiendo en palabras; si igual no entra, una línea que se desplaza (MarqueeText)
   &__title {
     margin: 2px 0 0;
     font-family: 'Montserrat', sans-serif;

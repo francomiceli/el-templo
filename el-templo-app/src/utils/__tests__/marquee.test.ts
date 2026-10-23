@@ -3,6 +3,7 @@ import {
   MARQUEE_HOLD_MS,
   MARQUEE_PX_PER_S,
   MARQUEE_RETURN_MS,
+  fitsInLines,
   horizontalOverflowPx,
   marqueeCycleMs,
   marqueeKeyframes,
@@ -62,5 +63,30 @@ describe('marqueeKeyframes', () => {
     const overflow = 120
     const frames = marqueeKeyframes(overflow)
     expect((frames[1].offset as number) * marqueeCycleMs(overflow)).toBeCloseTo(MARQUEE_HOLD_MS, 5)
+  })
+})
+
+describe('fitsInLines', () => {
+  const box = (scrollWidth: number, scrollHeight: number) => ({
+    scrollWidth,
+    clientWidth: 150,
+    scrollHeight,
+  })
+
+  it('entra en una o dos líneas de 30.8 px', () => {
+    expect(fitsInLines(box(150, 31), 30.8, 2)).toBe(true)
+    expect(fitsInLines(box(150, 62), 30.8, 2)).toBe(true)
+  })
+
+  it('no entra si hace falta una tercera línea', () => {
+    expect(fitsInLines(box(150, 93), 30.8, 2)).toBe(false)
+  })
+
+  it('no entra si una palabra sola es más ancha que la caja', () => {
+    expect(fitsInLines(box(180, 31), 30.8, 2)).toBe(false)
+  })
+
+  it('ignora el redondeo de subpíxel en ancho y alto', () => {
+    expect(fitsInLines(box(151, 62.6), 30.8, 2)).toBe(true)
   })
 })

@@ -215,7 +215,7 @@ export const OAR = {
     ],
   },
   fichaAlumno: {
-    que: "Remar con un solo brazo: llevás la mano hacia el costado mientras el tronco se queda quieto.",
+    que: "Colgado debajo de la barra o las argollas, tirás el pecho hacia el agarre. Empezás con las dos manos y vas cargando más peso en un brazo hasta hacerlo con uno solo. Cuanto más acostado el cuerpo, más difícil.",
     siente: {
       pendiente:
         "La investigación no dice todavía dónde se siente este ejercicio.",
@@ -230,11 +230,12 @@ export const OAR = {
       {
         error: "El tronco gira para alcanzar",
         texto:
-          "El tirón de un solo lado hace girar: el tronco tiene que quedarse quieto.",
+          "Cuando tirás más con un brazo, el tronco tiende a girar: tiene que quedarse quieto.",
       },
       {
         error: "La mano libre empuja",
-        texto: "Repartís el peso y deja de ser un ejercicio a un solo brazo.",
+        texto:
+          "Repartís el peso entre los dos brazos. Si todavía la necesitás, está bien: usala de apoyo hasta ganar fuerza.",
       },
     ],
   },

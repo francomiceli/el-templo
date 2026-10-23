@@ -238,7 +238,10 @@ function vistaCompatible(
   return region.vista === "both" || region.vista === vista;
 }
 
-/** Ids únicos kebab, zona existente y compatible, precisión coherente. */
+/**
+ * Ids únicos kebab, zona existente y compatible, precisión coherente y, en los
+ * profundos, `debajoDe` apuntando a una región.
+ */
 export function validarMusculos(
   musculos: readonly MusculoDef[],
   regiones: readonly RegionDef[],
@@ -262,6 +265,22 @@ export function validarMusculos(
       } else if (!vistaCompatible(region, vista)) {
         errores.push(
           `${donde}: zona ${slug} con vista ${vista} no compatible (la región es ${region.vista})`,
+        );
+      }
+    }
+
+    const debajoDe = musculo.debajoDe ?? null;
+    if (musculo.zona !== null && debajoDe !== null) {
+      errores.push(`${donde}: debajoDe solo se permite si no hay zona`);
+    }
+    if (musculo.zona === null) {
+      if (debajoDe === null) {
+        errores.push(
+          `${donde}: un músculo profundo necesita debajoDe (la región de su hoja)`,
+        );
+      } else if (!regiones.some((r) => r.slug === debajoDe)) {
+        errores.push(
+          `${donde}: debajoDe "${debajoDe}" no existe en las regiones`,
         );
       }
     }

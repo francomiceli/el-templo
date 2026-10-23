@@ -84,6 +84,42 @@ describe("vistaAlumno (D14, D15, T-200-21)", () => {
     ]);
   });
 
+  it("los profundos van en la lista de su región, al final y con adentro: true", () => {
+    const musculos = (slug: string): string[] =>
+      vista.regiones.find((r) => r.slug === slug)?.musculos ?? [];
+    expect(musculos("deltoids")).toEqual(["delt-ant", "delt-post", "manguito"]);
+    expect(musculos("chest")).toEqual(["pectoral", "serrato"]);
+    expect(musculos("abs")).toEqual(["recto-abd", "psoas"]);
+
+    const adentro = vista.musculos.filter((m) => m.adentro);
+    expect(adentro.map((m) => [m.id, m.debajoDe, m.zona])).toEqual([
+      ["serrato", "chest", null],
+      ["manguito", "deltoids", null],
+      ["psoas", "abs", null],
+    ]);
+    // Los 25 que se ven en el dibujo no son "adentro" ni cuelgan de nada.
+    for (const m of vista.musculos.filter((x) => x.zona !== null)) {
+      expect(m.adentro, m.id).toBe(false);
+      expect(m.debajoDe, m.id).toBeNull();
+    }
+  });
+
+  it("cada profundo aparece en exactamente una región y ningún músculo se repite entre regiones", () => {
+    const todos = vista.regiones.flatMap((r) => r.musculos);
+    expect(new Set(todos).size).toBe(todos.length);
+    // Los 28 músculos están en alguna región (ninguno huérfano).
+    expect([...todos].sort()).toEqual(vista.musculos.map((m) => m.id).sort());
+  });
+
+  it("la vista de profe no mezcla los profundos en las regiones (siguen en sinDibujo)", () => {
+    const profe = vistaProfe(new Map());
+    const todos = profe.regiones.flatMap((r) => r.musculos);
+    expect(todos).toHaveLength(25);
+    for (const id of ["serrato", "manguito", "psoas"]) {
+      expect(todos).not.toContain(id);
+    }
+  });
+
   it("ninguna clave prohibida en todo el arbol", () => {
     const prohibidas = clavesProfundas(vista).filter((k) =>
       CLAVES_PROHIBIDAS_ALUMNO.has(ultimaClave(k)),

@@ -5,9 +5,11 @@ import type { MusculoDef } from "../types";
  * content/rutas/ (por ruta) y la vista por músculo se deriva.
  *
  * `zona` = región del dibujo + vista (D4). `null` = músculo profundo que no se
- * ve en el dibujo (D10): serrato, manguito, iliopsoas. `precision` es null si y
- * solo si `zona` es null. `queHaceAlumno` es anatomía estándar (L1) en tono
- * alumno (D14, sketch 020 `QUE_HACE`). Todo en borrador (D5).
+ * ve en el dibujo (D10): serrato, manguito, iliopsoas. `debajoDe` = región cuya
+ * hoja los muestra "más adentro" (obligatorio en los profundos, prohibido en
+ * el resto). `precision` es null si y solo si `zona` es null. `queHaceAlumno`
+ * es anatomía estándar (L1) en tono alumno (D14, sketch 020 `QUE_HACE`). Todo
+ * en borrador (D5).
  */
 export const MUSCULOS = [
   {
@@ -23,28 +25,28 @@ export const MUSCULOS = [
     nombre: "Redondo mayor",
     zona: { slug: "upper-back", vista: "back" },
     precision: "agrupada",
-    queHaceAlumno: "Ayuda al dorsal a bajar el brazo.",
+    queHaceAlumno: "Baja el brazo junto con el dorsal.",
   },
   {
     id: "romboides",
     nombre: "Romboides y trapecio medio",
     zona: { slug: "upper-back", vista: "back" },
     precision: "agrupada",
-    queHaceAlumno: "Junta los omóplatos hacia atrás.",
+    queHaceAlumno: "Juntan los omóplatos hacia atrás.",
   },
   {
     id: "trap-inf",
     nombre: "Trapecio inferior",
     zona: { slug: "trapezius", vista: "back" },
     precision: "aproximada",
-    queHaceAlumno: "Baja los omóplatos: aleja los hombros de las orejas.",
+    queHaceAlumno: "Baja los omóplatos y los gira al subir los brazos.",
   },
   {
     id: "trap-sup",
     nombre: "Trapecio superior",
     zona: { slug: "trapezius", vista: "both" },
     precision: "exacta",
-    queHaceAlumno: "Sube los hombros. En los colgados no tiene que mandar él.",
+    queHaceAlumno: "Encoge los hombros y gira los omóplatos al subir los brazos.",
     nota: {
       t: 'En los colgados no tiene que dominar: es el que "encoge los hombros".',
       c: [],
@@ -56,7 +58,7 @@ export const MUSCULOS = [
     zona: { slug: "chest", vista: "front" },
     precision: "exacta",
     queHaceAlumno:
-      "Lleva el brazo hacia adelante y hacia el centro. Es el de empujar.",
+      "Lleva el brazo adelante y al centro: trabaja al empujar y al tirar.",
   },
   {
     id: "delt-ant",
@@ -70,14 +72,14 @@ export const MUSCULOS = [
     nombre: "Deltoides posterior",
     zona: { slug: "deltoids", vista: "back" },
     precision: "agrupada",
-    queHaceAlumno: "Lleva el brazo hacia atrás.",
+    queHaceAlumno: "Abre el brazo hacia atrás.",
   },
   {
     id: "triceps",
     nombre: "Tríceps braquial",
     zona: { slug: "triceps", vista: "both" },
     precision: "exacta",
-    queHaceAlumno: "Estira el codo.",
+    queHaceAlumno: "Endereza el codo.",
   },
   {
     id: "biceps",
@@ -91,28 +93,30 @@ export const MUSCULOS = [
     nombre: "Braquial y braquiorradial",
     zona: { slug: "forearm", vista: "both" },
     precision: "aproximada",
-    queHaceAlumno: "Dobla el codo, junto con el bíceps.",
+    queHaceAlumno: "Doblan el codo, junto con el bíceps.",
   },
   {
     id: "antebrazo",
     nombre: "Flexores de muñeca y dedos",
     zona: { slug: "forearm", vista: "both" },
     precision: "exacta",
-    queHaceAlumno: "Cierra la mano y sostiene el agarre.",
+    queHaceAlumno: "Cierran la mano: dan agarre y equilibrio.",
   },
   {
     id: "serrato",
     nombre: "Serrato anterior",
     zona: null,
     precision: null,
+    debajoDe: "chest",
     queHaceAlumno:
-      "Pega el omóplato a las costillas y lo lleva hacia adelante.",
+      "Pega el omóplato a las costillas y lo lleva adelante y arriba.",
   },
   {
     id: "manguito",
     nombre: "Manguito rotador",
     zona: null,
     precision: null,
+    debajoDe: "deltoids",
     queHaceAlumno: "Mantiene el hombro centrado y firme.",
   },
   {
@@ -128,14 +132,14 @@ export const MUSCULOS = [
     nombre: "Oblicuos",
     zona: { slug: "obliques", vista: "front" },
     precision: "exacta",
-    queHaceAlumno: "Giran e inclinan el tronco, y evitan que rote.",
+    queHaceAlumno: "Giran e inclinan el tronco, o lo frenan.",
   },
   {
     id: "erectores",
     nombre: "Erectores espinales",
     zona: { slug: "lower-back", vista: "back" },
     precision: "agrupada",
-    queHaceAlumno: "Estiran la espalda y la mantienen derecha.",
+    queHaceAlumno: "Enderezan la espalda y la mantienen firme.",
   },
   {
     id: "cuadrado",
@@ -149,28 +153,28 @@ export const MUSCULOS = [
     nombre: "Glúteo mayor",
     zona: { slug: "gluteal", vista: "back" },
     precision: "agrupada",
-    queHaceAlumno: "Estira la cadera: es el que te para y empuja el piso.",
+    queHaceAlumno: "Endereza la cadera: te levanta de la sentadilla.",
   },
   {
     id: "gluteo-medio",
     nombre: "Glúteo medio y menor",
     zona: { slug: "gluteal", vista: "back" },
     precision: "agrupada",
-    queHaceAlumno: "Mantiene la pelvis nivelada cuando estás en una pierna.",
+    queHaceAlumno: "Abren la pierna y te nivelan la pelvis en un pie.",
   },
   {
     id: "vastos",
     nombre: "Cuádriceps (vastos)",
     zona: { slug: "quadriceps", vista: "front" },
     precision: "exacta",
-    queHaceAlumno: "Estiran la rodilla.",
+    queHaceAlumno: "Enderezan la rodilla.",
   },
   {
     id: "recto-fem",
     nombre: "Recto femoral",
     zona: { slug: "quadriceps", vista: "front" },
     precision: "agrupada",
-    queHaceAlumno: "Estira la rodilla y levanta la pierna.",
+    queHaceAlumno: "Endereza la rodilla y levanta la pierna.",
     nota: {
       t: "También flexiona la cadera: en FL sostiene las piernas en línea (isométrico).",
       c: ["R"],
@@ -181,6 +185,7 @@ export const MUSCULOS = [
     nombre: "Iliopsoas (flexores de cadera)",
     zona: null,
     precision: null,
+    debajoDe: "abs",
     queHaceAlumno: "Levanta la pierna: dobla la cadera.",
   },
   {
@@ -188,7 +193,7 @@ export const MUSCULOS = [
     nombre: "Isquiotibiales",
     zona: { slug: "hamstring", vista: "back" },
     precision: "exacta",
-    queHaceAlumno: "Doblan la rodilla y estiran la cadera.",
+    queHaceAlumno: "Doblan la rodilla y enderezan la cadera.",
   },
   {
     id: "aductores",

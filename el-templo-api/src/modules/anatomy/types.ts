@@ -128,6 +128,12 @@ export interface MusculoDef {
   readonly zona: { readonly slug: string; readonly vista: Vista } | null;
   /** `null` si y solo si `zona` es `null`. */
   readonly precision: Precision | null;
+  /**
+   * Solo los profundos (`zona: null`): slug de la región cuya hoja los muestra
+   * "más adentro" (el dibujo no los pinta). Obligatorio si `zona` es `null`,
+   * prohibido si no. Ausente = `null`.
+   */
+  readonly debajoDe?: string | null;
   /** Qué hace, en tono alumno (D14). */
   readonly queHaceAlumno: string;
   readonly nota?: Afirmacion;

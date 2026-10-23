@@ -49,6 +49,7 @@ interface ZoneHitsPayload {
   fuerte: string[];
   sostiene: string[];
   estira: string[];
+  rutas: { ruta: string; grupo: "fuerte" | "sostiene" | "estira" }[];
   movilidad?: true;
   sinDetalle?: true;
 }
@@ -285,6 +286,20 @@ describe("zones/groups por bloque en /weekly y /daily (197-04)", () => {
     );
     expect(nucleus.zoneHits["upper-back"].fuerte).toContain("dorsal");
     expect(nucleus.zoneHits.quadriceps.fuerte).toContain("vastos");
+    // Rol por ruta (orden de aparición del bloque): OAP trae el dorsal fuerte;
+    // SS trae los vastos fuertes; el serrato (profundo) hace que OAP cuente en
+    // pecho y el manguito que OAP cuente en hombros aunque solo sostenga.
+    expect(nucleus.zoneHits["upper-back"].rutas).toEqual([
+      { ruta: "OAP", grupo: "fuerte" },
+    ]);
+    expect(nucleus.zoneHits.quadriceps.rutas).toEqual([
+      { ruta: "SS", grupo: "fuerte" },
+    ]);
+    expect(nucleus.zoneHits.deltoids.sostiene).toContain("manguito");
+    expect(nucleus.zoneHits.deltoids.rutas).toEqual([
+      { ruta: "OAP", grupo: "sostiene" },
+    ]);
+    expect(nucleus.zoneHits.chest.sostiene).toContain("serrato");
     // Cada zona pintada tiene su entrada (chip y hoja coherentes con el cuerpo, D18).
     for (const zona of nucleus.zones) {
       expect(Object.keys(nucleus.zoneHits)).toContain(zona);
@@ -306,6 +321,7 @@ describe("zones/groups por bloque en /weekly y /daily (197-04)", () => {
         fuerte: [],
         sostiene: [],
         estira: [],
+        rutas: [],
         movilidad: true,
       });
     }
