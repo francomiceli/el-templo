@@ -2,19 +2,56 @@
   <div class="zona-alumno">
     <slot name="antes" />
 
-    <p class="zona-alumno__kicker">{{ kicker }}</p>
-    <h2 class="zona-alumno__ttl">{{ titulo }}</h2>
+    <p class="zona-alumno__kicker">{{ encabezado.kicker }}</p>
+    <h2 class="zona-alumno__ttl">{{ encabezado.titulo }}</h2>
 
     <p v-if="musculos.length === 0" class="zona-alumno__vacio">
       Todavía no hay detalle para esta zona.
     </p>
 
-    <section v-for="m in musculos" :key="m.id" class="zona-alumno__mus">
-      <h3 v-if="musculos.length > 1" class="zona-alumno__mus-ttl">{{ m.nombre }}</h3>
-      <p class="zona-alumno__hace">{{ m.queHace }}</p>
+    <template v-else-if="elegido">
+      <div class="zona-alumno__mus">
+        <!-- Pills de los músculos: una fila que se desplaza. La elegida se funde con el globo. -->
+        <div
+          v-if="encabezado.conPills"
+          ref="filaEl"
+          class="zona-alumno__fila"
+          role="group"
+          aria-label="Músculos de esta zona"
+          @scroll.passive="alinearFlecha"
+        >
+          <button
+            v-for="m in musculos"
+            :key="m.id"
+            type="button"
+            class="zona-alumno__mus-pill"
+            :class="{
+              'zona-alumno__mus-pill--on': m.id === elegido.id,
+              'zona-alumno__mus-pill--adentro': m.adentro,
+            }"
+            :aria-pressed="m.id === elegido.id"
+            @click="elegir(m.id)"
+          >
+            <span>{{ m.nombre }}</span>
+            <small v-if="m.adentro" class="zona-alumno__adentro">adentro</small>
+          </button>
+        </div>
+
+        <!-- Globo: lo que hace el músculo elegido, con la flecha apuntando a su pill. -->
+        <div
+          ref="globoEl"
+          class="zona-alumno__globo"
+          :class="{ 'zona-alumno__globo--solo': !encabezado.conPills }"
+          :style="{ '--flecha-x': `${flechaX}px` }"
+          aria-live="polite"
+        >
+          <p v-if="encabezado.conPills" class="zona-alumno__globo-ttl">{{ elegido.nombre }}</p>
+          <p class="zona-alumno__hace">{{ textoQueHace(elegido) }}</p>
+        </div>
+      </div>
 
       <div
-        v-for="g in gruposDe(m)"
+        v-for="g in grupos"
         :key="g.id"
         class="zona-alumno__gr"
         :class="`zona-alumno__gr--${g.id}`"
@@ -22,16 +59,16 @@
         <button
           type="button"
           class="zona-alumno__gr-lbl"
-          :class="{ 'zona-alumno__gr-lbl--on': estaAbierto(m.id, g.id) }"
-          :aria-expanded="estaAbierto(m.id, g.id)"
-          :aria-controls="defId(m.id, g.id)"
-          @click="alternar(m.id, g.id)"
+          :class="{ 'zona-alumno__gr-lbl--on': estaAbierto(g.id) }"
+          :aria-expanded="estaAbierto(g.id)"
+          :aria-controls="defId(g.id)"
+          @click="alternar(g.id)"
         >
           <span class="zona-alumno__swatch" aria-hidden="true" />
           <span>{{ g.frase }}</span>
           <span class="zona-alumno__i" aria-hidden="true">i</span>
         </button>
-        <p v-if="estaAbierto(m.id, g.id)" :id="defId(m.id, g.id)" class="zona-alumno__gr-def">
+        <p v-if="estaAbierto(g.id)" :id="defId(g.id)" class="zona-alumno__gr-def">
           {{ g.definicion }}
         </p>
         <div class="zona-alumno__pills">
@@ -46,7 +83,7 @@
           </button>
         </div>
       </div>
-    </section>
+    </template>
 
     <slot name="despues" />
 
@@ -59,100 +96,129 @@
 
 <script setup lang="ts">
 /**
- * Fase 200 D14 (sketch 020 `alumno-ui.js` zonaAlumno / musAlumno): contenido de la hoja de Tu cuerpo
- * en tono alumno. Por músculo: qué hace en una frase y los tres grupos (trabaja fuerte · te sostiene ·
- * se estira) con su (i) y las rutas como pills que se abren con `open-ruta`. Sin códigos de ruta ni
- * contenido de profe: la vista de alumno ya viene recortada del server. Todo el texto va con
- * interpolación. Slots: `antes` ("Hoy en tu clase", plan 16) y `despues` ("Ver en Tu cuerpo ›").
+ * Fase 200 D14 + revisión 2026-10-23 (sketch 024 b · C): contenido de la hoja de una zona en tono
+ * alumno. Arriba el kicker "N músculos" y el nombre de la zona; después una fila de pills con los
+ * músculos (los de "más adentro" van al final, con borde punteado). Siempre hay uno elegido, el
+ * principal: su explicación sale en un globo pegado a la pill (la flecha la sigue) y abajo van SUS
+ * ejercicios en "Hace el movimiento en / Sostiene el movimiento en / Se estira en", con su (i) y las
+ * rutas como pills que se abren con `open-ruta`. Una zona con un solo músculo no lleva pills: el
+ * título es el músculo. Sin códigos de ruta ni contenido de profe: la vista de alumno ya viene
+ * recortada del server. Todo el texto va con interpolación. Slots: `antes` ("Hoy en tu clase") y
+ * `despues` ("Ver en Tus músculos ›"). La lógica de elegir/agrupar vive en `../utils/zonaSheet.ts`.
  */
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useAnatomyStore } from '../stores/anatomyStore'
-import type { GrupoAlumno, MusculoAlumno, RutaAlumno } from '../types'
+import type { GrupoAlumno, MusculoAlumno } from '../types'
+import {
+  encabezadoZona,
+  gruposDelMusculo,
+  musculoElegido,
+  posicionFlecha,
+  textoQueHace,
+} from '../utils/zonaSheet'
 
 const props = defineProps<{
-  /** Slug de la zona tocada (todos sus músculos). */
+  /** Slug de la zona tocada (todos sus músculos, los de adentro al final). */
   zona: string | null
-  /** Un músculo puntual (los que no se ven, o venir desde una ruta): gana a `zona`. */
-  musculoId: string | null
 }>()
 
 const emit = defineEmits<{ 'open-ruta': [slug: string] }>()
 
 const store = useAnatomyStore()
 
-// Orden fijo de los grupos: primero lo que más trabaja.
-const ORDEN_GRUPOS: readonly GrupoAlumno[] = ['fuerte', 'sostiene', 'estira']
+const musculos = computed<MusculoAlumno[]>(() =>
+  props.zona !== null ? store.musculosDeZona(props.zona) : [],
+)
 
-interface GrupoVisible {
-  id: GrupoAlumno
-  frase: string
-  definicion: string
-  rutas: { slug: string; nombre: string }[]
+const encabezado = computed(() =>
+  encabezadoZona(
+    props.zona !== null ? (store.region(props.zona)?.nombre ?? '') : '',
+    musculos.value,
+  ),
+)
+
+// Músculo elegido: `null` = el principal. Al cambiar de zona vuelve al principal.
+const seleccionId = ref<string | null>(null)
+const elegido = computed(() => musculoElegido(musculos.value, seleccionId.value))
+
+const grupos = computed(() =>
+  elegido.value
+    ? gruposDelMusculo(elegido.value, store.vista?.grupos ?? [], (slug) => store.ruta(slug))
+    : [],
+)
+
+// ─── Flecha del globo: apunta al centro de la pill elegida ───────────────
+const filaEl = ref<HTMLElement | null>(null)
+const globoEl = ref<HTMLElement | null>(null)
+const flechaX = ref(40)
+
+function pillElegida(): HTMLElement | null {
+  return filaEl.value?.querySelector<HTMLElement>('[aria-pressed="true"]') ?? null
 }
 
-const musculos = computed<MusculoAlumno[]>(() => {
-  if (props.musculoId !== null) {
-    const m = store.musculo(props.musculoId)
-    return m ? [m] : []
-  }
-  return props.zona !== null ? store.musculosDeZona(props.zona) : []
-})
-
-const kicker = computed(() => {
-  if (props.zona !== null) return store.region(props.zona)?.nombre ?? ''
-  const zonaDelMusculo = musculos.value[0]?.zona
-  if (zonaDelMusculo) return store.region(zonaDelMusculo.slug)?.nombre ?? ''
-  return 'Más adentro'
-})
-
-const titulo = computed(() => {
-  if (musculos.value.length > 1) return `${musculos.value.length} músculos en esta zona`
-  return musculos.value[0]?.nombre ?? kicker.value
-})
-
-/** Grupos con rutas de un músculo, en orden; un músculo sin rutas no muestra ninguno. */
-function gruposDe(m: MusculoAlumno): GrupoVisible[] {
-  const visibles: GrupoVisible[] = []
-  for (const id of ORDEN_GRUPOS) {
-    const rutas = m.grupos[id]
-      .map((slug) => store.ruta(slug))
-      .filter((r): r is RutaAlumno => r !== null)
-      .map((r) => ({ slug: r.slug, nombre: r.nombre }))
-    const info = store.vista?.grupos.find((g) => g.id === id)
-    if (rutas.length > 0 && info) {
-      visibles.push({ id, frase: info.frase, definicion: info.definicion, rutas })
-    }
-  }
-  return visibles
+function alinearFlecha(): void {
+  const pill = pillElegida()
+  const globo = globoEl.value
+  if (!pill || !globo) return
+  const p = pill.getBoundingClientRect()
+  const g = globo.getBoundingClientRect()
+  flechaX.value = posicionFlecha(p, g)
 }
 
-// (i) desplegados: clave `músculo:grupo`. Al cambiar de zona o de músculo se pliegan.
-const abiertos = ref<ReadonlySet<string>>(new Set())
+/** La pill elegida siempre a la vista (p. ej. el músculo de adentro, que va último). */
+function mostrarPillElegida(): void {
+  const pill = pillElegida()
+  if (!pill || typeof pill.scrollIntoView !== 'function') return
+  const reducido = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  pill.scrollIntoView({
+    inline: 'nearest',
+    block: 'nearest',
+    behavior: reducido ? 'auto' : 'smooth',
+  })
+}
 
+function elegir(id: string): void {
+  seleccionId.value = id
+}
+
+// (i) desplegados: clave = grupo. Al cambiar de zona o de músculo se pliegan.
+const abiertos = ref<ReadonlySet<GrupoAlumno>>(new Set())
+
+// Cambió de zona: vuelve al principal.
 watch(
-  () => [props.zona, props.musculoId],
+  () => props.zona,
   () => {
-    abiertos.value = new Set()
+    seleccionId.value = null
   },
 )
 
-function clave(musculoId: string, grupo: GrupoAlumno): string {
-  return `${musculoId}:${grupo}`
+// Tras cada cambio de músculo o de zona: pliega las (i), deja la pill a la vista y la flecha apuntándole.
+watch(
+  () => [props.zona, elegido.value?.id],
+  async () => {
+    abiertos.value = new Set()
+    await nextTick()
+    mostrarPillElegida()
+    alinearFlecha()
+  },
+)
+
+onMounted(() => {
+  void nextTick(alinearFlecha)
+})
+
+function defId(grupo: GrupoAlumno): string {
+  return `zona-alumno-def-${elegido.value?.id ?? 'x'}-${grupo}`
 }
 
-function defId(musculoId: string, grupo: GrupoAlumno): string {
-  return `zona-alumno-def-${musculoId}-${grupo}`
+function estaAbierto(grupo: GrupoAlumno): boolean {
+  return abiertos.value.has(grupo)
 }
 
-function estaAbierto(musculoId: string, grupo: GrupoAlumno): boolean {
-  return abiertos.value.has(clave(musculoId, grupo))
-}
-
-function alternar(musculoId: string, grupo: GrupoAlumno): void {
+function alternar(grupo: GrupoAlumno): void {
   const siguiente = new Set(abiertos.value)
-  const k = clave(musculoId, grupo)
-  if (siguiente.has(k)) siguiente.delete(k)
-  else siguiente.add(k)
+  if (siguiente.has(grupo)) siguiente.delete(grupo)
+  else siguiente.add(grupo)
   abiertos.value = siguiente
 }
 </script>
@@ -161,8 +227,12 @@ function alternar(musculoId: string, grupo: GrupoAlumno): void {
 @import 'src/css/brand';
 @import 'src/css/premium-card';
 
+// Kicker en sans bold (como el rol de los bloques), no Cinzel: se lee mejor sobre la hoja blanca.
 .zona-alumno__kicker {
-  @include pd-kicker-light;
+  @include pd-role-label;
+  margin: 0;
+  font-size: 11.5px;
+  letter-spacing: 0.1em;
 }
 
 .zona-alumno__ttl {
@@ -184,32 +254,115 @@ function alternar(musculoId: string, grupo: GrupoAlumno): void {
 }
 
 .zona-alumno__mus {
-  padding: 14px 0 6px;
-  border-top: 1px solid $pd-light-line;
+  margin-top: 12px;
+}
 
-  &:first-of-type {
-    border-top: 0;
+// Fila de pills de músculos: se desplaza sin barra; se estira a los bordes de la hoja.
+.zona-alumno__fila {
+  display: flex;
+  gap: 6px;
+  margin: 0 -18px;
+  padding: 0 18px;
+  overflow-x: auto;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
   }
 }
 
-.zona-alumno__mus-ttl {
-  margin: 0;
+.zona-alumno__mus-pill {
+  @include pd-hit-44;
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid $pd-light-edge;
+  border-radius: 999px;
+  background: #fff;
+  font-family: 'Geologica', sans-serif;
+  font-weight: 600;
+  font-size: 13.5px;
+  color: $pd-ink-2;
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 2px solid $pd-terra-ink;
+    outline-offset: 2px;
+  }
+}
+
+// La elegida se funde con el globo: mismo fondo arena.
+.zona-alumno__mus-pill--on {
+  border-color: #f3ede4;
+  background: #f3ede4;
+  color: $pd-ink;
+}
+
+// Los que no se ven: borde punteado y marca "adentro".
+.zona-alumno__mus-pill--adentro {
+  border-style: dashed;
+}
+
+.zona-alumno__adentro {
   font-family: 'Montserrat', sans-serif;
   font-weight: 700;
-  font-size: 16px;
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: $pd-terra-ink;
+}
+
+.zona-alumno__globo {
+  --flecha-x: 40px;
+  position: relative;
+  margin-top: 9px;
+  padding: 11px 13px 12px;
+  border-radius: 14px;
+  background: #f3ede4;
+
+  // Flecha que apunta a la pill elegida y la sigue
+  &::before {
+    content: '';
+    position: absolute;
+    top: -8px;
+    left: calc(var(--flecha-x) - 9px);
+    border: 9px solid transparent;
+    border-top: 0;
+    border-bottom-color: #f3ede4;
+  }
+}
+
+// Un solo músculo: sin pills, sin flecha
+.zona-alumno__globo--solo {
+  margin-top: 10px;
+
+  &::before {
+    display: none;
+  }
+}
+
+.zona-alumno__globo-ttl {
+  margin: 0 0 3px;
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 700;
+  font-size: 14.5px;
   color: $pd-ink;
 }
 
 .zona-alumno__hace {
-  margin: 4px 0 8px;
+  margin: 0;
   font-family: 'Geologica', sans-serif;
-  font-size: 14.5px;
+  font-size: 15px;
   line-height: 1.45;
   color: $pd-ink;
 }
 
 .zona-alumno__gr {
-  margin: 6px 0 8px;
+  margin: 10px 0 8px;
 }
 
 .zona-alumno__gr-lbl {
