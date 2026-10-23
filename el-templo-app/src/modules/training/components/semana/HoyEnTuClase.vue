@@ -56,7 +56,7 @@ const store = useAnatomyStore()
 // Orden fijo: primero lo que más trabaja
 const GRUPOS: readonly { id: GrupoAlumno; rotulo: string }[] = [
   { id: 'fuerte', rotulo: 'Hace el movimiento' },
-  { id: 'sostiene', rotulo: 'Te sostiene' },
+  { id: 'sostiene', rotulo: 'Sostiene el movimiento' },
   { id: 'estira', rotulo: 'Se estira' },
 ]
 

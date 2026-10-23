@@ -33,7 +33,7 @@
         <div class="ficha__leg">
           <span class="ficha__leg-item ficha__leg-item--fuerte">Hace el movimiento</span>
           <span v-if="ruta.sostiene.length > 0" class="ficha__leg-item ficha__leg-item--sostiene">
-            Te sostiene
+            Sostiene el movimiento
           </span>
         </div>
 
@@ -41,7 +41,7 @@
         <p class="ficha__p">{{ fuerteTexto }}</p>
 
         <template v-if="ruta.sostiene.length > 0">
-          <h3 class="ficha__h">Te sostiene</h3>
+          <h3 class="ficha__h">Sostiene el movimiento</h3>
           <p class="ficha__p">{{ ruta.sostiene.join(' · ') }}</p>
         </template>
 

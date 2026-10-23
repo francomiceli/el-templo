@@ -14,7 +14,7 @@ export const GRUPOS_ALUMNO = [
   },
   {
     id: "sostiene",
-    frase: "Te sostiene en",
+    frase: "Sostiene el movimiento en",
     definicion: "No hace el movimiento pero sustenta los músculos que lo hacen.",
     roles: ["estabilizador"],
   },
