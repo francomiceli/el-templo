@@ -4,7 +4,7 @@
   (`alertActionKind`):
   - molestia / caída: aceptar el recorte de una etapa (`cutProposal.label`); Ternero y Novillo,
     elegir qué escalón bajar (ConquerCutDialog); Toro tras la etapa 5 no tiene más pasos (DA-12):
-    solo se ve "Toro no tiene más pasos de recorte: escribile";
+    solo se ve "Espartano no tiene más pasos de recorte: escribile";
   - tope de escalera: texto "extendé la escalera desde Catálogo" con el link a ?tab=catalogo;
   - paso de nivel: confirmar el nivel nuevo con los días (ConquerLevelUpDialog);
   - inactivo, control vencido, día 0 pendiente: solo el texto de lo que propone §5.

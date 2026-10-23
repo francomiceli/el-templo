@@ -53,7 +53,7 @@
     />
     <div v-if="levelTableEmpty" class="text-caption text-grey-8 q-mb-sm">
       {{ LEVEL_LABELS[level] }} todavía no tiene tabla cargada: hasta que la cargues arranca con la
-      de Toro.
+      de Espartano.
     </div>
 
     <div

@@ -119,7 +119,7 @@ function screenApertura(): GuideScreen {
     key: 'apertura',
     title: 'Apertura y sábado',
     lead: [
-      plain('Como Toro, cada día '),
+      plain('Como Espartano, cada día '),
       strong('arranca con un combo'),
       plain(', en fresco y al fallo.'),
     ],

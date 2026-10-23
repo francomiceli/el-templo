@@ -85,10 +85,10 @@ function sinEtapaError(): AppError {
   );
 }
 
-/** DA-12 / anexo §8: Toro no baja escalones como recorte. */
+/** DA-12 / anexo §8: Toro (Espartano) no baja escalones como recorte. */
 function recorteNoAplicaError(): AppError {
   return new AppError(
-    "Toro no tiene más pasos de recorte: bajar una progresión es solo de Ternero y Novillo",
+    "Espartano no tiene más pasos de recorte: bajar una progresión es solo de Legionario y Centurión",
     409,
     "CONQUER_RECORTE_NO_APLICA",
   );

@@ -740,16 +740,16 @@ describe("PUT /rungs/:rungId — renombrar, marcar y desactivar (D-04, T-201-51)
 
     expect(res.statusCode).toBe(409);
     expect(res.json<ErrorBody>().code).toBe("CONQUER_PELDANO_EN_ARRANQUE");
-    expect(res.json<ErrorBody>().error).toContain("Toro");
+    expect(res.json<ErrorBody>().error).toContain("Espartano");
     expect((await rungOf("planche_hold", "straddle")).isActive).toBe(true);
   });
 
   // Anexo 3: el peldaño que solo usa la tabla de Novillo o la de Ternero también
   // está protegido (antes solo se miraba la de Toro).
   it.each([
-    ["Novillo", "planche_hold", "super_adv_tuck"],
-    ["Novillo", "hspu", "pared"],
-    ["Ternero", "trac", "al_pecho"],
+    ["Centurión", "planche_hold", "super_adv_tuck"],
+    ["Centurión", "hspu", "pared"],
+    ["Legionario", "trac", "al_pecho"],
   ])(
     "desactivar un peldaño que solo usa la tabla de %s (escalera %s, peldaño %s): 409",
     async (level, ladderCode, rungCode) => {

@@ -53,17 +53,17 @@ export interface LevelInfo {
 /** Textos de los tres niveles (prototipo `NIV`, §2). */
 export const LEVEL_INFO: Record<Level, LevelInfo> = {
   ternero: {
-    name: 'Ternero',
+    name: 'Legionario',
     kicker: 'Inicial',
     text: CQ_TEXTOS.nivel_ternero,
   },
   novillo: {
-    name: 'Novillo',
+    name: 'Centurión',
     kicker: 'Intermedio',
     text: CQ_TEXTOS.nivel_novillo,
   },
   toro: {
-    name: 'Toro',
+    name: 'Espartano',
     kicker: 'Avanzado',
     text: CQ_TEXTOS.nivel_toro,
   },

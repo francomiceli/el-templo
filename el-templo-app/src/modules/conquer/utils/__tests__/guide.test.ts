@@ -92,8 +92,8 @@ describe('pantalla 2 "numero": lo que se anota', () => {
 describe('pantalla 3 "apretar": los otros niveles', () => {
   it('Toro ve a Ternero y a Novillo, y NO su propio nivel', () => {
     const foot = plainRuns(screen('toro', 'apretar').foot)
-    expect(foot).toContain(`Ternero: ${LEVEL_INFO.ternero.text}`)
-    expect(foot).toContain(`Novillo: ${LEVEL_INFO.novillo.text}`)
+    expect(foot).toContain(`Legionario: ${LEVEL_INFO.ternero.text}`)
+    expect(foot).toContain(`Centurión: ${LEVEL_INFO.novillo.text}`)
     expect(foot).not.toContain(LEVEL_INFO.toro.text)
   })
 

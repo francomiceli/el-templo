@@ -194,7 +194,7 @@ export async function ensureStepsForPlan(
       // DA-5: sin tabla para el nivel (catálogo de otro gimnasio) usa la de Toro.
       log?.warn(
         { exerciseCode: exercise.code, level: member.level },
-        "Conquer: el ejercicio no tiene tabla de arranque para el nivel, se usa la de Toro",
+        "Conquer: el ejercicio no tiene tabla de arranque para el nivel, se usa la de Espartano",
       );
     }
     for (const start of table.steps) {

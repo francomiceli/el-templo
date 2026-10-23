@@ -87,9 +87,9 @@ describe('LEVEL_INFO', () => {
   })
 
   it.each([
-    ['ternero', 'Ternero', 'Inicial'],
-    ['novillo', 'Novillo', 'Intermedio'],
-    ['toro', 'Toro', 'Avanzado'],
+    ['ternero', 'Legionario', 'Inicial'],
+    ['novillo', 'Centurión', 'Intermedio'],
+    ['toro', 'Espartano', 'Avanzado'],
   ] as const)('el nivel %s se llama %s (%s)', (level, name, kicker) => {
     expect(LEVEL_INFO[level].name).toBe(name)
     expect(LEVEL_INFO[level].kicker).toBe(kicker)

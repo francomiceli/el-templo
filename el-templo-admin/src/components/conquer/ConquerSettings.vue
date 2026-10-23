@@ -26,7 +26,7 @@
 
     <q-card v-else-if="data" flat bordered>
       <q-card-section>
-        <div class="text-subtitle1 text-weight-medium q-mb-sm">Combos de Toro</div>
+        <div class="text-subtitle1 text-weight-medium q-mb-sm">Combos de Espartano</div>
         <div class="row q-col-gutter-md">
           <div class="col-12 col-sm-6">
             <q-input

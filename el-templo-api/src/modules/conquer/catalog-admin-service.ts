@@ -296,11 +296,11 @@ export interface UpdateRungBody {
   isActive?: boolean;
 }
 
-/** Las tres tablas de arranque de un ejercicio (anexo §3) con su nombre de nivel. */
+/** Las tres tablas de arranque de un ejercicio (anexo §3) con el nombre que ve el admin. */
 const START_TABLES = [
-  { key: "startSteps", level: "Toro" },
-  { key: "startStepsNovillo", level: "Novillo" },
-  { key: "startStepsTernero", level: "Ternero" },
+  { key: "startSteps", level: "Espartano" },
+  { key: "startStepsNovillo", level: "Centurión" },
+  { key: "startStepsTernero", level: "Legionario" },
 ] as const;
 
 /**

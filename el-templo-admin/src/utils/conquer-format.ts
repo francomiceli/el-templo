@@ -119,7 +119,7 @@ export type AlertActionKind =
   | 'aviso';
 
 /** Anexo §8 (201-26 DA-12): Toro después de la etapa 5 no tiene propuesta de recorte. */
-export const NO_CUT_TEXT = 'Toro no tiene más pasos de recorte: escribile';
+export const NO_CUT_TEXT = 'Espartano no tiene más pasos de recorte: escribile';
 
 /**
  * Acción principal de una alerta. Molestia y caída proponen el recorte vigente del alumno (una

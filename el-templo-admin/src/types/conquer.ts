@@ -39,9 +39,9 @@ export const LEVEL_DAYS: Record<Level, number[]> = {
 };
 
 export const LEVEL_LABELS: Record<Level, string> = {
-  ternero: 'Ternero',
-  novillo: 'Novillo',
-  toro: 'Toro',
+  ternero: 'Legionario',
+  novillo: 'Centurión',
+  toro: 'Espartano',
 };
 
 export const LEVELS: Level[] = ['ternero', 'novillo', 'toro'];
