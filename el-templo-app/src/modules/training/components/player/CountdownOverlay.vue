@@ -10,7 +10,6 @@
           <div v-else key="go" class="countdown-overlay__go">VAMOS!</div>
         </Transition>
       </div>
-      <p v-if="subtitle" class="countdown-overlay__subtitle">{{ subtitle }}</p>
     </div>
   </PhotoScene>
 </template>
@@ -20,12 +19,10 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import PhotoScene from './PhotoScene.vue'
 
 // 3-2-1 sobre la foto de Guía con su velo (fase 197, sketch 018). Los textos los arma cada página:
-// el kicker dice dónde estás ("Bloque 2 de 4 · Combos I") y el subtítulo qué viene primero.
+// el kicker dice dónde estás ("Bloque 2 de 4 · Combos I"). Sin el nombre del primer ejercicio.
 interface Props {
   /** Cinzel arriba del número */
   kicker?: string
-  /** Debajo del número (el primer ejercicio) */
-  subtitle?: string
 }
 
 interface Emits {
@@ -34,7 +31,6 @@ interface Emits {
 
 withDefaults(defineProps<Props>(), {
   kicker: '',
-  subtitle: '',
 })
 const emit = defineEmits<Emits>()
 
@@ -108,12 +104,6 @@ onUnmounted(() => {
   color: #fff;
   text-shadow: 0 6px 40px rgba(212, 180, 106, 0.35);
   line-height: 1;
-}
-
-.countdown-overlay__subtitle {
-  margin: 0;
-  font-size: 16px;
-  color: $pd-cream-2;
 }
 
 .countdown-overlay__go {

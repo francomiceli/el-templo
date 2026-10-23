@@ -342,19 +342,14 @@ describe('isFinalBlock', () => {
 })
 
 describe('textos del 3-2-1', () => {
-  it('bloque de sesión: "Bloque n de total · nombre" y el primer ejercicio', () => {
+  it('bloque de sesión: solo "Bloque n de total · nombre", sin el primer ejercicio', () => {
     const copy = blockCountdownCopy(block({ role: 'COMBOS_I' }), 1, 4)
-    expect(copy).toEqual({ kicker: 'Bloque 2 de 4 · Combos I', subtitle: 'Sentadilla goblet' })
-  })
-
-  it('bloque sin ejercicios: subtítulo vacío', () => {
-    expect(blockCountdownCopy(block({ exercises: [] }), 0, 4).subtitle).toBe('')
+    expect(copy).toEqual({ kicker: 'Bloque 2 de 4 · Combos I' })
   })
 
   it('modo libre: "Bloque libre · nombre del bloque"', () => {
     const copy = freeCountdownCopy(block({ role: 'COMBOS_I', route: 'PL' }))
-    expect(copy.kicker).toBe('Bloque libre · Combos I')
-    expect(copy.subtitle).toBe('Sentadilla goblet')
+    expect(copy).toEqual({ kicker: 'Bloque libre · Combos I' })
   })
 
   it('modo libre con INITIUM usa el nombre de pantalla del bloque', () => {
