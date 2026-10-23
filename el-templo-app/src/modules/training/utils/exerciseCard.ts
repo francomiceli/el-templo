@@ -15,23 +15,20 @@ export function exerciseCardState(isActive: boolean, isCompleted: boolean): Exer
   return isActive ? 'now' : 'idle'
 }
 
-export interface DosePlate {
-  /** Lo grande de la placa ("8", "10 · 12", "10-12-10", "PAUSA") */
-  value: string
-  /** La unidad chica debajo ("REPS", "SEG"); vacía si la dosis no la trae */
-  unit: string
-}
-
 const UNIT_SUFFIX = /\s+(REPS|SEG)$/
 
+/** Marca de segundos de la placa (doble prima: 30″). */
+export const SECONDS_MARK = '″'
+
 /**
- * Parte la dosis compacta ("8 REPS", "30 SEG", "10 · 12 REPS", "8 - 10 - ...", "PAUSA") en valor +
- * unidad para la placa. La TV muestra solo el número; en el player la unidad queda chica abajo para
- * no perder qué se está contando.
+ * Lo que va en la placa oscura de la derecha, a partir de la dosis compacta ("8 REPS", "30 SEG",
+ * "10 · 12 REPS", "8 - 10 - ...", "PAUSA"): solo el número, como en la TV. Las repeticiones van sin
+ * unidad y los segundos con ″ (Franco, 2026-10-23).
  */
-export function splitDose(quickDose: string): DosePlate {
+export function plateValue(quickDose: string): string {
   const text = quickDose.trim()
   const match = UNIT_SUFFIX.exec(text)
-  if (!match) return { value: text, unit: '' }
-  return { value: text.slice(0, match.index), unit: match[1] }
+  if (!match) return text
+  const value = text.slice(0, match.index)
+  return match[1] === 'SEG' ? `${value}${SECONDS_MARK}` : value
 }

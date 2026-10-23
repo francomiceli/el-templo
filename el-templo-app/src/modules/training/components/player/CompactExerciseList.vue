@@ -43,10 +43,7 @@
           <q-icon name="check" size="22px" />
         </div>
         <div v-else-if="item.quickDose" class="compact-list__plate">
-          <span class="compact-list__plate-value">{{ plateOf(item.quickDose).value }}</span>
-          <span v-if="plateOf(item.quickDose).unit" class="compact-list__plate-unit">
-            {{ plateOf(item.quickDose).unit }}
-          </span>
+          <span class="compact-list__plate-value">{{ plateValue(item.quickDose) }}</span>
         </div>
       </div>
       <!-- Expanded notes row -->
@@ -64,7 +61,7 @@ import {
   contractionBadge,
   type ContractionBadge,
 } from '../../utils/contraction'
-import { exerciseCardState, splitDose, type DosePlate } from '../../utils/exerciseCard'
+import { exerciseCardState, plateValue } from '../../utils/exerciseCard'
 
 interface ExerciseItem {
   id: number
@@ -98,10 +95,6 @@ const listStyle = computed(() => ({ '--tempo-badge-w': `${CONTRACTION_BADGE_WIDT
 
 function badgeOf(item: ExerciseItem): ContractionBadge | null {
   return contractionBadge(item.contraction)
-}
-
-function plateOf(quickDose: string): DosePlate {
-  return splitDose(quickDose)
 }
 
 function cardState(id: number, index: number): 'now' | 'done' | 'idle' {
@@ -258,13 +251,6 @@ $plate-text: #f7e6cd;
   line-height: 1.1;
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
-}
-
-.compact-list__plate-unit {
-  margin-top: 1px;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
 }
 
 // El de AHORA: borde terracota, placa terracota
