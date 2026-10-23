@@ -38,8 +38,12 @@ const TRIAL_REMINDER_TEMPLATE_KEY = "trial_session_reminder";
 
 type DbInstance = MySql2Database<typeof schema>;
 
-/** Batch size for queue processing (per D-10) */
-const QUEUE_BATCH_SIZE = 100;
+/**
+ * Batch size for queue processing (per D-10). 100 -> 500 (2026-10-23, Franco):
+ * una novedad con push a todo el gimnasio encola miles de filas de una vez y
+ * con 100 por tick de 5 min tardaba horas en salir.
+ */
+const QUEUE_BATCH_SIZE = 500;
 
 /** Purge sent/failed notifications older than this (ms) — 24 hours per D-11 */
 const PURGE_AGE_MS = 24 * 60 * 60 * 1000;

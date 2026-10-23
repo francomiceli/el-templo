@@ -24,6 +24,7 @@ import { NotificationService } from "../modules/notifications/service";
 import { EmailService } from "../modules/email/service";
 import { deriveReminderCoveredUntil } from "../modules/subscriptions/service";
 import { SegmentationService } from "../modules/segmentation/service";
+import { queueDueNovedadPushes } from "../modules/communications/novedades-push";
 // segment_transition template keys are defined in SEGMENT_TRANSITION_TEMPLATES
 import { SEGMENT_TRANSITION_TEMPLATES } from "../modules/notifications/types";
 import type { MemberSegment } from "../modules/segmentation/types";
@@ -595,6 +596,18 @@ async function runNotificationQueueTickForTenant(
     undefined,
     new EmailService(log),
   );
+
+  // Novedades con push (mig 0297): ANTES de despachar, así las filas que
+  // encola este paso salen en este mismo tick. Un fallo acá no frena la cola.
+  try {
+    const novedadPushes = await queueDueNovedadPushes(db, ctx, log);
+    if (novedadPushes.novedades > 0 || novedadPushes.failed > 0) {
+      log.info({ tenantId, ...novedadPushes }, "Novedad pushes queued");
+    }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    log.error({ tenantId, err: message }, "Novedad push step failed");
+  }
 
   await notificationService.initFirebase();
   const result = await notificationService.processQueue();

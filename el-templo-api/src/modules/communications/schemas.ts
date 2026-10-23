@@ -567,6 +567,9 @@ const novedadAdminResponseProperties = {
   whatsappText: { type: ["string", "null"] },
   publishAt: { type: "string" },
   status: { type: "string", enum: NOVEDAD_STATUS_ENUM },
+  pushRequested: { type: "boolean" },
+  pushTitle: { type: ["string", "null"] },
+  pushQueuedAt: { type: ["string", "null"] },
   createdBy: { type: ["integer", "null"] },
   createdAt: { type: "string" },
   views: { type: "integer" },
@@ -610,6 +613,10 @@ export const createNovedadSchema = {
       whatsappText: { type: ["string", "null"], maxLength: 300 },
       publishAt: { type: "string", format: "date-time" },
       status: { type: "string", enum: NOVEDAD_STATUS_ENUM },
+      // Push opcional (mig 0297). El largo real (1-50 tras trim) lo valida el
+      // service, acá solo una cota gruesa para cortar payloads absurdos.
+      sendPush: { type: "boolean" },
+      pushTitle: { type: ["string", "null"], maxLength: 200 },
     },
     additionalProperties: false,
   },
@@ -623,6 +630,8 @@ export interface CreateNovedadBody {
   whatsappText?: string | null;
   publishAt?: string;
   status?: "active" | "paused";
+  sendPush?: boolean;
+  pushTitle?: string | null;
 }
 
 // ── PUT /admin/novedades/:id ─────────────────────────────────────────────────
