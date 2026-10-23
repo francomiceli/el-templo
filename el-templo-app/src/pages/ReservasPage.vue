@@ -1071,6 +1071,7 @@ import type {
   PartnerBenefitEligibility,
 } from 'src/composables/useSchedulingApi'
 import { useUserStore } from 'src/stores/useUserStore'
+import { useTodayBookingStore } from 'src/stores/useTodayBookingStore'
 import { createLogger } from 'src/utils/logger'
 import {
   fullLineLabel,
@@ -1097,6 +1098,10 @@ import { buildGoogleCalendarUrl } from 'src/utils/calendar-link'
 const $q = useQuasar()
 const log = createLogger('ReservasV2')
 const userStore = useUserStore()
+// Turno de hoy (botón QR de MainLayout): reservar o cancelar no cambia de ruta,
+// así que hay que recargarlo a mano. Si no, quien reserva dentro de la ventana
+// ±20 min (se puede hasta 5 min antes) no ve el botón para marcar asistencia.
+const todayBookingStore = useTodayBookingStore()
 const {
   getWeeklyGrid,
   reserve,
@@ -1389,6 +1394,7 @@ async function confirmEspecialTrial() {
       type: 'positive',
       message: `Reserva confirmada. ¡Disfrutá tu clase de prueba de ${passInfoLine.value}!`,
     })
+    void todayBookingStore.load()
     await loadGrid()
     // El pase de prueba recién asignado tiene que aparecer en el chip y la línea deja de
     // ser elegible (trialLines).
@@ -1959,6 +1965,7 @@ async function confirmReserve() {
         message: reserveDialog.value.cancelFirst ? 'Horario cambiado' : 'Reserva confirmada',
       })
     }
+    void todayBookingStore.load()
     await loadGrid()
     // Phase 162 (Pitfall 3): recargar el pase para que el contador x/2 no mienta
     // tras consumir una clase especial.
@@ -2155,6 +2162,7 @@ async function confirmPartnerReserve() {
     // para que canAccessGrid pase a true y la página caiga a la grilla normal
     // con la reserva recién creada.
     selectedBranchId.value = trialBranchId.value
+    void todayBookingStore.load()
     await Promise.all([loadPartnerBenefit(), userStore.loadSubscription()])
     await loadGrid()
   } catch (err: unknown) {
@@ -2194,6 +2202,7 @@ async function confirmCancel() {
     await cancelBooking(cancelDialog.value.bookingId)
     cancelDialog.value.show = false
     $q.notify({ type: 'positive', message: 'Reserva cancelada' })
+    void todayBookingStore.load()
     await loadGrid()
     // Phase 162 (Pitfall 3): cancelar una especial devuelve el crédito — recargar el pase.
     await userStore.loadEspecialPass()
