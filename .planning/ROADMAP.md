@@ -401,7 +401,7 @@ Plans:
 **Goal**: Modo Conquer simple según la síntesis de Nacho del 2026-10-21. El coach activa al alumno eligiendo nivel y días. El alumno carga un número por escalón y la app calcula objetivos y cuándo subir. El coach trabaja por excepción con alertas.
 **Depends on**: Phase 197 (tabs de Entrenar, en staging); de cero, la rama 196 queda guardada como cantera
 **Requirements**: `.planning/phases/201-conquer/ref/conquer-desarrollo-sintesis.md` + decisiones en `201-CONTEXT.md`. Los criterios de éxito son el §12 de la síntesis.
-**Plans**: 50 plans (ejecución secuencial en un solo worktree, una ola por plan; ejecutor sonnet; tests en CI). 201-25..35: hallazgos del UAT local; 201-36..50: pedidos del UAT en staging (D-25..D-29)
+**Plans**: 35 plans (ejecución secuencial en un solo worktree, una ola por plan; ejecutor sonnet; tests en CI). 201-25..35: hallazgos del UAT local. Los pedidos del UAT en staging (D-25..D-29) pasaron a la Phase 202.
 
 Plans:
 
@@ -440,21 +440,6 @@ Plans:
 - [ ] 201-33-PLAN.md — Control físico y Evolución con la variante B
 - [ ] 201-34-PLAN.md — Fuera el cielo; UAT y CONTEXT al día (D-23, D-24)
 - [ ] 201-35-PLAN.md — Barrido final y prueba visual de Franco (checkpoint)
-- [ ] 201-36-PLAN.md — Tablas de correcciones y tutoriales (0298/0299) + tenancy
-- [ ] 201-37-PLAN.md — Reglas de video y almacenamiento privado para videos
-- [ ] 201-38-PLAN.md — API alumno: objetivos, URL de subida y alta de la corrección
-- [ ] 201-39-PLAN.md — API alumno: ver videos, respuestas vistas y contador en el estado
-- [ ] 201-40-PLAN.md — API coach: bandeja, contador, videos y borrar el del alumno
-- [ ] 201-41-PLAN.md — API coach: respuesta con texto y/o video
-- [ ] 201-42-PLAN.md — API tutoriales (bucket público, admin + alumno)
-- [ ] 201-43-PLAN.md — Admin: tutoriales en Catálogo y Ajustes de combos
-- [ ] 201-44-PLAN.md — Admin: bandeja de correcciones, contador del menú y borrado
-- [ ] 201-45-PLAN.md — Admin: respuesta del coach
-- [ ] 201-46-PLAN.md — App: datos, store y validación del video (puros con test)
-- [ ] 201-47-PLAN.md — App: "Ver cómo se hace" en Hoy, Progreso y combos
-- [ ] 201-48-PLAN.md — App: pantalla de correcciones y contador en Inicio
-- [ ] 201-49-PLAN.md — App: mandar un video (grabar/galería) + permiso de micrófono iOS
-- [ ] 201-50-PLAN.md — Barrido final y UAT (infra R2, casos D-25..D-29)
 
 ## Progress
 
@@ -498,6 +483,31 @@ Plans:
 ---
 
 _Roadmap v6.1 creado 2026-08-27. Fases 181-192. Migraciones reservan desde 0216._
+
+### Phase 202: Conquer — tutoriales y correcciones con video
+
+**Goal**: Pedidos del profe probando la 201 en staging. Tutoriales: un video por ejercicio y por combo que sube el coach y el alumno ve con "Ver cómo se hace". Correcciones: el alumno manda un video de 30 s como máximo, el coach responde con texto y/o video y puede borrar el del alumno. Videos de alumnos en el bucket R2 privado con vencimiento a los 60 días.
+**Depends on**: Phase 201 (Conquer v2, en staging)
+**Requirements**: D-25..D-29 de `.planning/phases/201-conquer/201-CONTEXT.md`; decisiones DA-37..DA-52 en `202-01-PLAN.md`. Retomar desde `202-HANDOFF.md`.
+**Plans**: 15 plans (planificados 2026-10-23 como 201-36..50 y renumerados; ejecución secuencial en el worktree de la 201, ejecutor sonnet, tests en CI)
+
+Plans:
+
+- [ ] 202-01-PLAN.md — Tablas de correcciones y tutoriales (0298/0299) + tenancy
+- [ ] 202-02-PLAN.md — Reglas de video y almacenamiento privado para videos
+- [ ] 202-03-PLAN.md — API alumno: objetivos, URL de subida y alta de la corrección
+- [ ] 202-04-PLAN.md — API alumno: ver videos, respuestas vistas y contador en el estado
+- [ ] 202-05-PLAN.md — API coach: bandeja, contador, videos y borrar el del alumno
+- [ ] 202-06-PLAN.md — API coach: respuesta con texto y/o video
+- [ ] 202-07-PLAN.md — API tutoriales (bucket público, admin + alumno)
+- [ ] 202-08-PLAN.md — Admin: tutoriales en Catálogo y Ajustes de combos
+- [ ] 202-09-PLAN.md — Admin: bandeja de correcciones, contador del menú y borrado
+- [ ] 202-10-PLAN.md — Admin: respuesta del coach
+- [ ] 202-11-PLAN.md — App: datos, store y validación del video (puros con test)
+- [ ] 202-12-PLAN.md — App: "Ver cómo se hace" en Hoy, Progreso y combos
+- [ ] 202-13-PLAN.md — App: pantalla de correcciones y contador en Inicio
+- [ ] 202-14-PLAN.md — App: mandar un video (grabar/galería) + permiso de micrófono iOS
+- [ ] 202-15-PLAN.md — Barrido final y UAT (infra R2, casos D-25..D-29)
 
 ### Phase 200: Anatomía funcional — profes, Guía y Entrenar (fuera del milestone v6.1)
 

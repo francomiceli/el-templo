@@ -74,7 +74,7 @@ Salen de los hallazgos 1 y 2 del UAT local (`201-UAT.md` §8). Las DA-15..DA-28 
 
 ## Pedidos del UAT en staging (Franco, 2026-10-23)
 
-Llegan del profe probando staging. Se suman a la 201 como planes 201-36 en adelante (sin fase nueva). Antes: niveles renombrados a Legionario / Centurión / Espartano solo en lo visible (`413924288`) y cascos como ícono de nivel (`108375889`); los códigos internos siguen `ternero` / `novillo` / `toro`.
+Llegan del profe probando staging. Se planificaron como 201-36..50 y pasaron a la **Phase 202** (`.planning/phases/202-conquer-tutoriales-correcciones/`, planes 202-01..15, retomar desde `202-HANDOFF.md`). Antes: niveles renombrados a Legionario / Centurión / Espartano solo en lo visible (`413924288`) y cascos como ícono de nivel (`108375889`); los códigos internos siguen `ternero` / `novillo` / `toro`.
 
 - **D-25 Tutoriales.** Un video por ejercicio del catálogo y uno por combo (`COMBO_KEYS`: plancha, front, vertical, dominadas, push, pull). Lo sube owner/admin desde el Catálogo del admin (ejercicio) y desde Ajustes de combos (combo), reusando la subida al bucket **público** de `admin/video-service.ts` (contenido del gimnasio, no sensible). El alumno lo ve con "Ver cómo se hace" en el ejercicio (Hoy y Progreso) y en la card del combo (apertura y sábado). Sin video cargado no hay botón.
 - **D-26 Correcciones.** El alumno manda un video de **30 s como máximo** de un escalón de su plan, con un comentario opcional. El coach (owner/admin por ahora, D-08) lo ve en una bandeja nueva del admin y responde con texto, con **un video propio (también 30 s como máximo)** o con los dos. El alumno ve sus correcciones (enviadas, pendientes y respondidas) en una pantalla nueva de Conquer.
