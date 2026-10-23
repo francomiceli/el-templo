@@ -197,7 +197,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useAuthStore } from 'stores/useAuthStore'
@@ -283,7 +283,21 @@ watch(
   },
 )
 
-onUnmounted(() => todayBookingStore.stopClock())
+// Al volver de segundo plano también: una reserva hecha por recepción o desde
+// otro teléfono no pasa por un cambio de ruta, y sin recarga el botón QR no
+// aparece aunque el socio esté en la ventana ±20 min.
+function onVisibilityChange(): void {
+  if (document.visibilityState === 'visible' && authStore.isAuthenticated) {
+    void todayBookingStore.load()
+  }
+}
+
+onMounted(() => document.addEventListener('visibilitychange', onVisibilityChange))
+
+onUnmounted(() => {
+  document.removeEventListener('visibilitychange', onVisibilityChange)
+  todayBookingStore.stopClock()
+})
 
 // SPEC "Empezá acá" B — apertura automática: la primera vez que un socio
 // entra DESPUÉS de completar el onboarding (o ya lo tenía completo) y nunca
@@ -879,6 +893,12 @@ async function onLogout() {
     font-weight: 600;
     font-size: 16px;
     box-shadow: 0 8px 20px rgba(150, 89, 58, 0.45);
+
+    // Quasar centra el ícono del fab con `margin: auto` y pisa el `on-left`:
+    // sin esto el ícono queda pegado al texto.
+    :deep(.q-icon) {
+      margin: 0 10px 0 0;
+    }
 
     @media (prefers-reduced-motion: no-preference) {
       animation:
