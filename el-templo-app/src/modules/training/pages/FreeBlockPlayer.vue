@@ -23,7 +23,6 @@
     <CountdownOverlay
       v-else-if="stage === 'countdown'"
       :kicker="countdownCopy.kicker"
-      :subtitle="countdownCopy.subtitle"
       @done="onCountdownDone"
     />
 
@@ -170,9 +169,9 @@ const auraGoalSeconds = computed(() =>
   freeBlocksStore.auraAvailableToday ? FREE_BLOCK_AURA_MIN_SECONDS : null,
 )
 
-// Textos del 3-2-1: "Bloque libre · {nombre}" y el primer ejercicio
+// Texto del 3-2-1: "Bloque libre · {nombre}"
 const countdownCopy = computed(() =>
-  item.value ? freeCountdownCopy(item.value) : { kicker: 'Bloque libre', subtitle: '' },
+  item.value ? freeCountdownCopy(item.value) : { kicker: 'Bloque libre' },
 )
 
 // Puente player -> vista

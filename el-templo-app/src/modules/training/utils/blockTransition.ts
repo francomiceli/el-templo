@@ -232,27 +232,23 @@ export function isFinalBlock(opts: {
 
 // ── 3-2-1 ───────────────────────────────────────────────────────────────────────────────────────
 
+// Solo el kicker: el 3-2-1 ya no nombra el primer ejercicio (Franco, 2026-10-23).
 export interface CountdownCopy {
   kicker: string
-  subtitle: string
 }
 
-/** Textos del 3-2-1 de un bloque de sesión: "Bloque 2 de 4 · Combos I" + el primer ejercicio. */
-export function blockCountdownCopy(block: Block, index: number, total: number): CountdownCopy {
-  return {
-    kicker: `Bloque ${index + 1} de ${total} · ${blockLabel(block.role)}`,
-    subtitle: block.exercises[0]?.exerciseName ?? '',
-  }
-}
-
-/** Textos del 3-2-1 del modo bloque libre: "Bloque libre · {nombre}" + el primer ejercicio. */
-export function freeCountdownCopy(
-  block: Pick<Block, 'role' | 'route' | 'exercises'>,
+/** Texto del 3-2-1 de un bloque de sesión: "Bloque 2 de 4 · Combos I". */
+export function blockCountdownCopy(
+  block: Pick<Block, 'role'>,
+  index: number,
+  total: number,
 ): CountdownCopy {
-  return {
-    kicker: `Bloque libre · ${blockDisplayName(block)}`,
-    subtitle: block.exercises[0]?.exerciseName ?? '',
-  }
+  return { kicker: `Bloque ${index + 1} de ${total} · ${blockLabel(block.role)}` }
+}
+
+/** Texto del 3-2-1 del modo bloque libre: "Bloque libre · {nombre}". */
+export function freeCountdownCopy(block: Pick<Block, 'role' | 'route'>): CountdownCopy {
+  return { kicker: `Bloque libre · ${blockDisplayName(block)}` }
 }
 
 // ── Aro del descanso ────────────────────────────────────────────────────────────────────────────

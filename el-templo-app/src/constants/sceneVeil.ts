@@ -22,8 +22,17 @@ export const NOCHE_FOOT_GRADIENT = 'linear-gradient(180deg, transparent, rgba(20
 
 /** Estilo de fondo: el velo encima de la foto, a pantalla completa (`cover`, centrada). */
 export function sceneBackgroundStyle(gradient: string): Record<string, string> {
+  return { ...scenePhotoStyle(), backgroundImage: `${gradient}, url(/bars-open.webp)` }
+}
+
+/**
+ * Solo la foto, sin velo. Para pantallas donde el velo cambia (historias de día/noche): el velo va en
+ * capas aparte que se funden por opacidad. Animar `background-image` hace que el navegador redibuje la
+ * foto sin `cover` durante el fundido y se ve un zoom de ida y vuelta.
+ */
+export function scenePhotoStyle(): Record<string, string> {
   return {
-    backgroundImage: `${gradient}, url(/bars-open.webp)`,
+    backgroundImage: 'url(/bars-open.webp)',
     backgroundSize: 'cover',
     backgroundPosition: 'center',
     backgroundRepeat: 'no-repeat',

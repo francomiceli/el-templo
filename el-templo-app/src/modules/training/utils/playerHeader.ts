@@ -94,3 +94,25 @@ export function playerFormatLine(
   const detail = sessionParamsDetail(format, b.formatParams)
   return keepHyphenWords([name, detail].filter(Boolean).join(' · '))
 }
+
+export interface PlayerFormatParts {
+  /** Línea 1 (Cinzel, mayúsculas): el formato — "EMOM", "AMRAP", "Cluster" */
+  name: string
+  /** Línea 2 (chica): sus parámetros — "10' · 3 rondas", "12 min · cada 60s". Vacía si no hay */
+  detail: string
+}
+
+/**
+ * La línea de formato partida en dos para la cabecera de la hoja blanca (como la TV: "EMOM" arriba y
+ * "10' (60")" abajo). Sale de `playerFormatLine`, así que el texto es el mismo en los dos modos y
+ * nunca se contradicen: se corta en el primer " · ".
+ */
+export function playerFormatParts(
+  b: Pick<Block, 'format' | 'formatParams'>,
+  mode: 'session' | 'free',
+): PlayerFormatParts {
+  const line = playerFormatLine(b, mode)
+  const sep = line.indexOf(' · ')
+  if (sep === -1) return { name: line, detail: '' }
+  return { name: line.slice(0, sep), detail: line.slice(sep + 3) }
+}
