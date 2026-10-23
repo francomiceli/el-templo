@@ -4,7 +4,20 @@
          accesibilidad que tenía EmpezaAcaPage.vue). -->
     <div class="sr-only" aria-live="polite">{{ ariaAnnouncement }}</div>
 
-    <div class="guia-page__scene" :style="sceneStyle" @click="onSceneTap">
+    <div class="guia-page__scene" :style="photoStyle" @click="onSceneTap">
+      <!-- Velos de día y de noche en capas fijas: se funden por opacidad (nunca animando el fondo) -->
+      <div
+        class="guia-page__veil"
+        :class="{ 'guia-page__veil--on': currentSlide.theme !== 'noche' }"
+        :style="{ backgroundImage: DIA_GRADIENT }"
+        aria-hidden="true"
+      />
+      <div
+        class="guia-page__veil"
+        :class="{ 'guia-page__veil--on': currentSlide.theme === 'noche' }"
+        :style="{ backgroundImage: NOCHE_GRADIENT }"
+        aria-hidden="true"
+      />
       <!-- Header: progreso segmentado. Ya no hay botón "cerrar" — esta
            pantalla es un tab más del nav (el tab bar inferior sigue visible
            y navegable), no un diálogo que haya que cerrar; ver nota en el
@@ -200,7 +213,7 @@
 import { computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from 'src/stores/useUserStore'
-import { DIA_GRADIENT, NOCHE_GRADIENT, sceneBackgroundStyle } from 'src/constants/sceneVeil'
+import { DIA_GRADIENT, NOCHE_GRADIENT, scenePhotoStyle } from 'src/constants/sceneVeil'
 import { useStoryNavigation } from '../composables/useStoryNavigation'
 import SegmentedProgressBar from '../components/player/SegmentedProgressBar.vue'
 import { LEVEL_GREEK_MAP, LEVEL_DISPLAY_MAP } from '../level-display'
@@ -245,9 +258,8 @@ const ariaAnnouncement = computed(
 // TV (pensado para texto a la izquierda en horizontal).
 // Los velos viven en `src/constants/sceneVeil.ts` (el player usa el de noche). El de día es liviano:
 // el texto ya no se apoya sobre el velo sino sobre un panel blanco centrado (sketch 023, 2026-10-23).
-const sceneStyle = computed(() =>
-  sceneBackgroundStyle(currentSlide.value.theme === 'noche' ? NOCHE_GRADIENT : DIA_GRADIENT),
-)
+// La foto queda fija y los dos velos se funden por opacidad (ver `.guia-page__veil`).
+const photoStyle = scenePhotoStyle()
 
 // Entrada escalonada de bullets/filas: 150ms después del título + 80ms por
 // ítem. `prefers-reduced-motion` anula todo esto vía CSS puro (media query
@@ -463,7 +475,19 @@ $story-glyph-size: 56px;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
-  transition: background-image 0.25s ease;
+}
+
+// Velo de día / de noche sobre la foto fija: el del tema actual a opacidad plena.
+.guia-page__veil {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+
+  &--on {
+    opacity: 1;
+  }
 }
 
 .guia-page__header {
@@ -732,6 +756,9 @@ $story-glyph-size: 56px;
   // Pastilla sólida: la pista se lee sobre cualquier foto/video (UAT D10)
   width: fit-content;
   margin-left: auto;
+  // Separada de la card aunque haya poco lugar, y despegada del borde de abajo
+  margin-top: 20px;
+  margin-bottom: 14px;
   padding: 6px 12px;
   border-radius: 999px;
   background: #2c2318;
@@ -778,23 +805,19 @@ $story-glyph-size: 56px;
 }
 
 // ─── Transición entre slides: opacity+translateY, NUNCA blur/filter/scale.
+// La historia que sale desaparece en el acto: si se desvanecía, se la veía un instante con el fondo
+// y el tema de la que entra.
 .story-slide-enter-active {
   transition:
     opacity 0.2s ease,
     transform 0.2s ease;
 }
 .story-slide-leave-active {
-  transition:
-    opacity 0.2s ease,
-    transform 0.2s ease;
+  display: none;
 }
 .story-slide-enter-from {
   opacity: 0;
   transform: translateY(8px);
-}
-.story-slide-leave-to {
-  opacity: 0;
-  transform: translateY(-8px);
 }
 
 @keyframes story-word-in {
@@ -828,9 +851,12 @@ $story-glyph-size: 56px;
     transform: none !important;
   }
 
-  .story-slide-enter-active,
-  .story-slide-leave-active {
+  .story-slide-enter-active {
     transition: opacity 0.15s ease !important;
+  }
+
+  .guia-page__veil {
+    transition: none;
   }
   .story-slide-enter-from,
   .story-slide-leave-to {
