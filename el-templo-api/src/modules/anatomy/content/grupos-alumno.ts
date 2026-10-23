@@ -8,7 +8,7 @@ import type { GrupoAlumnoDef } from "../types";
 export const GRUPOS_ALUMNO = [
   {
     id: "fuerte",
-    frase: "Trabaja fuerte en",
+    frase: "Hace el movimiento en",
     definicion: "Es uno de los que hacen el movimiento.",
     roles: ["motor", "sinergista"],
   },

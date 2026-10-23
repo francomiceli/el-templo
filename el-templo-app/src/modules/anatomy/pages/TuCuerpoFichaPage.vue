@@ -31,13 +31,13 @@
           <BodyFigure side="both" :lit="[]" :roles="roles" :height="230" />
         </div>
         <div class="ficha__leg">
-          <span class="ficha__leg-item ficha__leg-item--fuerte">Trabaja fuerte</span>
+          <span class="ficha__leg-item ficha__leg-item--fuerte">Hace el movimiento</span>
           <span v-if="ruta.sostiene.length > 0" class="ficha__leg-item ficha__leg-item--sostiene">
             Te sostiene
           </span>
         </div>
 
-        <h3 class="ficha__h">Trabaja fuerte</h3>
+        <h3 class="ficha__h">Hace el movimiento</h3>
         <p class="ficha__p">{{ fuerteTexto }}</p>
 
         <template v-if="ruta.sostiene.length > 0">
