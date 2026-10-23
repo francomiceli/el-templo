@@ -119,6 +119,7 @@ watch([() => props.activeIndex, () => props.completedIds.size], () => {
 // dosis. Colores de contracción = los de la TV (#tvScreenRoot): CON carbón, EXC oro, ISO arena.
 $tv-ink: #3d3732;
 $tv-gold: #b08d6e;
+$exc-bronze: #7a5c42;
 $tv-sand: #dbcab4;
 $tv-cream: #f2ebe1;
 $plate-text: #f7e6cd;
@@ -182,10 +183,10 @@ $plate-text: #f7e6cd;
     color: $tv-cream; // 9.9:1
   }
 
-  // Texto en tinta oscura: crema sobre el oro de la TV da 2.6:1 en el teléfono, la tinta da 5.1:1
+  // Bronce más oscuro que el oro de la TV para que el crema se lea (Franco, 2026-10-23): 5.2:1
   &--exc {
-    background: $tv-gold;
-    color: $pd-ink;
+    background: $exc-bronze;
+    color: $tv-cream;
   }
 
   &--iso {
