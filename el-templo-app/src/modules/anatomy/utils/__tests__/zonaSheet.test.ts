@@ -75,11 +75,11 @@ describe('musculoElegido', () => {
 })
 
 describe('encabezadoZona', () => {
-  it('varios músculos: kicker con el conteo, título con la zona y pills', () => {
+  it('varios músculos: título con la zona, conteo en plural y pills', () => {
     const ms = [musculo({ id: 'a' }), musculo({ id: 'b' }), musculo({ id: 'c' })]
     expect(encabezadoZona('Espalda alta', ms)).toEqual({
-      kicker: '3 músculos',
       titulo: 'Espalda alta',
+      conteo: '3 músculos',
       conPills: true,
     })
   })
@@ -90,27 +90,35 @@ describe('encabezadoZona', () => {
       musculo({ id: 'manguito', adentro: true, debajoDe: 'deltoids', zona: null }),
     ]
     expect(encabezadoZona('Hombros', ms)).toEqual({
-      kicker: '2 músculos',
       titulo: 'Hombros',
+      conteo: '2 músculos',
       conPills: true,
     })
   })
 
-  it('un solo músculo: sin pills y el título es el músculo; el kicker, la zona', () => {
+  it('un solo músculo: el título sigue siendo la zona, conteo en singular y sin pills', () => {
     expect(
       encabezadoZona('Bíceps', [musculo({ id: 'biceps', nombre: 'Bíceps braquial' })]),
     ).toEqual({
-      kicker: 'Bíceps',
-      titulo: 'Bíceps braquial',
+      titulo: 'Bíceps',
+      conteo: '1 músculo',
       conPills: false,
     })
   })
 
-  it('un solo músculo y es de adentro: el kicker dice "Más adentro"', () => {
+  it('un solo músculo de adentro: igual, la zona arriba y "1 músculo"', () => {
     const m = musculo({ id: 'psoas', nombre: 'Iliopsoas', adentro: true, zona: null })
     expect(encabezadoZona('Abdomen', [m])).toEqual({
-      kicker: 'Más adentro',
-      titulo: 'Iliopsoas',
+      titulo: 'Abdomen',
+      conteo: '1 músculo',
+      conPills: false,
+    })
+  })
+
+  it('sin músculos: "0 músculos" (la hoja muestra el vacío)', () => {
+    expect(encabezadoZona('Cuello', [])).toEqual({
+      titulo: 'Cuello',
+      conteo: '0 músculos',
       conPills: false,
     })
   })

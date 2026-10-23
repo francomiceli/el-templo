@@ -20,10 +20,10 @@ export interface GrupoEjercicios {
 }
 
 export interface EncabezadoZona {
-  /** "3 músculos", o el nombre de la zona (o "Más adentro") cuando hay uno solo. */
-  kicker: string
-  /** Nombre de la zona, o el del músculo cuando hay uno solo. */
+  /** Nombre de la zona: va arriba de todo, bajo el kicker "Zona". */
   titulo: string
+  /** Kicker de la sección de músculos: "1 músculo", "3 músculos" (cuenta los de adentro). */
+  conteo: string
   /** `true` si hay más de un músculo: se muestran las pills y el globo con flecha. */
   conPills: boolean
 }
@@ -41,20 +41,20 @@ export function musculoElegido(
   return musculos.find((m) => m.id === id) ?? musculos[0] ?? null
 }
 
-/** Kicker y título de la hoja. Con un solo músculo (contando los de adentro) no hay pills: el título es el músculo. */
+/**
+ * Encabezados de la hoja (Franco, 2026-10-23): arriba la zona, después "En esta clase" (Entrenar) y
+ * al final los músculos con su conteo. Con un solo músculo (contando los de adentro) no hay pills.
+ */
 export function encabezadoZona(
   nombreZona: string,
   musculos: readonly MusculoAlumno[],
 ): EncabezadoZona {
-  const unico = musculos.length === 1 ? musculos[0] : undefined
-  if (unico) {
-    return {
-      kicker: unico.adentro ? 'Más adentro' : nombreZona,
-      titulo: unico.nombre,
-      conPills: false,
-    }
+  const n = musculos.length
+  return {
+    titulo: nombreZona,
+    conteo: n === 1 ? '1 músculo' : `${n} músculos`,
+    conPills: n > 1,
   }
-  return { kicker: `${musculos.length} músculos`, titulo: nombreZona, conPills: true }
 }
 
 /** Texto del globo: lo que hace el músculo; los de adentro arrancan con "Más adentro ·". */

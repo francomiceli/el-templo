@@ -1,15 +1,17 @@
 <template>
   <div class="zona-alumno">
-    <slot name="antes" />
-
-    <p class="zona-alumno__kicker">{{ encabezado.kicker }}</p>
+    <p class="zona-alumno__kicker">Zona</p>
     <h2 class="zona-alumno__ttl">{{ encabezado.titulo }}</h2>
+
+    <!-- "En esta clase" (Entrenar) va entre la zona y sus músculos -->
+    <slot name="antes" />
 
     <p v-if="musculos.length === 0" class="zona-alumno__vacio">
       Todavía no hay detalle para esta zona.
     </p>
 
     <template v-else-if="elegido">
+      <p class="zona-alumno__kicker zona-alumno__kicker--seccion">{{ encabezado.conteo }}</p>
       <div class="zona-alumno__mus">
         <!-- Pills de los músculos: una fila que se desplaza. La elegida se funde con el globo. -->
         <div
@@ -45,7 +47,7 @@
           :style="{ '--flecha-x': `${flechaX}px` }"
           aria-live="polite"
         >
-          <p v-if="encabezado.conPills" class="zona-alumno__globo-ttl">{{ elegido.nombre }}</p>
+          <p class="zona-alumno__globo-ttl">{{ elegido.nombre }}</p>
           <p class="zona-alumno__hace">{{ textoQueHace(elegido) }}</p>
         </div>
       </div>
@@ -233,6 +235,10 @@ function alternar(grupo: GrupoAlumno): void {
   margin: 0;
   font-size: 11.5px;
   letter-spacing: 0.1em;
+
+  &--seccion {
+    margin-top: 14px;
+  }
 }
 
 .zona-alumno__ttl {
