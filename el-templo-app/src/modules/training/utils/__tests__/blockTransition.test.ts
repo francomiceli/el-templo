@@ -81,7 +81,7 @@ describe('sessionJourney', () => {
       playable: [INITIUM, NUCLEUS, D1, ATHLOS],
       awaitingDeuteros: false,
     })
-    expect(entries.map((e) => e.name)).toEqual(['Initium', 'Nucleus', 'Deuteros 1', 'Athlos'])
+    expect(entries.map((e) => e.name)).toEqual(['Pyros', 'Nucleus', 'Deuteros 1', 'Athlos'])
     expect(entries.every((e) => e.block !== null)).toBe(true)
   })
 
@@ -91,7 +91,7 @@ describe('sessionJourney', () => {
       playable: [INITIUM, NUCLEUS],
       awaitingDeuteros: true,
     })
-    expect(entries.map((e) => e.name)).toEqual(['Initium', 'Nucleus', 'Deuteros', 'Athlos'])
+    expect(entries.map((e) => e.name)).toEqual(['Pyros', 'Nucleus', 'Deuteros', 'Athlos'])
     expect(entries[2].block).toBeNull()
   })
 
@@ -102,7 +102,7 @@ describe('sessionJourney', () => {
       playable: [INITIUM, NUCLEUS],
       awaitingDeuteros: true,
     })
-    expect(entries.map((e) => e.name)).toEqual(['Initium', 'Nucleus', 'Deuteros', 'Epikos'])
+    expect(entries.map((e) => e.name)).toEqual(['Pyros', 'Nucleus', 'Deuteros', 'Epikos'])
   })
 
   it('con Deuteros por elegir y sin ATHLOS/EPIKOS: termina en el lugar de Deuteros', () => {
@@ -111,7 +111,7 @@ describe('sessionJourney', () => {
       playable: [INITIUM, NUCLEUS],
       awaitingDeuteros: true,
     })
-    expect(entries.map((e) => e.name)).toEqual(['Initium', 'Nucleus', 'Deuteros'])
+    expect(entries.map((e) => e.name)).toEqual(['Pyros', 'Nucleus', 'Deuteros'])
   })
 })
 
@@ -365,8 +365,8 @@ describe('textos del 3-2-1', () => {
 })
 
 describe('blockLabel', () => {
-  it('rótulo del rol, igual que el resto del player ("Initium", no "Pyros")', () => {
-    expect(blockLabel('INITIUM')).toBe('Initium')
+  it('rótulo del rol, igual que el resto del app (INITIUM = "Pyros")', () => {
+    expect(blockLabel('INITIUM')).toBe('Pyros')
     expect(blockLabel('DEUTEROS_2')).toBe('Deuteros 2')
   })
 })

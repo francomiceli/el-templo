@@ -41,11 +41,65 @@ describe("zoneHitsDeRutas", () => {
     expect(zoneHitsDeRutas(["FL"])["lower-back"]).toBeUndefined();
   });
 
-  it("los músculos sin zona (psoas, serrato, manguito) nunca aparecen", () => {
-    const ids = idsDe(zoneHitsDeRutas(RUTAS.map((r) => r.code)));
-    expect(ids).not.toContain("psoas");
-    expect(ids).not.toContain("serrato");
-    expect(ids).not.toContain("manguito");
+  it("los profundos cuentan en la zona de la que cuelgan: manguito en hombros, serrato en pecho, psoas en abdomen", () => {
+    const todas = zoneHitsDeRutas(RUTAS.map((r) => r.code));
+    const ids = (zona: string): string[] => {
+      const h = todas[zona as keyof typeof todas];
+      return h ? [...h.fuerte, ...h.sostiene, ...h.estira] : [];
+    };
+    expect(ids("deltoids")).toContain("manguito");
+    expect(ids("chest")).toContain("serrato");
+    expect(ids("abs")).toContain("psoas");
+    // Y en ninguna otra zona.
+    for (const zona of ZONAS_ORDEN) {
+      if (zona !== "deltoids") expect(ids(zona), zona).not.toContain("manguito");
+      if (zona !== "chest") expect(ids(zona), zona).not.toContain("serrato");
+      if (zona !== "abs") expect(ids(zona), zona).not.toContain("psoas");
+    }
+  });
+
+  it("FL: el manguito sostiene en hombros, el serrato sostiene en pecho y el psoas es fuerte en abdomen (después del recto)", () => {
+    const fl = zoneHitsDeRutas(["FL"]);
+    expect(fl.deltoids).toEqual({
+      fuerte: ["delt-post"],
+      sostiene: ["manguito"],
+      estira: [],
+      rutas: [{ ruta: "FL", grupo: "fuerte" }],
+    });
+    expect(fl.chest).toEqual({
+      fuerte: ["pectoral"],
+      sostiene: ["serrato"],
+      estira: [],
+      rutas: [{ ruta: "FL", grupo: "fuerte" }],
+    });
+    expect(fl.abs).toEqual({
+      fuerte: ["recto-abd", "psoas"],
+      sostiene: [],
+      estira: [],
+      rutas: [{ ruta: "FL", grupo: "fuerte" }],
+    });
+  });
+
+  it("OAP: el manguito deja a la ruta en 'sostiene' en hombros aunque no haya ningún músculo del dibujo más fuerte", () => {
+    expect(zoneHitsDeRutas(["OAP"]).deltoids).toEqual({
+      fuerte: [],
+      sostiene: ["delt-post", "manguito"],
+      estira: [],
+      rutas: [{ ruta: "OAP", grupo: "sostiene" }],
+    });
+  });
+
+  it("psoas estira (L, BRIDGE, SPAGAT) cuenta en abdomen como estira", () => {
+    expect(zoneHitsDeRutas(["L"]).abs).toEqual({
+      fuerte: [],
+      sostiene: [],
+      estira: ["psoas"],
+      rutas: [{ ruta: "L", grupo: "estira" }],
+    });
+    expect(zoneHitsDeRutas(["BRIDGE"]).abs?.estira).toEqual([
+      "recto-abd",
+      "psoas",
+    ]);
   });
 
   it("sin rutas da {}", () => {
@@ -117,6 +171,124 @@ describe("zoneHitsDeRutas", () => {
   });
 });
 
+/** Grupo más fuerte (fuerte > sostiene > estira) de una ruta en una zona, calculado a mano desde el modelo. */
+function grupoEsperado(
+  codigo: string,
+  zona: string,
+): "fuerte" | "sostiene" | "estira" | null {
+  const ruta = RUTAS.find((r) => r.code === codigo);
+  if (!ruta) throw new Error(`Falta la ruta ${codigo}`);
+  const zonaDe = new Map<string, string>(
+    MUSCULOS.flatMap((m): [string, string][] => {
+      const z = m.zona?.slug ?? ("debajoDe" in m ? m.debajoDe : undefined);
+      return z ? [[m.id, z]] : [];
+    }),
+  );
+  const grupos = new Set<string>();
+  const porRol = [
+    ["motor", "fuerte"],
+    ["sinergista", "fuerte"],
+    ["estabilizador", "sostiene"],
+    ["estira", "estira"],
+  ] as const;
+  for (const [rol, grupo] of porRol) {
+    if (ruta.relaciones[rol].some((rel) => zonaDe.get(rel.m) === zona)) {
+      grupos.add(grupo);
+    }
+  }
+  for (const g of ["fuerte", "sostiene", "estira"] as const) {
+    if (grupos.has(g)) return g;
+  }
+  return null;
+}
+
+describe("zoneHitsDeRutas — rutas por zona", () => {
+  it("una entrada por ruta que toca la zona, en el orden de entrada, con su grupo más fuerte", () => {
+    const hits = zoneHitsDeRutas(["OAP", "FL", "HSPU"]);
+    expect(hits.deltoids?.rutas).toEqual([
+      { ruta: "OAP", grupo: "sostiene" },
+      { ruta: "FL", grupo: "fuerte" },
+      { ruta: "HSPU", grupo: "fuerte" },
+    ]);
+    // El orden de las rutas sigue al de entrada, no al alfabético ni al del modelo.
+    expect(
+      zoneHitsDeRutas(["HSPU", "FL", "OAP"]).deltoids?.rutas.map(
+        (r) => r.ruta,
+      ),
+    ).toEqual(["HSPU", "FL", "OAP"]);
+  });
+
+  it("una ruta que no toca la zona no figura en ella", () => {
+    const hits = zoneHitsDeRutas(["OAP", "FL", "HSPU"]);
+    expect(hits.abs?.rutas).toEqual([
+      { ruta: "FL", grupo: "fuerte" },
+      { ruta: "HSPU", grupo: "sostiene" },
+    ]);
+  });
+
+  it("gana el grupo más fuerte cuando la ruta tiene músculos de varios grupos en la zona", () => {
+    // SPAGAT en abdomen: recto-abd sostiene + psoas estira -> sostiene.
+    expect(zoneHitsDeRutas(["SPAGAT"]).abs).toEqual({
+      fuerte: [],
+      sostiene: ["recto-abd"],
+      estira: ["psoas"],
+      rutas: [{ ruta: "SPAGAT", grupo: "sostiene" }],
+    });
+    // BRIDGE en pecho: serrato fuerte + pectoral estira -> fuerte.
+    expect(zoneHitsDeRutas(["BRIDGE"]).chest).toEqual({
+      fuerte: ["serrato"],
+      sostiene: [],
+      estira: ["pectoral"],
+      rutas: [{ ruta: "BRIDGE", grupo: "fuerte" }],
+    });
+  });
+
+  it("repetir o normalizar un código no duplica la entrada", () => {
+    const hits = zoneHitsDeRutas(["FL", " fl ", "FL", "OAP"]);
+    expect(hits.chest?.rutas).toEqual([
+      { ruta: "FL", grupo: "fuerte" },
+      { ruta: "OAP", grupo: "fuerte" },
+    ]);
+  });
+
+  it("un código desconocido no deja entrada", () => {
+    expect(zoneHitsDeRutas(["NO EXISTE", "FL"]).chest?.rutas).toEqual([
+      { ruta: "FL", grupo: "fuerte" },
+    ]);
+  });
+
+  it("las 30 rutas: cada zona lista exactamente a la ruta con el grupo calculado desde el modelo (profundos incluidos)", () => {
+    for (const ruta of RUTAS) {
+      const hits = zoneHitsDeRutas([ruta.code]);
+      for (const zona of ZONAS_ORDEN) {
+        const esperado = grupoEsperado(ruta.code, zona);
+        expect(hits[zona]?.rutas, `${ruta.code}/${zona}`).toEqual(
+          esperado ? [{ ruta: ruta.code, grupo: esperado }] : undefined,
+        );
+      }
+    }
+  });
+
+  it("el grupo de la ruta es coherente con los ids: nunca 'fuerte' sin ids fuertes, ni 'sostiene' sin sostiene/fuerte", () => {
+    const hits = zoneHitsDeRutas(RUTAS.map((r) => r.code));
+    for (const [zona, h] of Object.entries(hits)) {
+      for (const r of h?.rutas ?? []) {
+        if (r.grupo === "fuerte") {
+          expect(h?.fuerte.length, `${zona}/${r.ruta}`).toBeGreaterThan(0);
+        } else if (r.grupo === "sostiene") {
+          expect(h?.sostiene.length, `${zona}/${r.ruta}`).toBeGreaterThan(0);
+        } else {
+          expect(h?.estira.length, `${zona}/${r.ruta}`).toBeGreaterThan(0);
+        }
+      }
+    }
+  });
+
+  it("sin rutas no hay entradas", () => {
+    expect(zoneHitsDeRutas([])).toEqual({});
+  });
+});
+
 describe("rutasDistintas", () => {
   it("deduplica, normaliza y descarta vacías y desconocidas", () => {
     expect(
@@ -150,6 +322,34 @@ describe("zoneHitsDelBloque", () => {
     );
   });
 
+  it("rutas del bloque: una entrada por ruta distinta (dedupe y normaliza), en orden de aparición", () => {
+    const ejercicios = [
+      { route: "FL", category: null },
+      { route: " fl ", category: null },
+      { route: "", category: null },
+      { route: "OAP", category: null },
+      { route: "FL", category: null },
+    ];
+    const hits = zoneHitsDelBloque(ejercicios, "MAIN");
+    expect(hits.chest?.rutas).toEqual([
+      { ruta: "FL", grupo: "fuerte" },
+      { ruta: "OAP", grupo: "fuerte" },
+    ]);
+    expect(hits.deltoids?.rutas).toEqual([
+      { ruta: "FL", grupo: "fuerte" },
+      { ruta: "OAP", grupo: "sostiene" },
+    ]);
+  });
+
+  it("un bloque sin rutas del modelo no trae entradas de ruta (movilidad/sinDetalle con rutas vacías)", () => {
+    const rom = zoneHitsDelBloque([], "ROM_CORE");
+    expect(Object.values(rom).length).toBeGreaterThan(0);
+    for (const h of Object.values(rom)) expect(h.rutas).toEqual([]);
+    const plyo = zoneHitsDelBloque([{ route: "", category: "PLYO" }], "MAIN");
+    expect(Object.values(plyo).length).toBeGreaterThan(0);
+    for (const h of Object.values(plyo)) expect(h.rutas).toEqual([]);
+  });
+
   it("ROM sin ruta: las zonas del fallback, con movilidad y sin músculos", () => {
     const ejercicios = [{ route: "", category: null }];
     const hits = zoneHitsDelBloque(ejercicios, "ROM_LOWER");
@@ -161,6 +361,7 @@ describe("zoneHitsDelBloque", () => {
         fuerte: [],
         sostiene: [],
         estira: [],
+        rutas: [],
         movilidad: true,
       });
     }
@@ -189,6 +390,7 @@ describe("zoneHitsDelBloque", () => {
         fuerte: [],
         sostiene: [],
         estira: [],
+        rutas: [],
         sinDetalle: true,
       });
     }
@@ -212,8 +414,12 @@ describe("zoneHitsDelBloque", () => {
       fuerte: [],
       sostiene: [],
       estira: [],
+      rutas: [],
       sinDetalle: true,
     });
+    expect(hits["upper-back"]?.rutas).toEqual([
+      { ruta: "OAP", grupo: "fuerte" },
+    ]);
     const pintadas = zonasDelBloque(ejercicios, "MAIN");
     for (const z of pintadas) expect(hits[z], z).toBeDefined();
   });

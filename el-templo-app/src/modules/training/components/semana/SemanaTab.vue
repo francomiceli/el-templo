@@ -65,7 +65,7 @@
       </div>
     </SemanaHero>
 
-    <!-- Fase 200 D17, D19: hoja de Tu cuerpo, NO modal (seamless): los chips y otra zona siguen
+    <!-- Fase 200 D17, D19: hoja de Tus músculos, NO modal (seamless): los chips y otra zona siguen
          tocables -->
     <AnatomySheet
       v-if="tocable"
@@ -76,18 +76,13 @@
       @update:model-value="onSheetUpdate"
     >
       <template v-if="sheetZone !== null">
-        <ZonaAlumno
-          v-if="anatomyStore.vista"
-          :zona="sheetZone"
-          :musculo-id="null"
-          @open-ruta="onOpenRuta"
-        >
+        <ZonaAlumno v-if="anatomyStore.vista" :zona="sheetZone" @open-ruta="onOpenRuta">
           <template #antes>
             <HoyEnTuClase v-if="hoyProps" v-bind="hoyProps" />
           </template>
           <template #despues>
             <button type="button" class="semana-tab__ver" @click="onVerEnTuCuerpo">
-              <span>Ver en Tu cuerpo</span>
+              <span>Ver en Tus músculos</span>
               <q-icon name="chevron_right" size="18px" aria-hidden="true" />
             </button>
           </template>
@@ -409,7 +404,7 @@ function onGoLibre(): void {
     }
   }
 
-  // Fase 200 D17: "Ver en Tu cuerpo ›" al pie de la hoja
+  // Fase 200 D17: "Ver en Tus músculos ›" al pie de la hoja
   &__ver {
     @include pd-hit-44;
     display: flex;

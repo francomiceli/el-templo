@@ -10,6 +10,13 @@
 export const NOCHE_GRADIENT =
   'linear-gradient(180deg, rgba(20,18,16,0.87) 0%, rgba(20,18,16,0.78) 42%, rgba(26,23,20,0.55) 68%, rgba(33,30,27,0.4) 100%)'
 
+/**
+ * Velo claro de las historias de día (180deg). Liviano a propósito: el texto de esas historias va en un
+ * panel blanco centrado, así que el velo ya no sostiene la lectura y la foto puede asomar.
+ */
+export const DIA_GRADIENT =
+  'linear-gradient(180deg, rgba(242,236,226,0.25) 0%, rgba(242,236,226,0.45) 100%)'
+
 /** Capa de abajo: oscurece el pie de la pantalla (el botón y los textos chicos quedan sobre fondo firme). */
 export const NOCHE_FOOT_GRADIENT = 'linear-gradient(180deg, transparent, rgba(20,18,16,0.92))'
 

@@ -38,7 +38,7 @@
 
 <script setup lang="ts">
 /**
- * Fase 200 D14, D19: hoja de abajo de Tu cuerpo y de Entrenar (sketch 020 `app.css` .bs): alto 54%,
+ * Fase 200 D14, D19: hoja de abajo de Tus músculos y de Entrenar (sketch 020 `app.css` .bs): alto 54%,
  * radio 20, handle que se arrastra hacia arriba para agrandarla, hacia abajo para achicarla o
  * cerrarla (un toque la alterna) y × de 32 px con área tocable de 44. Sin backdrop. `bottomOffset`
  * sube la hoja por encima de la tab bar (Entrenar pasa su alto). Pointer events solo sobre el handle

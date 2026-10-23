@@ -260,7 +260,7 @@ export const OAP = {
     ],
   },
   fichaAlumno: {
-    que: "Dominada con un solo brazo: tirás tu cuerpo hacia la barra con un brazo y el tronco se queda quieto.",
+    que: "Colgado de la barra, tirás tu cuerpo hacia arriba. Empezás con las dos manos y, a medida que ganás fuerza, cargás cada vez más peso en un brazo hasta hacerla con uno solo. Siempre con el tronco quieto.",
     siente: {
       pendiente:
         "La investigación no dice todavía dónde se siente este ejercicio.",
@@ -274,7 +274,8 @@ export const OAP = {
     errores: [
       {
         error: "El tronco gira o se balancea",
-        texto: "La carga está de un lado: el tronco tiene que quedarse quieto.",
+        texto:
+          "Cuando cargás más peso en un brazo, el tronco tiene que quedarse quieto.",
       },
       {
         error: "Hombro encogido",
@@ -283,7 +284,8 @@ export const OAP = {
       },
       {
         error: "La mano libre ayuda",
-        texto: "Repartís el peso y deja de ser un ejercicio a un solo brazo.",
+        texto:
+          "Repartís el peso entre los dos brazos. Si todavía la necesitás, está bien: usala de apoyo hasta ganar fuerza.",
       },
     ],
   },
