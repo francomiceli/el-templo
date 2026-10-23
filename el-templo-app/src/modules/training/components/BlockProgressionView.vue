@@ -32,21 +32,6 @@
             </div>
           </div>
           <div class="block-progression__header-right">
-            <div class="block-progression__timer-wrap">
-              <div class="block-progression__timer">{{ formattedTime }}</div>
-              <!-- Fase 197 D-12: barrita dorada hasta 10', solo en modo libre con AURA disponible -->
-              <div
-                v-if="showAuraBar"
-                class="block-progression__aura-bar"
-                role="progressbar"
-                aria-label="Minutos para sumar AURA"
-                aria-valuemin="0"
-                aria-valuemax="100"
-                :aria-valuenow="auraBarPercent"
-              >
-                <i :style="{ width: auraBarPercent + '%' }" />
-              </div>
-            </div>
             <q-btn flat round dense icon="more_vert" color="white">
               <q-menu>
                 <q-list style="min-width: 150px">
@@ -81,64 +66,41 @@
       />
     </div>
 
-    <!-- Content area — below story, cream background -->
+    <!-- Content area — below story: hoja blanca (sketch 025 B). Borde superior recto -->
     <div class="block-progression__content">
-      <!-- Exercise detail panel -->
-      <div v-if="viewingBlock" class="block-progression__detail">
-        <!-- Línea de formato sin "Formato:": corta en libre (D-11), con todos los parámetros en sesión -->
-        <div v-if="viewingBlock.format" class="block-progression__detail-format">
-          <div class="block-progression__detail-format-name">
-            {{ playerFormatLine(viewingBlock, mode) }}
+      <!-- Cronómetro + formato en una fila (como la TV: reloj a la izquierda, formato en dos líneas a la derecha) -->
+      <div class="block-progression__sheet-top">
+        <div class="block-progression__clock">
+          <div class="block-progression__timer" aria-label="Tiempo de entrenamiento">
+            {{ formattedTime }}
           </div>
-          <div v-if="viewingBlock.formatDescription" class="block-progression__detail-format-desc">
-            {{ viewingBlock.formatDescription }}
-          </div>
-        </div>
-
-        <!-- Exercise name + Completar -->
-        <div class="block-progression__detail-action-row">
-          <div class="block-progression__detail-name">{{ detailActiveName }}</div>
-          <q-btn
-            v-if="!isMobilitySlide && !isReviewingPrevious"
-            unelevated
-            dense
-            class="block-progression__detail-complete-btn"
-            :color="isCurrentSlideCompleted ? 'positive' : 'primary'"
-            :label="isCurrentSlideCompleted ? 'Completado' : 'Completar'"
-            :icon="isCurrentSlideCompleted ? 'check_circle' : undefined"
-            @click="onSlideComplete"
-          />
-        </div>
-
-        <!-- Per-exercise difficulty adjustment (más fácil / más difícil) -->
-        <div v-if="canAdjustCurrentSlide" class="block-progression__detail-adjust">
-          <!-- Objective advance criterion (R5, D-07) — complements the fase-131 tap -->
-          <div class="block-progression__detail-criterion">{{ advanceCriterion }}</div>
-          <div class="block-progression__detail-adjust-row">
-            <q-btn
-              outline
-              dense
-              no-caps
-              class="block-progression__adjust-btn"
-              color="secondary"
-              icon="south"
-              label="más fácil"
-              :disable="isAdjusting"
-              @click="onAdjust('down')"
-            />
-            <q-btn
-              outline
-              dense
-              no-caps
-              class="block-progression__adjust-btn"
-              color="primary"
-              icon-right="north"
-              label="más difícil"
-              :disable="isAdjusting"
-              @click="onAdjust('up')"
-            />
+          <!-- Fase 197 D-12: barrita dorada hasta 10', solo en modo libre con AURA disponible -->
+          <div
+            v-if="showAuraBar"
+            class="block-progression__aura-bar"
+            role="progressbar"
+            aria-label="Minutos para sumar AURA"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            :aria-valuenow="auraBarPercent"
+          >
+            <i :style="{ width: auraBarPercent + '%' }" />
           </div>
         </div>
+        <!-- Formato partido en dos líneas: nombre en Cinzel y parámetros chicos debajo (D-11 en libre,
+             todos los parámetros en sesión) -->
+        <div v-if="viewingBlock && viewingBlock.format" class="block-progression__format">
+          <div class="block-progression__format-name">{{ formatParts.name }}</div>
+          <div v-if="formatParts.detail" class="block-progression__format-detail">
+            {{ formatParts.detail }}
+          </div>
+        </div>
+      </div>
+      <div
+        v-if="viewingBlock && viewingBlock.format && viewingBlock.formatDescription"
+        class="block-progression__format-desc"
+      >
+        {{ viewingBlock.formatDescription }}
       </div>
 
       <!-- Compact exercise list — always visible -->
@@ -149,6 +111,52 @@
         :completed-ids="viewingCompletedIdsSet"
         @navigate="storyNav.goTo($event)"
       />
+
+      <!-- Per-exercise difficulty adjustment (más fácil / más difícil) -->
+      <div v-if="viewingBlock && canAdjustCurrentSlide" class="block-progression__adjust">
+        <!-- Objective advance criterion (R5, D-07) — complements the fase-131 tap -->
+        <div class="block-progression__adjust-criterion">{{ advanceCriterion }}</div>
+        <div class="block-progression__adjust-row">
+          <q-btn
+            outline
+            dense
+            no-caps
+            class="block-progression__adjust-btn"
+            color="secondary"
+            icon="south"
+            label="más fácil"
+            :disable="isAdjusting"
+            @click="onAdjust('down')"
+          />
+          <q-btn
+            outline
+            dense
+            no-caps
+            class="block-progression__adjust-btn"
+            color="primary"
+            icon-right="north"
+            label="más difícil"
+            :disable="isAdjusting"
+            @click="onAdjust('up')"
+          />
+        </div>
+      </div>
+
+      <!-- Completar: pegado abajo mientras se scrollea la lista -->
+      <div
+        v-if="viewingBlock && !isMobilitySlide && !isReviewingPrevious"
+        class="block-progression__cta"
+      >
+        <q-btn
+          unelevated
+          no-caps
+          class="block-progression__complete-btn"
+          :class="{ 'block-progression__complete-btn--done': isCurrentSlideCompleted }"
+          :label="isCurrentSlideCompleted ? 'Completado' : 'Completar ejercicio'"
+          :icon="isCurrentSlideCompleted ? 'check_circle' : undefined"
+          @click="onSlideComplete"
+        />
+      </div>
 
       <!-- Change Deuteros option -->
       <div
@@ -210,7 +218,7 @@ import { useStoryNavigation } from '../composables/useStoryNavigation'
 // Utils
 import { IN_SESSION_ADJUST_ENABLED } from 'src/config/featureFlags'
 import { formatDose, formatQuickDose, isPyramidBlock } from '../utils/formatDose'
-import { playerFormatLine, playerHeaderLines, playerRoleLabel } from '../utils/playerHeader'
+import { playerFormatParts, playerHeaderLines, playerRoleLabel } from '../utils/playerHeader'
 
 interface Props {
   dayName: string
@@ -398,12 +406,10 @@ watch(
   { immediate: true },
 )
 
-// Detail panel computeds
-const detailActiveName = computed(() => {
-  if (isMobilitySlide.value && viewingBlock.value?.mobilityExercise) {
-    return viewingBlock.value.mobilityExercise.exerciseName
-  }
-  return currentSlideExercise.value?.exerciseName ?? ''
+// Formato en dos líneas para la cabecera de la hoja
+const formatParts = computed(() => {
+  if (!viewingBlock.value) return { name: '', detail: '' }
+  return playerFormatParts(viewingBlock.value, props.mode)
 })
 
 // Whether the current slide's exercise is completed
@@ -659,101 +665,99 @@ function onAdjust(direction: 'up' | 'down'): void {
   min-height: 44px;
 }
 
-.block-progression__timer-wrap {
+// Hoja blanca (sketch 025 B): reloj + formato en una fila, borde superior RECTO (sin esquinas
+// redondeadas) y debajo las cards de ejercicio.
+.block-progression__sheet-top {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 0 16px;
+  padding: 14px 0 12px;
+  border-bottom: 1px solid $pd-light-line;
 }
 
-// Fase 197 D-12 (sketch 016 .n-min): barrita de 92x4 bajo el timer
+.block-progression__clock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  flex: none;
+}
+
+// Tiempo de entrenamiento en Cinzel, como el cronómetro de la TV
+.block-progression__timer {
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 54px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  color: #3d3732;
+}
+
+// Fase 197 D-12 (sketch 016 .n-min): barrita bajo el reloj, solo en modo libre. Sobre blanco el
+// dorado AURA no se ve: oro de la TV (#b08d6e, 3.1:1) sobre una pista tintada.
 .block-progression__aura-bar {
-  width: 92px;
-  height: 4px;
-  margin: 4px 4px 0 0;
-  border-radius: 2px;
-  background: rgba(240, 230, 214, 0.25);
+  width: 120px;
+  height: 5px;
+  margin-top: 6px;
+  border-radius: 3px;
+  background: rgba(61, 55, 50, 0.14);
   overflow: hidden;
 
   i {
     display: block;
     height: 100%;
-    background: $pd-gold;
+    background: #b08d6e;
   }
 }
 
-.block-progression__timer {
-  font-family: 'Roboto Mono', monospace;
-  font-size: 16px;
-  color: white;
-  margin-right: 4px;
+// Formato a la derecha, en dos líneas: "EMOM" / "12 min · cada 60s"
+.block-progression__format {
+  min-width: 0;
+  text-align: right;
 }
 
-// Detail panel
-.block-progression__detail {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px 16px;
-  border-bottom: 1px solid rgba($secondary, 0.15);
-  flex-shrink: 0;
+.block-progression__format-name {
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #3d3732;
+  overflow-wrap: anywhere;
 }
 
-.block-progression__detail-format {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid rgba($secondary, 0.12);
-}
-
-.block-progression__detail-format-name {
+.block-progression__format-detail {
+  margin-top: 4px;
   font-size: 11px;
   font-weight: 700;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: $secondary;
+  // Texto sólido (D-16)
+  color: $pd-ink-2;
+  overflow-wrap: anywhere;
 }
 
-.block-progression__detail-format-desc {
+.block-progression__format-desc {
+  margin: 0 16px;
+  padding: 8px 0 2px;
   font-size: 11px;
   // Fase 197 D-16: texto sólido (antes rgba(0,0,0,.45), 3.27:1 medido)
   color: $pd-ink-2;
   line-height: 1.3;
 }
 
-.block-progression__detail-action-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 36px;
-}
-
-.block-progression__detail-name {
-  font-size: 1.05rem;
-  font-weight: 700;
-  color: #3d3732;
-  line-height: 1.3;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
-}
-
-.block-progression__detail-complete-btn {
-  border-radius: 8px;
-  flex-shrink: 0;
-  padding-left: 20px;
-  padding-right: 20px;
-}
-
-.block-progression__detail-adjust {
+// Más fácil / más difícil (detrás de IN_SESSION_ADJUST_ENABLED)
+.block-progression__adjust {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  margin: 4px 16px 8px;
 }
 
-.block-progression__detail-criterion {
+.block-progression__adjust-criterion {
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -761,7 +765,7 @@ function onAdjust(direction: 'up' | 'down'): void {
   color: $pd-ink-2;
 }
 
-.block-progression__detail-adjust-row {
+.block-progression__adjust-row {
   display: flex;
   gap: 8px;
 }
@@ -771,6 +775,33 @@ function onAdjust(direction: 'up' | 'down'): void {
   border-radius: 8px;
   font-size: 12px;
   font-weight: 600;
+}
+
+// Botón principal pegado al pie del área que scrollea (sticky), con un degradé blanco para que las
+// cards no se corten en seco debajo
+.block-progression__cta {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin-top: 4px;
+  padding: 10px 16px 14px;
+  background: linear-gradient(rgba(255, 255, 255, 0), #fff 30%);
+}
+
+.block-progression__complete-btn.q-btn {
+  width: 100%;
+  min-height: 48px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+  background: linear-gradient(135deg, $pd-btn-a, $pd-btn-b);
+  box-shadow: 0 6px 16px rgba($pd-btn-b, 0.28);
+
+  &.block-progression__complete-btn--done {
+    background: $positive;
+    box-shadow: none;
+  }
 }
 
 // Block navigation at bottom
@@ -854,11 +885,11 @@ function onAdjust(direction: 'up' | 'down'): void {
   flex-shrink: 0;
 }
 
-// Content area below story
+// Content area below story (blanco, sketch 025)
 .block-progression__content {
   flex: 1;
   overflow-y: auto;
-  background: $cream;
+  background: #fff;
   position: relative;
   z-index: 1; // above app-bg overlay
 }
