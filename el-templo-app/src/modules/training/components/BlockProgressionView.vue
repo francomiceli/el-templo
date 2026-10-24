@@ -86,19 +86,20 @@
 
     <!-- Content area — below story: hoja blanca (sketch 025 B). Borde superior recto -->
     <div class="block-progression__content">
-      <!-- Formato en UNA línea chica ("EMOM · 12 min · cada 60s"): deja más lugar a la lista (D-11 en
-           libre, todos los parámetros en sesión) -->
+      <!-- Formato en UNA línea chica ("EMOM · 12 min · cada 60s"), su definición debajo y recién
+           ahí el separador: la columna dórica con brillo de la plani de la TV (D-11 en libre, todos
+           los parámetros en sesión) -->
       <div v-if="viewingBlock && viewingBlock.format" class="block-progression__format">
-        <span class="block-progression__format-name">{{ formatParts.name }}</span>
-        <span v-if="formatParts.detail" class="block-progression__format-detail">
-          · {{ formatParts.detail }}
-        </span>
-      </div>
-      <div
-        v-if="viewingBlock && viewingBlock.format && viewingBlock.formatDescription"
-        class="block-progression__format-desc"
-      >
-        {{ viewingBlock.formatDescription }}
+        <div class="block-progression__format-line">
+          <span class="block-progression__format-name">{{ formatParts.name }}</span>
+          <span v-if="formatParts.detail" class="block-progression__format-detail">
+            · {{ formatParts.detail }}
+          </span>
+        </div>
+        <div v-if="viewingBlock.formatDescription" class="block-progression__format-desc">
+          {{ viewingBlock.formatDescription }}
+        </div>
+        <DoricColumn class="block-progression__format-col" :height="12" shine />
       </div>
 
       <!-- Compact exercise list — always visible -->
@@ -209,6 +210,7 @@ import type { Block, BlockRole, Prescription } from '../types/session'
 import SegmentedProgressBar from './player/SegmentedProgressBar.vue'
 import StoryExerciseCard from './player/StoryExerciseCard.vue'
 import CompactExerciseList from './player/CompactExerciseList.vue'
+import DoricColumn from './player/DoricColumn.vue'
 
 // Composables
 import { useStoryNavigation } from '../composables/useStoryNavigation'
@@ -699,15 +701,21 @@ function onAdjust(direction: 'up' | 'down'): void {
 }
 
 // Hoja blanca (sketch 025 B), borde superior RECTO. El formato va en una sola línea chica arriba de
-// las cards (Franco, 2026-10-23: más lugar para la lista).
+// las cards (Franco, 2026-10-23: más lugar para la lista), con su definición y la columna debajo.
 .block-progression__format {
   margin: 0 16px;
-  padding: 10px 0 8px;
-  border-bottom: 1px solid $pd-light-line;
+  padding: 10px 0 0;
+}
+
+.block-progression__format-line {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
   line-height: 1.2;
+}
+
+.block-progression__format-col {
+  margin: 8px 0 2px;
 }
 
 .block-progression__format-name {
@@ -729,8 +737,7 @@ function onAdjust(direction: 'up' | 'down'): void {
 }
 
 .block-progression__format-desc {
-  margin: 0 16px;
-  padding: 8px 0 2px;
+  padding-top: 4px;
   font-size: 11px;
   // Fase 197 D-16: texto sólido (antes rgba(0,0,0,.45), 3.27:1 medido)
   color: $pd-ink-2;
