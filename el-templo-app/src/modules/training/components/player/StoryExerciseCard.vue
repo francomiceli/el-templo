@@ -46,6 +46,9 @@
         />
       </div>
 
+      <!-- Pie con el ejercicio de ahora sobre un fade a negro (solo con video y sin cierre de bloque) -->
+      <StoryFooter v-if="footer" :footer="footer" />
+
       <!-- Tap zones — navigation only, hidden when block complete -->
       <template v-if="!allExercisesCompleted">
         <div class="story-card__tap-left" @click="emit('tap-prev')" />
@@ -59,6 +62,8 @@
 import { computed } from 'vue'
 import type { Prescription, Block, BlockRole } from '../../types/session'
 import { getBlockAccentColor } from '../../utils/blockColors'
+import { playerFooter } from '../../utils/playerFooter'
+import StoryFooter from './StoryFooter.vue'
 import VideoPlaceholder from './VideoPlaceholder.vue'
 
 interface Props {
@@ -75,6 +80,8 @@ interface Props {
    * último ejercicio aparece la pantalla de transición (DayPlayer / GoalPlanSession).
    */
   isLastBlock?: boolean
+  /** Dosis compacta del slide actual (ejercicio o movilidad), para la cantidad del pie */
+  quickDose?: string
 }
 
 interface Emits {
@@ -88,6 +95,7 @@ const props = withDefaults(defineProps<Props>(), {
   readOnly: false,
   mode: 'session',
   isLastBlock: true,
+  quickDose: '',
 })
 const emit = defineEmits<Emits>()
 
@@ -120,6 +128,29 @@ const isFinal = computed(() => isFreeMode.value || props.isLastBlock)
 
 const showBlockDone = computed(
   () => props.allExercisesCompleted && !props.readOnly && isFinal.value,
+)
+
+// Pie sobre el video: el ejercicio (o la movilidad) de ahora. Sin video o con el bloque completo, null
+const footer = computed(() =>
+  playerFooter({
+    isMobilitySlide: props.isMobilitySlide,
+    exercise: props.exercise
+      ? {
+          name: props.exercise.exerciseName,
+          contraction: props.exercise.contraction,
+          quickDose: props.quickDose,
+        }
+      : null,
+    mobility: props.mobilityExercise
+      ? {
+          name: props.mobilityExercise.exerciseName,
+          contraction: props.mobilityExercise.contraction,
+          quickDose: props.quickDose,
+        }
+      : null,
+    hasVideo: !!activeVideoUrl.value,
+    blockDone: showBlockDone.value,
+  }),
 )
 
 const blockDoneTitle = computed(() => {
