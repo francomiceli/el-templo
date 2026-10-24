@@ -504,17 +504,19 @@ Hay que sumar `VITE_DEV_LATENCY_MS` (comentado) a `el-templo-app/.env.example` (
 | A6 | No existe un test de API que fije "sin `view` = view explícito" | Patrón 5 | Si existe, se reusa |
 | A7 | Apagar CapacitorHttp para tener h2 en Android cambia CORS/cookies/Content-Type | HTTP/2 | Fuera de alcance de todos modos |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **D-10 sin "antes": ¿cómo sigue el plan 1?** (bloquea el orden de los planes)
+> Resueltas con Franco el 2026-10-23 (ver CONTEXT D-14..D-19).
+
+1. **D-10 sin "antes": ¿cómo sigue el plan 1?** (bloquea el orden de los planes) — **RESOLVED: D-14** (log + config + `http2` explícito + script, y 1-2 días de línea base antes de la app)
    - What we know: la API ya negocia h2 (iOS ya lo usa). Android nunca lo va a usar con CapacitorHttp.
    - Recommendation: el plan 1 = sincronizar el config + log permanente + `http2` explícito + script, y medir 1-2 días de línea base (protocolo por User-Agent, pedidos por apertura, `rt`) **antes** de tocar la app. Franco tiene que saberlo antes de aprobar los planes (la memoria `no_bloquear_cadena` dice avanzar con la recomendada y dejar la duda por escrito).
-2. **D-06 vs. SC-4 (Pitfall 3):** ¿plan-status + trial en paralelo para todos (17 pedidos, sin margen) o solo con el hint "sin plan la última vez"? Recomendado: el hint.
-3. **Qué muestra la card de hoy después del tope sin perfil o sin suscripción.** D-07 prohíbe inventar estados y la discusión descartó "error con reintentar". Recomendado: un kind `neutral` (kicker "Hoy", título con la fecha de la sede si se sabe, sin pill, primary "Entrenar" → `/training`, que tiene su propio gate). El planner lo fija y Franco lo valida en el UAT.
-4. **Error de `/progression/stats`:** hoy reemplaza la página entera por error + "Reintentar" + toast. Con D-07 debería degradar solo WeekStrip/GeneralContent. ¿Se mantiene el toast? Recomendado: sin pantalla de error completa, con el toast.
-5. **¿Dónde está hoy el `access_log off` y de dónde salen las líneas de la TV en `access.log`?** Lo resuelve la lectura de D-12 (`nginx -T` / `grep access_log`).
-6. **Usuarios de prueba para el script:** ¿cuál en staging y cuál en prod? (¿la cuenta de Franco?) Las credenciales van por env y nunca se commitean.
-7. **`node_modules` en el worktree:** `el-templo-app/node_modules` no existe en `et-202-carga`. Para correr los Vitest de la app (que el CI no corre) hace falta `pnpm install --frozen-lockfile` con OK de Franco. La memoria `no_auto_install_deps` y la nota de la 197 ("no instalar node_modules en un worktree nuevo solo para typecheck") lo piden explícito.
+2. **D-06 vs. SC-4 (Pitfall 3):** ¿plan-status + trial en paralelo para todos (17 pedidos, sin margen) o solo con el hint "sin plan la última vez"? Recomendado: el hint. — **RESOLVED: D-15** (Franco eligió paralelo para todos)
+3. **Qué muestra la card de hoy después del tope sin perfil o sin suscripción.** — **RESOLVED: D-18** (estado neutral). D-07 prohíbe inventar estados y la discusión descartó "error con reintentar". Recomendado: un kind `neutral` (kicker "Hoy", título con la fecha de la sede si se sabe, sin pill, primary "Entrenar" → `/training`, que tiene su propio gate). El planner lo fija y Franco lo valida en el UAT.
+4. **Error de `/progression/stats`:** — **RESOLVED: D-16** (degrada solo esa parte, con toast). hoy reemplaza la página entera por error + "Reintentar" + toast. Con D-07 debería degradar solo WeekStrip/GeneralContent. ¿Se mantiene el toast? Recomendado: sin pantalla de error completa, con el toast.
+5. **¿Dónde está hoy el `access_log off` y de dónde salen las líneas de la TV en `access.log`?** — **RESOLVED: plan 01-T2/01-T3** (lectura con OK). Lo resuelve la lectura de D-12 (`nginx -T` / `grep access_log`).
+6. **Usuarios de prueba para el script:** — **RESOLVED: D-19** (por env; se pregunta al ejecutar el plan 01). ¿cuál en staging y cuál en prod? (¿la cuenta de Franco?) Las credenciales van por env y nunca se commitean.
+7. **`node_modules` en el worktree:** — **RESOLVED: D-17** (no se instala; tests escritos sin correr). `el-templo-app/node_modules` no existe en `et-202-carga`. Para correr los Vitest de la app (que el CI no corre) hace falta `pnpm install --frozen-lockfile` con OK de Franco. La memoria `no_auto_install_deps` y la nota de la 197 ("no instalar node_modules en un worktree nuevo solo para typecheck") lo piden explícito.
 
 ## Environment Availability
 
