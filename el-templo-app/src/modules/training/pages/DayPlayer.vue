@@ -105,6 +105,7 @@ import { getWeekDates, formatDayName, getDateState } from '../composables/useDat
 import { resolvePlayerStart, type PlayerStartMode } from '../utils/playerStart'
 import { useUserStore } from 'src/stores/useUserStore'
 import { createLogger } from 'src/utils/logger'
+import { confirmDialog, type ConfirmDialogOptions } from 'src/utils/confirm-dialog'
 import { sessionTitle } from '../utils/blockMeta'
 import {
   blockCountdownCopy,
@@ -565,13 +566,10 @@ function navigateBack(): void {
   router.push({ name: 'training' })
 }
 
-const exitDialogOpts = {
-  title: 'Salir del entrenamiento?',
-  message: 'Tu progreso se guardará y podrás continuar después.',
-  cancel: { label: 'Cancelar', flat: true },
-  // Clase global (css/app.scss): rojo oscuro sólido, igual que el bloque libre
-  ok: { label: 'Salir', flat: true, class: 'player-exit-ok' },
-  persistent: true,
+const exitDialogOpts: ConfirmDialogOptions = {
+  title: '¿Salir del entrenamiento?',
+  message: 'Tu progreso se guarda y podés seguir después.',
+  okLabel: 'Salir',
 }
 
 async function pauseAndRelease(): Promise<void> {
@@ -581,7 +579,7 @@ async function pauseAndRelease(): Promise<void> {
 
 async function handleBackNavigation(): Promise<void> {
   if (hasUnsavedProgress.value) {
-    $q.dialog(exitDialogOpts).onOk(async () => {
+    confirmDialog($q, exitDialogOpts).onOk(async () => {
       await pauseAndRelease()
       navigateBack()
     })
@@ -591,12 +589,11 @@ async function handleBackNavigation(): Promise<void> {
 }
 
 async function restartSession(): Promise<void> {
-  $q.dialog({
-    title: 'Reiniciar Sesión',
-    message: 'Se perderá todo el progreso actual. Estás seguro?',
-    cancel: { label: 'Cancelar', flat: true },
-    ok: { label: 'Reiniciar', color: 'negative' },
-    persistent: true,
+  confirmDialog($q, {
+    title: '¿Reiniciar la sesión?',
+    message: 'Se pierde todo lo que hiciste hasta ahora.',
+    okLabel: 'Reiniciar',
+    destructive: true,
   }).onOk(async () => {
     if (player.value && session.value) {
       await player.value.clearProgress()
@@ -623,7 +620,7 @@ async function restartSession(): Promise<void> {
 
 onBeforeRouteLeave((_to, _from, next) => {
   if (hasUnsavedProgress.value) {
-    $q.dialog(exitDialogOpts)
+    confirmDialog($q, exitDialogOpts)
       .onOk(async () => {
         await pauseAndRelease()
         next()
@@ -698,12 +695,11 @@ onMounted(() => {
   userStore.registerMidSessionGuard(async () => {
     if (!anyExerciseStarted.value) return true
     return await new Promise<boolean>((resolve) => {
-      $q.dialog({
-        title: 'Cambiar nivel',
-        message: 'Si cambias de nivel vas a perder el progreso de esta sesion. ¿Seguro?',
-        cancel: { label: 'Cancelar', flat: true },
-        ok: { label: 'Cambiar nivel', color: 'negative' },
-        persistent: true,
+      confirmDialog($q, {
+        title: '¿Cambiar de nivel?',
+        message: 'Si cambiás de nivel, perdés el progreso de esta sesión.',
+        okLabel: 'Cambiar nivel',
+        destructive: true,
       })
         .onOk(() => resolve(true))
         .onCancel(() => resolve(false))

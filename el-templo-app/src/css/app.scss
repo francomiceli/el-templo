@@ -134,12 +134,6 @@ h6,
 // Tokens del lenguaje premium (solo variables y mixins, no emite CSS)
 @import 'premium-card';
 
-// Fase 197: "Salir" del diálogo de salida de los players (sesión, plan de objetivo y bloque libre).
-// `color: 'negative'` daba 4,43:1 sobre el diálogo; la clase pone el rojo oscuro $pd-neg-b (>= 7:1).
-// Es global porque el diálogo de Quasar se monta en body, fuera del scope de las páginas.
-.q-btn.player-exit-ok {
-  color: $pd-neg-b;
-}
 
 // Override white backgrounds globally
 body {
