@@ -32,6 +32,24 @@
             </div>
           </div>
           <div class="block-progression__header-right">
+            <!-- Reloj sobre el video, donde estaba (Franco, 2026-10-23), en Cinzel como la TV -->
+            <div class="block-progression__timer-wrap">
+              <div class="block-progression__timer" aria-label="Tiempo de entrenamiento">
+                {{ formattedTime }}
+              </div>
+              <!-- Fase 197 D-12: barrita dorada hasta 10', solo en modo libre con AURA disponible -->
+              <div
+                v-if="showAuraBar"
+                class="block-progression__aura-bar"
+                role="progressbar"
+                aria-label="Minutos para sumar AURA"
+                aria-valuemin="0"
+                aria-valuemax="100"
+                :aria-valuenow="auraBarPercent"
+              >
+                <i :style="{ width: auraBarPercent + '%' }" />
+              </div>
+            </div>
             <q-btn flat round dense icon="more_vert" color="white">
               <q-menu>
                 <q-list style="min-width: 150px">
@@ -68,33 +86,13 @@
 
     <!-- Content area — below story: hoja blanca (sketch 025 B). Borde superior recto -->
     <div class="block-progression__content">
-      <!-- Cronómetro + formato en una fila (como la TV: reloj a la izquierda, formato en dos líneas a la derecha) -->
-      <div class="block-progression__sheet-top">
-        <div class="block-progression__clock">
-          <div class="block-progression__timer" aria-label="Tiempo de entrenamiento">
-            {{ formattedTime }}
-          </div>
-          <!-- Fase 197 D-12: barrita dorada hasta 10', solo en modo libre con AURA disponible -->
-          <div
-            v-if="showAuraBar"
-            class="block-progression__aura-bar"
-            role="progressbar"
-            aria-label="Minutos para sumar AURA"
-            aria-valuemin="0"
-            aria-valuemax="100"
-            :aria-valuenow="auraBarPercent"
-          >
-            <i :style="{ width: auraBarPercent + '%' }" />
-          </div>
-        </div>
-        <!-- Formato partido en dos líneas: nombre en Cinzel y parámetros chicos debajo (D-11 en libre,
-             todos los parámetros en sesión) -->
-        <div v-if="viewingBlock && viewingBlock.format" class="block-progression__format">
-          <div class="block-progression__format-name">{{ formatParts.name }}</div>
-          <div v-if="formatParts.detail" class="block-progression__format-detail">
-            {{ formatParts.detail }}
-          </div>
-        </div>
+      <!-- Formato en UNA línea chica ("EMOM · 12 min · cada 60s"): deja más lugar a la lista (D-11 en
+           libre, todos los parámetros en sesión) -->
+      <div v-if="viewingBlock && viewingBlock.format" class="block-progression__format">
+        <span class="block-progression__format-name">{{ formatParts.name }}</span>
+        <span v-if="formatParts.detail" class="block-progression__format-detail">
+          · {{ formatParts.detail }}
+        </span>
       </div>
       <div
         v-if="viewingBlock && viewingBlock.format && viewingBlock.formatDescription"
@@ -665,79 +663,69 @@ function onAdjust(direction: 'up' | 'down'): void {
   min-height: 44px;
 }
 
-// Hoja blanca (sketch 025 B): reloj + formato en una fila, borde superior RECTO (sin esquinas
-// redondeadas) y debajo las cards de ejercicio.
-.block-progression__sheet-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  margin: 0 16px;
-  padding: 14px 0 12px;
-  border-bottom: 1px solid $pd-light-line;
-}
-
-.block-progression__clock {
+.block-progression__timer-wrap {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  flex: none;
+  align-items: flex-end;
 }
 
-// Tiempo de entrenamiento en Cinzel, como el cronómetro de la TV
+// Tiempo de entrenamiento sobre el video, en Cinzel como el cronómetro de la TV
 .block-progression__timer {
+  margin-right: 4px;
   font-family: 'Cinzel', Georgia, serif;
-  font-size: 54px;
+  font-size: 22px;
   font-weight: 700;
   line-height: 1;
   letter-spacing: 0.02em;
   font-variant-numeric: tabular-nums;
-  color: #3d3732;
+  color: #fff;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.45);
 }
 
-// Fase 197 D-12 (sketch 016 .n-min): barrita bajo el reloj, solo en modo libre. Sobre blanco el
-// dorado AURA no se ve: oro de la TV (#b08d6e, 3.1:1) sobre una pista tintada.
+// Fase 197 D-12 (sketch 016 .n-min): barrita de 92x4 bajo el reloj
 .block-progression__aura-bar {
-  width: 120px;
-  height: 5px;
-  margin-top: 6px;
-  border-radius: 3px;
-  background: rgba(61, 55, 50, 0.14);
+  width: 92px;
+  height: 4px;
+  margin: 5px 4px 0 0;
+  border-radius: 2px;
+  background: rgba(240, 230, 214, 0.25);
   overflow: hidden;
 
   i {
     display: block;
     height: 100%;
-    background: #b08d6e;
+    background: $pd-gold;
   }
 }
 
-// Formato a la derecha, en dos líneas: "EMOM" / "12 min · cada 60s"
+// Hoja blanca (sketch 025 B), borde superior RECTO. El formato va en una sola línea chica arriba de
+// las cards (Franco, 2026-10-23: más lugar para la lista).
 .block-progression__format {
-  min-width: 0;
-  text-align: right;
+  margin: 0 16px;
+  padding: 10px 0 8px;
+  border-bottom: 1px solid $pd-light-line;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  line-height: 1.2;
 }
 
 .block-progression__format-name {
   font-family: 'Cinzel', Georgia, serif;
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 700;
-  line-height: 1.2;
   letter-spacing: 0.07em;
   text-transform: uppercase;
   color: #3d3732;
-  overflow-wrap: anywhere;
 }
 
 .block-progression__format-detail {
-  margin-top: 4px;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   // Texto sólido (D-16)
   color: $pd-ink-2;
-  overflow-wrap: anywhere;
 }
 
 .block-progression__format-desc {
