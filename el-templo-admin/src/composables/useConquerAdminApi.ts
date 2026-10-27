@@ -40,6 +40,8 @@ import type {
   LevelUpBody,
   PhotoUrlResponse,
   Pose,
+  ReplyCorrectionBody,
+  ReplyUploadUrl,
   StepKey,
   TutorialTargetInput,
   TutorialUploadUrl,
@@ -468,6 +470,35 @@ export function useConquerAdminApi() {
     );
   }
 
+  /** Pide la URL firmada para subir el video de la respuesta del coach (MP4, hasta 100 MB). */
+  async function requestReplyUpload(id: number, contentType: string): Promise<ReplyUploadUrl> {
+    return call(
+      'requestReplyUpload',
+      'No pudimos preparar la subida del video',
+      async () => {
+        const { data } = await api.post<ReplyUploadUrl>(
+          `${BASE}/corrections/${id}/reply-upload-url`,
+          { contentType }
+        );
+        return data;
+      },
+      { correctionId: id }
+    );
+  }
+
+  /** Responde (una sola vez, DA-43): devuelve la corrección ya `respondida` y con `canReply` falso. */
+  async function replyCorrection(id: number, body: ReplyCorrectionBody): Promise<AdminCorrection> {
+    return call(
+      'replyCorrection',
+      'No pudimos enviar la respuesta',
+      async () => {
+        const { data } = await api.post<AdminCorrection>(`${BASE}/corrections/${id}/reply`, body);
+        return data;
+      },
+      { correctionId: id, withVideo: Boolean(body.key) }
+    );
+  }
+
   return {
     listRequests,
     countRequests,
@@ -498,5 +529,7 @@ export function useConquerAdminApi() {
     countCorrections,
     getCorrectionVideoUrl,
     deleteCorrectionVideo,
+    requestReplyUpload,
+    replyCorrection,
   };
 }

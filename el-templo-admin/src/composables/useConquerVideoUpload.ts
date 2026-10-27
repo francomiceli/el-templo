@@ -140,5 +140,5 @@ export function useConquerVideoUpload() {
     reset();
   }
 
-  return { phase, percent, prepareMp4, putToBucket, reset, cleanup };
+  return { phase, percent, checkDuration, prepareMp4, putToBucket, reset, cleanup };
 }

@@ -519,6 +519,16 @@ export interface AdminCorrectionsResponse {
   items: AdminCorrection[];
 }
 
+/** `POST /corrections/:id/reply-upload-url`: misma forma que la de los tutoriales. */
+export type ReplyUploadUrl = TutorialUploadUrl;
+
+/** Body de `POST /corrections/:id/reply`: texto, video (`key` + `durationSec`) o los dos. */
+export interface ReplyCorrectionBody {
+  text?: string | null;
+  key?: string | null;
+  durationSec?: number | null;
+}
+
 /** `GET /corrections/:id/video-url`: URL firmada de 5 minutos o `available: false`. */
 export interface CorrectionVideoUrl {
   available: boolean;
