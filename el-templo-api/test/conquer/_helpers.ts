@@ -1230,8 +1230,10 @@ export async function patchConquerStep(
 // ── Control físico (201-12) ─────────────────────────────────────────
 
 /**
- * Reemplaza la tienda privada de fotos por un doble: `presignPut` y `presignGet`
- * devuelven `https://r2.test/...` y `head` por defecto es una foto JPG de 1 KB.
+ * Reemplaza la tienda privada (fotos y videos) por un doble: `presignPut` y
+ * `presignGet` devuelven `https://r2.test/...`, `head` por defecto es una foto
+ * JPG de 1 KB y `remove` no hace nada (Fase 202: pasarle un `vi.fn()` en
+ * `overrides` para afirmar el borrado).
  * Cualquier operación se pisa con `overrides`. Devuelve el spy del resolver
  * (`mockRestore()` o `vi.restoreAllMocks()` en `afterEach`).
  */
@@ -1240,6 +1242,7 @@ export function mockPrivateMedia(overrides: Partial<PrivateMediaStore> = {}) {
     presignPut: async (key) => `https://r2.test/put/${key}`,
     presignGet: async (key) => `https://r2.test/get/${key}`,
     head: async () => ({ contentLength: 1024, contentType: "image/jpeg" }),
+    remove: async () => undefined,
     ...overrides,
   };
   return vi.spyOn(privateMediaResolver, "resolve").mockReturnValue(fakeStore);

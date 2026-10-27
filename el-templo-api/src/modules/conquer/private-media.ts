@@ -1,12 +1,18 @@
-// Módulo: conquer — tienda PRIVADA de las fotos del control físico (Fase 201 §6, D-04, S12-8)
+// Módulo: conquer — tienda PRIVADA de las fotos del control físico y de los
+// videos de las correcciones (Fase 201 §6, D-04, S12-8; Fase 202 D-27, DA-38)
 //
-// Copiado y adaptado de la 196. Las fotos de los alumnos van a un bucket R2
-// aparte (`R2_PRIVATE_BUCKET_NAME`, sin dominio público). Se suben y se ven SOLO
-// con URL firmada de pocos minutos; nunca hay URL pública.
+// Copiado y adaptado de la 196. Las fotos y los videos de los alumnos van a un
+// bucket R2 aparte (`R2_PRIVATE_BUCKET_NAME`, sin dominio público). Se suben y
+// se ven SOLO con URL firmada de pocos minutos; nunca hay URL pública.
 //
 // Fase 201: fail-closed. Sin `fastify.r2` o sin `R2_PRIVATE_BUCKET_NAME` el
-// resolver TIRA `PhotoStorageUnavailableError` (503). NUNCA se cae al bucket
-// público de videos: una foto de un alumno en ese bucket sería pública.
+// resolver TIRA `PhotoStorageUnavailableError` (503, fotos) o
+// `VideoStorageUnavailableError` (503, videos). NUNCA se cae al bucket
+// público de videos: un archivo de un alumno en ese bucket sería público.
+//
+// Fase 202 DA-38: los videos de correcciones viven bajo un prefijo APARTE
+// (`private/conquer-corrections/`), porque la regla de 60 días de R2 se
+// configura sobre ese prefijo y no puede tocar las fotos (`private/conquer/`).
 //
 // El resolver es un OBJETO (no una función suelta) para que los tests lo
 // reemplacen con `vi.spyOn(privateMediaResolver, "resolve")`.
@@ -15,6 +21,7 @@
 // loguea nada; quien lo llama loguea a lo sumo `{ checkId, pose }`.
 import { randomUUID } from "node:crypto";
 import {
+  DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
   PutObjectCommand,
@@ -22,6 +29,10 @@ import {
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import type { FastifyInstance } from "fastify";
 import { AppError } from "../shared/errors";
+import {
+  VIDEO_EXTENSION_BY_CONTENT_TYPE,
+  type VideoContentType,
+} from "./video-rules";
 
 /** Las tres poses del control físico (§6) y la columna donde se guarda cada una. */
 export const CONQUER_POSES = ["frente", "perfil", "espalda"] as const;
@@ -69,6 +80,16 @@ export class PhotoStorageUnavailableError extends AppError {
   }
 }
 
+/**
+ * Fase 202 D-27: lo mismo para los videos de las correcciones. Mensaje genérico
+ * (nunca claves ni errores del SDK).
+ */
+export class VideoStorageUnavailableError extends AppError {
+  constructor(message = "Los videos no están disponibles por ahora") {
+    super(message, 503, "CONQUER_VIDEOS_NO_DISPONIBLES");
+  }
+}
+
 export interface PrivateMediaHead {
   contentLength: number;
   contentType: string;
@@ -83,6 +104,8 @@ export interface PrivateMediaStore {
   presignGet(key: string, expiresSec: number): Promise<string>;
   /** Tamaño y tipo del objeto, o null si no existe. */
   head(key: string): Promise<PrivateMediaHead | null>;
+  /** Fase 202 DA-45: borra el objeto. Un "no existe" no es error. */
+  remove(key: string): Promise<void>;
 }
 
 /** `private/conquer/{tenant}/{user}/{control}/{pose}-{uuid}.{ext}` (el UUID no se adivina). */
@@ -97,8 +120,69 @@ export function privateCheckPhotoKey(input: {
   return `${PRIVATE_KEY_PREFIX}/${input.tenantId}/${input.userId}/${input.checkId}/${input.pose}-${randomUUID()}.${ext}`;
 }
 
+/**
+ * Fase 202 DA-38: prefijo de los videos de las correcciones. Distinto de
+ * `PRIVATE_KEY_PREFIX` (y que NO empieza con `private/conquer/`): la regla de
+ * 60 días de R2 va sobre este prefijo y no debe vencer las fotos del control.
+ */
+export const CORRECTION_KEY_PREFIX = "private/conquer-corrections";
+
+/** `private/conquer-corrections/{tenant}/{user}/alumno-{uuid}.{ext}` (video del alumno). */
+export function privateCorrectionVideoKey(input: {
+  tenantId: number;
+  userId: number;
+  contentType: VideoContentType;
+}): string {
+  const ext = VIDEO_EXTENSION_BY_CONTENT_TYPE[input.contentType];
+  return `${CORRECTION_KEY_PREFIX}/${input.tenantId}/${input.userId}/alumno-${randomUUID()}.${ext}`;
+}
+
+/** `private/conquer-corrections/{tenant}/{user}/coach-{correctionId}-{uuid}.{ext}` (respuesta del coach). */
+export function privateCorrectionReplyKey(input: {
+  tenantId: number;
+  userId: number;
+  correctionId: number;
+  contentType: VideoContentType;
+}): string {
+  const ext = VIDEO_EXTENSION_BY_CONTENT_TYPE[input.contentType];
+  return `${CORRECTION_KEY_PREFIX}/${input.tenantId}/${input.userId}/coach-${input.correctionId}-${randomUUID()}.${ext}`;
+}
+
 const UUID_PATTERN =
   "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+
+/**
+ * ¿`key` tiene la forma exacta de `privateCorrectionVideoKey` para ESTE
+ * gimnasio y alumno? Regex anclada: sin `..`, sin otro prefijo (T-201-121).
+ */
+export function isOwnCorrectionVideoKey(
+  key: string,
+  tenantId: number,
+  userId: number,
+): boolean {
+  if (![tenantId, userId].every((n) => Number.isInteger(n))) return false;
+  return new RegExp(
+    `^${CORRECTION_KEY_PREFIX}/${tenantId}/${userId}/alumno-${UUID_PATTERN}\\.(mp4|mov)$`,
+  ).test(key);
+}
+
+/**
+ * ¿`key` tiene la forma exacta de `privateCorrectionReplyKey` para ESTE
+ * gimnasio, alumno y corrección? Separada de la del alumno (T-201-121).
+ */
+export function isCorrectionReplyKey(
+  key: string,
+  tenantId: number,
+  userId: number,
+  correctionId: number,
+): boolean {
+  if (![tenantId, userId, correctionId].every((n) => Number.isInteger(n))) {
+    return false;
+  }
+  return new RegExp(
+    `^${CORRECTION_KEY_PREFIX}/${tenantId}/${userId}/coach-${correctionId}-${UUID_PATTERN}\\.(mp4|mov)$`,
+  ).test(key);
+}
 
 /**
  * ¿`key` tiene la forma exacta de `privateCheckPhotoKey` para ESTE gimnasio,
@@ -135,14 +219,27 @@ function isObjectMissing(err: unknown): boolean {
   return false;
 }
 
+/** Para qué se pide la tienda: decide qué 503 sale si no está configurada. */
+export type PrivateMediaPurpose = "fotos" | "videos";
+
 export const privateMediaResolver = {
   /**
-   * La tienda privada. TIRA `PhotoStorageUnavailableError` (503) si R2 no está
+   * La tienda privada. TIRA `PhotoStorageUnavailableError` (fotos, el default)
+   * o `VideoStorageUnavailableError` (videos), ambos 503, si R2 no está
    * configurado o si falta `R2_PRIVATE_BUCKET_NAME`.
    */
-  resolve(fastify: FastifyInstance): PrivateMediaStore {
+  resolve(
+    fastify: FastifyInstance,
+    purpose: PrivateMediaPurpose = "fotos",
+  ): PrivateMediaStore {
     const bucket = process.env.R2_PRIVATE_BUCKET_NAME;
-    if (!fastify.r2 || !bucket) throw new PhotoStorageUnavailableError();
+    // Fase 201 D-27: NUNCA `fastify.r2Bucket` (el bucket público de videos del
+    // gimnasio), tampoco para videos de alumnos: sería público.
+    if (!fastify.r2 || !bucket) {
+      throw purpose === "videos"
+        ? new VideoStorageUnavailableError()
+        : new PhotoStorageUnavailableError();
+    }
     const client = fastify.r2;
     return {
       presignPut: (key, contentType, expiresSec) =>
@@ -177,6 +274,18 @@ export const privateMediaResolver = {
           };
         } catch (err: unknown) {
           if (isObjectMissing(err)) return null;
+          throw err;
+        }
+      },
+      // Fase 202 DA-45: borrar un objeto que ya no está no es un error. Cualquier
+      // otro fallo se re-tira: quien llama lo convierte en 503 sin loguear la clave.
+      remove: async (key) => {
+        try {
+          await client.send(
+            new DeleteObjectCommand({ Bucket: bucket, Key: key }),
+          );
+        } catch (err: unknown) {
+          if (isObjectMissing(err)) return;
           throw err;
         }
       },
