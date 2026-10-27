@@ -683,6 +683,8 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   // ── /api/admin/reports ────────────────────────────────────────────────────
   "GET /api/admin/reports/access": { categoria: "tenant-scoped" },
   "GET /api/admin/reports/access/export": { categoria: "tenant-scoped" },
+  // Fase 204 D-16: reporte Wellhub por sede y mes; lee attendance/bookings/wellhub_*/subscriptions/users con tenantWhere
+  "GET /api/admin/reports/wellhub": { categoria: "tenant-scoped" },
   "GET /api/admin/reports/charges": { categoria: "tenant-scoped" },
   "GET /api/admin/reports/charges/export": { categoria: "tenant-scoped" },
   "GET /api/admin/reports/expired-members": { categoria: "tenant-scoped" },
