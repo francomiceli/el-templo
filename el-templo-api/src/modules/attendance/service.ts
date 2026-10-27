@@ -30,6 +30,10 @@ import { milestoneInWindow, toUtcDateStr } from "../shared/tenure-milestones";
 import { birthdayLabelOn } from "../shared/birthdays";
 import { SubscriptionService } from "../subscriptions/service";
 import { sameActivityKindSql } from "../scheduling/special-line";
+import {
+  notWellhubAttendanceSql,
+  notWellhubBookingSql,
+} from "../shared/wellhub-sources";
 import { AuraService } from "../aura/service";
 import { CheckInService } from "../check-ins/service";
 import type { DayCheckIn } from "../check-ins/types";
@@ -148,6 +152,8 @@ export class AttendanceService {
           eq(schema.bookings.bookingDate, todayStr),
           eq(schema.bookings.status, "reservado"),
           eq(schema.schedules.branchId, branchId),
+          // Fase 204 D-18: el QR del socio nunca consume una reserva Wellhub
+          notWellhubBookingSql(),
         ),
       );
 
@@ -255,6 +261,8 @@ export class AttendanceService {
           eq(schema.attendance.memberId, memberId),
           sql`DATE(${schema.attendance.checkedInAt}) = ${todayStr}`,
           sameActivityKindSql(isSpecialActivity, specialLine),
+          // Fase 204 D-18: la visita Wellhub del día no bloquea la visita propia del socio
+          notWellhubAttendanceSql(),
         ),
       )
       .limit(1);
@@ -306,6 +314,8 @@ export class AttendanceService {
             eq(schema.attendance.memberId, memberId),
             eq(schema.attendance.sessionDate, todayStr),
             sameActivityKindSql(isSpecialActivity, specialLine),
+            // Fase 204 D-18: la visita Wellhub del día no bloquea la visita propia del socio
+            notWellhubAttendanceSql(),
           ),
         )
         .limit(1);
@@ -1442,6 +1452,8 @@ export class AttendanceService {
           sql`DATE(${schema.attendance.checkedInAt}) >= ${monday}`,
           sql`DATE(${schema.attendance.checkedInAt}) <= ${saturday}`,
           sql`COALESCE(${schema.activities.isSpecial}, false) = false`,
+          // Fase 204 D-18: las visitas Wellhub no consumen el límite semanal del plan
+          notWellhubAttendanceSql(),
         ),
       );
 
