@@ -403,3 +403,13 @@ Para los planes 202-NN este archivo vale entero, con estos cambios (mandan sobre
 - (orquestador, antes de 202-08) Desde acá son planes de admin y app. Gates de front: `pnpm lint` del paquete y `vue-tsc`
   filtrado por los archivos del plan (ver línea base arriba). Baseline re-tomada tras 202-07: lint OK en app y admin, ningún
   error de vue-tsc en archivos de conquer/tutorial/corrección/video.
+- (202-08) Admin: `useConquerVideoUpload()` (`el-templo-admin/src/composables/useConquerVideoUpload.ts`) → `{ phase, percent,
+  prepareMp4, putToBucket, reset, cleanup }`. `prepareMp4(file, { maxBytes, maxSeconds? })` → `{ ok: true, file, seconds } |
+  { ok: false, message }` (no notifica; con `maxSeconds` lee la duración ANTES de convertir y `seconds` queda en 1..max).
+  `putToBucket` = PUT sin auth con `Content-Type: video/mp4`; si falla tira Error con copy en español y loguea solo el status.
+  `phase` vuelve a `idle` entre los dos pasos: la vista lleva su propio `busy`. 202-10 lo REUSA para el video del coach.
+  Store `useConquerTutorialsStore` (`view`, `loading`, `load`, `apply`, `exerciseUrl`, `comboTutorial`). Cliente
+  `useConquerAdminApi`: `getTutorials`, `requestTutorialUpload`, `confirmTutorial`, `deleteTutorial`; tipos `TutorialTarget`,
+  `TutorialTargetInput`, `AdminTutorials`, `TutorialUploadUrl` en `types/conquer.ts`. `getVideoDuration` vive en
+  `src/utils/videoDuration.ts`. Notificar con `useQuasar().notify` como los vecinos. No pasar `data-test` a un componente
+  que ya tiene el suyo en el root (lo pisa).
