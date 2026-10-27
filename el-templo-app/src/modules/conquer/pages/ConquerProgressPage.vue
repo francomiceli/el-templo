@@ -171,6 +171,8 @@ onMounted(() => {
   void load()
   // Abierta en frío no hay estado: sin él falta "Semana N del bloque" en el subtítulo
   if (!conquerStore.state) void conquerStore.loadState()
+  // Fase 201 D-25, DA-49: los tutoriales cargan una vez por sesión y sin esperar; si fallan, no hay botones
+  void conquerStore.loadTutorials()
 })
 
 onBeforeUnmount(() => {

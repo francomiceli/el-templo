@@ -240,6 +240,8 @@ watch(
 
 onMounted(() => {
   void loadDay()
+  // Fase 201 D-25, DA-49: los tutoriales cargan una vez por sesión y sin esperar; si fallan, no hay botones
+  void conquerStore.loadTutorials()
 })
 
 onBeforeUnmount(() => {

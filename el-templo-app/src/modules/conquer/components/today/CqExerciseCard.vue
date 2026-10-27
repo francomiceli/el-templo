@@ -1,7 +1,11 @@
 <template>
   <div class="cq-card cq-ex">
     <div class="cq-ex__head cq-dark">
-      <h3 class="cq-ex__name">{{ index }} · {{ exercise.name }}</h3>
+      <div class="cq-ex__title">
+        <h3 class="cq-ex__name">{{ index }} · {{ exercise.name }}</h3>
+        <!-- Fase 201 D-25: "Ver cómo se hace" debajo del nombre, solo si hay tutorial -->
+        <CqTutorialButton :exercise-id="exercise.exerciseId" :name="exercise.name" />
+      </div>
       <CqTemple :filled="templeFilled(values)" />
     </div>
     <div class="cq-ex__steps">
@@ -34,6 +38,7 @@ import { templeFilled } from '../../utils/todayForm'
 import type { StepValues } from '../../utils/todayForm'
 import type { Level, Mode, StepKey, TodayExercise } from '../../types'
 import CqTemple from '../brand/CqTemple.vue'
+import CqTutorialButton from '../media/CqTutorialButton.vue'
 import CqStepRow from './CqStepRow.vue'
 
 // Fase 201 §7.1 Hoy, DA-31 (sketch 022 B `.exhead.dk`): un ejercicio con la cabecera oscura (nombre y
@@ -76,6 +81,13 @@ const hasUnilateral = computed(() => props.exercise.steps.some((s) => s.unilater
     align-items: center;
     justify-content: space-between;
     gap: 12px;
+  }
+
+  // Nombre y "Ver cómo se hace" apilados; el templo queda a la derecha
+  &__title {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
   }
 
   &__name {

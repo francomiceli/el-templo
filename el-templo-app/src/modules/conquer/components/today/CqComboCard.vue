@@ -3,6 +3,8 @@
     <div class="cq-combo__head cq-dark">
       <p class="cq-kicker">{{ kicker }}</p>
       <h3 v-if="heading" class="cq-combo__title">{{ heading }}</h3>
+      <!-- Fase 201 D-25: "Ver cómo se hace" del combo, solo si hay tutorial -->
+      <CqTutorialButton :combo-key="combo.comboKey" :name="combo.label" />
     </div>
     <p class="cq-combo__seq">
       Press <b>{{ combo.press }}</b> (sube y baja) <span class="cq-combo__ar">→</span> Push
@@ -56,6 +58,7 @@
 import { computed } from 'vue'
 import type { ComboView } from '../../types'
 import CqButton from '../brand/CqButton.vue'
+import CqTutorialButton from '../media/CqTutorialButton.vue'
 import CqCounter from './CqCounter.vue'
 
 // Fase 201 §3, D-14, §7.1 Hoy, DA-31 (sketch 022 B): combo de Toro (apertura de cada día o push/pull del sábado):

@@ -1,6 +1,8 @@
 <template>
   <div class="cq-pe">
     <h3 class="cq-pe__name">{{ exercise.name }}</h3>
+    <!-- Fase 201 D-25: "Ver cómo se hace" debajo del nombre, solo si hay tutorial -->
+    <CqTutorialButton :exercise-id="exercise.exerciseId" :name="exercise.name" />
 
     <div v-for="row in rows" :key="row.step" class="cq-pe__row">
       <CqGreek :step="row.step" size="sm" />
@@ -26,6 +28,7 @@ import { computed } from 'vue'
 import { estadoChip, unitText } from '../../utils/format'
 import type { ProgressExercise, StepKey } from '../../types'
 import CqGreek from '../brand/CqGreek.vue'
+import CqTutorialButton from '../media/CqTutorialButton.vue'
 import CqSparkline from './CqSparkline.vue'
 
 // Fase 201 §7.1 Progreso, DA-35 (sketch 022 B `.pe`): un ejercicio con sus escalones E1-E3. Por cada
