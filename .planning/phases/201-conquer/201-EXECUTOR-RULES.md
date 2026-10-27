@@ -337,3 +337,12 @@ Para los planes 202-NN este archivo vale entero, con estos cambios (mandan sobre
   un grep amplio: app `src/router/routes.ts(139,29) TS7016`, admin `src/utils/pdf/session-pdf-builder.ts(224,11) TS2339`.
 - Sin bucket R2 privado ni CORS todavía (los crea Franco): el código degrada a 503 limpio sin `R2_PRIVATE_BUCKET_NAME` y los
   tests mockean el storage (ver lección 196 de fotos y la de 201-12). Nada se prueba contra R2 real.
+- (202-01) Drizzle: `schema.conquerCorrections` / `schema.conquerTutorials`, `CONQUER_CORRECTION_STATUSES`, tipos
+  `ConquerCorrectionRow` / `ConquerTutorialRow` / `ConquerCorrectionStatus`. La base NO impone "escalón o combo" (DA-41):
+  lo valida el servicio. `video_seconds` NOT NULL; `video_key` NULL solo tras borrado (con `video_deleted_at`/`_by`).
+  `reply_seen_at` NULL = el alumno no vio la respuesta. `reply_video_key` sin UNIQUE (la clave lleva correctionId + uuid).
+  Los UNIQUE de `conquer_tutorials` admiten NULL: upsert con `onDuplicateKeyUpdate` o buscar antes con `tenantWhere`.
+  `exercise_id`: CASCADE en tutorials, restrict en corrections. Las dos tablas ya están en `TABLES_TO_CLEAN` y en
+  `limpiarSegundoGimnasio`. Tenancy tras 202-01: 116 gym-owned / 121 schema. Manifiesto: `ENTRADAS_BASELINE` = 516
+  (`test/tenancy/iso-01-manifiesto.test.ts:386`) antes de las rutas de la 202. La base local NO tiene 0298/0299 aplicadas
+  (el orquestador no migra la base de Franco sin su OK): no depender de eso.
