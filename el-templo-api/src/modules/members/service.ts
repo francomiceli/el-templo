@@ -22,6 +22,7 @@ import {
 import type { FastifyBaseLogger } from "fastify";
 import argon2 from "argon2";
 import * as schema from "../../db/schema";
+import type { TxHandle } from "../finance/balance-service";
 
 /** Temporary password assigned by admin-driven member creation and password reset. */
 export const MEMBER_TEMP_PASSWORD = "eltemplo2026";
@@ -187,6 +188,31 @@ export function recentWellhubActivitySql(ctx: TenantContext) {
  */
 export function wellhubOnlySql(ctx: TenantContext) {
   return sql<number>`(users.gympass_id IS NOT NULL AND (${wellhubLabelVisibleSql(ctx)} OR (${effectiveMemberStatusSql(ctx)} = 'activo' AND ${recentWellhubActivitySql(ctx)})))`;
+}
+
+/**
+ * Fase 204 (D-21): el "scrub" de la baja lógica de un alumno, sin validar nada.
+ * Lo comparten `MemberService.softDeleteMember` y la unión de fichas Wellhub
+ * (`MemberWellhubService.mergeInto`), que lo corre dentro de su transacción.
+ * `executor` es el db o la tx del llamador. NO cancela reservas: eso es asunto
+ * de quien llama (la unión las mueve, no las cancela).
+ */
+export async function softDeleteMemberTx(
+  executor: MySql2Database<typeof schema> | TxHandle,
+  ctx: TenantContext,
+  id: number,
+): Promise<void> {
+  const timestamp = Date.now();
+  const scrubbedEmail = `deleted-${id}-${timestamp}@deleted.local`;
+
+  await executor
+    .update(schema.users)
+    .set({
+      deletedAt: new Date(),
+      email: scrubbedEmail,
+      dni: null,
+    })
+    .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, id)));
 }
 
 export class MemberService {
@@ -2183,17 +2209,7 @@ export class MemberService {
     if (existing.role !== "member") return { ok: false, reason: "not_member" };
     if (existing.deletedAt) return { ok: false, reason: "already_deleted" };
 
-    const timestamp = Date.now();
-    const scrubbedEmail = `deleted-${id}-${timestamp}@deleted.local`;
-
-    await this.db
-      .update(schema.users)
-      .set({
-        deletedAt: new Date(),
-        email: scrubbedEmail,
-        dni: null,
-      })
-      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, id)));
+    await softDeleteMemberTx(this.db, ctx, id);
 
     return { ok: true };
   }

@@ -14,19 +14,35 @@
 //
 // AISLAMIENTO: toda query lleva el gimnasio (`tenantWhere`, también en cada
 // tabla unida).
-import { and, asc, desc, eq, gte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
+import type { TxHandle } from "../finance/balance-service";
+import { auditLog } from "../shared/audit-log";
 import { todayInTz } from "../shared/date-utils";
 import { tenantWhere, type TenantContext } from "../shared/tenant";
 import {
   isWellhubAttendanceSql,
   isWellhubBookingSql,
 } from "../shared/wellhub-sources";
-import { MemberService, wellhubLabelVisibleSql } from "../members/service";
+import {
+  MemberService,
+  softDeleteMemberTx,
+  wellhubLabelVisibleSql,
+} from "../members/service";
 
 type DbInstance = MySql2Database<typeof schema>;
+/** Pool o handle de transacción (mismo patrón que `referrals/invitation-rules`). */
+type Executor = DbInstance | TxHandle;
+
+/** Estados de una reserva que ocupan lugar: la unión no las pisa. */
+const LIVE_BOOKING_STATUSES = [
+  "reservado",
+  "qr_escaneado",
+  "confirmado",
+  "lista_espera",
+] as const;
 
 /** Cuántas reservas Wellhub recientes trae la card (D-20). */
 const RECENT_BOOKINGS_LIMIT = 10;
@@ -73,6 +89,42 @@ export type SendAppAccessResult =
         | "no_email";
     };
 
+export interface WellhubMergeMoved {
+  bookings: number;
+  attendance: number;
+  wellhubBookings: number;
+  notes: number;
+}
+
+export type WellhubMergeResult =
+  | { ok: true; moved: WellhubMergeMoved }
+  | { ok: false; status: 400 | 404 | 409; message: string };
+
+/**
+ * Rechazo de negocio de la unión. Se tira DENTRO de la transacción para que
+ * haga rollback y se atrapa afuera para devolver `{ ok: false }`.
+ */
+class WellhubMergeError extends Error {
+  constructor(
+    readonly status: 400 | 404 | 409,
+    message: string,
+  ) {
+    super(message);
+    this.name = "WellhubMergeError";
+  }
+}
+
+/** Filas afectadas de un UPDATE/DELETE de drizzle-mysql2 (`[ResultSetHeader, ...]`). */
+function affectedRows(result: unknown): number {
+  if (Array.isArray(result) && result.length > 0) {
+    const header: unknown = result[0];
+    if (typeof header === "object" && header !== null && "affectedRows" in header) {
+      return Number((header as { affectedRows: unknown }).affectedRows);
+    }
+  }
+  return 0;
+}
+
 /** Timestamp de MySQL (Date o string) a ISO; null si no hay valor parseable. */
 function toIso(value: unknown): string | null {
   if (value === null || value === undefined) return null;
@@ -88,7 +140,7 @@ function toIso(value: unknown): string | null {
 export async function isPureWellhub(
   ctx: TenantContext,
   userId: number,
-  executor: DbInstance,
+  executor: Executor,
 ): Promise<boolean> {
   const [user] = await executor
     .select({ status: schema.users.status })
@@ -415,5 +467,226 @@ export class MemberWellhubService {
       firstName: user.firstName ?? "",
       hadLoggedIn,
     };
+  }
+
+  /**
+   * D-05/D-21: "Unir con alumno existente". Absorbe un duplicado Wellhub puro
+   * (`sourceUserId`) en un alumno existente (`targetUserId`): el ID de Wellhub,
+   * las reservas, las visitas, las solicitudes `wellhub_bookings` y las notas
+   * pasan al destino; el duplicado se da de baja (baja lógica) y se audita.
+   * Todo en UNA transacción. Las reservas vivas se MUEVEN, nunca se cancelan.
+   * Sin deshacer en la UI (D-21).
+   */
+  async mergeInto(
+    ctx: TenantContext,
+    input: { sourceUserId: number; targetUserId: number; actorId: number },
+  ): Promise<WellhubMergeResult> {
+    const { sourceUserId, targetUserId, actorId } = input;
+
+    if (sourceUserId === targetUserId) {
+      return {
+        ok: false,
+        status: 400,
+        message: "No se puede unir una ficha consigo misma",
+      };
+    }
+
+    try {
+      const moved = await this.db.transaction(async (tx) => {
+        const loadUser = async (id: number) => {
+          const [row] = await tx
+            .select({
+              role: schema.users.role,
+              deletedAt: schema.users.deletedAt,
+              gympassId: schema.users.gympassId,
+              email: schema.users.email,
+            })
+            .from(schema.users)
+            .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, id)))
+            .limit(1);
+          if (!row || row.deletedAt || row.role !== "member") {
+            throw new WellhubMergeError(404, "Miembro no encontrado");
+          }
+          return row;
+        };
+
+        const source = await loadUser(sourceUserId);
+        const target = await loadUser(targetUserId);
+
+        if (
+          source.gympassId === null ||
+          !(await isPureWellhub(ctx, sourceUserId, tx))
+        ) {
+          throw new WellhubMergeError(
+            409,
+            "Solo se puede unir una ficha Wellhub sin planes ni pagos",
+          );
+        }
+        if (target.gympassId !== null) {
+          throw new WellhubMergeError(
+            409,
+            "Ese alumno ya tiene otro ID de Wellhub",
+          );
+        }
+        const gympassId = source.gympassId;
+
+        // Choques con el unique (member_id, schedule_id, booking_date): si las
+        // dos fichas tienen reserva viva para la misma clase y día, se rechaza.
+        // Si una de las dos está muerta (cancelada / no_show) se borra esa para
+        // que la reserva viva (o la del duplicado) pueda pasar al destino.
+        const bookingColumns = {
+          id: schema.bookings.id,
+          scheduleId: schema.bookings.scheduleId,
+          bookingDate: schema.bookings.bookingDate,
+          status: schema.bookings.status,
+        };
+        const sourceBookings = await tx
+          .select(bookingColumns)
+          .from(schema.bookings)
+          .where(
+            and(
+              tenantWhere(schema.bookings, ctx),
+              eq(schema.bookings.memberId, sourceUserId),
+            ),
+          );
+        const targetBookings = await tx
+          .select(bookingColumns)
+          .from(schema.bookings)
+          .where(
+            and(
+              tenantWhere(schema.bookings, ctx),
+              eq(schema.bookings.memberId, targetUserId),
+            ),
+          );
+
+        const isLive = (status: string) =>
+          (LIVE_BOOKING_STATUSES as readonly string[]).includes(status);
+        const keyOf = (b: { scheduleId: number; bookingDate: string }) =>
+          `${b.scheduleId}|${b.bookingDate}`;
+        const targetByKey = new Map(targetBookings.map((b) => [keyOf(b), b] as const));
+        const deadToDelete: number[] = [];
+        for (const sb of sourceBookings) {
+          const tb = targetByKey.get(keyOf(sb));
+          if (!tb) continue;
+          if (isLive(sb.status) && isLive(tb.status)) {
+            throw new WellhubMergeError(
+              409,
+              "Las dos fichas tienen reserva para la misma clase el mismo día",
+            );
+          }
+          // Se borra la muerta; si las dos están muertas, la del duplicado.
+          deadToDelete.push(isLive(tb.status) ? sb.id : tb.id);
+        }
+        if (deadToDelete.length > 0) {
+          await tx
+            .delete(schema.bookings)
+            .where(
+              and(
+                tenantWhere(schema.bookings, ctx),
+                inArray(schema.bookings.id, deadToDelete),
+              ),
+            );
+        }
+
+        // `users.gympass_id` es UNIQUE global: primero se libera en el
+        // duplicado y recién después se asigna al destino.
+        await tx
+          .update(schema.users)
+          .set({ gympassId: null })
+          .where(
+            and(
+              tenantWhere(schema.users, ctx),
+              eq(schema.users.id, sourceUserId),
+            ),
+          );
+        await tx
+          .update(schema.users)
+          .set({ gympassId })
+          .where(
+            and(
+              tenantWhere(schema.users, ctx),
+              eq(schema.users.id, targetUserId),
+            ),
+          );
+
+        const bookings = affectedRows(
+          await tx
+            .update(schema.bookings)
+            .set({ memberId: targetUserId })
+            .where(
+              and(
+                tenantWhere(schema.bookings, ctx),
+                eq(schema.bookings.memberId, sourceUserId),
+              ),
+            ),
+        );
+        const attendance = affectedRows(
+          await tx
+            .update(schema.attendance)
+            .set({ memberId: targetUserId })
+            .where(
+              and(
+                tenantWhere(schema.attendance, ctx),
+                eq(schema.attendance.memberId, sourceUserId),
+              ),
+            ),
+        );
+        const wellhubBookings = affectedRows(
+          await tx
+            .update(schema.wellhubBookings)
+            .set({ userId: targetUserId })
+            .where(
+              and(
+                tenantWhere(schema.wellhubBookings, ctx),
+                eq(schema.wellhubBookings.userId, sourceUserId),
+              ),
+            ),
+        );
+        const notes = affectedRows(
+          await tx
+            .update(schema.memberNotes)
+            .set({ userId: targetUserId })
+            .where(
+              and(
+                tenantWhere(schema.memberNotes, ctx),
+                eq(schema.memberNotes.userId, sourceUserId),
+              ),
+            ),
+        );
+
+        await softDeleteMemberTx(tx, ctx, sourceUserId);
+
+        const movedCounts: WellhubMergeMoved = {
+          bookings,
+          attendance,
+          wellhubBookings,
+          notes,
+        };
+        await auditLog.write(ctx, tx, {
+          actorId,
+          action: "wellhub_member_merged",
+          targetKind: "member",
+          targetId: targetUserId,
+          payload: {
+            absorbedUserId: sourceUserId,
+            gympassId,
+            absorbedEmail: source.email,
+            moved: movedCounts,
+          },
+        });
+        return movedCounts;
+      });
+
+      this.log.info(
+        { sourceUserId, targetUserId, moved },
+        "Fichas unidas: duplicado Wellhub absorbido",
+      );
+      return { ok: true, moved };
+    } catch (err: unknown) {
+      if (err instanceof WellhubMergeError) {
+        return { ok: false, status: err.status, message: err.message };
+      }
+      throw err;
+    }
   }
 }

@@ -800,6 +800,50 @@ export const memberAppAccessSchema = {
   },
 };
 
+/**
+ * Fase 204 (D-05/D-21): "Unir con alumno existente". `:userId` es el duplicado
+ * Wellhub a absorber y `targetUserId` el alumno que lo recibe.
+ */
+export const memberWellhubMergeSchema = {
+  params: {
+    type: "object",
+    required: ["userId"],
+    properties: {
+      userId: { type: "integer" },
+    },
+  },
+  body: {
+    type: "object",
+    required: ["targetUserId"],
+    additionalProperties: false,
+    properties: {
+      targetUserId: { type: "integer", minimum: 1 },
+    },
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        ok: { type: "boolean" },
+        targetUserId: { type: "integer" },
+        moved: {
+          type: "object",
+          properties: {
+            bookings: { type: "integer" },
+            attendance: { type: "integer" },
+            wellhubBookings: { type: "integer" },
+            notes: { type: "integer" },
+          },
+        },
+      },
+    },
+    400: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
+    409: errorSchema,
+  },
+};
+
 export const checkDniSchema = {
   querystring: {
     type: "object",

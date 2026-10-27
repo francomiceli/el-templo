@@ -82,6 +82,7 @@ import {
   resetMemberPasswordSchema,
   memberWellhubCardSchema,
   memberAppAccessSchema,
+  memberWellhubMergeSchema,
   checkDniSchema,
   checkDuplicatesSchema,
   exportMembersSchema,
@@ -1916,6 +1917,68 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       );
 
       return { ok: true, emailSent };
+    },
+  );
+
+  // POST /admin/members/:userId/wellhub-merge — "Unir con alumno existente"
+  // (D-05/D-21). `:userId` es el duplicado Wellhub a absorber, `targetUserId`
+  // (body) el alumno que lo recibe. Solo admin/owner. NO reusa el DELETE del
+  // socio: ese cancela reservas futuras, y las Wellhub se MUEVEN.
+  fastify.post<{ Params: { userId: number }; Body: { targetUserId: number } }>(
+    "/:userId/wellhub-merge",
+    { schema: memberWellhubMergeSchema },
+    async (request, reply) => {
+      const ctx = assertTenant(request.scope, "members.wellhubMerge");
+      if (!(ADMIN_ROLES as readonly string[]).includes(request.user.role)) {
+        return reply.code(403).send({
+          error: "Acceso denegado",
+          message: "Solo admin u owner puede unir fichas",
+        });
+      }
+
+      // El hook del plugin solo acota `:userId`: el destino del body tiene que
+      // pasar por el mismo filtro de gimnasio y país (ajeno = inexistente).
+      for (const id of [request.params.userId, request.body.targetUserId]) {
+        if (!(await isMemberVisibleToActor(request.scope, ctx, id))) {
+          return reply
+            .code(404)
+            .send({ error: "No encontrado", message: "Miembro no encontrado" });
+        }
+      }
+
+      const result = await memberWellhubService.mergeInto(ctx, {
+        sourceUserId: request.params.userId,
+        targetUserId: request.body.targetUserId,
+        actorId: request.user.userId,
+      });
+
+      if (!result.ok) {
+        return reply.code(result.status).send({
+          error:
+            result.status === 404
+              ? "No encontrado"
+              : result.status === 409
+                ? "Conflicto"
+                : "Solicitud invalida",
+          message: result.message,
+        });
+      }
+
+      request.log.info(
+        {
+          sourceUserId: request.params.userId,
+          targetUserId: request.body.targetUserId,
+          actorId: request.user.userId,
+          moved: result.moved,
+        },
+        "Ficha Wellhub unida con alumno existente",
+      );
+
+      return {
+        ok: true,
+        targetUserId: request.body.targetUserId,
+        moved: result.moved,
+      };
     },
   );
 
