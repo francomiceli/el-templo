@@ -428,3 +428,17 @@ Para los planes 202-NN este archivo vale entero, con estos cambios (mandan sobre
   (`CqScreen`, `.cq-root` en diálogos teletransportados, `<select>` nativo), 201-20 (cold open con `loadState()`; el store no
   notifica), 201-26 (copy en `CQ_TEXTOS`, revertir mutantes con `cp`). Subida desde el app: `window.CapacitorWebFetch`
   (DA-51), nunca CapacitorHttp ni axios con base64.
+- (orquestador, tras 202-11) **NO usar `rm`** (ni para limpiar copias del scratchpad): dispara un permiso que Franco tiene que
+  aprobar a mano y la cadena queda frenada horas. Las copias de mutantes se dejan en el scratchpad; para restaurar un archivo,
+  `cp` desde la copia.
+- (202-11) App: `useConquerStore()` suma `tutorials` (`null` = no cargó o falló → sin botón), `loadTutorials()` (idempotente,
+  las pantallas la llaman al montar), `exerciseTutorialUrl(exerciseId)` (el `exerciseId` de `TodayExercise`),
+  `comboTutorialUrl(comboKey)`, `applyCorrectionCounts(counts)` (no hace nada sin `member`; tras crear → `pending + 1`, tras
+  `seen` → `unseenReplies: 0`). Leer `member?.corrections ?? { pending: 0, unseenReplies: 0 }`. Cliente `useConquerApi()`
+  (instancia propia por pantalla, `api.cleanup()` al desmontar, el store no notifica): `getCorrections`,
+  `requestCorrectionUpload(contentType)`, `createCorrection(body)`, `getCorrectionVideoUrl(id, who)` (`available: false` no
+  tira: mostrar "ya no está disponible"; la URL firmada no se guarda ni se loguea), `markCorrectionsSeen`, `getTutorials`.
+  Utils: `videoFile.ts` (`checkVideo`, `videoMimeOf`, `videoSeconds`, `formatSeconds`, `VIDEO_MAX_*`) y `corrections.ts`
+  (`groupCorrections`, `correctionChip`, `remainingSlots`, `targetGroups`). La duración la lee la pantalla (metadata de un
+  `<video>` con `URL.createObjectURL`); si no se puede, `null` → `duracion`. El PUT lleva EXACTO el `Content-Type` pedido.
+  Body: `exerciseId` + `step` O `comboKey`, nunca los dos. El 409 `CONQUER_CORRECCIONES_TOPE` puede llegar igual: mostrar `error`.
