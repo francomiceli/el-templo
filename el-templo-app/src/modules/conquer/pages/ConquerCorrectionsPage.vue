@@ -32,7 +32,20 @@
         <p class="cq-sub" data-test="conquer-corrections-slots">
           Te quedan {{ slots }} de {{ data.limits.pendingMax }}
         </p>
-        <!-- 202-14: botón "Mandar video" -->
+        <CqButton
+          v-if="data.targets.length > 0"
+          label="Mandar un video"
+          variant="on-night"
+          :disabled="slots === 0"
+          data-test="conquer-corrections-send"
+          @click="sendOpen = true"
+        />
+        <p v-if="data.targets.length === 0" class="cq-sub" data-test="conquer-corrections-no-plan">
+          Cuando tengas tu plan vas a poder mandar videos.
+        </p>
+        <p v-else-if="slots === 0" class="cq-sub" data-test="conquer-corrections-full">
+          Ya tenés {{ data.limits.pendingMax }} videos esperando respuesta.
+        </p>
       </CqPortico>
 
       <p v-if="data.items.length === 0" class="cq-sub" data-test="conquer-corrections-empty">
@@ -65,6 +78,14 @@
     </template>
 
     <CqCorrectionSheet v-model="sheetOpen" :item="selected" :video-url="corr.videoUrl" />
+    <CqCorrectionSendSheet
+      v-if="data"
+      ref="sendSheet"
+      v-model="sendOpen"
+      :targets="data.targets"
+      :limits="data.limits"
+      @sent="onSent"
+    />
   </CqScreen>
 </template>
 
@@ -80,6 +101,8 @@ import CqPortico from '../components/brand/CqPortico.vue'
 import CqButton from '../components/brand/CqButton.vue'
 import CqCorrectionCard from '../components/corrections/CqCorrectionCard.vue'
 import CqCorrectionSheet from '../components/corrections/CqCorrectionSheet.vue'
+import CqCorrectionSendSheet from '../components/corrections/CqCorrectionSendSheet.vue'
+import type { CorrectionView } from '../types'
 
 // Fase 202 D-26, D-29, DA-46, DA-47: lo que el alumno le mandó a su coach, en "Esperando respuesta" y
 // "Respondidas" (con "Nueva" si todavía no vio la respuesta). Se entra desde Inicio › Correcciones.
@@ -100,6 +123,8 @@ const startError = ref<string | null>(null)
 const shownError = computed(() => startError.value ?? corr.error.value)
 
 const sheetOpen = ref(false)
+const sendOpen = ref(false)
+const sendSheet = ref<InstanceType<typeof CqCorrectionSendSheet> | null>(null)
 const selectedId = ref<number | null>(null)
 
 const groups = computed(() => groupCorrections(data.value?.items ?? []))
@@ -110,6 +135,18 @@ const selected = computed(() => data.value?.items.find((c) => c.id === selectedI
 function openItem(id: number): void {
   selectedId.value = id
   sheetOpen.value = true
+}
+
+// D-26: la corrección nueva entra a la lista y los dos contadores (esta pantalla e Inicio) coinciden
+// sin releer. `applyCreated` no toca el store y `applyCorrectionCounts` no toca la lista: van los dos.
+function onSent(item: CorrectionView): void {
+  corr.applyCreated(item)
+  const current = data.value
+  if (!current) return
+  store.applyCorrectionCounts({
+    pending: current.limits.pending,
+    unseenReplies: store.state?.member?.corrections?.unseenReplies ?? 0,
+  })
 }
 
 // DA-46: después de pintar la lista, las respuestas sin ver pasan a vistas y el contador baja
@@ -153,6 +190,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  sendSheet.value?.cleanup()
   corr.cleanup()
 })
 </script>
