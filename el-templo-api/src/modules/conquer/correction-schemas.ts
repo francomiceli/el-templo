@@ -297,7 +297,8 @@ export const replyUploadUrlSchema = {
 
 /**
  * `POST /corrections/:id/reply`: texto, clave del video del coach y duración.
- * Cuerpo plano; los valores (largo, `code`) los valida el servicio.
+ * Cuerpo plano; los valores (largo, `code`) los valida el servicio. Ojo: el
+ * AJV de Fastify coerce tipos, así que un número en `text` llega como string.
  */
 export const replyCorrectionSchema = {
   params: correctionIdParams,

@@ -716,7 +716,9 @@ describe("POST /api/admin/conquer/corrections/:id/reply: validación", () => {
     const coach = await createConquerStaff(app, "admin");
     const { id } = await pendiente();
 
-    const res = await replyRaw(coach.token, id, { text: 123 });
+    // Un objeto: Fastify coerce números y booleanos a string (`123` llega
+    // como "123" y pasa), pero un objeto no se puede convertir.
+    const res = await replyRaw(coach.token, id, { text: { a: 1 } });
 
     expect(res.statusCode).toBe(400);
     await expectSinResponder(id);
