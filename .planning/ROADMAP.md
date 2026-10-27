@@ -499,19 +499,19 @@ Plans:
 **Plans:** 16 plans (16 olas secuenciales — ejecutores comparten worktree)
 
 Plans:
-- [ ] 204-01-PLAN.md — Migración 0300 (attendance_source += wellhub_manual, tabla wellhub_conversions) + gates de tenancy
-- [ ] 204-02-PLAN.md — Helper wellhub-sources + fixtures de las 3 personas + fugas D-18 de asistencia (no-show, QR, límites)
-- [ ] 204-03-PLAN.md — Fugas D-18 de reservas (límites semanal/presupuesto/bonus, regla del día) + guards del webhook
-- [ ] 204-04-PLAN.md — Presente a mano Wellhub (D-19): coachCheckIn/removeCheckIn + upgrade a validada
-- [ ] 204-05-PLAN.md — Reservas Wellhub no cancelables por staff ni socio; ciclo del plan y baja no las tocan (D-11/D-24/D-25)
-- [ ] 204-06-PLAN.md — Horarios API: origen de la reserva en ambos rosters (D-10)
-- [ ] 204-07-PLAN.md — Members API: etiqueta Wellhub, status=wellhub, Solo Wellhub, export, buscador, bajas (D-01..D-12)
-- [ ] 204-08-PLAN.md — Evento de conversión Wellhub → socio en recomputeUserStatus + embudo entryOrigin wellhub (D-04/D-23/D-15)
-- [ ] 204-09-PLAN.md — API card Wellhub de la ficha + POST app-access (D-20/D-26) + ISO-01/ISO-03
-- [ ] 204-10-PLAN.md — API unir duplicado Wellhub (D-05/D-21) transaccional con auditoría + ISO-03
-- [ ] 204-11-PLAN.md — API reporte Wellhub por sede y mes + categoría Wellhub en log de accesos (D-16/D-14)
-- [ ] 204-12-PLAN.md — Admin: estado/etiqueta Wellhub, toggle Solo Wellhub, fuentes de asistencia
-- [ ] 204-13-PLAN.md — Admin: chip y cancelación deshabilitada en Horarios + aviso en Cobros (D-09/D-10/D-11)
-- [ ] 204-14-PLAN.md — Admin: card Wellhub en la ficha, Asociar al templo, Enviar acceso a la app
-- [ ] 204-15-PLAN.md — Admin: diálogo Unir con alumno existente (D-21)
-- [ ] 204-16-PLAN.md — Admin: pestaña Reportes › Wellhub + filtro Wellhub del log de accesos
+- [x] 204-01-PLAN.md — Migración 0300 (attendance_source += wellhub_manual, tabla wellhub_conversions) + gates de tenancy
+- [x] 204-02-PLAN.md — Helper wellhub-sources + fixtures de las 3 personas + fugas D-18 de asistencia (no-show, QR, límites)
+- [x] 204-03-PLAN.md — Fugas D-18 de reservas (límites semanal/presupuesto/bonus, regla del día) + guards del webhook
+- [x] 204-04-PLAN.md — Presente a mano Wellhub (D-19): coachCheckIn/removeCheckIn + upgrade a validada
+- [x] 204-05-PLAN.md — Reservas Wellhub no cancelables por staff ni socio; ciclo del plan y baja no las tocan (D-11/D-24/D-25)
+- [x] 204-06-PLAN.md — Horarios API: origen de la reserva en ambos rosters (D-10)
+- [x] 204-07-PLAN.md — Members API: etiqueta Wellhub, status=wellhub, Solo Wellhub, export, buscador, bajas (D-01..D-12)
+- [x] 204-08-PLAN.md — Evento de conversión Wellhub → socio en recomputeUserStatus + embudo entryOrigin wellhub (D-04/D-23/D-15)
+- [x] 204-09-PLAN.md — API card Wellhub de la ficha + POST app-access (D-20/D-26) + ISO-01/ISO-03
+- [x] 204-10-PLAN.md — API unir duplicado Wellhub (D-05/D-21) transaccional con auditoría + ISO-03
+- [x] 204-11-PLAN.md — API reporte Wellhub por sede y mes + categoría Wellhub en log de accesos (D-16/D-14)
+- [x] 204-12-PLAN.md — Admin: estado/etiqueta Wellhub, toggle Solo Wellhub, fuentes de asistencia
+- [x] 204-13-PLAN.md — Admin: chip y cancelación deshabilitada en Horarios + aviso en Cobros (D-09/D-10/D-11)
+- [x] 204-14-PLAN.md — Admin: card Wellhub en la ficha, Asociar al templo, Enviar acceso a la app
+- [x] 204-15-PLAN.md — Admin: diálogo Unir con alumno existente (D-21)
+- [x] 204-16-PLAN.md — Admin: pestaña Reportes › Wellhub + filtro Wellhub del log de accesos
