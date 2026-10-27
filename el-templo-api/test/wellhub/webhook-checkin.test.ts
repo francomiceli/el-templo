@@ -120,7 +120,9 @@ describe("Wellhub webhook — check-in", () => {
     expect(firmaMala.statusCode).toBe(401);
 
     // Firma válida de OTRO body.
-    const otraFirma = signWellhub(checkinPayload({ token: uniqueToken(), gymId }));
+    const otraFirma = signWellhub(
+      checkinPayload({ token: uniqueToken(), gymId }),
+    );
     const firmaAjena = await postWellhubWebhook(app, raw, otraFirma);
     expect(firmaAjena.statusCode).toBe(401);
 
@@ -138,16 +140,20 @@ describe("Wellhub webhook — check-in", () => {
     stubValidateFetch();
 
     const raw1 = checkinPayload({ token: uniqueToken(), gymId });
-    expect((await postWellhubWebhook(app, raw1, signWellhub(raw1))).statusCode).toBe(200);
+    expect(
+      (await postWellhubWebhook(app, raw1, signWellhub(raw1))).statusCode,
+    ).toBe(200);
 
     const raw2 = checkinPayload({ token: uniqueToken(), gymId });
-    expect((await postWellhubWebhook(app, raw2, signWellhub(raw2, "sha1"))).statusCode).toBe(
-      200,
-    );
+    expect(
+      (await postWellhubWebhook(app, raw2, signWellhub(raw2, "sha1")))
+        .statusCode,
+    ).toBe(200);
 
     const raw3 = checkinPayload({ token: uniqueToken(), gymId });
     expect(
-      (await postWellhubWebhook(app, raw3, `sha256=${signWellhub(raw3)}`)).statusCode,
+      (await postWellhubWebhook(app, raw3, `sha256=${signWellhub(raw3)}`))
+        .statusCode,
     ).toBe(200);
   });
 
@@ -158,13 +164,19 @@ describe("Wellhub webhook — check-in", () => {
     // 401: la comparación era sensible a mayúsculas.
     const raw1 = checkinPayload({ token: uniqueToken(), gymId });
     expect(
-      (await postWellhubWebhook(app, raw1, signWellhub(raw1, "sha1").toUpperCase()))
-        .statusCode,
+      (
+        await postWellhubWebhook(
+          app,
+          raw1,
+          signWellhub(raw1, "sha1").toUpperCase(),
+        )
+      ).statusCode,
     ).toBe(200);
 
     const raw2 = checkinPayload({ token: uniqueToken(), gymId });
     expect(
-      (await postWellhubWebhook(app, raw2, signWellhub(raw2).toUpperCase())).statusCode,
+      (await postWellhubWebhook(app, raw2, signWellhub(raw2).toUpperCase()))
+        .statusCode,
     ).toBe(200);
   });
 
@@ -200,12 +212,14 @@ describe("Wellhub webhook — check-in", () => {
   it("responde 400 ante JSON roto o payload sin event_type", async () => {
     const rawBroken = "{no es json";
     expect(
-      (await postWellhubWebhook(app, rawBroken, signWellhub(rawBroken))).statusCode,
+      (await postWellhubWebhook(app, rawBroken, signWellhub(rawBroken)))
+        .statusCode,
     ).toBe(400);
 
     const rawNoType = JSON.stringify({ event_data: {} });
     expect(
-      (await postWellhubWebhook(app, rawNoType, signWellhub(rawNoType))).statusCode,
+      (await postWellhubWebhook(app, rawNoType, signWellhub(rawNoType)))
+        .statusCode,
     ).toBe(400);
   });
 
@@ -290,7 +304,9 @@ describe("Wellhub webhook — check-in", () => {
     const ts = Date.now();
     const raw = checkinPayload({ token, gymId, timestamp: ts });
 
-    expect((await postWellhubWebhook(app, raw, signWellhub(raw))).statusCode).toBe(200);
+    expect(
+      (await postWellhubWebhook(app, raw, signWellhub(raw))).statusCode,
+    ).toBe(200);
 
     // Reentrega idéntica (mismo event_id sintetizado).
     const retry = await postWellhubWebhook(app, raw, signWellhub(raw));
@@ -299,7 +315,11 @@ describe("Wellhub webhook — check-in", () => {
 
     // Nuevo evento, mismo día.
     const raw2 = checkinPayload({ token, gymId, timestamp: ts + 60_000 });
-    const secondCheckin = await postWellhubWebhook(app, raw2, signWellhub(raw2));
+    const secondCheckin = await postWellhubWebhook(
+      app,
+      raw2,
+      signWellhub(raw2),
+    );
     expect(secondCheckin.statusCode).toBe(200);
     expect(JSON.parse(secondCheckin.body).outcome).toBe("already_checked_in");
 

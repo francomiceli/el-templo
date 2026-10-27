@@ -882,7 +882,10 @@ export class WellhubService {
         })
         .from(schema.bookings)
         .where(
-          and(tenantWhere(schema.bookings, ctx), eq(schema.bookings.id, wb.bookingId)),
+          and(
+            tenantWhere(schema.bookings, ctx),
+            eq(schema.bookings.id, wb.bookingId),
+          ),
         )
         .limit(1);
 
@@ -891,7 +894,10 @@ export class WellhubService {
           .update(schema.bookings)
           .set({ status: "cancelado", cancelledAt: new Date() })
           .where(
-            and(tenantWhere(schema.bookings, ctx), eq(schema.bookings.id, booking.id)),
+            and(
+              tenantWhere(schema.bookings, ctx),
+              eq(schema.bookings.id, booking.id),
+            ),
           );
         await this.bookingService.promoteWaitlist(
           booking.scheduleId,

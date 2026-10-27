@@ -331,7 +331,9 @@ describe("Fase 204 D-20/D-26: card Wellhub y acceso a la app", () => {
     const { statusCode, body } = await postAppAccess(visitor.id);
 
     expect(statusCode).toBe(400);
-    expect((body as ErrorBody).message).toBe("El alumno no tiene email cargado");
+    expect((body as ErrorBody).message).toBe(
+      "El alumno no tiene email cargado",
+    );
   });
 
   it("app-access: un alumno inexistente responde 404", async () => {

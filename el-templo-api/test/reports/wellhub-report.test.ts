@@ -419,7 +419,11 @@ describe("Fase 204 D-14/D-16: reporte Wellhub y log de accesos", () => {
   it("log de accesos: source=wellhub trae visitas validadas y a mano", async () => {
     const { today } = await currentMonth();
     const visitor = await createWellhubVisitor(app, { branchId: BRANCH_ID });
-    const base = { memberId: visitor.id, branchId: BRANCH_ID, sessionDate: today };
+    const base = {
+      memberId: visitor.id,
+      branchId: BRANCH_ID,
+      sessionDate: today,
+    };
     await insertAttendance(app, { ...base, source: "wellhub" });
     await insertAttendance(app, { ...base, source: "wellhub_manual" });
     await insertAttendance(app, { ...base, source: "qr" });

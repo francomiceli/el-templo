@@ -143,7 +143,10 @@ describe("Fase 204 D-19: presente a mano en reservas Wellhub", () => {
       headers: { authorization: `Bearer ${adminToken}` },
       payload: { memberId },
     });
-    return { statusCode: res.statusCode, body: JSON.parse(res.body) as CheckInBody };
+    return {
+      statusCode: res.statusCode,
+      body: JSON.parse(res.body) as CheckInBody,
+    };
   }
 
   async function removeCheckIn(attendanceId: number) {
@@ -152,7 +155,10 @@ describe("Fase 204 D-19: presente a mano en reservas Wellhub", () => {
       url: `/api/admin/attendance/${attendanceId}`,
       headers: { authorization: `Bearer ${adminToken}` },
     });
-    return { statusCode: res.statusCode, body: JSON.parse(res.body) as RemoveBody };
+    return {
+      statusCode: res.statusCode,
+      body: JSON.parse(res.body) as RemoveBody,
+    };
   }
 
   async function attendanceRows(memberId: number) {

@@ -418,7 +418,6 @@ export class SchedulingService {
       // weekStartDate is Monday (day 1), so offset = dayOfWeek - 1
       const slotDate = addDays(weekStartDate, row.dayOfWeek - 1);
 
-
       // Per-date cancellation: hidden entirely from members (same rationale
       // as the isActive filter — no booking is possible), flagged for admins.
       const exception = exceptionMap.get(`${row.id}-${slotDate}`);

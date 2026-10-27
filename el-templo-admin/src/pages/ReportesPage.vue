@@ -219,7 +219,9 @@
                 text-color="white"
                 :label="sourceLabels[props.row.source as AttendanceSource]"
               />
-              <span v-else>{{ sourceLabels[props.row.source as AttendanceSource] ?? props.row.source }}</span>
+              <span v-else>{{
+                sourceLabels[props.row.source as AttendanceSource] ?? props.row.source
+              }}</span>
             </q-td>
           </template>
           <template #no-data>

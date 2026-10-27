@@ -1329,9 +1329,13 @@ describe("unir duplicado Wellhub con alumno existente — POST /api/admin/member
     const origenAntes = await fotoDeLaFichaWellhub(templo.userId);
     const destinoAntes = await fotoDeLaFichaWellhub(destino.id);
 
-    const res = await comoGimnasioDos("POST", `/${templo.userId}/wellhub-merge`, {
-      targetUserId: destino.id,
-    });
+    const res = await comoGimnasioDos(
+      "POST",
+      `/${templo.userId}/wellhub-merge`,
+      {
+        targetUserId: destino.id,
+      },
+    );
     expect(
       res.statusCode,
       porQueImportaLaFicha(RUTA, templo.userId) + ` Respuesta: ${res.body}`,

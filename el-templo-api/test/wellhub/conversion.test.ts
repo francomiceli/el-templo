@@ -86,10 +86,7 @@ describe("Fase 204 D-04/D-23: conversión Wellhub → socio", () => {
       .select({ status: schema.users.status })
       .from(schema.users)
       .where(
-        and(
-          tenantWhere(schema.users, TEMPLO_CTX),
-          eq(schema.users.id, userId),
-        ),
+        and(tenantWhere(schema.users, TEMPLO_CTX), eq(schema.users.id, userId)),
       );
     return row?.status ?? null;
   }
@@ -111,13 +108,9 @@ describe("Fase 204 D-04/D-23: conversión Wellhub → socio", () => {
   it("visitante Wellhub que se asocia: queda activo y se registra una conversión nuevo", async () => {
     const visitor = await createWellhubVisitor(app, { branchId: BRANCH_ID });
 
-    const assigned = await assignTestPlan(
-      app,
-      adminToken,
-      visitor.id,
-      planId,
-      { branchId: BRANCH_ID },
-    );
+    const assigned = await assignTestPlan(app, adminToken, visitor.id, planId, {
+      branchId: BRANCH_ID,
+    });
     expect(assigned.statusCode).toBe(201);
     const subscriptionId = (assigned.body as { id: number }).id;
 
@@ -249,13 +242,9 @@ describe("Fase 204 D-04/D-23: conversión Wellhub → socio", () => {
 
   it("la conversión no se duplica si el recálculo corre de nuevo", async () => {
     const visitor = await createWellhubVisitor(app, { branchId: BRANCH_ID });
-    const assigned = await assignTestPlan(
-      app,
-      adminToken,
-      visitor.id,
-      planId,
-      { branchId: BRANCH_ID },
-    );
+    const assigned = await assignTestPlan(app, adminToken, visitor.id, planId, {
+      branchId: BRANCH_ID,
+    });
     expect(assigned.statusCode).toBe(201);
     expect(await conversionsOf(visitor.id)).toHaveLength(1);
 

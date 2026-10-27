@@ -118,7 +118,11 @@ class WellhubMergeError extends Error {
 function affectedRows(result: unknown): number {
   if (Array.isArray(result) && result.length > 0) {
     const header: unknown = result[0];
-    if (typeof header === "object" && header !== null && "affectedRows" in header) {
+    if (
+      typeof header === "object" &&
+      header !== null &&
+      "affectedRows" in header
+    ) {
       return Number((header as { affectedRows: unknown }).affectedRows);
     }
   }
@@ -335,7 +339,9 @@ export class MemberWellhubService {
         lastVisitDate: sql<
           string | null
         >`DATE_FORMAT(MAX(${schema.attendance.sessionDate}), '%Y-%m-%d')`,
-        firstVisitAt: sql<Date | string | null>`MIN(${schema.attendance.checkedInAt})`,
+        firstVisitAt: sql<
+          Date | string | null
+        >`MIN(${schema.attendance.checkedInAt})`,
       })
       .from(schema.attendance)
       .where(
@@ -367,7 +373,9 @@ export class MemberWellhubService {
 
     const [firstRequest] = await this.db
       .select({
-        firstRequestAt: sql<Date | string | null>`MIN(${schema.wellhubBookings.createdAt})`,
+        firstRequestAt: sql<
+          Date | string | null
+        >`MIN(${schema.wellhubBookings.createdAt})`,
       })
       .from(schema.wellhubBookings)
       .where(
@@ -563,7 +571,9 @@ export class MemberWellhubService {
           (LIVE_BOOKING_STATUSES as readonly string[]).includes(status);
         const keyOf = (b: { scheduleId: number; bookingDate: string }) =>
           `${b.scheduleId}|${b.bookingDate}`;
-        const targetByKey = new Map(targetBookings.map((b) => [keyOf(b), b] as const));
+        const targetByKey = new Map(
+          targetBookings.map((b) => [keyOf(b), b] as const),
+        );
         const deadToDelete: number[] = [];
         for (const sb of sourceBookings) {
           const tb = targetByKey.get(keyOf(sb));

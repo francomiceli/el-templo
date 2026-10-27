@@ -16,8 +16,7 @@
       <q-card-section>
         <div class="text-h6">Unir con alumno existente</div>
         <div class="text-caption text-grey-7">
-          Usá esto cuando un ex-alumno entró por Wellhub con otro email y quedó una ficha
-          duplicada.
+          Usá esto cuando un ex-alumno entró por Wellhub con otro email y quedó una ficha duplicada.
         </div>
       </q-card-section>
 
@@ -43,7 +42,11 @@
           <template #no-option>
             <q-item>
               <q-item-section class="text-grey-6 text-italic">
-                {{ searchText.trim().length >= MIN_SEARCH_LENGTH ? 'Sin resultados' : 'Escribí para buscar' }}
+                {{
+                  searchText.trim().length >= MIN_SEARCH_LENGTH
+                    ? 'Sin resultados'
+                    : 'Escribí para buscar'
+                }}
               </q-item-section>
             </q-item>
           </template>
@@ -51,7 +54,9 @@
             <q-item v-bind="scope.itemProps">
               <q-item-section>
                 <q-item-label>{{ scope.opt.label }}</q-item-label>
-                <q-item-label v-if="scope.opt.caption" caption>{{ scope.opt.caption }}</q-item-label>
+                <q-item-label v-if="scope.opt.caption" caption>{{
+                  scope.opt.caption
+                }}</q-item-label>
               </q-item-section>
             </q-item>
           </template>

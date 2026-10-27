@@ -5,10 +5,7 @@
  * expiring memberships, and inactive members reports.
  */
 
-import type {
-  TrialSessionStatus,
-  TrialNextAction,
-} from "./trial-cadence";
+import type { TrialSessionStatus, TrialNextAction } from "./trial-cadence";
 
 // -- Filters -----------------------------------------------------------------
 
@@ -31,7 +28,10 @@ export interface AccessReportFilters {
  * es plata que el banco ya confirmó cuando el staff la carga.
  */
 export type ChargeReportPaymentMethod =
-  "cash" | "transfer" | "card" | "direct_debit";
+  | "cash"
+  | "transfer"
+  | "card"
+  | "direct_debit";
 
 export interface ChargeReportFilters {
   branchId?: number;

@@ -269,7 +269,10 @@
                     @click="onMemberNameClick(booking)"
                     >{{ booking.memberName }}</q-item-label
                   >
-                  <q-item-label v-if="isVisitorBooking(booking) || isWellhubBooking(booking)" caption>
+                  <q-item-label
+                    v-if="isVisitorBooking(booking) || isWellhubBooking(booking)"
+                    caption
+                  >
                     <q-badge
                       v-if="isVisitorBooking(booking)"
                       color="warning"
@@ -362,7 +365,9 @@
                     >
                       <q-tooltip v-if="!isWellhubBooking(booking)">Eliminar reserva</q-tooltip>
                     </q-btn>
-                    <q-tooltip v-if="isWellhubBooking(booking)">{{ WELLHUB_MANAGED_TOOLTIP }}</q-tooltip>
+                    <q-tooltip v-if="isWellhubBooking(booking)">{{
+                      WELLHUB_MANAGED_TOOLTIP
+                    }}</q-tooltip>
                   </span>
                 </div>
               </q-item-section>
@@ -421,7 +426,9 @@
                       >
                         <q-tooltip v-if="!isWellhubBooking(booking)">Eliminar reserva</q-tooltip>
                       </q-btn>
-                      <q-tooltip v-if="isWellhubBooking(booking)">{{ WELLHUB_MANAGED_TOOLTIP }}</q-tooltip>
+                      <q-tooltip v-if="isWellhubBooking(booking)">{{
+                        WELLHUB_MANAGED_TOOLTIP
+                      }}</q-tooltip>
                     </span>
                   </div>
                 </q-item-section>
@@ -481,7 +488,9 @@
                       >
                         <q-tooltip v-if="!isWellhubBooking(booking)">Eliminar reserva</q-tooltip>
                       </q-btn>
-                      <q-tooltip v-if="isWellhubBooking(booking)">{{ WELLHUB_MANAGED_TOOLTIP }}</q-tooltip>
+                      <q-tooltip v-if="isWellhubBooking(booking)">{{
+                        WELLHUB_MANAGED_TOOLTIP
+                      }}</q-tooltip>
                     </span>
                   </div>
                 </q-item-section>
@@ -596,7 +605,9 @@
                     >
                       <q-tooltip v-if="member.source !== 'wellhub'">Eliminar asistencia</q-tooltip>
                     </q-btn>
-                    <q-tooltip v-if="member.source === 'wellhub'">{{ WELLHUB_VALIDATED_TOOLTIP }}</q-tooltip>
+                    <q-tooltip v-if="member.source === 'wellhub'">{{
+                      WELLHUB_VALIDATED_TOOLTIP
+                    }}</q-tooltip>
                   </span>
                 </div>
               </q-item-section>

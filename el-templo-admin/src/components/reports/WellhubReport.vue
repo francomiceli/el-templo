@@ -182,11 +182,7 @@ import { formatDate } from 'src/utils/format-date';
 import { WELLHUB_COLOR } from 'src/utils/wellhub-label';
 import { useWellhubApi } from 'src/composables/useWellhubApi';
 import KpiCard from 'src/components/comunicaciones/KpiCard.vue';
-import type {
-  WellhubPersonKind,
-  WellhubReport,
-  WellhubReportConversion,
-} from 'src/types/wellhub';
+import type { WellhubPersonKind, WellhubReport, WellhubReportConversion } from 'src/types/wellhub';
 
 const props = defineProps<{
   /** Sedes del selector de la página ("Todas" = undefined; admin_sede no la tiene). */
@@ -259,11 +255,18 @@ async function loadReport(): Promise<void> {
 // -- Datos derivados ---------------------------------------------------------
 
 const people = computed(
-  () => report.value?.people ?? { unique: 0, nuevos: 0, exAlumnos: 0, socios: 0, visitsPerPerson: 0 }
+  () =>
+    report.value?.people ?? { unique: 0, nuevos: 0, exAlumnos: 0, socios: 0, visitsPerPerson: 0 }
 );
 const bookings = computed(
   () =>
-    report.value?.bookings ?? { confirmed: 0, canceled: 0, lateCanceled: 0, rejected: 0, noShows: 0 }
+    report.value?.bookings ?? {
+      confirmed: 0,
+      canceled: 0,
+      lateCanceled: 0,
+      rejected: 0,
+      noShows: 0,
+    }
 );
 const conversions = computed(
   () => report.value?.conversions ?? { count: 0, ratePct: 0, items: [] }
@@ -322,7 +325,12 @@ const visitCards = computed(() => [
 ]);
 
 const bookingCards = computed(() => [
-  { key: 'confirmed', label: 'Confirmadas', value: bookings.value.confirmed, icon: 'event_available' },
+  {
+    key: 'confirmed',
+    label: 'Confirmadas',
+    value: bookings.value.confirmed,
+    icon: 'event_available',
+  },
   { key: 'canceled', label: 'Canceladas', value: bookings.value.canceled, icon: 'event_busy' },
   { key: 'late', label: 'Canceladas tarde', value: bookings.value.lateCanceled, icon: 'schedule' },
   { key: 'rejected', label: 'Rechazadas', value: bookings.value.rejected, icon: 'block' },

@@ -898,7 +898,14 @@ export const checkDuplicatesSchema = {
               isVirtual: { type: "boolean" },
               status: {
                 type: ["string", "null"],
-                enum: ["freemium", "prueba", "activo", "inactivo", "wellhub", null],
+                enum: [
+                  "freemium",
+                  "prueba",
+                  "activo",
+                  "inactivo",
+                  "wellhub",
+                  null,
+                ],
               },
               deletedAt: { type: ["string", "null"] },
               matchedField: { type: "string", enum: ["dni", "phone"] },

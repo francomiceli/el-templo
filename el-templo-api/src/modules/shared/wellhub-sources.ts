@@ -29,9 +29,13 @@ import * as schema from "../../db/schema";
 export const WELLHUB_BOOKING_SOURCE = "wellhub" as const;
 
 /** Valores de `attendance.attendance_source` que son visitas Wellhub. */
-export const WELLHUB_ATTENDANCE_SOURCES = ["wellhub", "wellhub_manual"] as const;
+export const WELLHUB_ATTENDANCE_SOURCES = [
+  "wellhub",
+  "wellhub_manual",
+] as const;
 
-export type WellhubAttendanceSource = (typeof WELLHUB_ATTENDANCE_SOURCES)[number];
+export type WellhubAttendanceSource =
+  (typeof WELLHUB_ATTENDANCE_SOURCES)[number];
 
 /** ¿La reserva es Wellhub? NULL-safe: NULL/undefined = reserva propia. */
 export function isWellhubBookingSource(

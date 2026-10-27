@@ -180,7 +180,11 @@ describe("Fase 204 D-18: separación plan vs Wellhub (reservas y webhook)", () =
     return { propia: a.scheduleId, otra: b.scheduleId };
   }
 
-  async function memberReserve(token: string, scheduleId: number, date: string) {
+  async function memberReserve(
+    token: string,
+    scheduleId: number,
+    date: string,
+  ) {
     return app.inject({
       method: "POST",
       url: RESERVE_URL,

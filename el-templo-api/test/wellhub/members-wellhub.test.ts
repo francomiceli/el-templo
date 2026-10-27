@@ -175,7 +175,10 @@ describe("Fase 204: etiqueta Wellhub en alumnos (D-01/D-03/D-07/D-08/D-09/D-12)"
       url: `/api/admin/members?${query}&limit=100`,
       headers: { authorization: `Bearer ${adminToken}` },
     });
-    return { statusCode: res.statusCode, body: JSON.parse(res.body) as ListBody };
+    return {
+      statusCode: res.statusCode,
+      body: JSON.parse(res.body) as ListBody,
+    };
   }
 
   function byId(rows: ListRow[], id: number): ListRow | undefined {

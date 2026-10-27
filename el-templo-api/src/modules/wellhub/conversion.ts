@@ -38,7 +38,11 @@ import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { DEFAULT_TENANT_TIMEZONE, todayInTz } from "../shared/date-utils";
 import { membershipInEffectSql } from "../shared/membership";
-import { tenantValues, tenantWhere, type TenantContext } from "../shared/tenant";
+import {
+  tenantValues,
+  tenantWhere,
+  type TenantContext,
+} from "../shared/tenant";
 import {
   isWellhubAttendanceRawSql,
   isWellhubBookingRawSql,
@@ -119,9 +123,7 @@ async function findNewestMembership(
     LIMIT 1
   `);
   const row = (
-    res as unknown as [
-      Array<{ id: number; planId: number; branchId: number }>,
-    ]
+    res as unknown as [Array<{ id: number; planId: number; branchId: number }>]
   )[0]?.[0];
   if (!row) return null;
   return {

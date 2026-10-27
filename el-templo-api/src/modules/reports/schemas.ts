@@ -839,7 +839,13 @@ const trialSessionsRowSchema = {
               anyOf: [
                 {
                   type: "string",
-                  enum: ["no_responde", "precio", "horario", "distancia", "otro"],
+                  enum: [
+                    "no_responde",
+                    "precio",
+                    "horario",
+                    "distancia",
+                    "otro",
+                  ],
                 },
                 { type: "null" },
               ],

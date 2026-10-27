@@ -82,7 +82,8 @@ describe("Fase 204 D-11/D-24/D-25: las reservas Wellhub se gestionan desde Wellh
           eq(schema.bookings.id, bookingId),
         ),
       );
-    if (!row) throw new Error(`bookingStatus: reserva ${bookingId} inexistente`);
+    if (!row)
+      throw new Error(`bookingStatus: reserva ${bookingId} inexistente`);
     return row.status;
   }
 
@@ -97,7 +98,9 @@ describe("Fase 204 D-11/D-24/D-25: las reservas Wellhub se gestionan desde Wellh
         ),
       );
     if (!row) {
-      throw new Error(`replacementCredits: suscripcion ${subscriptionId} inexistente`);
+      throw new Error(
+        `replacementCredits: suscripcion ${subscriptionId} inexistente`,
+      );
     }
     return row.credits;
   }
@@ -436,8 +439,12 @@ describe("Fase 204 D-11/D-24/D-25: las reservas Wellhub se gestionan desde Wellh
     if (!ownOnDate || !wellhubOnDate) return;
     await markAsWellhub(wellhubOnDate.id);
 
-    const creditsBefore = await replacementCreditsOf(wellhubSocio.subscriptionId);
-    const ownCreditsBefore = await replacementCreditsOf(ownSocio.subscriptionId);
+    const creditsBefore = await replacementCreditsOf(
+      wellhubSocio.subscriptionId,
+    );
+    const ownCreditsBefore = await replacementCreditsOf(
+      ownSocio.subscriptionId,
+    );
 
     const res = await app.inject({
       method: "POST",

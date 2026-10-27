@@ -407,7 +407,11 @@
           <q-tab name="asistencia" label="Asistencia" />
           <q-tab v-if="!financeBlind" name="finanzas" label="Finanzas" />
           <!-- Fase 194: ex "Referidos". El `name` interno `referidos` no se renombra. -->
-          <q-tab v-if="canOperateInvitations && !isWellhubVisitor" name="referidos" label="Invitaciones" />
+          <q-tab
+            v-if="canOperateInvitations && !isWellhubVisitor"
+            name="referidos"
+            label="Invitaciones"
+          />
         </q-tabs>
         <q-separator />
 

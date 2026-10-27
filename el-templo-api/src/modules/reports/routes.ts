@@ -71,7 +71,10 @@ import type { TrialSessionStatus } from "./trial-cadence";
 
 export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
   const reportsService = new ReportsService(fastify.db, fastify.log);
-  const trialFollowupService = new TrialFollowupService(fastify.db, fastify.log);
+  const trialFollowupService = new TrialFollowupService(
+    fastify.db,
+    fastify.log,
+  );
   const wellhubReportService = new WellhubReportService(
     fastify.db,
     fastify.log,

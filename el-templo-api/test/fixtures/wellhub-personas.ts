@@ -374,7 +374,12 @@ export async function insertBooking(
     memberId: number;
     scheduleId: number;
     bookingDate: string;
-    status?: "reservado" | "qr_escaneado" | "confirmado" | "cancelado" | "no_show";
+    status?:
+      | "reservado"
+      | "qr_escaneado"
+      | "confirmado"
+      | "cancelado"
+      | "no_show";
     source?: TestBookingSource;
   },
 ): Promise<number> {
@@ -468,10 +473,11 @@ export async function insertWellhubBookingRow(
 ): Promise<number> {
   const [res] = await app.db.insert(schema.wellhubBookings).values(
     tenantValues(TEMPLO_CTX, {
-      bookingNumber: `WH${Date.now().toString(36)}${nextExternalId().toString(36)}`.slice(
-        0,
-        32,
-      ),
+      bookingNumber:
+        `WH${Date.now().toString(36)}${nextExternalId().toString(36)}`.slice(
+          0,
+          32,
+        ),
       bookingId: opts.bookingId,
       userId: opts.userId,
       wellhubSlotRowId: opts.wellhubSlotRowId,

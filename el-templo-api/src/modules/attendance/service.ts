@@ -914,9 +914,7 @@ export class AttendanceService {
         ),
       )
       .limit(1);
-    const isWellhubVisit = isWellhubBookingSource(
-      wellhubLookupBooking?.source,
-    );
+    const isWellhubVisit = isWellhubBookingSource(wellhubLookupBooking?.source);
 
     // One check-in per day guard, per activity category: una asistencia a una
     // ESPECIAL (pase Aura) no bloquea la de la clase regular del mismo día ni

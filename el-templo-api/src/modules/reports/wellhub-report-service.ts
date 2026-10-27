@@ -203,10 +203,7 @@ export class WellhubReportService {
       (sum, p) => sum + p.validatedVisits,
       0,
     );
-    const manualVisits = peopleList.reduce(
-      (sum, p) => sum + p.manualVisits,
-      0,
-    );
+    const manualVisits = peopleList.reduce((sum, p) => sum + p.manualVisits, 0);
     const unique = peopleList.length;
 
     const bookings = await this.loadBookings(ctx, params, from, to);

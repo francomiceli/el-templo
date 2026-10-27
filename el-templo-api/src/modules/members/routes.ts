@@ -1840,7 +1840,8 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       ) {
         return reply.code(403).send({
           error: "Acceso denegado",
-          message: "Solo owner, admin o gestión puede enviar el acceso a la app",
+          message:
+            "Solo owner, admin o gestión puede enviar el acceso a la app",
         });
       }
 
