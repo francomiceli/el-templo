@@ -6,6 +6,7 @@
 import { CONQUER_LEVELS, CONQUER_STEP_KEYS } from "../../db/schema/conquer";
 import { CONQUER_INC_RANGES } from "./activation-service";
 import { COMBO_KEYS } from "./combos";
+import { correctionCountsSchema } from "./correction-schemas";
 import { CONQUER_POSES } from "./private-media";
 import { CONQUER_SETTING_RANGES } from "./settings";
 
@@ -119,6 +120,8 @@ const memberStateSchema = {
     guideSeen: { type: "boolean" },
     home: homeSchema,
     bodyCheck: bodyCheckSummarySchema,
+    // Fase 202 DA-46: si falta acá, el serializador la borra en silencio.
+    corrections: correctionCountsSchema,
   },
   additionalProperties: false,
 } as const;

@@ -7,7 +7,7 @@
 // plan también pide y, si se lo activan, entrena Conquer.
 //
 // El app NUNCA recalcula nada: pinta lo que manda `getConquerState`
-// (201-07 le suma `home`, 201-12 le suma `bodyCheck`).
+// (201-07 le suma `home`, 201-12 le suma `bodyCheck`, 202-04 `corrections`).
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../db/schema";
@@ -23,6 +23,7 @@ import {
   requireOwnActiveMember,
   type BodyCheckSummary,
 } from "./body-check-service";
+import { correctionCounts, type CorrectionCounts } from "./correction-service";
 import { loadMemberContext } from "./history-loader";
 import { buildHome, type HomeView } from "./today-service";
 
@@ -49,6 +50,8 @@ export interface ConquerMemberState {
   home: HomeView;
   /** Fase 201 §6, D-15: banderas del control físico (día 0 y vencimiento). */
   bodyCheck: BodyCheckSummary;
+  /** Fase 202 DA-46: contador de Inicio (videos esperando respuesta y respuestas sin ver). */
+  corrections: CorrectionCounts;
 }
 
 export interface ConquerStateResponse {
@@ -113,6 +116,8 @@ export async function getConquerState(
     mctx.today,
     row.day0SkippedAt,
   );
+  // Fase 202 DA-46: contador de correcciones con UNA query más (solo activo).
+  const corrections = await correctionCounts(db, ctx, userId);
   const week = row.activationDate
     ? blockWeek(row.activationDate, mctx.today)
     : 1;
@@ -132,6 +137,7 @@ export async function getConquerState(
       guideSeen: row.guideSeenAt !== null,
       home,
       bodyCheck,
+      corrections,
     },
   };
 }

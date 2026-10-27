@@ -9,12 +9,16 @@ import { attachCountryScope } from "../shared/country-scope";
 import { assertTenant } from "../shared/tenant";
 import {
   createCorrection,
+  getMemberCorrectionVideoUrl,
   getMemberCorrections,
+  markRepliesSeen,
   requestCorrectionUpload,
   type CreateCorrectionBody,
 } from "./correction-service";
 import {
   correctionUploadUrlSchema,
+  correctionVideoUrlSchema,
+  correctionsSeenSchema,
   createCorrectionSchema,
   memberCorrectionsSchema,
 } from "./correction-schemas";
@@ -89,6 +93,60 @@ export function registerCorrectionMemberRoutes(fastify: FastifyInstance): void {
           reply,
           request.log,
           "conquer.member.corrections.create",
+        );
+      }
+    },
+  );
+
+  // GET /corrections/:id/video-url — URL firmada de UN video de una corrección
+  // propia (DA-44). Video borrado o vencido = 200 `{ available: false }`.
+  fastify.get<{ Params: { id: number }; Querystring: { who: string } }>(
+    "/corrections/:id/video-url",
+    { onRequest: [fastify.authenticate], schema: correctionVideoUrlSchema },
+    async (request, reply) => {
+      try {
+        await attachCountryScope(request, fastify.db);
+        const ctx = assertTenant(
+          request.scope,
+          "conquer.member.corrections.video",
+        );
+        return await getMemberCorrectionVideoUrl(
+          fastify,
+          ctx,
+          request.user.userId,
+          request.params.id,
+          request.query.who,
+        );
+      } catch (err: unknown) {
+        sendConquerError(
+          err,
+          reply,
+          request.log,
+          "conquer.member.corrections.video",
+        );
+      }
+    },
+  );
+
+  // POST /corrections/seen — marca vistas las respuestas del alumno (DA-46).
+  // No choca con `POST /corrections`: el path es otro.
+  fastify.post(
+    "/corrections/seen",
+    { onRequest: [fastify.authenticate], schema: correctionsSeenSchema },
+    async (request, reply) => {
+      try {
+        await attachCountryScope(request, fastify.db);
+        const ctx = assertTenant(
+          request.scope,
+          "conquer.member.corrections.seen",
+        );
+        return await markRepliesSeen(fastify.db, ctx, request.user.userId);
+      } catch (err: unknown) {
+        sendConquerError(
+          err,
+          reply,
+          request.log,
+          "conquer.member.corrections.seen",
         );
       }
     },

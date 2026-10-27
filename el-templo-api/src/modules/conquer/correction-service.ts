@@ -16,7 +16,7 @@
 // Las claves de storage y las URLs firmadas son dato sensible: acá se loguea a
 // lo sumo `{ correctionId }` o `{ userId }` y el NOMBRE del error del SDK.
 import { alias } from "drizzle-orm/mysql-core";
-import { and, asc, count, desc, eq } from "drizzle-orm";
+import { and, asc, count, desc, eq, isNull, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyInstance } from "fastify";
 import * as schema from "../../db/schema";
@@ -40,6 +40,7 @@ import {
   isOwnCorrectionVideoKey,
   privateCorrectionVideoKey,
   privateMediaResolver,
+  PRIVATE_GET_EXPIRES_SEC,
   PRIVATE_PUT_EXPIRES_SEC,
   VideoStorageUnavailableError,
   type PrivateMediaStore,
@@ -130,6 +131,19 @@ export interface CreateCorrectionBody {
   comment?: string | null;
   key: string;
   durationSec: number;
+}
+
+/** Fase 202 DA-44: URL firmada de lectura de un video de corrección (o "ya no está"). */
+export interface CorrectionVideoUrl {
+  available: boolean;
+  url: string | null;
+  expiresIn: number | null;
+}
+
+/** Fase 202 DA-46: contadores de Inicio (`member.corrections` de `GET /state`). */
+export interface CorrectionCounts {
+  pending: number;
+  unseenReplies: number;
 }
 
 // ── Storage ─────────────────────────────────────────────────────────
@@ -765,4 +779,110 @@ export async function createCorrection(
   });
   if (!row) throw new AppError("No se pudo guardar el video", 500);
   return toCorrectionView(row);
+}
+
+// ── Videos de una corrección (DA-44) ───────────────────────────────
+
+/**
+ * Fase 202 DA-44: URL firmada de lectura de un video de corrección. Lo reusa el
+ * coach (202-05). Un video que ya no está NO es un error:
+ *  - `key` NULL (borrado a mano, D-28): `available: false` SIN tocar el storage;
+ *  - el objeto no existe (la regla de 60 días lo venció): `available: false`;
+ *  - si no, URL de 5 minutos con `no-store` (D-27).
+ * Sin bucket privado el resolver tira 503 `CONQUER_VIDEOS_NO_DISPONIBLES`.
+ * Nunca se loguea la clave ni la URL: `callVideoStore` registra `{ correctionId }`.
+ */
+export async function resolveCorrectionVideo(
+  fastify: FastifyInstance,
+  key: string | null,
+  info: { correctionId: number },
+): Promise<CorrectionVideoUrl> {
+  if (key === null) return { available: false, url: null, expiresIn: null };
+  const store = privateMediaResolver.resolve(fastify, "videos");
+  const head = await callVideoStore(fastify, info, () => store.head(key));
+  if (head === null) return { available: false, url: null, expiresIn: null };
+  const url = await callVideoStore(fastify, info, () =>
+    store.presignGet(key, PRIVATE_GET_EXPIRES_SEC),
+  );
+  return { available: true, url, expiresIn: PRIVATE_GET_EXPIRES_SEC };
+}
+
+/**
+ * `GET /corrections/:id/video-url?who=alumno|coach`. Orden (DA-44): no activo
+ * (409) -> corrección PROPIA del gimnasio (404, la de otro alumno es
+ * indistinguible de una inexistente) -> `who` (400) -> storage.
+ */
+export async function getMemberCorrectionVideoUrl(
+  fastify: FastifyInstance,
+  ctx: TenantContext,
+  userId: number,
+  correctionId: number,
+  who: string,
+): Promise<CorrectionVideoUrl> {
+  await assertActive(fastify.db, ctx, userId);
+  const [row] = await loadCorrectionRows(fastify.db, ctx, {
+    userId,
+    id: correctionId,
+    limit: 1,
+    order: "desc",
+  });
+  if (!row) throw new AppError("Corrección no encontrada", 404);
+  if (who !== "alumno" && who !== "coach") {
+    throw new AppError(
+      "Elegí si querés ver tu video o el del coach",
+      400,
+      "CONQUER_VIDEO_QUIEN_INVALIDO",
+    );
+  }
+  const key = who === "alumno" ? row.videoKey : row.replyVideoKey;
+  return resolveCorrectionVideo(fastify, key, { correctionId: row.id });
+}
+
+// ── Respuestas vistas y contador (DA-46) ───────────────────────────
+
+/**
+ * `POST /corrections/seen`: marca vistas las respuestas del alumno. Solo las
+ * suyas (`userId` del token), solo las respondidas y sin ver; idempotente.
+ */
+export async function markRepliesSeen(
+  db: DbInstance,
+  ctx: TenantContext,
+  userId: number,
+): Promise<{ unseenReplies: 0 }> {
+  await assertActive(db, ctx, userId);
+  await db
+    .update(schema.conquerCorrections)
+    .set({ replySeenAt: sql`NOW()` })
+    .where(
+      and(
+        tenantWhere(schema.conquerCorrections, ctx),
+        eq(schema.conquerCorrections.userId, userId),
+        eq(schema.conquerCorrections.status, "respondida"),
+        isNull(schema.conquerCorrections.replySeenAt),
+      ),
+    );
+  return { unseenReplies: 0 };
+}
+
+/**
+ * Contador de Inicio con UNA query: pendientes y respuestas sin ver (DA-46).
+ * `COUNT(CASE ...)` devuelve 0 (no NULL) cuando no hay filas.
+ */
+export async function correctionCounts(
+  db: DbInstance,
+  ctx: TenantContext,
+  userId: number,
+): Promise<CorrectionCounts> {
+  const c = schema.conquerCorrections;
+  const [row] = await db
+    .select({
+      pending: sql<number>`COUNT(CASE WHEN ${c.status} = 'pendiente' THEN 1 END)`,
+      unseenReplies: sql<number>`COUNT(CASE WHEN ${c.status} = 'respondida' AND ${c.replySeenAt} IS NULL THEN 1 END)`,
+    })
+    .from(c)
+    .where(and(tenantWhere(c, ctx), eq(c.userId, userId)));
+  return {
+    pending: Number(row?.pending ?? 0),
+    unseenReplies: Number(row?.unseenReplies ?? 0),
+  };
 }

@@ -139,3 +139,64 @@ export const createCorrectionSchema = {
   },
   response: { 201: correctionViewSchema },
 } as const;
+
+/**
+ * `GET /corrections/:id/video-url?who=alumno|coach`. Fase 202 DA-44: `who` lo
+ * valida el SERVICIO (queda detrás del 409 y del 404 y trae `code`). Video
+ * ausente = 200 con `available: false`, nunca un error.
+ */
+export const correctionVideoUrlSchema = {
+  params: {
+    type: "object",
+    properties: { id: { type: "integer" } },
+    required: ["id"],
+  },
+  querystring: {
+    type: "object",
+    properties: { who: { type: "string" } },
+    required: ["who"],
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        available: { type: "boolean" },
+        url: { type: ["string", "null"] },
+        expiresIn: { type: ["integer", "null"] },
+      },
+      required: ["available", "url", "expiresIn"],
+      additionalProperties: false,
+    },
+  },
+} as const;
+
+/** `POST /corrections/seen`: sin body (se tolera `{}`), responde `{ unseenReplies: 0 }`. */
+export const correctionsSeenSchema = {
+  body: {
+    type: ["object", "null"],
+    properties: {},
+    additionalProperties: false,
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: { unseenReplies: { type: "integer" } },
+      required: ["unseenReplies"],
+      additionalProperties: false,
+    },
+  },
+} as const;
+
+/**
+ * `member.corrections` dentro de `GET /state` (Fase 202 DA-46). Lo importa
+ * `schemas.ts`: este archivo NO importa de `schemas.ts` (sin ciclo).
+ */
+export const correctionCountsSchema = {
+  type: "object",
+  properties: {
+    pending: { type: "integer" },
+    unseenReplies: { type: "integer" },
+  },
+  required: ["pending", "unseenReplies"],
+  additionalProperties: false,
+} as const;
