@@ -75,7 +75,11 @@ import {
   type TenantContext,
 } from "../shared/tenant";
 import { assertBranchDelGimnasio } from "../shared/branch-consistency";
-import { notWellhubBookingSql } from "../shared/wellhub-sources";
+import {
+  notWellhubBookingSql,
+  isWellhubBookingRawSql,
+  isWellhubAttendanceRawSql,
+} from "../shared/wellhub-sources";
 import { alias } from "drizzle-orm/mysql-core";
 import type { MemberSegment } from "../segmentation/types";
 
@@ -136,6 +140,55 @@ function effectiveMemberStatusSql(ctx: TenantContext) {
   )`;
 }
 
+/**
+ * Fase 204 D-03: la etiqueta "Wellhub" sale de `gympass_id`, es permanente y se
+ * ve SIEMPRE que la persona NO sea socio activo (visitante `wellhub`,
+ * ex-alumno `inactivo`, lead, etc.). Un socio activo se ve solo "Activo".
+ * Usa el estado EFECTIVO (calculado en vivo), no la columna cacheada.
+ *
+ * El MISMO fragmento filtra y marca (lo que filtra es lo que se marca): lo usan
+ * el filtro `wellhubOnly` y la proyección `showWellhubLabel` del listado, el
+ * buscador, la ficha y el export.
+ */
+export function wellhubLabelVisibleSql(ctx: TenantContext) {
+  return sql<number>`(users.gympass_id IS NOT NULL AND ${effectiveMemberStatusSql(ctx)} <> 'activo')`;
+}
+
+/**
+ * Fase 204 D-07 (b): el socio tiene una reserva o una visita Wellhub en los
+ * últimos 30 días. Subqueries con FROM propio: el gimnasio va INLINE y la
+ * referencia externa como literal `users.id` (FA-01). Las funciones `*RawSql`
+ * de `shared/wellhub-sources` son la única definición de "es Wellhub".
+ */
+export function recentWellhubActivitySql(ctx: TenantContext) {
+  return sql<number>`(
+    EXISTS (
+      SELECT 1 FROM bookings b
+      WHERE b.tenant_id = ${ctx.tenantId}
+        AND b.member_id = users.id
+        AND ${isWellhubBookingRawSql("b")}
+        AND b.booking_date >= (CURDATE() - INTERVAL 30 DAY)
+    )
+    OR EXISTS (
+      SELECT 1 FROM attendance a
+      WHERE a.tenant_id = ${ctx.tenantId}
+        AND a.member_id = users.id
+        AND ${isWellhubAttendanceRawSql("a")}
+        AND a.session_date >= (CURDATE() - INTERVAL 30 DAY)
+    )
+  )`;
+}
+
+/**
+ * Fase 204 D-07: toggle "Solo Wellhub" del listado. Muestra (a) a quienes
+ * tienen la etiqueta visible (D-03) y (b) a los socios activos con gympass_id
+ * que reservaron o visitaron por Wellhub en los últimos 30 días. Se combina con
+ * el select Estado y NO está finance-gated (no es un dato financiero).
+ */
+export function wellhubOnlySql(ctx: TenantContext) {
+  return sql<number>`(users.gympass_id IS NOT NULL AND (${wellhubLabelVisibleSql(ctx)} OR (${effectiveMemberStatusSql(ctx)} = 'activo' AND ${recentWellhubActivitySql(ctx)})))`;
+}
+
 export class MemberService {
   constructor(
     private db: MySql2Database<typeof schema>,
@@ -189,6 +242,7 @@ export class MemberService {
       includeTotalDebt,
       status,
       origin,
+      wellhubOnly,
       page,
       limit,
     } = params;
@@ -349,15 +403,22 @@ export class MemberService {
 
     // Status filter compares against the computed expression so it stays
     // consistent with what the list displays. 'todos' (or undefined) is a no-op.
+    // Fase 204: 'wellhub' (visitante sin plan) pasa tal cual por el CASE.
     if (
       status === "freemium" ||
       status === "prueba" ||
       status === "activo" ||
-      status === "inactivo"
+      status === "inactivo" ||
+      status === "wellhub"
     ) {
       conditions.push(sql`${effectiveStatusExpr} = ${status}`);
     }
     // status === "todos" or undefined → no-op
+
+    // Fase 204 D-07: toggle "Solo Wellhub", combinable con el estado.
+    if (wellhubOnly === true) {
+      conditions.push(wellhubOnlySql(ctx));
+    }
 
     // Fase 194-20 (D-18): origen "Invitación" = tiene una invitación `active`
     // (derivado de `invitations`, la fuente de verdad: sin columna nueva en
@@ -467,6 +528,10 @@ export class MemberService {
         endDate: endDateSubquery,
         hasUsedTrial: hasUsedTrialSubquery,
         isInvited: sql<number>`(${hasActiveInvitationExpr})`,
+        // Fase 204 (D-01/D-03): isWellhub = tiene gympass_id (permanente),
+        // showWellhubLabel = además no es socio activo.
+        isWellhub: sql<number>`(users.gympass_id IS NOT NULL)`,
+        showWellhubLabel: wellhubLabelVisibleSql(ctx),
       })
       .from(schema.users)
       .innerJoin(
@@ -558,6 +623,8 @@ export class MemberService {
       createdAt: r.createdAt.toISOString(),
       hasUsedTrial: Boolean(r.hasUsedTrial),
       isInvited: Boolean(r.isInvited),
+      isWellhub: Boolean(r.isWellhub),
+      showWellhubLabel: Boolean(r.showWellhubLabel),
     }));
 
     return { members, total, totalDebtByCurrency };
@@ -686,6 +753,9 @@ export class MemberService {
         status: effectiveStatusExpr,
         branchId: schema.users.branchId,
         branchName: schema.branches.name,
+        // Fase 204 (D-09): Cobros marca al Wellhub en el buscador.
+        isWellhub: sql<number>`(users.gympass_id IS NOT NULL)`,
+        showWellhubLabel: wellhubLabelVisibleSql(ctx),
       })
       .from(schema.users)
       .innerJoin(
@@ -707,6 +777,8 @@ export class MemberService {
         dni: r.dni,
         planName: r.planName,
         status: r.status,
+        isWellhub: Boolean(r.isWellhub),
+        showWellhubLabel: Boolean(r.showWellhubLabel),
       }));
     }
 
@@ -722,6 +794,8 @@ export class MemberService {
           dni: r.dni,
           planName: r.planName,
           status: r.status,
+          isWellhub: Boolean(r.isWellhub),
+          showWellhubLabel: Boolean(r.showWellhubLabel),
         };
       }
       // Proyección MINIMA para un visitante (Franco 2026-09-26): id, nombre,
@@ -735,6 +809,9 @@ export class MemberService {
         dni: maskDniLast3(r.dni),
         planName: null,
         status: null,
+        // Fase 204: solo la marca (sin gympass_id ni estado) para que Cobros
+        // pueda avisar; no revela datos de la otra sede.
+        showWellhubLabel: Boolean(r.showWellhubLabel),
         isOtherBranch: true,
         visitorBranchId: r.branchId,
         visitorBranchName: r.branchName,
@@ -816,6 +893,9 @@ export class MemberService {
         creatorId: creator.id,
         creatorFirstName: creator.firstName,
         creatorLastName: creator.lastName,
+        // Fase 204 (D-01/D-02/D-03): misma regla que el listado.
+        isWellhub: sql<number>`(users.gympass_id IS NOT NULL)`,
+        showWellhubLabel: wellhubLabelVisibleSql(ctx),
       })
       .from(schema.users)
       .innerJoin(
@@ -984,6 +1064,8 @@ export class MemberService {
         : null,
       latestTrial,
       sepaDetails: sepaRow ?? null,
+      isWellhub: Boolean(row.isWellhub),
+      showWellhubLabel: Boolean(row.showWellhubLabel),
     };
   }
 
@@ -2357,6 +2439,7 @@ export class MemberService {
       planId,
       avatarType,
       country,
+      wellhubOnly,
     } = params;
 
     const conditions: ReturnType<typeof eq>[] = [];
@@ -2423,9 +2506,15 @@ export class MemberService {
       status === "freemium" ||
       status === "prueba" ||
       status === "activo" ||
-      status === "inactivo"
+      status === "inactivo" ||
+      status === "wellhub"
     ) {
       conditions.push(eq(schema.users.status, status));
+    }
+
+    // Fase 204 D-07: mismo toggle "Solo Wellhub" que el listado.
+    if (wellhubOnly === true) {
+      conditions.push(wellhubOnlySql(ctx));
     }
 
     if (planId !== undefined) {
@@ -2496,6 +2585,9 @@ export class MemberService {
         // Phase 103 (R10): direct projection of users.status (replaces the
         // legacy isActiveSubquery). Mapping below renders the 4-state label.
         status: schema.users.status,
+        // Fase 204 (D-08): estado efectivo + marca Wellhub para el sufijo.
+        effectiveStatus: effectiveMemberStatusSql(ctx),
+        showWellhubLabel: wellhubLabelVisibleSql(ctx),
         planName: planNameSubquery,
         endDate: endDateSubquery,
         dateOfBirth: schema.users.dateOfBirth,
@@ -2520,6 +2612,7 @@ export class MemberService {
       prueba: "En Prueba",
       activo: "Activo",
       inactivo: "Inactivo",
+      wellhub: "Wellhub",
     };
 
     return rows.map((r) => ({
@@ -2530,7 +2623,17 @@ export class MemberService {
       sucursal: r.branchName,
       nivel: r.level.charAt(0).toUpperCase() + r.level.slice(1),
       plan: r.planName ?? "Sin plan",
-      estado: r.status ? (STATUS_LABELS[r.status] ?? "") : "",
+      // Fase 204 D-08: sufijo " · Wellhub" cuando la marca es visible y el
+      // estado no es ya 'wellhub' (visitante = "Wellhub", ex-alumno = "Inactivo
+      // · Wellhub"). Con marca visible se rotula el estado efectivo.
+      estado: (() => {
+        const baseStatus = r.showWellhubLabel ? r.effectiveStatus : r.status;
+        const base = baseStatus ? (STATUS_LABELS[baseStatus] ?? "") : "";
+        if (Boolean(r.showWellhubLabel) && baseStatus !== "wellhub") {
+          return base ? `${base} · Wellhub` : "Wellhub";
+        }
+        return base;
+      })(),
       vencimientoSuscripcion: r.endDate ?? "",
       fechaNacimiento: r.dateOfBirth ?? "",
       direccion: r.address ?? "",

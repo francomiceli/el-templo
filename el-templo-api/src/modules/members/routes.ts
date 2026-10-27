@@ -63,6 +63,7 @@ import type {
   UpdateMemberInput,
   MemberListParams,
   MembershipKind,
+  UserStatus,
 } from "./types";
 import {
   listMembersSchema,
@@ -257,9 +258,11 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       multiBranch?: boolean;
       level?: string;
       // Phase 103 (R8): export uses the same status enum as the list endpoint.
-      status?: "todos" | "freemium" | "prueba" | "activo" | "inactivo";
+      status?: "todos" | UserStatus;
       planId?: number;
       avatarType?: string;
+      // Fase 204 D-07: "Solo Wellhub".
+      wellhubOnly?: boolean;
       // Phase 154 (ALUM-05): gate the "Nivel" column. Absent = true (default
       // includes the column, preserving the current behavior for any caller).
       includeGreekLevel?: boolean;
@@ -292,6 +295,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         status: request.query.status,
         planId: request.query.planId,
         avatarType: request.query.avatarType,
+        wellhubOnly: request.query.wellhubOnly,
         country: request.scope.country ?? undefined,
       });
 
@@ -481,9 +485,11 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       avatarType?: string;
       debtorOnly?: boolean;
       // Phase 103 (R8): first-class users.status filter (replaces Phase 102 enum).
-      status?: "todos" | "freemium" | "prueba" | "activo" | "inactivo";
+      status?: "todos" | UserStatus;
       // Fase 194-20 (D-18): origen "Invitación" (derivado de `invitations`).
       origin?: "invitacion";
+      // Fase 204 D-07: "Solo Wellhub" (NO finance-gated, a diferencia de debtorOnly).
+      wellhubOnly?: boolean;
       page?: number;
       limit?: number;
     };
@@ -508,6 +514,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         debtorOnly,
         status,
         origin,
+        wellhubOnly,
         page = 1,
         limit = 20,
       } = request.query;
@@ -539,6 +546,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         ),
         status,
         origin,
+        wellhubOnly,
         page,
         limit,
       };
