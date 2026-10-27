@@ -200,3 +200,79 @@ export const correctionCountsSchema = {
   required: ["pending", "unseenReplies"],
   additionalProperties: false,
 } as const;
+
+// ── Bandeja del coach (Fase 202 DA-44, DA-45, DA-46) ───────────────
+
+/**
+ * Vista del coach: la del alumno sin `replyUnseen` + quién es (`userId`,
+ * `memberName`, `level`), cuándo se borró el video del alumno, quién respondió
+ * y si todavía se puede responder.
+ */
+const { replyUnseen: _omitProperty, ...correctionBaseProperties } =
+  correctionViewSchema.properties;
+
+export const adminCorrectionViewSchema = {
+  type: "object",
+  properties: {
+    ...correctionBaseProperties,
+    userId: { type: "integer" },
+    memberName: { type: "string" },
+    level: { type: ["string", "null"] },
+    videoDeletedAt: { type: ["string", "null"] },
+    repliedByName: { type: ["string", "null"] },
+    canReply: { type: "boolean" },
+  },
+  required: [
+    ...correctionViewSchema.required.filter((k) => k !== "replyUnseen"),
+    "userId",
+    "memberName",
+    "level",
+    "videoDeletedAt",
+    "repliedByName",
+    "canReply",
+  ],
+  additionalProperties: false,
+} as const;
+
+/** `GET /corrections?status=...`: `status` lo valida el SERVICIO (400 con `code`). */
+export const adminCorrectionsSchema = {
+  querystring: {
+    type: "object",
+    properties: { status: { type: "string" } },
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        items: { type: "array", items: adminCorrectionViewSchema },
+      },
+      required: ["items"],
+      additionalProperties: false,
+    },
+  },
+} as const;
+
+/** `GET /corrections/count`: pendientes del gimnasio (badge del admin). */
+export const adminCorrectionsCountSchema = {
+  response: {
+    200: {
+      type: "object",
+      properties: { count: { type: "integer" } },
+      required: ["count"],
+      additionalProperties: false,
+    },
+  },
+} as const;
+
+/** `GET /corrections/:id/video-url?who=alumno|coach`: mismo contrato que el del alumno. */
+export const adminCorrectionVideoUrlSchema = correctionVideoUrlSchema;
+
+/** `DELETE /corrections/:id/video`: responde la vista actualizada. */
+export const deleteCorrectionVideoSchema = {
+  params: {
+    type: "object",
+    properties: { id: { type: "integer" } },
+    required: ["id"],
+  },
+  response: { 200: adminCorrectionViewSchema },
+} as const;

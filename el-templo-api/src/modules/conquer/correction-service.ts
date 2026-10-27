@@ -324,6 +324,11 @@ export interface CorrectionRowsWhere {
   status?: "pendiente" | "respondida";
   limit: number;
   order: "asc" | "desc";
+  /**
+   * Columna por la que se ordena (por defecto `createdAt`). Fase 202 DA-46: la
+   * bandeja del coach lista las respondidas por `replied_at`, no por alta.
+   */
+  orderBy?: "createdAt" | "repliedAt";
 }
 
 /**
@@ -338,10 +343,11 @@ export async function loadCorrectionRows(
 ): Promise<CorrectionRow[]> {
   const replier = alias(schema.users, "correction_replier");
   const c = schema.conquerCorrections;
+  const orderColumn = where.orderBy === "repliedAt" ? c.repliedAt : c.createdAt;
   const order =
     where.order === "desc"
-      ? [desc(c.createdAt), desc(c.id)]
-      : [asc(c.createdAt), asc(c.id)];
+      ? [desc(orderColumn), desc(c.id)]
+      : [asc(orderColumn), asc(c.id)];
   return db
     .select({
       id: c.id,

@@ -33,6 +33,7 @@ import {
 import { applyCut, parseCutBody, type CutRequestBody } from "./cuts-service";
 import type { StepKey } from "./engine";
 import { buildFicha, correctStep } from "./ficha-service";
+import { registerCorrectionAdminRoutes } from "./correction-routes";
 import { buildGallery } from "./gallery-service";
 import { confirmLevelUp, type LevelUpBody } from "./level-service";
 import { countUnlockRequests, listUnlockRequests } from "./member-service";
@@ -536,4 +537,7 @@ export const conquerAdminRoutes: FastifyPluginAsync = async (fastify) => {
       }
     },
   );
+
+  // Fase 201 D-26/D-28: bandeja de correcciones (correction-routes.ts); hereda el guard de arriba.
+  registerCorrectionAdminRoutes(fastify);
 };
