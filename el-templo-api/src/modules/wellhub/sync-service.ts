@@ -8,9 +8,10 @@
  * solo degrada UX (el usuario ve un lugar viejo y su solicitud rebota).
  *
  * Qué publica syncBranch por sede con wellhub_gym_id:
- *   - Una "class" por actividad activa NO especial con horarios activos en
- *     la sede (las especiales están gateadas por el pase Aura y quedan
- *     fuera de Wellhub por ahora).
+ *   - Una "class" por actividad activa, marcada wellhub_enabled y NO
+ *     especial, con horarios activos en la sede (en El Templo solo General.
+ *     Las especiales están gateadas por el pase Aura y quedan fuera de
+ *     Wellhub aunque estén marcadas).
  *   - Un "slot" por (schedule activo, fecha) dentro del horizonte
  *     (WELLHUB_SLOT_HORIZON_DAYS, default 7), salteando excepciones de
  *     fecha, feriados del país de la sede y horarios ya pasados. Ventanas
@@ -35,7 +36,11 @@ import * as schema from "../../db/schema";
 import { addDays, buildClassDateTime, todayInTz } from "../shared/date-utils";
 import { resolveEffectiveCapacity } from "../scheduling/capacity";
 import type { BookingService } from "../scheduling/booking-service";
-import { tenantValues, tenantWhere, type TenantContext } from "../shared/tenant";
+import {
+  tenantValues,
+  tenantWhere,
+  type TenantContext,
+} from "../shared/tenant";
 import { WellhubApiError } from "./client";
 import type { WellhubClient } from "./client";
 import type { WellhubSlot, WellhubSlotPayload } from "./types";
@@ -48,6 +53,18 @@ const CANCEL_MARGIN_MINUTES = 20;
 const PENDING_EXPIRY_MINUTES = 20;
 
 const DEFAULT_HORIZON_DAYS = 7;
+
+/**
+ * Actividades que se publican en Wellhub: activas, marcadas wellhub_enabled
+ * y no especiales. Única fuente del filtro para classes y slots, así una
+ * actividad que se desmarca deja de tener slots válidos y la limpieza de
+ * syncSlots los despublica.
+ */
+const publishableActivity = and(
+  eq(schema.activities.isActive, true),
+  eq(schema.activities.wellhubEnabled, true),
+  eq(schema.activities.isSpecial, false),
+);
 
 /** Wellhub devuelve fechas estilo Java ("2026-07-22T20:00:00Z[UTC]"). */
 function parseWellhubDate(value: string): Date {
@@ -189,7 +206,7 @@ export class WellhubSyncService {
 
   // ─── Classes ───────────────────────────────────────────────────────────────
 
-  /** Actividades activas no especiales con al menos un horario activo en la sede. */
+  /** Actividades publicables con al menos un horario activo en la sede. */
   private async listPublishableActivities(
     branch: SyncBranch,
   ): Promise<Array<{ id: number; name: string; description: string | null }>> {
@@ -210,8 +227,7 @@ export class WellhubSyncService {
           tenantWhere(schema.schedules, ctx),
           eq(schema.schedules.branchId, branch.id),
           eq(schema.schedules.isActive, true),
-          eq(schema.activities.isActive, true),
-          eq(schema.activities.isSpecial, false),
+          publishableActivity,
         ),
       );
   }
@@ -331,8 +347,7 @@ export class WellhubSyncService {
           tenantWhere(schema.schedules, ctx),
           eq(schema.schedules.branchId, branch.id),
           eq(schema.schedules.isActive, true),
-          eq(schema.activities.isActive, true),
-          eq(schema.activities.isSpecial, false),
+          publishableActivity,
         ),
       );
     const scheduleIds = scheduleRows.map((s) => s.id);
