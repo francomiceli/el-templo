@@ -276,3 +276,39 @@ export const deleteCorrectionVideoSchema = {
   },
   response: { 200: adminCorrectionViewSchema },
 } as const;
+
+// ── Respuesta del coach (Fase 202 D-26, DA-43) ─────────────────────
+
+const correctionIdParams = {
+  type: "object",
+  properties: { id: { type: "integer" } },
+  required: ["id"],
+} as const;
+
+/**
+ * `POST /corrections/:id/reply-upload-url`: mismo contrato que el del alumno. El
+ * tipo lo valida el SERVICIO (detrás del 404, del 409 y del 503).
+ */
+export const replyUploadUrlSchema = {
+  params: correctionIdParams,
+  body: correctionUploadUrlSchema.body,
+  response: { 200: correctionUploadUrlSchema.response[200] },
+} as const;
+
+/**
+ * `POST /corrections/:id/reply`: texto, clave del video del coach y duración.
+ * Cuerpo plano; los valores (largo, `code`) los valida el servicio.
+ */
+export const replyCorrectionSchema = {
+  params: correctionIdParams,
+  body: {
+    type: "object",
+    properties: {
+      text: { type: ["string", "null"] },
+      key: { type: ["string", "null"], maxLength: 255 },
+      durationSec: { type: ["number", "null"] },
+    },
+    additionalProperties: false,
+  },
+  response: { 200: adminCorrectionViewSchema },
+} as const;

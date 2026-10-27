@@ -148,6 +148,12 @@ export interface CorrectionCounts {
 
 // ── Storage ─────────────────────────────────────────────────────────
 
+/** Qué se loguea de una llamada al storage: ids, nunca la clave (D-27). */
+export interface VideoStoreInfo {
+  correctionId?: number;
+  userId?: number;
+}
+
 /**
  * Llama al storage sin dejar escapar su error: el del SDK puede nombrar el
  * bucket o la clave. Se loguea `{ correctionId | userId }` y el NOMBRE del
@@ -155,7 +161,7 @@ export interface CorrectionCounts {
  */
 export async function callVideoStore<T>(
   fastify: FastifyInstance,
-  info: { correctionId?: number; userId?: number },
+  info: VideoStoreInfo,
   call: () => Promise<T>,
 ): Promise<T> {
   try {
@@ -176,14 +182,14 @@ export async function callVideoStore<T>(
 async function removeQuietly(
   fastify: FastifyInstance,
   store: PrivateMediaStore,
-  userId: number,
+  info: VideoStoreInfo,
   key: string,
 ): Promise<void> {
   try {
     await store.remove(key);
   } catch (err: unknown) {
     fastify.log.warn(
-      { userId, errName: err instanceof Error ? err.name : "unknown" },
+      { ...info, errName: err instanceof Error ? err.name : "unknown" },
       "conquer correction orphan video not removed",
     );
   }
@@ -637,15 +643,17 @@ function videoYaUsadoError(): AppError {
 
 /**
  * HEAD del objeto subido (DA-39): no existe -> 409. Vacío, pesado o de otro tipo
- * -> se borra el objeto y 400.
+ * -> se borra el objeto y 400. Fase 202 DA-43: la misma confirmación vale para el
+ * video del alumno (202-03) y para el de la respuesta del coach (202-06): un
+ * solo lugar donde se hace cumplir tipo y tamaño.
  */
-async function confirmUploadedVideo(
+export async function confirmCorrectionVideo(
   fastify: FastifyInstance,
   store: PrivateMediaStore,
-  userId: number,
   key: string,
+  info: VideoStoreInfo,
 ): Promise<void> {
-  const head = await callVideoStore(fastify, { userId }, () => store.head(key));
+  const head = await callVideoStore(fastify, info, () => store.head(key));
   if (head === null) {
     throw new AppError(
       "Todavía no se subió el video",
@@ -660,7 +668,7 @@ async function confirmUploadedVideo(
       VIDEO_CONTENT_TYPES,
     ) !== "ok"
   ) {
-    await removeQuietly(fastify, store, userId, key);
+    await removeQuietly(fastify, store, info, key);
     throw new AppError(
       "El video pesa más de 100 MB o no es MP4 o MOV",
       400,
@@ -740,7 +748,7 @@ async function insertOrCleanUp(
   } catch (err: unknown) {
     if (isDuplicateKeyError(err).isDuplicate) throw videoYaUsadoError();
     if (err instanceof AppError && err.code === "CONQUER_CORRECCIONES_TOPE") {
-      await removeQuietly(fastify, store, userId, input.key);
+      await removeQuietly(fastify, store, { userId }, input.key);
     }
     throw err;
   }
@@ -762,7 +770,7 @@ export async function createCorrection(
   const { comment, durationSec } = validateCommentAndDuration(body);
   const store = privateMediaResolver.resolve(fastify, "videos");
   await assertKeyAvailable(fastify.db, ctx, userId, body.key);
-  await confirmUploadedVideo(fastify, store, userId, body.key);
+  await confirmCorrectionVideo(fastify, store, body.key, { userId });
 
   // Combos van sin peldaño (DA-41); el escalón guarda el del momento.
   const rungId =

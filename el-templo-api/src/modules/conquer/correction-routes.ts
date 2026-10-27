@@ -15,6 +15,9 @@ import {
   deleteCorrectionVideo,
   getAdminCorrectionVideoUrl,
   listCorrectionsForAdmin,
+  replyCorrection,
+  requestReplyUpload,
+  type ReplyCorrectionBody,
 } from "./correction-admin-service";
 import {
   createCorrection,
@@ -34,6 +37,8 @@ import {
   createCorrectionSchema,
   deleteCorrectionVideoSchema,
   memberCorrectionsSchema,
+  replyCorrectionSchema,
+  replyUploadUrlSchema,
 } from "./correction-schemas";
 import { sendConquerError } from "./errors";
 
@@ -267,6 +272,67 @@ export function registerCorrectionAdminRoutes(fastify: FastifyInstance): void {
           reply,
           request.log,
           "conquer.admin.corrections.delete-video",
+        );
+      }
+    },
+  );
+
+  // POST /corrections/:id/reply-upload-url — URL firmada para el video del coach
+  // (D-26, DA-38, DA-43).
+  fastify.post<{ Params: { id: number }; Body: { contentType: string } }>(
+    "/corrections/:id/reply-upload-url",
+    { schema: replyUploadUrlSchema },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(
+          request.scope,
+          "conquer.admin.corrections.reply-upload",
+        );
+        return await requestReplyUpload(
+          fastify,
+          ctx,
+          request.params.id,
+          request.body.contentType,
+        );
+      } catch (err: unknown) {
+        sendConquerError(
+          err,
+          reply,
+          request.log,
+          "conquer.admin.corrections.reply-upload",
+        );
+      }
+    },
+  );
+
+  // POST /corrections/:id/reply — la respuesta única y final del coach (DA-43).
+  fastify.post<{ Params: { id: number }; Body: ReplyCorrectionBody }>(
+    "/corrections/:id/reply",
+    { schema: replyCorrectionSchema },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(
+          request.scope,
+          "conquer.admin.corrections.reply",
+        );
+        const view = await replyCorrection(
+          fastify,
+          ctx,
+          request.user.userId,
+          request.params.id,
+          request.body,
+        );
+        request.log.info(
+          { correctionId: request.params.id },
+          "conquer correction replied",
+        );
+        return view;
+      } catch (err: unknown) {
+        sendConquerError(
+          err,
+          reply,
+          request.log,
+          "conquer.admin.corrections.reply",
         );
       }
     },
