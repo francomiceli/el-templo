@@ -81,6 +81,13 @@ const routes: RouteRecordRaw[] = [
     component: () => import('src/modules/conquer/pages/ConquerEvolutionPage.vue'),
     meta: { requiresAuth: true },
   },
+  // Fase 201 D-26: correcciones con video del alumno
+  {
+    path: 'training/conquer/correcciones',
+    name: 'conquer-correcciones',
+    component: () => import('src/modules/conquer/pages/ConquerCorrectionsPage.vue'),
+    meta: { requiresAuth: true },
+  },
   {
     path: 'training/guia',
     name: 'guia',

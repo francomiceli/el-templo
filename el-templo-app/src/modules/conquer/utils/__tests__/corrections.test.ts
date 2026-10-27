@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import type { CorrectionTarget, CorrectionView } from '../../types'
-import { correctionChip, groupCorrections, remainingSlots, targetGroups } from '../corrections'
+import {
+  correctionChip,
+  groupCorrections,
+  localDayOf,
+  remainingSlots,
+  targetGroups,
+} from '../corrections'
 
 // Fase 202 DA-47: agrupar y rotular las correcciones del alumno.
 
@@ -147,5 +153,21 @@ describe('targetGroups', () => {
 
   it('sin objetivos no hay grupos', () => {
     expect(targetGroups([])).toEqual([])
+  })
+})
+
+describe('localDayOf', () => {
+  it('devuelve el día de calendario local, no el UTC', () => {
+    // 23:30 locales: según la zona el instante UTC ya puede ser del día siguiente
+    const instant = new Date(2026, 9, 26, 23, 30).toISOString()
+    expect(localDayOf(instant)).toBe('2026-10-26')
+  })
+
+  it('completa mes y día con cero', () => {
+    expect(localDayOf(new Date(2026, 0, 5, 12, 0).toISOString())).toBe('2026-01-05')
+  })
+
+  it.each(['', 'no es una fecha'])('"%s" (inválida) da cadena vacía', (iso) => {
+    expect(localDayOf(iso)).toBe('')
   })
 })

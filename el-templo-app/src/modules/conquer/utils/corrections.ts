@@ -24,6 +24,19 @@ function time(iso: string): number {
   return Number.isNaN(ms) ? 0 : ms
 }
 
+/**
+ * Fase 202 DA-47: día de calendario LOCAL (YYYY-MM-DD) de un instante ISO, listo para `shortDate`.
+ * El API manda instantes UTC: a la noche el día UTC ya es el siguiente al del alumno. '' si no es
+ * una fecha válida.
+ */
+export function localDayOf(iso: string): string {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${date.getFullYear()}-${month}-${day}`
+}
+
 /** Fase 202 DA-47: pendientes por alta DESC; respondidas por fecha de respuesta DESC. */
 export function groupCorrections(items: readonly CorrectionView[]): GroupedCorrections {
   const pending = items
