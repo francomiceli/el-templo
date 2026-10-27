@@ -374,6 +374,7 @@
           :userId="memberProfile.id"
           :canCharge="!financeBlind"
           :canSendAppAccess="isLifecycleRole"
+          :canMergeRole="canMergeWellhub"
           class="q-mb-md"
           @associate="openAssociate"
           @merge="onWellhubMergeRequested"
@@ -776,6 +777,17 @@
         @member-edited="loadMemberProfile"
       />
 
+      <!-- Fase 204 (D-05/D-21): "Unir con alumno existente" desde la card Wellhub. Al
+           terminar, navega a la ficha del alumno que absorbió el ID de Wellhub. -->
+      <WellhubMergeDialog
+        v-if="memberProfile.isWellhub && canMergeWellhub && wellhubMergeGympassId"
+        v-model="showWellhubMerge"
+        :sourceUserId="memberProfile.id"
+        :sourceName="memberName"
+        :gympassId="wellhubMergeGympassId"
+        @merged="onWellhubMerged"
+      />
+
       <!-- Fase 194 D-16: crear invitación en nombre de un socio (canal asistido). -->
       <InvitationCreateDialog
         v-model="showInvitationDialog"
@@ -903,6 +915,7 @@ import MemberPhotoUpload from 'src/components/MemberPhotoUpload.vue';
 import FinancialHistoryTab from 'src/components/FinancialHistoryTab.vue';
 import AssignPlanDialog from 'src/components/AssignPlanDialog.vue';
 import WellhubCard from 'src/components/members/WellhubCard.vue';
+import WellhubMergeDialog from 'src/components/members/WellhubMergeDialog.vue';
 import WhatsappIcon from 'src/components/icons/WhatsappIcon.vue';
 import type { MemberProfile, MemberSegment, BranchOption, InvitedByView } from 'src/types/member';
 import { SEGMENT_LABELS, SEGMENT_COLORS, AVATAR_LABELS } from 'src/types/member';
@@ -1573,8 +1586,14 @@ function onPostConvertAssignDialog(open: boolean) {
 
 const wellhubCardRef = ref<InstanceType<typeof WellhubCard> | null>(null);
 const showAssignFromWellhub = ref(false);
-// Lo levanta el botón "Unir con alumno existente" de la card; el diálogo lo agrega el plan 15.
+// Lo levanta el botón "Unir con alumno existente" de la card (que manda el ID de Wellhub).
 const showWellhubMerge = ref(false);
+const wellhubMergeGympassId = ref<string | null>(null);
+// Fase 204 D-21: mismo par admin/owner que el guard API de wellhub-merge (shared/permissions.ts);
+// la lista de roles del store es el gate de login, no esta.
+const canMergeWellhub = computed(
+  () => authStore.user?.role === 'admin' || authStore.user?.role === 'owner'
+);
 // Se incrementa al asignar el plan desde la card para que la pestaña Suscripción
 // (si estaba abierta) se vuelva a montar y muestre el plan nuevo.
 const subscriptionReloadKey = ref(0);
@@ -1593,8 +1612,14 @@ function openAssociate(): void {
   showAssignFromWellhub.value = true;
 }
 
-function onWellhubMergeRequested(): void {
+function onWellhubMergeRequested(gympassId: string): void {
+  wellhubMergeGympassId.value = gympassId;
   showWellhubMerge.value = true;
+}
+
+// La ficha duplicada quedó de baja: ir a la del alumno que absorbió el historial.
+async function onWellhubMerged(targetUserId: number): Promise<void> {
+  await router.push(`/alumnos/${targetUserId}`);
 }
 
 async function onWellhubAssigned(): Promise<void> {

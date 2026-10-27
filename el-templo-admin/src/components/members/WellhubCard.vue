@@ -5,7 +5,8 @@
     existente (sin flujo paralelo).
   - "Enviar acceso a la app": acción explícita (nunca automática, D-06). Si la
     persona ya entró alguna vez a la app, el confirm avisa que se resetea la clave.
-  - "Unir con alumno existente": emite `merge`; el diálogo lo agrega el plan 15.
+  - "Unir con alumno existente": emite `merge` con el ID de Wellhub; el diálogo vive en
+    la página (WellhubMergeDialog). Solo para el rol que el API deja unir (`canMergeRole`).
   No renderiza nada si la persona no está vinculada a Wellhub.
 -->
 <template>
@@ -93,7 +94,7 @@
       </div>
     </q-card-section>
 
-    <q-card-actions v-if="showAssociate || showAppAccess || card.canMerge" class="q-px-md q-pb-md">
+    <q-card-actions v-if="showAssociate || showAppAccess || showMerge" class="q-px-md q-pb-md">
       <q-btn
         v-if="showAssociate"
         color="primary"
@@ -113,13 +114,13 @@
         @click="onSendAppAccess"
       />
       <q-btn
-        v-if="card.canMerge"
+        v-if="showMerge"
         flat
         no-caps
         color="primary"
         icon="merge_type"
         label="Unir con alumno existente"
-        @click="emit('merge')"
+        @click="emit('merge', card.gympassId)"
       />
     </q-card-actions>
   </q-card>
@@ -142,6 +143,8 @@ const props = withDefaults(
     canCharge: boolean;
     /** Rol que puede mandar el acceso a la app (el API exige rol de ciclo de vida). */
     canSendAppAccess?: boolean;
+    /** Rol que puede unir fichas (admin/owner, como el guard del API). Se suma a `card.canMerge`. */
+    canMergeRole: boolean;
   }>(),
   { canSendAppAccess: true }
 );
@@ -149,7 +152,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   associate: [];
   appAccessSent: [];
-  merge: [];
+  merge: [gympassId: string];
 }>();
 
 const log = createLogger('WellhubCard');
@@ -191,6 +194,8 @@ function bookingStatusColor(status: string): string {
 function formatTime(time: string): string {
   return time.slice(0, 5);
 }
+
+const showMerge = computed(() => !!card.value && card.value.canMerge && props.canMergeRole);
 
 const showAssociate = computed(() => !!card.value && card.value.canConvert && props.canCharge);
 
