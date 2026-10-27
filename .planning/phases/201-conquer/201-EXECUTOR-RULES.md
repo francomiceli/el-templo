@@ -366,3 +366,12 @@ Para los planes 202-NN este archivo vale entero, con estos cambios (mandan sobre
   202-05: responder con `status='respondida'` + `reply_*` en UNA update con `WHERE status = 'pendiente'` (DA-43).
   Helpers de test: `CONQUER_CORRECTIONS_URL`, `insertConquerCorrection(app, userId, overrides)`, `postCorrectionRaw(app, token, body)`.
   Sin fila en `conquer_members` → 409 `CONQUER_NO_ACTIVO`; sin módulo → 404. Manifiesto: 519 tras 202-03. Tenancy 116/121.
+- (202-04) `GET /corrections/:id/video-url?who=alumno|coach` → `{ available, url, expiresIn }` (300 s); clave NULL u objeto
+  vencido → `available: false` (NO es error; el 503 sí). `POST /corrections/seen` → `{ unseenReplies: 0 }`. `member.corrections`
+  `{ pending, unseenReplies }` viene en `GET /state` y `POST /unlock-request` SOLO con alumno `activo`. Helpers:
+  `resolveCorrectionVideo(fastify, key | null, { correctionId })` (retorna por clave NULL ANTES de `resolve(fastify, "videos")`:
+  no mover ese `resolve` arriba), `getMemberCorrectionVideoUrl` (filtra por userId del token: el coach NO lo usa),
+  `markRepliesSeen`, `correctionCounts`. Schemas `correctionVideoUrlSchema`, `correctionsSeenSchema`, `correctionCountsSchema`
+  (`correction-schemas.ts` NO importa de `schemas.ts`). App: `who` en minúsculas; el store actualiza `member.corrections` tras
+  `seen` y tras crear (o relee `/state`). Tests: corrección `respondida` necesita `repliedAt` + `replyText` o `replyVideoKey`;
+  aislamiento: un alumno del gimnasio 2 sin fila `conquer_members` activa da 409 antes del 404. Manifiesto: 521 tras 202-04.
