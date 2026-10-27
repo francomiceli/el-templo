@@ -1,0 +1,141 @@
+// Módulo: conquer — JSON-schemas de las correcciones con video (Fase 202)
+//
+// Archivo propio para no seguir agrandando `schemas.ts`. Fastify con
+// `additionalProperties: false` DESCARTA las claves que falten en el schema de
+// respuesta: cada campo de `CorrectionView`, `CorrectionTarget` o `limits`
+// tiene su entrada acá.
+//
+// Los bodies fijan solo tipos (Fase 201 lección 201-12): los valores
+// (`step`, `comboKey`, `durationSec`, `comment`) los valida el SERVICIO, para que
+// queden detrás de los 409/503 y traigan `code`. Cuerpo plano.
+
+const replyViewSchema = {
+  type: ["object", "null"],
+  properties: {
+    text: { type: ["string", "null"] },
+    hasVideo: { type: "boolean" },
+    videoSeconds: { type: ["integer", "null"] },
+    repliedAt: { type: "string" },
+  },
+  required: ["text", "hasVideo", "videoSeconds", "repliedAt"],
+  additionalProperties: false,
+} as const;
+
+export const correctionViewSchema = {
+  type: "object",
+  properties: {
+    id: { type: "integer" },
+    kind: { type: "string", enum: ["escalon", "combo"] },
+    targetLabel: { type: "string" },
+    comment: { type: ["string", "null"] },
+    durationSec: { type: "integer" },
+    createdAt: { type: "string" },
+    status: { type: "string", enum: ["pendiente", "respondida"] },
+    videoDeleted: { type: "boolean" },
+    reply: replyViewSchema,
+    replyUnseen: { type: "boolean" },
+  },
+  required: [
+    "id",
+    "kind",
+    "targetLabel",
+    "comment",
+    "durationSec",
+    "createdAt",
+    "status",
+    "videoDeleted",
+    "reply",
+    "replyUnseen",
+  ],
+  additionalProperties: false,
+} as const;
+
+export const correctionTargetSchema = {
+  type: "object",
+  properties: {
+    key: { type: "string" },
+    kind: { type: "string", enum: ["escalon", "combo"] },
+    exerciseId: { type: ["integer", "null"] },
+    step: { type: ["string", "null"] },
+    comboKey: { type: ["string", "null"] },
+    group: { type: "string" },
+    label: { type: "string" },
+  },
+  required: ["key", "kind", "exerciseId", "step", "comboKey", "group", "label"],
+  additionalProperties: false,
+} as const;
+
+/** `GET /corrections`. */
+export const memberCorrectionsSchema = {
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        items: { type: "array", items: correctionViewSchema },
+        targets: { type: "array", items: correctionTargetSchema },
+        limits: {
+          type: "object",
+          properties: {
+            pending: { type: "integer" },
+            pendingMax: { type: "integer" },
+            maxSeconds: { type: "integer" },
+            maxBytes: { type: "integer" },
+            commentMax: { type: "integer" },
+          },
+          required: [
+            "pending",
+            "pendingMax",
+            "maxSeconds",
+            "maxBytes",
+            "commentMax",
+          ],
+          additionalProperties: false,
+        },
+      },
+      required: ["items", "targets", "limits"],
+      additionalProperties: false,
+    },
+  },
+} as const;
+
+/** `POST /corrections/upload-url`. El tipo lo valida el servicio, no un `enum`. */
+export const correctionUploadUrlSchema = {
+  body: {
+    type: "object",
+    properties: { contentType: { type: "string" } },
+    required: ["contentType"],
+    additionalProperties: false,
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        uploadUrl: { type: "string" },
+        key: { type: "string" },
+        contentType: { type: "string" },
+        expiresIn: { type: "integer" },
+        maxBytes: { type: "integer" },
+      },
+      required: ["uploadUrl", "key", "contentType", "expiresIn", "maxBytes"],
+      additionalProperties: false,
+    },
+  },
+} as const;
+
+/** `POST /corrections`: objetivo (escalón o combo), comentario, clave y duración. */
+export const createCorrectionSchema = {
+  body: {
+    type: "object",
+    properties: {
+      exerciseId: { type: ["integer", "null"] },
+      step: { type: ["string", "null"] },
+      comboKey: { type: ["string", "null"] },
+      comment: { type: ["string", "null"] },
+      key: { type: "string", minLength: 1, maxLength: 255 },
+      durationSec: { type: "number" },
+    },
+    required: ["key", "durationSec"],
+    additionalProperties: false,
+  },
+  response: { 201: correctionViewSchema },
+} as const;
