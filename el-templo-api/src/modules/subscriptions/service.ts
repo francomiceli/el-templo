@@ -110,6 +110,7 @@ import {
   invitationConvertedAtGateSql,
   invitationLeadGateSql,
 } from "../referrals/invitation-conversion";
+import { recordWellhubConversion } from "../wellhub/conversion";
 import { PartnerReferralService } from "../referral-partners/service";
 import { trimInvitationAccessEnd } from "./invitation-access";
 import {
@@ -7894,11 +7895,22 @@ export class SubscriptionService {
 
     // Fase 194 D-18: conversión explícita de la invitación (ex socio con
     // `converted_at` histórico + atribución de la compra a la invitación, D-13).
-    // Con `ctx === null` se saltea: ese caso SOLO llega del cron de vencimiento
-    // (`autoExpireDueSubscriptions`), que nunca crea una membresía paga — toda
-    // compra pasa por una charge-path con `ctx` real y ahí corre este paso.
+    // Con `ctx === null` se saltea (también el hook Wellhub de abajo): ese caso
+    // SOLO llega del cron de vencimiento (`autoExpireDueSubscriptions`), que
+    // nunca crea una membresía paga — toda compra pasa por una charge-path con
+    // `ctx` real y ahí corren estos pasos.
     if (ctx) {
       await attributeInvitationPurchase(tx, this.db, ctx, userId, this.log);
+      // Fase 204 (D-04/D-17/D-23): evento de conversión Wellhub → socio, misma
+      // tx que el cambio de estado.
+      await recordWellhubConversion(
+        tx,
+        ctx,
+        userId,
+        statusBefore,
+        statusAfter,
+        this.log,
+      );
     }
   }
 }
