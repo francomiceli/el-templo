@@ -32,4 +32,6 @@ Se pasan en el prompt de cada plan. Lecciones de fases anteriores (173, 196, 197
 - **Plan 15:** `WellhubCard` emite `merge` con el `gympassId` como payload (cambia el emit pelado del plan 14). La prop se llama `canMergeRole`.
 
 ## Lecciones acumuladas de esta fase
-(se completan a medida que avanzan los planes)
+- **(plan 01)** `wellhub_conversions` tiene FK a `subscriptions` SIN `ON DELETE`. Hay un borrado físico de suscripciones: la compensación de la prueba especial (`scheduling/especial-trial-service.ts:~416`, `discardSubscription`). Por eso, en el **plan 08** `recordWellhubConversion` NUNCA registra conversión para suscripciones de prueba (`is_trial` / prueba especial): solo planes reales. Agregar un test que lo cubra.
+- **(plan 01)** Si un test inserta `wellhub_conversions` para el tenant 2, agregar `DELETE FROM wellhub_conversions WHERE tenant_id = ${TENANT_DOS}` en `test/fixtures/second-tenant.ts` (~:436) antes del `DELETE FROM users`.
+- **(plan 01)** La línea `Co-Authored-By` puede decir el modelo que ejecutó (Sonnet). Está bien.
