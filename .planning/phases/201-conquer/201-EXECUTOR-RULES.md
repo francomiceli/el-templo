@@ -385,3 +385,11 @@ Para los planes 202-NN este archivo vale entero, con estos cambios (mandan sobre
   `loadAdminCorrection` + `toAdminCorrectionView`. Tests: 404 cross-tenant con `gym2.adminToken` + `setModuleFlag(app, TENANT_DOS,
   "templo-training", true)`; `insertGym2Correction` y `mockVideoStore({ head?, remove? })` son locales a
   `corrections-admin.test.ts` (si otro plan los necesita, MOVERLOS a `_helpers.ts`, no duplicarlos). Manifiesto: 525 tras 202-05.
+- (202-06) Respuesta del coach: `POST .../reply-upload-url` body `{ contentType }` → `{ uploadUrl, key, contentType, expiresIn: 600,
+  maxBytes }` (misma forma que la del alumno); `POST .../reply` body `{ text?, key?, durationSec? }` → `AdminCorrectionView`
+  completa con `status: "respondida"` y `canReply: false` (el admin 202-10 REEMPLAZA su item con esa respuesta). Orden de
+  errores en `202-06-SUMMARY.md`; solo texto no toca el storage. Los 400 de Ajv no traen `code`: el admin muestra `error`.
+  `confirmCorrectionVideo(fastify, store, key, info)` (exportada de `correction-service.ts`) es la ÚNICA confirmación de video
+  (HEAD + `checkUploadedVideo` + limpieza): reusarla en tutoriales si calza, no duplicar. `mockVideoStore({ head?, remove?,
+  presignPut? })` ya vive en `test/conquer/_helpers.ts` (devuelve los 4 espías). Si `canReply` es false, el front no ofrece
+  responder. Manifiesto: 527 tras 202-06.
