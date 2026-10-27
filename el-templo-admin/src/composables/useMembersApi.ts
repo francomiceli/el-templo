@@ -28,6 +28,7 @@ import type {
   CreateNoteInput,
   UpdateNoteInput,
   BranchOption,
+  UserStatus,
 } from 'src/types/member';
 
 const log = createLogger('members-api');
@@ -59,7 +60,7 @@ export interface LeadSnapshot {
   leadNotes: string | null;
   purchasedPlanId: number | null;
   purchasedPlanName: string | null;
-  status: 'freemium' | 'prueba' | 'activo' | 'inactivo' | null;
+  status: UserStatus | null;
   createdBy: { userId: number; name: string } | null;
 }
 
@@ -86,7 +87,7 @@ export interface MemberSearchResult {
   lastName: string | null;
   dni: string | null;
   planName: string | null;
-  status: 'freemium' | 'prueba' | 'activo' | 'inactivo' | null;
+  status: UserStatus | null;
   /**
    * 2026-09-26 (feat/admin-sede-visitantes) — presentes SOLO cuando el
    * caller pasó `includeOtherBranches: true` (admin_sede) Y esta fila es de
@@ -96,6 +97,10 @@ export interface MemberSearchResult {
   isOtherBranch?: boolean;
   visitorBranchId?: number;
   visitorBranchName?: string | null;
+  /** Fase 204: vinculado a Wellhub (ausente en la proyección mínima de otra sede). */
+  isWellhub?: boolean;
+  /** Fase 204 (D-02/D-03): sufijo " · Wellhub" junto al estado. */
+  showWellhubLabel?: boolean;
 }
 
 // Phase 158-04 (VIS-03) + Fase 194-19: shape de GET /admin/members/:id/referrals. Espeja

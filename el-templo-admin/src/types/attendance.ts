@@ -5,7 +5,7 @@
 import type { DayCheckIn } from './checkin-roster';
 
 export type AttendanceStatus = 'confirmado';
-export type AttendanceSource = 'qr' | 'manual';
+export type AttendanceSource = 'qr' | 'manual' | 'wellhub' | 'wellhub_manual';
 
 export interface AttendanceRecord {
   id: number;
@@ -29,6 +29,8 @@ export const statusColors: Record<AttendanceStatus, string> = {
 export const sourceLabels: Record<AttendanceSource, string> = {
   qr: 'QR',
   manual: 'Manual',
+  wellhub: 'Wellhub',
+  wellhub_manual: 'Wellhub (a mano)',
 };
 
 /**
@@ -41,7 +43,9 @@ export interface SlotAttendanceItem {
   bookingStatus: string | null;
   attendanceId: number | null;
   checkedInAt: string | null;
-  source: 'qr' | 'manual' | null;
+  // Fase 204 D-10: origen de la reserva o visita.
+  source: AttendanceSource | null;
+  isWellhub: boolean;
   segment: string | null;
   // Phase 136 D-06/D-12: tenure label (Antigüedad) replaces the avatar chip
   // in Horarios. Computed on the fly from users.createdAt.

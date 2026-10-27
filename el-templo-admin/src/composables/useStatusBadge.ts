@@ -1,6 +1,6 @@
 /**
  * Phase 103 (R10): shared status -> { color, label } mapping for the
- * 4-state user lifecycle badge (freemium / prueba / activo / inactivo).
+ * 5-state user lifecycle badge (freemium / prueba / activo / inactivo / wellhub).
  *
  * Used by AlumnosPage row chip and AlumnoDetailPage header chip so the
  * visual language stays in lockstep across the admin app.
@@ -10,6 +10,7 @@
  *   - prueba   -> warning (orange/yellow)
  *   - activo   -> positive (green)
  *   - inactivo -> grey
+ *   - wellhub  -> secondary (Clay, cálido, sin azul; Fase 204 D-01)
  *
  * Defensive null/undefined branch returns grey + em-dash. Member rows
  * always have a status post Plan 103-04, but staff rows are NULL by
@@ -18,32 +19,29 @@
  */
 
 import type { UserStatus } from 'src/types/member';
+import { memberStatusLabel } from 'src/utils/wellhub-label';
 
 const STATUS_COLOR: Record<UserStatus, string> = {
   freemium: 'info',
   prueba: 'warning',
   activo: 'positive',
   inactivo: 'grey',
+  wellhub: 'secondary',
 };
 
-const STATUS_LABEL: Record<UserStatus, string> = {
-  freemium: 'Freemium',
-  prueba: 'En Prueba',
-  activo: 'Activo',
-  inactivo: 'Inactivo',
-};
+// Los rótulos viven en un único mapa (`STATUS_LABEL` en utils/wellhub-label.ts,
+// que incluye `wellhub: 'Wellhub'`) para que haya una sola regla de rótulo.
 
 export function useStatusBadge() {
   const getColor = (status: UserStatus | null | undefined): string =>
     status ? STATUS_COLOR[status] : 'grey';
 
-  const getLabel = (status: UserStatus | null | undefined, hasUsedTrial?: boolean): string => {
-    if (!status) return '—';
-    if (status === 'prueba') {
-      return `${STATUS_LABEL.prueba} (${hasUsedTrial ? '1/1' : '0/1'})`;
-    }
-    return STATUS_LABEL[status];
-  };
+  // Fase 204 (D-02): `showWellhubLabel` (lo calcula el API) agrega " · Wellhub".
+  const getLabel = (
+    status: UserStatus | null | undefined,
+    hasUsedTrial?: boolean,
+    showWellhubLabel?: boolean
+  ): string => memberStatusLabel(status, { hasUsedTrial, showWellhubLabel });
 
   return { getColor, getLabel };
 }
