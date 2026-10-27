@@ -7902,15 +7902,24 @@ export class SubscriptionService {
     if (ctx) {
       await attributeInvitationPurchase(tx, this.db, ctx, userId, this.log);
       // Fase 204 (D-04/D-17/D-23): evento de conversión Wellhub → socio, misma
-      // tx que el cambio de estado.
-      await recordWellhubConversion(
-        tx,
-        ctx,
-        userId,
-        statusBefore,
-        statusAfter,
-        this.log,
-      );
+      // tx que el cambio de estado. Es un dato para el reporte: si falla NO
+      // tiene que voltear el cobro (en MySQL un statement fallido no aborta la
+      // tx, así que atrapar acá es seguro).
+      try {
+        await recordWellhubConversion(
+          tx,
+          ctx,
+          userId,
+          statusBefore,
+          statusAfter,
+          this.log,
+        );
+      } catch (err: unknown) {
+        this.log.error(
+          { err, userId },
+          "No se pudo registrar la conversión Wellhub (el cobro sigue)",
+        );
+      }
     }
   }
 }
