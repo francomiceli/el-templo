@@ -6,7 +6,8 @@
  * `users`; INSERT directos con `tenantValues(TEMPLO_CTX, ...)` y lecturas
  * directas con `tenantWhere(tabla, TEMPLO_CTX)`.
  */
-import { and, eq, like, sql } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
+import { and, asc, eq, like, sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { vi } from "vitest";
 import * as schema from "../../src/db/schema";
@@ -1246,4 +1247,94 @@ export function mockPrivateMedia(overrides: Partial<PrivateMediaStore> = {}) {
     ...overrides,
   };
   return vi.spyOn(privateMediaResolver, "resolve").mockReturnValue(fakeStore);
+}
+
+// ── Correcciones con video (202-03) ─────────────────────────────────
+
+export const CONQUER_CORRECTIONS_URL = "/api/members/conquer/corrections";
+
+type CorrectionOverrides = Partial<
+  Omit<
+    typeof schema.conquerCorrections.$inferInsert,
+    "id" | "tenantId" | "userId"
+  >
+>;
+
+/**
+ * Inserta DIRECTO una corrección del alumno. Por defecto: un escalón E1 del
+ * plan (el primer escalón que tiene el alumno, con su peldaño actual),
+ * `video_seconds` 20, clave propia `alumno-{uuid}.mp4` y `status` pendiente.
+ * Los overrides pisan cualquier columna (`status`, `replyText`, `replySeenAt`,
+ * `videoKey: null`, `exerciseId` + `step`, `comboKey`...). Si el override trae
+ * `comboKey`, la corrección va sin escalón ni peldaño.
+ */
+export async function insertConquerCorrection(
+  app: FastifyInstance,
+  userId: number,
+  overrides: CorrectionOverrides = {},
+): Promise<number> {
+  const objetivo =
+    overrides.comboKey !== undefined && overrides.comboKey !== null
+      ? { exerciseId: null, step: null, rungId: null }
+      : await primerEscalonDelAlumno(app, userId);
+  const [row] = await app.db
+    .insert(schema.conquerCorrections)
+    .values(
+      tenantValues(TEMPLO_CTX, {
+        ...objetivo,
+        videoSeconds: 20,
+        videoKey: `private/conquer-corrections/${TEMPLO_CTX.tenantId}/${userId}/alumno-${randomUUID()}.mp4`,
+        status: "pendiente" as const,
+        ...overrides,
+        userId,
+      }),
+    )
+    .$returningId();
+  return row.id;
+}
+
+async function primerEscalonDelAlumno(
+  app: FastifyInstance,
+  userId: number,
+): Promise<{ exerciseId: number; step: StepKey; rungId: number }> {
+  const [row] = await app.db
+    .select({
+      exerciseId: schema.conquerSteps.exerciseId,
+      step: schema.conquerSteps.step,
+      rungId: schema.conquerSteps.rungId,
+    })
+    .from(schema.conquerSteps)
+    .innerJoin(
+      schema.conquerMembers,
+      eq(schema.conquerMembers.id, schema.conquerSteps.memberId),
+    )
+    .where(
+      and(
+        tenantWhere(schema.conquerSteps, TEMPLO_CTX),
+        tenantWhere(schema.conquerMembers, TEMPLO_CTX),
+        eq(schema.conquerMembers.userId, userId),
+        eq(schema.conquerSteps.step, "e1"),
+      ),
+    )
+    .orderBy(asc(schema.conquerSteps.id))
+    .limit(1);
+  if (!row)
+    throw new Error(
+      `insertConquerCorrection: el alumno ${userId} no tiene escalones`,
+    );
+  return row;
+}
+
+/** `POST /corrections` crudo: el test decide qué afirmar (201 / 4xx). */
+export async function postCorrectionRaw(
+  app: FastifyInstance,
+  token: string,
+  body: unknown,
+) {
+  return app.inject({
+    method: "POST",
+    url: CONQUER_CORRECTIONS_URL,
+    headers: { authorization: `Bearer ${token}` },
+    payload: body as Record<string, unknown>,
+  });
 }
