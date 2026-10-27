@@ -352,6 +352,24 @@
     }
   }
 
+  // "Ver como se hace" (Fase 201 D-25, `CqTutorialButton`): enlace de texto con un play. En una columna
+  // flex el contenedor no se estira, asi que solo el boton es tocable
+  .cq-tutorial {
+    align-self: flex-start;
+    min-width: 0;
+  }
+
+  .cq-tutorial__btn {
+    gap: 8px;
+  }
+
+  .cq-tutorial__icon {
+    flex: none;
+    width: 10px;
+    height: 12px;
+    fill: currentColor;
+  }
+
   // Fila-enlace (`.rowlink`): 52 px, separador entre filas y chevron
   .cq-rowlink {
     display: flex;
