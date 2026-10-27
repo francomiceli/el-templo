@@ -139,8 +139,8 @@ async function findNewestMembership(
  * (solo el cron de vencimiento, que nunca crea una membresía).
  *
  * Idempotente: guarda de transición + chequeo de existencia + unique
- * `(tenant_id, user_id, subscription_id)` como red de seguridad. Sin
- * INSERT IGNORE (tragaría conflictos).
+ * `(tenant_id, user_id, subscription_id)` como red de seguridad. Nunca un
+ * insert que ignore conflictos (taparía errores reales).
  */
 export async function recordWellhubConversion(
   tx: DbInstance,
