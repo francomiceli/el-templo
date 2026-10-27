@@ -1731,6 +1731,30 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     categoria: "templo-module",
     modulo: "templo-training",
   },
+  "GET /api/members/conquer/tutorials": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/admin/conquer/tutorials": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/admin/conquer/tutorials/upload-url": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "PUT /api/admin/conquer/tutorials": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "DELETE /api/admin/conquer/tutorials/exercise/:exerciseId": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "DELETE /api/admin/conquer/tutorials/combo/:comboKey": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
   "PUT /api/members/conquer/publish-permission": {
     categoria: "templo-module",
     modulo: "templo-training",

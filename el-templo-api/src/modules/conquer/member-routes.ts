@@ -20,6 +20,7 @@ import {
 } from "./body-check-service";
 import type { ComboKey } from "./combos";
 import { registerCorrectionMemberRoutes } from "./correction-routes";
+import { registerTutorialMemberRoutes } from "./tutorial-routes";
 import type { CountedStep, StepKey } from "./engine";
 import { sendConquerError } from "./errors";
 import {
@@ -417,4 +418,7 @@ export const conquerMemberRoutes: FastifyPluginAsync = async (fastify) => {
 
   // Fase 201 D-26: correcciones con video (correction-routes.ts).
   registerCorrectionMemberRoutes(fastify);
+
+  // Fase 201 D-25: tutoriales (tutorial-routes.ts).
+  registerTutorialMemberRoutes(fastify);
 };
