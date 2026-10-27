@@ -450,3 +450,12 @@ Para los planes 202-NN este archivo vale entero, con estos cambios (mandan sobre
   sirve para correcciones; para "Ver mi video"/"Ver la respuesta" usar `.cq-textlink` de 44 px que abra `CqVideoSheet`.
   Hojas nuevas: raíz `.cq-root` propia y estilos DENTRO del componente (un `.cq-root .x` anidado no alcanza a la raíz).
   Chequeos de `git diff origin/staging` en los verify ven commits de master mergeados: comparar contra el commit previo al plan.
+- (202-13) Pantalla `ConquerCorrectionsPage.vue` + `CqCorrectionSheet` (prop `videoUrl` = función de la página). 202-14: el botón
+  "Mandar video" va en la `CqPortico` donde está el comentario `<!-- 202-14: ... -->`, `CqButton variant="on-night"`,
+  deshabilitado con `slots === 0`. Tras crear: `corr.applyCreated(view)` (lista + cupos) Y `store.applyCorrectionCounts({ pending
+  + 1, unseenReplies })` (Inicio): las DOS. Hoja de envío con raíz `.cq-root`, estilos scoped y `persistent` mientras sube.
+  `URL.createObjectURL` → `revokeObjectURL` siempre. Fechas: `createdAt`/`repliedAt` son instantes UTC → `localDayOf(iso)` de
+  `corrections.ts` antes de `shortDate` (nunca cortar el ISO). Info.plist: tiene `NSCameraUsageDescription` (sumarle los videos
+  de correcciones) y `NSPhotoLibraryUsageDescription`, NO `NSMicrophoneUsageDescription` (sin ella grabar con audio cierra la
+  app en iOS). Android: el selector de archivos/cámara del sistema no necesita `RECORD_AUDIO` en la app; no sumar permisos que
+  el plan no pida. Sin `cap sync`: el build nativo lo hace Franco.
