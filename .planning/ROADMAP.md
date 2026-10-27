@@ -56,6 +56,7 @@ El recorrido: primero se cierra la **fase de diseño bloqueante** (las 7 definic
 - [ ] **Phase 194: Invitaciones (fuera del milestone)** - Referidos → Invitaciones: 3 accesos gratis en prueba, cupo 2/mes, ventana 90 días, descuento por conversión con flag por plan, leads con origen Invitación
 - [ ] **Phase 197: Entrenar en tabs + canasta + bloque libre (fuera del milestone)** - Entrenar con 4 tabs (Semana · Libre · Desafíos · Conquer), canasta de bloques de su subnivel filtrada por figura tocable, bloque libre en el player con +5 AURA (primero del día que llega a 10')
 - [ ] **Phase 200: Anatomía funcional (fuera del milestone)** - Un solo modelo de contenido (archivos) músculo ↔ zona ↔ ruta ↔ rol que reemplaza a `muscle-zones.ts`, con la sección Anatomía del admin para profes, la Guía partida en dos (Empezá acá + Tu cuerpo) y el cuerpo tocable en Entrenar
+- [ ] **Phase 204: Usuarios Wellhub como tipo de usuario (fuera del milestone)** - Distinguir a quien usa Wellhub en admin, Horarios y métricas — visitantes nuevos, ex-alumnos y socios activos vinculados por email — y que sus reservas no toquen el plan del socio
 
 ## Phase Details
 
@@ -481,3 +482,21 @@ Plans:
 - [x] 200-22-PLAN.md — Fichas BRIDGE, SIDE PCK, PIKE, AF
 - [x] 200-23-PLAN.md — Cierre: coherencia estricta, barrido, UAT y firma de validación
 
+### Phase 204: Usuarios Wellhub como tipo de usuario (fuera del milestone v6.1)
+
+**Goal**: El staff distingue a quien viene por Wellhub (visitante nuevo, ex-alumno o socio activo vinculado por email) en el admin y en Horarios, las métricas separan la actividad Wellhub de la de socios, y una reserva o visita Wellhub nunca afecta el plan de un socio
+**Depends on**: integración Wellhub en prod (piloto Moreno, gym 856836, master `66939bec8` 2026-10-27). Base `origin/master` `3bf682d95`
+**Requirements**: inventario `204-INVENTARIO.md`; decisiones a tomar en discuss-phase
+**Success Criteria** (what must be TRUE):
+
+1. Admin: estado 'wellhub' con label, color y filtro propios (hoy badge vacío, filtro rechazado con 400, export en blanco); la etiqueta "Wellhub" sale de `gympass_id` y es permanente aunque el estado cambie
+2. Ex-alumnos y socios activos vinculados por email se ven como tales + Wellhub; los ex-alumnos salen de la campaña `bajas`
+3. Horarios: el roster de la clase marca las reservas/asistencias Wellhub antes y después del check-in
+4. Métricas de asistencia, no-show, embudo y log de accesos separan Wellhub de socios; existe un reporte Wellhub por sede (visitas/mes, conversión Wellhub → socio)
+5. Un no-show o una visita Wellhub no descuenta clases ni consume el límite diario/semanal del plan de un socio activo
+6. Tests de integración cubren los tres casos (visitante nuevo, ex-alumno, socio activo)
+
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 204 to break down)
