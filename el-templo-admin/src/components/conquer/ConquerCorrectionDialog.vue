@@ -1,6 +1,7 @@
 <!--
   Detalle de una corrección con video de Conquer (fase 202, D-26, D-28, DA-44, DA-45): el video del
-  alumno (URL firmada), su comentario y, si ya se respondió, el texto y el video del coach. El coach
+  alumno (URL firmada), su comentario y, si ya se respondió, el texto y el video del coach. Si está
+  pendiente (`canReply`), trae el formulario de respuesta (202-10). El coach
   puede borrar el video del alumno con confirmación explícita: la corrección y los textos quedan.
   El diálogo no guarda estado propio de la corrección: la recibe por prop y avisa con `changed` la
   versión nueva que devolvió el API, para que la lista la reemplace.
@@ -12,7 +13,7 @@
         <div class="text-h6 col" data-test="conquer-correction-title">
           {{ correction.memberName || 'Alumno' }} · {{ correction.targetLabel }}
         </div>
-        <q-btn icon="close" flat round dense :disable="deleting" @click="close" />
+        <q-btn icon="close" flat round dense :disable="busy" @click="close" />
       </q-card-section>
 
       <q-card-section class="q-gutter-y-md">
@@ -54,7 +55,13 @@
           />
         </div>
 
-        <!-- 202-10: respuesta del coach -->
+        <ConquerCorrectionReply
+          v-if="correction.canReply"
+          :key="`reply-${correction.id}`"
+          :correction="correction"
+          @busy="replying = $event"
+          @replied="onReplied"
+        />
       </q-card-section>
 
       <q-card-actions align="between" class="q-pa-md">
@@ -67,6 +74,7 @@
           label="Borrar video del alumno"
           style="min-height: 44px"
           :loading="deleting"
+          :disable="replying"
           data-test="conquer-correction-delete-video"
           @click="confirmDeleteVideo"
         />
@@ -77,7 +85,7 @@
           color="accent"
           label="Cerrar"
           style="min-height: 44px"
-          :disable="deleting"
+          :disable="busy"
           @click="close"
         />
       </q-card-actions>
@@ -88,6 +96,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useQuasar } from 'quasar';
+import ConquerCorrectionReply from 'src/components/conquer/ConquerCorrectionReply.vue';
 import ConquerCorrectionVideo from 'src/components/conquer/ConquerCorrectionVideo.vue';
 import { useConquerAdminApi } from 'src/composables/useConquerAdminApi';
 import type { AdminCorrection } from 'src/types/conquer';
@@ -107,6 +116,9 @@ const $q = useQuasar();
 const conquerApi = useConquerAdminApi();
 
 const deleting = ref(false);
+// El formulario de respuesta está enviando (conversión, subida o POST): no se cierra el diálogo.
+const replying = ref(false);
+const busy = computed(() => deleting.value || replying.value);
 
 function agoOf(iso: string): string {
   const days = daysSince(iso);
@@ -136,7 +148,7 @@ const replyTitle = computed(() => {
 });
 
 function close(): void {
-  if (deleting.value) return;
+  if (busy.value) return;
   emit('update:modelValue', false);
 }
 
@@ -146,6 +158,12 @@ function onDialogModel(value: boolean): void {
     return;
   }
   emit('update:modelValue', true);
+}
+
+// La respuesta es final (DA-43): la corrección vuelve respondida y el diálogo pasa a mostrarla.
+function onReplied(updated: AdminCorrection): void {
+  replying.value = false;
+  emit('changed', updated);
 }
 
 function confirmDeleteVideo(): void {

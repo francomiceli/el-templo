@@ -2,7 +2,8 @@
   Bandeja de correcciones con video de Conquer (fase 202, D-26, D-28, D-29): los alumnos que
   mandaron un video para que el coach lo mire. "Pendientes" va con la más vieja primero y
   "Respondidas" con las 50 más recientes. La fila abre el detalle (video, comentario, borrado); la
-  respuesta del coach la suma 202-10 en el mismo diálogo.
+  respuesta del coach (202-10) se escribe en el mismo diálogo y, al enviarse, la fila pasa a
+  Respondidas y sale de Pendientes.
 -->
 <template>
   <div data-test="conquer-corrections">

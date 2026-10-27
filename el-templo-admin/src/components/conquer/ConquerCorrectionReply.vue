@@ -100,7 +100,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { ConquerApiError, useConquerAdminApi } from 'src/composables/useConquerAdminApi';
 import { useConquerVideoUpload } from 'src/composables/useConquerVideoUpload';
@@ -113,6 +113,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   replied: [correction: AdminCorrection];
+  /** Mientras envía, el diálogo no se puede cerrar (si no, la lista no se enteraría del 200). */
+  busy: [value: boolean];
 }>();
 
 /** Topes del API para la respuesta del coach (DA-40): 100 MB y 30 s. */
@@ -239,6 +241,8 @@ async function send(): Promise<void> {
     sending.value = false;
   }
 }
+
+watch(sending, (value) => emit('busy', value));
 
 onBeforeUnmount(upload.cleanup);
 </script>
