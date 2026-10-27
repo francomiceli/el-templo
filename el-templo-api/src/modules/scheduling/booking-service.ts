@@ -57,7 +57,17 @@ import {
   type TenantContext,
 } from "../shared/tenant";
 import { deriveActivityLabel } from "./derived-label";
-import { notWellhubBookingSql } from "../shared/wellhub-sources";
+import {
+  isWellhubBookingSource,
+  notWellhubBookingSql,
+} from "../shared/wellhub-sources";
+
+/**
+ * Fase 204 (D-11/D-24): una reserva Wellhub se gestiona desde la app de Wellhub.
+ * Ni el staff ni el socio la cancelan desde El Templo (desincroniza Wellhub).
+ */
+export const WELLHUB_BOOKING_MANAGED_MSG =
+  "Esta reserva se gestiona desde la app de Wellhub";
 
 /**
  * Member self-booking window: today .. today + N days (branch-local).
@@ -540,6 +550,7 @@ export class BookingService {
         bookingDate: schema.bookings.bookingDate,
         status: schema.bookings.status,
         isTrial: schema.bookings.isTrial,
+        source: schema.bookings.source,
       })
       .from(schema.bookings)
       .where(
@@ -552,6 +563,10 @@ export class BookingService {
     if (!bookingRow) throw new NotFoundError("Reserva no encontrada");
     if (bookingRow.memberId !== memberId) {
       throw new BadRequestError("Esta reserva no te pertenece");
+    }
+    // Fase 204 D-24: el socio no cancela su reserva Wellhub desde El Templo.
+    if (isWellhubBookingSource(bookingRow.source)) {
+      throw new ConflictError(WELLHUB_BOOKING_MANAGED_MSG);
     }
 
     // Phase 119 (D-03): trial bookings are one-per-lifetime and cannot be
@@ -1073,6 +1088,7 @@ export class BookingService {
         scheduleId: schema.bookings.scheduleId,
         bookingDate: schema.bookings.bookingDate,
         status: schema.bookings.status,
+        source: schema.bookings.source,
       })
       .from(schema.bookings)
       .where(
@@ -1083,6 +1099,10 @@ export class BookingService {
       );
 
     if (!bookingRow) throw new NotFoundError("Reserva no encontrada");
+    // Fase 204 D-11: el staff no borra una reserva Wellhub (tampoco el "deshacer no_show").
+    if (isWellhubBookingSource(bookingRow.source)) {
+      throw new ConflictError(WELLHUB_BOOKING_MANAGED_MSG);
+    }
 
     const activeStatuses = [
       "reservado",
@@ -1225,6 +1245,8 @@ export class BookingService {
           eq(schema.bookings.memberId, memberId),
           inArray(schema.bookings.status, ["reservado", "lista_espera"]),
           eq(schema.activities.isSpecial, false),
+          // Fase 204 D-18/D-25: el ciclo del plan no toca reservas Wellhub (se gestionan desde Wellhub)
+          notWellhubBookingSql(),
           // Piso holgado (ayer UTC): el corte exacto se hace por sede abajo.
           gte(schema.bookings.bookingDate, addDays(todayInTz("UTC", now), -1)),
         ),
@@ -1256,6 +1278,7 @@ export class BookingService {
             upcoming.map((b) => b.id),
           ),
           inArray(schema.bookings.status, ["reservado", "lista_espera"]),
+          notWellhubBookingSql(),
         ),
       );
 
@@ -1393,6 +1416,8 @@ export class BookingService {
             schema.bookings.id,
             candidateBookings.map((b) => b.id),
           ),
+          // Fase 204 D-18: el cierre de clase cancela la reserva Wellhub pero no le da crédito de recupero al plan del socio
+          notWellhubBookingSql(),
         ),
       );
 
@@ -1528,6 +1553,8 @@ export class BookingService {
             schema.bookings.id,
             toCancel.map((b) => b.id),
           ),
+          // Fase 204 D-18: el cierre de clase cancela la reserva Wellhub pero no le da crédito de recupero al plan del socio
+          notWellhubBookingSql(),
         ),
       );
 
@@ -2062,6 +2089,8 @@ export class BookingService {
           inArray(schema.bookings.scheduleId, scheduleIds),
           sql`${schema.bookings.bookingDate} >= ${today}`,
           sql`${schema.bookings.status} IN ('reservado', 'lista_espera')`,
+          // Fase 204 D-18/D-25: el ciclo del plan no toca reservas Wellhub (se gestionan desde Wellhub)
+          notWellhubBookingSql(),
         ),
       );
 

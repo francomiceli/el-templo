@@ -52,6 +52,10 @@ import {
   type TenantContext,
 } from "../shared/tenant";
 import { EmailService } from "../email";
+import {
+  isWellhubBookingSql,
+  notWellhubBookingSql,
+} from "../shared/wellhub-sources";
 import type {
   CreateMemberInput,
   CreateTrialMemberInput,
@@ -1586,8 +1590,30 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
             eq(schema.bookings.memberId, request.params.userId),
             sql`${schema.bookings.bookingDate} >= ${today}`,
             inArray(schema.bookings.status, ["reservado", "lista_espera"]),
+            // Fase 204 D-25: la baja del socio no cancela reservas Wellhub (se gestionan desde Wellhub)
+            notWellhubBookingSql(),
           ),
         );
+
+      const [wellhubLeft] = await fastify.db
+        .select({ n: sql<number>`COUNT(*)` })
+        .from(schema.bookings)
+        .where(
+          and(
+            tenantWhere(schema.bookings, ctx),
+            eq(schema.bookings.memberId, request.params.userId),
+            sql`${schema.bookings.bookingDate} >= ${today}`,
+            inArray(schema.bookings.status, ["reservado", "lista_espera"]),
+            isWellhubBookingSql(),
+          ),
+        );
+      const wellhubBookings = Number(wellhubLeft?.n ?? 0);
+      if (wellhubBookings > 0) {
+        request.log.info(
+          { userId: request.params.userId, wellhubBookings },
+          "Baja de socio: reservas Wellhub vivas quedan para Wellhub",
+        );
+      }
 
       const result = await memberService.softDeleteMember(
         ctx,

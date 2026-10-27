@@ -75,6 +75,7 @@ import {
   type TenantContext,
 } from "../shared/tenant";
 import { assertBranchDelGimnasio } from "../shared/branch-consistency";
+import { notWellhubBookingSql } from "../shared/wellhub-sources";
 import { alias } from "drizzle-orm/mysql-core";
 import type { MemberSegment } from "../segmentation/types";
 
@@ -2003,6 +2004,8 @@ export class MemberService {
                   eq(schema.bookings.memberId, id),
                   inArray(schema.bookings.status, ["reservado", "confirmado"]),
                   gte(schema.bookings.bookingDate, todayStr),
+                  // Fase 204 D-18: el cambio de sede no toca reservas Wellhub (se gestionan desde Wellhub)
+                  notWellhubBookingSql(),
                 ),
               );
 
