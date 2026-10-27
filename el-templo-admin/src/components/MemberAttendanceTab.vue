@@ -50,7 +50,13 @@
             <template #body-cell-fuente="slotProps">
               <q-td :props="slotProps">
                 <q-badge
-                  :color="slotProps.row.source === 'qr' ? 'info' : 'grey-7'"
+                  :color="
+                    isWellhubSource(slotProps.row.source)
+                      ? WELLHUB_COLOR
+                      : slotProps.row.source === 'qr'
+                        ? 'info'
+                        : 'grey-7'
+                  "
                   :label="sourceLabels[slotProps.row.source as AttendanceSource]"
                 />
               </q-td>
@@ -68,6 +74,7 @@ import type { QTableProps } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { useAttendanceApi } from 'src/composables/useAttendanceApi';
 import { sourceLabels, type AttendanceRecord, type AttendanceSource } from 'src/types/attendance';
+import { isWellhubSource, WELLHUB_COLOR } from 'src/utils/wellhub-label';
 
 const log = createLogger('MemberAttendanceTab');
 const attendanceApi = useAttendanceApi();

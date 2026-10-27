@@ -63,7 +63,13 @@
               <div class="row items-center q-gutter-xs q-mt-xs">
                 <q-badge
                   :color="getStatusColor(memberProfile.status)"
-                  :label="getStatusLabel(memberProfile.status, memberProfile.hasUsedTrial)"
+                  :label="
+                    getStatusLabel(
+                      memberProfile.status,
+                      memberProfile.hasUsedTrial,
+                      memberProfile.showWellhubLabel
+                    )
+                  "
                   class="text-body2"
                 />
                 <!-- Cumpleaños: sólo el día exacto, derivado de dateOfBirth -->
