@@ -48,6 +48,13 @@ export function agoText(days: number): string {
   return `hace ${days} días`;
 }
 
+/** Duración de un video como "0:24" (minutos sin cero a la izquierda, segundos de dos cifras). */
+export function durationText(seconds: number): string {
+  const total = Math.max(0, Math.round(seconds));
+  const rest = String(total % 60).padStart(2, '0');
+  return `${Math.floor(total / 60)}:${rest}`;
+}
+
 /** Nombre completo para listas; vacío si el alumno no tiene ni nombre ni apellido. */
 export function fullName(firstName: string, lastName: string): string {
   return `${firstName} ${lastName}`.trim();

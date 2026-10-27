@@ -1,5 +1,6 @@
-<!-- Conquer (fase 201, §7.2, D-08/D-12/D-14): la pantalla del coach. Cinco tabs — Tablero (semáforo
-     de los alumnos activos), Pedidos (alumnos que pidieron el desbloqueo), Galería (antes y
+<!-- Conquer (fase 201, §7.2, D-08/D-12/D-14): la pantalla del coach. Seis tabs — Tablero (semáforo
+     de los alumnos activos), Pedidos (alumnos que pidieron el desbloqueo), Correcciones (videos
+     que mandaron los alumnos, fase 202 D-26), Galería (antes y
      después), Catálogo (escaleras, arranque, zonas y plantillas) y Ajustes (parámetros del método)
      — y el botón "Activar alumno" para dar de alta a cualquiera buscándolo. El tab activo viaja
      en ?tab= para deep links. El gate real es el API (owner/admin). -->
@@ -37,6 +38,14 @@
           :label="adminStore.conquerRequestsCount"
         />
       </q-tab>
+      <q-tab name="correcciones" label="Correcciones" icon="ondemand_video" no-caps>
+        <q-badge
+          v-if="adminStore.conquerCorrectionsCount > 0"
+          color="negative"
+          floating
+          :label="adminStore.conquerCorrectionsCount"
+        />
+      </q-tab>
       <q-tab name="galeria" label="Galería" icon="photo_library" no-caps />
       <q-tab name="catalogo" label="Catálogo" icon="stairs" no-caps />
       <q-tab name="ajustes" label="Ajustes" icon="tune" no-caps />
@@ -48,6 +57,9 @@
       </q-tab-panel>
       <q-tab-panel name="pedidos" class="q-pa-none">
         <ConquerRequests :reload-token="reloadToken" @activate="openActivate" />
+      </q-tab-panel>
+      <q-tab-panel name="correcciones" class="q-pa-none">
+        <ConquerCorrections :reload-token="reloadToken" />
       </q-tab-panel>
       <q-tab-panel name="galeria" class="q-pa-none">
         <ConquerGallery :reload-token="reloadToken" />
@@ -72,6 +84,7 @@
 import { onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import ConquerBoard from 'src/components/conquer/ConquerBoard.vue';
+import ConquerCorrections from 'src/components/conquer/ConquerCorrections.vue';
 import ConquerCatalog from 'src/components/conquer/ConquerCatalog.vue';
 import ConquerGallery from 'src/components/conquer/ConquerGallery.vue';
 import ConquerRequests from 'src/components/conquer/ConquerRequests.vue';
@@ -79,8 +92,15 @@ import ConquerSettings from 'src/components/conquer/ConquerSettings.vue';
 import ConquerActivateDialog from 'src/components/conquer/ConquerActivateDialog.vue';
 import { useAdminStore } from 'src/stores/useAdminStore';
 
-type ConquerTab = 'tablero' | 'pedidos' | 'galeria' | 'catalogo' | 'ajustes';
-const TAB_NAMES: ConquerTab[] = ['tablero', 'pedidos', 'galeria', 'catalogo', 'ajustes'];
+type ConquerTab = 'tablero' | 'pedidos' | 'correcciones' | 'galeria' | 'catalogo' | 'ajustes';
+const TAB_NAMES: ConquerTab[] = [
+  'tablero',
+  'pedidos',
+  'correcciones',
+  'galeria',
+  'catalogo',
+  'ajustes',
+];
 
 const route = useRoute();
 const router = useRouter();
@@ -123,5 +143,6 @@ function onActivated(): void {
 
 onMounted(() => {
   void adminStore.fetchConquerRequestsCount();
+  void adminStore.fetchConquerCorrectionsCount();
 });
 </script>
