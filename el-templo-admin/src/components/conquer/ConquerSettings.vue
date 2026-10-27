@@ -61,13 +61,65 @@
         />
       </q-card-actions>
     </q-card>
+
+    <!-- Fase 202 D-25: un video "cómo se hace" por cada combo; se sube al instante, sin "Guardar". -->
+    <q-card flat bordered class="q-mt-md" data-test="conquer-combo-tutorials">
+      <q-card-section>
+        <div class="text-subtitle1 text-weight-medium q-mb-sm">Tutoriales de combos</div>
+        <div class="text-caption text-grey-8 q-mb-md">
+          El alumno los ve en "Ver cómo se hace" dentro de cada combo.
+        </div>
+
+        <div v-if="tutorials.loading && !tutorials.view" class="row justify-center q-pa-md">
+          <q-spinner color="secondary" size="32px" />
+        </div>
+
+        <q-banner v-else-if="!tutorials.view" rounded class="bg-grey-3 text-accent">
+          No pudimos cargar los tutoriales.
+          <template #action>
+            <q-btn flat color="secondary" label="Reintentar" @click="tutorials.load()" />
+          </template>
+        </q-banner>
+
+        <template v-else>
+          <q-banner
+            v-if="!tutorials.view.storageReady"
+            dense
+            rounded
+            class="bg-grey-3 text-accent q-mb-md"
+            data-test="conquer-combo-tutorials-storage-banner"
+          >
+            <template #avatar><q-icon name="cloud_off" color="secondary" /></template>
+            El almacenamiento de videos no está configurado
+          </q-banner>
+
+          <div
+            v-for="combo in tutorials.view.combos"
+            :key="combo.comboKey"
+            class="q-mb-md"
+            data-test="conquer-combo-tutorial"
+          >
+            <div class="text-subtitle2 q-mb-xs">{{ combo.label }}</div>
+            <ConquerTutorialUpload
+              :target="{ target: 'combo', comboKey: combo.comboKey }"
+              :name="combo.label"
+              :url="combo.url"
+              :storage-ready="tutorials.view.storageReady"
+              hide-storage-notice
+            />
+          </div>
+        </template>
+      </q-card-section>
+    </q-card>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useQuasar } from 'quasar';
+import ConquerTutorialUpload from 'src/components/conquer/ConquerTutorialUpload.vue';
 import { useConquerAdminApi } from 'src/composables/useConquerAdminApi';
+import { useConquerTutorialsStore } from 'src/stores/useConquerTutorialsStore';
 import type {
   ConquerSettingsPatch,
   ConquerSettingsResponse,
@@ -81,6 +133,7 @@ const props = defineProps<{
 
 const $q = useQuasar();
 const conquerApi = useConquerAdminApi();
+const tutorials = useConquerTutorialsStore();
 
 interface SettingsForm {
   comboWeeksN: number | null;
@@ -168,6 +221,11 @@ async function save(): Promise<void> {
   }
 }
 
-onMounted(load);
-watch(() => props.reloadToken, load);
+// Fase 202 D-25: los tutoriales de los combos se releen junto con los parámetros.
+function loadAll(): Promise<unknown> {
+  return Promise.all([load(), tutorials.load()]);
+}
+
+onMounted(loadAll);
+watch(() => props.reloadToken, loadAll);
 </script>

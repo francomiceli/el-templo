@@ -173,13 +173,33 @@
         @click="save"
       />
     </div>
+
+    <!-- Fase 201 D-25: el tutorial es independiente del formulario (se sube, reemplaza y borra al instante). -->
+    <q-separator class="q-my-md" />
+    <div class="text-subtitle2 q-mb-sm">Video tutorial</div>
+    <ConquerTutorialUpload
+      v-if="tutorials.view"
+      :target="{ target: 'ejercicio', exerciseId: exercise.id }"
+      :name="exercise.name"
+      :url="tutorials.exerciseUrl(exercise.id)"
+      :storage-ready="tutorials.view.storageReady"
+    />
+    <div v-else-if="tutorials.loading" class="row justify-center q-pa-sm">
+      <q-spinner color="secondary" size="24px" />
+    </div>
+    <div v-else class="row items-center q-gutter-sm" data-test="conquer-exercise-tutorial-error">
+      <span class="text-body2 text-grey-8">No pudimos cargar los tutoriales.</span>
+      <q-btn flat dense no-caps color="secondary" label="Reintentar" @click="tutorials.load()" />
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
 import { useQuasar } from 'quasar';
+import ConquerTutorialUpload from 'src/components/conquer/ConquerTutorialUpload.vue';
 import { useConquerAdminApi } from 'src/composables/useConquerAdminApi';
+import { useConquerTutorialsStore } from 'src/stores/useConquerTutorialsStore';
 import {
   LEVEL_LABELS,
   LEVELS,
@@ -211,6 +231,7 @@ const emit = defineEmits<{
 
 const $q = useQuasar();
 const conquerApi = useConquerAdminApi();
+const tutorials = useConquerTutorialsStore();
 
 const STEP_LABELS: Record<StepKey, string> = {
   e1: 'Α · E1',

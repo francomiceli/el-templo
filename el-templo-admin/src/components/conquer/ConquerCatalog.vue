@@ -109,6 +109,7 @@ import ConquerExerciseEditor from 'src/components/conquer/ConquerExerciseEditor.
 import ConquerLadderEditor from 'src/components/conquer/ConquerLadderEditor.vue';
 import ConquerTemplateDays from 'src/components/conquer/ConquerTemplateDays.vue';
 import { useConquerAdminApi } from 'src/composables/useConquerAdminApi';
+import { useConquerTutorialsStore } from 'src/stores/useConquerTutorialsStore';
 import type { AdminCatalog, AdminExercise, AdminLadder, AdminTemplateDay } from 'src/types/conquer';
 
 const props = defineProps<{
@@ -118,6 +119,7 @@ const props = defineProps<{
 
 const $q = useQuasar();
 const conquerApi = useConquerAdminApi();
+const tutorials = useConquerTutorialsStore();
 
 type SubTab = 'escaleras' | 'ejercicios' | 'plantillas';
 
@@ -194,6 +196,11 @@ async function reloadQuietly(): Promise<void> {
   }
 }
 
-onMounted(load);
-watch(() => props.reloadToken, load);
+// Fase 202 D-25: los tutoriales se releen junto con el catálogo (carga silenciosa, no bloquea).
+function loadAll(): Promise<unknown> {
+  return Promise.all([load(), tutorials.load()]);
+}
+
+onMounted(loadAll);
+watch(() => props.reloadToken, loadAll);
 </script>
