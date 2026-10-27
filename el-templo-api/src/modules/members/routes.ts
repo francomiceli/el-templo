@@ -1765,7 +1765,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
    * responden igual (404) para no delatar nada.
    */
   async function isMemberVisibleToActor(
-    request: FastifyRequest,
+    scope: FastifyRequest["scope"],
     ctx: TenantContext,
     userId: number,
   ): Promise<boolean> {
@@ -1788,10 +1788,10 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
 
     if (!target || target.deletedAt) return false;
     if (
-      !request.scope.isOwner &&
-      request.scope.country &&
+      !scope.isOwner &&
+      scope.country &&
       !target.branchIsVirtual &&
-      target.branchCountry !== request.scope.country
+      target.branchCountry !== scope.country
     ) {
       return false;
     }
@@ -1806,7 +1806,13 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       const ctx = assertTenant(request.scope, "members.wellhubCard");
 
-      if (!(await isMemberVisibleToActor(request, ctx, request.params.userId))) {
+      if (
+        !(await isMemberVisibleToActor(
+          request.scope,
+          ctx,
+          request.params.userId,
+        ))
+      ) {
         return reply
           .code(404)
           .send({ error: "No encontrado", message: "Miembro no encontrado" });
@@ -1837,7 +1843,13 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         });
       }
 
-      if (!(await isMemberVisibleToActor(request, ctx, request.params.userId))) {
+      if (
+        !(await isMemberVisibleToActor(
+          request.scope,
+          ctx,
+          request.params.userId,
+        ))
+      ) {
         return reply
           .code(404)
           .send({ error: "No encontrado", message: "Miembro no encontrado" });
