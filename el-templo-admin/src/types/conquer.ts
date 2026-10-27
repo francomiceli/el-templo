@@ -477,3 +477,51 @@ export interface TutorialUploadUrl {
   expiresIn: number;
   maxBytes: number;
 }
+
+// ── Correcciones con video (fase 202, D-26, D-28) ────────────────────
+
+export type CorrectionStatus = 'pendiente' | 'respondida';
+
+/** De quién es el video que se pide: el del alumno o el de la respuesta del coach. */
+export type CorrectionVideoWho = 'alumno' | 'coach';
+
+/** Respuesta del coach a una corrección; `null` mientras está pendiente. */
+export interface CorrectionReply {
+  text: string | null;
+  hasVideo: boolean;
+  videoSeconds: number | null;
+  repliedAt: string;
+}
+
+/** Vista del coach de una corrección (espeja `AdminCorrectionView` del API, sin claves de video). */
+export interface AdminCorrection {
+  id: number;
+  kind: 'escalon' | 'combo';
+  /** "{ejercicio} · {Escalón N} · {peldaño}" o "Combo {label}". */
+  targetLabel: string;
+  comment: string | null;
+  durationSec: number;
+  createdAt: string;
+  status: CorrectionStatus;
+  /** El coach borró el video del alumno (D-28): la corrección y los textos quedan. */
+  videoDeleted: boolean;
+  reply: CorrectionReply | null;
+  userId: number;
+  memberName: string;
+  level: Level | null;
+  videoDeletedAt: string | null;
+  /** Nombre de pila del coach que respondió. */
+  repliedByName: string | null;
+  canReply: boolean;
+}
+
+export interface AdminCorrectionsResponse {
+  items: AdminCorrection[];
+}
+
+/** `GET /corrections/:id/video-url`: URL firmada de 5 minutos o `available: false`. */
+export interface CorrectionVideoUrl {
+  available: boolean;
+  url: string | null;
+  expiresIn: number | null;
+}

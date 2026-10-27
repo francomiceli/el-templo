@@ -110,8 +110,8 @@ function badgeCount(item: NavItem): number {
       return adminStore.landingInbox.labs;
     case 'landing-franquicias':
       return adminStore.landingInbox.franchise;
-    case 'conquer-requests':
-      return adminStore.conquerRequestsCount;
+    case 'conquer':
+      return adminStore.conquerRequestsCount + adminStore.conquerCorrectionsCount;
     default:
       return 0;
   }
@@ -161,6 +161,7 @@ onMounted(() => {
   }
   if (canSeeConquer.value) {
     adminStore.fetchConquerRequestsCount();
+    adminStore.fetchConquerCorrectionsCount();
   }
 });
 
@@ -179,6 +180,7 @@ watch(
     }
     if (canSeeConquer.value) {
       adminStore.fetchConquerRequestsCount();
+      adminStore.fetchConquerCorrectionsCount();
     }
   }
 );

@@ -16,6 +16,8 @@ import { createLogger } from 'src/utils/logger';
 import type {
   ActivateBody,
   AdminCatalog,
+  AdminCorrection,
+  AdminCorrectionsResponse,
   AdminLadder,
   AdminMemberView,
   AdminExercise,
@@ -28,6 +30,9 @@ import type {
   ChangeStepBody,
   ConquerSettingsPatch,
   ConquerSettingsResponse,
+  CorrectionStatus,
+  CorrectionVideoUrl,
+  CorrectionVideoWho,
   CreateRungBody,
   CutBody,
   FichaResponse,
@@ -408,6 +413,61 @@ export function useConquerAdminApi() {
     );
   }
 
+  // ── Correcciones con video (fase 202, D-26, D-28) ──────────────────
+
+  /** Pendientes (la más vieja primero) o respondidas (las 50 más nuevas). */
+  async function listCorrections(status: CorrectionStatus): Promise<AdminCorrection[]> {
+    return call(
+      'listCorrections',
+      'No pudimos cargar las correcciones',
+      async () => {
+        const { data } = await api.get<AdminCorrectionsResponse>(`${BASE}/corrections`, {
+          params: { status },
+        });
+        return data.items;
+      },
+      { status }
+    );
+  }
+
+  async function countCorrections(): Promise<number> {
+    return call('countCorrections', 'No pudimos contar las correcciones', async () => {
+      const { data } = await api.get<{ count: number }>(`${BASE}/corrections/count`);
+      return data.count;
+    });
+  }
+
+  /** URL firmada de 5 minutos. Se pide al abrir el video y NO se cachea ni se loguea. */
+  async function getCorrectionVideoUrl(
+    id: number,
+    who: CorrectionVideoWho
+  ): Promise<CorrectionVideoUrl> {
+    return call(
+      'getCorrectionVideoUrl',
+      'No pudimos cargar el video',
+      async () => {
+        const { data } = await api.get<CorrectionVideoUrl>(`${BASE}/corrections/${id}/video-url`, {
+          params: { who },
+        });
+        return data;
+      },
+      { correctionId: id, who }
+    );
+  }
+
+  /** Borra el video del alumno (D-28): devuelve la corrección ya con `videoDeleted: true`. */
+  async function deleteCorrectionVideo(id: number): Promise<AdminCorrection> {
+    return call(
+      'deleteCorrectionVideo',
+      'No pudimos borrar el video',
+      async () => {
+        const { data } = await api.delete<AdminCorrection>(`${BASE}/corrections/${id}/video`);
+        return data;
+      },
+      { correctionId: id }
+    );
+  }
+
   return {
     listRequests,
     countRequests,
@@ -434,5 +494,9 @@ export function useConquerAdminApi() {
     requestTutorialUpload,
     confirmTutorial,
     deleteTutorial,
+    listCorrections,
+    countCorrections,
+    getCorrectionVideoUrl,
+    deleteCorrectionVideo,
   };
 }

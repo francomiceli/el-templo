@@ -251,7 +251,8 @@ export interface NavItem {
    * - 'app-trials': SP nuevas desde la app pendientes de seguimiento (Reportes).
    * - 'landing-academy' | 'landing-labs' | 'landing-franquicias': leads del sitio
    *   público todavía en estado "new" (grupo Landing).
-   * - 'conquer-requests': pedidos de desbloqueo de Conquer sin activar (fase 201 D-12).
+   * - 'conquer': pedidos de desbloqueo sin activar (fase 201 D-12) + correcciones con video sin
+   *   responder (fase 202 D-26).
    */
   badge?: NavBadge;
 }
@@ -262,7 +263,7 @@ export type NavBadge =
   | 'landing-academy'
   | 'landing-labs'
   | 'landing-franquicias'
-  | 'conquer-requests';
+  | 'conquer';
 
 export interface NavCategory {
   header: string;
@@ -299,13 +300,14 @@ export const NAV_MODEL: NavCategory[] = [
       { path: '/tree-map', label: 'Árbol', icon: 'hub', trainingOnly: true },
       { path: '/anatomia', label: 'Anatomía', icon: 'accessibility_new', roles: ANATOMIA_ROLES },
       {
-        // Conquer (fase 201 D-08, D-12): owner/admin; la pelotita cuenta los pedidos de desbloqueo.
+        // Conquer (fase 201 D-08, D-12): owner/admin; la pelotita cuenta los pedidos de desbloqueo
+        // y las correcciones con video sin responder (fase 202 D-26).
         path: '/conquer',
         label: 'Conquer',
         icon: 'military_tech',
         roles: CONQUER_MANAGER_ROLES,
         templo: true,
-        badge: 'conquer-requests',
+        badge: 'conquer',
       },
     ],
   },
