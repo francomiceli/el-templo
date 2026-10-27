@@ -19,6 +19,11 @@ import {
   type PrivateMediaStore,
 } from "../../src/modules/conquer/private-media";
 import { resolveMemberTimezone } from "../../src/modules/conquer/member-service";
+import {
+  tutorialMediaResolver,
+  TutorialStorageUnavailableError,
+  type TutorialMediaStore,
+} from "../../src/modules/conquer/tutorial-media";
 import type { Level } from "../../src/modules/conquer/rules";
 import { todayInTz } from "../../src/modules/shared/date-utils";
 import {
@@ -1377,4 +1382,55 @@ export async function postCorrectionRaw(
     headers: { authorization: `Bearer ${token}` },
     payload: body as Record<string, unknown>,
   });
+}
+
+// ── Tutoriales en video (202-07) ────────────────────────────────────
+
+export interface TutorialStoreSpies {
+  head: ReturnType<typeof vi.fn<TutorialMediaStore["head"]>>;
+  presignPut: ReturnType<typeof vi.fn<TutorialMediaStore["presignPut"]>>;
+  remove: ReturnType<typeof vi.fn<TutorialMediaStore["remove"]>>;
+}
+
+/**
+ * Tienda PÚBLICA de tutoriales de mentira (Fase 202 D-25): espía `resolve` y
+ * `ready` del resolver. Por defecto `ready` es true, el objeto existe (MP4 de
+ * 5 MB), la URL de subida es `https://r2.test/put/{clave}` y `remove` no falla.
+ * `unavailable: true` simula un gimnasio sin R2 (`resolve` tira el 503 y
+ * `ready` da false). Restaurar con `vi.restoreAllMocks()` en `afterEach`.
+ */
+export function mockTutorialMedia(
+  overrides: {
+    ready?: boolean;
+    unavailable?: boolean;
+    head?: TutorialMediaStore["head"];
+    remove?: TutorialMediaStore["remove"];
+    presignPut?: TutorialMediaStore["presignPut"];
+  } = {},
+): TutorialStoreSpies {
+  const head = vi.fn<TutorialMediaStore["head"]>(
+    overrides.head ??
+      (async () => ({
+        contentLength: 5 * 1024 * 1024,
+        contentType: "video/mp4",
+      })),
+  );
+  const presignPut = vi.fn<TutorialMediaStore["presignPut"]>(
+    overrides.presignPut ?? (async (key) => `https://r2.test/put/${key}`),
+  );
+  const remove = vi.fn<TutorialMediaStore["remove"]>(
+    overrides.remove ?? (async () => undefined),
+  );
+  vi.spyOn(tutorialMediaResolver, "ready").mockReturnValue(
+    overrides.ready ?? !overrides.unavailable,
+  );
+  const resolve = vi.spyOn(tutorialMediaResolver, "resolve");
+  if (overrides.unavailable) {
+    resolve.mockImplementation(() => {
+      throw new TutorialStorageUnavailableError();
+    });
+  } else {
+    resolve.mockReturnValue({ presignPut, head, remove });
+  }
+  return { head, presignPut, remove };
 }
