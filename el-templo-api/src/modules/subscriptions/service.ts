@@ -100,6 +100,7 @@ import {
 import { todayInTz, DEFAULT_TENANT_TIMEZONE } from "../shared/date-utils";
 import { assertBranchDelGimnasio } from "../shared/branch-consistency";
 import { membershipInEffectSql } from "../shared/membership";
+import { notWellhubAttendanceSql } from "../shared/wellhub-sources";
 import { EnrollmentService } from "../programs/enrollment-service";
 import { SettingsService } from "../settings/service";
 import { PRICING_SETTINGS_KEYS } from "../settings/keys";
@@ -109,6 +110,7 @@ import {
   invitationConvertedAtGateSql,
   invitationLeadGateSql,
 } from "../referrals/invitation-conversion";
+import { recordWellhubConversion } from "../wellhub/conversion";
 import { PartnerReferralService } from "../referral-partners/service";
 import { trimInvitationAccessEnd } from "./invitation-access";
 import {
@@ -3068,6 +3070,8 @@ export class SubscriptionService {
           eq(schema.attendance.memberId, sub.userId),
           sql`${schema.attendance.sessionDate} >= ${sub.startDate}`,
           sql`${schema.attendance.sessionDate} < ${newStartDate}`,
+          // Fase 204 D-18: las visitas Wellhub van por separado del plan
+          notWellhubAttendanceSql(),
         ),
       )
       .limit(1);
@@ -3618,6 +3622,8 @@ export class SubscriptionService {
           eq(schema.attendance.memberId, sub.userId),
           sql`${schema.attendance.sessionDate} >= ${fromDate}`,
           sql`${schema.attendance.sessionDate} <= ${toDate}`,
+          // Fase 204 D-18: las visitas Wellhub van por separado del plan
+          notWellhubAttendanceSql(),
         ),
       )
       .limit(1);
@@ -7081,6 +7087,8 @@ export class SubscriptionService {
           eq(schema.attendance.status, "confirmado"),
           sql`${schema.attendance.checkedInAt} >= ${monday.toISOString().slice(0, 19).replace("T", " ")}`,
           sql`${schema.attendance.checkedInAt} <= ${sunday.toISOString().slice(0, 19).replace("T", " ")}`,
+          // Fase 204 D-18: las visitas Wellhub van por separado del plan
+          notWellhubAttendanceSql(),
         ),
       );
 
@@ -7887,11 +7895,31 @@ export class SubscriptionService {
 
     // Fase 194 D-18: conversión explícita de la invitación (ex socio con
     // `converted_at` histórico + atribución de la compra a la invitación, D-13).
-    // Con `ctx === null` se saltea: ese caso SOLO llega del cron de vencimiento
-    // (`autoExpireDueSubscriptions`), que nunca crea una membresía paga — toda
-    // compra pasa por una charge-path con `ctx` real y ahí corre este paso.
+    // Con `ctx === null` se saltea (también el hook Wellhub de abajo): ese caso
+    // SOLO llega del cron de vencimiento (`autoExpireDueSubscriptions`), que
+    // nunca crea una membresía paga — toda compra pasa por una charge-path con
+    // `ctx` real y ahí corren estos pasos.
     if (ctx) {
       await attributeInvitationPurchase(tx, this.db, ctx, userId, this.log);
+      // Fase 204 (D-04/D-17/D-23): evento de conversión Wellhub → socio, misma
+      // tx que el cambio de estado. Es un dato para el reporte: si falla NO
+      // tiene que voltear el cobro (en MySQL un statement fallido no aborta la
+      // tx, así que atrapar acá es seguro).
+      try {
+        await recordWellhubConversion(
+          tx,
+          ctx,
+          userId,
+          statusBefore,
+          statusAfter,
+          this.log,
+        );
+      } catch (err: unknown) {
+        this.log.error(
+          { err, userId },
+          "No se pudo registrar la conversión Wellhub (el cobro sigue)",
+        );
+      }
     }
   }
 }

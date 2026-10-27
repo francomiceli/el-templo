@@ -7,7 +7,9 @@ import type { RutaContenido } from "../../types";
  *
  * La fila de cadera nombra glúteo e isquios para la "alineación final" sin
  * asignarles rol: quedan fuera de las relaciones (pendiente de fuente). La
- * compresión es de iliopsoas, recto femoral y aductores (motores por S8).
+ * compresión es de iliopsoas y recto femoral. Los aductores no comprimen
+ * pasados ~90° de flexión de cadera (ahí extienden): son motores porque
+ * cierran el straddle al llegar arriba.
  */
 export const PHS = {
   code: "PHS",
@@ -22,7 +24,11 @@ export const PHS = {
       { m: "serrato", c: [35] },
       { m: "psoas", c: ["L1"], nota: "Compresión de cadera" },
       { m: "recto-fem", c: ["L1"], nota: "Compresión de cadera" },
-      { m: "aductores", c: ["L1"], nota: "Compresión de cadera" },
+      {
+        m: "aductores",
+        c: ["L1"],
+        nota: "Cierran el straddle al llegar arriba; pasados ~90° de cadera no comprimen",
+      },
       { m: "recto-abd", c: [], nota: "Compresión: flexión de tronco" },
       { m: "oblicuos", c: [], nota: "Compresión: flexión de tronco" },
     ],
@@ -97,7 +103,7 @@ export const PHS = {
         articulacion: "Cadera",
         accion: "Flexión mantenida (compresión) → luego extensión a línea",
         musculos:
-          "Iliopsoas, recto femoral y aductores (compresión); glúteo e isquiotibiales (alineación final).",
+          "Iliopsoas y recto femoral (compresión); aductores (cierran el straddle al llegar arriba); glúteo e isquiotibiales (alineación final).",
         contraccion: "Isométrica y concéntrica.",
         c: ["L1"],
       },

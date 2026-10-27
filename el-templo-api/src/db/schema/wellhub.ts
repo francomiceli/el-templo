@@ -27,6 +27,7 @@ import { branches } from "./branches";
 import { activities } from "./activities";
 import { schedules } from "./schedules";
 import { bookings } from "./bookings";
+import { subscriptions } from "./subscriptions";
 import { tenantIdColumn } from "./tenant-column";
 
 export const wellhubClasses = mysqlTable(
@@ -154,6 +155,45 @@ export const wellhubEvents = mysqlTable(
   ],
 );
 
+/**
+ * Fase 204 (D-04/D-23, mig 0300): una fila por conversion Wellhub -> socio.
+ * La escribe `recordWellhubConversion` (plan 204-08) dentro de la transaccion
+ * de la suscripcion. `kind`: nuevo (venia con estado wellhub) | ex_alumno
+ * (venia inactivo) | otro. `localDate` es el dia en la tz de la sede (YYYY-MM-DD).
+ */
+export const wellhubConversions = mysqlTable(
+  "wellhub_conversions",
+  {
+    id: int("id").primaryKey().autoincrement(),
+    // Fase 167 (COL-01): tenancy. Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+    tenantId: tenantIdColumn(),
+    userId: int("user_id")
+      .references(() => users.id)
+      .notNull(),
+    subscriptionId: int("subscription_id")
+      .references(() => subscriptions.id)
+      .notNull(),
+    planId: int("plan_id").notNull(),
+    branchId: int("branch_id").notNull(),
+    fromStatus: varchar("from_status", { length: 16 }),
+    kind: varchar("kind", { length: 16 }).notNull(),
+    localDate: varchar("local_date", { length: 10 }).notNull(),
+    convertedAt: timestamp("converted_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("idx_wellhub_conversions_tenant_user_sub").on(
+      table.tenantId,
+      table.userId,
+      table.subscriptionId,
+    ),
+    index("idx_wellhub_conversions_tenant_branch_date").on(
+      table.tenantId,
+      table.branchId,
+      table.localDate,
+    ),
+  ],
+);
+
 export const wellhubClassesRelations = relations(wellhubClasses, ({ one }) => ({
   branch: one(branches, {
     fields: [wellhubClasses.branchId],
@@ -190,6 +230,20 @@ export const wellhubBookingsRelations = relations(
     slot: one(wellhubSlots, {
       fields: [wellhubBookings.wellhubSlotRowId],
       references: [wellhubSlots.id],
+    }),
+  }),
+);
+
+export const wellhubConversionsRelations = relations(
+  wellhubConversions,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [wellhubConversions.userId],
+      references: [users.id],
+    }),
+    subscription: one(subscriptions, {
+      fields: [wellhubConversions.subscriptionId],
+      references: [subscriptions.id],
     }),
   }),
 );

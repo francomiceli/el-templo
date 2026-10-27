@@ -24,7 +24,10 @@ const attendanceRecordSchema = {
     branchName: { type: "string" },
     checkedInAt: { type: "string" },
     status: { type: "string", enum: ["confirmado"] },
-    source: { type: "string", enum: ["qr", "manual"] },
+    source: {
+      type: "string",
+      enum: ["qr", "manual", "wellhub", "wellhub_manual"],
+    },
   },
 } as const;
 
@@ -112,6 +115,9 @@ const slotAttendanceItemSchema = {
     attendanceId: { type: ["integer", "null"] },
     checkedInAt: { type: ["string", "null"] },
     source: { type: ["string", "null"] },
+    // Fase 204 D-10: chip Wellhub en Horarios desde la reserva. Declarado acá
+    // porque fast-json-stringify descarta lo no declarado.
+    isWellhub: { type: "boolean" },
     segment: { type: ["string", "null"] },
     // Phase 136 D-06/D-12: tenure label (Antigüedad) replaces avatarType
     // in the slot roster. Computed on the fly from users.createdAt.

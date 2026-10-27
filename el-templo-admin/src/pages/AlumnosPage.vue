@@ -94,6 +94,15 @@
           @update:model-value="onFilterChange"
         />
       </div>
+      <!-- Fase 204 D-07: sin gate de finanzas (no es dato financiero) -->
+      <div class="col-6 col-sm-3 col-md-3 items-center">
+        <q-toggle
+          v-model="filters.wellhubOnly"
+          label="Solo Wellhub"
+          color="secondary"
+          @update:model-value="onFilterChange"
+        />
+      </div>
     </div>
 
     <!-- Filter bar — Row 2: filters -->
@@ -286,12 +295,14 @@
         </q-td>
       </template>
 
-      <!-- Estado column (Phase 103 R10: 4-state badge from users.status) -->
+      <!-- Estado column (Phase 103 R10: badge from users.status; Fase 204: + Wellhub) -->
       <template #body-cell-estado="props">
         <q-td :props="props">
           <q-badge
             :color="getStatusColor(props.row.status)"
-            :label="getStatusLabel(props.row.status, props.row.hasUsedTrial)"
+            :label="
+              getStatusLabel(props.row.status, props.row.hasUsedTrial, props.row.showWellhubLabel)
+            "
           />
           <!-- Fase 194 (D-18): el invitado es un alumno En Prueba más; el chip solo
                distingue de dónde vino (no es otro estado). -->
@@ -498,6 +509,8 @@ const filters = reactive({
   segment: null as MemberSegment | null,
   avatarType: null as string | null,
   debtorOnly: false as boolean,
+  // Fase 204 D-07: solo alumnos Wellhub (combinable con el select de Estado).
+  wellhubOnly: false as boolean,
 });
 
 // Phase 101: aggregated total debt grouped by currency, scoped to the same
@@ -861,6 +874,7 @@ async function loadMembers() {
       segment: filters.segment ?? undefined,
       avatarType: filters.avatarType ?? undefined,
       debtorOnly: filters.debtorOnly || undefined,
+      wellhubOnly: filters.wellhubOnly || undefined,
       country: isOwner.value ? selectedCountry.value : undefined,
       page: tablePagination.value.page,
       limit: tablePagination.value.rowsPerPage,
@@ -902,6 +916,7 @@ async function onExport() {
       status: statusFilterParams(filters.status).status,
       planId: filters.planId ?? undefined,
       avatarType: filters.avatarType ?? undefined,
+      wellhubOnly: filters.wellhubOnly || undefined,
       country: isOwner.value ? selectedCountry.value : undefined,
       // ALUM-05 (D-08): la columna Nivel del Excel sigue el flag de superficie
       // (consistencia pantalla↔export; el backend omite la columna si va false).

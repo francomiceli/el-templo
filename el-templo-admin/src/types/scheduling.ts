@@ -152,6 +152,8 @@ export interface BookingRecord {
   // docblock del mismo campo en el backend, scheduling/types.ts).
   memberBranchId: number | null;
   memberBranchName: string | null;
+  // Fase 204 D-10: 'wellhub' para reservas Wellhub.
+  source?: string | null;
 }
 
 export interface HolidayRecord {

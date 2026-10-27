@@ -23,6 +23,7 @@ import { eq, and, gte, inArray, sql } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { tenantWhere, type TenantContext } from "../shared/tenant";
+import { notWellhubBookingSql } from "../shared/wellhub-sources";
 
 /** Add `days` calendar days to a YYYY-MM-DD string. Returns YYYY-MM-DD. */
 function addDays(yyyymmdd: string, days: number): string {
@@ -385,6 +386,8 @@ export async function cancelBookingsInRange(
         gte(schema.bookings.bookingDate, fromDate),
         sql`${schema.bookings.bookingDate} <= ${toDate}`,
         sql`${schema.bookings.status} IN ('reservado', 'lista_espera')`,
+        // Fase 204 D-18/D-25: el ciclo del plan no toca reservas Wellhub (se gestionan desde Wellhub)
+        notWellhubBookingSql(),
       ),
     );
 

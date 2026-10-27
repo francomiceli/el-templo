@@ -13,7 +13,6 @@
     <CountdownOverlay
       v-if="showCountdown"
       :kicker="countdownCopy.kicker"
-      :subtitle="countdownCopy.subtitle"
       @done="onCountdownDone"
     />
 
@@ -156,7 +155,7 @@ const sessionStartedAt = ref<string | null>(null)
 const transitionData = shallowRef<BlockTransitionData | null>(null)
 /** true mientras "Empezar" completa el bloque (el guardado es async): congela la pantalla */
 const isAdvancing = ref(false)
-const countdownCopy = ref<CountdownCopy>({ kicker: '', subtitle: '' })
+const countdownCopy = ref<CountdownCopy>({ kicker: '' })
 const progressionView = ref<InstanceType<typeof BlockProgressionView> | null>(null)
 
 // Completion flow
@@ -311,14 +310,14 @@ function beginSession(mode: PlayerStartMode): void {
   if (isFreshStart) openCountdown()
 }
 
-/** Abre el 3-2-1 del bloque activo ("Bloque 1 de 4 · Initium" + su primer ejercicio) */
+/** Abre el 3-2-1 del bloque activo ("Bloque 1 de 4 · Pyros") */
 function openCountdown(): void {
   const p = player.value
   const block = p?.currentBlock.value
   countdownCopy.value =
     p && block
       ? blockCountdownCopy(block, p.currentBlockIndex.value, journey.value.length)
-      : { kicker: '', subtitle: '' }
+      : { kicker: '' }
   showCountdown.value = true
 }
 

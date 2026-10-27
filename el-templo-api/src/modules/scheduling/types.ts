@@ -160,6 +160,12 @@ export interface BookingRecord {
   // criterio que `segment`/`seniority`/`endDate` en ese path.
   memberBranchId: number | null;
   memberBranchName: string | null;
+  /**
+   * Fase 204 D-10: origen de la reserva. 'wellhub' para reservas Wellhub, null
+   * en filas viejas o propias. Opcional: lo setea `getSlotDetail`; el resto de
+   * los constructores de BookingRecord lo dejan sin definir.
+   */
+  source?: string | null;
 }
 
 /**

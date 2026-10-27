@@ -3,7 +3,9 @@ import type { RutaContenido } from "../../types";
 /**
  * Fase 200 R2: relaciones de OAPU desde S4.3 (tabla articular) + S8. Borrador
  * (D5). Sin EMG unilateral de push-up completo: anatomía L1 y extrapolación de
- * push-up plus y bilateral (citas 9, 13, 14).
+ * push-up plus y bilateral (citas 9, 13, 14). La anti-rotación del tronco
+ * (oblicuos, cuadrado lumbar, glúteo medio) es estabilizador, como en OAP y
+ * OAR: no produce el empuje.
  */
 export const OAPU = {
   code: "OAPU",
@@ -21,6 +23,13 @@ export const OAPU = {
         nota: "Mayor actividad con la escápula rotada hacia arriba y en protracción",
       },
       { m: "triceps", c: ["L1"] },
+    ],
+    sinergista: [],
+    estabilizador: [
+      { m: "manguito", c: ["L1"] },
+      { m: "biceps", c: ["L1"], nota: "Cabeza larga" },
+      { m: "antebrazo", c: [], nota: "Flexores de muñeca" },
+      { m: "recto-abd", c: [], nota: "Anti-extensión" },
       {
         m: "oblicuos",
         c: ["L1"],
@@ -36,13 +45,6 @@ export const OAPU = {
         c: ["L1"],
         nota: "Anti-rotación fuerte, la carga es lateral",
       },
-    ],
-    sinergista: [],
-    estabilizador: [
-      { m: "manguito", c: ["L1"] },
-      { m: "biceps", c: ["L1"], nota: "Cabeza larga" },
-      { m: "antebrazo", c: [], nota: "Flexores de muñeca" },
-      { m: "recto-abd", c: [], nota: "Anti-extensión" },
     ],
     antagonista: [],
     estira: [],
@@ -102,7 +104,7 @@ export const OAPU = {
         articulacion: "Tronco",
         accion: "Anti-rotación fuerte (la carga es lateral)",
         musculos:
-          "Oblicuos (externo e interno), cuadrado lumbar y glúteo medio: motores / estabilizadores (anti-rotación: anatomía, sin EMG directa).",
+          "Oblicuos (externo e interno), cuadrado lumbar y glúteo medio: estabilizadores (anti-rotación: anatomía, sin EMG directa).",
         contraccion: "Isométrica.",
         c: ["L1"],
       },
