@@ -144,13 +144,6 @@ export const DIFERENCIAS_APROBADAS: readonly DiferenciaZonas[] = [
       "S2.3: pectoral y trapecio inferior son motores según la tabla articular del one arm pull-up.",
   },
   {
-    code: "OAPU",
-    quita: [],
-    agrega: ["lower-back", "obliques", "gluteal"],
-    motivo:
-      "S4.3 (R2): oblicuos, cuadrado lumbar y glúteo medio son motores por anti-rotación (M/Est en la tabla de la ruta, Est en S8).",
-  },
-  {
     code: "OAR",
     quita: [],
     agrega: ["forearm"],
