@@ -386,7 +386,10 @@ import {
 // 2026-10-26: 516 -> 519 por Conquer v2 (fase 202, plan 202-03): correcciones del
 // alumno, GET /api/members/conquer/corrections, POST .../corrections/upload-url
 // y POST .../corrections, templo-module.
-const ENTRADAS_BASELINE = 519;
+// 2026-10-27: 519 -> 521 por Conquer v2 (fase 202, plan 202-04): GET
+// /api/members/conquer/corrections/:id/video-url y POST .../corrections/seen,
+// templo-module.
+const ENTRADAS_BASELINE = 521;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -529,7 +532,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 519 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 521 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(
