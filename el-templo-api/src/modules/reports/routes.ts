@@ -10,11 +10,10 @@
 
 import { FastifyPluginAsync } from "fastify";
 import { Workbook } from "exceljs";
-import { ReportsService } from "./service";
+import { ACCESS_SOURCE_LABELS, ReportsService } from "./service";
 import { WellhubReportService } from "./wellhub-report-service";
 import { handleServiceError } from "../shared/error-handler";
 import { styleHeaderRow, sendExcelReply } from "../shared/excel";
-import { ACCESS_SOURCE_LABELS } from "./types";
 import type {
   AccessReportFilters,
   AttendedFilter,

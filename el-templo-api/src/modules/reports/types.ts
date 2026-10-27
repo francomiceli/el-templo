@@ -71,14 +71,6 @@ export interface InactiveReportFilters {
 /** Fuente de una fila del log de accesos (Fase 204: las 4 de `attendance_source`). */
 export type AccessReportSource = "qr" | "manual" | "wellhub" | "wellhub_manual";
 
-/** Etiqueta visible de cada fuente (xlsx del log de accesos; D-14). */
-export const ACCESS_SOURCE_LABELS: Record<AccessReportSource, string> = {
-  qr: "QR",
-  manual: "Manual",
-  wellhub: "Wellhub",
-  wellhub_manual: "Wellhub (a mano)",
-};
-
 export interface AccessReportRow {
   id: number;
   checkedInAt: string;

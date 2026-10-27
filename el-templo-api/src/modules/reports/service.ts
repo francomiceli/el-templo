@@ -506,6 +506,18 @@ function deriveEffectiveDateAndLabelOB(input: {
   };
 }
 
+/**
+ * Etiqueta visible de cada fuente del log de accesos (xlsx; Fase 204, D-14). Un
+ * solo mapa para todo sitio que rotule la fuente: las visitas Wellhub ya no salen
+ * como "Manual".
+ */
+export const ACCESS_SOURCE_LABELS: Record<AccessReportRow["source"], string> = {
+  qr: "QR",
+  manual: "Manual",
+  wellhub: "Wellhub",
+  wellhub_manual: "Wellhub (a mano)",
+};
+
 export class ReportsService {
   private settingsService: SettingsService;
 
