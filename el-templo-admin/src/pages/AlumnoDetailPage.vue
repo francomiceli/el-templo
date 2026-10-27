@@ -366,6 +366,18 @@
            convertir".  -->
       <!-- ========================================== -->
       <template v-if="memberProfile.status !== 'prueba'">
+        <!-- Fase 204 (D-20): card Wellhub arriba de las pestañas. Solo la pinta quien
+             tiene gympass_id; el CTA "Asociar al templo" reusa el AssignPlanDialog. -->
+        <WellhubCard
+          v-if="memberProfile.isWellhub"
+          ref="wellhubCardRef"
+          :userId="memberProfile.id"
+          :canCharge="!financeBlind"
+          :canSendAppAccess="isLifecycleRole"
+          class="q-mb-md"
+          @associate="openAssociate"
+          @merge="onWellhubMergeRequested"
+        />
         <q-tabs
           v-model="activeTab"
           dense
@@ -390,11 +402,11 @@
               D
             </q-badge>
           </q-tab>
-          <q-tab v-if="!financeBlind" name="programas" label="Programas" />
+          <q-tab v-if="!financeBlind && !isWellhubVisitor" name="programas" label="Programas" />
           <q-tab name="asistencia" label="Asistencia" />
           <q-tab v-if="!financeBlind" name="finanzas" label="Finanzas" />
           <!-- Fase 194: ex "Referidos". El `name` interno `referidos` no se renombra. -->
-          <q-tab v-if="canOperateInvitations" name="referidos" label="Invitaciones" />
+          <q-tab v-if="canOperateInvitations && !isWellhubVisitor" name="referidos" label="Invitaciones" />
         </q-tabs>
         <q-separator />
 
@@ -426,7 +438,7 @@
 
           <!-- Invitaciones Tab (Phase 158-04 VIS-03, rebrand fase 194). La key fuerza la
                recarga cuando se crea una invitación (el diálogo vive en la página). -->
-          <q-tab-panel v-if="canOperateInvitations" name="referidos">
+          <q-tab-panel v-if="canOperateInvitations && !isWellhubVisitor" name="referidos">
             <MemberReferralsTab
               :key="invitationsReloadKey"
               :user-id="userId"
@@ -688,6 +700,7 @@
           <!-- Suscripcion Tab -->
           <q-tab-panel v-if="!financeBlind" name="suscripcion">
             <MemberSubscriptionTab
+              :key="subscriptionReloadKey"
               :userId="userId"
               :memberBranchId="memberProfile.branchId"
               :memberBranchName="memberProfile.branchName"
@@ -702,7 +715,7 @@
           </q-tab-panel>
 
           <!-- Programas Tab (Phase 112) -->
-          <q-tab-panel v-if="!financeBlind" name="programas">
+          <q-tab-panel v-if="!financeBlind && !isWellhubVisitor" name="programas">
             <MemberProgramsTab :user-id="userId" />
           </q-tab-panel>
 
@@ -744,6 +757,23 @@
         @assigned="onPostConvertAssigned"
         @member-edited="onPostConvertMemberEdited"
         @update:modelValue="onPostConvertAssignDialog"
+      />
+
+      <!-- Fase 204 (D-17): "Asociar al templo" desde la card Wellhub. Mismo diálogo de
+           alta de membresía de siempre (sin flujo paralelo); el evento de conversión
+           lo registra el API al asignar el plan. -->
+      <AssignPlanDialog
+        v-if="showAssignFromWellhub && !financeBlind"
+        v-model="showAssignFromWellhub"
+        :userId="memberProfile.id"
+        :memberBranchId="memberProfile.branchId"
+        :memberBranchName="memberProfile.branchName"
+        :boardingPassUsed="false"
+        :memberBranchIsVirtual="memberBranchIsVirtual"
+        :member="memberProfile"
+        :branches="branches"
+        @assigned="onWellhubAssigned"
+        @member-edited="loadMemberProfile"
       />
 
       <!-- Fase 194 D-16: crear invitación en nombre de un socio (canal asistido). -->
@@ -840,7 +870,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
@@ -859,6 +889,7 @@ import {
 } from 'src/utils/extract-error';
 import type { OutstandingConcept } from 'src/types/transaction';
 import { useStatusBadge } from 'src/composables/useStatusBadge';
+import { useWellhubApi } from 'src/composables/useWellhubApi';
 import MemberProfileTab from 'src/components/MemberProfileTab.vue';
 import MemberReferralsTab from 'src/components/MemberReferralsTab.vue';
 import InvitedByBlock from 'src/components/InvitedByBlock.vue';
@@ -871,6 +902,7 @@ import MemberFormDialog from 'src/components/MemberFormDialog.vue';
 import MemberPhotoUpload from 'src/components/MemberPhotoUpload.vue';
 import FinancialHistoryTab from 'src/components/FinancialHistoryTab.vue';
 import AssignPlanDialog from 'src/components/AssignPlanDialog.vue';
+import WellhubCard from 'src/components/members/WellhubCard.vue';
 import WhatsappIcon from 'src/components/icons/WhatsappIcon.vue';
 import type { MemberProfile, MemberSegment, BranchOption, InvitedByView } from 'src/types/member';
 import { SEGMENT_LABELS, SEGMENT_COLORS, AVATAR_LABELS } from 'src/types/member';
@@ -903,6 +935,7 @@ const goalPlanApi = useGoalPlanAdminApi();
 const transactionsApi = useTransactionsApi();
 const adjustmentsApi = useExerciseAdjustmentsApi();
 const { getColor: getStatusColor, getLabel: getStatusLabel } = useStatusBadge();
+const wellhubApi = useWellhubApi();
 
 // =========================================================================
 // State
@@ -1429,6 +1462,8 @@ async function loadAll() {
   try {
     // Load profile + branches in parallel (required for page render)
     await Promise.all([loadMemberProfile(), loadBranches()]);
+    // Fase 204 (D-09): deep link desde Cobros (?asociar=1).
+    openAssociateFromQuery();
 
     // Load goal plan detail in background (non-blocking)
     loadGoalPlanDetail();
@@ -1528,6 +1563,96 @@ function onPostConvertAssignDialog(open: boolean) {
   postConvertAssignmentDone.value = false;
 }
 
+// =========================================================================
+// Fase 204: card Wellhub, "Asociar al templo" y acceso a la app
+// =========================================================================
+// "Asociar al templo" (D-17) abre el AssignPlanDialog de siempre; el evento de
+// conversión lo registra el API al asignar el plan (plan 08). Después de asignar,
+// si la persona nunca entró a la app, se sugiere mandarle el acceso (D-26). El
+// acceso nunca se ofrece solo (D-06): solo por esta sugerencia o por el botón de la card.
+
+const wellhubCardRef = ref<InstanceType<typeof WellhubCard> | null>(null);
+const showAssignFromWellhub = ref(false);
+// Lo levanta el botón "Unir con alumno existente" de la card; el diálogo lo agrega el plan 15.
+const showWellhubMerge = ref(false);
+// Se incrementa al asignar el plan desde la card para que la pestaña Suscripción
+// (si estaba abierta) se vuelva a montar y muestre el plan nuevo.
+const subscriptionReloadKey = ref(0);
+
+// Visitante Wellhub sin plan: Programas e Invitaciones (pipeline de leads) no aplican (D-20).
+const isWellhubVisitor = computed(() => memberProfile.value?.status === 'wellhub');
+
+// Si la pestaña activa quedó oculta (por ejemplo al navegar a otro alumno), volver a Perfil.
+watch(isWellhubVisitor, (visitor) => {
+  if (visitor && (activeTab.value === 'programas' || activeTab.value === 'referidos')) {
+    activeTab.value = 'perfil';
+  }
+});
+
+function openAssociate(): void {
+  showAssignFromWellhub.value = true;
+}
+
+function onWellhubMergeRequested(): void {
+  showWellhubMerge.value = true;
+}
+
+async function onWellhubAssigned(): Promise<void> {
+  subscriptionReloadKey.value += 1;
+  try {
+    await onSubscriptionChanged();
+  } catch (err: unknown) {
+    log.warn('Error recargando la ficha tras asociar al templo', {
+      error: extractError(err, 'Error recargando la ficha'),
+      userId: userId.value,
+    });
+  }
+  // La card fresca es la que dice si ya entró a la app: nunca una card vieja.
+  const fresh = (await wellhubCardRef.value?.reload()) ?? null;
+  if (!fresh || fresh.hasLoggedIn || !isLifecycleRole.value) return;
+
+  const targetId = userId.value;
+  $q.dialog({
+    title: '¿Enviarle el acceso a la app?',
+    message: `${memberName.value} ya es socio. ¿Le mandamos un email con una contraseña temporal para que entre a la app?`,
+    cancel: { flat: true, label: 'Más tarde' },
+    ok: { color: 'primary', label: 'Enviar acceso' },
+  }).onOk(() => {
+    void sendAppAccessFromPrompt(targetId);
+  });
+}
+
+async function sendAppAccessFromPrompt(targetId: number): Promise<void> {
+  try {
+    const result = await wellhubApi.sendAppAccess(targetId);
+    if (result.emailSent) {
+      $q.notify({ type: 'positive', message: 'Acceso enviado' });
+    } else {
+      $q.notify({
+        type: 'warning',
+        message: 'Contraseña reseteada, pero no se pudo enviar el email',
+      });
+    }
+    await wellhubCardRef.value?.reload();
+  } catch (err: unknown) {
+    $q.notify({
+      type: 'negative',
+      message: extractError(err, 'No se pudo enviar el acceso a la app'),
+    });
+  }
+}
+
+// D-09: Cobros manda a la ficha con ?asociar=1. Abre el CTA una sola vez si aplica
+// (etiqueta Wellhub visible y rol que cobra) y limpia el param de la URL.
+function openAssociateFromQuery(): void {
+  if (route.query.asociar === undefined) return;
+  const { asociar, ...restQuery } = route.query;
+  void router.replace({ query: restQuery });
+  if (asociar === '1' && memberProfile.value?.showWellhubLabel === true && !financeBlind.value) {
+    openAssociate();
+  }
+}
+
 async function onSubscriptionChanged() {
   // Refresh member profile in case boarding pass usage changed.
   // Also re-pull outstanding concepts because renewal / change-plan can
@@ -1557,6 +1682,10 @@ function openWhatsapp(phone: string): void {
 
 onMounted(() => {
   loadAll();
+});
+
+onUnmounted(() => {
+  wellhubApi.cleanup();
 });
 
 // Los cross-links del tab Referidos navegan /alumnos/:a → /alumnos/:b
