@@ -19,7 +19,11 @@ import {
   TRAINING_FOCUS_LABELS,
   MOTIVATION_LABELS,
 } from "../onboarding/types";
-import { MemberService, meetsVisitorSearchThreshold } from "./service";
+import {
+  MemberService,
+  MEMBER_TEMP_PASSWORD,
+  meetsVisitorSearchThreshold,
+} from "./service";
 import { SubscriptionService } from "../subscriptions/service";
 import { ReferralService } from "../referrals/service";
 import { AssistedInvitations } from "../referrals/invitation-assisted";
@@ -52,6 +56,7 @@ import {
   type TenantContext,
 } from "../shared/tenant";
 import { EmailService } from "../email";
+import { MemberWellhubService } from "../wellhub/member-wellhub-service";
 import {
   isWellhubBookingSql,
   notWellhubBookingSql,
@@ -75,6 +80,8 @@ import {
   convertToTrialSchema,
   updateMemberSchema,
   resetMemberPasswordSchema,
+  memberWellhubCardSchema,
+  memberAppAccessSchema,
   checkDniSchema,
   checkDuplicatesSchema,
   exportMembersSchema,
@@ -126,6 +133,10 @@ import { isDuplicateKeyError } from "../shared/sql-errors";
 
 export const memberRoutes: FastifyPluginAsync = async (fastify) => {
   const memberService = new MemberService(fastify.db, fastify.log);
+  const memberWellhubService = new MemberWellhubService(
+    fastify.db,
+    fastify.log,
+  );
   const balanceService = new BalanceService(fastify.db, fastify.log);
   const cashRegisterService = new CashRegisterService(fastify.db, fastify.log);
   const transactionService = new TransactionService(
@@ -1741,6 +1752,158 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       );
 
       return reply.code(204).send();
+    },
+  );
+
+  // =========================================================================
+  // Wellhub (Fase 204)
+  // =========================================================================
+
+  /**
+   * ¿El alumno existe, es de este gimnasio y está dentro del alcance del actor?
+   * Mismo criterio que `PUT /:userId/password`: ausente, borrado y de otro país
+   * responden igual (404) para no delatar nada.
+   */
+  async function isMemberVisibleToActor(
+    request: FastifyRequest,
+    ctx: TenantContext,
+    userId: number,
+  ): Promise<boolean> {
+    const [target] = await fastify.db
+      .select({
+        deletedAt: schema.users.deletedAt,
+        branchCountry: schema.branches.country,
+        branchIsVirtual: schema.branches.isVirtual,
+      })
+      .from(schema.users)
+      .innerJoin(
+        schema.branches,
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.users.branchId),
+        ),
+      )
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)))
+      .limit(1);
+
+    if (!target || target.deletedAt) return false;
+    if (
+      !request.scope.isOwner &&
+      request.scope.country &&
+      !target.branchIsVirtual &&
+      target.branchCountry !== request.scope.country
+    ) {
+      return false;
+    }
+    return true;
+  }
+
+  // GET /admin/members/:userId/wellhub — datos de la card "Wellhub" de la ficha
+  // (D-02/D-20). `{ wellhub: null }` si la persona no tiene gympass_id.
+  fastify.get<{ Params: { userId: number } }>(
+    "/:userId/wellhub",
+    { schema: memberWellhubCardSchema },
+    async (request, reply) => {
+      const ctx = assertTenant(request.scope, "members.wellhubCard");
+
+      if (!(await isMemberVisibleToActor(request, ctx, request.params.userId))) {
+        return reply
+          .code(404)
+          .send({ error: "No encontrado", message: "Miembro no encontrado" });
+      }
+
+      return {
+        wellhub: await memberWellhubService.getCard(ctx, request.params.userId),
+      };
+    },
+  );
+
+  // POST /admin/members/:userId/app-access — "Enviar acceso a la app" (D-17/
+  // D-26). Resetea la contraseña a la temporal y manda el mail de contraseña.
+  // Solo alumnos Wellhub. MEMBER_LIFECYCLE_ROLES (es un reset de contraseña).
+  fastify.post<{ Params: { userId: number } }>(
+    "/:userId/app-access",
+    { schema: memberAppAccessSchema },
+    async (request, reply) => {
+      const ctx = assertTenant(request.scope, "members.appAccess");
+      if (
+        !(MEMBER_LIFECYCLE_ROLES as readonly string[]).includes(
+          request.user.role,
+        )
+      ) {
+        return reply.code(403).send({
+          error: "Acceso denegado",
+          message: "Solo owner, admin o gestión puede enviar el acceso a la app",
+        });
+      }
+
+      if (!(await isMemberVisibleToActor(request, ctx, request.params.userId))) {
+        return reply
+          .code(404)
+          .send({ error: "No encontrado", message: "Miembro no encontrado" });
+      }
+
+      const result = await memberWellhubService.sendAppAccess(
+        ctx,
+        request.params.userId,
+      );
+
+      if (!result.ok) {
+        if (result.reason === "not_member") {
+          return reply.code(400).send({
+            error: "Solicitud invalida",
+            message: "Solo se puede enviar acceso a alumnos",
+          });
+        }
+        if (result.reason === "not_wellhub") {
+          return reply.code(400).send({
+            error: "Solicitud invalida",
+            message: "Esta acción es para alumnos que vienen por Wellhub",
+          });
+        }
+        if (result.reason === "no_email") {
+          return reply.code(400).send({
+            error: "Solicitud invalida",
+            message: "El alumno no tiene email cargado",
+          });
+        }
+        // not_found / deleted
+        return reply
+          .code(404)
+          .send({ error: "No encontrado", message: "Miembro no encontrado" });
+      }
+
+      // Mail best-effort: la contraseña ya quedó reseteada, un fallo del
+      // proveedor no deshace nada (la respuesta dice `emailSent: false`).
+      let emailSent = false;
+      try {
+        const emailService = new EmailService(request.log);
+        await emailService.sendPasswordSetEmail(
+          result.email,
+          result.firstName,
+          MEMBER_TEMP_PASSWORD,
+        );
+        emailSent = true;
+      } catch (emailErr: unknown) {
+        request.log.error(
+          { err: emailErr, userId: request.params.userId },
+          "Error sending app-access password-set email",
+        );
+      }
+
+      request.log.info(
+        {
+          userId: request.params.userId,
+          actorId: request.user.userId,
+          hadLoggedIn: result.hadLoggedIn,
+          emailSent,
+        },
+        result.hadLoggedIn
+          ? "Acceso a la app reenviado a alumno Wellhub que ya tenía cuenta (contraseña reseteada)"
+          : "Acceso a la app enviado a alumno Wellhub (primer acceso)",
+      );
+
+      return { ok: true, emailSent };
     },
   );
 

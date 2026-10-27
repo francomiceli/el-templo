@@ -713,6 +713,93 @@ export const resetMemberPasswordSchema = {
   },
 };
 
+/**
+ * Fase 204 (D-20): card "Wellhub" de la ficha. `wellhub` es null cuando la
+ * persona no tiene `gympass_id`. Todo campo va declarado: fast-json-stringify
+ * descarta lo que no está en el schema.
+ */
+const wellhubBookingSummaryProperties = {
+  bookingId: { type: "integer" },
+  date: { type: "string" },
+  startTime: { type: "string" },
+  activityName: { type: "string" },
+  branchName: { type: "string" },
+} as const;
+
+export const memberWellhubCardSchema = {
+  params: {
+    type: "object",
+    required: ["userId"],
+    properties: {
+      userId: { type: "integer" },
+    },
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        wellhub: {
+          type: ["object", "null"],
+          properties: {
+            gympassId: { type: "string" },
+            linkedSince: { type: ["string", "null"] },
+            lastVisitDate: { type: ["string", "null"] },
+            visitsThisMonth: { type: "integer" },
+            visitsTotal: { type: "integer" },
+            manualVisitsTotal: { type: "integer" },
+            branchesVisited: { type: "array", items: { type: "string" } },
+            nextWellhubBooking: {
+              type: ["object", "null"],
+              properties: wellhubBookingSummaryProperties,
+            },
+            recentWellhubBookings: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  ...wellhubBookingSummaryProperties,
+                  status: { type: "string" },
+                },
+              },
+            },
+            showLabel: { type: "boolean" },
+            canConvert: { type: "boolean" },
+            canMerge: { type: "boolean" },
+            hasLoggedIn: { type: "boolean" },
+          },
+        },
+      },
+    },
+    404: errorSchema,
+  },
+};
+
+/**
+ * Fase 204 (D-17/D-26): "Enviar acceso a la app". Resetea la contraseña a la
+ * temporal y manda el mail de contraseña (best-effort: `emailSent`).
+ */
+export const memberAppAccessSchema = {
+  params: {
+    type: "object",
+    required: ["userId"],
+    properties: {
+      userId: { type: "integer" },
+    },
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        ok: { type: "boolean" },
+        emailSent: { type: "boolean" },
+      },
+    },
+    400: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
+  },
+};
+
 export const checkDniSchema = {
   querystring: {
     type: "object",
