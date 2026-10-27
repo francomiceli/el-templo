@@ -46,9 +46,11 @@
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>El Templo necesita acceso a la cámara para escanear el código QR de asistencia, sacar la foto del Desafío de la Barra y las fotos de tu control físico de Conquer</string>
+	<string>El Templo necesita acceso a la cámara para escanear el código QR de asistencia, sacar la foto del Desafío de la Barra, las fotos de tu control físico de Conquer y grabar los videos que le mandás a tu coach</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>El Templo usa el micrófono solo cuando grabás un video para que tu coach corrija tu técnica en Conquer.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>El Templo accede a tu galería sólo si elegís una foto desde el dispositivo en lugar de tomarla con la cámara.</string>
+	<string>El Templo accede a tu galería sólo si elegís una foto o un video desde el dispositivo en lugar de tomarlo con la cámara.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>
