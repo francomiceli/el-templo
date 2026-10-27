@@ -28,6 +28,8 @@
  *   POST   /api/admin/members/:userId/invitations/:invitationId/void (fase 194-12)
  *   POST   /api/admin/members/:userId/photo/upload-url
  *   PUT    /api/admin/members/:userId/password
+ *   GET    /api/admin/members/:userId/wellhub (fase 204-09, card Wellhub)
+ *   POST   /api/admin/members/:userId/app-access (fase 204-09, acceso a la app)
  *
  * EL CONTRATO QUE SE AFIRMA (D-06 del CONTEXT — vale para TODO el milestone)
  * ---------------------------------------------------------------------------
@@ -105,6 +107,7 @@ import {
   createTrialPlan,
   fixtureCtx,
 } from "../invitations/_helpers";
+import { uniqueGympassId } from "../fixtures/wellhub-personas";
 import {
   insertPartner,
   insertPartnerLink,
@@ -1164,6 +1167,106 @@ describe("resetear password — PUT /api/admin/members/:userId/password (T-173-2
     expect(
       fotoDespues.passwordHash,
       `${RUTA} respondio 204 pero el password_hash del socio propio NO cambio.`,
+    ).not.toBe(fotoAntes.passwordHash);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Fase 204-09 — card Wellhub y acceso a la app
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Le pone un `gympass_id` al socio (la card y el acceso a la app lo exigen). */
+async function vincularAWellhub(
+  tenantId: number,
+  userId: number,
+): Promise<string> {
+  const gympassId = uniqueGympassId();
+  await app.db
+    .update(schema.users)
+    .set({ gympassId })
+    .where(
+      and(tenantWhere(schema.users, { tenantId }), eq(schema.users.id, userId)),
+    );
+  return gympassId;
+}
+
+describe("card Wellhub de la ficha — GET /api/admin/members/:userId/wellhub", () => {
+  const RUTA = "GET /api/admin/members/:userId/wellhub";
+
+  it("aislamiento: la card de un socio Wellhub de El Templo se rechaza y no filtra su gympass_id", async () => {
+    const gympassId = await vincularAWellhub(TENANT_TEMPLO, templo.userId);
+
+    const res = await comoGimnasioDos("GET", `/${templo.userId}/wellhub`);
+    expect(
+      res.statusCode,
+      porQueImportaLaFicha(RUTA, templo.userId) + ` Respuesta: ${res.body}`,
+    ).toBe(404);
+    expect(
+      res.body,
+      `${RUTA} rechazo pero el cuerpo trae el gympass_id del socio de El Templo.`,
+    ).not.toContain(gympassId);
+  });
+
+  it("control: la card del socio Wellhub propio del gimnasio 2 SI se devuelve", async () => {
+    const gympassId = await vincularAWellhub(TENANT_DOS, dos.userId);
+
+    const res = await comoGimnasioDos("GET", `/${dos.userId}/wellhub`);
+    expect(
+      res.statusCode,
+      porQueImportaElControl(RUTA, dos.userId) + ` Respuesta: ${res.body}`,
+    ).toBe(200);
+    expect(res.json().wellhub?.gympassId).toBe(gympassId);
+  });
+});
+
+describe("enviar acceso a la app — POST /api/admin/members/:userId/app-access", () => {
+  const RUTA = "POST /api/admin/members/:userId/app-access";
+
+  it("aislamiento: enviar el acceso a un socio Wellhub de El Templo se rechaza, y su password_hash NO CAMBIA (toma de control de cuenta si fallara)", async () => {
+    // Mismo riesgo que el reset de password: esta ruta deja la cuenta con la
+    // contraseña temporal conocida. Se vincula a Wellhub al socio de El Templo
+    // para que el unico freno sea el aislamiento y no la guarda de gympass_id.
+    await vincularAWellhub(TENANT_TEMPLO, templo.userId);
+    const fotoAntes = await fotoDelUsuario(templo.userId);
+    expect(
+      fotoAntes.passwordHash,
+      "Precondicion: el socio de El Templo necesita un password_hash real antes del intento.",
+    ).toBeTruthy();
+
+    const res = await comoGimnasioDos("POST", `/${templo.userId}/app-access`);
+    expect(
+      res.statusCode,
+      porQueImportaLaFicha(RUTA, templo.userId) + ` Respuesta: ${res.body}`,
+    ).toBe(404);
+
+    const fotoDespues = await fotoDelUsuario(templo.userId);
+    expect(
+      [fotoDespues.tenantId, fotoDespues.passwordHash],
+      `${RUTA} rechazo con 404 pero el password_hash del socio de El Templo (${TENANT_TEMPLO}) ` +
+        `CAMBIO — toma de control de una cuenta de otro gimnasio. Empezar por ` +
+        `sendAppAccess en src/modules/wellhub/member-wellhub-service.ts.`,
+    ).toEqual([fotoAntes.tenantId, fotoAntes.passwordHash]);
+  });
+
+  it("control: enviar el acceso al socio Wellhub propio del gimnasio 2 SI funciona, y su password_hash SI CAMBIA", async () => {
+    await vincularAWellhub(TENANT_DOS, dos.userId);
+    const fotoAntes = await fotoDelUsuario(dos.userId);
+
+    const res = await comoGimnasioDos("POST", `/${dos.userId}/app-access`);
+    expect(
+      res.statusCode,
+      porQueImportaElControl(RUTA, dos.userId) + ` Respuesta: ${res.body}`,
+    ).toBe(200);
+    expect(res.json().ok).toBe(true);
+
+    const fotoDespues = await fotoDelUsuario(dos.userId);
+    expect(
+      fotoDespues.tenantId,
+      `${RUTA} cambio el password de una fila de otro gimnasio.`,
+    ).toBe(TENANT_DOS);
+    expect(
+      fotoDespues.passwordHash,
+      `${RUTA} respondio 200 pero el password_hash del socio propio NO cambio.`,
     ).not.toBe(fotoAntes.passwordHash);
   });
 });

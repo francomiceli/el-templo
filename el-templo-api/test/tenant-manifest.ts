@@ -608,6 +608,10 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     categoria: "tenant-scoped",
   },
   "PUT /api/admin/members/:userId/password": { categoria: "tenant-scoped" },
+  // Fase 204 (D-20/D-26): card Wellhub y acceso a la app. Leen
+  // users/attendance/bookings/wellhub_bookings con tenantWhere (cada tabla unida).
+  "GET /api/admin/members/:userId/wellhub": { categoria: "tenant-scoped" },
+  "POST /api/admin/members/:userId/app-access": { categoria: "tenant-scoped" },
 
   // ── /api/admin/ratings ────────────────────────────────────────────────────
   // D-04 veredicto (caso 6): confirmadas `tenant-scoped` (core). "Rating de clase"

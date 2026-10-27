@@ -346,7 +346,10 @@ import {
 // /api/sessions/free-blocks/complete, templo-module.
 // 2026-10-21: 476 -> 478 por la anatomía (fase 200): GET /api/admin/anatomy y
 // GET /api/anatomy, templo-module.
-const ENTRADAS_BASELINE = 478;
+// 2026-10-27: 478 -> 480 por la card Wellhub y el acceso a la app (fase 204-09):
+// GET /api/admin/members/:userId/wellhub y POST /api/admin/members/:userId/app-access,
+// `tenant-scoped`.
+const ENTRADAS_BASELINE = 480;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -489,7 +492,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 478 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 480 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(
