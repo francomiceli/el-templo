@@ -356,3 +356,13 @@ Para los planes 202-NN este archivo vale entero, con estos cambios (mandan sobre
   `isCorrectionReplyKey`; del alumno → `isOwnCorrectionVideoKey` (disjuntas). (7) `remove` re-tira todo error que no sea
   "no existe": la ruta lo captura, responde `VideoStorageUnavailableError` sin loguear la clave y no toca la fila.
   (8) Los `verify` con `! grep` sin filtrar comentarios matchean docblocks: no escribir esas palabras en comentarios.
+- (202-03) Contratos de `correction-service.ts` (y JSON de las 3 rutas del alumno): `202-03-SUMMARY.md`. Exporta
+  `loadCorrectionRows(db, ctx, { userId?, id?, status?, limit, order })`, `toCorrectionView` (vista del ALUMNO: sin claves ni
+  nombre del coach; 202-05 arma la suya sobre la misma fila), `callVideoStore(fastify, { correctionId?, userId? }, call)`,
+  `listCorrectionTargets`, `getMemberCorrections`, `requestCorrectionUpload`, `createCorrection`, `MEMBER_CORRECTIONS_LIMIT`.
+  Trampas: `CorrectionRow.firstName/lastName` son `string | null` y `level` `Level | null` (armar nombre con `?? ""`).
+  `loadCorrectionRows({ id })` NO filtra por alumno: las rutas del alumno pasan `userId` + `id`. `resolve(fastify, "videos")`
+  va FUERA de `callVideoStore` (tira el 503 solo); `presignGet`/`head`/`remove` pasan `{ correctionId }` como info.
+  202-05: responder con `status='respondida'` + `reply_*` en UNA update con `WHERE status = 'pendiente'` (DA-43).
+  Helpers de test: `CONQUER_CORRECTIONS_URL`, `insertConquerCorrection(app, userId, overrides)`, `postCorrectionRaw(app, token, body)`.
+  Sin fila en `conquer_members` → 409 `CONQUER_NO_ACTIVO`; sin módulo → 404. Manifiesto: 519 tras 202-03. Tenancy 116/121.
