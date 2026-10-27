@@ -10,7 +10,7 @@ import { MySql2Database } from "drizzle-orm/mysql2";
 import { eq, and, sql, desc, inArray, lt, isNotNull } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
-import { BadRequestError } from "../shared/errors";
+import { BadRequestError, ConflictError } from "../shared/errors";
 import {
   getWeekRange,
   todayInTz,
@@ -31,6 +31,9 @@ import { birthdayLabelOn } from "../shared/birthdays";
 import { SubscriptionService } from "../subscriptions/service";
 import { sameActivityKindSql } from "../scheduling/special-line";
 import {
+  isWellhubAttendanceSql,
+  isWellhubBookingSource,
+  isWellhubBookingSql,
   notWellhubAttendanceSql,
   notWellhubBookingSql,
 } from "../shared/wellhub-sources";
@@ -879,6 +882,29 @@ export class AttendanceService {
       throw new BadRequestError("Horario no encontrado");
     }
 
+    // Fase 204 (D-19): ¿la reserva de este (socio, horario, fecha) entró por
+    // Wellhub? Si sí, el presente a mano es una visita Wellhub "a mano": no
+    // toca el plan del socio (sin AURA, sin clases, sin completed_sessions).
+    const [wellhubLookupBooking] = await this.db
+      .select({
+        id: schema.bookings.id,
+        status: schema.bookings.status,
+        source: schema.bookings.source,
+      })
+      .from(schema.bookings)
+      .where(
+        and(
+          tenantWhere(schema.bookings, ctx),
+          eq(schema.bookings.memberId, memberId),
+          eq(schema.bookings.scheduleId, scheduleId),
+          eq(schema.bookings.bookingDate, date),
+        ),
+      )
+      .limit(1);
+    const isWellhubVisit = isWellhubBookingSource(
+      wellhubLookupBooking?.source,
+    );
+
     // One check-in per day guard, per activity category: una asistencia a una
     // ESPECIAL (pase Aura) no bloquea la de la clase regular del mismo día ni
     // al revés. Asistencias sin schedule cuentan como regulares.
@@ -887,6 +913,9 @@ export class AttendanceService {
     // Retroactive coach check-ins write session_date to the past while
     // checked_in_at lands today, so DATE(checkedInAt) generates false
     // positives that block legitimate check-ins on other dates.
+    // Fase 204 (D-18 #5): cada lado compara solo contra lo suyo. La asistencia
+    // propia ignora las visitas Wellhub y la visita Wellhub solo choca con otra
+    // visita Wellhub del mismo día.
     const [existingToday] = await this.db
       .select({ id: schema.attendance.id })
       .from(schema.attendance)
@@ -904,6 +933,7 @@ export class AttendanceService {
           eq(schema.attendance.memberId, memberId),
           eq(schema.attendance.sessionDate, date),
           sameActivityKindSql(schedule.isSpecial, schedule.specialLine),
+          isWellhubVisit ? isWellhubAttendanceSql() : notWellhubAttendanceSql(),
         ),
       )
       .limit(1);
@@ -912,6 +942,16 @@ export class AttendanceService {
       throw new BadRequestError(
         "El miembro ya tiene asistencia registrada en esta fecha",
       );
+    }
+
+    if (isWellhubVisit) {
+      return this.coachCheckInWellhub(ctx, {
+        scheduleId,
+        branchId: schedule.branchId,
+        date,
+        memberId,
+        bookingId: wellhubLookupBooking?.id ?? null,
+      });
     }
 
     // Check subscription status for warnings (don't block).
@@ -1020,6 +1060,74 @@ export class AttendanceService {
   }
 
   /**
+   * Fase 204 (D-19): presente a mano sobre una reserva Wellhub. Queda como
+   * visita Wellhub "a mano" (`attendance.source = 'wellhub_manual'`), confirma
+   * la reserva (el job de no-show no la toca) y NO toca el plan: sin AURA, sin
+   * descuento de clases, sin completed_sessions y sin warnings de suscripción
+   * (el visitante no es socio). La valida Wellhub recién si el usuario hace
+   * check-in en su app (el webhook la sube a `wellhub`).
+   */
+  private async coachCheckInWellhub(
+    ctx: TenantContext,
+    p: {
+      scheduleId: number;
+      branchId: number;
+      date: string;
+      memberId: number;
+      bookingId: number | null;
+    },
+  ): Promise<{ attendance: AttendanceRecord; warnings: string[] }> {
+    const result = await this.db.insert(schema.attendance).values(
+      tenantValues(ctx, {
+        memberId: p.memberId,
+        branchId: p.branchId,
+        scheduleId: p.scheduleId,
+        sessionDate: p.date,
+        status: "confirmado",
+        source: "wellhub_manual",
+      }),
+    );
+    const recordId = Number(result[0].insertId);
+
+    // La reserva Wellhub ya existe (la encontramos arriba): se confirma y se
+    // limpian los estados previos (cancelada / lista de espera) como en el
+    // upsert de la rama propia, pero sin tocar `source`.
+    await this.db
+      .update(schema.bookings)
+      .set({
+        status: "confirmado",
+        cancelledAt: null,
+        waitlistPosition: null,
+      })
+      .where(
+        and(
+          tenantWhere(schema.bookings, ctx),
+          eq(schema.bookings.memberId, p.memberId),
+          eq(schema.bookings.scheduleId, p.scheduleId),
+          eq(schema.bookings.bookingDate, p.date),
+          isWellhubBookingSql(),
+        ),
+      );
+
+    this.log.info(
+      {
+        memberId: p.memberId,
+        scheduleId: p.scheduleId,
+        date: p.date,
+        bookingId: p.bookingId,
+        recordId,
+      },
+      "Presente a mano en reserva Wellhub",
+    );
+
+    const record = await this.getRecordById(ctx, recordId);
+    return {
+      attendance: record,
+      warnings: ["Visita Wellhub marcada a mano: no la valida Wellhub"],
+    };
+  }
+
+  /**
    * Remove a check-in (coach undo). Deletes the attendance record,
    * restores classesRemaining, reverses AURA, and reverts booking status.
    *
@@ -1041,6 +1149,8 @@ export class AttendanceService {
         memberId: schema.attendance.memberId,
         scheduleId: schema.attendance.scheduleId,
         checkedInAt: schema.attendance.checkedInAt,
+        sessionDate: schema.attendance.sessionDate,
+        source: schema.attendance.source,
       })
       .from(schema.attendance)
       .where(
@@ -1052,6 +1162,52 @@ export class AttendanceService {
 
     if (!attRecord) {
       throw new BadRequestError("Registro de asistencia no encontrado");
+    }
+
+    // Fase 204 (D-18 #6 / T-204-12): una visita validada por Wellhub está
+    // facturada, no se deshace desde acá.
+    if (attRecord.source === "wellhub") {
+      throw new ConflictError(
+        "Esta visita la validó Wellhub y no se puede deshacer desde acá",
+      );
+    }
+
+    // Fase 204 (D-19): la visita Wellhub marcada a mano nunca tocó el plan, así
+    // que deshacerla tampoco: ni clases de vuelta, ni reversa de AURA, ni
+    // completed_sessions. Se borra la fila y la reserva Wellhub vuelve a
+    // 'reservado'. Se usa `session_date` (Pitfall 8), no la fecha UTC de
+    // `checked_in_at`.
+    if (attRecord.source === "wellhub_manual") {
+      await this.db
+        .delete(schema.attendance)
+        .where(
+          and(
+            tenantWhere(schema.attendance, ctx),
+            eq(schema.attendance.id, attendanceId),
+          ),
+        );
+
+      if (attRecord.scheduleId) {
+        await this.db
+          .update(schema.bookings)
+          .set({ status: "reservado" })
+          .where(
+            and(
+              tenantWhere(schema.bookings, ctx),
+              eq(schema.bookings.memberId, attRecord.memberId),
+              eq(schema.bookings.scheduleId, attRecord.scheduleId),
+              eq(schema.bookings.bookingDate, attRecord.sessionDate),
+              eq(schema.bookings.status, "confirmado"),
+              isWellhubBookingSql(),
+            ),
+          );
+      }
+
+      this.log.info(
+        { attendanceId, memberId: attRecord.memberId },
+        "Presente a mano Wellhub deshecho (coach undo)",
+      );
+      return { removed: true };
     }
 
     // Delete the attendance record
