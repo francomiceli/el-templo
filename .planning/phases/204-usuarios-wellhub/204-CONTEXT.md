@@ -87,6 +87,16 @@ Disparador: piloto Wellhub en Moreno en producción (gym 856836, 2026-10-27). El
 
 </decisions>
 
+### Decisiones del orquestador tras la investigación (Franco ausente, opción recomendada — revisar al volver)
+- **D-22:** La tasa Wellhub → socio vive en el **reporte Wellhub** (D-16). El API suma `entryOrigin='wellhub'` al embudo (`funnel-service.ts`), pero no se agrega ninguna pantalla nueva de embudo: el único embudo con selector de origen no está visible en el admin, y los embudos visibles son de pruebas (D-15 dice no tocarlos).
+- **D-23:** Definición de **conversión**: el primer plan (cualquier precio) que deja `activo` a un usuario con `gympass_id` que tuvo actividad Wellhub (reserva o visita) desde la última vez que dejó de ser socio activo. Se registra en la misma transacción que `recomputeUserStatus` (`subscriptions/service.ts`, junto a `attributeInvitationPurchase`).
+- **D-24:** El API también rechaza que el **propio socio** cancele desde la app una reserva Wellhub. No hay cambio en la app: la reserva no aparece como cancelable o da error claro.
+- **D-25:** Borrar o dar de baja un socio NO cancela sus reservas Wellhub vivas en la cancelación masiva (quedan para Wellhub).
+- **D-26:** Acceso a la app al convertir: acción explícita `POST /api/admin/members/:userId/app-access`, que reusa la contraseña temporal + `sendPasswordSetEmail` (las invitaciones de la 194 son del pipeline de leads y no encajan). Se ofrece como paso sugerido después de cargar el plan, desde la ficha.
+- **D-27:** Corregir las **11 fugas** de reservas y visitas Wellhub sobre el plan del socio listadas en `204-RESEARCH.md`, con un helper compartido (`shared/wellhub-sources.ts`). Cuidado: `bookings.source` NULL en filas viejas.
+- **D-28:** Una sola migración, la **0300**: la 0298/0299 están tomadas por `feat/201-conquer` sin push. Agrega `wellhub_manual` a `attendance_source` (D-19) y crea la tabla `wellhub_conversions` (gym-owned: actualizar los 5 conteos de tenancy + `TABLES_TO_CLEAN`).
+- **Fuera de alcance:** cerrar o borrar una clase cancela sus reservas Wellhub sin avisar a Wellhub (`cancelBookingByGym` nunca se llama). Es un gap preexistente y queda en Deferred.
+
 <canonical_refs>
 ## Canonical References
 
@@ -152,6 +162,7 @@ Disparador: piloto Wellhub en Moreno en producción (gym 856836, 2026-10-27). El
 
 - Acceso limitado a la app para visitantes Wellhub sin plan (ver horarios o rutina como canal de conversión). Franco: "no por ahora".
 - Aviso automático de "posible duplicado" por nombre o teléfono. Por ahora la unión es manual (D-05).
+- Avisar a Wellhub cuando cerramos o borramos una clase con reservas Wellhub (`cancelBookingByGym` existe y no se usa). Es un gap preexistente.
 - Activar Wellhub en las otras 5 sedes: migración aparte cuando Wellhub las configure. No es parte de esta fase.
 
 </deferred>
