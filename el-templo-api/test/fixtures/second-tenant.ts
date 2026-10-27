@@ -438,6 +438,14 @@ export async function limpiarSegundoGimnasio(
   // Fase 201 (Conquer v2, 0291): estado del alumno. Hijas antes que padres y
   // todas ANTES del `DELETE FROM users` (members/sessions/alerts/body_checks
   // tienen FK a users) y del `DELETE FROM tenants` final.
+  // Fase 202 (0298-0299): correcciones y tutoriales primero, apuntan a users y
+  // al catálogo (conquer_exercises y conquer_rungs se borran más abajo).
+  await app.db.execute(
+    sql`DELETE FROM conquer_corrections WHERE tenant_id = ${TENANT_DOS}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM conquer_tutorials WHERE tenant_id = ${TENANT_DOS}`,
+  );
   await app.db.execute(
     sql`DELETE FROM conquer_session_steps WHERE tenant_id = ${TENANT_DOS}`,
   );

@@ -248,6 +248,10 @@ const TABLES_TO_CLEAN = [
   // FK (hijas antes que padres) y antes de users. El catálogo (conquer_ladders,
   // conquer_rungs, conquer_exercises, conquer_template_days) NO va acá: lo
   // siembra la 0292 una vez y un DELETE global lo borraría para el resto del worker.
+  // Fase 202 (0298-0299): no las siembra ninguna migración, se limpian enteras.
+  // Referencian users y el catálogo, y nada las referencia a ellas.
+  schema.conquerCorrections,
+  schema.conquerTutorials,
   schema.conquerSessionSteps,
   schema.conquerSessions,
   schema.conquerSteps,
