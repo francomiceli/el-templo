@@ -86,6 +86,19 @@
         Evolución
         <span class="cq-rowlink__chev" aria-hidden="true">›</span>
       </router-link>
+      <!-- Fase 202 D-29, DA-46: las respuestas del coach sin ver se cuentan acá y bajan al abrir la pantalla -->
+      <router-link
+        :to="{ name: 'conquer-correcciones' }"
+        class="cq-rowlink"
+        :aria-label="correctionsLabel"
+        data-test="conquer-home-corrections"
+      >
+        Correcciones
+        <span v-if="unseenReplies > 0" class="cq-chip cq-chip--nueva cq-home__nuevas">
+          {{ unseenReplies }} {{ unseenReplies === 1 ? 'nueva' : 'nuevas' }}
+        </span>
+        <span class="cq-rowlink__chev" aria-hidden="true">›</span>
+      </router-link>
     </div>
   </CqScreen>
 </template>
@@ -104,8 +117,9 @@ import CqLevelIcon from './brand/CqLevelIcon.vue'
 
 // Fase 201 §7.1 Inicio, DA-29: el pórtico del nivel (semana del bloque, camino de niveles y el botón
 // de entrenar, todo en la única pieza oscura), el aviso de control físico, la semana del plan (D-16),
-// la última marca de cada día y los accesos fijos (¿Cómo funciona?, Progreso, Evolución). El app no
-// recalcula nada: pinta lo que manda `GET /state` (`member.home`, `member.bodyCheck`).
+// la última marca de cada día y los accesos fijos (¿Cómo funciona?, Progreso, Evolución y, desde la
+// 202, Correcciones con el contador de respuestas nuevas). El app no recalcula nada: pinta lo que
+// manda `GET /state` (`member.home`, `member.bodyCheck`, `member.corrections`).
 const LEVELS: readonly Level[] = ['ternero', 'novillo', 'toro']
 
 const router = useRouter()
@@ -167,6 +181,15 @@ const marks = computed<MarkRow[]>(() => {
     }
   }
   return rows
+})
+
+// Fase 202 DA-46: respuestas del coach sin ver (`GET /state` las manda solo con alumno activo)
+const unseenReplies = computed(() => member.value?.corrections?.unseenReplies ?? 0)
+
+const correctionsLabel = computed<string | undefined>(() => {
+  const n = unseenReplies.value
+  if (n <= 0) return undefined
+  return `Correcciones, ${n} ${n === 1 ? 'respuesta nueva' : 'respuestas nuevas'}`
 })
 
 // D-15: aviso fijo si saltó el día 0; §6: aviso si toca el control periódico
@@ -260,6 +283,16 @@ const bodyCheckNotice = computed<string | null>(() => {
 
 .cq-notice .cq-btn {
   text-decoration: none;
+}
+
+// Correcciones: el chip de respuestas nuevas queda pegado al chevron (el margen automático del
+// chevron se corre al chip para no repartir el espacio libre entre los dos)
+.cq-home__nuevas {
+  margin-left: auto;
+}
+
+.cq-home__nuevas + .cq-rowlink__chev {
+  margin-left: 0;
 }
 
 // Semana del plan: una fila de 52 px por día; la que toca lleva la barrita dorada a la izquierda
