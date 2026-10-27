@@ -14,6 +14,8 @@
  *  - Sync (runWellhubSync): publica class+slots del horizonte, patchea al
  *    cambiar la capacidad, despublica ante una excepción de fecha y expira
  *    solicitudes 'pending' muertas liberando el cupo.
+ *  - Filtro wellhub_enabled: solo se publican las actividades marcadas y no
+ *    especiales. Desmarcar una actividad despublica sus slots.
  *
  * Toda la API de Wellhub se mockea con vi.stubGlobal(fetch).
  */
@@ -297,6 +299,7 @@ describe("Wellhub — reservas y sincronización", () => {
       description: "Actividad de test Wellhub",
       isActive: true,
       isSpecial: false,
+      wellhubEnabled: true,
       maxCapacity: 2,
     });
     activityId = Number(insertedActivity[0].insertId);
@@ -812,6 +815,84 @@ describe("Wellhub — reservas y sincronización", () => {
     expect(remaining).toHaveLength(0);
     const deleteCall = calls.find((c) => c.method === "DELETE");
     expect(deleteCall?.url).toContain(`/slots/${tomorrowSlot?.wellhubSlotId}`);
+  });
+
+  it("runWellhubSync publica solo actividades wellhub_enabled no especiales y despublica al desmarcar", async () => {
+    stubWellhubApi();
+    const utcDow = new Date(`${tomorrow}T12:00:00Z`).getUTCDay();
+    const isoDow = utcDow === 0 ? 7 : utcDow;
+
+    // Una actividad sin marcar (tipo ROM/Open Gym) y una especial marcada
+    // (tipo yoga), cada una con su horario de mañana en la misma sede.
+    const extraActivityIds: number[] = [];
+    const extraScheduleIds: number[] = [];
+    for (const [name, wellhubEnabled, isSpecial] of [
+      ["Sin marcar WH", false, false],
+      ["Especial marcada WH", true, true],
+    ] as const) {
+      const insertedActivity = await app.db.insert(schema.activities).values({
+        name: `${name} ${Math.random().toString(36).slice(2, 7)}`,
+        isActive: true,
+        isSpecial,
+        wellhubEnabled,
+        maxCapacity: 2,
+      });
+      const extraActivityId = Number(insertedActivity[0].insertId);
+      extraActivityIds.push(extraActivityId);
+      const insertedSchedule = await app.db.insert(schema.schedules).values({
+        tenantId: TENANT_TEMPLO,
+        branchId,
+        activityId: extraActivityId,
+        dayOfWeek: isoDow,
+        startTime: "15:00",
+        endTime: "16:00",
+        isActive: true,
+      });
+      extraScheduleIds.push(Number(insertedSchedule[0].insertId));
+    }
+
+    const classActivityIds = async (): Promise<number[]> =>
+      (
+        await app.db
+          .select({ activityId: schema.wellhubClasses.activityId })
+          .from(schema.wellhubClasses)
+          .where(
+            and(
+              tenantWhere(schema.wellhubClasses, TEMPLO_CTX),
+              eq(schema.wellhubClasses.branchId, branchId),
+            ),
+          )
+      ).map((c) => c.activityId);
+    const slotsOf = async (ofScheduleId: number) =>
+      await app.db
+        .select()
+        .from(schema.wellhubSlots)
+        .where(
+          and(
+            tenantWhere(schema.wellhubSlots, TEMPLO_CTX),
+            eq(schema.wellhubSlots.scheduleId, ofScheduleId),
+          ),
+        );
+
+    // 1. Solo la actividad marcada y no especial gana class y slots.
+    await runWellhubSync(app.db);
+    expect(await classActivityIds()).toEqual([activityId]);
+    expect((await slotsOf(scheduleId)).length).toBeGreaterThanOrEqual(1);
+    for (const extraScheduleId of extraScheduleIds) {
+      expect(await slotsOf(extraScheduleId)).toHaveLength(0);
+    }
+
+    // 2. Desmarcarla despublica sus slots en el próximo sync.
+    await app.db
+      .update(schema.activities)
+      .set({ wellhubEnabled: false })
+      .where(eq(schema.activities.id, activityId));
+    const summary = await runWellhubSync(app.db);
+    expect(summary?.slotsDeleted).toBeGreaterThanOrEqual(1);
+    expect(await slotsOf(scheduleId)).toHaveLength(0);
+    expect(await classActivityIds()).not.toEqual(
+      expect.arrayContaining(extraActivityIds),
+    );
   });
 
   it("adopta un slot huérfano ante 409 y alinea su capacidad remota", async () => {

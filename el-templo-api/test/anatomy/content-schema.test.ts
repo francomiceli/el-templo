@@ -319,7 +319,7 @@ describe("contenido de anatomía — coherencia", () => {
     expect(ficha?.escalones).toMatchObject({ fuente: "ficha" });
   });
 
-  it("tren inferior (§1.7.2): SS con cuádriceps y sin glúteo, DS con vastos, NC con gemelos, QC con tibial", () => {
+  it("tren inferior (§1.7.2): SS con cuádriceps y sin glúteo, DS con vastos, NC con gemelos, QC sin tibial ni NC sin sóleo", () => {
     const de = (code: string, roles: readonly Rol[]): string[] =>
       roles.flatMap((rol) =>
         (RUTAS_POR_CODIGO.get(code)?.relaciones[rol] ?? []).map((r) => r.m),
@@ -330,7 +330,10 @@ describe("contenido de anatomía — coherencia", () => {
     expect(de("SS", ["motor", "sinergista"])).not.toContain("aductores");
     expect(de("DS", ["motor", "sinergista"])).toContain("vastos");
     expect(de("NC", ["motor", "sinergista"])).toContain("gemelo");
-    expect(de("QC", ["motor", "sinergista"])).toContain("tibial");
+    // Solo trabajan en un ejercicio auxiliar de la ruta (tibiales pared, calf
+    // raises): en la ruta, el alumno los leería como parte del gesto.
+    expect(de("QC", ROLES)).not.toContain("tibial");
+    expect(de("NC", ROLES)).not.toContain("soleo");
     expect(de("PS", ["motor"])).toContain("soleo");
     expect(de("PS", ["estabilizador"])).toEqual(
       expect.arrayContaining(["gemelo", "tibial"]),
@@ -360,6 +363,40 @@ describe("contenido de anatomía — coherencia", () => {
     expect(musculosDe("HS")).toContain("delt-ant");
     for (const id of ["oblicuos", "cuadrado", "erectores", "gluteo-mayor"]) {
       expect(musculosDe("HR"), id).toContain(id);
+    }
+  });
+
+  it("la anti-rotación del tronco es estabilizador en las rutas a un brazo (OAPU como OAP y OAR)", () => {
+    const de = (code: string, rol: Rol): string[] =>
+      (RUTAS_POR_CODIGO.get(code)?.relaciones[rol] ?? []).map((r) => r.m);
+    for (const id of ["oblicuos", "cuadrado", "gluteo-medio"]) {
+      expect(de("OAPU", "motor"), id).not.toContain(id);
+      expect(de("OAPU", "estabilizador"), id).toContain(id);
+    }
+    for (const code of ["OAP", "OAR"]) {
+      expect(de(code, "motor"), code).not.toContain("oblicuos");
+    }
+  });
+
+  it("los aductores no comprimen la cadera en PHS ni en MN/RP (pasados ~90° extienden)", () => {
+    for (const code of ["PHS", "MN/RP"]) {
+      const aductores = RUTAS_POR_CODIGO.get(code)?.relaciones.motor.find(
+        (r) => r.m === "aductores",
+      );
+      expect(aductores, code).toBeDefined();
+      expect(aductores?.nota ?? "", code).not.toMatch(/compresi[oó]n/i);
+    }
+  });
+
+  it("el texto de alumno de cada músculo es un párrafo de 2 o 3 oraciones, no una frase suelta", () => {
+    for (const m of MUSCULOS) {
+      const oraciones = m.queHaceAlumno
+        .split(/[.!?](?:\s|$)/)
+        .filter((o) => o.trim() !== "");
+      expect(m.queHaceAlumno.length, m.id).toBeGreaterThanOrEqual(200);
+      expect(m.queHaceAlumno.length, m.id).toBeLessThanOrEqual(450);
+      expect(oraciones.length, m.id).toBeGreaterThanOrEqual(2);
+      expect(oraciones.length, m.id).toBeLessThanOrEqual(3);
     }
   });
 

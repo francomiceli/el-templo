@@ -399,7 +399,14 @@ import {
 // video, GET /api/members/conquer/tutorials, GET /api/admin/conquer/tutorials,
 // POST .../tutorials/upload-url, PUT .../tutorials y DELETE
 // .../tutorials/exercise/:exerciseId y .../tutorials/combo/:comboKey, templo-module.
-const ENTRADAS_BASELINE = 533;
+// 2026-10-27: 533 -> 535 por la card Wellhub y el acceso a la app (fase 204-09):
+// GET /api/admin/members/:userId/wellhub y POST /api/admin/members/:userId/app-access,
+// `tenant-scoped`.
+// 2026-10-27: 535 -> 536 por la unión de fichas Wellhub (fase 204-10):
+// POST /api/admin/members/:userId/wellhub-merge, `tenant-scoped`.
+// 2026-10-27: 536 -> 537 por el reporte Wellhub (fase 204-11):
+// GET /api/admin/reports/wellhub, `tenant-scoped`.
+const ENTRADAS_BASELINE = 537;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -542,7 +549,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 533 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 537 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(

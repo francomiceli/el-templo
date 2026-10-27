@@ -5,10 +5,7 @@
  * expiring memberships, and inactive members reports.
  */
 
-import type {
-  TrialSessionStatus,
-  TrialNextAction,
-} from "./trial-cadence";
+import type { TrialSessionStatus, TrialNextAction } from "./trial-cadence";
 
 // -- Filters -----------------------------------------------------------------
 
@@ -18,7 +15,8 @@ export interface AccessReportFilters {
   dateFrom?: string; // YYYY-MM-DD
   dateTo?: string;
   search?: string; // member name or DNI
-  source?: "qr" | "manual";
+  /** "wellhub" = visitas validadas + a mano (Fase 204, D-14). */
+  source?: Exclude<AccessReportSource, "wellhub_manual">;
   page?: number;
   limit?: number;
 }
@@ -30,7 +28,10 @@ export interface AccessReportFilters {
  * es plata que el banco ya confirmó cuando el staff la carga.
  */
 export type ChargeReportPaymentMethod =
-  "cash" | "transfer" | "card" | "direct_debit";
+  | "cash"
+  | "transfer"
+  | "card"
+  | "direct_debit";
 
 export interface ChargeReportFilters {
   branchId?: number;
@@ -67,13 +68,16 @@ export interface InactiveReportFilters {
 
 // -- Response Row Types ------------------------------------------------------
 
+/** Fuente de una fila del log de accesos (Fase 204: las 4 de `attendance_source`). */
+export type AccessReportSource = "qr" | "manual" | "wellhub" | "wellhub_manual";
+
 export interface AccessReportRow {
   id: number;
   checkedInAt: string;
   memberName: string;
   memberId: number;
   branchName: string;
-  source: "qr" | "manual";
+  source: AccessReportSource;
   scheduleSlot: string | null; // e.g. "Lun 09:00 - Calistenia" or null
 }
 

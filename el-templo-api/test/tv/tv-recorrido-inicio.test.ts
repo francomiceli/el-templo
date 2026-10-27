@@ -195,11 +195,9 @@ describe("buildRecorridoDeInicio", () => {
     expect(bloques).toEqual(buildRecorrido(classDay).bloques);
   });
 
-  it("la TV no recibe tibialis aunque la ruta lo pinte (QC), y las zonas van en el orden de ZONAS_TV (T20)", () => {
-    // QC pinta cuadriceps y tibialis en el modelo, pero tibialis no viaja a la
-    // TV en v1: el contrato del poll son 15 zonas ordenadas.
-    expect(zonasDeRuta("QC")).toContain("tibialis");
-
+  it("la TV no recibe tibialis y las zonas van en el orden de ZONAS_TV (T20)", () => {
+    // tibialis no viaja a la TV en v1: el contrato del poll son 15 zonas
+    // ordenadas. El filtro en sí (soloTv) lo fija test/anatomy/projection.
     const soloQc = day([
       session("alfa", {
         route: "QC",

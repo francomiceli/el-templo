@@ -387,7 +387,8 @@ export const retentionSchema = {
 
 // Querystring extends the shared analytics querystring with an optional
 // entry-origin segment (funnel follow-up). `all` (or absent) = classic 3-stage
-// funnel; `directo`/`freemium` = 2-stage prueba → activo by trial origin.
+// funnel; `directo`/`freemium` = 2-stage prueba → activo by trial origin;
+// `wellhub` (Fase 204) = 2-stage Wellhub → socio.
 const funnelQuerystring = {
   type: "object",
   properties: {
@@ -396,7 +397,7 @@ const funnelQuerystring = {
     dateTo: { type: "string", format: "date" },
     entryOrigin: {
       type: "string",
-      enum: ["all", "directo", "freemium"],
+      enum: ["all", "directo", "freemium", "wellhub"],
     },
   },
 } as const;
@@ -425,7 +426,7 @@ export const funnelSchema = {
         },
         entryOrigin: {
           type: "string",
-          enum: ["all", "directo", "freemium"],
+          enum: ["all", "directo", "freemium", "wellhub"],
         },
       },
     },

@@ -63,8 +63,8 @@ describe("zonasDeRuta", () => {
     expect(zonasDeRuta("NC")).toContain("calves");
   });
 
-  it("QC pinta el tibial anterior (§1.7.2: tibiales pared)", () => {
-    expect(zonasDeRuta("QC")).toContain("tibialis");
+  it("QC no pinta el tibial anterior (tibiales pared no es el gesto de la ruta)", () => {
+    expect(zonasDeRuta("QC")).not.toContain("tibialis");
   });
 
   it("FL pinta espalda alta y el recto femoral sostiene (S3.1)", () => {

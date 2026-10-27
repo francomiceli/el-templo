@@ -303,8 +303,17 @@ export interface RetentionAnalytics {
  * `directo`/`freemium` only classify users that have a `prueba` transition, so —
  * like the rest of the funnel — they are precise forward-only since the Plan 01
  * hooks (2026-05-26). Users without a `prueba` row appear only in `all`.
+ *
+ *   - `wellhub` (Fase 204, D-15/D-22): 2-stage Wellhub → socio funnel. Cohort =
+ *     users in scope with `gympass_id` that have Wellhub activity (booking or
+ *     visit), cohort month = month of their FIRST Wellhub activity.
+ *     `toPruebaPct` is 100 (the entry stage is the Wellhub visit itself),
+ *     `toActivoPct` = % with a `wellhub_conversions` row,
+ *     `medianDaysFreemiumToPrueba` = null and `medianDaysPruebaToActivo` =
+ *     median whole days from first Wellhub activity to first conversion. It
+ *     never touches the trial/lead funnels.
  */
-export type FunnelEntryOrigin = "all" | "directo" | "freemium";
+export type FunnelEntryOrigin = "all" | "directo" | "freemium" | "wellhub";
 
 /**
  * A single funnel cohort (Phase 118 D-03). `cohortMonth` is the month

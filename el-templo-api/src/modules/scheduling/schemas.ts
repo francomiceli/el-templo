@@ -147,6 +147,10 @@ const bookingRecordSchema = {
     // los lookups de una sola reserva (adminAddBooking/adminRemoveBooking).
     memberBranchId: { type: ["integer", "null"] },
     memberBranchName: { type: ["string", "null"] },
+    // Fase 204 D-10: origen de la reserva ('wellhub' o null). Declarado acá
+    // porque fast-json-stringify descarta lo no declarado (mismo caso que
+    // memberBranchName arriba). Va fuera de `required`.
+    source: { type: ["string", "null"] },
   },
 } as const;
 

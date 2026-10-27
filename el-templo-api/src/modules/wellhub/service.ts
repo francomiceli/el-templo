@@ -45,6 +45,10 @@ import {
   type TenantContext,
 } from "../shared/tenant";
 import { assertBranchDelGimnasio } from "../shared/branch-consistency";
+import {
+  isWellhubAttendanceSql,
+  isWellhubBookingSql,
+} from "../shared/wellhub-sources";
 import type { BookingService } from "../scheduling/booking-service";
 import type { WellhubClient } from "./client";
 import { WellhubApiError } from "./client";
@@ -358,11 +362,15 @@ export class WellhubService {
     const userId = await this.findOrCreateVisitor(ctx, data.user, branch.id);
     const todayStr = todayInTz(branch.timezone);
 
-    // Guard uno-por-día ANTES de validar: si ya hay asistencia de hoy (por
-    // ejemplo un socio vinculado que ya escaneó nuestro QR), no generamos la
-    // transacción facturable a Wellhub por una visita que no vamos a registrar.
+    // Guard uno-por-día ANTES de validar: si ya hay una visita Wellhub de hoy,
+    // no generamos la transacción facturable a Wellhub por una visita que no
+    // vamos a registrar.
+    // Fase 204 D-18 (A1): solo una visita Wellhub por día; la asistencia propia
+    // del socio (QR/manual) no la bloquea (lados separados).
+    // Fase 204 (D-19): si la visita de hoy es 'wellhub_manual' (la marcó el
+    // staff a mano) NO cortamos: se valida con Wellhub y se sube a 'wellhub'.
     const [existingToday] = await this.db
-      .select({ id: schema.attendance.id })
+      .select({ id: schema.attendance.id, source: schema.attendance.source })
       .from(schema.attendance)
       .where(
         and(
@@ -371,11 +379,12 @@ export class WellhubService {
           tenantWhere(schema.attendance, ctx),
           eq(schema.attendance.memberId, userId),
           eq(schema.attendance.sessionDate, todayStr),
+          isWellhubAttendanceSql(),
         ),
       )
       .limit(1);
 
-    if (existingToday) {
+    if (existingToday && existingToday.source !== "wellhub_manual") {
       this.log.info(
         { userId, gymId, sessionDate: todayStr },
         "Checkin Wellhub ignorado: ya hay asistencia registrada hoy",
@@ -436,6 +445,9 @@ export class WellhubService {
           eq(schema.bookings.bookingDate, todayStr),
           eq(schema.schedules.branchId, branch.id),
           inArray(schema.bookings.status, ["reservado", "qr_escaneado"]),
+          // Fase 204 D-18: la visita solo confirma la reserva Wellhub, nunca
+          // la reserva propia del socio.
+          isWellhubBookingSql(),
         ),
       )
       .limit(1);
@@ -444,19 +456,39 @@ export class WellhubService {
     // la confirmación de esa reserva. Nada de classesRemaining / AURA /
     // completed_sessions (no es socio).
     const now = new Date();
+    let upgradedManual = false;
     await this.db.transaction(async (tx) => {
       const [recheck] = await tx
-        .select({ id: schema.attendance.id })
+        .select({ id: schema.attendance.id, source: schema.attendance.source })
         .from(schema.attendance)
         .where(
           and(
             tenantWhere(schema.attendance, ctx),
             eq(schema.attendance.memberId, userId),
             eq(schema.attendance.sessionDate, todayStr),
+            // Fase 204 D-18 (A1): mismo criterio que el guard de arriba.
+            isWellhubAttendanceSql(),
           ),
         )
         .limit(1);
-      if (recheck) return;
+      // Solo una visita ya validada ('wellhub') corta acá.
+      if (recheck && recheck.source !== "wellhub_manual") return;
+
+      // Fase 204 (D-19): la visita a mano se promueve a validada, sin fila
+      // nueva (checked_in_at original). La reserva ya está 'confirmado'.
+      if (recheck) {
+        await tx
+          .update(schema.attendance)
+          .set({ source: "wellhub" })
+          .where(
+            and(
+              tenantWhere(schema.attendance, ctx),
+              eq(schema.attendance.id, recheck.id),
+            ),
+          );
+        upgradedManual = true;
+        return;
+      }
 
       await tx.insert(schema.attendance).values(
         tenantValues(ctx, {
@@ -491,7 +523,9 @@ export class WellhubService {
         tenantId: ctx.tenantId,
         sessionDate: todayStr,
       },
-      "Visita Wellhub registrada",
+      upgradedManual
+        ? "Visita Wellhub a mano validada luego por Wellhub"
+        : "Visita Wellhub registrada",
     );
     return { httpStatus: 200, outcome: "processed", tenantId: ctx.tenantId };
   }
@@ -848,7 +882,10 @@ export class WellhubService {
         })
         .from(schema.bookings)
         .where(
-          and(tenantWhere(schema.bookings, ctx), eq(schema.bookings.id, wb.bookingId)),
+          and(
+            tenantWhere(schema.bookings, ctx),
+            eq(schema.bookings.id, wb.bookingId),
+          ),
         )
         .limit(1);
 
@@ -857,7 +894,10 @@ export class WellhubService {
           .update(schema.bookings)
           .set({ status: "cancelado", cancelledAt: new Date() })
           .where(
-            and(tenantWhere(schema.bookings, ctx), eq(schema.bookings.id, booking.id)),
+            and(
+              tenantWhere(schema.bookings, ctx),
+              eq(schema.bookings.id, booking.id),
+            ),
           );
         await this.bookingService.promoteWaitlist(
           booking.scheduleId,

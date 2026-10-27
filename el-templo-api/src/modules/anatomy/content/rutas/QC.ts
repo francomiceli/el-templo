@@ -12,7 +12,8 @@ import type { RutaContenido } from "../../types";
  * A3 declara que todo es "razonamiento a partir de BI2 y [L1], no evidencia de
  * QC": las celdas sin marca propia llevan L1. ⚑N: la definición del quad curl
  * (seiza, quad box, tibiales pared) se confirma con Nacho antes de publicar. El
- * tibial anterior es motor solo en "tibiales pared"; en seiza se estira.
+ * tibial anterior es motor solo en "tibiales pared" y no va en las relaciones:
+ * la vista del alumno lo listaría como "hace el movimiento en Quad Curl".
  */
 export const QC = {
   code: "QC",
@@ -36,11 +37,6 @@ export const QC = {
         m: "psoas",
         c: ["R"],
         nota: "Isométrico: la gravedad tiende a extender la cadera y lo frena",
-      },
-      {
-        m: "tibial",
-        c: ["L1"],
-        nota: "Solo en tibiales pared (dorsiflexión concéntrica y excéntrica); en seiza se estira",
       },
     ],
     sinergista: [],
