@@ -7,8 +7,16 @@ import type {
   ChangeStepBody,
   ComboKey,
   ConquerStateResponse,
+  CorrectionUploadResponse,
+  CorrectionVideoUrl,
+  CorrectionVideoWho,
+  CorrectionsResponse,
+  CorrectionsSeenResponse,
+  CorrectionView,
   CountedStep,
+  CreateCorrectionBody,
   GuideSeenResponse,
+  MemberTutorials,
   PhotoUploadResponse,
   PhotoUrlResponse,
   Pose,
@@ -237,6 +245,55 @@ export function useConquerApi() {
     )
   }
 
+  /** GET /corrections: lista, objetivos elegibles y topes (Fase 202 DA-39). */
+  function getCorrections(): Promise<CorrectionsResponse> {
+    return call('No pudimos cargar tus correcciones. Probá de nuevo.', (signal) =>
+      api.get<CorrectionsResponse>(`${BASE}/corrections`, { signal }),
+    )
+  }
+
+  /** POST /corrections/upload-url: URL firmada al bucket privado (el PUT va con DA-51). */
+  function requestCorrectionUpload(contentType: string): Promise<CorrectionUploadResponse> {
+    return call('No pudimos preparar la subida del video. Probá de nuevo.', (signal) =>
+      api.post<CorrectionUploadResponse>(
+        `${BASE}/corrections/upload-url`,
+        { contentType },
+        { signal },
+      ),
+    )
+  }
+
+  /** POST /corrections: da de alta la corrección con el video ya subido. */
+  function createCorrection(body: CreateCorrectionBody): Promise<CorrectionView> {
+    return call('No pudimos mandar tu video. Probá de nuevo.', (signal) =>
+      api.post<CorrectionView>(`${BASE}/corrections`, body, { signal }),
+    )
+  }
+
+  /** GET /corrections/:id/video-url?who=: URL firmada de 5 minutos (T-201-153: no se guarda). */
+  function getCorrectionVideoUrl(id: number, who: CorrectionVideoWho): Promise<CorrectionVideoUrl> {
+    return call('No pudimos abrir el video. Probá de nuevo.', (signal) =>
+      api.get<CorrectionVideoUrl>(`${BASE}/corrections/${id}/video-url`, {
+        params: { who },
+        signal,
+      }),
+    )
+  }
+
+  /** POST /corrections/seen: marca como vistas las respuestas del coach. */
+  function markCorrectionsSeen(): Promise<CorrectionsSeenResponse> {
+    return call('No pudimos guardar que viste las respuestas. Probá de nuevo.', (signal) =>
+      api.post<CorrectionsSeenResponse>(`${BASE}/corrections/seen`, {}, { signal }),
+    )
+  }
+
+  /** GET /tutorials: URLs de los videos tutoriales (DA-49). No exige Conquer activo. */
+  function getTutorials(): Promise<MemberTutorials> {
+    return call('No pudimos cargar los tutoriales. Probá de nuevo.', (signal) =>
+      api.get<MemberTutorials>(`${BASE}/tutorials`, { signal }),
+    )
+  }
+
   /** Aborta todas las llamadas en vuelo (lo llama la vista al desmontarse). */
   function cleanup(): void {
     controllers.forEach((controller) => controller.abort())
@@ -261,6 +318,12 @@ export function useConquerApi() {
     skipDay0,
     markGuideSeen,
     setPublishPermission,
+    getCorrections,
+    requestCorrectionUpload,
+    createCorrection,
+    getCorrectionVideoUrl,
+    markCorrectionsSeen,
+    getTutorials,
     cleanup,
   }
 }

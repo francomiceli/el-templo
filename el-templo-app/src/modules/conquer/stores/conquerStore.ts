@@ -3,7 +3,14 @@ import { computed, ref } from 'vue'
 import { createLogger } from 'src/utils/logger'
 import { ConquerApiError, isConquerCanceled, useConquerApi } from '../composables/useConquerApi'
 import { resolveConquerView } from '../utils/conquerView'
-import type { BodyCheckSummary, ConquerStateResponse, PublishPermission } from '../types'
+import type {
+  BodyCheckSummary,
+  ComboKey,
+  ConquerStateResponse,
+  CorrectionCounts,
+  MemberTutorials,
+  PublishPermission,
+} from '../types'
 
 const log = createLogger('conquerStore')
 
@@ -24,6 +31,13 @@ export const useConquerStore = defineStore('conquer', () => {
   const error = ref<string | null>(null)
   /** true mientras viaja el pedido de desbloqueo: bloquea el doble toque (T-201-58) */
   const requesting = ref(false)
+
+  /**
+   * Tutoriales en video (DA-49): `null` hasta que cargan. Sin tutoriales o con error no se muestra
+   * ningún botón; nunca es un `error` del store.
+   */
+  const tutorials = ref<MemberTutorials | null>(null)
+  let tutorialsLoading: Promise<void> | null = null
 
   /** Cada carga toma el siguiente número; solo la última aplica su respuesta. */
   let loadSeq = 0
@@ -137,10 +151,56 @@ export const useConquerStore = defineStore('conquer', () => {
     }
   }
 
+  /**
+   * Carga los tutoriales UNA vez (DA-49): si ya cargaron no vuelve a pedir y dos llamadas juntas
+   * comparten el pedido. Un fallo se loguea y deja el store sin tutoriales (se reintenta en la
+   * próxima llamada); no toca `error` ni notifica.
+   */
+  function loadTutorials(): Promise<void> {
+    if (tutorials.value !== null) return Promise.resolve()
+    if (tutorialsLoading !== null) return tutorialsLoading
+    tutorialsLoading = (async () => {
+      try {
+        tutorials.value = await api.getTutorials()
+      } catch (err: unknown) {
+        if (isConquerCanceled(err)) return
+        if (err instanceof ConquerApiError && err.isExpected) {
+          log.warn('Conquer tutorials rejected', { status: err.status, error: err.detail })
+        } else {
+          logFailure('Failed to load Conquer tutorials', err)
+        }
+      } finally {
+        tutorialsLoading = null
+      }
+    })()
+    return tutorialsLoading
+  }
+
+  /** URL del tutorial de un ejercicio (`conquer_exercises.id`) o `null`: sin botón. */
+  function exerciseTutorialUrl(exerciseId: number): string | null {
+    return tutorials.value?.exercises.find((t) => t.exerciseId === exerciseId)?.url ?? null
+  }
+
+  /** URL del tutorial de un combo o `null`: sin botón. */
+  function comboTutorialUrl(comboKey: ComboKey): string | null {
+    return tutorials.value?.combos.find((t) => t.comboKey === comboKey)?.url ?? null
+  }
+
+  /**
+   * Refleja en el estado los contadores de correcciones (DA-46) tras mandar un video o tras
+   * `seen`, sin releer `/state`. Sin alumno activo no hace nada.
+   */
+  function applyCorrectionCounts(counts: CorrectionCounts): void {
+    const current = state.value
+    if (!current?.member) return
+    state.value = { ...current, member: { ...current.member, corrections: { ...counts } } }
+  }
+
   /** Aborta lo que siga en vuelo; la vista lo llama al desmontarse. */
   function cleanup(): void {
     loadSeq++
     api.cleanup()
+    tutorialsLoading = null
     loading.value = false
     requesting.value = false
   }
@@ -151,6 +211,7 @@ export const useConquerStore = defineStore('conquer', () => {
     error,
     requesting,
     view,
+    tutorials,
     loadState,
     requestUnlock,
     applyState,
@@ -158,6 +219,10 @@ export const useConquerStore = defineStore('conquer', () => {
     applyPublishPermission,
     applyGuideSeen,
     markGuideSeen,
+    loadTutorials,
+    exerciseTutorialUrl,
+    comboTutorialUrl,
+    applyCorrectionCounts,
     cleanup,
   }
 })

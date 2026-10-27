@@ -49,6 +49,7 @@ function activeWith(summary: BodyCheckSummary, guideSeen = true): ConquerStateRe
       lastByDay: [],
     },
     bodyCheck: summary,
+    corrections: { pending: 0, unseenReplies: 0 },
   }
   return { status: 'activo', requestedAt: null, member }
 }

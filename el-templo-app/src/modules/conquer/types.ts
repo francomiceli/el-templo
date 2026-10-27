@@ -68,6 +68,8 @@ export interface ConquerMemberState {
   guideSeen: boolean
   home: HomeView
   bodyCheck: BodyCheckSummary
+  /** Fase 202 DA-46: contadores de correcciones. Solo llega con `status === 'activo'`. */
+  corrections?: CorrectionCounts
 }
 
 export interface ConquerStateResponse {
@@ -354,4 +356,105 @@ export interface PublishPermission {
 /** POST /guide-seen: la guía quedó marcada como vista (DA-21). */
 export interface GuideSeenResponse {
   guideSeen: boolean
+}
+
+// ── Fase 202: correcciones con video y tutoriales ───────────────────
+
+/** Contadores de `member.corrections` (GET /state) y base de los avisos de Inicio (DA-46). */
+export interface CorrectionCounts {
+  pending: number
+  unseenReplies: number
+}
+
+export type CorrectionKind = 'escalon' | 'combo'
+export type CorrectionStatus = 'pendiente' | 'respondida'
+
+/** Qué video se pide: el del alumno o el de la respuesta del coach (minúsculas, igual que el API). */
+export type CorrectionVideoWho = 'alumno' | 'coach'
+
+/** Un objetivo elegible (GET /corrections `targets`): un escalón del plan o un combo. */
+export interface CorrectionTarget {
+  /** `escalon:{exerciseId}:{step}` | `combo:{comboKey}` */
+  key: string
+  kind: CorrectionKind
+  exerciseId: number | null
+  step: StepKey | null
+  comboKey: ComboKey | null
+  /** Nombre del ejercicio o "Combos": agrupa las opciones del selector. */
+  group: string
+  label: string
+}
+
+export interface CorrectionReply {
+  text: string | null
+  hasVideo: boolean
+  videoSeconds: number | null
+  repliedAt: string
+}
+
+/** Vista de la corrección para el ALUMNO: sin claves de video ni nombre del coach. */
+export interface CorrectionView {
+  id: number
+  kind: CorrectionKind
+  targetLabel: string
+  comment: string | null
+  durationSec: number
+  createdAt: string
+  status: CorrectionStatus
+  videoDeleted: boolean
+  reply: CorrectionReply | null
+  replyUnseen: boolean
+}
+
+export interface CorrectionLimits {
+  pending: number
+  pendingMax: number
+  maxSeconds: number
+  maxBytes: number
+  commentMax: number
+}
+
+/** GET /corrections. */
+export interface CorrectionsResponse {
+  items: CorrectionView[]
+  targets: CorrectionTarget[]
+  limits: CorrectionLimits
+}
+
+/** POST /corrections/upload-url: el PUT del archivo lleva EXACTAMENTE este `contentType`. */
+export interface CorrectionUploadResponse {
+  uploadUrl: string
+  key: string
+  contentType: string
+  expiresIn: number
+  maxBytes: number
+}
+
+/** Body de POST /corrections: el objetivo es un escalón (`exerciseId` + `step`) o un combo. */
+export interface CreateCorrectionBody {
+  exerciseId?: number | null
+  step?: StepKey | null
+  comboKey?: ComboKey | null
+  comment?: string | null
+  key: string
+  /** Entero 1..30: lo redondea el cliente (DA-40). */
+  durationSec: number
+}
+
+/** GET /corrections/:id/video-url. `available: false` NO es un error (D-28). */
+export interface CorrectionVideoUrl {
+  available: boolean
+  url: string | null
+  expiresIn: number | null
+}
+
+/** POST /corrections/seen. */
+export interface CorrectionsSeenResponse {
+  unseenReplies: number
+}
+
+/** GET /tutorials: solo los ejercicios y combos que tienen video (sin video, sin botón, DA-49). */
+export interface MemberTutorials {
+  exercises: { exerciseId: number; url: string }[]
+  combos: { comboKey: ComboKey; url: string }[]
 }
