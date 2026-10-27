@@ -1249,6 +1249,46 @@ export function mockPrivateMedia(overrides: Partial<PrivateMediaStore> = {}) {
   return vi.spyOn(privateMediaResolver, "resolve").mockReturnValue(fakeStore);
 }
 
+export interface VideoStoreSpies {
+  head: ReturnType<typeof vi.fn<PrivateMediaStore["head"]>>;
+  presignGet: ReturnType<typeof vi.fn<PrivateMediaStore["presignGet"]>>;
+  presignPut: ReturnType<typeof vi.fn<PrivateMediaStore["presignPut"]>>;
+  remove: ReturnType<typeof vi.fn<PrivateMediaStore["remove"]>>;
+}
+
+/**
+ * Tienda de videos de mentira con espías (Fase 202, antes local a
+ * `corrections-admin.test.ts`): por defecto el objeto existe (MP4 de 5 MB), las
+ * URLs firmadas son `https://r2.test/get|put/{clave}` y `remove` no falla.
+ * `overrides` pisa `head`, `remove` y `presignPut` (p. ej. `head: async () => null`).
+ */
+export function mockVideoStore(
+  overrides: {
+    head?: PrivateMediaStore["head"];
+    remove?: PrivateMediaStore["remove"];
+    presignPut?: PrivateMediaStore["presignPut"];
+  } = {},
+): VideoStoreSpies {
+  const head = vi.fn<PrivateMediaStore["head"]>(
+    overrides.head ??
+      (async () => ({
+        contentLength: 5 * 1024 * 1024,
+        contentType: "video/mp4",
+      })),
+  );
+  const presignGet = vi.fn<PrivateMediaStore["presignGet"]>(
+    async (key) => `https://r2.test/get/${key}`,
+  );
+  const presignPut = vi.fn<PrivateMediaStore["presignPut"]>(
+    overrides.presignPut ?? (async (key) => `https://r2.test/put/${key}`),
+  );
+  const remove = vi.fn<PrivateMediaStore["remove"]>(
+    overrides.remove ?? (async () => undefined),
+  );
+  mockPrivateMedia({ head, presignGet, presignPut, remove });
+  return { head, presignGet, presignPut, remove };
+}
+
 // ── Correcciones con video (202-03) ─────────────────────────────────
 
 export const CONQUER_CORRECTIONS_URL = "/api/members/conquer/corrections";

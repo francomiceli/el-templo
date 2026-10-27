@@ -26,7 +26,6 @@ import { randomUUID } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { and, eq } from "drizzle-orm";
 import * as schema from "../../src/db/schema";
-import type { PrivateMediaStore } from "../../src/modules/conquer/private-media";
 import type { Level } from "../../src/modules/conquer/rules";
 import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
 import { cleanAllTestData, createTestApp, createTestMember } from "../helpers";
@@ -42,7 +41,7 @@ import {
   CONQUER_CORRECTIONS_URL,
   createConquerStaff,
   insertConquerCorrection,
-  mockPrivateMedia,
+  mockVideoStore,
   TEMPLO_CTX,
   type ConquerErrorBody,
 } from "./_helpers";
@@ -183,39 +182,6 @@ function coachKey(userId: number): string {
 /** Hace `minutes` minutos (relativo a ahora: sin literales de calendario). */
 function minutesAgo(minutes: number): Date {
   return new Date(Date.now() - minutes * 60_000);
-}
-
-interface VideoStoreSpies {
-  head: ReturnType<typeof vi.fn<PrivateMediaStore["head"]>>;
-  presignGet: ReturnType<typeof vi.fn<PrivateMediaStore["presignGet"]>>;
-  remove: ReturnType<typeof vi.fn<PrivateMediaStore["remove"]>>;
-}
-
-/**
- * Tienda de videos de mentira con espias: por defecto el objeto existe (MP4),
- * la URL firmada es `https://r2.test/get/{clave}` y `remove` no falla.
- */
-function mockVideoStore(
-  overrides: {
-    head?: PrivateMediaStore["head"];
-    remove?: PrivateMediaStore["remove"];
-  } = {},
-): VideoStoreSpies {
-  const head = vi.fn<PrivateMediaStore["head"]>(
-    overrides.head ??
-      (async () => ({
-        contentLength: 5 * 1024 * 1024,
-        contentType: "video/mp4",
-      })),
-  );
-  const presignGet = vi.fn<PrivateMediaStore["presignGet"]>(
-    async (key) => `https://r2.test/get/${key}`,
-  );
-  const remove = vi.fn<PrivateMediaStore["remove"]>(
-    overrides.remove ?? (async () => undefined),
-  );
-  mockPrivateMedia({ head, presignGet, remove });
-  return { head, presignGet, remove };
 }
 
 /** Corrección PENDIENTE directa en el gimnasio 2 (alumno propio + fila `conquer_members`). */
