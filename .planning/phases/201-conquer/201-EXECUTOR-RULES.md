@@ -375,3 +375,13 @@ Para los planes 202-NN este archivo vale entero, con estos cambios (mandan sobre
   (`correction-schemas.ts` NO importa de `schemas.ts`). App: `who` en minúsculas; el store actualiza `member.corrections` tras
   `seen` y tras crear (o relee `/state`). Tests: corrección `respondida` necesita `repliedAt` + `replyText` o `replyVideoKey`;
   aislamiento: un alumno del gimnasio 2 sin fila `conquer_members` activa da 409 antes del 404. Manifiesto: 521 tras 202-04.
+- (202-05) Rutas del coach en `registerCorrectionAdminRoutes(fastify)` (`correction-routes.ts`, al final de `conquerAdminRoutes`):
+  `GET /corrections` (sin `status` = `pendiente`; inválido → 400 `CONQUER_CORRECCION_ESTADO_INVALIDO`), `GET .../video-url`
+  (mismo contrato que el del alumno; orden 404 → 400 `CONQUER_VIDEO_QUIEN_INVALIDO` → storage; `who` obligatorio), contador, y
+  `DELETE` del video del alumno (devuelve la vista completa con `videoDeleted: true`). Vista `AdminCorrectionView` =
+  `CorrectionView` sin `replyUnseen` + `userId`, `memberName`, `level` (null sin fila conquer_members), `videoDeletedAt`,
+  `repliedByName` (solo nombre de pila), `canReply`; sin claves de video (con `videoDeleted: false` hay clave).
+  `loadCorrectionRows` acepta `orderBy?: "createdAt" | "repliedAt"`. 202-06: UNA update con `WHERE status='pendiente'` y vista con
+  `loadAdminCorrection` + `toAdminCorrectionView`. Tests: 404 cross-tenant con `gym2.adminToken` + `setModuleFlag(app, TENANT_DOS,
+  "templo-training", true)`; `insertGym2Correction` y `mockVideoStore({ head?, remove? })` son locales a
+  `corrections-admin.test.ts` (si otro plan los necesita, MOVERLOS a `_helpers.ts`, no duplicarlos). Manifiesto: 525 tras 202-05.
