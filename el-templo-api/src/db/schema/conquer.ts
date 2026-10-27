@@ -48,6 +48,11 @@ export type ConquerMode = (typeof CONQUER_MODES)[number];
 export const CONQUER_UNITS = ["reps", "s"] as const;
 export type ConquerUnit = (typeof CONQUER_UNITS)[number];
 
+// Fase 201 D-26 (0298): estados de una corrección con video.
+export const CONQUER_CORRECTION_STATUSES = ["pendiente", "respondida"] as const;
+export type ConquerCorrectionStatus =
+  (typeof CONQUER_CORRECTION_STATUSES)[number];
+
 /** Músculo trabajado por un ejercicio (zona anatómica + rol). */
 export interface ConquerMuscle {
   zone: string;
@@ -398,6 +403,108 @@ export const conquerBodyChecks = mysqlTable(
   ],
 );
 
+/**
+ * Fase 201 D-26 (0298): correcciones con video. El alumno manda un video de
+ * hasta 30 s de un escalón o de un combo y el coach responde con texto y/o
+ * video. Las claves de video apuntan al bucket R2 PRIVADO (prefijo
+ * `private/conquer-corrections/`, DA-38) y nunca se loguean.
+ *
+ * El objetivo es un escalón (`exercise_id` + `step`) o un combo (`combo_key`),
+ * nunca los dos (DA-41): lo valida el servicio. Ninguna migración la siembra.
+ */
+export const conquerCorrections = mysqlTable(
+  "conquer_corrections",
+  {
+    id: int("id").primaryKey().autoincrement(),
+    tenantId: tenantIdColumn(),
+    userId: int("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    // DA-41: objetivo escalón (ejercicio + escalón) o combo, uno u otro.
+    exerciseId: int("exercise_id").references(() => conquerExercises.id),
+    step: mysqlEnum("step", CONQUER_STEP_KEYS),
+    comboKey: varchar("combo_key", { length: 16 }),
+    // DA-41: peldaño del escalón en el momento de enviar (los combos van sin).
+    rungId: int("rung_id").references(() => conquerRungs.id, {
+      onDelete: "set null",
+    }),
+    comment: varchar("comment", { length: 500 }),
+    // DA-45: NULL cuando el alumno borró el video (video_deleted_*).
+    videoKey: varchar("video_key", { length: 255 }),
+    videoSeconds: smallint("video_seconds").notNull(),
+    videoDeletedAt: datetime("video_deleted_at"),
+    videoDeletedBy: int("video_deleted_by").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    status: mysqlEnum("status", CONQUER_CORRECTION_STATUSES)
+      .default("pendiente")
+      .notNull(),
+    // DA-43: una sola respuesta, final. Texto, video o ambos.
+    replyText: varchar("reply_text", { length: 1000 }),
+    replyVideoKey: varchar("reply_video_key", { length: 255 }),
+    replyVideoSeconds: smallint("reply_video_seconds"),
+    repliedBy: int("replied_by").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    repliedAt: datetime("replied_at"),
+    // DA-46: NULL = el alumno todavía no vio la respuesta (contador de Inicio).
+    replySeenAt: datetime("reply_seen_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => [
+    // T-201-119: una clave de video no se usa dos veces (MySQL admite varios NULL).
+    uniqueIndex("uq_conquer_corrections_tenant_video_key").on(
+      table.tenantId,
+      table.videoKey,
+    ),
+    index("idx_conquer_corrections_tenant_status").on(
+      table.tenantId,
+      table.status,
+      table.createdAt,
+    ),
+    index("idx_conquer_corrections_tenant_user").on(
+      table.tenantId,
+      table.userId,
+      table.status,
+    ),
+  ],
+);
+
+/**
+ * Fase 201 D-25 (0299): tutoriales en video, uno por ejercicio o por combo.
+ * La clave apunta al bucket PÚBLICO (`conquer/tutorials/...`, DA-48). Ninguna
+ * migración la siembra: los sube el coach desde el admin.
+ */
+export const conquerTutorials = mysqlTable(
+  "conquer_tutorials",
+  {
+    id: int("id").primaryKey().autoincrement(),
+    tenantId: tenantIdColumn(),
+    exerciseId: int("exercise_id").references(() => conquerExercises.id, {
+      onDelete: "cascade",
+    }),
+    // DA-48: un combo (push, pull...) tiene su tutorial aparte del ejercicio.
+    comboKey: varchar("combo_key", { length: 16 }),
+    videoKey: varchar("video_key", { length: 255 }).notNull(),
+    uploadedBy: int("uploaded_by").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("uq_conquer_tutorials_tenant_exercise").on(
+      table.tenantId,
+      table.exerciseId,
+    ),
+    uniqueIndex("uq_conquer_tutorials_tenant_combo").on(
+      table.tenantId,
+      table.comboKey,
+    ),
+  ],
+);
+
 // ── Tipos de fila ───────────────────────────────────────────────────
 
 export type ConquerLadderRow = typeof conquerLadders.$inferSelect;
@@ -410,3 +517,5 @@ export type ConquerSessionRow = typeof conquerSessions.$inferSelect;
 export type ConquerSessionStepRow = typeof conquerSessionSteps.$inferSelect;
 export type ConquerAlertRow = typeof conquerAlerts.$inferSelect;
 export type ConquerBodyCheckRow = typeof conquerBodyChecks.$inferSelect;
+export type ConquerCorrectionRow = typeof conquerCorrections.$inferSelect;
+export type ConquerTutorialRow = typeof conquerTutorials.$inferSelect;
