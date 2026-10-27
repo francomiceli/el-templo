@@ -612,6 +612,10 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   // users/attendance/bookings/wellhub_bookings con tenantWhere (cada tabla unida).
   "GET /api/admin/members/:userId/wellhub": { categoria: "tenant-scoped" },
   "POST /api/admin/members/:userId/app-access": { categoria: "tenant-scoped" },
+  // Fase 204 D-21: unir duplicado Wellhub; escribe users/bookings/attendance/wellhub_bookings/member_notes/audit_log con tenantWhere
+  "POST /api/admin/members/:userId/wellhub-merge": {
+    categoria: "tenant-scoped",
+  },
 
   // ── /api/admin/ratings ────────────────────────────────────────────────────
   // D-04 veredicto (caso 6): confirmadas `tenant-scoped` (core). "Rating de clase"

@@ -349,7 +349,9 @@ import {
 // 2026-10-27: 478 -> 480 por la card Wellhub y el acceso a la app (fase 204-09):
 // GET /api/admin/members/:userId/wellhub y POST /api/admin/members/:userId/app-access,
 // `tenant-scoped`.
-const ENTRADAS_BASELINE = 480;
+// 2026-10-27: 480 -> 481 por la unión de fichas Wellhub (fase 204-10):
+// POST /api/admin/members/:userId/wellhub-merge, `tenant-scoped`.
+const ENTRADAS_BASELINE = 481;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -492,7 +494,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 480 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 481 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(

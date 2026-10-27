@@ -192,7 +192,10 @@ export const EXCEPCIONES_NOMBRADAS: Readonly<Record<string, string>> = {};
 // 2026-10-27: 35 → 37 al agregar GET /api/admin/members/:userId/wellhub y
 // POST /api/admin/members/:userId/app-access (Fase 204-09), con su caso de
 // aislamiento + control en iso-03-members-ficha.test.ts.
-const CASOS_BASELINE = 37;
+// 2026-10-27: 37 → 38 al agregar POST /api/admin/members/:userId/wellhub-merge
+// (Fase 204-10), con su caso de aislamiento (origen y destino ajenos) + control
+// en iso-03-members-ficha.test.ts.
+const CASOS_BASELINE = 38;
 
 /** Los tres archivos de la batería ISO-03 de members. */
 const ARCHIVOS_BATERIA = [
