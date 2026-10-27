@@ -5,7 +5,7 @@
         <q-icon name="chevron_left" size="22px" aria-hidden="true" />
         <span>Guía</span>
       </button>
-      <h1 class="tu-cuerpo__h1">Tu cuerpo</h1>
+      <h1 class="tu-cuerpo__h1">Tus músculos</h1>
     </div>
 
     <div ref="scroller" class="tu-cuerpo__scroll">
@@ -19,62 +19,51 @@
       </div>
 
       <div v-else class="tu-cuerpo__body">
-        <p v-show="!sheetOpen" class="tu-cuerpo__hint">Tocá un músculo</p>
+        <!-- Todo el texto va sobre blanco (sketch 023 "Después"): la ayuda, el selector y la figura
+             comparten una card; el crema queda solo de fondo. -->
+        <div class="tu-cuerpo__card">
+          <p v-show="!sheetOpen" class="tu-cuerpo__hint">Tocá un músculo</p>
 
-        <div class="tu-cuerpo__flip" role="group" aria-label="Vista del cuerpo">
-          <button
-            v-for="op in VISTAS"
-            :key="op.id"
-            type="button"
-            class="tu-cuerpo__flip-btn"
-            :class="{ 'tu-cuerpo__flip-btn--on': vistaActual === op.id }"
-            :aria-pressed="vistaActual === op.id"
-            @click="girar(op.id)"
-          >
-            {{ op.label }}
-          </button>
-        </div>
-
-        <div class="tu-cuerpo__fig">
-          <BodyFigure
-            :side="vistaActual"
-            interactive
-            tap-style="cursor"
-            :lit="zona ? [zona] : []"
-            :selected="zona"
-            :height="sheetOpen ? 300 : 540"
-            @select-zone="onSelectZone"
-          />
-        </div>
-
-        <!-- Equivalente accesible del cuerpo (el SVG es aria-hidden): se ve al enfocarlo con teclado -->
-        <nav class="tu-cuerpo__zonas" aria-label="Zonas del cuerpo">
-          <ul class="tu-cuerpo__zonas-lista">
-            <li v-for="r in regionesVisibles" :key="r.slug">
-              <button
-                type="button"
-                class="tu-cuerpo__pill"
-                @click="onSelectZone(r.slug, vistaDeRegion(r.vista))"
-              >
-                {{ r.nombre }}
-              </button>
-            </li>
-          </ul>
-        </nav>
-
-        <div v-show="!sheetOpen && store.profundos.length > 0" class="tu-cuerpo__deep">
-          <p class="tu-cuerpo__deep-lbl">Los que no se ven (están más adentro):</p>
-          <div class="tu-cuerpo__pills">
+          <div class="tu-cuerpo__flip" role="group" aria-label="Vista del cuerpo">
             <button
-              v-for="m in store.profundos"
-              :key="m.id"
+              v-for="op in VISTAS"
+              :key="op.id"
               type="button"
-              class="tu-cuerpo__pill"
-              @click="onSelectProfundo(m.id)"
+              class="tu-cuerpo__flip-btn"
+              :class="{ 'tu-cuerpo__flip-btn--on': vistaActual === op.id }"
+              :aria-pressed="vistaActual === op.id"
+              @click="girar(op.id)"
             >
-              {{ m.nombre }}
+              {{ op.label }}
             </button>
           </div>
+
+          <div class="tu-cuerpo__fig">
+            <BodyFigure
+              :side="vistaActual"
+              interactive
+              tap-style="cursor"
+              :lit="zona ? [zona] : []"
+              :selected="zona"
+              :height="sheetOpen ? 300 : 540"
+              @select-zone="onSelectZone"
+            />
+          </div>
+
+          <!-- Equivalente accesible del cuerpo (el SVG es aria-hidden): se ve al enfocarlo con teclado -->
+          <nav class="tu-cuerpo__zonas" aria-label="Zonas del cuerpo">
+            <ul class="tu-cuerpo__zonas-lista">
+              <li v-for="r in regionesVisibles" :key="r.slug">
+                <button
+                  type="button"
+                  class="tu-cuerpo__pill"
+                  @click="onSelectZone(r.slug, vistaDeRegion(r.vista))"
+                >
+                  {{ r.nombre }}
+                </button>
+              </li>
+            </ul>
+          </nav>
         </div>
       </div>
     </div>
@@ -86,19 +75,21 @@
       :reset-key="resetKey"
       @update:model-value="onSheetUpdate"
     >
-      <ZonaAlumno :zona="zona" :musculo-id="musculoId" @open-ruta="irAFicha" />
+      <ZonaAlumno :zona="zona" @open-ruta="irAFicha" />
     </AnatomySheet>
   </q-page>
 </template>
 
 <script setup lang="ts">
 /**
- * Fase 200 D14 (sketch 020, "Tu cuerpo"): la figura grande en tono alumno. Tocás una zona y se abre
- * la hoja con qué hace cada músculo y en qué ejercicios lo usás; los músculos profundos van como
- * pills. `?zona=<slug>` (o `?musculo=<id>` para un profundo) abre la hoja al entrar y gira a la vista
- * de esa región; la zona elegida queda en la URL, así volver desde la ficha de un ejercicio deja
- * todo como estaba. Solo existe con ANATOMIA_ALUMNOS_ENABLED (la ruta `tu-cuerpo` no se registra
- * apagado). Slugs y ids de la URL se resuelven contra el store; si no existen se ignoran.
+ * Fase 200 D14 (sketch 020) + revisión 2026-10-23 (sketch 023): "Tus músculos", la figura grande en
+ * tono alumno. Tocás una zona y se abre la hoja con qué hace cada músculo y en qué ejercicios lo
+ * usás; los músculos profundos ("más adentro") ya vienen dentro de la hoja de la zona que tienen
+ * encima. `?zona=<slug>` abre la hoja al entrar y gira a la vista de esa región (`?musculo=<id>` de un
+ * profundo abre la hoja de su zona: son enlaces viejos); la zona elegida queda en la URL, así volver
+ * desde la ficha de un ejercicio deja todo como estaba. Solo existe con ANATOMIA_ALUMNOS_ENABLED (la
+ * ruta `tu-cuerpo` no se registra apagado). Slugs y ids de la URL se resuelven contra el store; si
+ * no existen se ignoran.
  */
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -130,11 +121,10 @@ const $q = useQuasar()
 const scroller = ref<HTMLElement | null>(null)
 const vistaActual = ref<VistaCuerpo>('front')
 const zona = ref<ZoneSlug | null>(null)
-const musculoId = ref<string | null>(null)
 const sheetOpen = ref(false)
 const sheetFull = ref(false)
 
-const resetKey = computed(() => musculoId.value ?? zona.value)
+const resetKey = computed(() => zona.value)
 
 const bottomOffset = computed(() => {
   if ($q.screen.width >= 768) return 0
@@ -178,16 +168,8 @@ function abrirHoja(): void {
 function onSelectZone(slug: ZoneSlug, vista: VistaCuerpo): void {
   vistaActual.value = vista
   zona.value = slug
-  musculoId.value = null
   abrirHoja()
   recordarSeleccion({ zona: slug })
-}
-
-function onSelectProfundo(id: string): void {
-  zona.value = null
-  musculoId.value = id
-  abrirHoja()
-  recordarSeleccion({ musculo: id })
 }
 
 // La hoja se abre/cierra (×, arrastre o handle): al cerrar suelta la selección y limpia la URL.
@@ -195,7 +177,6 @@ function onSheetUpdate(abierta: boolean): void {
   sheetOpen.value = abierta
   if (abierta) return
   zona.value = null
-  musculoId.value = null
   sheetFull.value = false
   recordarSeleccion({})
 }
@@ -210,28 +191,23 @@ function paramTexto(valor: unknown): string | null {
   return typeof v === 'string' && v !== '' ? v : null
 }
 
-/** `?zona=` / `?musculo=` al entrar: abre la hoja y gira a la vista de la región. */
+/** Abre la hoja de una región conocida y gira a su vista. */
+function abrirRegion(slug: ZoneSlug): boolean {
+  const region = store.region(slug)
+  if (!region) return false
+  vistaActual.value = region.vista === 'back' ? 'back' : 'front'
+  zona.value = slug
+  abrirHoja()
+  return true
+}
+
+/** `?zona=` al entrar (o `?musculo=` de un profundo: enlace viejo, abre la hoja de su zona). */
 function aplicarQuery(): void {
   const slug = paramTexto(route.query.zona)
-  if (slug !== null && isZoneSlug(slug)) {
-    const region = store.region(slug)
-    if (region) {
-      vistaActual.value = region.vista === 'back' ? 'back' : 'front'
-      zona.value = slug
-      musculoId.value = null
-      abrirHoja()
-      return
-    }
-  }
+  if (slug !== null && isZoneSlug(slug) && abrirRegion(slug)) return
   const id = paramTexto(route.query.musculo)
-  if (id !== null) {
-    const m = store.musculo(id)
-    if (m && m.zona === null) {
-      zona.value = null
-      musculoId.value = id
-      abrirHoja()
-    }
-  }
+  const debajoDe = id !== null ? store.musculo(id)?.debajoDe : null
+  if (debajoDe) abrirRegion(debajoDe)
 }
 
 onMounted(async () => {
@@ -260,7 +236,7 @@ onMounted(async () => {
   gap: 6px;
   height: 50px;
   padding: 0 8px;
-  background: $brand-cream;
+  background: #fff;
   border-bottom: 1px solid $pd-light-line;
 }
 
@@ -328,15 +304,25 @@ onMounted(async () => {
 }
 
 .tu-cuerpo__body {
-  padding: 8px 16px 20px;
+  padding: 12px 14px 20px;
+}
+
+// Sobre blanco: la ayuda, el selector y la figura (el crema queda solo de fondo)
+.tu-cuerpo__card {
+  padding: 10px 10px 14px;
+  border: 1px solid $pd-light-line;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 4px 14px rgba(150, 89, 58, 0.06);
 }
 
 .tu-cuerpo__hint {
   margin: 4px 0 2px;
   font-family: 'Geologica', sans-serif;
-  font-size: 14px;
+  font-weight: 600;
+  font-size: 15px;
   text-align: center;
-  color: $pd-ink-2;
+  color: $pd-ink;
 }
 
 .tu-cuerpo__flip {
@@ -345,7 +331,7 @@ onMounted(async () => {
   margin: 6px auto 4px;
   padding: 3px;
   border-radius: 999px;
-  background: #e6ddd0;
+  background: #f3ede4;
 }
 
 .tu-cuerpo__flip-btn {
@@ -394,24 +380,6 @@ onMounted(async () => {
   margin: 8px 0 0;
   padding: 0;
   list-style: none;
-}
-
-.tu-cuerpo__deep {
-  margin-top: 10px;
-  text-align: center;
-}
-
-.tu-cuerpo__deep-lbl {
-  margin: 0 0 6px;
-  font-family: 'Geologica', sans-serif;
-  font-size: 12.5px;
-  color: $pd-ink-2;
-}
-
-.tu-cuerpo__pills {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
 }
 
 .tu-cuerpo__pill {

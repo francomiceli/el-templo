@@ -2,8 +2,9 @@
  * Fase 200 D17/D18: hits de "Hoy en tu clase", calculados en el server porque
  * CI no corre tests del app. Por zona del dibujo, qué músculos trabaja fuerte
  * (motor + sinergista), sostiene (estabilizador) o estira (estira) un conjunto
- * de rutas. El antagonista nunca se muestra al alumno (D14) y los músculos sin
- * zona (profundos, D10) no aparecen.
+ * de rutas, y qué rol tiene cada ruta en esa zona. El antagonista nunca se
+ * muestra al alumno (D14). Los músculos profundos (sin zona, D10) cuentan para
+ * la zona de la que cuelgan (`debajoDe`): el manguito suma a Hombros.
  */
 import { MUSCULOS } from "./content/musculos";
 import type { MusculoId } from "./content/musculos";
@@ -20,8 +21,18 @@ import type { EjercicioZonaInput } from "./projection";
 import { GRUPO_DE_ROL, ROLES } from "./types";
 import type { GrupoAlumno } from "./types";
 
+/** Una ruta del bloque que toca la zona, con su grupo más fuerte en ella. */
+export interface RutaHit {
+  /** Código de ruta normalizado (el mismo de `rutasDistintas`). */
+  ruta: string;
+  /** Fuerte > sostiene > estira entre los músculos de la zona en esa ruta. */
+  grupo: GrupoAlumno;
+}
+
 /**
- * Hits de UNA zona. `movilidad`: zona de un bloque ROM sin ruta (el app dice
+ * Hits de UNA zona. `rutas`: una entrada por ruta distinta del bloque que toca
+ * la zona (orden de aparición), para decir "Hace el movimiento en: X ·
+ * Sostiene el movimiento en: Y"; vacío en `movilidad`/`sinDetalle`. `movilidad`: zona de un bloque ROM sin ruta (el app dice
  * "Trabaja la movilidad de esta zona"). `sinDetalle`: zona de un ejercicio sin
  * ruta en el modelo (PLYO/POTENCIA/KL, D2): el app dice "Este bloque trabaja
  * esta zona", sin músculos ni roles.
@@ -30,18 +41,31 @@ export interface HitsZona {
   fuerte: MusculoId[];
   sostiene: MusculoId[];
   estira: MusculoId[];
+  rutas: RutaHit[];
   movilidad?: true;
   sinDetalle?: true;
 }
 
-/** Músculos con zona: id, zona y posición en `MUSCULOS` (orden de salida). */
+/** Prioridad de grupo (menor = más fuerte) para elegir el de la ruta en la zona. */
+const PRIORIDAD_GRUPO: Readonly<Record<GrupoAlumno, number>> = {
+  fuerte: 0,
+  sostiene: 1,
+  estira: 2,
+};
+
+/**
+ * Músculos con zona de hits: id, zona y posición en `MUSCULOS` (orden de
+ * salida). Los profundos cuentan en la región de su `debajoDe`.
+ */
 const MUSCULO_CON_ZONA: ReadonlyMap<
   string,
   { id: MusculoId; zona: ZonaSlug; orden: number }
 > = new Map(
   MUSCULOS.flatMap(
-    (m, orden): [string, { id: MusculoId; zona: ZonaSlug; orden: number }][] =>
-      m.zona ? [[m.id, { id: m.id, zona: m.zona.slug, orden }]] : [],
+    (m, orden): [string, { id: MusculoId; zona: ZonaSlug; orden: number }][] => {
+      const zona = m.zona?.slug ?? ("debajoDe" in m ? m.debajoDe : undefined);
+      return zona ? [[m.id, { id: m.id, zona, orden }]] : [];
+    },
   ),
 );
 
@@ -71,12 +95,15 @@ export function rutasDistintas(
  * Hits por zona de un conjunto de rutas. Cada rol con grupo de alumno
  * (`GRUPO_DE_ROL`) suma el id del músculo al grupo de su zona, sin repetir; los
  * ids salen en el orden de `MUSCULOS` y las zonas en el de `ZONAS_ORDEN`. Un
- * código que no está en el modelo se ignora. Sin claves vacías.
+ * código que no está en el modelo se ignora. Sin claves vacías. `rutas`: por
+ * zona, cada ruta que la toca (orden de `codes`, sin repetir) con su grupo más
+ * fuerte.
  */
 export function zoneHitsDeRutas(
   codes: readonly string[],
 ): Partial<Record<ZonaSlug, HitsZona>> {
   const acumulado = new Map<ZonaSlug, Record<GrupoAlumno, Set<MusculoId>>>();
+  const rutasPorZona = new Map<ZonaSlug, Map<string, GrupoAlumno>>();
   for (const code of codes) {
     const ruta = RUTAS_POR_CODIGO.get(normalizarCodigo(code));
     if (!ruta) continue;
@@ -96,6 +123,18 @@ export function zoneHitsDeRutas(
           acumulado.set(musculo.zona, porGrupo);
         }
         porGrupo[grupo].add(musculo.id);
+        let deRutas = rutasPorZona.get(musculo.zona);
+        if (!deRutas) {
+          deRutas = new Map();
+          rutasPorZona.set(musculo.zona, deRutas);
+        }
+        const previo = deRutas.get(ruta.code);
+        if (
+          previo === undefined ||
+          PRIORIDAD_GRUPO[grupo] < PRIORIDAD_GRUPO[previo]
+        ) {
+          deRutas.set(ruta.code, grupo);
+        }
       }
     }
   }
@@ -107,6 +146,10 @@ export function zoneHitsDeRutas(
       fuerte: [...porGrupo.fuerte].sort((a, b) => ordenDe(a) - ordenDe(b)),
       sostiene: [...porGrupo.sostiene].sort((a, b) => ordenDe(a) - ordenDe(b)),
       estira: [...porGrupo.estira].sort((a, b) => ordenDe(a) - ordenDe(b)),
+      rutas: [...(rutasPorZona.get(zona) ?? [])].map(([ruta, grupo]) => ({
+        ruta,
+        grupo,
+      })),
     };
   }
   return out;
@@ -140,8 +183,8 @@ export function zoneHitsDelBloque(
       out[zona] = propios;
     } else if (pintadas.includes(zona)) {
       out[zona] = esFallbackRom
-        ? { fuerte: [], sostiene: [], estira: [], movilidad: true }
-        : { fuerte: [], sostiene: [], estira: [], sinDetalle: true };
+        ? { fuerte: [], sostiene: [], estira: [], rutas: [], movilidad: true }
+        : { fuerte: [], sostiene: [], estira: [], rutas: [], sinDetalle: true };
     }
   }
   return out;

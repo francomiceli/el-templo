@@ -21,13 +21,13 @@
         </span>
       </button>
 
-      <!-- Tu cuerpo: blanca con el cuerpo encendido asomando a la derecha. -->
+      <!-- Tus músculos: blanca con el cuerpo encendido asomando a la derecha. -->
       <button type="button" class="guia-home__card guia-home__card--cuerpo" @click="abrirTuCuerpo">
         <span class="guia-home__fig" aria-hidden="true">
           <BodyFigure side="front" :lit="[]" :roles="HUB_ROLES" :height="380" />
         </span>
         <span class="guia-home__in guia-home__in--cuerpo">
-          <span class="guia-home__kicker">Tu cuerpo</span>
+          <span class="guia-home__kicker">Tus músculos</span>
           <span class="guia-home__ttl">Qué trabaja cada ejercicio</span>
           <span class="guia-home__txt">
             Tocá un músculo: qué hace y en qué ejercicios lo usás.
@@ -156,9 +156,12 @@ function abrirTuCuerpo(): void {
   max-width: 58%;
 }
 
+// Kicker en sans bold (Montserrat 800, como el rol de los bloques): Cinzel a 11 px se leía finito.
 .guia-home__kicker {
-  @include pd-kicker-light;
+  @include pd-role-label;
   display: block;
+  font-size: 12px;
+  letter-spacing: 0.1em;
 }
 
 .guia-home__kicker--dark {

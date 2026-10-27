@@ -21,7 +21,7 @@ function block(fields: Partial<Block>): Block {
 }
 
 describe('playerRoleLabel', () => {
-  it('INITIUM se rotula "Pyros" en el player (override intencional)', () => {
+  it('INITIUM se rotula "Pyros"', () => {
     expect(playerRoleLabel('INITIUM')).toBe('Pyros')
   })
 
@@ -39,7 +39,7 @@ describe('playerHeaderLines', () => {
     expect(lines.name).toBe('Planche')
   })
 
-  it('sesión: INITIUM conserva el kicker "Pyros"', () => {
+  it('sesión: INITIUM lleva el kicker "Pyros"', () => {
     const lines = playerHeaderLines(block({ role: 'INITIUM', route: 'PL' }), 'session')
     expect(lines.kicker).toBe('Pyros')
   })
@@ -56,9 +56,9 @@ describe('playerHeaderLines', () => {
     expect(lines.name).toBe('Planche')
   })
 
-  it('libre: INITIUM NO lleva el override (queda "Initium")', () => {
+  it('libre: INITIUM también es "Pyros"', () => {
     const lines = playerHeaderLines(block({ role: 'INITIUM' }), 'free')
-    expect(lines.kicker).toBe('Bloque libre · Initium')
+    expect(lines.kicker).toBe('Bloque libre · Pyros')
     expect(lines.name).toBe('Entrada en calor')
   })
 })

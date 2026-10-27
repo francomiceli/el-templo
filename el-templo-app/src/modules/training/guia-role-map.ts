@@ -27,7 +27,7 @@ export interface GuiaLinkTarget {
 }
 
 const GUIA_ROLE_MAP: Partial<Record<BlockRole, GuiaLinkTarget>> = {
-  INITIUM: { slide: 'clase', question: '¿Qué es Initium?' },
+  INITIUM: { slide: 'clase', question: '¿Qué es Pyros?' },
   NUCLEUS: { slide: 'clase', question: '¿Qué es Nucleus?' },
   DEUTEROS_1: { slide: 'clase', question: '¿Qué es Deuteros?' },
   DEUTEROS_2: { slide: 'clase', question: '¿Qué es Deuteros?' },

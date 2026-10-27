@@ -8,14 +8,9 @@ import type { Block, BlockRole } from '../types/session'
 import { blockDisplayName, formatLabel, keepHyphenWords } from './blockMeta'
 import { getRouteName } from './routeNames'
 
-// Override intencional (confirmado con Franco, fase 160-05): el player históricamente rotula
-// INITIUM como 'Pyros'; el resto del app usa el canónico 'Initium' del diccionario centralizado
-// (roleLabels.ts). NO propagar este override a otras superficies.
-const LABEL_OVERRIDES: Partial<Record<BlockRole, string>> = { INITIUM: 'Pyros' }
-
-/** Rótulo del rol dentro del player de sesión ('Pyros' por INITIUM) */
+/** Rótulo del rol dentro del player de sesión */
 export function playerRoleLabel(role: BlockRole): string {
-  return LABEL_OVERRIDES[role] ?? ROLE_LABELS[role] ?? role
+  return ROLE_LABELS[role] ?? role
 }
 
 export interface PlayerHeaderLines {

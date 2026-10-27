@@ -80,6 +80,24 @@
               label="Programada"
               class="q-mr-xs"
             />
+            <q-badge
+              v-if="novedadPushStatus(row) === 'pending'"
+              color="grey-7"
+              text-color="white"
+              label="Push pendiente"
+              class="q-mr-xs"
+            >
+              <q-tooltip>Sale como notificación al publicarse.</q-tooltip>
+            </q-badge>
+            <q-badge
+              v-else-if="novedadPushStatus(row) === 'sent'"
+              color="positive"
+              text-color="white"
+              label="Push enviada"
+              class="q-mr-xs"
+            >
+              <q-tooltip>Enviada el {{ formatPublishAt(row.pushQueuedAt ?? '') }}</q-tooltip>
+            </q-badge>
           </template>
         </ComunicacionCard>
       </div>
@@ -111,6 +129,7 @@ import {
   formatPublishAt,
   isScheduled,
   novedadDestinationLabel,
+  novedadPushStatus,
   relativeDaysLabel,
   visibleNovedadesForBranch,
 } from 'src/utils/novedades';
