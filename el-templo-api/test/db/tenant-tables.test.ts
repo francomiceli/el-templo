@@ -121,12 +121,14 @@ describe("tenant-tables — clasificación canónica de tablas (COL-01)", () => 
     // fase 199, mig 0279: 102 -> 103, 4 -> 5, 106 -> 108.
     // 2026-10-20 sumó `extra_blocks_completed` (fase 197, mig 0286, nace strict
     // en `free-blocks`): 103 -> 104, 108 -> 109.
-    expect(GYM_OWNED_TABLES.length).toBe(104);
+    // 2026-10-27 sumó `wellhub_conversions` (fase 204, mig 0300, nace strict en
+    // `wellhub`): 104 -> 105, 109 -> 110.
+    expect(GYM_OWNED_TABLES.length).toBe(105);
     expect(TENANT_EXEMPT_TABLES.length).toBe(5);
     // Sin duplicados dentro de cada lista.
     expect(gymOwned.size).toBe(GYM_OWNED_TABLES.length);
     expect(exempt.size).toBe(TENANT_EXEMPT_TABLES.length);
-    expect(schemaTables.size).toBe(109);
+    expect(schemaTables.size).toBe(110);
     expect(gymOwned.size + exempt.size).toBe(schemaTables.size);
   });
 
@@ -403,8 +405,8 @@ describe("TENANT_STRICT_MODULES (fase 170, D-05/D-06)", () => {
    * `campaigns`; `improvement_proposals`; `device_tokens`,
    * `notification_preferences`, `notification_templates`,
    * `pending_notifications`; `referral_credits`, `referral_cta_clicks`,
-   * `referrals`; `wellhub_bookings`, `wellhub_classes`, `wellhub_events`,
-   * `wellhub_slots`. `analytics` NO está: no posee ninguna tabla propia
+   * `referrals`; `wellhub_bookings`, `wellhub_classes`, `wellhub_conversions`
+   * (fase 204), `wellhub_events`, `wellhub_slots`. `analytics` NO está: no posee ninguna tabla propia
    * (D-01, fase 175.1) — ver el docblock de `TENANT_STRICT_MODULES`.
    * `aura_balances` / `aura_transactions` NO están: las escribe gamification y
    * su throw llega con la adopción de ESE módulo.
@@ -485,6 +487,7 @@ describe("TENANT_STRICT_MODULES (fase 170, D-05/D-06)", () => {
     wellhub: [
       "wellhub_bookings",
       "wellhub_classes",
+      "wellhub_conversions",
       "wellhub_events",
       "wellhub_slots",
     ],

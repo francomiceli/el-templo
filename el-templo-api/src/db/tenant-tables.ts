@@ -180,6 +180,7 @@ export const GYM_OWNED_TABLES = [
   "weekly_rotator",
   "wellhub_bookings",
   "wellhub_classes",
+  "wellhub_conversions",
   "wellhub_events",
   "wellhub_slots",
 ] as const;
@@ -686,6 +687,7 @@ export const TENANT_STRICT_MODULES: Record<string, readonly string[]> = {
   wellhub: [
     "wellhub_bookings",
     "wellhub_classes",
+    "wellhub_conversions",
     "wellhub_events",
     "wellhub_slots",
   ],
