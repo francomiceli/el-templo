@@ -56,6 +56,7 @@ El recorrido: primero se cierra la **fase de diseño bloqueante** (las 7 definic
 - [ ] **Phase 194: Invitaciones (fuera del milestone)** - Referidos → Invitaciones: 3 accesos gratis en prueba, cupo 2/mes, ventana 90 días, descuento por conversión con flag por plan, leads con origen Invitación
 - [ ] **Phase 197: Entrenar en tabs + canasta + bloque libre (fuera del milestone)** - Entrenar con 4 tabs (Semana · Libre · Desafíos · Conquer), canasta de bloques de su subnivel filtrada por figura tocable, bloque libre en el player con +5 AURA (primero del día que llega a 10')
 - [ ] **Phase 200: Anatomía funcional (fuera del milestone)** - Un solo modelo de contenido (archivos) músculo ↔ zona ↔ ruta ↔ rol que reemplaza a `muscle-zones.ts`, con la sección Anatomía del admin para profes, la Guía partida en dos (Empezá acá + Tu cuerpo) y el cuerpo tocable en Entrenar
+- [ ] **Phase 204: Usuarios Wellhub como tipo de usuario (fuera del milestone)** - Distinguir a quien usa Wellhub en admin, Horarios y métricas — visitantes nuevos, ex-alumnos y socios activos vinculados por email — y que sus reservas no toquen el plan del socio
 
 ## Phase Details
 
@@ -514,3 +515,36 @@ Plans:
 - [x] 200-22-PLAN.md — Fichas BRIDGE, SIDE PCK, PIKE, AF
 - [x] 200-23-PLAN.md — Cierre: coherencia estricta, barrido, UAT y firma de validación
 
+### Phase 204: Usuarios Wellhub como tipo de usuario (fuera del milestone v6.1)
+
+**Goal**: El staff distingue a quien viene por Wellhub (visitante nuevo, ex-alumno o socio activo vinculado por email) en el admin y en Horarios, las métricas separan la actividad Wellhub de la de socios, y una reserva o visita Wellhub nunca afecta el plan de un socio
+**Depends on**: integración Wellhub en prod (piloto Moreno, gym 856836, master `66939bec8` 2026-10-27). Base `origin/master` `3bf682d95`
+**Requirements**: inventario `204-INVENTARIO.md`; decisiones a tomar en discuss-phase
+**Success Criteria** (what must be TRUE):
+
+1. Admin: estado 'wellhub' con label, color y filtro propios (hoy badge vacío, filtro rechazado con 400, export en blanco); la etiqueta "Wellhub" sale de `gympass_id` y es permanente aunque el estado cambie
+2. Ex-alumnos y socios activos vinculados por email se ven como tales + Wellhub; los ex-alumnos salen de la campaña `bajas`
+3. Horarios: el roster de la clase marca las reservas/asistencias Wellhub antes y después del check-in
+4. Métricas de asistencia, no-show, embudo y log de accesos separan Wellhub de socios; existe un reporte Wellhub por sede (visitas/mes, conversión Wellhub → socio)
+5. Un no-show o una visita Wellhub no descuenta clases ni consume el límite diario/semanal del plan de un socio activo
+6. Tests de integración cubren los tres casos (visitante nuevo, ex-alumno, socio activo)
+
+**Plans:** 16 plans (16 olas secuenciales — ejecutores comparten worktree)
+
+Plans:
+- [x] 204-01-PLAN.md — Migración 0300 (attendance_source += wellhub_manual, tabla wellhub_conversions) + gates de tenancy
+- [x] 204-02-PLAN.md — Helper wellhub-sources + fixtures de las 3 personas + fugas D-18 de asistencia (no-show, QR, límites)
+- [x] 204-03-PLAN.md — Fugas D-18 de reservas (límites semanal/presupuesto/bonus, regla del día) + guards del webhook
+- [x] 204-04-PLAN.md — Presente a mano Wellhub (D-19): coachCheckIn/removeCheckIn + upgrade a validada
+- [x] 204-05-PLAN.md — Reservas Wellhub no cancelables por staff ni socio; ciclo del plan y baja no las tocan (D-11/D-24/D-25)
+- [x] 204-06-PLAN.md — Horarios API: origen de la reserva en ambos rosters (D-10)
+- [x] 204-07-PLAN.md — Members API: etiqueta Wellhub, status=wellhub, Solo Wellhub, export, buscador, bajas (D-01..D-12)
+- [x] 204-08-PLAN.md — Evento de conversión Wellhub → socio en recomputeUserStatus + embudo entryOrigin wellhub (D-04/D-23/D-15)
+- [x] 204-09-PLAN.md — API card Wellhub de la ficha + POST app-access (D-20/D-26) + ISO-01/ISO-03
+- [x] 204-10-PLAN.md — API unir duplicado Wellhub (D-05/D-21) transaccional con auditoría + ISO-03
+- [x] 204-11-PLAN.md — API reporte Wellhub por sede y mes + categoría Wellhub en log de accesos (D-16/D-14)
+- [x] 204-12-PLAN.md — Admin: estado/etiqueta Wellhub, toggle Solo Wellhub, fuentes de asistencia
+- [x] 204-13-PLAN.md — Admin: chip y cancelación deshabilitada en Horarios + aviso en Cobros (D-09/D-10/D-11)
+- [x] 204-14-PLAN.md — Admin: card Wellhub en la ficha, Asociar al templo, Enviar acceso a la app
+- [x] 204-15-PLAN.md — Admin: diálogo Unir con alumno existente (D-21)
+- [x] 204-16-PLAN.md — Admin: pestaña Reportes › Wellhub + filtro Wellhub del log de accesos

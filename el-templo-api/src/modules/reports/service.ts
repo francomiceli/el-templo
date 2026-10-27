@@ -23,6 +23,7 @@ import { firmMoneySqlFor } from "../finance/firm-money";
 import { buildMemberNameSearchCondition } from "../shared/member-search";
 import { activeMemberExists } from "../shared/active-member";
 import { notTrialPlanSql } from "../shared/membership";
+import { WELLHUB_ATTENDANCE_SOURCES } from "../shared/wellhub-sources";
 import { ForbiddenError, NotFoundError } from "../shared/errors";
 import { assertBranchInEnforcedScope } from "../shared/branch-access";
 import {
@@ -505,6 +506,18 @@ function deriveEffectiveDateAndLabelOB(input: {
   };
 }
 
+/**
+ * Etiqueta visible de cada fuente del log de accesos (xlsx; Fase 204, D-14). Un
+ * solo mapa para todo sitio que rotule la fuente: las visitas Wellhub ya no salen
+ * como "Manual".
+ */
+export const ACCESS_SOURCE_LABELS: Record<AccessReportRow["source"], string> = {
+  qr: "QR",
+  manual: "Manual",
+  wellhub: "Wellhub",
+  wellhub_manual: "Wellhub (a mano)",
+};
+
 export class ReportsService {
   private settingsService: SettingsService;
 
@@ -651,7 +664,7 @@ export class ReportsService {
       memberName: `${r.memberFirstName ?? ""} ${r.memberLastName ?? ""}`.trim(),
       memberId: r.memberId,
       branchName: r.branchName,
-      source: r.source as "qr" | "manual",
+      source: r.source as AccessReportRow["source"],
       scheduleSlot: r.scheduleId
         ? (scheduleMap.get(r.scheduleId) ?? null)
         : null,
@@ -2748,7 +2761,8 @@ export class ReportsService {
     const linkRows = await this.db
       .select({
         bookingId: schema.trialFollowups.bookingId,
-        rescheduledFromBookingId: schema.trialFollowups.rescheduledFromBookingId,
+        rescheduledFromBookingId:
+          schema.trialFollowups.rescheduledFromBookingId,
       })
       .from(schema.trialFollowups)
       .where(tenantWhere(schema.trialFollowups, ctx));
@@ -2839,7 +2853,8 @@ export class ReportsService {
       const endTime = r.end_time.slice(0, 5);
       const lead = trimJoin(r.first_name, r.last_name);
       const converted = r.converted_at !== null;
-      const branchCountry: "AR" | "ES" = r.branch_country === "ES" ? "ES" : "AR";
+      const branchCountry: "AR" | "ES" =
+        r.branch_country === "ES" ? "ES" : "AR";
 
       const shifts: TrialShiftConfig = {
         morningStart: r.trial_morning_start,
@@ -2851,7 +2866,11 @@ export class ReportsService {
       // D-01 (SPEC decisión #1): Asistió si hay presente; si no, No asistió
       // SOLO cuando la clase YA TERMINÓ (inicio+duración, tz de sede) — NO
       // existe "asistencia sin cargar". Antes de eso, Agendada (null).
-      const classEnd = buildClassDateTime(bookingDate, endTime, r.branch_timezone);
+      const classEnd = buildClassDateTime(
+        bookingDate,
+        endTime,
+        r.branch_timezone,
+      );
       const attendedBool: boolean | null =
         r.attendance_id !== null
           ? true
@@ -2878,7 +2897,10 @@ export class ReportsService {
 
       const hasRescheduleChild = childOf.has(r.booking_id);
       const depth = chainDepth(r.booking_id);
-      const isFinalAllowedSession = !canRescheduleAtDepth(depth, maxReschedules);
+      const isFinalAllowedSession = !canRescheduleAtDepth(
+        depth,
+        maxReschedules,
+      );
 
       const sessionStatus = deriveSessionStatus({
         hasRescheduleChild,
@@ -2932,7 +2954,10 @@ export class ReportsService {
             r.m1_sent_by !== null
               ? {
                   userId: r.m1_sent_by,
-                  name: trimJoin(r.m1_sent_by_first_name, r.m1_sent_by_last_name),
+                  name: trimJoin(
+                    r.m1_sent_by_first_name,
+                    r.m1_sent_by_last_name,
+                  ),
                 }
               : null,
         });
@@ -2945,7 +2970,10 @@ export class ReportsService {
             r.m2_sent_by !== null
               ? {
                   userId: r.m2_sent_by,
-                  name: trimJoin(r.m2_sent_by_first_name, r.m2_sent_by_last_name),
+                  name: trimJoin(
+                    r.m2_sent_by_first_name,
+                    r.m2_sent_by_last_name,
+                  ),
                 }
               : null,
         });
@@ -2958,7 +2986,10 @@ export class ReportsService {
             r.m3_sent_by !== null
               ? {
                   userId: r.m3_sent_by,
-                  name: trimJoin(r.m3_sent_by_first_name, r.m3_sent_by_last_name),
+                  name: trimJoin(
+                    r.m3_sent_by_first_name,
+                    r.m3_sent_by_last_name,
+                  ),
                 }
               : null,
         });
@@ -3290,7 +3321,13 @@ export class ReportsService {
     }
 
     if (filters.source) {
-      conditions.push(eq(schema.attendance.source, filters.source));
+      // Fase 204 (D-14): "wellhub" es UNA categoría para el staff, pero en la base son
+      // dos valores (validada por Wellhub y marcada a mano): se expande a ambos.
+      conditions.push(
+        filters.source === "wellhub"
+          ? inArray(schema.attendance.source, [...WELLHUB_ATTENDANCE_SOURCES])
+          : eq(schema.attendance.source, filters.source),
+      );
     }
 
     if (filters.search) {

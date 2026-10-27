@@ -60,7 +60,10 @@ export type AuditAction =
   // distinto ya guardado en la ficha. Guarda el anterior para poder recuperarlo.
   | "invitation_phone_replaced"
   // Cierre forzado de una jornada del staff por owner/admin (2026-10-08).
-  | "staff_shift_forced_checkout";
+  | "staff_shift_forced_checkout"
+  // Fase 204 (D-21): un duplicado Wellhub puro se unió con un alumno existente.
+  // El payload guarda el id/mail absorbido, el gympass_id y cuánto se movió.
+  | "wellhub_member_merged";
 
 export type AuditTargetKind =
   | "subscription"

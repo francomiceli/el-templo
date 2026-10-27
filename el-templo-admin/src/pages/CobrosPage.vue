@@ -198,7 +198,15 @@
                   <template #option="scope">
                     <q-item v-bind="scope.itemProps">
                       <q-item-section>
-                        <q-item-label>{{ scope.opt.displayLabel }}</q-item-label>
+                        <q-item-label>
+                          {{ scope.opt.displayLabel }}
+                          <q-badge
+                            v-if="scope.opt.isWellhub"
+                            :color="WELLHUB_COLOR"
+                            :label="WELLHUB_LABEL"
+                            class="q-ml-xs"
+                          />
+                        </q-item-label>
                         <q-item-label v-if="scope.opt.planLabel" caption>
                           {{ scope.opt.planLabel }}
                         </q-item-label>
@@ -1003,6 +1011,7 @@ import { useSubscriptionsApi } from 'src/composables/useSubscriptionsApi';
 import { useAuthStore } from 'src/stores/useAuthStore';
 import { isBranchScopedRole } from 'src/utils/branch-scope';
 import { PAYMENT_METHOD_LABELS, PAYMENT_METHOD_COLORS } from 'src/types/transaction';
+import { WELLHUB_COLOR, WELLHUB_LABEL } from 'src/utils/wellhub-label';
 import { PLAN_TIER_LABELS, isInvitationPlan } from 'src/types/subscription';
 import type { PaymentMethod, TransactionListItem } from 'src/types/transaction';
 import type { BranchOption, UserStatus } from 'src/types/member';
@@ -1041,6 +1050,9 @@ interface MemberSearchOption {
    *  sede que la del admin_sede (picker con `includeOtherBranches`). */
   isOtherBranch: boolean;
   visitorBranchName: string | null;
+  /** Fase 204 (D-09): persona Wellhub que todavía no es socia (visitante o
+   *  ex-alumno vinculado). No se le cobra desde acá: se la manda a su ficha. */
+  isWellhub: boolean;
 }
 
 // ─── Wizard step state ──────────────────────────────────────────────────────
@@ -1693,6 +1705,12 @@ async function onDniBlur() {
 function onUsarExistente() {
   const m = dedupMatch.value;
   if (!m) return;
+  // Fase 204 (D-09): un visitante Wellhub (estado `wellhub`) que coincide por
+  // DNI tampoco se cobra desde acá: se lo manda a su ficha para asociarlo.
+  if (m.status === 'wellhub') {
+    redirectWellhubToFicha({ id: m.id, displayLabel: dedupMatchName.value });
+    return;
+  }
   selectedMember.value = {
     id: m.id,
     displayLabel: dedupMatchName.value,
@@ -1705,6 +1723,7 @@ function onUsarExistente() {
     // un visitante (feat/admin-sede-visitantes).
     isOtherBranch: false,
     visitorBranchName: null,
+    isWellhub: false,
   };
   resetAltaFields();
   // WR-02: adoptar un socio existente vía dedup debe cargar su autocompletar
@@ -2010,6 +2029,7 @@ function buildMemberOption(m: {
   status: UserStatus | null;
   isOtherBranch?: boolean;
   visitorBranchName?: string | null;
+  showWellhubLabel?: boolean;
 }): MemberSearchOption {
   let statusLabel = 'Sin plan';
   let statusColor = 'grey';
@@ -2031,7 +2051,24 @@ function buildMemberOption(m: {
     planLabel: m.planName,
     isOtherBranch: m.isOtherBranch === true,
     visitorBranchName: m.visitorBranchName ?? null,
+    isWellhub: m.showWellhubLabel === true,
   };
+}
+
+// Fase 204 (D-09): a una persona Wellhub no se le cobra un plan desde Cobros
+// sin pasar por la conversión de su ficha (`?asociar=1` abre el CTA). Se
+// limpia siempre la selección para que ningún modo de cobro pueda seguir.
+function redirectWellhubToFicha(option: Pick<MemberSearchOption, 'id' | 'displayLabel'>): void {
+  selectedMember.value = null;
+  $q.dialog({
+    title: 'Viene por Wellhub',
+    message: `${option.displayLabel} usa Wellhub. Para cobrarle un plan, asocialo al templo desde su ficha.`,
+    cancel: { flat: true, label: 'Cancelar' },
+    ok: { color: 'primary', label: 'Ir a la ficha' },
+    persistent: true,
+  }).onOk(() => {
+    void router.push({ path: `/alumnos/${option.id}`, query: { asociar: '1' } });
+  });
 }
 
 function onMemberSearch(val: string, update: (fn: () => void) => void, _abort: () => void) {
@@ -2180,6 +2217,10 @@ async function onMemberSelected() {
   resetChargeFields();
   resetAltaFields();
   if (!selectedMember.value) return;
+  if (selectedMember.value.isWellhub) {
+    redirectWellhubToFicha(selectedMember.value);
+    return;
+  }
   await loadAutocompletar(selectedMember.value.id);
 }
 
@@ -2496,7 +2537,13 @@ async function applyMemberDeepLink() {
   if (!Number.isInteger(memberId) || memberId <= 0) return;
   try {
     const m = await membersApi.getMember(memberId);
-    selectedMember.value = buildMemberOption(m);
+    const option = buildMemberOption(m);
+    if (option.isWellhub) {
+      // Fase 204 (D-09): no se precarga una persona Wellhub en el cobro.
+      redirectWellhubToFicha(option);
+      return;
+    }
+    selectedMember.value = option;
     resetAltaFields();
     await loadAutocompletar(m.id);
     // Entrar al paso Socio (no dejar el wizard en la portada 0).

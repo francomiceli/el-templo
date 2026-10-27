@@ -26,7 +26,7 @@
  * `resolveAudience`; it never derives the count from `.length`.
  */
 import type { MySql2Database } from "drizzle-orm/mysql2";
-import { and, eq, sql, type SQL } from "drizzle-orm";
+import { and, eq, isNull, sql, type SQL } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { BadRequestError } from "../shared/errors";
@@ -136,6 +136,9 @@ function bajasConditions(): SQL[] {
      resolveAudience/countAudience, que combinan este array (D-02) */
   return [
     eq(u.status, "inactivo"),
+    // Fase 204 D-12: el ex-alumno que ya viene por Wellhub sale de bajas (se
+    // recupera en persona o desde su ficha).
+    isNull(u.gympassId),
     sql`EXISTS (
       SELECT 1 FROM ${s}
       WHERE ${s.userId} = ${u.id}

@@ -269,8 +269,21 @@
                     @click="onMemberNameClick(booking)"
                     >{{ booking.memberName }}</q-item-label
                   >
-                  <q-item-label v-if="isVisitorBooking(booking)" caption>
-                    <q-badge color="warning" :label="`Visita · ${booking.memberBranchName}`" />
+                  <q-item-label
+                    v-if="isVisitorBooking(booking) || isWellhubBooking(booking)"
+                    caption
+                  >
+                    <q-badge
+                      v-if="isVisitorBooking(booking)"
+                      color="warning"
+                      :label="`Visita · ${booking.memberBranchName}`"
+                    />
+                    <q-badge
+                      v-if="isWellhubBooking(booking)"
+                      :color="WELLHUB_COLOR"
+                      :label="WELLHUB_LABEL"
+                      :class="{ 'q-ml-xs': isVisitorBooking(booking) }"
+                    />
                   </q-item-label>
                 </q-item-section>
                 <q-item-section side>
@@ -325,6 +338,12 @@
                     :label="`Visita · ${booking.memberBranchName}`"
                     class="q-ml-xs"
                   />
+                  <q-badge
+                    v-if="isWellhubBooking(booking)"
+                    :color="WELLHUB_COLOR"
+                    :label="WELLHUB_LABEL"
+                    class="q-ml-xs"
+                  />
                 </q-item-label>
               </q-item-section>
               <q-item-section side>
@@ -333,17 +352,23 @@
                     :color="getBookingStatusColor(booking.status)"
                     :label="getBookingStatusLabel(booking.status)"
                   />
-                  <q-btn
-                    flat
-                    dense
-                    round
-                    icon="delete"
-                    color="negative"
-                    size="sm"
-                    @click="onRemoveBooking(booking.id)"
-                  >
-                    <q-tooltip>Eliminar reserva</q-tooltip>
-                  </q-btn>
+                  <span>
+                    <q-btn
+                      flat
+                      dense
+                      round
+                      icon="delete"
+                      color="negative"
+                      size="sm"
+                      :disable="isWellhubBooking(booking)"
+                      @click="onRemoveBooking(booking.id)"
+                    >
+                      <q-tooltip v-if="!isWellhubBooking(booking)">Eliminar reserva</q-tooltip>
+                    </q-btn>
+                    <q-tooltip v-if="isWellhubBooking(booking)">{{
+                      WELLHUB_MANAGED_TOOLTIP
+                    }}</q-tooltip>
+                  </span>
                 </div>
               </q-item-section>
             </q-item>
@@ -373,6 +398,12 @@
                       :label="`Visita · ${booking.memberBranchName}`"
                       class="q-ml-xs"
                     />
+                    <q-badge
+                      v-if="isWellhubBooking(booking)"
+                      :color="WELLHUB_COLOR"
+                      :label="WELLHUB_LABEL"
+                      class="q-ml-xs"
+                    />
                   </q-item-label>
                 </q-item-section>
                 <q-item-section side>
@@ -382,17 +413,23 @@
                       :label="getBookingStatusLabel(booking.status)"
                     />
                     <q-badge color="warning" label="PRUEBA" />
-                    <q-btn
-                      flat
-                      dense
-                      round
-                      icon="delete"
-                      color="negative"
-                      size="sm"
-                      @click="onRemoveBooking(booking.id)"
-                    >
-                      <q-tooltip>Eliminar reserva</q-tooltip>
-                    </q-btn>
+                    <span>
+                      <q-btn
+                        flat
+                        dense
+                        round
+                        icon="delete"
+                        color="negative"
+                        size="sm"
+                        :disable="isWellhubBooking(booking)"
+                        @click="onRemoveBooking(booking.id)"
+                      >
+                        <q-tooltip v-if="!isWellhubBooking(booking)">Eliminar reserva</q-tooltip>
+                      </q-btn>
+                      <q-tooltip v-if="isWellhubBooking(booking)">{{
+                        WELLHUB_MANAGED_TOOLTIP
+                      }}</q-tooltip>
+                    </span>
                   </div>
                 </q-item-section>
               </q-item>
@@ -424,6 +461,12 @@
                       :label="`Visita · ${booking.memberBranchName}`"
                       class="q-ml-xs"
                     />
+                    <q-badge
+                      v-if="isWellhubBooking(booking)"
+                      :color="WELLHUB_COLOR"
+                      :label="WELLHUB_LABEL"
+                      class="q-ml-xs"
+                    />
                   </q-item-label>
                 </q-item-section>
                 <q-item-section side>
@@ -432,17 +475,23 @@
                       :color="getBookingStatusColor(booking.status)"
                       :label="getBookingStatusLabel(booking.status)"
                     />
-                    <q-btn
-                      flat
-                      dense
-                      round
-                      icon="delete"
-                      color="negative"
-                      size="sm"
-                      @click="onRemoveBooking(booking.id)"
-                    >
-                      <q-tooltip>Eliminar reserva</q-tooltip>
-                    </q-btn>
+                    <span>
+                      <q-btn
+                        flat
+                        dense
+                        round
+                        icon="delete"
+                        color="negative"
+                        size="sm"
+                        :disable="isWellhubBooking(booking)"
+                        @click="onRemoveBooking(booking.id)"
+                      >
+                        <q-tooltip v-if="!isWellhubBooking(booking)">Eliminar reserva</q-tooltip>
+                      </q-btn>
+                      <q-tooltip v-if="isWellhubBooking(booking)">{{
+                        WELLHUB_MANAGED_TOOLTIP
+                      }}</q-tooltip>
+                    </span>
                   </div>
                 </q-item-section>
               </q-item>
@@ -477,6 +526,12 @@
                     v-if="isTrialMember(member)"
                     color="warning"
                     label="PRUEBA"
+                    class="q-ml-xs"
+                  />
+                  <q-badge
+                    v-if="member.isWellhub"
+                    :color="WELLHUB_COLOR"
+                    :label="WELLHUB_LABEL"
                     class="q-ml-xs"
                   />
                   <MemberTags
@@ -522,30 +577,38 @@
                   >
                     <q-tooltip>Marcar asistencia</q-tooltip>
                   </q-btn>
-                  <q-btn
-                    v-if="isToday && member.bookingId && !member.attendanceId"
-                    flat
-                    dense
-                    round
-                    icon="delete"
-                    color="negative"
-                    size="sm"
-                    @click="onRemoveBooking(member.bookingId)"
-                  >
-                    <q-tooltip>Cancelar reserva</q-tooltip>
-                  </q-btn>
-                  <q-btn
-                    v-if="member.attendanceId"
-                    flat
-                    dense
-                    round
-                    icon="close"
-                    color="negative"
-                    size="sm"
-                    @click="confirmRemoveCheckIn(member)"
-                  >
-                    <q-tooltip>Eliminar asistencia</q-tooltip>
-                  </q-btn>
+                  <span v-if="isToday && member.bookingId && !member.attendanceId">
+                    <q-btn
+                      flat
+                      dense
+                      round
+                      icon="delete"
+                      color="negative"
+                      size="sm"
+                      :disable="member.isWellhub"
+                      @click="onRemoveBooking(member.bookingId)"
+                    >
+                      <q-tooltip v-if="!member.isWellhub">Cancelar reserva</q-tooltip>
+                    </q-btn>
+                    <q-tooltip v-if="member.isWellhub">{{ WELLHUB_MANAGED_TOOLTIP }}</q-tooltip>
+                  </span>
+                  <span v-if="member.attendanceId">
+                    <q-btn
+                      flat
+                      dense
+                      round
+                      icon="close"
+                      color="negative"
+                      size="sm"
+                      :disable="member.source === 'wellhub'"
+                      @click="confirmRemoveCheckIn(member)"
+                    >
+                      <q-tooltip v-if="member.source !== 'wellhub'">Eliminar asistencia</q-tooltip>
+                    </q-btn>
+                    <q-tooltip v-if="member.source === 'wellhub'">{{
+                      WELLHUB_VALIDATED_TOOLTIP
+                    }}</q-tooltip>
+                  </span>
                 </div>
               </q-item-section>
             </q-item>
@@ -854,6 +917,7 @@ import type {
 } from 'src/types/scheduling';
 import { DAY_LABELS, BOOKING_STATUS_LABELS, BOOKING_STATUS_COLORS } from 'src/types/scheduling';
 import type { SlotAttendanceItem } from 'src/types/attendance';
+import { WELLHUB_COLOR, WELLHUB_LABEL } from 'src/utils/wellhub-label';
 import { todayInTz } from 'src/utils/tz';
 import { formatDate } from 'src/utils/format-date';
 import { useAuthStore } from 'src/stores/useAuthStore';
@@ -1166,6 +1230,18 @@ function isVisitorBooking(booking: { memberBranchId: number | null }): boolean {
   return (
     booking.memberBranchId !== null && booking.memberBranchId !== slotDetail.value.schedule.branchId
   );
+}
+
+// Fase 204 (D-10/D-11): una reserva Wellhub se gestiona desde la app de
+// Wellhub. En la vista futura el origen sale de `booking.source`; en la vista
+// de hoy viene en `isWellhub` del roster. El API igual rechaza con 409.
+const WELLHUB_MANAGED_TOOLTIP = 'Se gestiona desde la app de Wellhub';
+// Deshacer la visita que validó Wellhub no se puede (el API devuelve 409). La
+// presencia marcada a mano (`wellhub_manual`) sí se puede deshacer.
+const WELLHUB_VALIDATED_TOOLTIP = 'Esta visita la validó Wellhub';
+
+function isWellhubBooking(booking: { source?: string | null }): boolean {
+  return booking.source === 'wellhub';
 }
 
 // Igual que goToMember, pero sin link a la ficha para un visitante: la ruta

@@ -665,6 +665,14 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     categoria: "tenant-scoped",
   },
   "PUT /api/admin/members/:userId/password": { categoria: "tenant-scoped" },
+  // Fase 204 (D-20/D-26): card Wellhub y acceso a la app. Leen
+  // users/attendance/bookings/wellhub_bookings con tenantWhere (cada tabla unida).
+  "GET /api/admin/members/:userId/wellhub": { categoria: "tenant-scoped" },
+  "POST /api/admin/members/:userId/app-access": { categoria: "tenant-scoped" },
+  // Fase 204 D-21: unir duplicado Wellhub; escribe users/bookings/attendance/wellhub_bookings/member_notes/audit_log con tenantWhere
+  "POST /api/admin/members/:userId/wellhub-merge": {
+    categoria: "tenant-scoped",
+  },
 
   // ── /api/admin/ratings ────────────────────────────────────────────────────
   // D-04 veredicto (caso 6): confirmadas `tenant-scoped` (core). "Rating de clase"
@@ -732,6 +740,8 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   // ── /api/admin/reports ────────────────────────────────────────────────────
   "GET /api/admin/reports/access": { categoria: "tenant-scoped" },
   "GET /api/admin/reports/access/export": { categoria: "tenant-scoped" },
+  // Fase 204 D-16: reporte Wellhub por sede y mes; lee attendance/bookings/wellhub_*/subscriptions/users con tenantWhere
+  "GET /api/admin/reports/wellhub": { categoria: "tenant-scoped" },
   "GET /api/admin/reports/charges": { categoria: "tenant-scoped" },
   "GET /api/admin/reports/charges/export": { categoria: "tenant-scoped" },
   "GET /api/admin/reports/expired-members": { categoria: "tenant-scoped" },
