@@ -442,3 +442,11 @@ Para los planes 202-NN este archivo vale entero, con estos cambios (mandan sobre
   (`groupCorrections`, `correctionChip`, `remainingSlots`, `targetGroups`). La duración la lee la pantalla (metadata de un
   `<video>` con `URL.createObjectURL`); si no se puede, `null` → `duracion`. El PUT lleva EXACTO el `Content-Type` pedido.
   Body: `exerciseId` + `step` O `comboKey`, nunca los dos. El 409 `CONQUER_CORRECCIONES_TOPE` puede llegar igual: mostrar `error`.
+- (202-12) `CqVideoSheet` (props `modelValue`, `title`, `url: string | null`, `loading?`, `unavailable?`): el padre pide la URL
+  firmada con SU instancia de `useConquerApi()` (cleanup al desmontar), abre con `loading`, pasa `url` al llegar y
+  `unavailable` si `available: false`. El texto fijo es "Video no disponible": para los borrados de D-28 ("Este video ya no
+  está disponible") sumar una prop opcional de mensaje (default el texto actual) en vez de duplicar la hoja; si lo hacés,
+  generalizá también el `log.warn` ("tutorial video failed") a algo neutro. `CqTutorialButton` lee el store de tutoriales: NO
+  sirve para correcciones; para "Ver mi video"/"Ver la respuesta" usar `.cq-textlink` de 44 px que abra `CqVideoSheet`.
+  Hojas nuevas: raíz `.cq-root` propia y estilos DENTRO del componente (un `.cq-root .x` anidado no alcanza a la raíz).
+  Chequeos de `git diff origin/staging` en los verify ven commits de master mergeados: comparar contra el commit previo al plan.
