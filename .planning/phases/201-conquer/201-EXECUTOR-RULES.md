@@ -393,3 +393,13 @@ Para los planes 202-NN este archivo vale entero, con estos cambios (mandan sobre
   (HEAD + `checkUploadedVideo` + limpieza): reusarla en tutoriales si calza, no duplicar. `mockVideoStore({ head?, remove?,
   presignPut? })` ya vive en `test/conquer/_helpers.ts` (devuelve los 4 espías). Si `canReply` es false, el front no ofrece
   responder. Manifiesto: 527 tras 202-06.
+- (202-07, FIN DEL API) Contratos JSON de tutoriales (alumno y admin) en `202-07-SUMMARY.md` §Contratos: leerlos antes de
+  tocar admin/app. Admin bajo `canManageConquer`; `GET/PUT/DELETE` del admin devuelven la MISMA vista
+  `{ storageReady, exercises: [{ exerciseId, url|null }], combos: [{ comboKey, label, url|null }] }` (reemplazar el estado con
+  la respuesta). El PUT a `uploadUrl` lleva `Content-Type: video/mp4` (firmado): el admin convierte con `transcodeToMp4` ANTES
+  de pedir la URL (el API rechaza `.mov`). Vista del alumno filtra los sin URL. Ojo: el CORS del bucket público para PUT
+  desde el admin de STAGING lo tiene que habilitar Franco (hoy Ejercicios solo sube en prod) — no es tarea del ejecutor.
+  Manifiesto: 533 tras 202-07. Tenancy 116/121.
+- (orquestador, antes de 202-08) Desde acá son planes de admin y app. Gates de front: `pnpm lint` del paquete y `vue-tsc`
+  filtrado por los archivos del plan (ver línea base arriba). Baseline re-tomada tras 202-07: lint OK en app y admin, ningún
+  error de vue-tsc en archivos de conquer/tutorial/corrección/video.
