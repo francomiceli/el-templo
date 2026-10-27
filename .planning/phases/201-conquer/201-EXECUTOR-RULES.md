@@ -346,3 +346,13 @@ Para los planes 202-NN este archivo vale entero, con estos cambios (mandan sobre
   `limpiarSegundoGimnasio`. Tenancy tras 202-01: 116 gym-owned / 121 schema. Manifiesto: `ENTRADAS_BASELINE` = 516
   (`test/tenancy/iso-01-manifiesto.test.ts:386`) antes de las rutas de la 202. La base local NO tiene 0298/0299 aplicadas
   (el orquestador no migra la base de Franco sin su OK): no depender de eso.
+- (202-02) Contratos de `video-rules.ts` y `private-media.ts`: `202-02-SUMMARY.md`. Trampas: (1) `privateMediaResolver.resolve(fastify)`
+  sin 2º argumento = FOTOS; toda ruta de video pasa `"videos"` (si no, el 503 sale con código/copy de fotos).
+  (2) `mockPrivateMedia` trae `head` = `image/jpeg` 1 KB: para video pisarlo (`head: async () => ({ contentLength: n, contentType: "video/mp4" })`)
+  o `checkUploadedVideo` da `"tipo"`; para afirmar borrados pasar `remove: vi.fn(...)`. (3) Tutoriales:
+  `checkUploadedVideo(head, TUTORIAL_VIDEO_MAX_BYTES, [TUTORIAL_CONTENT_TYPE])`; correcciones: `CORRECTION_VIDEO_MAX_BYTES` +
+  `VIDEO_CONTENT_TYPES`. (4) `isValidVideoSeconds` no redondea (redondea el cliente, DA-40). (5) `normalizeText` mide tras
+  `trim` y da `value: null` si vacío; la regla "texto o video" (DA-43) la decide la ruta. (6) Clave del coach →
+  `isCorrectionReplyKey`; del alumno → `isOwnCorrectionVideoKey` (disjuntas). (7) `remove` re-tira todo error que no sea
+  "no existe": la ruta lo captura, responde `VideoStorageUnavailableError` sin loguear la clave y no toca la fila.
+  (8) Los `verify` con `! grep` sin filtrar comentarios matchean docblocks: no escribir esas palabras en comentarios.
