@@ -589,13 +589,13 @@ wellhub: 'secondary',   // Clay #7d5d42 (quasar.variables.scss:8), warm, distinc
 | A7 | Visible Wellhub conversion rate lives in the Wellhub report, funnel `entryOrigin='wellhub'` is API-only | D-15 finding | Franco may expect it in Analíticas › Conversión |
 | A8 | "Primer plan pago" = membership in effect (same gate that flips `activo`), price stored for the report; 0-price plans still count | Pattern 4 | Bonificado conversions inflate the count |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Which funnel for D-15?** The origin-aware funnel exists only in the API. Recommendation: API `entryOrigin='wellhub'` + rate in the Wellhub report; confirm with Franco in text, proceed with the recommendation (chain rule: don't block).
-2. **Conversion predicate (A4/A8).** Recommend activity-window predicate and record regardless of price, storing `price_paid` so the report can filter.
-3. **Member self-cancel (A2).** Recommend reject in API.
-4. **Class closures cancel Wellhub bookings without notifying Wellhub.** Pre-existing gap (`cancelBookingByGym` unused). Out of scope; suggest a follow-up.
-5. **`DELETE /admin/members/:userId` with live Wellhub bookings.** Recommend exclude them from the bulk cancel.
+1. **Which funnel for D-15?** The origin-aware funnel exists only in the API. Recommendation: API `entryOrigin='wellhub'` + rate in the Wellhub report; confirm with Franco in text, proceed with the recommendation (chain rule: don't block). RESOLVED: D-22
+2. **Conversion predicate (A4/A8).** Recommend activity-window predicate and record regardless of price, storing `price_paid` so the report can filter. RESOLVED: D-23
+3. **Member self-cancel (A2).** Recommend reject in API. RESOLVED: D-24
+4. **Class closures cancel Wellhub bookings without notifying Wellhub.** Pre-existing gap (`cancelBookingByGym` unused). Out of scope; suggest a follow-up. RESOLVED: deferred (CONTEXT Deferred Ideas)
+5. **`DELETE /admin/members/:userId` with live Wellhub bookings.** Recommend exclude them from the bulk cancel. RESOLVED: D-25
 
 ## Environment Availability
 
