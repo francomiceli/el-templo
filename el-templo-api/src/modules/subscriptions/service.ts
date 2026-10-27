@@ -100,6 +100,7 @@ import {
 import { todayInTz, DEFAULT_TENANT_TIMEZONE } from "../shared/date-utils";
 import { assertBranchDelGimnasio } from "../shared/branch-consistency";
 import { membershipInEffectSql } from "../shared/membership";
+import { notWellhubAttendanceSql } from "../shared/wellhub-sources";
 import { EnrollmentService } from "../programs/enrollment-service";
 import { SettingsService } from "../settings/service";
 import { PRICING_SETTINGS_KEYS } from "../settings/keys";
@@ -3068,6 +3069,8 @@ export class SubscriptionService {
           eq(schema.attendance.memberId, sub.userId),
           sql`${schema.attendance.sessionDate} >= ${sub.startDate}`,
           sql`${schema.attendance.sessionDate} < ${newStartDate}`,
+          // Fase 204 D-18: las visitas Wellhub van por separado del plan
+          notWellhubAttendanceSql(),
         ),
       )
       .limit(1);
@@ -3618,6 +3621,8 @@ export class SubscriptionService {
           eq(schema.attendance.memberId, sub.userId),
           sql`${schema.attendance.sessionDate} >= ${fromDate}`,
           sql`${schema.attendance.sessionDate} <= ${toDate}`,
+          // Fase 204 D-18: las visitas Wellhub van por separado del plan
+          notWellhubAttendanceSql(),
         ),
       )
       .limit(1);
@@ -7081,6 +7086,8 @@ export class SubscriptionService {
           eq(schema.attendance.status, "confirmado"),
           sql`${schema.attendance.checkedInAt} >= ${monday.toISOString().slice(0, 19).replace("T", " ")}`,
           sql`${schema.attendance.checkedInAt} <= ${sunday.toISOString().slice(0, 19).replace("T", " ")}`,
+          // Fase 204 D-18: las visitas Wellhub van por separado del plan
+          notWellhubAttendanceSql(),
         ),
       );
 
