@@ -316,3 +316,24 @@ con preguntas.
   (hold final). El tope avisa al LLEGAR. `alert-text.ts` no puede tener imports.
 - (201-26) Para revertir un mutante en un archivo con cambios propios sin commitear, NO usar `git checkout -- <archivo>`:
   borra toda la edición. Copiarlo a scratchpad con `cp`, mutar, restaurar con `cp` y verificar con `git diff`.
+
+## Overrides y lecciones de la fase 202 (planes 202-01..15)
+
+Para los planes 202-NN este archivo vale entero, con estos cambios (mandan sobre lo de arriba):
+
+- (orquestador, 2026-10-26) **Planes:** `.planning/phases/202-conquer-tutoriales-correcciones/202-NN-PLAN.md`. Decisiones de
+  producto D-25..D-29 al final de `201-CONTEXT.md`; de diseño DA-37..DA-52 en `202-01-PLAN.md`.
+- **Migraciones: 0298 y 0299** (no 0290-0292). El chequeo de §Migraciones se hace con esos números
+  (`ls /home/franco/projects/et-*/el-templo-api/src/db/migrations/029[89]*.sql`). El 2026-10-26: master llega a 0297, nadie usa 0298/0299.
+- **Niveles visibles:** Legionario / Centurión / Espartano (`LEVEL_INFO` del app). Los códigos siguen `ternero` / `novillo` / `toro`.
+- **Docs y SUMMARY** van en `.planning/phases/202-conquer-tutoriales-correcciones/` (no en la carpeta de la 201). Commits
+  `feat(202-NN): ...`, `test(202-NN): ...`, `fix(202-NN): ...`, `docs(202-NN): ...`.
+- La rama tiene mergeado `origin/master` del 2026-10-26 (`2b53b55b1`: app 1.8.6, Novedades push con 0297, revisión de
+  anatomía). Conteos de tenancy y manifiesto de rutas: sumar sobre el valor ACTUAL del archivo, nunca sobre los números
+  de las lecciones de la 201.
+- Línea base del orquestador (2026-10-26, tras el merge): `tsc` y `lint:tenant` del API verdes; `pnpm lint` de app y admin
+  verdes. `vue-tsc`: el path del worktree contiene "conquer", así que filtrar por `src/modules/conquer`, `src/pages/conquer`,
+  `src/components/conquer` o el archivo concreto, NUNCA por `conquer` a secas. Errores preexistentes ajenos que aparecen con
+  un grep amplio: app `src/router/routes.ts(139,29) TS7016`, admin `src/utils/pdf/session-pdf-builder.ts(224,11) TS2339`.
+- Sin bucket R2 privado ni CORS todavía (los crea Franco): el código degrada a 503 limpio sin `R2_PRIVATE_BUCKET_NAME` y los
+  tests mockean el storage (ver lección 196 de fotos y la de 201-12). Nada se prueba contra R2 real.
