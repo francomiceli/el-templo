@@ -575,7 +575,7 @@ export class MemberWellhubService {
             );
           }
           // Se borra la muerta; si las dos están muertas, la del duplicado.
-          deadToDelete.push(isLive(tb.status) ? sb.id : tb.id);
+          deadToDelete.push(isLive(sb.status) ? tb.id : sb.id);
         }
         if (deadToDelete.length > 0) {
           await tx
