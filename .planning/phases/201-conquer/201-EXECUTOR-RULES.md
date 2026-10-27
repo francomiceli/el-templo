@@ -459,3 +459,7 @@ Para los planes 202-NN este archivo vale entero, con estos cambios (mandan sobre
   de correcciones) y `NSPhotoLibraryUsageDescription`, NO `NSMicrophoneUsageDescription` (sin ella grabar con audio cierra la
   app en iOS). Android: el selector de archivos/cámara del sistema no necesita `RECORD_AUDIO` en la app; no sumar permisos que
   el plan no pida. Sin `cap sync`: el build nativo lo hace Franco.
+- (202-14, FIN DEL CÓDIGO) Envío: `useCorrectionUpload.ts` + `CqCorrectionSendSheet.vue`; Info.plist con
+  `NSMicrophoneUsageDescription` (requiere `cap sync` + build iOS nuevo, lo hace Franco). Para 202-15: los requisitos de
+  infraestructura, build nativo y la lista de "a ojo / teléfono real" están en `202-14-SUMMARY.md` §"Para 202-15"; juntar
+  además los "para mirar a ojo" de 202-08..13. La guía de prueba sigue siendo UNA: `../201-conquer/201-UAT.md` (ampliarla).
