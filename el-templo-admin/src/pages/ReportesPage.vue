@@ -82,6 +82,8 @@
         label="Invitaciones"
         icon="card_giftcard"
       />
+      <!-- Fase 204 (D-16): reporte Wellhub. Autocarga: no pasa por fetchTabData. -->
+      <q-tab name="wellhub" label="Wellhub" icon="fitness_center" />
       <!-- Recategorización: agregado CROSS-SEDE (dry-run del cron sobre todo
            el gimnasio). El API se lo deniega a los roles de alcance forzado
            (admin_sede), así que la pestaña se oculta en vez de mostrarles un
@@ -780,6 +782,13 @@
       </q-tab-panel>
 
       <!-- ================================================================ -->
+      <!-- Wellhub Tab (Fase 204: D-16 reporte único + D-22 tasa a socio) -->
+      <!-- ================================================================ -->
+      <q-tab-panel name="wellhub">
+        <WellhubReport :branch-options="branchOptions" :branch-id="selectedBranchId" />
+      </q-tab-panel>
+
+      <!-- ================================================================ -->
       <!-- Recategorización multisucursal (banner) -->
       <!-- ================================================================ -->
       <q-tab-panel name="recategorizacion">
@@ -829,6 +838,7 @@ import AsistenciaTab from 'src/components/analytics/AsistenciaTab.vue';
 import PorDeudaTab from 'src/components/deudas/PorDeudaTab.vue';
 import RenovacionesTab from 'src/components/renovaciones/RenovacionesTab.vue';
 import InvitationsReport from 'src/components/reports/InvitationsReport.vue';
+import WellhubReport from 'src/components/reports/WellhubReport.vue';
 
 // -- Setup -------------------------------------------------------------------
 
@@ -1032,6 +1042,7 @@ const VALID_TABS = [
   'conversion',
   'sesiones-de-prueba',
   'invitaciones',
+  'wellhub',
   'recategorizacion',
 ];
 const initialTab = (() => {
