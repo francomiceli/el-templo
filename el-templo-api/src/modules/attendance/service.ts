@@ -31,6 +31,7 @@ import { birthdayLabelOn } from "../shared/birthdays";
 import { SubscriptionService } from "../subscriptions/service";
 import { sameActivityKindSql } from "../scheduling/special-line";
 import {
+  isWellhubAttendanceSource,
   isWellhubAttendanceSql,
   isWellhubBookingSource,
   isWellhubBookingSql,
@@ -43,6 +44,7 @@ import type { DayCheckIn } from "../check-ins/types";
 import type {
   AttendanceRecord,
   AttendanceListParams,
+  AttendanceSource,
   AttendanceStatus,
   ForceCheckInInput,
 } from "./types";
@@ -604,7 +606,11 @@ export class AttendanceService {
       bookingStatus: string | null;
       attendanceId: number | null;
       checkedInAt: string | null;
-      source: "qr" | "manual" | null;
+      source: AttendanceSource | null;
+      // Fase 204 D-10: la reserva (antes del check-in) o la visita es Wellhub.
+      // Marca la reserva/visita, no a la persona: un socio activo que reservó
+      // por Wellhub también sale true.
+      isWellhub: boolean;
       segment: string | null;
       // Phase 136 D-05/D-06: tenure label computed on the fly from
       // users.createdAt — surfaced only in Horarios. Null when createdAt
@@ -639,6 +645,8 @@ export class AttendanceService {
         memberFirstName: schema.users.firstName,
         memberLastName: schema.users.lastName,
         bookingStatus: schema.bookings.status,
+        // Fase 204 D-10: origen de la reserva ('wellhub' o NULL = propia).
+        bookingSource: schema.bookings.source,
         segment: schema.memberProfiles.segment,
         createdAt: schema.users.createdAt,
         dateOfBirth: schema.users.dateOfBirth,
@@ -713,7 +721,8 @@ export class AttendanceService {
         bookingStatus: string | null;
         attendanceId: number | null;
         checkedInAt: string | null;
-        source: "qr" | "manual" | null;
+        source: AttendanceSource | null;
+        isWellhub: boolean;
         segment: string | null;
         seniority: MemberSeniority | null;
         endDate: string | null;
@@ -738,6 +747,7 @@ export class AttendanceService {
         attendanceId: null,
         checkedInAt: null,
         source: null,
+        isWellhub: isWellhubBookingSource(b.bookingSource),
         segment: b.segment ?? null,
         seniority: computeSeniority(b.createdAt),
         endDate: b.endDate ?? null,
@@ -756,7 +766,9 @@ export class AttendanceService {
           a.checkedInAt instanceof Date
             ? a.checkedInAt.toISOString()
             : String(a.checkedInAt);
-        existing.source = a.source as "qr" | "manual";
+        existing.source = a.source as AttendanceSource;
+        existing.isWellhub =
+          existing.isWellhub || isWellhubAttendanceSource(a.source);
       } else {
         // Walk-in: attendance without booking
         memberMap.set(a.memberId, {
@@ -771,7 +783,8 @@ export class AttendanceService {
             a.checkedInAt instanceof Date
               ? a.checkedInAt.toISOString()
               : String(a.checkedInAt),
-          source: a.source as "qr" | "manual",
+          source: a.source as AttendanceSource,
+          isWellhub: isWellhubAttendanceSource(a.source),
           segment: a.segment ?? null,
           seniority: computeSeniority(a.createdAt),
           endDate: a.endDate ?? null,
@@ -1570,7 +1583,7 @@ export class AttendanceService {
       branchName: row.branchName,
       checkedInAt: row.checkedInAt.toISOString(),
       status: row.status as AttendanceStatus,
-      source: row.source as "qr" | "manual",
+      source: row.source as AttendanceSource,
     };
   }
 

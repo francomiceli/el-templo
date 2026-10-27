@@ -73,7 +73,7 @@ export interface AccessReportRow {
   memberName: string;
   memberId: number;
   branchName: string;
-  source: "qr" | "manual";
+  source: "qr" | "manual" | "wellhub" | "wellhub_manual";
   scheduleSlot: string | null; // e.g. "Lun 09:00 - Calistenia" or null
 }
 

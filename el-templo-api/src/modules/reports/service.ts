@@ -651,7 +651,7 @@ export class ReportsService {
       memberName: `${r.memberFirstName ?? ""} ${r.memberLastName ?? ""}`.trim(),
       memberId: r.memberId,
       branchName: r.branchName,
-      source: r.source as "qr" | "manual",
+      source: r.source as AccessReportRow["source"],
       scheduleSlot: r.scheduleId
         ? (scheduleMap.get(r.scheduleId) ?? null)
         : null,

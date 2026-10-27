@@ -78,7 +78,10 @@ export const accessReportSchema = {
               memberName: { type: "string" },
               memberId: { type: "integer" },
               branchName: { type: "string" },
-              source: { type: "string", enum: ["qr", "manual"] },
+              source: {
+                type: "string",
+                enum: ["qr", "manual", "wellhub", "wellhub_manual"],
+              },
               scheduleSlot: { type: ["string", "null"] },
             },
           },
