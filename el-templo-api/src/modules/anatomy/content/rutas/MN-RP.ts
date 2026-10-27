@@ -5,7 +5,7 @@ import type { RutaContenido } from "../../types";
  * (D5).
  *
  * Corrección R2-3 (Pitfall 3): L-sit / V-sit llevan flexores de cadera
- * (psoas, recto femoral, aductores) y recto abdominal; el reverse planche
+ * (psoas, recto femoral; aductores mantienen las piernas juntas) y recto abdominal; el reverse planche
  * (apoyo libre, boca arriba) lo sostienen abdomen y flexores de cadera, y
  * glúteo y erectores solo co-contraen. ⚑H: confirmar que el reverse planche del
  * catálogo sea el apoyo libre.
@@ -35,7 +35,11 @@ export const MN_RP = {
         c: ["L1", "R"],
         nota: "L-sit y V-sit; reverse planche",
       },
-      { m: "aductores", c: ["L1", "R"], nota: "L-sit y V-sit" },
+      {
+        m: "aductores",
+        c: ["L1", "R"],
+        nota: "L-sit y V-sit: mantienen las piernas juntas; no comprimen",
+      },
       {
         m: "recto-abd",
         c: ["L1", "R"],
@@ -147,7 +151,7 @@ export const MN_RP = {
         accion:
           "L-sit y V-sit: flexión de cadera con rodillas extendidas y retroversión. Reverse planche (apoyo solo en manos, boca arriba): la gravedad tiende a extender cadera y columna.",
         musculos:
-          "L-sit y V-sit: iliopsoas, recto femoral, aductores y recto abdominal: motores. Reverse planche: el abdomen (recto abdominal, oblicuos) y los flexores de cadera: motores isométricos; glúteo y erectores: co-contracción postural, no sostienen. Es distinto de la plancha invertida con los talones en el piso, donde sí trabaja sobre todo el glúteo.",
+          "L-sit y V-sit: iliopsoas, recto femoral y recto abdominal: motores; aductores: mantienen las piernas juntas (pasados ~90° de cadera no la flexionan). Reverse planche: el abdomen (recto abdominal, oblicuos) y los flexores de cadera: motores isométricos; glúteo y erectores: co-contracción postural, no sostienen. Es distinto de la plancha invertida con los talones en el piso, donde sí trabaja sobre todo el glúteo.",
         contraccion: "Isométrica.",
         c: ["L1", "R", "H"],
       },

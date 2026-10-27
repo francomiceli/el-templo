@@ -9,7 +9,9 @@ import type { RutaContenido } from "../../types";
  * Nordic (B-NC-1): isquios motores en excéntrico; gastrocnemio sinergista; la
  * cadera es isométrica. Bisagra (B-NC-2): glúteo mayor motor, isquios y
  * aductor mayor sinergistas. Calf raises (B-NC-4): gastrocnemio y sóleo
- * motores; con la rodilla flexionada predomina el sóleo. Jefferson (B-NC-3) no
+ * motores; con la rodilla flexionada predomina el sóleo. El sóleo no va en las
+ * relaciones: solo trabaja en las calf raises, no en el nordic, y la vista del
+ * alumno lo listaría como "hace el movimiento en Nordic Curl". Jefferson (B-NC-3) no
  * trae roles: es flexión de columna cargada, sin estudios, con contraindicaciones
  * (⚑H, H12).
  */
@@ -35,11 +37,6 @@ export const NC = {
         m: "gemelo",
         c: ["L1", "R"],
         nota: "Calf raises de pie: motor; en el nordic, sinergista",
-      },
-      {
-        m: "soleo",
-        c: ["L1", "R"],
-        nota: "Calf raises: motor siempre, y predomina con la rodilla flexionada (soleo squat, horse stance)",
       },
     ],
     sinergista: [
