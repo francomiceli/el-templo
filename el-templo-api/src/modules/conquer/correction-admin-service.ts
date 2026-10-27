@@ -8,7 +8,7 @@
 //
 // Todo se arma sobre los helpers de `correction-service.ts` (que nunca importa
 // de acá: evita el ciclo). No se loguean claves de video ni URLs firmadas.
-import { and, count, eq, isNotNull, sql } from "drizzle-orm";
+import { and, count, eq, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyInstance } from "fastify";
 import * as schema from "../../db/schema";
@@ -195,14 +195,7 @@ export async function deleteCorrectionVideo(
       videoDeletedAt: sql`NOW()`,
       videoDeletedBy: actorUserId,
     })
-    .where(
-      and(
-        tenantWhere(c, ctx),
-        eq(c.id, correctionId),
-        // Dos borrados a la vez: el segundo no pisa quién y cuándo del primero.
-        isNotNull(c.videoKey),
-      ),
-    );
+    .where(and(tenantWhere(c, ctx), eq(c.id, correctionId)));
   return toAdminCorrectionView(
     await loadAdminCorrection(fastify.db, ctx, correctionId),
   );
