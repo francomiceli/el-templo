@@ -57,6 +57,7 @@ import {
   type TenantContext,
 } from "../shared/tenant";
 import { deriveActivityLabel } from "./derived-label";
+import { notWellhubBookingSql } from "../shared/wellhub-sources";
 
 /**
  * Member self-booking window: today .. today + N days (branch-local).
@@ -430,6 +431,8 @@ export class BookingService {
           eq(schema.bookings.bookingDate, date),
           sql`${schema.bookings.status} IN ('reservado', 'qr_escaneado', 'confirmado', 'lista_espera')`,
           sameActivityKindSql(isSpecialActivity, specialLine),
+          // Fase 204 D-18: las reservas Wellhub no consumen el plan del socio
+          notWellhubBookingSql(),
         ),
       )
       .limit(1);
@@ -2422,6 +2425,8 @@ export class BookingService {
           sql`${schema.bookings.bookingDate} >= ${monday}`,
           sql`${schema.bookings.bookingDate} <= ${saturday}`,
           eq(schema.activities.isSpecial, false),
+          // Fase 204 D-18: las reservas Wellhub no consumen el plan del socio
+          notWellhubBookingSql(),
         ),
       );
 
@@ -2577,6 +2582,8 @@ export class BookingService {
           sql`${schema.bookings.status} IN ('reservado', 'lista_espera')`,
           gte(schema.bookings.bookingDate, fromDate),
           sameActivityKindSql(isSpecial, specialLine),
+          // Fase 204 D-18: las reservas Wellhub no consumen el plan del socio
+          notWellhubBookingSql(),
         ),
       );
     return Number(result?.count ?? 0);
@@ -2605,6 +2612,8 @@ export class BookingService {
             SELECT schedule_id FROM subscription_schedules
             WHERE subscription_id = ${subscriptionId} AND tenant_id = ${ctx.tenantId}
           )`,
+          // Fase 204 D-18: las reservas Wellhub no consumen el plan del socio
+          notWellhubBookingSql(),
         ),
       );
     return Number(result?.count ?? 0);

@@ -45,6 +45,10 @@ import {
   type TenantContext,
 } from "../shared/tenant";
 import { assertBranchDelGimnasio } from "../shared/branch-consistency";
+import {
+  isWellhubAttendanceSql,
+  isWellhubBookingSql,
+} from "../shared/wellhub-sources";
 import type { BookingService } from "../scheduling/booking-service";
 import type { WellhubClient } from "./client";
 import { WellhubApiError } from "./client";
@@ -358,9 +362,11 @@ export class WellhubService {
     const userId = await this.findOrCreateVisitor(ctx, data.user, branch.id);
     const todayStr = todayInTz(branch.timezone);
 
-    // Guard uno-por-día ANTES de validar: si ya hay asistencia de hoy (por
-    // ejemplo un socio vinculado que ya escaneó nuestro QR), no generamos la
-    // transacción facturable a Wellhub por una visita que no vamos a registrar.
+    // Guard uno-por-día ANTES de validar: si ya hay una visita Wellhub de hoy,
+    // no generamos la transacción facturable a Wellhub por una visita que no
+    // vamos a registrar.
+    // Fase 204 D-18 (A1): solo una visita Wellhub por día; la asistencia propia
+    // del socio (QR/manual) no la bloquea (lados separados).
     const [existingToday] = await this.db
       .select({ id: schema.attendance.id })
       .from(schema.attendance)
@@ -371,6 +377,7 @@ export class WellhubService {
           tenantWhere(schema.attendance, ctx),
           eq(schema.attendance.memberId, userId),
           eq(schema.attendance.sessionDate, todayStr),
+          isWellhubAttendanceSql(),
         ),
       )
       .limit(1);
@@ -436,6 +443,9 @@ export class WellhubService {
           eq(schema.bookings.bookingDate, todayStr),
           eq(schema.schedules.branchId, branch.id),
           inArray(schema.bookings.status, ["reservado", "qr_escaneado"]),
+          // Fase 204 D-18: la visita solo confirma la reserva Wellhub, nunca
+          // la reserva propia del socio.
+          isWellhubBookingSql(),
         ),
       )
       .limit(1);
@@ -453,6 +463,8 @@ export class WellhubService {
             tenantWhere(schema.attendance, ctx),
             eq(schema.attendance.memberId, userId),
             eq(schema.attendance.sessionDate, todayStr),
+            // Fase 204 D-18 (A1): mismo criterio que el guard de arriba.
+            isWellhubAttendanceSql(),
           ),
         )
         .limit(1);
