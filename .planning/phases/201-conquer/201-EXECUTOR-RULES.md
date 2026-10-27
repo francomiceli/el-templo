@@ -421,3 +421,10 @@ Para los planes 202-NN este archivo vale entero, con estos cambios (mandan sobre
   `<!-- 202-10: respuesta del coach -->` del diálogo con `v-if="correction.canReply"`, y SOLO emite `changed` con la vista del
   `POST .../reply` (`ConquerCorrections.onChanged` saca la fila, actualiza el diálogo y el contador). `NavBadge` `'conquer'`
   reemplazó a `'conquer-requests'` (suma pedidos + correcciones).
+- (202-10, FIN DEL ADMIN) Desde acá son planes del APP (Capacitor). `useConquerVideoUpload` y `transcodeToMp4` son SOLO del
+  admin: en el app no existen y NO se agregan dependencias (el video del alumno NO se convierte, DA-52). La respuesta del coach
+  queda con `reply_seen_at = NULL` → cuenta en `member.corrections.unseenReplies` hasta `POST /corrections/seen`. El video del
+  coach es MP4 y el app pide su URL con `who=coach`. Repaso de lecciones del app de la 201 que siguen vigentes: 201-16/17/18
+  (`CqScreen`, `.cq-root` en diálogos teletransportados, `<select>` nativo), 201-20 (cold open con `loadState()`; el store no
+  notifica), 201-26 (copy en `CQ_TEXTOS`, revertir mutantes con `cp`). Subida desde el app: `window.CapacitorWebFetch`
+  (DA-51), nunca CapacitorHttp ni axios con base64.
