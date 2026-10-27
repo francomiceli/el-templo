@@ -413,3 +413,11 @@ Para los planes 202-NN este archivo vale entero, con estos cambios (mandan sobre
   `TutorialTargetInput`, `AdminTutorials`, `TutorialUploadUrl` en `types/conquer.ts`. `getVideoDuration` vive en
   `src/utils/videoDuration.ts`. Notificar con `useQuasar().notify` como los vecinos. No pasar `data-test` a un componente
   que ya tiene el suyo en el root (lo pisa).
+- (202-09) Admin bandeja: `ConquerCorrections.vue` (prop `reloadToken`), `ConquerCorrectionDialog.vue` (props `modelValue`,
+  `correction: AdminCorrection | null`; emits `update:modelValue`, `changed: [AdminCorrection]`), `ConquerCorrectionVideo.vue`
+  (props `correctionId`, `who`). Cliente: `listCorrections`, `countCorrections`, `getCorrectionVideoUrl`,
+  `deleteCorrectionVideo`; tipos `AdminCorrection`, `CorrectionStatus`, `CorrectionVideoWho`, `CorrectionReply`,
+  `CorrectionVideoUrl`. `durationText(seconds)` en `utils/conquer-format.ts`. 202-10: el formulario va en el hueco
+  `<!-- 202-10: respuesta del coach -->` del diálogo con `v-if="correction.canReply"`, y SOLO emite `changed` con la vista del
+  `POST .../reply` (`ConquerCorrections.onChanged` saca la fila, actualiza el diálogo y el contador). `NavBadge` `'conquer'`
+  reemplazó a `'conquer-requests'` (suma pedidos + correcciones).
