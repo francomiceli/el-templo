@@ -26,5 +26,10 @@ Se pasan en el prompt de cada plan. Lecciones de fases anteriores (173, 196, 197
 - En el SUMMARY: listar desvíos del plan, bugs encontrados que el plan no anticipaba, y dudas para Franco (no bloquear: tomar la opción más conservadora y anotarla).
 - Dejar el worktree limpio (`git status --short` vacío salvo archivos ajenos preexistentes).
 
+## Aclaraciones del orquestador a los planes (checker iteración 2)
+- **Plan 08:** ubicar `recomputeUserStatus` por grep, no por rango de líneas, porque el plan 03 corre líneas en `subscriptions/service.ts`.
+- **Plan 14:** `WellhubCard.reload()` devuelve la card fresca (`Promise<WellhubCard>`), y la página lee `hasLoggedIn` de ese resultado, nunca de una card vieja.
+- **Plan 15:** `WellhubCard` emite `merge` con el `gympassId` como payload (cambia el emit pelado del plan 14). La prop se llama `canMergeRole`.
+
 ## Lecciones acumuladas de esta fase
 (se completan a medida que avanzan los planes)
