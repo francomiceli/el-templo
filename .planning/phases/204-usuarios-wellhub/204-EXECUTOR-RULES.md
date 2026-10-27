@@ -37,4 +37,5 @@ Se pasan en el prompt de cada plan. Lecciones de fases anteriores (173, 196, 197
 - **(plan 01)** La línea `Co-Authored-By` puede decir el modelo que ejecutó (Sonnet). Está bien.
 - **(plan 03)** Los hooks de pre-commit (Prettier) NO corren en este worktree. No intentar arreglarlo: el orquestador formatea al final. Seguir el estilo de los archivos vecinos.
 - **(plan 04)** `AttendanceSource` en `el-templo-api/src/modules/attendance/types.ts` y `mapAttendanceRow` siguen casteando a `"qr" | "manual"`, aunque en runtime ya sale `wellhub` / `wellhub_manual`. El **plan 06** tiene que ampliar el tipo (y el schema de respuesta) a los 4 valores.
+- **(plan 06)** `AttendanceSource` ya tiene los 4 valores en `attendance/types.ts`, y el **tipo de fila y el enum de respuesta del log de accesos** (`reports/types.ts`, `reports/schemas.ts`) también. Lo que falta para el **plan 11** es el **filtro del querystring** (`source`), que sigue siendo `qr | manual`.
 - **(plan 04)** Test helpers de fases previas: `test/invitations/_helpers.ts` tiene `createTrialPlan` / `createActiveSub`. Revisar antes de crear helpers nuevos.
