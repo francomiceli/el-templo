@@ -245,7 +245,7 @@ export const MUSCULOS = [
     zona: { slug: "tibialis", vista: "front" },
     precision: "exacta",
     queHaceAlumno:
-      "Es el músculo del frente de la canilla y levanta la punta del pie. En el Quad Curl lo trabajás directo con las elevaciones de punta de pie contra la pared. En el Pistol Squat y el Lunge no hace la bajada, pero cuando sentís que te vas hacia atrás es el que tira de la canilla hacia adelante para mantenerte sobre el pie.",
+      "Es el músculo del frente de la canilla y levanta la punta del pie hacia vos. En el Pistol Squat y el Lunge no hace la bajada, pero cuando sentís que el peso se te va hacia atrás es el que tira de la canilla hacia adelante y te devuelve sobre el pie: por eso se nota más cuanto más atrás quedás.",
   },
 ] as const satisfies readonly MusculoDef[];
 

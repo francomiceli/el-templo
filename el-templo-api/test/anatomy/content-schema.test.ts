@@ -319,7 +319,7 @@ describe("contenido de anatomía — coherencia", () => {
     expect(ficha?.escalones).toMatchObject({ fuente: "ficha" });
   });
 
-  it("tren inferior (§1.7.2): SS con cuádriceps y sin glúteo, DS con vastos, NC con gemelos, QC con tibial", () => {
+  it("tren inferior (§1.7.2): SS con cuádriceps y sin glúteo, DS con vastos, NC con gemelos, QC sin tibial ni NC sin sóleo", () => {
     const de = (code: string, roles: readonly Rol[]): string[] =>
       roles.flatMap((rol) =>
         (RUTAS_POR_CODIGO.get(code)?.relaciones[rol] ?? []).map((r) => r.m),
@@ -330,7 +330,10 @@ describe("contenido de anatomía — coherencia", () => {
     expect(de("SS", ["motor", "sinergista"])).not.toContain("aductores");
     expect(de("DS", ["motor", "sinergista"])).toContain("vastos");
     expect(de("NC", ["motor", "sinergista"])).toContain("gemelo");
-    expect(de("QC", ["motor", "sinergista"])).toContain("tibial");
+    // Solo trabajan en un ejercicio auxiliar de la ruta (tibiales pared, calf
+    // raises): en la ruta, el alumno los leería como parte del gesto.
+    expect(de("QC", ROLES)).not.toContain("tibial");
+    expect(de("NC", ROLES)).not.toContain("soleo");
     expect(de("PS", ["motor"])).toContain("soleo");
     expect(de("PS", ["estabilizador"])).toEqual(
       expect.arrayContaining(["gemelo", "tibial"]),

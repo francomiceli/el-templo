@@ -134,7 +134,7 @@ export const DIFERENCIAS_APROBADAS: readonly DiferenciaZonas[] = [
     quita: ["lower-back"],
     agrega: ["adductors", "calves"],
     motivo:
-      "§1.7.2 + B-NC-4: los calf raises hacen motores a gemelo y sóleo (la TV no tenía gemelos en piernas), los aductores son sinergistas y los erectores pasan a estabilizadores.",
+      "§1.7.2 + B-NC-4: el gemelo es motor en las calf raises y sinergista en el nordic (la TV no tenía gemelos en piernas), los aductores son sinergistas y los erectores pasan a estabilizadores.",
   },
   {
     code: "OAP",
@@ -188,9 +188,9 @@ export const DIFERENCIAS_APROBADAS: readonly DiferenciaZonas[] = [
   {
     code: "QC",
     quita: ["gluteal", "adductors"],
-    agrega: ["tibialis"],
+    agrega: [],
     motivo:
-      "A3 (§1.7.2): 'TIBIALES PARED' hace motor al tibial anterior; el glúteo pasa a estabilizador y A3 no lista aductores. Tibialis no viaja a la TV (soloTv).",
+      "A3 (§1.7.2): el glúteo pasa a estabilizador y A3 no lista aductores. El tibial de 'TIBIALES PARED' queda fuera de la ruta (no es el gesto del quad curl).",
   },
   {
     code: "REVERSE HYPER",
