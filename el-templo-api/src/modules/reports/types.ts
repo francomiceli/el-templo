@@ -18,7 +18,8 @@ export interface AccessReportFilters {
   dateFrom?: string; // YYYY-MM-DD
   dateTo?: string;
   search?: string; // member name or DNI
-  source?: "qr" | "manual";
+  /** "wellhub" = visitas validadas + a mano (Fase 204, D-14). */
+  source?: Exclude<AccessReportSource, "wellhub_manual">;
   page?: number;
   limit?: number;
 }
@@ -67,13 +68,24 @@ export interface InactiveReportFilters {
 
 // -- Response Row Types ------------------------------------------------------
 
+/** Fuente de una fila del log de accesos (Fase 204: las 4 de `attendance_source`). */
+export type AccessReportSource = "qr" | "manual" | "wellhub" | "wellhub_manual";
+
+/** Etiqueta visible de cada fuente (xlsx del log de accesos; D-14). */
+export const ACCESS_SOURCE_LABELS: Record<AccessReportSource, string> = {
+  qr: "QR",
+  manual: "Manual",
+  wellhub: "Wellhub",
+  wellhub_manual: "Wellhub (a mano)",
+};
+
 export interface AccessReportRow {
   id: number;
   checkedInAt: string;
   memberName: string;
   memberId: number;
   branchName: string;
-  source: "qr" | "manual" | "wellhub" | "wellhub_manual";
+  source: AccessReportSource;
   scheduleSlot: string | null; // e.g. "Lun 09:00 - Calistenia" or null
 }
 

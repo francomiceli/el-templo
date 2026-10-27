@@ -23,6 +23,7 @@ import { firmMoneySqlFor } from "../finance/firm-money";
 import { buildMemberNameSearchCondition } from "../shared/member-search";
 import { activeMemberExists } from "../shared/active-member";
 import { notTrialPlanSql } from "../shared/membership";
+import { WELLHUB_ATTENDANCE_SOURCES } from "../shared/wellhub-sources";
 import { ForbiddenError, NotFoundError } from "../shared/errors";
 import { assertBranchInEnforcedScope } from "../shared/branch-access";
 import {
@@ -3290,7 +3291,13 @@ export class ReportsService {
     }
 
     if (filters.source) {
-      conditions.push(eq(schema.attendance.source, filters.source));
+      // Fase 204 (D-14): "wellhub" es UNA categoría para el staff, pero en la base son
+      // dos valores (validada por Wellhub y marcada a mano): se expande a ambos.
+      conditions.push(
+        filters.source === "wellhub"
+          ? inArray(schema.attendance.source, [...WELLHUB_ATTENDANCE_SOURCES])
+          : eq(schema.attendance.source, filters.source),
+      );
     }
 
     if (filters.search) {

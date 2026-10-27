@@ -49,6 +49,89 @@ const CHARGE_REPORT_PAYMENT_METHOD_ENUM = [
 ] as const;
 
 // =============================================================================
+// Wellhub Report Schema (Fase 204, D-16)
+// =============================================================================
+
+export const wellhubReportSchema = {
+  querystring: {
+    type: "object",
+    properties: {
+      month: { type: "string", pattern: "^\\d{4}-\\d{2}$" },
+      branchId: { type: "integer" },
+    },
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        month: { type: "string" },
+        branchId: { type: ["integer", "null"] },
+        validatedVisits: { type: "integer" },
+        manualVisits: { type: "integer" },
+        people: {
+          type: "object",
+          properties: {
+            unique: { type: "integer" },
+            nuevos: { type: "integer" },
+            exAlumnos: { type: "integer" },
+            socios: { type: "integer" },
+            visitsPerPerson: { type: "number" },
+          },
+        },
+        peopleList: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              userId: { type: "integer" },
+              name: { type: "string" },
+              kind: { type: "string", enum: ["nuevo", "ex_alumno", "socio"] },
+              validatedVisits: { type: "integer" },
+              manualVisits: { type: "integer" },
+            },
+          },
+        },
+        bookings: {
+          type: "object",
+          properties: {
+            confirmed: { type: "integer" },
+            canceled: { type: "integer" },
+            lateCanceled: { type: "integer" },
+            rejected: { type: "integer" },
+            noShows: { type: "integer" },
+          },
+        },
+        conversions: {
+          type: "object",
+          properties: {
+            count: { type: "integer" },
+            ratePct: { type: "integer" },
+            items: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  userId: { type: "integer" },
+                  name: { type: "string" },
+                  kind: { type: "string" },
+                  planName: { type: "string" },
+                  localDate: { type: "string" },
+                  branchName: { type: "string" },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+// =============================================================================
 // Access Report Schema
 // =============================================================================
 
@@ -60,7 +143,8 @@ export const accessReportSchema = {
       dateFrom: { type: "string", format: "date" },
       dateTo: { type: "string", format: "date" },
       search: { type: "string" },
-      source: { type: "string", enum: ["qr", "manual"] },
+      // Fase 204 (D-14): "wellhub" trae las visitas validadas Y las marcadas a mano.
+      source: { type: "string", enum: ["qr", "manual", "wellhub"] },
       ...paginationQuerystring,
     },
   },
