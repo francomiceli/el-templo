@@ -448,3 +448,32 @@ export interface ConquerSettingsResponse {
 export interface ConquerSettingsPatch {
   comboWeeksN?: number;
 }
+
+// ── Tutoriales en video (fase 202, D-25) ─────────────────────────────
+
+/** A qué cuelga el tutorial: un ejercicio del catálogo o uno de los 6 combos. */
+export type TutorialTarget = 'ejercicio' | 'combo';
+
+/** Objetivo de una operación de tutorial (espeja el body plano de `/tutorials`). */
+export type TutorialTargetInput =
+  | { target: 'ejercicio'; exerciseId: number }
+  | { target: 'combo'; comboKey: ComboKey };
+
+/** Vista del coach de `GET/PUT/DELETE /tutorials` (la misma forma en las tres). */
+export interface AdminTutorials {
+  /** Hay cliente de storage y base pública: si es `false` el admin no ofrece subir. */
+  storageReady: boolean;
+  /** Solo los ejercicios que ya tienen tutorial; `url` es `null` si falta la base pública. */
+  exercises: { exerciseId: number; url: string | null }[];
+  /** Siempre los 6 combos; `url` es `null` si no tiene video. */
+  combos: { comboKey: ComboKey; label: string; url: string | null }[];
+}
+
+/** Respuesta de `POST /tutorials/upload-url`: se sube a `uploadUrl` con `Content-Type: video/mp4`. */
+export interface TutorialUploadUrl {
+  uploadUrl: string;
+  key: string;
+  contentType: string;
+  expiresIn: number;
+  maxBytes: number;
+}

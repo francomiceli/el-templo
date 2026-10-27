@@ -20,6 +20,7 @@ import type {
   AdminMemberView,
   AdminExercise,
   AdminTemplateDay,
+  AdminTutorials,
   AlertPatchBody,
   BoardAlert,
   BoardResponse,
@@ -35,6 +36,8 @@ import type {
   PhotoUrlResponse,
   Pose,
   StepKey,
+  TutorialTargetInput,
+  TutorialUploadUrl,
   UnlockRequest,
   UnlockRequestsResponse,
   UpdateExerciseBody,
@@ -348,6 +351,63 @@ export function useConquerAdminApi() {
     });
   }
 
+  // ── Tutoriales en video (fase 202, D-25): PUT y DELETE devuelven la vista completa ──
+
+  async function getTutorials(): Promise<AdminTutorials> {
+    return call('getTutorials', 'No pudimos cargar los tutoriales', async () => {
+      const { data } = await api.get<AdminTutorials>(`${BASE}/tutorials`);
+      return data;
+    });
+  }
+
+  /** Pide la URL firmada para subir el MP4. `contentType` tiene que ser `video/mp4`. */
+  async function requestTutorialUpload(
+    input: TutorialTargetInput,
+    contentType: string
+  ): Promise<TutorialUploadUrl> {
+    return call(
+      'requestTutorialUpload',
+      'No pudimos preparar la subida del tutorial',
+      async () => {
+        const { data } = await api.post<TutorialUploadUrl>(`${BASE}/tutorials/upload-url`, {
+          ...input,
+          contentType,
+        });
+        return data;
+      },
+      { target: input.target }
+    );
+  }
+
+  /** Confirma el video ya subido con la clave que devolvió `requestTutorialUpload`. */
+  async function confirmTutorial(input: TutorialTargetInput, key: string): Promise<AdminTutorials> {
+    return call(
+      'confirmTutorial',
+      'No pudimos guardar el tutorial',
+      async () => {
+        const { data } = await api.put<AdminTutorials>(`${BASE}/tutorials`, { ...input, key });
+        return data;
+      },
+      { target: input.target }
+    );
+  }
+
+  async function deleteTutorial(input: TutorialTargetInput): Promise<AdminTutorials> {
+    const path =
+      input.target === 'ejercicio'
+        ? `${BASE}/tutorials/exercise/${input.exerciseId}`
+        : `${BASE}/tutorials/combo/${input.comboKey}`;
+    return call(
+      'deleteTutorial',
+      'No pudimos borrar el tutorial',
+      async () => {
+        const { data } = await api.delete<AdminTutorials>(path);
+        return data;
+      },
+      { target: input.target }
+    );
+  }
+
   return {
     listRequests,
     countRequests,
@@ -370,5 +430,9 @@ export function useConquerAdminApi() {
     updateTemplateDay,
     getSettings,
     saveSettings,
+    getTutorials,
+    requestTutorialUpload,
+    confirmTutorial,
+    deleteTutorial,
   };
 }

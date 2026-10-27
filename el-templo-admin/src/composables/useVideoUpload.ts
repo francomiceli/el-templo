@@ -4,6 +4,7 @@ import { Notify } from 'quasar';
 import { api } from 'src/boot/axios';
 import { createLogger } from 'src/utils/logger';
 import { transcodeToMp4, isAlreadyMp4 } from 'src/utils/videoTranscoder';
+import { getVideoDuration } from 'src/utils/videoDuration';
 
 const log = createLogger('useVideoUpload');
 
@@ -28,29 +29,6 @@ function hasAcceptedExtension(file: File): boolean {
 function isAcceptedType(file: File): boolean {
   if (file.type === 'video/mp4' || file.type === 'video/quicktime') return true;
   return hasAcceptedExtension(file);
-}
-
-/**
- * Get the duration of a video file using HTML5 video element.
- */
-function getVideoDuration(file: File): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
-    const video = document.createElement('video');
-    video.preload = 'metadata';
-
-    video.onloadedmetadata = () => {
-      URL.revokeObjectURL(url);
-      resolve(video.duration);
-    };
-
-    video.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error('No se pudo leer el archivo de video'));
-    };
-
-    video.src = url;
-  });
 }
 
 export function useVideoUpload() {
