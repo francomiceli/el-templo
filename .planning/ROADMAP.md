@@ -12,7 +12,7 @@
 - ✅ **Fases en vuelo fuera de milestone** — 179 (referidos partners/marcas) y 180 (freemium etapa 2): en master `9ecc1c2e`, migs 0210+0215, cerradas fuera de v6.1. **No se renumeran ni se tocan desde este roadmap.**
 - 🚧 **v6.1 Módulo Gimnasio** — Phases 181-192.3: 181 (diseño) en master; 182-192.2 ejecutadas en el tren `feat/v6.1-gimnasio` **SIN PUSH** (UAT pendiente); 192.3 Workout Engine ejecutada en rama aparte, por integrar al tren
 - ✅ **Fuera de milestone, en master/prod (2026-10-28)** — 193 Comunicaciones, 194 Invitaciones, 197 Entrenar (tabs/Libre/Desafíos ocultos por flag), 199 Rediseño Mi Templo, 200 Anatomía, 201 Conquer v2 (tab oculta), 202 Conquer tutoriales, 204 Usuarios Wellhub
-- 🚧 **Fuera de milestone, no en master** — 195 Web SEO + AEO + atribución (en staging `68a9dd86f`); 203 Carga sin parpadeos (planificada 17 planes, sin ejecutar, `feat/203-carga-sin-parpadeos`)
+- 🚧 **Fuera de milestone, no en master** — 203 Carga sin parpadeos (planificada 17 planes, sin ejecutar, `feat/203-carga-sin-parpadeos`)
 - 📦 **Archivada / en espera** — 196 Personalizados + Conquer v1 (archivada, reemplazada por 201; tag `archive/196-personalizados`); 198 AURA configurable por fuente (en espera, sin planificar)
 
 > El detalle de las fases 1-178 vive en los archivos de milestone (`milestones/v6.0-ROADMAP.md`, `milestones/v5.8-ROADMAP.md`) y en `MILESTONES.md`. Este documento arranca en la fase 181 e incluye las fases 193-204, que corren fuera del milestone v6.1.
@@ -63,7 +63,7 @@ El recorrido: primero se cierra la **fase de diseño bloqueante** (las 7 definic
 - [ ] **Phase 192.3: Workout Engine** (INSERTED) — origen del dato, cumplimiento, precarga, métricas del alumno y feedback de rutina (revisión `.docs/saas-mejoras.md`). Antes del primer gimnasio real — **[rama `feat/192.3-workout-engine`, por integrar al tren]**
 - [x] **Phase 193: Comunicaciones (fuera del milestone)** - Una sección única "Comunicaciones" en el admin desde la que el staff gobierna todo lo que El Templo le dice al socio y al profe: notificaciones push con **destino** elegido de una lista (sección de la app o WhatsApp de ventas con texto), **avisos pop-up** en la app con vigencia, frecuencia por socio… — **[EN MASTER]**
 - [x] **Phase 194: Invitaciones (fuera del milestone)** - Referidos → Invitaciones: 3 accesos gratis en prueba, cupo 2/mes, ventana 90 días, descuento por conversión con flag por plan, leads con origen Invitación — **[EN MASTER]**
-- [ ] **Phase 195: Web SEO local + AEO + atribución (fuera del milestone)** - eltemplo.org con datos reales desde `branches`, páginas por sede, schema correcto, medición GA4/Meta/Search Console, atribución propia + CAPI, y guía final de pasos en Meta y Google — **[EN STAGING (`68a9dd86f`), no en master]**
+- [x] **Phase 195: Web SEO local + AEO + atribución (fuera del milestone)** - eltemplo.org con datos reales desde `branches`, páginas por sede, schema correcto, medición GA4/Meta/Search Console, atribución propia + CAPI, y guía final de pasos en Meta y Google — **[EN MASTER 2026-10-28; integraciones apagadas hasta cargar secrets]**
 - [ ] **Phase 196: Personalizados Online (fuera del milestone)** - Plan individual copiado de una plantilla y ajustado por alumno, solicitud con intake editable, cobro por suscripción online_coach, ficha con hitos, estados/banderas y tablero en el admin — **[ARCHIVADA, reemplazada por 201 (tag `archive/196-personalizados`)]**
 - [x] **Phase 197: Entrenar en tabs + canasta + bloque libre (fuera del milestone)** - Entrenar con 4 tabs (Semana · Libre · Desafíos · Conquer), canasta de bloques de su subnivel filtrada por figura tocable, bloque libre en el player con +5 AURA (primero del día que llega a 10') — **[EN MASTER (tabs/Libre/Desafíos ocultos por flag)]**
 - [ ] **Phase 198: AURA configurable por fuente (fuera del milestone)** - Apartado en Configuración general del admin para definir cuánta AURA da cada fuente (asistencia, bloque extra, rachas…) — **[EN ESPERA, sin planificar]**
@@ -614,7 +614,7 @@ Plans:
 
 ### Phase 195: Web SEO local + AEO + atribución (fuera del milestone v6.1)
 
-**Estado (2026-10-28)**: 14/14 planes ejecutados, `human_needed`. EN STAGING (`68a9dd86f`), NO en master. Pendiente: OK de push "solo web" a master y pasos manuales de Google/Meta (193-14 guía final).
+**Estado (2026-10-28)**: 14/14 planes ejecutados. EN MASTER 2026-10-28 (con migs 0270-0274, 0277 y 0278, web armada después de la API). Integraciones (GA4, Pixel, CAPI, gasto Meta, Search Console, GBP) apagadas hasta cargar los secrets: la card "Integraciones apagadas" de Reportes › Origen de altas lo recuerda. Pendiente: pasos manuales de Google/Meta (guía 195-14) y build de tienda (plugin in-app-review).
 
 **Goal**: Que eltemplo.org traiga alumnos nuevos: datos de sedes siempre correctos (fuente única `branches`), páginas por sede/disciplina/profes indexables y citables por buscadores e IA, medición real (GA4, Pixel, Search Console, Bing) y atribución de punta a punta (de dónde vino cada alumno → pagó), automatizando todo lo posible del lado de Meta y Google
 **Depends on**: nada bloqueante (web Nuxt 4 SSG en producción). Migración de `branches` se numera al momento de ejecutar (194 usa 0255+).
