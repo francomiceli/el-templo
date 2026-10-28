@@ -12,6 +12,7 @@
  */
 import { brandName } from "~/data/sedes";
 import type { WebSede } from "~/data/web-data.types";
+import { groupSchedule } from "~/utils/group-schedule";
 import { buildRegisterUrl } from "~/utils/register-url";
 import { DEFAULT_TRIAL_TEXT, salesWhatsappUrl } from "~/utils/whatsapp";
 
@@ -41,17 +42,12 @@ const address = computed(() =>
     .join(", "),
 );
 
-/** Grilla de clases por dia (solo dias con clases), Lunes a Domingo. */
-const scheduleByDay = computed(() =>
-  Object.keys(DAY_LABELS)
-    .map(Number)
-    .map((day) => ({
-      day,
-      label: DAY_LABELS[day],
-      slots: props.sede.schedule.filter((s) => s.dayOfWeek === day),
-    }))
-    .filter((d) => d.slots.length > 0),
-);
+/**
+ * Grilla compacta: dias con el mismo horario agrupados ("Lunes a viernes"),
+ * una fila por actividad con sus horas de inicio. El JSON-LD sigue con el
+ * detalle completo (useSedeSeo).
+ */
+const scheduleGroups = computed(() => groupSchedule(props.sede.schedule));
 
 /** Franjas de apertura por dia (solo dias con apertura). */
 const openingByDay = computed(() =>
@@ -121,15 +117,20 @@ const registerUrl = computed(() =>
       <template v-else>
         <section class="sede__section">
           <h2 class="sede__heading">Horarios de clases</h2>
-          <table v-if="scheduleByDay.length" class="sede__table">
+          <table v-if="scheduleGroups.length" class="sede__table">
             <tbody>
-              <tr v-for="d in scheduleByDay" :key="d.day">
-                <th scope="row">{{ d.label }}</th>
+              <tr v-for="g in scheduleGroups" :key="g.label">
+                <th scope="row">{{ g.label }}</th>
                 <td>
-                  <span v-for="slot in d.slots" :key="`${slot.startTime}-${slot.activity}`" class="sede__slot">
-                    {{ slot.startTime }}&ndash;{{ slot.endTime }}
-                    {{ slot.activity }}
-                  </span>
+                  <div v-for="row in g.rows" :key="`${row.activity}-${row.durationMinutes}`" class="sede__act">
+                    <span class="sede__act-name">
+                      {{ row.activity }}
+                      <span v-if="row.durationLabel" class="sede__act-dur">&middot; {{ row.durationLabel }}</span>
+                    </span>
+                    <span class="sede__chips">
+                      <span v-for="t in row.times" :key="t" class="sede__chip">{{ t }}</span>
+                    </span>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -301,8 +302,34 @@ const registerUrl = computed(() =>
   font-weight: 700;
 }
 
-.sede__slot {
+.sede__act + .sede__act {
+  margin-top: 10px;
+}
+
+.sede__act-name {
   display: block;
+  margin-bottom: 4px;
+}
+
+.sede__act-dur {
+  color: var(--color-olive-stone);
+}
+
+.sede__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sede__chip {
+  display: inline-block;
+  padding: 2px 9px;
+  border: 1px solid var(--color-warm-stone);
+  border-radius: var(--radius-base);
+  background: #fff;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .sede__empty,
@@ -351,8 +378,19 @@ const registerUrl = computed(() =>
     font-size: 24px;
   }
 
+  .sede__table th,
+  .sede__table td {
+    display: block;
+    width: auto;
+  }
+
   .sede__table th {
-    width: 90px;
+    padding-bottom: 2px;
+    border-bottom: 0;
+  }
+
+  .sede__table td {
+    padding-top: 0;
   }
 }
 </style>

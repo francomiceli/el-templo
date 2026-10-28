@@ -16,7 +16,7 @@ interface NavLink {
 const navLinks: NavLink[] = [
   { label: "El Metodo", href: "/#metodo", sectionId: "metodo" },
   { label: "Niveles", href: "/#niveles", sectionId: "niveles" },
-  { label: "Sedes", href: "/#sedes", sectionId: "sedes" },
+  { label: "Sedes", href: "/sedes", sectionId: null },
   { label: "Franquicias", href: "/franquicias", sectionId: null },
   {
     label: "Gladius",
