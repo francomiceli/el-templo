@@ -20,6 +20,8 @@ interface UseWeekDataReturn {
   error: Ref<string | null>
   /** true cuando /sessions/weekly respondio al menos una vez (bien o mal); nunca vuelve a false */
   loaded: Ref<boolean>
+  /** true despues de la primera respuesta 2xx: `completedDates` es un dato real, no el [] inicial */
+  hasData: Ref<boolean>
   fetchWeekSessions: (dates: string[]) => Promise<void>
 }
 
@@ -50,6 +52,9 @@ export function useWeekData(): UseWeekDataReturn {
   const loading = ref(false)
   const error = ref<string | null>(null)
   const loaded = ref(false)
+  const hasData = ref(false)
+  // Semana de lo que hay hoy en `sessions` (null = nada cargado todavia).
+  let sessionsWeekStart: string | null = null
 
   /**
    * Fetch sessions for a week starting from the first date
@@ -59,12 +64,17 @@ export function useWeekData(): UseWeekDataReturn {
   async function fetchWeekSessions(dates: string[]): Promise<void> {
     loading.value = true
     error.value = null
-    sessions.value.clear()
+    // Use the first date (Monday) as week start
+    const weekStart = dates[0]
+    // Fase 203: solo se vacia al cambiar de semana. Recargar la MISMA semana (pull-to-refresh,
+    // cambio de nivel) conserva lo que habia hasta que llega la respuesta: vaciarlo hacia que
+    // la card de hoy dijera por un instante que el dia no tenia sesion.
+    if (weekStart !== sessionsWeekStart) {
+      sessions.value.clear()
+      sessionsWeekStart = null
+    }
 
     try {
-      // Use the first date (Monday) as week start
-      const weekStart = dates[0]
-
       const params: Record<string, string> = {}
       if (weekStart) params.weekStart = weekStart
       if (userStore.selectedLevel) params.level = userStore.selectedLevel
@@ -87,7 +97,9 @@ export function useWeekData(): UseWeekDataReturn {
       }
 
       sessions.value = newSessions
+      sessionsWeekStart = weekStart ?? null
       completedDates.value = response.data.completedDates ?? []
+      hasData.value = true
     } catch (err: unknown) {
       error.value = extractError(err, 'Error cargando semana')
       log.error('Failed to fetch week sessions', {
@@ -106,6 +118,7 @@ export function useWeekData(): UseWeekDataReturn {
     loading,
     error,
     loaded,
+    hasData,
     fetchWeekSessions,
   }
 }

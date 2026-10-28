@@ -119,4 +119,56 @@ describe('useWeekData (fase 203, D-09)', () => {
     await second
     expect(loaded.value).toBe(true)
   })
+
+  it('hasData solo pasa a true con una respuesta OK y un error posterior no lo apaga', async () => {
+    const { fetchWeekSessions, hasData } = useWeekData()
+
+    vi.mocked(api.get).mockRejectedValueOnce(new Error('Network Error'))
+    await fetchWeekSessions(WEEK)
+    expect(hasData.value).toBe(false)
+
+    await fetchWeekSessions(WEEK)
+    expect(hasData.value).toBe(true)
+
+    vi.mocked(api.get).mockRejectedValueOnce(new Error('Network Error'))
+    await fetchWeekSessions(WEEK)
+    expect(hasData.value).toBe(true)
+  })
+
+  it('recargar la MISMA semana conserva las sesiones mientras llega la respuesta', async () => {
+    const { fetchWeekSessions, sessions } = useWeekData()
+    await fetchWeekSessions(WEEK)
+
+    let resolveSecond!: (value: unknown) => void
+    vi.mocked(api.get).mockReturnValue(
+      new Promise((resolve) => {
+        resolveSecond = resolve
+      }),
+    )
+    const second = fetchWeekSessions(WEEK)
+    expect(sessions.value.has('2026-10-12')).toBe(true)
+
+    resolveSecond({ data: { sessions: { '2026-10-13': null } } })
+    await second
+    expect(sessions.value.has('2026-10-12')).toBe(false)
+    expect(sessions.value.has('2026-10-13')).toBe(true)
+  })
+
+  it('una falla al recargar la misma semana conserva las sesiones previas', async () => {
+    const { fetchWeekSessions, sessions } = useWeekData()
+    await fetchWeekSessions(WEEK)
+
+    vi.mocked(api.get).mockRejectedValueOnce(new Error('Network Error'))
+    await fetchWeekSessions(WEEK)
+    expect(sessions.value.has('2026-10-12')).toBe(true)
+  })
+
+  it('pasar a OTRA semana vacía las sesiones al empezar (no muestra la semana anterior)', async () => {
+    const { fetchWeekSessions, sessions } = useWeekData()
+    await fetchWeekSessions(WEEK)
+
+    vi.mocked(api.get).mockReturnValue(new Promise(() => {}))
+    void fetchWeekSessions(['2026-10-19', '2026-10-20'])
+    expect(sessions.value.size).toBe(0)
+  })
 })

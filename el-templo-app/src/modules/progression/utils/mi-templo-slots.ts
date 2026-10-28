@@ -39,8 +39,11 @@ export interface MiTemploSlotsInput {
   sponsors: { loaded: boolean; ok: boolean | null; count: number }
   /** `settled`/`ok` de los check-ins de hoy; `questions` = preguntas ya ordenadas (0 sin estado). */
   checkIn: { settled: boolean; ok: boolean | null; questions: number }
-  /** La semana (`/sessions/weekly`) respondió, bien o mal (fail-open). */
-  week: { loaded: boolean }
+  /**
+   * La semana (`/sessions/weekly`): `loaded` respondió (bien o mal), `ok` la última respuesta fue
+   * 2xx, `hasData` hubo alguna respuesta 2xx (los días hechos son un dato, no el [] inicial).
+   */
+  week: { loaded: boolean; ok: boolean; hasData: boolean }
   /** Stats: `loaded` respondió (bien o mal), `ok` la última respuesta fue 2xx. */
   stats: { loaded: boolean; ok: boolean | null; evaluationVisible: boolean }
   /** "Para vos": tarjetas del admin, estado del socio y perfil. */
@@ -72,7 +75,8 @@ export function resolveMiTemploSlots(i: MiTemploSlotsInput): MiTemploSlots {
   const novedadesHas = i.novedades.count > 0
   const sponsorsHas = i.sponsors.count > 0
   const checkInHas = i.checkIn.questions > 0 && !neverHadPlan
-  const weekHas = !neverHadPlan
+  // Sin ninguna respuesta buena, "0 sesiones esta semana" sería inventar: se oculta (D-16).
+  const weekHas = !neverHadPlan && i.week.hasData
 
   const novedades = resolveSlot({
     reserve: 'if-had-content',
@@ -128,7 +132,7 @@ export function resolveMiTemploSlots(i: MiTemploSlotsInput): MiTemploSlots {
   if (i.sponsors.loaded && i.sponsors.ok === true) records.sponsors = sponsorsHas
   if (i.checkIn.settled && i.checkIn.ok === true && todayDefinitive) records.checkIn = checkInHas
   if (i.stats.loaded && i.stats.ok === true) records.evaluation = i.stats.evaluationVisible
-  if (i.week.loaded && todayDefinitive) records.weekStrip = weekHas
+  if (i.week.loaded && i.week.ok && todayDefinitive) records.weekStrip = weekHas
 
   return { novedades, checkIn, sponsors, weekStrip, evaluation, paraVos, records }
 }

@@ -9,7 +9,7 @@ function baseInput(over: Partial<MiTemploSlotsInput> = {}): MiTemploSlotsInput {
     novedades: { loaded: true, ok: true, count: 2 },
     sponsors: { loaded: true, ok: true, count: 3 },
     checkIn: { settled: true, ok: true, questions: 3 },
-    week: { loaded: true },
+    week: { loaded: true, ok: true, hasData: true },
     stats: { loaded: true, ok: true, evaluationVisible: true },
     paraVos: { tarjetasSettled: true, memberStateLoaded: true, hasProfile: true },
     hadContent: {},
@@ -203,10 +203,35 @@ describe('resolveMiTemploSlots', () => {
     it('semana sin responder: esqueleto si tuvo contenido, oculta si no', () => {
       expect(
         resolveMiTemploSlots(
-          baseInput({ week: { loaded: false }, hadContent: { weekStrip: true } }),
+          baseInput({
+            week: { loaded: false, ok: true, hasData: false },
+            hadContent: { weekStrip: true },
+          }),
         ).weekStrip,
       ).toBe('skeleton')
-      expect(resolveMiTemploSlots(baseInput({ week: { loaded: false } })).weekStrip).toBe('hidden')
+      expect(
+        resolveMiTemploSlots(baseInput({ week: { loaded: false, ok: true, hasData: false } }))
+          .weekStrip,
+      ).toBe('hidden')
+    })
+
+    it('falla de la semana sin ninguna respuesta buena: oculta, nunca "0 sesiones", y no registra', () => {
+      const s = resolveMiTemploSlots(
+        baseInput({
+          week: { loaded: true, ok: false, hasData: false },
+          hadContent: { weekStrip: true },
+        }),
+      )
+      expect(s.weekStrip).toBe('hidden')
+      expect(s.records.weekStrip).toBeUndefined()
+    })
+
+    it('refresco fallido con datos previos: sigue mostrando la tira y no pisa el flag', () => {
+      const s = resolveMiTemploSlots(
+        baseInput({ week: { loaded: true, ok: false, hasData: true } }),
+      )
+      expect(s.weekStrip).toBe('content')
+      expect(s.records.weekStrip).toBeUndefined()
     })
 
     it('con plan y semana respondida: contenido y registra true', () => {

@@ -233,6 +233,7 @@ const {
   sessions: weekSessions,
   completedDates,
   loaded: weekLoaded,
+  hasData: weekHasData,
   error: weekError,
   fetchWeekSessions,
 } = useWeekData()
@@ -523,7 +524,7 @@ const slots = computed(() => {
       ok: progressionStore.checkInOk,
       questions: orderedCheckIns.value.length,
     },
-    week: { loaded: weekLoaded.value },
+    week: { loaded: weekLoaded.value, ok: weekError.value === null, hasData: weekHasData.value },
     stats: {
       loaded: progressionStore.statsLoaded,
       ok: progressionStore.statsOk,
