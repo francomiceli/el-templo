@@ -113,7 +113,7 @@ const log = createLogger('BodyFigure')
 // Mismos valores que $fig-lit-a/b/c y $fig-muscle-a/-/c de _brand.scss: el SVG necesita el color
 // como atributo. Variante A2 (2026-10-27): cada músculo es una "almohada" con luz de arriba a la
 // izquierda, como el recorrido de la TV.
-const LIT = ['#d1bdab', '#b08d6e', '#6d5744'] as const
+const LIT = ['#aa9482', '#8d7158', '#574637'] as const
 const MUSCLE = ['#fdfbf7', '#ece5d9', '#e6ddd0'] as const
 // Todo se funde en la piel (2026-10-27, cuerpos comunes): el músculo sin trabajar con el borde
 // transparente y el encendido con el borde al 35 %, los dos sin línea.

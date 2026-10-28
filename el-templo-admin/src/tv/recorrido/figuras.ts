@@ -2,7 +2,7 @@
  * SVG de la intro "el recorrido de hoy" (sketch 004, variante D): los cuerpos y las zonas
  * de cada bloque "encendidas". 2026-10-27 (variante A2): el cuerpo es el MISMO de la figura
  * del app (`FIGURA_BASE` = `$fig-*` de su _brand.scss): músculos con relieve que se funden en la piel
- * y las zonas encendidas en oro (`--gold`) con relieve, un solo color para todos los bloques (antes,
+ * y las zonas encendidas en oro (`--gold` oscurecido un 20 %, por contraste) con relieve, un solo color para todos los bloques (antes,
  * mármol con vetas y silueta oscura, y un color por bloque).
  *
  * Funciones PURAS que devuelven markup SVG. Ningún texto que venga del server entra acá:
@@ -27,9 +27,9 @@ export const FIGURA_BASE = {
   'muscle-c': '#e6ddd0',
   skin: '#f3eee6',
   'skin-edge': '#b1a38e',
-  'lit-a': '#d1bdab',
-  'lit-b': '#b08d6e',
-  'lit-c': '#6d5744',
+  'lit-a': '#aa9482',
+  'lit-b': '#8d7158',
+  'lit-c': '#574637',
 };
 
 /** Opacidades del degradé del músculo sin trabajar (luz, medio, borde): mismas que `MUSCLE_OP`

@@ -31,11 +31,13 @@ $fig-muscle: #ece5d9; // músculo sin trabajar: medio (y color sólido de respal
 $fig-muscle-c: #e6ddd0; // músculo sin trabajar: borde (transparente)
 $fig-skin: #f3eee6; // piel / contorno / partes no musculares
 $fig-skin-edge: #b1a38e;
-// Encendido: oro de la plani de la TV (--gold), con relieve. Los demás tonos de la familia salen
-// de mezclar #b08d6e con blanco o negro (como `mezclar()` de la TV).
-$fig-lit-a: #d1bdab; // bloque elegido: luz (42 % blanco)
-$fig-lit-b: #b08d6e; // bloque elegido: medio
-$fig-lit-c: #6d5744; // bloque elegido: sombra (38 % negro), al 35 %: el borde se funde en la piel
+// Encendido: el oro de la plani de la TV (--gold #b08d6e) oscurecido un 20 % para llegar a 3:1
+// contra el músculo sin trabajar (WCAG 1.4.11; el oro tal cual daba 2,4:1). Con relieve: luz y
+// sombra salen de mezclar el medio con blanco o negro (como `mezclar()` de la TV). Los tonos
+// secundarios de abajo siguen derivados del oro sin oscurecer.
+$fig-lit-a: #aa9482; // bloque elegido: luz (25 % blanco)
+$fig-lit-b: #8d7158; // bloque elegido: medio (3,6:1 contra $fig-muscle)
+$fig-lit-c: #574637; // bloque elegido: sombra (38 % negro), al 35 %: el borde se funde en la piel
 
 // Muestra de leyenda con el mismo encendido que la figura.
 @mixin fig-lit-swatch {
