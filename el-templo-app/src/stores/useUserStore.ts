@@ -1,11 +1,15 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { AxiosError } from 'axios'
 import { api } from 'src/boot/axios'
 import { createLogger } from 'src/utils/logger'
+import { shareInFlight } from 'src/utils/share-in-flight'
 import { useLevelSelectionStorage } from 'src/composables/useLevelSelectionStorage'
 import { isTrainingLevel, type Level } from 'src/modules/training/level-display'
 import { fullLineLabel, sameSpecialLine } from 'src/utils/special-line'
 import type { MemberPlanStatus } from 'src/types/plan-status'
+import type { MemberEnrollmentProgress } from 'src/modules/programs/types'
+import type { TrialEligibility } from 'src/composables/useSchedulingApi'
 
 // Fase 199 (D-05): el tipo vive en types/ para que utilidades puras lo usen sin Pinia.
 export type { MemberPlanStatus }
@@ -147,6 +151,20 @@ const STATUS_COLORS: Record<SubscriptionStatus, string> = {
   scheduled: 'blue-grey',
 }
 
+/**
+ * Frescura de los datos del socio para `ensureMemberState()` sin `maxAgeMs`: el boot
+ * carga todo y la primera pantalla que lo pide un instante después no repite los
+ * pedidos (Pitfall 5 de la fase 203).
+ */
+export const MEMBER_STATE_MAX_AGE_MS = 15_000
+
+/**
+ * Vigencia máxima de una carga compartida. En nativo CapacitorHttp ignora el timeout
+ * de axios: un pedido colgado no puede bloquear las cargas siguientes ni a los `force`
+ * que lo esperan (W4). Pasado este tiempo la próxima llamada arranca una carga nueva.
+ */
+export const MEMBER_LOAD_MAX_IN_FLIGHT_MS = 15_000
+
 export const useUserStore = defineStore('user', () => {
   const log = createLogger('useUserStore')
 
@@ -169,6 +187,32 @@ export const useUserStore = defineStore('user', () => {
   const planStatus = ref<MemberPlanStatus | null>(null)
   const planStatusLoading = ref(false)
   const planStatusLoaded = ref(false)
+  // Fase 203 (D-07): una falla es "no sé", nunca "no tiene". Cada fuente del socio
+  // tiene su bandera de falla; un refresco fallido conserva el último dato bueno y
+  // un éxito posterior la limpia.
+  const subscriptionFailed = ref(false)
+  const planStatusFailed = ref(false)
+  const myProgressFailed = ref(false)
+  const currentProgramFailed = ref(false)
+  // Fase 203 (SC-4): el store guarda el objeto completo de my-progress para que
+  // ninguna pantalla vuelva a pedirlo. null = sin inscripción (204) o sin cargar.
+  const myProgress = ref<MemberEnrollmentProgress | null>(null)
+  const myProgressLoaded = ref(false)
+  // Fase 203 (D-15): trial-eligibility sale en paralelo con la suscripción para todos.
+  // null = no elegible/sede virtual/error (fail-open).
+  const trialEligibility = ref<TrialEligibility | null>(null)
+  const trialEligibilityLoaded = ref(false)
+  // true cuando las 6 fuentes del socio resolvieron (bien o mal) por primera vez.
+  // Distingue "todavía no llegó" de "no tiene"; un refresco no lo vuelve a false.
+  const memberStateLoaded = ref(false)
+  // Closure-scoped (no reactivo): instante de la última carga completa vigente.
+  let memberStateLoadedAt: number | null = null
+  // Se incrementa en clearProfile: descarta respuestas en vuelo del socio anterior (T-203-11).
+  let memberGeneration = 0
+  // Secuencia de cargas: una carga vieja vencida no pisa a una más nueva (W4).
+  let memberLoadSeq = 0
+  // Secuencia del "visto" de la pelotita de Planes (ver loadPlanStatus).
+  let planUpdateClearSeq = 0
   // Phase 162 (APP-02): pase especial. AISLADO del singular `subscription`
   // (D-06): sus capabilities son aditivas y NO alteran hasPresencialPlan /
   // hasPresencialReservationAccess. null = sin pase (o error/204).
@@ -181,7 +225,7 @@ export const useUserStore = defineStore('user', () => {
   const enrolledGoalPlanType = ref<string | null>(null)
 
   // Phase 104: current-program pointer + active enrollments listing.
-  // Both populated by fetchCurrentProgram() (called from loadSubscription).
+  // Both populated by fetchCurrentProgram() (called from loadMemberState).
   // isUpdatingCurrentProgram is the concurrent-PUT guard surfaced via the
   // selector's :loading/:disable bindings in the home program card dropdown.
   const currentProgram = ref<CurrentProgramData>({ enrollmentId: null, program: null })
@@ -249,8 +293,8 @@ export const useUserStore = defineStore('user', () => {
   )
 
   // Fase 199: la card de hoy y la hoja de patrocinadores no deciden "sin plan"
-  // mientras esto sea true. Mi Templo dispara loadSubscription al montar y
-  // loadPlanStatus cuando la suscripción terminó sin plan activo (plan 15).
+  // mientras esto sea true. Fase 203 (D-15): plan-status sale en loadMemberState junto
+  // con la suscripción, para todos (ya no lo dispara Mi Templo cuando no hay plan).
   // Es true hasta que cada fuente respondió POR PRIMERA VEZ: un refresco de algo
   // ya resuelto (`*Loading` con `*Loaded` true) no devuelve la card al skeleton,
   // porque ya hay un dato con qué decidir (REVIEW-app WR-03).
@@ -322,6 +366,19 @@ export const useUserStore = defineStore('user', () => {
 
   const showProgramSelector = computed(() => viewOptionsCount.value > 1)
 
+  // Fase 203: elegible para la prueba gratis = elegible y sin reserva de prueba hecha.
+  const trialEligible = computed(
+    () =>
+      trialEligibility.value?.eligible === true && trialEligibility.value.alreadyBooked !== true,
+  )
+
+  /**
+   * La última carga de my-progress o de current-program/enrollments falló. Los datos
+   * que se ven son los del último éxito, o vacíos si nunca hubo uno: las pantallas lo
+   * tratan como "no sé", nunca como "no tiene" (D-07).
+   */
+  const programFailed = computed(() => myProgressFailed.value || currentProgramFailed.value)
+
   /**
    * activeLevel — what the client should treat as the user's currently-active
    * training level (for content fetches, display, etc). Falls back to
@@ -369,6 +426,24 @@ export const useUserStore = defineStore('user', () => {
     planStatusLoaded.value = false
     planStatusLoading.value = false
     subscriptionLoaded.value = false
+    // Fase 203 (T-203-11): las respuestas en vuelo del socio anterior no escriben nada
+    // y la próxima ensureMemberState pide de nuevo (no reutiliza la promesa vieja).
+    memberGeneration++
+    memberLoad.reset()
+    subscriptionLoading.value = false
+    subscriptionFailed.value = false
+    planStatusFailed.value = false
+    myProgressFailed.value = false
+    currentProgramFailed.value = false
+    myProgress.value = null
+    myProgressLoaded.value = false
+    trialEligibility.value = null
+    trialEligibilityLoaded.value = false
+    memberStateLoaded.value = false
+    memberStateLoadedAt = null
+    hasActiveProgramEnrollment.value = false
+    enrolledGoalPlanType.value = null
+    planUpdateClearSeq = 0
     // Phase 162: limpiar el pase especial junto al singular en logout / reset.
     especialPass.value = null
     trialLines.value = []
@@ -404,7 +479,7 @@ export const useUserStore = defineStore('user', () => {
       setProfile(response.data)
       profileStale.value = false
       await hydrateSelection()
-      void loadSubscription()
+      void ensureMemberState()
     } catch (err: unknown) {
       log.warn('Reintento de perfil sin éxito, se reintentará en la próxima navegación', {
         message: err instanceof Error ? err.message : String(err),
@@ -418,57 +493,134 @@ export const useUserStore = defineStore('user', () => {
     loading.value = state
   }
 
+  /** Guard por defecto de las lecturas sueltas: vigente mientras no haya logout. */
+  function currentGeneration(): () => boolean {
+    const gen = memberGeneration
+    return () => gen === memberGeneration
+  }
+
   /**
-   * Fase 199 (D-05): lee el estado de plan del socio (API 199-05). Fail-open: ante
-   * cualquier error `planStatus` queda null y NUNCA lanza.
+   * Fase 199 (D-05): lee el estado de plan del socio (API 199-05). NUNCA lanza.
+   *
+   * Uso interno de loadMemberState: las pantallas llaman a ensureMemberState (el
+   * llamado suelto de MainLayout y de Mi Templo se elimina en el plan 11).
+   *
+   * Fase 203 (W3): ante un error `planStatus` conserva el valor previo (null en la
+   * primera carga) y marca `planStatusFailed`: la card no dice "Arrancá tu plan" si no
+   * se sabe si venció o hay uno programado.
+   *
+   * Carrera de la pelotita (`showPlanBadge` de MainLayout): Planes se abre → `clear` +
+   * POST `seen` → llega tarde la respuesta de un plan-status viejo → reabría la
+   * pelotita. Si entre el arranque del pedido y su respuesta hubo un
+   * `clearPlanUpdateUnseen()`, la respuesta salió antes del "visto" (el server todavía
+   * no tenía el POST) y se escribe con `hasUnseenPlanUpdate: false`; el resto de los
+   * campos sí se actualizan. Un pedido arrancado después del `clear` refleja al server
+   * tal cual, así una membresía nueva vuelve a prender la pelotita.
    */
-  async function loadPlanStatus(): Promise<void> {
+  async function loadPlanStatus(isCurrent: () => boolean = currentGeneration()): Promise<void> {
     planStatusLoading.value = true
+    const clearSeqAtStart = planUpdateClearSeq
     try {
       const response = await api.get<MemberPlanStatus>('/members/subscription/me/plan-status')
-      planStatus.value = response.data ?? null
+      if (!isCurrent()) return
+      const data = response.data ?? null
+      planStatus.value =
+        data && clearSeqAtStart !== planUpdateClearSeq
+          ? { ...data, hasUnseenPlanUpdate: false }
+          : data
+      planStatusFailed.value = false
     } catch (err: unknown) {
-      planStatus.value = null
-      log.warn('plan-status no disponible (fail-open)', {
+      if (!isCurrent()) return
+      planStatusFailed.value = true
+      log.warn('plan-status no disponible (se conserva el valor previo)', {
         message: err instanceof Error ? err.message : String(err),
       })
     } finally {
-      planStatusLoading.value = false
-      planStatusLoaded.value = true
+      if (isCurrent()) {
+        planStatusLoading.value = false
+        planStatusLoaded.value = true
+      }
     }
   }
 
   /**
    * Apaga la pelotita de la tab Planes al abrir la pantalla (el POST `seen` lo manda la página).
-   * Solo toca el flag: el resto de `planStatus` queda igual.
+   * Solo toca el flag: el resto de `planStatus` queda igual. Además avanza la secuencia
+   * del "visto" para que una respuesta de plan-status en vuelo no lo reabra (ver loadPlanStatus).
    */
   function clearPlanUpdateUnseen(): void {
+    planUpdateClearSeq++
     if (planStatus.value) planStatus.value = { ...planStatus.value, hasUnseenPlanUpdate: false }
   }
 
-  async function loadSubscription() {
+  /**
+   * Suscripción del socio. 204/404 = no tiene (subscriptionFailed false). Cualquier
+   * otro error = "no sé": NO toca `subscription` (la última buena se conserva) y marca
+   * `subscriptionFailed`.
+   */
+  async function fetchSubscription(isCurrent: () => boolean): Promise<void> {
     subscriptionLoading.value = true
     try {
       const response = await api.get<MemberSubscription>('/members/subscription/me/subscription')
+      if (!isCurrent()) return
       // 204 No Content means no subscription
-      if (response.status === 204 || !response.data) {
+      subscription.value = response.status === 204 || !response.data ? null : response.data
+      subscriptionFailed.value = false
+    } catch (err: unknown) {
+      if (!isCurrent()) return
+      if (err instanceof AxiosError && err.response?.status === 404) {
         subscription.value = null
+        subscriptionFailed.value = false
       } else {
-        subscription.value = response.data
+        subscriptionFailed.value = true
+        log.warn('Suscripción no disponible (se conserva el valor previo)', {
+          message: err instanceof Error ? err.message : String(err),
+        })
       }
-    } catch {
-      // 204/404 or network error — no subscription
-      subscription.value = null
     } finally {
-      subscriptionLoading.value = false
-      subscriptionLoaded.value = true
+      if (isCurrent()) {
+        subscriptionLoading.value = false
+        subscriptionLoaded.value = true
+      }
     }
+  }
 
-    // Fetch program enrollment status (per D-08: gates Personalizadas access)
-    await fetchProgramEnrollmentStatus()
-    // Phase 104: hydrate current-program pointer + active enrollments listing.
-    // Drives the WeeklyView selector and the relaxed TrainingIndex block.
-    await fetchCurrentProgram()
+  /**
+   * Elegibilidad de la prueba gratis (D-15: en paralelo con la suscripción, para todos).
+   * Sede virtual: no se pide (la card no usa la prueba para virtuales, igual que Mi Templo).
+   * Usa `api` directo y no `useSchedulingApi` para no compartir su AbortController.
+   */
+  async function loadTrialEligibility(isCurrent: () => boolean): Promise<void> {
+    if (profile.value?.branchIsVirtual === true) {
+      trialEligibility.value = null
+      trialEligibilityLoaded.value = true
+      return
+    }
+    try {
+      const response = await api.get<TrialEligibility>('/members/scheduling/trial-eligibility')
+      if (!isCurrent()) return
+      trialEligibility.value = response.status === 204 || !response.data ? null : response.data
+    } catch (err: unknown) {
+      if (!isCurrent()) return
+      trialEligibility.value = null
+      log.warn('trial-eligibility no disponible (fail-open)', {
+        message: err instanceof Error ? err.message : String(err),
+      })
+    } finally {
+      if (isCurrent()) trialEligibilityLoaded.value = true
+    }
+  }
+
+  /**
+   * Carga COMPLETA y fresca de los datos del socio (suscripción, plan-status,
+   * trial-eligibility, my-progress, current-program y enrollments) en paralelo.
+   * Mismo comportamiento que `ensureMemberState({ force: true })`. La usan Reservas tras
+   * confirmar la semana de regalo (`ReservasPage.vue:2171`) y ActivarInvitación tras
+   * activar (`ActivarInvitacionPage.vue:290`), justo después de mutar el estado en el
+   * server: con una carga en vuelo espera a que termine y encadena una nueva.
+   */
+  function loadSubscription(): Promise<void> {
+    return ensureMemberState({ force: true })
   }
 
   /**
@@ -532,38 +684,138 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
-  async function fetchProgramEnrollmentStatus(): Promise<void> {
+  /**
+   * my-progress: guarda el objeto completo (204 → null) y deriva
+   * `hasActiveProgramEnrollment` / `enrolledGoalPlanType` (per D-08: gates
+   * Personalizadas access). Un error es "no sé": marca `myProgressFailed` y conserva
+   * el último dato bueno.
+   */
+  async function fetchProgramEnrollmentStatus(
+    isCurrent: () => boolean = currentGeneration(),
+  ): Promise<void> {
     try {
-      const response = await api.get('/members/programs/my-progress')
-      hasActiveProgramEnrollment.value = response.status === 200 && !!response.data
-      enrolledGoalPlanType.value = response.data?.goalPlanType ?? null
-    } catch {
-      hasActiveProgramEnrollment.value = false
-      enrolledGoalPlanType.value = null
+      const response = await api.get<MemberEnrollmentProgress | null>(
+        '/members/programs/my-progress',
+      )
+      if (!isCurrent()) return
+      const data = response.status === 204 || !response.data ? null : response.data
+      myProgress.value = data
+      hasActiveProgramEnrollment.value = response.status === 200 && data !== null
+      enrolledGoalPlanType.value = data?.goalPlanType ?? null
+      myProgressFailed.value = false
+    } catch (err: unknown) {
+      if (!isCurrent()) return
+      myProgressFailed.value = true
+      log.warn('my-progress no disponible (se conserva el valor previo)', {
+        message: err instanceof Error ? err.message : String(err),
+      })
+    } finally {
+      if (isCurrent()) myProgressLoaded.value = true
     }
   }
 
   /**
    * Phase 104 (R6 + R9 + R10): fetch the user's current-program pointer and
    * the list of all active enrollments in parallel. Both endpoints live on
-   * Plan 04. On error, both refs are reset to a safe empty state — the UI
-   * uses these to drive the program selector and the TrainingIndex block.
+   * Plan 04. Fase 203 (D-07): on error the refs are NOT reset — se conserva el último
+   * dato bueno y se marca `currentProgramFailed` (un refresco fallido no vacía las
+   * inscripciones: eso hacía que TrainingIndex mostrara la vidriera a un socio solo-online).
    */
-  async function fetchCurrentProgram(): Promise<void> {
+  async function fetchCurrentProgram(
+    isCurrent: () => boolean = currentGeneration(),
+  ): Promise<void> {
     try {
       const [cur, list] = await Promise.all([
         api.get<CurrentProgramData>('/members/me/current-program'),
         api.get<{ enrollments: EnrollmentSummary[] }>('/members/me/enrollments'),
       ])
+      if (!isCurrent()) return
       currentProgram.value = cur.data
       allActiveEnrollments.value = list.data.enrollments
+      currentProgramFailed.value = false
     } catch (err: unknown) {
+      if (!isCurrent()) return
+      currentProgramFailed.value = true
       log.error('Failed to fetch current program', {
         error: err instanceof Error ? err.message : String(err),
       })
-      currentProgram.value = { enrollmentId: null, program: null }
-      allActiveEnrollments.value = []
     }
+  }
+
+  // ─── Fase 203: carga del socio (dueño único, en paralelo, promesa compartida) ───
+
+  /**
+   * Un solo ciclo de carga. 'initial' pide las 6 fuentes; 'refresh' (vueltas a
+   * Mi Templo/Planes/Entrenar/Perfil por frescura) pide siempre my-progress +
+   * current-program (+ enrollments) y suscripción + plan-status + trial solo si el socio
+   * NO tiene plan activo: con plan activo el refresco no recarga plan-status, la
+   * pelotita de un socio con plan se renueva en la carga 'initial' / force y no en cada
+   * vuelta a una pantalla. Todo sale en paralelo (D-06/D-15). Las escrituras pasan por
+   * `isCurrent()`: tras un logout, o si ya hay una carga más nueva (la vieja se colgó y
+   * venció), la respuesta tardía no escribe nada.
+   */
+  async function doLoadMemberState(mode: 'initial' | 'refresh'): Promise<void> {
+    const gen = memberGeneration
+    const seq = ++memberLoadSeq
+    const isCurrent = () => gen === memberGeneration && seq === memberLoadSeq
+    const tasks: Promise<void>[] = []
+    if (mode === 'initial' || !hasActiveSubscription.value) {
+      tasks.push(
+        fetchSubscription(isCurrent),
+        loadPlanStatus(isCurrent),
+        loadTrialEligibility(isCurrent),
+      )
+    }
+    tasks.push(fetchProgramEnrollmentStatus(isCurrent), fetchCurrentProgram(isCurrent))
+    await Promise.allSettled(tasks)
+    if (isCurrent()) {
+      memberStateLoaded.value = true
+      memberStateLoadedAt = Date.now()
+    }
+  }
+
+  const memberLoad = shareInFlight(doLoadMemberState, {
+    maxInFlightMs: MEMBER_LOAD_MAX_IN_FLIGHT_MS,
+  })
+
+  /** Carga el estado del socio. Llamadas simultáneas comparten una sola carga. */
+  function loadMemberState(mode: 'initial' | 'refresh' = 'initial'): Promise<void> {
+    return memberLoad.run(mode)
+  }
+
+  /**
+   * `force`: NUNCA devuelve la carga en vuelo ni hace un refresh parcial. Con una
+   * carga en vuelo (que pudo salir antes del cambio en el server) espera a que termine
+   * (o a que venza su vigencia, W4) y encadena UNA carga COMPLETA ('initial', las 6);
+   * si dos llamadores fuerzan a la vez comparten esa carga encadenada. Sin carga en
+   * vuelo arranca en el MISMO tick (W2: `subscriptionLoading` es true de forma síncrona).
+   * Si hubo clearProfile() en el medio no se pide nada.
+   */
+  function forceFullLoad(): Promise<void> {
+    if (!memberLoad.isInFlight()) return memberLoad.run('initial')
+    const gen = memberGeneration
+    return memberLoad
+      .waitInFlight()
+      .then(() => (gen === memberGeneration ? memberLoad.run('initial') : undefined))
+  }
+
+  /**
+   * Garantiza que los datos del socio estén cargados; las pantallas llaman a esto.
+   * - `force: true`: carga completa fresca (ver forceFullLoad).
+   * - Con una carga en vuelo (sin force): devuelve la en vuelo.
+   * - Sin carga previa: carga 'initial'.
+   * - Dentro de la frescura (`maxAgeMs`, por defecto MEMBER_STATE_MAX_AGE_MS): no pide nada.
+   * - Fuera de la frescura: 'refresh'.
+   */
+  function ensureMemberState(opts: { maxAgeMs?: number; force?: boolean } = {}): Promise<void> {
+    if (opts.force) return forceFullLoad()
+    if (memberLoad.isInFlight()) return memberLoad.run('refresh')
+    if (!memberStateLoaded.value) return memberLoad.run('initial')
+    const maxAge = opts.maxAgeMs ?? MEMBER_STATE_MAX_AGE_MS
+    if (memberStateLoadedAt !== null && Date.now() - memberStateLoadedAt < maxAge) {
+      return Promise.resolve()
+    }
+    return memberLoad.run('refresh')
   }
 
   /**
@@ -677,6 +929,18 @@ export const useUserStore = defineStore('user', () => {
     subscriptionLoading,
     subscriptionLoaded,
     planStatus,
+    // Fase 203: estado del socio (dueño único) y banderas "cargó / falló"
+    subscriptionFailed,
+    planStatusFailed,
+    myProgressFailed,
+    currentProgramFailed,
+    programFailed,
+    myProgress,
+    myProgressLoaded,
+    trialEligibility,
+    trialEligibilityLoaded,
+    trialEligible,
+    memberStateLoaded,
     especialPass,
     trialLines,
     selectedLevel,
@@ -721,6 +985,8 @@ export const useUserStore = defineStore('user', () => {
     retryProfileLoad,
     setLoading,
     loadSubscription,
+    loadMemberState,
+    ensureMemberState,
     loadPlanStatus,
     clearPlanUpdateUnseen,
     loadEspecialPass,

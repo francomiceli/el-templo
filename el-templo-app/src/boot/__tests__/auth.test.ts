@@ -68,6 +68,7 @@ const userStoreMock = {
   markProfileStale: vi.fn(),
   hydrateSelection: vi.fn(async () => {}),
   loadSubscription: vi.fn(async () => {}),
+  ensureMemberState: vi.fn(async () => {}),
 }
 
 vi.mock('stores/useUserStore', () => ({
@@ -219,7 +220,7 @@ describe('boot/auth.ts — runAuthBoot (App 1.7.9, causa raíz de deslogueos)', 
       expect(userStoreMock.markProfileStale).toHaveBeenCalledTimes(1)
     })
 
-    it('/auth/me OK → setProfile + hydrateSelection + loadSubscription', async () => {
+    it('/auth/me OK → setProfile + hydrateSelection + ensureMemberState', async () => {
       apiGet.mockResolvedValueOnce({
         data: { id: 7, email: 'socio@test.com', role: 'member' },
       })
@@ -229,7 +230,8 @@ describe('boot/auth.ts — runAuthBoot (App 1.7.9, causa raíz de deslogueos)', 
       expect(authStoreMock.clearAuth).not.toHaveBeenCalled()
       expect(userStoreMock.setProfile).toHaveBeenCalledTimes(1)
       expect(userStoreMock.hydrateSelection).toHaveBeenCalledTimes(1)
-      expect(userStoreMock.loadSubscription).toHaveBeenCalledTimes(1)
+      expect(userStoreMock.ensureMemberState).toHaveBeenCalledTimes(1)
+      expect(userStoreMock.loadSubscription).not.toHaveBeenCalled()
       expect(userStoreMock.markProfileStale).not.toHaveBeenCalled()
     })
   })
