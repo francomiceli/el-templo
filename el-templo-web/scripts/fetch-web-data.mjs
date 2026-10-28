@@ -372,7 +372,7 @@ async function main() {
     );
   } catch (e) {
     err(
-      `No se pudo leer /api/web/site-data de ${host}: ${describeError(e)}. Si la API todavía no tiene el endpoint, seguí el rollout en 2 pasos (deploy/ROLLOUT-195.md)`,
+      `No se pudo leer /api/web/site-data de ${host}: ${describeError(e)}. Revisá que el deploy de la API de esta corrida haya salido bien (la web se arma después) y volvé a disparar solo-web si la API estaba caída (deploy/ROLLOUT-195.md)`,
     );
     process.exit(1);
   }

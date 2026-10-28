@@ -6,13 +6,13 @@ Checklist para Franco y el orquestador. Todo `git push` y todo SSH son gates hum
 
 ## 1. Orden de publicación (staging primero, después master)
 
-Actualizado 2026-10-07: la rama ya tiene integrado `origin/master` con la fase 194 (merge `560db0fd3`), así que se publica con **un solo push + el botón "solo web"**. No hace falta separar la API en un push aparte: desde 195-11 una falla del build web no frena el deploy de API, app y admin (D-29).
+Actualizado 2026-10-28: desde este cambio, en los dos workflows la web se arma **después** del deploy de API, app y admin (`build-web` depende de `deploy`) y se sube en su propio job `deploy-web`, con respaldo, smoke test y rollback propios. Así el build siempre le pide `/api/web/site-data` a la API ya desplegada y **no hace falta "solo web" después del push**. Una falla de la web sigue sin frenar ni revertir API, app y admin (D-29).
 
-1. Con OK de Franco: `git push origin feat/195-seo-web:staging`.
-2. En esa corrida, `Build Web` **falla a propósito**: el build pide `/api/web/site-data` a la API de staging, que todavía no tiene el endpoint (se despliega en esa misma corrida). La corrida queda en rojo, pero API, app y admin se despliegan, y la migración 0270-0274 corre en la base de staging.
-3. Comprobar el endpoint: `curl -s https://api-staging.eltemplo.org/api/web/site-data | head -c 300`.
-4. Disparar "solo web" en staging (sección 6). Ahora el build encuentra el endpoint y publica la web nueva en web-staging.
-5. UAT en staging. Recién después, con OK de Franco, lo mismo hacia producción: `git push origin feat/195-seo-web:master` (o el merge de staging a master que se acuerde), `curl -s https://api.eltemplo.org/api/web/site-data | head -c 300` y "solo web" en producción.
+Lo que pasó antes del cambio: el primer push a staging (`68a9dd86f`) armó la web en paralelo con la API, recibió 404 de la API vieja y la web quedó sin publicar. Se resolvió con este cambio.
+
+1. Con OK de Franco: push a staging. En la misma corrida se despliega la API (corre la migración 0270-0274 y 0277), después se arma la web contra esa API y se publica en web-staging.
+2. Comprobar: `curl -s https://api-staging.eltemplo.org/api/web/site-data | head -c 300` y abrir web-staging.
+3. UAT en staging. Recién después, con OK de Franco, lo mismo hacia producción (push a master). El deploy de prod sigue el mismo orden: API primero, web después.
 
 La web sale **sin medición** (sin `WEB_GA4_ID` ni `WEB_META_PIXEL_ID`) y con el `/privacidad` actual. La medición se prende después, siguiendo la guía §1.2 y §3.
 
@@ -20,7 +20,7 @@ La migración 0271 carga datos reales de sedes (calle, slug, WhatsApp, publicaci
 
 ## 2. Si el build web falla
 
-- El job `Deploy to Production` / `Deploy to Staging` igual corre para API, app y admin, y muestra el aviso `El build de la web falló` en el resumen de la corrida. La web queda en su versión anterior (no se toca el directorio de la web, ni su backup).
+- El job `Deploy to Production` / `Deploy to Staging` ya corrió antes para API, app y admin; si `Build Web` falla, `Deploy Web` no corre y la web queda en su versión anterior (no se toca el directorio de la web, ni su backup).
 - La corrida igual queda en rojo por el job `Build Web`. Mirar el log: el error dice si la API no tiene el endpoint, si el payload es inválido o si `verify-seo-output.mjs` encontró un problema.
 - Corregir la causa (típicamente: la API todavía no tiene el endpoint, o un dato de sede inválido) y volver a disparar solo la web (sección 6).
 - Si falla la verificación `--require-api` es porque el build salió del fixture y no de la API real (revisar `VITE_API_URL` / `STAGING_VITE_API_URL`), **o porque algún html conserva un marcador `PENDIENTE DE COMPLETAR`** (el primer rollout sale con el `/privacidad` actual, sin marcador; el marcador aparece recién al copiar `docs/privacidad-con-medicion.vue.txt`, ver guía §1.2).

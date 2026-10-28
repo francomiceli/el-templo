@@ -28,6 +28,10 @@ import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 const MIGRATIONS_DIR = path.resolve(__dirname, "../../src/db/migrations");
 const PATH_0270 = path.join(MIGRATIONS_DIR, "0270_branches_web_fields.sql");
 const PATH_0271 = path.join(MIGRATIONS_DIR, "0271_seed_branches_web.sql");
+const PATH_0277 = path.join(
+  MIGRATIONS_DIR,
+  "0277_branches_address_avenidas.sql",
+);
 
 /**
  * Codigos de sede que usa este test (los de produccion). Algunas ya existen en
@@ -544,5 +548,26 @@ describe("Migraciones 0270 + 0271 — columnas web de branches y datos de sedes"
     expect(splitSqlStatements(readFileSync(PATH_0271, "utf8"))).toHaveLength(
       10,
     );
+  });
+
+  // ─── F. 0277: "Av." en Juan B. Justo y Mario Bravo (2026-10-28) ──────────
+
+  it("F. la 0277 deja las direcciones con Av. y no toca las demás sedes", async () => {
+    const statements0277 = splitSqlStatements(readFileSync(PATH_0277, "utf8"));
+    expect(statements0277).toHaveLength(2);
+    expect(
+      readFileSync(PATH_0277, "utf8")
+        .split("\n")
+        .filter((l) => l.trimStart().startsWith("--") && l.includes(";")),
+    ).toEqual([]);
+
+    await applyMigration(statements0271);
+    await applyMigration(statements0277);
+    const b = await readBranches();
+
+    expect(b.get("ALEM")?.address).toBe("Av. Juan B. Justo 1018");
+    expect(b.get("MOGOTES")?.address).toBe("Av. Mario Bravo 618");
+    expect(b.get("MORENO")?.address).toBe("Moreno 3751");
+    expect(b.get("CONST")?.address).toBe("Av. Constitución 6745");
   });
 });
