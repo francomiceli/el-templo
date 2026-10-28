@@ -383,6 +383,18 @@ const todayCard = computed(() => {
     hasExtraPrograms: programProgressCard.value !== null && !isVirtual.value,
     trialEligible: trialEligible.value,
     libreEnabled: FREE_BLOCKS_ENABLED,
+    // Fase 203 (plan 10): entradas "todavía no sé" de la función pura. En false = comportamiento de
+    // antes; el plan 11 las cablea a las fuentes reales (perfil, semana, programa, stats, tope).
+    profileLoading: false,
+    weekLoading: false,
+    programLoading: false,
+    trialLoading: false,
+    statsLoading: false,
+    planFailed: false,
+    bookingsFailed: false,
+    programFailed: false,
+    statsFailed: false,
+    deadlinePassed: false,
   })
 })
 
