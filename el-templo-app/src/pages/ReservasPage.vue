@@ -816,11 +816,13 @@
               <q-item-label caption>{{ event.label }}</q-item-label>
             </q-item-section>
             <q-item-section side>
-              <q-badge :color="event.badgeColor" :label="event.badgeLabel" />
+              <span class="week-pill" :class="`week-pill--${event.badgeTone}`">{{
+                event.badgeLabel
+              }}</span>
             </q-item-section>
           </q-item>
         </q-list>
-        <div v-else class="q-pa-md text-center text-grey-6 text-body2">
+        <div v-else class="week-summary__empty q-pa-md text-center text-body2">
           No tenés actividad esta semana
         </div>
       </q-expansion-item>
@@ -1737,11 +1739,14 @@ function availabilityText(slot: WeeklySlotView): string {
 
 // ─── Week events (for collapsible summary) ──────────────────────────
 
+type WeekEventTone = 'ok' | 'neutral' | 'warn' | 'bad'
+
 interface WeekEvent {
   key: string
   activityName: string
   label: string
-  badgeColor: string
+  /** Tono semántico del estado; los colores salen del rework (pills de cupos), no de Quasar. */
+  badgeTone: WeekEventTone
   badgeLabel: string
 }
 
@@ -1759,7 +1764,7 @@ const weekEvents = computed<WeekEvent[]>(() => {
       key: `att-${att.id}`,
       activityName: att.activityName,
       label: `${dayLabel} ${dateLabel} - ${formatTime(att.startTime)}`,
-      badgeColor: att.status === 'confirmado' ? 'positive' : 'info',
+      badgeTone: att.status === 'confirmado' ? 'ok' : 'neutral',
       badgeLabel: att.status === 'confirmado' ? 'Asististe' : 'Check-in',
     })
   }
@@ -1779,16 +1784,16 @@ const weekEvents = computed<WeekEvent[]>(() => {
     const d = new Date(b.bookingDate + 'T00:00:00')
     const dateStr = `${d.getDate()} ${MONTH_ABBREV[d.getMonth()]}`
 
-    let badgeColor: string
+    let badgeTone: WeekEventTone
     let badgeLabel: string
     if (b.status === 'no_show') {
-      badgeColor = 'negative'
+      badgeTone = 'bad'
       badgeLabel = BOOKING_STATUS_LABELS.no_show
     } else if (b.status === 'confirmado') {
-      badgeColor = 'positive'
+      badgeTone = 'ok'
       badgeLabel = 'Asististe'
     } else {
-      badgeColor = b.status === 'reservado' || b.status === 'qr_escaneado' ? 'primary' : 'warning'
+      badgeTone = b.status === 'reservado' || b.status === 'qr_escaneado' ? 'neutral' : 'warn'
       badgeLabel =
         b.status === 'lista_espera' && b.waitlistPosition !== null
           ? `${BOOKING_STATUS_LABELS.lista_espera} (#${b.waitlistPosition})`
@@ -1799,7 +1804,7 @@ const weekEvents = computed<WeekEvent[]>(() => {
       key: `bk-${b.id}`,
       activityName: b.activityName,
       label: `${dayLabel} ${dateStr} - ${formatTime(b.startTime)}`,
-      badgeColor,
+      badgeTone,
       badgeLabel,
     })
   }
@@ -3114,11 +3119,54 @@ onBeforeUnmount(() => cleanup())
   }
 
   :deep(.q-item__label) {
-    color: rgba($primary, 0.8);
+    color: $pd-ink; // sólido (antes rgba($primary, .8))
   }
 
   :deep(.q-item__label--caption) {
-    color: $grey-7;
+    color: $pd-ink-2; // secundario sólido (antes $grey-7)
+  }
+}
+
+.week-summary__empty {
+  color: $pd-ink-2;
+}
+
+// Ícono `history` del header: terracota sólido, igual que el de "Planes anteriores".
+.week-summary :deep(.q-item__section--avatar .q-icon) {
+  color: $pd-terra-ink;
+}
+
+// Estado del evento: mismas pills del rework que los cupos de los horarios (salvia / neutro /
+// ocre / rojo tierra), texto sólido ≥ 4.5:1 sobre su tinte.
+.week-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-family: 'Geologica', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+
+  &--ok {
+    color: $pd-sage;
+    background: $pd-sage-tint;
+  }
+
+  &--neutral {
+    color: $pd-ink-3;
+    background: #f3ede4;
+  }
+
+  &--warn {
+    color: $pd-gold-ink;
+    background: $pd-gold-tint;
+  }
+
+  &--bad {
+    color: $pd-neg-title;
+    background: #f7e6e2;
   }
 }
 
