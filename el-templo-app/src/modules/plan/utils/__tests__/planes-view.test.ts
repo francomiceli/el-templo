@@ -15,8 +15,6 @@ function baseInput(over: Partial<PlanesViewInput> = {}): PlanesViewInput {
     catalogSettled: true,
     catalogCount: 2,
     myProgressSettled: true,
-    myProgressFailed: false,
-    hasEnrollment: false,
     deadlinePassed: false,
     ...over,
   }
@@ -171,30 +169,25 @@ describe('resolvePlanesView', () => {
     expect(v.objetivos).toBe('skeleton')
   })
 
-  it('my-progress OK con inscripción: enrollment known', () => {
-    const v = resolvePlanesView(baseInput({ hasEnrollment: true }))
-    expect(v.enrollment).toBe('known')
+  it('my-progress OK: enrollment known (con o sin inscripción)', () => {
+    expect(resolvePlanesView(baseInput()).enrollment).toBe('known')
   })
 
-  it('my-progress OK sin inscripción: enrollment known (sí se afirma "no inscripto")', () => {
-    const v = resolvePlanesView(baseInput({ hasEnrollment: false }))
-    expect(v.enrollment).toBe('known')
+  it('my-progress pendiente antes del tope: la página está en esqueleto y enrollment unknown', () => {
+    const v = resolvePlanesView(baseInput({ myProgressSettled: false }))
+    expect(v.page).toBe('skeleton')
+    expect(v.enrollment).toBe('unknown')
   })
 
-  it('my-progress pendiente con el tope vencido: la página sale con enrollment unknown', () => {
+  it('my-progress pendiente con el tope vencido: la página sale con enrollment known (vuelve a "Más info")', () => {
     const v = resolvePlanesView(baseInput({ myProgressSettled: false, deadlinePassed: true }))
     expect(v.page).toBe('sections')
-    expect(v.enrollment).toBe('unknown')
+    expect(v.enrollment).toBe('known')
   })
 
-  it('falla de my-progress sin inscripción conocida: enrollment unknown y la página sale al instante', () => {
-    const v = resolvePlanesView(baseInput({ myProgressFailed: true, hasEnrollment: false }))
-    expect(v.page).toBe('sections')
-    expect(v.enrollment).toBe('unknown')
-  })
-
-  it('falla de my-progress con inscripción conocida (dato previo conservado): enrollment known', () => {
-    const v = resolvePlanesView(baseInput({ myProgressFailed: true, hasEnrollment: true }))
+  it('my-progress fallido (settled): enrollment known y la página sale al instante, sin esperar el tope', () => {
+    // `myProgressLoaded` queda en true también cuando my-progress falló.
+    const v = resolvePlanesView(baseInput({ myProgressSettled: true }))
     expect(v.page).toBe('sections')
     expect(v.enrollment).toBe('known')
   })

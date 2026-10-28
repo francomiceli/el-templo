@@ -19,7 +19,10 @@
  *  - La pill "Tu plan" de los regulares cruza el resumen con la lista de planes: los regulares
  *    no se dibujan hasta que llegaron los dos (un resumen caído cuenta como resuelto y
  *    simplemente no hay pill), así la pill nunca aparece después.
- *  - Una falla de my-progress sin inscripción conocida es "no sé", nunca "no inscripto".
+ *  - my-progress (cierre de la 203, decisión del orquestador): solo mientras CARGA y antes del tope
+ *    el estado de inscripción es 'unknown' (pie vacío). Con my-progress fallido o con el tope
+ *    vencido sin respuesta se vuelve al comportamiento previo a la fase: 'known' sin inscripción,
+ *    así las cards de Por objetivos muestran "Más info" (el camino de venta no se corta).
  */
 
 export type SectionState = 'skeleton' | 'show' | 'hide'
@@ -49,10 +52,6 @@ export interface PlanesViewInput {
   catalogCount: number
   /** `userStore.myProgressLoaded`. */
   myProgressSettled: boolean
-  /** `userStore.myProgressFailed`. */
-  myProgressFailed: boolean
-  /** Hay `userStore.myProgress?.programId`. */
-  hasEnrollment: boolean
   /** Venció el tope de carga (`useLoadDeadline().passed`). */
   deadlinePassed: boolean
 }
@@ -62,7 +61,7 @@ export interface PlanesView {
   tuPlan: TuPlanState
   objetivos: SectionState
   regulares: RegularesState
-  /** 'unknown': no se afirma "inscripto" ni "no inscripto" en las cards de Por objetivos. */
+  /** 'unknown': solo mientras my-progress carga antes del tope; no se afirma nada en las cards. */
   enrollment: 'known' | 'unknown'
 }
 
@@ -96,8 +95,9 @@ export function resolvePlanesView(i: PlanesViewInput): PlanesView {
   else if (i.plansFailed) regulares = 'error'
   else regulares = i.plansCount === 0 ? 'empty' : 'content'
 
-  const enrollment =
-    !i.myProgressSettled || (i.myProgressFailed && !i.hasEnrollment) ? 'unknown' : 'known'
+  // Una falla de my-progress cuenta como resuelta (queda sin inscripción -> "Más info"); lo que no
+  // respondió pasado el tope también. Solo "carga y todavía hay tiempo" es 'unknown'.
+  const enrollment = i.myProgressSettled || i.deadlinePassed ? 'known' : 'unknown'
 
   return { page: 'sections', tuPlan, objetivos, regulares, enrollment }
 }

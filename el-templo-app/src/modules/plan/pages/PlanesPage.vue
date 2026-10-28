@@ -42,7 +42,8 @@
             }}</span>
           </div>
           <div class="pc__foot">
-            <!-- Sin my-progress (falló o no llegó) no se afirma ni "inscripto" ni "no inscripto". -->
+            <!-- Solo mientras my-progress carga (antes del tope) no se afirma nada; si falló o venció
+                 el tope se vuelve a "Más info" para no cortar el camino de venta. -->
             <template v-if="view.enrollment === 'known'">
               <span v-if="enrolledProgramId === exp.id" class="pc-pill pc-pill--ok">
                 <q-icon name="check" size="14px" aria-hidden="true" />
@@ -206,8 +207,6 @@ const view = computed(() =>
     catalogSettled: catalogSettled.value,
     catalogCount: experiencias.value.length,
     myProgressSettled: userStore.myProgressLoaded,
-    myProgressFailed: userStore.myProgressFailed,
-    hasEnrollment: enrolledProgramId.value !== null,
     deadlinePassed: deadline.passed.value,
   }),
 )
