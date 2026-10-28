@@ -179,6 +179,11 @@ const notificationCategories = [
     description: 'Confirmación de inscripción, avance semanal',
   },
   {
+    key: 'planes',
+    label: 'Planes',
+    description: 'Cuando cargamos tu plan y avisos de vencimiento',
+  },
+  {
     key: 'anuncios',
     label: 'Novedades',
     description: 'Nuevas funciones y actualizaciones',
@@ -190,6 +195,7 @@ const preferencesLoading = ref(true)
 const preferences = reactive<Record<string, boolean>>({
   entrenamiento: true,
   programas: true,
+  planes: true,
   anuncios: true,
 })
 
