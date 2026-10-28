@@ -46,11 +46,17 @@ type SponsorEventType = 'seen' | 'tapped' | 'redeem'
  *   vez que la marca esté en pantalla.
  * - `reset()` al desloguear (MainLayout): el feed de un socio no se ve al loguear otro,
  *   y una respuesta en vuelo se descarta.
+ * - Fase 203 (D-02/D-07): `loaded` = la fuente respondió al menos una vez (2xx
+ *   o error fail-open) y NO vuelve a false en un refresco; `lastLoadOk` distingue
+ *   "vacío" (true) de "falló" (false) para no escribir el flag D-02 tras un error.
+ *   Ambos respetan `generation`: una respuesta vieja no los toca.
  */
 export const useSponsorsStore = defineStore('sponsors', () => {
   const sponsors = ref<Sponsor[]>([])
   const canRedeem = ref(false)
   const loading = ref(false)
+  const loaded = ref(false)
+  const lastLoadOk = ref<boolean | null>(null)
   /** Ids de marcas ya reportadas como vistas en esta sesión. */
   const reportedSeen = new Set<number>()
   /** Se incrementa en cada `load()` y en `reset()`: una respuesta vieja se descarta. */
@@ -64,15 +70,20 @@ export const useSponsorsStore = defineStore('sponsors', () => {
       if (mine !== generation) return
       sponsors.value = Array.isArray(data?.sponsors) ? data.sponsors : []
       canRedeem.value = data?.canRedeem === true
+      lastLoadOk.value = true
     } catch (err: unknown) {
       if (mine !== generation) return
       sponsors.value = []
       canRedeem.value = false
+      lastLoadOk.value = false
       log.warn('Failed to load sponsors', {
         error: err instanceof Error ? err.message : String(err),
       })
     } finally {
-      if (mine === generation) loading.value = false
+      if (mine === generation) {
+        loading.value = false
+        loaded.value = true
+      }
     }
   }
 
@@ -114,8 +125,21 @@ export const useSponsorsStore = defineStore('sponsors', () => {
     sponsors.value = []
     canRedeem.value = false
     loading.value = false
+    loaded.value = false
+    lastLoadOk.value = null
     reportedSeen.clear()
   }
 
-  return { sponsors, canRedeem, loading, load, markSeen, markTapped, markRedeem, reset }
+  return {
+    sponsors,
+    canRedeem,
+    loading,
+    loaded,
+    lastLoadOk,
+    load,
+    markSeen,
+    markTapped,
+    markRedeem,
+    reset,
+  }
 })

@@ -246,3 +246,159 @@ describe('useNovedadesStore (D-10/D-12)', () => {
     })
   })
 })
+
+/** Respuesta controlable a mano para observar el estado "en vuelo". */
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason: unknown) => void
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  return { promise, resolve, reject }
+}
+
+describe('useNovedadesStore — loaded / lastLoadOk (fase 203, D-02/D-07)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.mocked(api.get).mockReset()
+    vi.mocked(api.post).mockReset()
+    warn.mockClear()
+  })
+
+  it('al inicio: loaded false y lastLoadOk null', () => {
+    const store = useNovedadesStore()
+
+    expect(store.loaded).toBe(false)
+    expect(store.lastLoadOk).toBeNull()
+  })
+
+  it('durante el pedido: loading true pero loaded sigue en false', async () => {
+    const gate = deferred<unknown>()
+    vi.mocked(api.get).mockReturnValue(gate.promise as never)
+    const store = useNovedadesStore()
+
+    const pending = store.load()
+
+    expect(store.loading).toBe(true)
+    expect(store.loaded).toBe(false)
+    gate.resolve({ data: FEED })
+    await pending
+    expect(store.loaded).toBe(true)
+  })
+
+  it('2xx con datos: loaded true y lastLoadOk true', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: FEED })
+    const store = useNovedadesStore()
+
+    await store.load()
+
+    expect(store.loaded).toBe(true)
+    expect(store.lastLoadOk).toBe(true)
+  })
+
+  it('2xx vacío: lastLoadOk true (vacío no es error)', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: { novedades: [] } })
+    const store = useNovedadesStore()
+
+    await store.load()
+
+    expect(store.novedades).toEqual([])
+    expect(store.loaded).toBe(true)
+    expect(store.lastLoadOk).toBe(true)
+  })
+
+  it('error: loaded true (fail-open) pero lastLoadOk false', async () => {
+    vi.mocked(api.get).mockRejectedValue(new Error('Network Error'))
+    const store = useNovedadesStore()
+
+    await store.load()
+
+    expect(store.loaded).toBe(true)
+    expect(store.lastLoadOk).toBe(false)
+    expect(store.loading).toBe(false)
+  })
+
+  it('un segundo load() no vuelve loaded a false (el refresco no vuelve al esqueleto)', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: FEED })
+    const store = useNovedadesStore()
+    await store.load()
+
+    const gate = deferred<unknown>()
+    vi.mocked(api.get).mockReturnValue(gate.promise as never)
+    const refresh = store.load()
+
+    expect(store.loaded).toBe(true)
+    gate.resolve({ data: FEED })
+    await refresh
+    expect(store.loaded).toBe(true)
+  })
+
+  it('un refresco fallido tras un éxito: lastLoadOk pasa a false', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: FEED })
+    const store = useNovedadesStore()
+    await store.load()
+
+    vi.mocked(api.get).mockRejectedValue(new Error('Network Error'))
+    await store.load()
+
+    expect(store.loaded).toBe(true)
+    expect(store.lastLoadOk).toBe(false)
+  })
+
+  it('una respuesta de antes del reset() (logout a mitad) no toca loaded ni lastLoadOk', async () => {
+    const gate = deferred<unknown>()
+    vi.mocked(api.get).mockReturnValue(gate.promise as never)
+    const store = useNovedadesStore()
+    const pending = store.load()
+
+    store.reset()
+    gate.resolve({ data: FEED })
+    await pending
+
+    expect(store.loaded).toBe(false)
+    expect(store.lastLoadOk).toBeNull()
+  })
+
+  it('un error de antes del reset() tampoco toca loaded ni lastLoadOk', async () => {
+    const gate = deferred<unknown>()
+    vi.mocked(api.get).mockReturnValue(gate.promise as never)
+    const store = useNovedadesStore()
+    const pending = store.load()
+
+    store.reset()
+    gate.reject(new Error('Network Error'))
+    await pending
+
+    expect(store.loaded).toBe(false)
+    expect(store.lastLoadOk).toBeNull()
+  })
+
+  it('la respuesta vieja de un load() superado no pisa a la del más nuevo', async () => {
+    const slow = deferred<unknown>()
+    vi.mocked(api.get).mockReturnValueOnce(slow.promise as never)
+    const store = useNovedadesStore()
+    const first = store.load()
+
+    vi.mocked(api.get).mockResolvedValueOnce({ data: FEED })
+    await store.load()
+    expect(store.lastLoadOk).toBe(true)
+
+    slow.reject(new Error('Network Error'))
+    await first
+
+    expect(store.loaded).toBe(true)
+    expect(store.lastLoadOk).toBe(true)
+  })
+
+  it('reset() baja loaded y lastLoadOk', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: FEED })
+    const store = useNovedadesStore()
+    await store.load()
+
+    store.reset()
+
+    expect(store.loaded).toBe(false)
+    expect(store.lastLoadOk).toBeNull()
+  })
+})

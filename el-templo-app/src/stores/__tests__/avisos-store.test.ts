@@ -214,3 +214,110 @@ describe('useAvisosStore — tarjetas del carrusel (D-15b, plan 193-15)', () => 
     expect(api.get).toHaveBeenCalledTimes(2)
   })
 })
+
+describe('useAvisosStore — tarjetasSettled / tarjetasOk (fase 203, D-02/D-07)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.mocked(api.get).mockReset()
+    vi.mocked(api.post).mockReset()
+  })
+
+  /** Respuesta controlable a mano para observar el estado "en vuelo". */
+  function deferred<T>() {
+    let resolve!: (value: T) => void
+    let reject!: (reason: unknown) => void
+    const promise = new Promise<T>((res, rej) => {
+      resolve = res
+      reject = rej
+    })
+    return { promise, resolve, reject }
+  }
+
+  it('al inicio: tarjetasSettled false y tarjetasOk null', () => {
+    const store = useAvisosStore()
+
+    expect(store.tarjetasSettled).toBe(false)
+    expect(store.tarjetasOk).toBeNull()
+  })
+
+  it('durante el pedido: tarjetasLoaded true ("pedido") pero tarjetasSettled false', async () => {
+    const gate = deferred<unknown>()
+    vi.mocked(api.get).mockReturnValue(gate.promise as never)
+    const store = useAvisosStore()
+
+    const pending = store.loadTarjetas()
+
+    expect(store.tarjetasLoaded).toBe(true)
+    expect(store.tarjetasSettled).toBe(false)
+    expect(store.tarjetasOk).toBeNull()
+    gate.resolve({ data: TARJETAS_RESPONSE })
+    await pending
+    expect(store.tarjetasSettled).toBe(true)
+  })
+
+  it('2xx: tarjetasSettled true y tarjetasOk true', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: TARJETAS_RESPONSE })
+    const store = useAvisosStore()
+
+    await store.loadTarjetas()
+
+    expect(store.tarjetasSettled).toBe(true)
+    expect(store.tarjetasOk).toBe(true)
+  })
+
+  it('2xx con lista vacía: tarjetasOk true (vacío no es error)', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: { tarjetas: [] } })
+    const store = useAvisosStore()
+
+    await store.loadTarjetas()
+
+    expect(store.tarjetas).toEqual([])
+    expect(store.tarjetasSettled).toBe(true)
+    expect(store.tarjetasOk).toBe(true)
+  })
+
+  it('error: tarjetasSettled true (fail-open) pero tarjetasOk false', async () => {
+    vi.mocked(api.get).mockRejectedValue(new Error('Network Error'))
+    const store = useAvisosStore()
+
+    await store.loadTarjetas()
+
+    expect(store.tarjetasSettled).toBe(true)
+    expect(store.tarjetasOk).toBe(false)
+  })
+
+  it('no cambia el criterio de tarjetasLoaded: sigue una sola llamada por apertura', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: TARJETAS_RESPONSE })
+    const store = useAvisosStore()
+
+    await Promise.all([store.loadTarjetas(), store.loadTarjetas()])
+
+    expect(api.get).toHaveBeenCalledTimes(1)
+    expect(store.tarjetasLoaded).toBe(true)
+  })
+
+  it('reset() baja tarjetasSettled y tarjetasOk', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: TARJETAS_RESPONSE })
+    const store = useAvisosStore()
+    await store.loadTarjetas()
+
+    store.reset()
+
+    expect(store.tarjetasSettled).toBe(false)
+    expect(store.tarjetasOk).toBeNull()
+  })
+
+  it('una respuesta de antes del reset() (logout a mitad) no marca settled ni ok', async () => {
+    const gate = deferred<unknown>()
+    vi.mocked(api.get).mockReturnValue(gate.promise as never)
+    const store = useAvisosStore()
+    const pending = store.loadTarjetas()
+
+    store.reset()
+    gate.resolve({ data: TARJETAS_RESPONSE })
+    await pending
+
+    expect(store.tarjetasSettled).toBe(false)
+    expect(store.tarjetasOk).toBeNull()
+  })
+})
