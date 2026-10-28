@@ -1,23 +1,12 @@
 <template>
   <q-page class="mi-templo">
-    <!-- Loading State -->
-    <div v-if="progressionStore.loading" class="mi-templo__loading">
-      <TemploLoader size="lg" />
-      <p class="mi-templo__loading-text">Cargando tu progreso...</p>
-    </div>
-
-    <!-- Error State -->
-    <div v-else-if="progressionStore.error" class="mi-templo__error">
-      <q-icon name="error_outline" class="mi-templo__error-icon" />
-      <p class="mi-templo__error-text">{{ progressionStore.error }}</p>
-      <q-btn color="primary" unelevated no-caps @click="fetchStats"> Reintentar </q-btn>
-    </div>
-
-    <!-- Content State. Orden fijo de la pila (D-02):
+    <!-- Fase 203 (C-6, D-16): la página nunca se reemplaza entera por un loader ni por una pantalla
+         de error. Cada card reserva su lugar (esqueleto) o degrada sola; un fallo de stats solo se
+         avisa con el toast de `fetchStats`.
+         Orden fijo de la pila (fase 199, D-02):
          card de hoy → Novedades → Registro del día → Patrocinadores → Tus sesiones
          (con la evaluación si aplica) → Para vos → Frase del día. El saludo vive en el layout. -->
     <div
-      v-else
       class="mi-templo__content"
       :class="{ 'mi-templo__content--fab': todayBookingStore.fabVisible }"
     >
@@ -29,13 +18,26 @@
       <TodayCard :model="todayCard" @open-program="programSheetOpen = true" />
 
       <!-- Novedades (D-08): mismo diseño del sketch 004, debajo de la card de hoy.
-           Sin novedades no renderiza nada (L50) y es fail-open (D-12). -->
-      <NovedadesCard />
+           Sin novedades no renderiza nada (L50) y es fail-open (D-12). Fase 203 (D-02): reserva el
+           lugar con esqueleto solo si la última vez tuvo novedades. -->
+      <CardSkeleton
+        v-if="slots.novedades === 'skeleton'"
+        :height="NOVEDADES_SKELETON_PX"
+        :radius="16"
+        label="Cargando novedades"
+      />
+      <NovedadesCard v-else-if="slots.novedades === 'content'" />
 
       <!-- Registro del día (D-07): una pregunta por vez, colapsa a una línea. Se oculta
            para quien nunca tuvo plan (sin-plan-nunca), como el sketch. -->
+      <CardSkeleton
+        v-if="slots.checkIn === 'skeleton'"
+        :height="CHECKIN_SKELETON_PX"
+        :radius="16"
+        label="Cargando el registro del día"
+      />
       <CheckInPanel
-        v-if="orderedCheckIns.length > 0 && todayCard.kind !== 'sin-plan-nunca'"
+        v-else-if="slots.checkIn === 'content'"
         :questions="orderedCheckIns"
         :answers="progressionStore.checkInState?.answers ?? emptyAnswers"
         :save="handleCheckInSubmit"
@@ -43,18 +45,40 @@
 
       <!-- Patrocinadores (D-20/D-23): carrusel de marcas por país, a sangre y sin título.
            Sin marcas no renderiza nada (L50). El tap abre la hoja de detalle (abajo). -->
-      <SponsorsCarousel @open="openSponsor" />
+      <CardSkeleton
+        v-if="slots.sponsors === 'skeleton'"
+        :height="SPONSORS_SKELETON_PX"
+        :radius="16"
+        label="Cargando beneficios"
+      />
+      <SponsorsCarousel v-else-if="slots.sponsors === 'content'" @open="openSponsor" />
 
       <!-- Tus sesiones (D-09, sketch 007 A): sesiones de la semana + días L–D + total al pie, sin RPE. La evaluación de nivel (solo si es
            accionable o está pendiente) pertenece a este bloque. -->
+      <CardSkeleton
+        v-if="slots.weekStrip === 'skeleton'"
+        :height="WEEKSTRIP_SKELETON_PX"
+        :radius="16"
+        label="Cargando tus sesiones"
+      />
+      <!-- Total: solo el que informó el server. Sin stats (pendientes o fallidas) va null y la
+           fila queda reservada pero oculta: nunca se afirma "0 sesiones" (D-07/D-16). Un refresco
+           fallido conserva las stats previas, que siguen siendo el último dato bueno. -->
       <WeekStrip
-        v-if="todayCard.kind !== 'sin-plan-nunca'"
+        v-else-if="slots.weekStrip === 'content'"
         :week-start="weekStartsFor(todayStr)[0]"
         :today-str="todayStr"
         :completed-dates="completedDates"
-        :total-sessions="progressionStore.stats?.totalSessions ?? 0"
+        :total-sessions="progressionStore.stats?.totalSessions ?? null"
+      />
+      <CardSkeleton
+        v-if="slots.evaluation === 'skeleton'"
+        :height="EVALUATION_SKELETON_PX"
+        :radius="16"
+        label="Cargando la evaluación"
       />
       <GeneralContent
+        v-else-if="slots.evaluation === 'content'"
         :evaluation="progressionStore.evaluation"
         @request-evaluation="handleRequestEvaluation"
       />
@@ -74,7 +98,21 @@
            Orden: Invitaciones, Presencial (solo online), Planes personalizados (si no hay
            card de programa) y avisos libres del admin (D-15b). "Sugerencias" vive en Perfil (D-11). -->
       <section class="for-you" aria-label="Para vos">
-        <div class="for-you__rail">
+        <!-- Fase 203 (D-01/C-11): hasta que llegan las tarjetas del admin, el estado del socio y el
+             perfil el riel muestra esqueletos (sin texto de respaldo que después cambie por el del
+             admin ni cards que aparezcan de golpe). Con el tope vencido sale lo que haya. -->
+        <div v-if="slots.paraVos === 'skeleton'" class="for-you__rail" aria-busy="true">
+          <CardSkeleton
+            v-for="n in 2"
+            :key="n"
+            class="for-you__skeleton"
+            inline
+            :height="FOR_YOU_SKELETON_PX"
+            :radius="16"
+            label="Cargando"
+          />
+        </div>
+        <div v-else class="for-you__rail">
           <ReferralCtaCard />
           <UpsellBadge v-if="showUpsellBadge" />
           <ProgramCtaCard v-if="showProgramCta" :segment="userStore.segment" />
@@ -122,7 +160,7 @@
  * Patrocinadores, Tus sesiones (con evaluación si aplica), Para vos y la frase del día.
  */
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
-import TemploLoader from 'src/components/TemploLoader.vue'
+import CardSkeleton from 'src/components/CardSkeleton.vue'
 import DailyQuote from '../components/DailyQuote.vue'
 import { useProgressionStore } from '../stores/progressionStore'
 import { useProgressionApi } from '../composables/useProgressionApi'
@@ -139,6 +177,7 @@ import type { Session } from 'src/modules/training/types/session'
 import TodayCard from '../components/TodayCard.vue'
 import ProgramSheet from '../components/ProgramSheet.vue'
 import { pickNextRoute, resolveTodayCard } from '../utils/today-card'
+import { MI_TEMPLO_CARD_KEYS, resolveMiTemploSlots } from '../utils/mi-templo-slots'
 import type { CheckInAnswers } from '../utils/check-in-summary'
 import GeneralContent from '../components/GeneralContent.vue'
 import ProgramCtaCard from 'src/modules/programs/components/ProgramCtaCard.vue'
@@ -151,6 +190,7 @@ import ReferralCtaCard from '../components/ReferralCtaCard.vue'
 import UpsellBadge from '../components/UpsellBadge.vue'
 import AvisoCard from '../components/AvisoCard.vue'
 import { useAvisosStore } from 'src/stores/useAvisosStore'
+import { useCardHadContentStore } from 'src/stores/useCardHadContentStore'
 import { useNovedadesStore } from 'src/stores/useNovedadesStore'
 import { useSponsorsStore, type Sponsor } from 'src/stores/useSponsorsStore'
 import { useNotificationStore } from 'src/stores/useNotificationStore'
@@ -160,6 +200,21 @@ import { addDaysStr, formatHHMM, weekStartsFor } from 'src/utils/check-in-window
 import { dowInTz, todayInTz } from 'src/utils/tz'
 import { useRouter } from 'vue-router'
 
+// Fase 203 (D-01/D-02): altos de los esqueletos = alto de la card final, medido de sus estilos, para
+// que al llegar el dato no salte el layout. Si cambia el diseño de una card, se actualiza acá.
+/** NovedadesCard: borde 2 + encabezado (padding 12+2, línea de 16) + stage fijo 62 + barra de progreso 3. */
+const NOVEDADES_SKELETON_PX = 97
+/** CheckInPanel en su primer estado del día (pregunta + control): borde 2 + padding 12+14 + título 24 + pregunta 8+26 + control 10+44. */
+const CHECKIN_SKELETON_PX = 140
+/** SponsorsCarousel: el `min-height` de `.sp-card`. */
+const SPONSORS_SKELETON_PX = 156
+/** WeekStrip: borde 2 + padding 14 + encabezado ~21 + días 12+30+14 + franja del total ~51. */
+const WEEKSTRIP_SKELETON_PX = 144
+/** EvaluationRequest "Listo para evaluación": padding 32 + título ~18 + botón 12+48. */
+const EVALUATION_SKELETON_PX = 110
+/** Card del riel "Para vos" (ForYouCard con cuerpo de 2 líneas): borde 2 + padding 28 + kicker ~12 + título 6+20 + cuerpo ~36 + botón 2+44. */
+const FOR_YOU_SKELETON_PX = 150
+
 const notificationStore = useNotificationStore()
 const router = useRouter()
 const progressionStore = useProgressionStore()
@@ -167,6 +222,7 @@ const userStore = useUserStore()
 const avisosStore = useAvisosStore()
 const novedadesStore = useNovedadesStore()
 const sponsorsStore = useSponsorsStore()
+const cardFlags = useCardHadContentStore()
 const { fetchStats, requestEvaluation } = useProgressionApi()
 const { fetchTodayCheckIns, submitCheckIn } = useCheckInApi()
 const todayBookingStore = useTodayBookingStore()
@@ -444,6 +500,57 @@ const todayCard = computed(() => {
   })
 })
 
+// Fase 203 (D-01/D-02/D-07): qué se dibuja en el lugar de cada card (esqueleto, contenido u oculto) y
+// qué flags "tuvo contenido" hay que guardar. La regla vive en una función pura; acá solo se arma el
+// input con booleanos y conteos (D-03: nunca contenido).
+const slots = computed(() => {
+  const evaluation = progressionStore.evaluation
+  return resolveMiTemploSlots({
+    deadlinePassed: deadline.passed.value,
+    todayKind: todayCard.value.kind,
+    novedades: {
+      loaded: novedadesStore.loaded,
+      ok: novedadesStore.lastLoadOk,
+      count: novedadesStore.novedades.length,
+    },
+    sponsors: {
+      loaded: sponsorsStore.loaded,
+      ok: sponsorsStore.lastLoadOk,
+      count: sponsorsStore.sponsors.length,
+    },
+    checkIn: {
+      settled: progressionStore.checkInSettled,
+      ok: progressionStore.checkInOk,
+      questions: orderedCheckIns.value.length,
+    },
+    week: { loaded: weekLoaded.value },
+    stats: {
+      loaded: progressionStore.statsLoaded,
+      ok: progressionStore.statsOk,
+      evaluationVisible: evaluation !== null && (evaluation.eligible || evaluation.pendingRequest),
+    },
+    paraVos: {
+      tarjetasSettled: avisosStore.tarjetasSettled,
+      memberStateLoaded: userStore.memberStateLoaded,
+      hasProfile: userStore.profile !== null,
+    },
+    hadContent: cardFlags.map,
+  })
+})
+
+// Pitfall 6: `records` solo trae las cards cuya fuente respondió bien (nunca tras un error); `record()`
+// ignora los valores que no cambian, así que este watch no entra en bucle con `cardFlags.map`.
+watch(
+  () => slots.value.records,
+  (records) => {
+    for (const card of MI_TEMPLO_CARD_KEYS) {
+      const has = records[card]
+      if (has !== undefined) cardFlags.record(card, has)
+    }
+  },
+  { immediate: true },
+)
+
 onMounted(() => {
   // Fase 203 (SC-4, D-06): todo sale en el mismo tick y en paralelo, sin ningún `await` antes de los
   // pedidos. El tope de la card arranca una sola vez, acá.
@@ -485,35 +592,6 @@ onUnmounted(() => {
 .mi-templo {
   padding: 16px;
   background-color: transparent; // D-16: la foto de fondo se ve detrás
-
-  &__loading,
-  &__error {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 60vh;
-    text-align: center;
-    padding: 24px;
-  }
-
-  &__loading-text {
-    margin: 16px 0 0;
-    font-size: 14px;
-    color: #6b6459; // D-15: texto sólido
-  }
-
-  &__error-icon {
-    font-size: 64px;
-    color: $negative;
-    margin-bottom: 16px;
-  }
-
-  &__error-text {
-    font-size: 14px;
-    color: #2c2318; // D-15: texto sólido
-    margin-bottom: 16px;
-  }
 
   &__content {
     display: flex;
@@ -606,6 +684,13 @@ onUnmounted(() => {
       flex: 0 0 calc(100% - 2 * 16px - 24px);
       scroll-snap-align: start;
     }
+  }
+
+  // Esqueleto del riel (fase 203): mismo ancho que una card real. Gana por especificidad al
+  // `flex: 0 0 auto` de CardSkeleton inline, que no sabe de este ancho.
+  &__rail > &__skeleton {
+    flex: 0 0 calc(100% - 2 * 16px - 24px);
+    scroll-snap-align: start;
   }
 }
 </style>
