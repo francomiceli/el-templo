@@ -20,6 +20,9 @@
  * anterior de este archivo (eran las únicas 2 de las 5 slides "de contenido"
  * que estaban en oscuro) — el criterio ahora es 100% "reposo/cierre vs.
  * contenido", no alternancia visual.
+ *
+ * Revisión 2026-10-23 (sketch 023): las slides de día llevan el texto en un panel blanco centrado
+ * (lo resuelve `GuiaPage.vue` según `theme`) y todas muestran la pista "Tocá para seguir" abajo.
  */
 import type { BlockRole } from '../training/types/session'
 import type { Level } from '../training/level-display'
@@ -96,6 +99,7 @@ export const EMPEZA_ACA_SLIDES: EmpezaAcaSlide[] = [
     id: 'semana',
     type: 'text',
     theme: 'dia',
+    tapHint: 'Tocá para seguir',
     kicker: 'TU SEMANA',
     title: 'Cada día tiene su foco',
     bullets: [
@@ -125,6 +129,7 @@ export const EMPEZA_ACA_SLIDES: EmpezaAcaSlide[] = [
     id: 'clase',
     type: 'blocks',
     theme: 'dia',
+    tapHint: 'Tocá para seguir',
     kicker: 'CADA CLASE',
     title: '1 hora, 4 bloques',
     footnote: 'En Entrenar, tocá ⓘ en cada bloque para ver para qué sirve.',
@@ -156,6 +161,7 @@ export const EMPEZA_ACA_SLIDES: EmpezaAcaSlide[] = [
     id: 'niveles',
     type: 'levels',
     theme: 'dia',
+    tapHint: 'Tocá para seguir',
     kicker: 'TU CAMINO',
     title: 'Cinco niveles, un solo método',
     levels: [
@@ -174,6 +180,7 @@ export const EMPEZA_ACA_SLIDES: EmpezaAcaSlide[] = [
     id: 'avanzar',
     type: 'text',
     theme: 'dia',
+    tapHint: 'Tocá para seguir',
     kicker: 'SUBIR DE NIVEL',
     title: 'Tus profes te evalúan',
     body: [
@@ -185,6 +192,7 @@ export const EMPEZA_ACA_SLIDES: EmpezaAcaSlide[] = [
     id: 'app',
     type: 'text',
     theme: 'dia',
+    tapHint: 'Tocá para seguir',
     kicker: 'LA APP',
     title: 'Todo en tu bolsillo',
     bullets: [

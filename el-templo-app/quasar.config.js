@@ -1,8 +1,13 @@
 // Configuration for your app
 // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file
 
+import { existsSync, realpathSync } from 'node:fs'
 import { defineConfig } from '#q-app/wrappers'
 import { sentryVitePlugin } from '@sentry/vite-plugin'
+
+// En un worktree, node_modules suele ser un symlink a otro checkout: sin esto Vite responde 403
+// a todo lo que vive afuera del proyecto (p. ej. la fuente de los íconos) y se ven sus nombres.
+const nodeModulesReal = existsSync('node_modules') ? [realpathSync('node_modules')] : []
 
 export default defineConfig((/* ctx */) => {
   return {
@@ -18,6 +23,7 @@ export default defineConfig((/* ctx */) => {
       'auth',
       'attribution',
       'modules',
+      'notify',
       'push-notifications',
       'deep-links',
       'staging-marker',
@@ -102,11 +108,17 @@ export default defineConfig((/* ctx */) => {
     devServer: {
       // https: true,
       open: true, // opens browser window automatically
+      fs: { allow: ['.', ...nodeModulesReal] },
     },
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#framework
     framework: {
       config: {
+        // Mensajes flash (sketch 014 B): abajo, encima de la barra. El resto (píldora,
+        // offset) vive en src/css/_notify.scss; íconos por tipo en src/boot/notify.ts.
+        notify: {
+          position: 'bottom',
+        },
         capacitor: {
           iosStatusBarPadding: true,
           backButtonExit: false,

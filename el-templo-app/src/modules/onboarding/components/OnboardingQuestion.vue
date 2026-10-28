@@ -1,6 +1,6 @@
 <template>
   <div class="question-screen">
-    <div class="glass-card">
+    <PremiumGlassCard>
       <p v-if="question.frame" class="question-frame">{{ question.frame }}</p>
       <h3 class="question-text">{{ question.text }}</h3>
 
@@ -21,13 +21,14 @@
           />
         </button>
       </div>
-    </div>
+    </PremiumGlassCard>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { QuizQuestion, QuizQuestionV2 } from '../types'
+import PremiumGlassCard from 'src/components/PremiumGlassCard.vue'
 
 const props = defineProps<{
   question: QuizQuestion | QuizQuestionV2
@@ -47,11 +48,7 @@ function onSelectOption(value: string) {
 </script>
 
 <style lang="scss" scoped>
-@import 'src/css/brand';
-$terracotta: $brand-terracotta;
-$cream: #f2ede5;
-$charcoal: #2e2a26;
-$charcoal-mid: #3d3732;
+@import 'src/css/premium-card';
 
 .question-screen {
   width: 100%;
@@ -59,35 +56,24 @@ $charcoal-mid: #3d3732;
   padding: 0 20px;
 }
 
-.glass-card {
-  width: 100%;
-  background: rgba($charcoal-mid, 0.85);
-  border-top: 2px solid rgba($terracotta, 0.6);
-  border-radius: 8px;
-  padding: 28px 24px 20px;
-  backdrop-filter: blur(10px);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-}
-
+// Marco, superficie translúcida y línea luminosa: PremiumGlassCard.
 .question-frame {
-  font-family: 'Geologica', sans-serif;
+  font-family: 'Cormorant Garamond', serif;
   font-style: italic;
-  font-weight: 300;
-  font-size: 0.8125rem;
-  letter-spacing: 0.02em;
-  color: rgba($cream, 0.5);
-  margin: 0 0 12px 0;
+  font-weight: 500;
+  font-size: 1rem;
+  color: $pd-cream-3;
+  margin: 0 0 6px 0;
   text-align: center;
-  line-height: 1.45;
+  line-height: 1.35;
 }
 
 .question-text {
   font-family: 'Montserrat', sans-serif;
   font-weight: 700;
-  font-size: 1.125rem;
-  letter-spacing: 0.06em;
-  color: $cream;
-  margin: 0 0 24px 0;
+  font-size: 1.2rem;
+  color: $pd-cream;
+  margin: 0 0 16px 0;
   text-align: center;
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
   line-height: 1.3;
@@ -96,10 +82,14 @@ $charcoal-mid: #3d3732;
 .options-stack {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
 
+  // El degradé de las puntas cae sobre este padding (8px): en reposo no se come el borde de la primera
+  // ni de la última opción. El margen negativo deja el layout igual.
   &--scrollable {
-    max-height: 360px;
+    max-height: 396px;
+    padding: 8px 0;
+    margin: -8px 0;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     mask-image: linear-gradient(
@@ -124,23 +114,23 @@ $charcoal-mid: #3d3732;
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  min-height: 48px;
-  padding: 14px 16px;
-  border-radius: 8px;
-  background: rgba($charcoal, 0.5);
-  border: 1.5px solid rgba($cream, 0.12);
-  color: $cream;
+  min-height: 46px;
+  padding: 0 14px;
+  border-radius: 10px;
+  background: rgba(46, 42, 38, 0.5);
+  border: 1px solid rgba(240, 230, 214, 0.22);
+  color: $pd-cream;
   font-family: 'Geologica', sans-serif;
-  font-weight: 400;
+  font-weight: 500;
   font-size: 0.9375rem;
   text-align: left;
   cursor: pointer;
   transition: all 0.2s ease;
-  line-height: 1.5;
+  line-height: 1.4;
 
   &:hover {
-    border-color: rgba($cream, 0.3);
-    background: rgba($charcoal, 0.6);
+    border-color: rgba(240, 230, 214, 0.4);
+    background: rgba(46, 42, 38, 0.6);
   }
 
   &:active {
@@ -148,10 +138,13 @@ $charcoal-mid: #3d3732;
     transition-duration: 100ms;
   }
 
-  &--selected {
-    border-color: rgba($terracotta, 0.8);
-    background: rgba($terracotta, 0.15);
-    box-shadow: 0 0 12px rgba($terracotta, 0.15);
+  // Elegida: terracota SÓLIDO (el mismo degradé del botón), texto e ícono blancos.
+  &--selected,
+  &--selected:hover {
+    border-color: transparent;
+    background: linear-gradient(135deg, $pd-btn-a, $pd-btn-b);
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(126, 69, 41, 0.35);
   }
 }
 
@@ -160,7 +153,7 @@ $charcoal-mid: #3d3732;
 }
 
 .option-check {
-  color: $terracotta;
+  color: #fff;
   flex-shrink: 0;
   margin-left: 8px;
 }

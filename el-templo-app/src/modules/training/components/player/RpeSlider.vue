@@ -1,6 +1,6 @@
 <template>
   <div class="rpe-slider">
-    <div class="rpe-slider__label text-subtitle2 q-mb-sm">Esfuerzo Percibido (RPE)</div>
+    <div class="rpe-slider__label">Esfuerzo percibido (RPE)</div>
 
     <q-slider
       v-model="internalValue"
@@ -19,10 +19,10 @@
     <div class="rpe-slider__description text-center q-mt-md text-body2">
       <template v-if="hasInteracted">
         <span class="text-weight-medium">{{ internalValue }}</span>
-        <span class="text-grey-7"> - {{ rpeDescriptions[internalValue] }}</span>
+        <span class="rpe-slider__hint"> - {{ rpeDescriptions[internalValue] }}</span>
       </template>
       <template v-else>
-        <span class="text-grey-6">Desliza para indicar tu esfuerzo</span>
+        <span class="rpe-slider__hint">Deslizá para indicar tu esfuerzo</span>
       </template>
     </div>
   </div>
@@ -49,18 +49,18 @@ const hasInteracted = ref(props.modelValue !== null)
 
 // Marker labels per CONTEXT.md: every 2 numbers (2, 4, 6, 8, 10)
 const markerLabels: Record<number, string> = {
-  2: 'Facil',
+  2: 'Fácil',
   4: 'Moderado',
   6: 'Duro',
-  8: 'Muy Duro',
-  10: 'Maximo',
+  8: 'Muy duro',
+  10: 'Máximo',
 }
 
 // Full descriptions for all values
 const rpeDescriptions: Record<number, string> = {
-  1: 'Muy facil, apenas esfuerzo',
-  2: 'Facil',
-  3: 'Facil a moderado',
+  1: 'Muy fácil, apenas esfuerzo',
+  2: 'Fácil',
+  3: 'Fácil a moderado',
   4: 'Moderado',
   5: 'Moderado a duro',
   6: 'Duro',
@@ -90,6 +90,7 @@ watch(
 
 <style scoped lang="scss">
 @import 'src/css/quasar.variables.scss';
+@import 'src/css/premium-card';
 
 .rpe-slider {
   padding: 16px 8px;
@@ -98,12 +99,21 @@ watch(
 }
 
 .rpe-slider__label {
-  color: $primary;
+  // Tinta plena y más cuerpo (antes $pd-kicker-ink en subtitle2, se leía tenue). El margen de abajo
+  // deja lugar al globo del valor (`label-always`), que flota ~36 px sobre el riel y tapaba el título
+  margin-bottom: 40px;
   font-family: 'Montserrat', sans-serif;
-  letter-spacing: 0.05em;
+  font-size: 15px;
+  font-weight: 700;
+  color: $pd-ink;
 }
 
 .rpe-slider__description {
   min-height: 24px;
+}
+
+// Fase 197 D-16: texto sólido (antes grises 7 y 6 de Quasar #757575 y #9e9e9e, 1.94-3.34:1 medido)
+.rpe-slider__hint {
+  color: $pd-ink-2;
 }
 </style>

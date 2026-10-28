@@ -1,6 +1,6 @@
 <template>
   <div class="recommendation-screen">
-    <div class="glass-card">
+    <PremiumGlassCard>
       <!-- Zone A: Program info -->
       <div class="program-info">
         <p class="program-label">Tu programa recomendado</p>
@@ -28,7 +28,7 @@
       <q-btn
         unelevated
         no-caps
-        class="recommendation-cta recommendation-cta--whatsapp full-width"
+        class="pd-cta recommendation-cta--whatsapp full-width"
         @click="openWhatsApp"
       >
         <q-icon
@@ -46,10 +46,10 @@
         unelevated
         no-caps
         :loading="submitting"
-        class="recommendation-cta full-width"
+        class="pd-cta full-width"
         @click="emit('enter')"
       />
-    </div>
+    </PremiumGlassCard>
   </div>
 </template>
 
@@ -57,6 +57,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useUserStore } from 'src/stores/useUserStore'
 import { buildWhatsAppUrl } from 'src/utils/whatsapp'
+import PremiumGlassCard from 'src/components/PremiumGlassCard.vue'
 
 const FOUNDATION_PROGRAM = 'Foundation - Cuerpo Completo'
 
@@ -105,6 +106,7 @@ onMounted(() => {
 
 <style lang="scss" scoped>
 @import 'src/css/brand';
+@import 'src/css/premium-card';
 $terracotta: $brand-terracotta;
 $amber: #d4a843;
 $bronze: #d4b896;
@@ -118,15 +120,7 @@ $charcoal-mid: #3d3732;
   text-align: center;
 }
 
-.glass-card {
-  width: 100%;
-  background: rgba($charcoal-mid, 0.85);
-  border-top: 2px solid rgba($terracotta, 0.6);
-  border-radius: 8px;
-  padding: 28px 24px 20px;
-  backdrop-filter: blur(10px);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-}
+// Marco, superficie translúcida, línea luminosa y botón `pd-cta`: PremiumGlassCard.
 
 // =========================================================================
 // Program info
@@ -139,7 +133,7 @@ $charcoal-mid: #3d3732;
   font-family: 'Montserrat', sans-serif;
   font-weight: 700;
   font-size: 0.8125rem;
-  color: rgba($cream, 0.4);
+  color: $pd-cream-3;
   text-transform: uppercase;
   letter-spacing: 0.1em;
   margin: 0 0 4px 0;
@@ -159,7 +153,7 @@ $charcoal-mid: #3d3732;
   font-family: 'Geologica', sans-serif;
   font-weight: 400;
   font-size: 0.9375rem;
-  color: rgba($cream, 0.7);
+  color: $pd-cream-3;
   text-align: center;
   line-height: 1.5;
   margin: 0 0 20px 0;
@@ -207,7 +201,7 @@ $charcoal-mid: #3d3732;
   font-family: 'Geologica', sans-serif;
   font-weight: 400;
   font-size: 0.8125rem;
-  color: rgba($cream, 0.5);
+  color: $pd-cream-3;
   margin-top: 6px;
 }
 
@@ -271,7 +265,7 @@ $particle-colors: $bronze, $amber;
   font-family: 'Geologica', sans-serif;
   font-weight: 400;
   font-size: 0.875rem;
-  color: rgba($cream, 0.6);
+  color: $pd-cream-3;
   line-height: 1.4;
   margin: 0 0 16px 0;
   text-align: center;
@@ -281,39 +275,14 @@ $particle-colors: $bronze, $amber;
   font-family: 'Geologica', sans-serif;
   font-weight: 400;
   font-size: 0.8125rem;
-  color: rgba($cream, 0.5);
+  color: $pd-cream-3;
   margin: 20px 0 8px 0;
   text-align: center;
 }
 
-.recommendation-cta {
-  background: linear-gradient(135deg, $terracotta 0%, #ad6540 100%) !important;
-  color: $cream !important;
-  font-family: 'Montserrat', sans-serif;
-  font-weight: 700;
-  font-size: 0.9375rem;
-  letter-spacing: 0.12em;
-  padding: 12px 0;
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  transition:
-    box-shadow 0.3s ease,
-    transform 0.2s ease;
-
-  &:hover {
-    box-shadow:
-      0 4px 24px rgba($terracotta, 0.5),
-      0 0 40px rgba($terracotta, 0.15);
-    transform: scale(1.02);
-  }
-
-  &:active {
-    transform: scale(0.98);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-  }
-
-  &--whatsapp {
-    background: linear-gradient(135deg, #25d366 0%, #128c7e 100%) !important;
-  }
+// El verde de WhatsApp conserva su identidad pero oscurecido (blanco encima 5.3:1 a 6.5:1; el
+// #25d366 de la marca daba 2:1). Forma, tipografía y destello vienen de `pd-cta`.
+.recommendation-cta--whatsapp {
+  background: linear-gradient(135deg, $pd-wa-a 0%, $pd-wa-b 100%) !important;
 }
 </style>

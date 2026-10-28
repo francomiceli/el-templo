@@ -1,0 +1,495 @@
+// Lenguaje de la card de hoy (sketches 006/010/011): marco con borde degradé quieto, línea luminosa
+// abajo, botón terracota con destello y campos oscuros. Lo usan PremiumDialogCard (pop-ups, superficie
+// SÓLIDA) y PremiumGlassCard (login / registro / onboarding, superficie TRANSLÚCIDA sobre la estatua).
+// Un solo lugar para el look: los componentes solo eligen superficie y paddings.
+//
+// Contraste sobre #2c2318: crema 12.5:1, crema-2 9.6:1, crema-3 7.6:1 (≈ 6.5:1 sobre la card translúcida).
+// Uso: `@import 'src/css/premium-card';` dentro del <style> del componente.
+
+$pd-surface: #2c2318;
+$pd-surface-glass: rgba(44, 35, 24, 0.78);
+$pd-cream: #f0e6d6;
+$pd-cream-2: #e3c9a8;
+$pd-cream-3: #c9bba6;
+$pd-btn-a: #a35f3c; // blanco encima 4.9:1
+$pd-btn-b: #7e4529; // blanco encima 7.4:1
+
+// Variante CLARA (sketch 012 A · Hermana clara): diálogos de trámite (Reservas, eliminar cuenta,
+// elegir sede). Mismo marco y botón; cambia la superficie (crema) y el texto (tinta).
+// Contraste: tinta 14.6:1 sobre la card, tinta-2 6.8:1, título de eliminar cuenta 5.6:1.
+$pd-light-surface: #fbf8f3;
+$pd-ink: #2c2318;
+// 2026-10-18: era #6b6459 — sobre la PÁGINA de Reservas (beige real #e4dfd7–#e9e3db, no blanco)
+// daba 4.3–4.5:1 en el rótulo de semana, la nota de reglas y las clases pasadas. Ahora ≥ 5.2:1.
+$pd-ink-2: #5f584d;
+$pd-terra-ink: #96593a; // íconos / acentos sobre crema, 5.2:1
+$pd-light-line: #e5dbcd; // borde decorativo de las filas (sedes) y separadores
+// Borde de los controles tocables sobre la PÁGINA crema (#f2ede5): chip de sede, fichas de día y cards
+// de horario de Reservas (WCAG 1.4.11). Cálido, no gris: 3.32:1 sobre la página #f2ede5, 3.65:1 sobre
+// la card #fbf8f3 y 3.87:1 sobre blanco (antes #e5dbcd: 1.17 / 1.29 / 1.37).
+$pd-light-edge: #8c806f;
+// Borde de los campos claros (WCAG 1.4.11, >= 3:1): #948878 da 3.28:1 sobre la card #fbf8f3 y 3.47:1
+// sobre el fondo blanco del campo (antes #d9cfc1: 1.45:1 y 1.54:1).
+$pd-light-field-border: #948878;
+// Borde de los campos OSCUROS: crema al 50% da 4.24:1 sobre #2c2318, 3.97:1 sobre el fondo del campo
+// (#362d22) y 3.4-3.9:1 sobre la card translúcida con una foto media por detrás (antes .32: 2.55 / 2.48).
+$pd-field-border: rgba(240, 230, 214, 0.5);
+$pd-field-bg: rgba(240, 230, 214, 0.05);
+$pd-field-radius: 10px;
+$pd-neg-a: #b34a4a; // destructivo: blanco encima 5.3:1
+$pd-neg-b: #8f3434; // blanco encima 7.9:1
+$pd-neg-title: #a8423f;
+// Rojo de error SOBRE oscuro (mensaje y borde de campo con error): #ff9b94 da 7.6:1 sobre la card
+// #2c2318, 6.7:1 sobre el fondo del campo (#362d22) y 5.4:1 aun sobre #4a3a2b (card translúcida clara).
+$pd-neg-on-dark: #ff9b94;
+
+// Fase 197 D-18: tokens de Entrenar (sketches 015 ronda 3b y 016). Contrastes medidos sobre el fondo real.
+$pd-sage: #3f6a47; // salvia "hecho": 5.4:1 sobre su tinte
+$pd-sage-tint: #e9f0e6;
+// Fase 197 D-16: verde "hecho" SOBRE oscuro (ícono de bloque completo / transición): 7.7:1 sobre #2a2622,
+// 6.0:1 sobre #3e3732 (el $positive #3b7249 daba 2.05-2.6:1 ahí). Solo íconos, nunca texto sobre claro.
+$pd-sage-on-dark: #8fc79a;
+// Fase 197 D-16: dorado de marca (#b89b5e, 4.39:1) subido para texto de cita SOBRE oscuro: 5.2:1 sobre #3e3732.
+$pd-aged-gold-on-dark: #c7aa6b;
+$pd-gold: #d4b46a; // SOLO AURA: 7.7:1 sobre #2c2318 (no sirve como texto sobre claro)
+$pd-gold-ink: #7d6520; // dorado como texto sobre claro: 5.0:1 sobre su tinte
+$pd-gold-tint: #f6efdc;
+$pd-kicker-ink: #7e4529; // kicker Cinzel sobre crema: 6.5:1
+$pd-ink-3: #5a5347; // rótulos de 11 px en mayúsculas
+$pd-soon-dot: #b4892f; // punto ocre de "pronto" (D-02)
+$pd-unavailable-bg: #e7dfd3; // CTA no disponible (futuro): texto $pd-ink-2 sólido encima
+
+// Verde de WhatsApp oscurecido para que el texto blanco llegue a AA: #1f7a4d 5.3:1, #0f6b52 6.5:1
+// (el #25d366 de la marca da 2:1 con blanco). Sigue leyéndose como WhatsApp.
+$pd-wa-a: #1f7a4d;
+$pd-wa-b: #0f6b52;
+
+// Cabecera de las pantallas sobre la estatua (login, crear cuenta, olvidé mi contraseña, invitación):
+// "Bienvenido al Templo" en Cinzel 700 1.22rem, UNA línea hasta 360px. Subtítulo en #c9bba6.
+@mixin pd-screen-title {
+  margin: 0;
+  font-family: 'Cinzel', serif;
+  font-weight: 700;
+  font-size: 1.22rem;
+  letter-spacing: 0.08em;
+  color: $pd-cream;
+  text-align: center;
+  white-space: nowrap;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
+}
+
+@mixin pd-screen-subtitle {
+  margin: 0 0 24px;
+  font-size: 0.95rem;
+  color: $pd-cream-3;
+  text-align: center;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+}
+
+// Marco: el borde degradé es el fondo del contenedor y la card lo tapa salvo 1.5px (radio 21/20).
+@mixin pd-frame {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  border-radius: 21px;
+  padding: 1.5px;
+  background: linear-gradient(
+    115deg,
+    #4a3a2b 0%,
+    #a35f3c 30%,
+    #f0d2b4 45%,
+    #a35f3c 60%,
+    #4a3a2b 100%
+  );
+  background-size: 250% 250%;
+  background-position: 0% 50%;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.4);
+}
+
+// Marco CLARO (sketch 013 A, "Tu próxima clase"): mismo degradé quieto, más suave en las puntas
+// (#d9c6b0), borde de 1.5px y radio 17/16. Sin sombra: va sobre la página, no sobre un overlay.
+@mixin pd-frame-light($radius: 17px) {
+  position: relative;
+  box-sizing: border-box;
+  border-radius: $radius;
+  padding: 1.5px;
+  background: linear-gradient(
+    115deg,
+    #d9c6b0 0%,
+    #a35f3c 30%,
+    #f0d2b4 45%,
+    #a35f3c 60%,
+    #d9c6b0 100%
+  );
+  background-size: 250% 250%;
+  background-position: 0% 50%;
+}
+
+// Card: sólida (`$pd-surface`) o translúcida (`$pd-surface-glass` + `$blur: true`).
+@mixin pd-card($surface: $pd-surface, $blur: false) {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  box-sizing: border-box;
+  background: $surface;
+  color: $pd-cream;
+  border-radius: 20px;
+
+  @if $blur {
+    backdrop-filter: blur(10px);
+  }
+}
+
+// Línea luminosa pegada al borde de abajo. Decoración: detrás del texto, sin toques.
+@mixin pd-line {
+  position: absolute;
+  z-index: 1;
+  left: 16px;
+  right: 16px;
+  bottom: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #a35f3c, #e9bf9b, #a35f3c, transparent);
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+// Campo Quasar oscuro (q-input / q-select outlined): se incluye DENTRO del selector de la raíz del
+// campo, p. ej. `:slotted(.pd-area) { @include pd-field; }`. Todo lo del campo va acá: radio 10, borde
+// y fondo de crema translúcido, texto crema, label/placeholder/contador #c9bba6.
+// `--q-primary` reemplaza el aro de foco (que usa el color primario si el campo trae `color="primary"`)
+// por crema cálido; los estados de error siguen usando `--q-negative`.
+@mixin pd-field($font-size: 15px) {
+  --q-primary: #{$pd-cream-2};
+
+  .q-field__control {
+    border-radius: $pd-field-radius;
+    background: $pd-field-bg;
+    box-shadow: none;
+  }
+
+  .q-field__control::before {
+    border-radius: $pd-field-radius;
+    border-color: $pd-field-border;
+  }
+
+  .q-field__control::after {
+    border-radius: $pd-field-radius;
+  }
+
+  .q-field__native,
+  .q-field__input,
+  .q-field__prefix,
+  .q-field__suffix {
+    color: $pd-cream;
+    font-family: 'Geologica', sans-serif;
+    font-size: $font-size;
+  }
+
+  .q-field__label,
+  .q-field__native::placeholder,
+  .q-field__bottom {
+    color: $pd-cream-3;
+  }
+
+  // Error: sin esto la regla de arriba (más específica que la de Quasar) pinta el mensaje en crema.
+  &.q-field--error {
+    .q-field__control::before,
+    .q-field__control::after {
+      border-color: $pd-neg-on-dark;
+    }
+
+    .q-field__label,
+    .q-field__bottom {
+      color: $pd-neg-on-dark;
+    }
+  }
+}
+
+// Campo NATIVO oscuro (<input> sin Quasar, p. ej. la fecha de nacimiento del onboarding): mismos tokens
+// que `pd-field` (radio, fondo, borde crema 50%, foco crema-2) y el rojo de error sobre oscuro con
+// `aria-invalid="true"`. El que lo incluye agrega solo lo suyo (letter-spacing, text-align...).
+@mixin pd-field-native($font-size: 16px) {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 14px 16px;
+  border-radius: $pd-field-radius;
+  background: $pd-field-bg;
+  border: 1px solid $pd-field-border;
+  color: $pd-cream;
+  font-family: 'Geologica', sans-serif;
+  font-size: $font-size;
+  outline: none;
+
+  &::placeholder {
+    color: $pd-cream-3;
+  }
+
+  &:focus {
+    border-color: $pd-cream-2;
+    box-shadow: 0 0 0 1px $pd-cream-2;
+  }
+
+  &[aria-invalid='true'] {
+    border-color: $pd-neg-on-dark;
+    box-shadow: none;
+  }
+}
+
+// Campo Quasar CLARO (q-input outlined sobre la card crema): radio 10, borde #948878, fondo blanco,
+// texto tinta, label/ayuda tinta-2. Se incluye dentro del selector de la raíz del campo, igual que
+// `pd-field`. El error vuelve al rojo de la marca (borde, label y mensaje).
+@mixin pd-field-light($font-size: 15px) {
+  --q-primary: #{$pd-terra-ink};
+
+  .q-field__control {
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: none;
+  }
+
+  .q-field__control::before {
+    border-radius: 10px;
+    border-color: $pd-light-field-border;
+  }
+
+  .q-field__control::after {
+    border-radius: 10px;
+  }
+
+  .q-field__native,
+  .q-field__input,
+  .q-field__prefix,
+  .q-field__suffix {
+    color: $pd-ink;
+    font-family: 'Geologica', sans-serif;
+    font-size: $font-size;
+  }
+
+  .q-field__label,
+  .q-field__native::placeholder,
+  .q-field__bottom {
+    color: $pd-ink-2;
+  }
+
+  &.q-field--error {
+    .q-field__control::before {
+      border-color: $pd-neg-a;
+    }
+
+    .q-field__label,
+    .q-field__bottom {
+      color: $pd-neg-title;
+    }
+  }
+}
+
+// Botón primario (q-btn o <button> nativo): degradé terracota, radio 10, Geologica 600 15px, sombra
+// y destello que cruza cada 5 s. Se incluye dentro del selector del botón.
+@mixin pd-cta($min-height: 48px) {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  min-height: $min-height;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 10px;
+  background: linear-gradient(135deg, $pd-btn-a, $pd-btn-b);
+  color: #fff;
+  font-family: 'Geologica', sans-serif;
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  box-shadow:
+    0 4px 14px rgba(126, 69, 41, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+
+  // Destello: reposa fuera del botón; solo se anima bajo `no-preference` (abajo).
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: -60%;
+    width: 40%;
+    background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.28), transparent);
+    transform: skewX(-18deg);
+    pointer-events: none;
+  }
+
+  // Todo el movimiento va acá: con `prefers-reduced-motion: reduce` el destello queda quieto.
+  @media (prefers-reduced-motion: no-preference) {
+    &::after {
+      animation: pd-sheen 5s ease-in-out 1.2s infinite;
+    }
+  }
+}
+
+// Variante destructiva del botón primario (cancelar reserva, eliminar cuenta): rojo y SIN destello.
+// Se incluye junto a `pd-cta`, en el selector del botón destructivo.
+@mixin pd-cta-negative {
+  background: linear-gradient(135deg, $pd-neg-a, $pd-neg-b);
+  box-shadow:
+    0 4px 14px rgba(143, 52, 52, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+
+  &::after {
+    display: none;
+  }
+}
+
+// Deshabilitado: .55 (Quasar fija `.disabled { opacity: .6 !important }`, por eso el !important).
+// Va aparte porque el selector cambia (`.pd-cta.disabled` / `.pd-cta:disabled`), no el cuerpo.
+@mixin pd-cta-disabled {
+  opacity: 0.55 !important;
+  cursor: not-allowed;
+
+  &::after {
+    display: none;
+  }
+}
+
+// Va a nivel raíz del <style> (Vue scoped renombra la animación junto con la referencia).
+@mixin pd-sheen-keyframes {
+  @keyframes pd-sheen {
+    0%,
+    70% {
+      left: -60%;
+    }
+    100% {
+      left: 130%;
+    }
+  }
+}
+
+// ── Fase 197 D-18: mixins de Entrenar (Semana, Libre, player en modo bloque libre) ──
+
+// Kicker Cinzel de las pantallas claras ("HOY · VIERNES 16"). Escala 11.
+@mixin pd-kicker-light {
+  margin: 0;
+  font-family: 'Cinzel', serif;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: $pd-kicker-ink;
+}
+
+// Rótulo de 11 px en mayúsculas (rango de la semana, contadores, leyendas).
+@mixin pd-label-11 {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: $pd-ink-3;
+}
+
+// Rol del bloque arriba del nombre (chips y cards de bloque).
+@mixin pd-role-label {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 800;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: $pd-terra-ink;
+}
+
+// Botón secundario claro ("Ver resumen"): se incluye junto a `pd-cta`, que aporta tamaño y tipografía.
+@mixin pd-cta-secondary-light {
+  background: #fff;
+  color: $pd-terra-ink;
+  border: 1.5px solid $pd-terra-ink;
+  box-shadow: none;
+
+  &::after {
+    display: none;
+  }
+}
+
+// Botón no disponible ("Disponible el lunes"): fondo arena, texto sólido, sin sombra ni destello.
+// No usa opacidad: el texto mantiene su contraste (D-16).
+@mixin pd-cta-unavailable {
+  background: $pd-unavailable-bg;
+  color: $pd-ink-2;
+  box-shadow: none;
+  cursor: default;
+
+  &::after {
+    display: none;
+  }
+}
+
+// Chip de AURA: `light` sobre página crema, `dark` sobre el player. `$available: false` = ya cobrada hoy.
+@mixin pd-chip-aura($tone: light, $available: true) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-family: 'Geologica', sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+
+  @if $tone == light {
+    @if $available {
+      background: $pd-gold-tint;
+      color: $pd-gold-ink;
+    } @else {
+      background: #fff;
+      border: 1px solid $pd-light-line;
+      color: $pd-ink-2;
+    }
+  } @else {
+    @if $available {
+      background: rgba(212, 180, 106, 0.14);
+      color: $pd-gold;
+    } @else {
+      background: rgba(240, 230, 214, 0.08);
+      color: $pd-cream-3;
+    }
+  }
+}
+
+// Chip salvia "Hecha".
+@mixin pd-chip-done {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: $pd-sage-tint;
+  color: $pd-sage;
+  font-family: 'Geologica', sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+// Amplía el área tocable a >= 44 px sin cambiar el tamaño visual (el elemento necesita `position: relative`).
+@mixin pd-hit-44 {
+  position: relative;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 100%;
+    height: 100%;
+    min-width: 44px;
+    min-height: 44px;
+    transform: translate(-50%, -50%);
+    background: transparent;
+  }
+}
+
+// Superficie clara de las cards de Entrenar (lista de ejercicios, cards de bloque).
+@mixin pd-surface-light {
+  background: #fff;
+  border: 1px solid $pd-light-line;
+  border-radius: 16px;
+  box-shadow: 0 6px 18px rgba(150, 89, 58, 0.06);
+}

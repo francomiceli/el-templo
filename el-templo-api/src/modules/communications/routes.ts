@@ -12,6 +12,7 @@
  */
 import { FastifyPluginAsync } from "fastify";
 import { CommunicationsService } from "./service";
+import { novedadesRoutes } from "./novedades-routes";
 import { PromptService } from "./prompt-service";
 import { ADMIN_ROLES } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
@@ -73,13 +74,15 @@ export const communicationsRoutes: FastifyPluginAsync = async (fastify) => {
       const ctx = assertTenant(request.scope, "communications.listAvisos");
 
       try {
-        const avisos = await service.listAvisos(
-          ctx,
-          request.query.placement,
-        );
+        const avisos = await service.listAvisos(ctx, request.query.placement);
         return { avisos };
       } catch (err: unknown) {
-        handleServiceError(err, reply, fastify.log, "communications.listAvisos");
+        handleServiceError(
+          err,
+          reply,
+          fastify.log,
+          "communications.listAvisos",
+        );
       }
     },
   );
@@ -139,7 +142,12 @@ export const communicationsRoutes: FastifyPluginAsync = async (fastify) => {
         reply.code(201);
         return aviso;
       } catch (err: unknown) {
-        handleServiceError(err, reply, fastify.log, "communications.createAviso");
+        handleServiceError(
+          err,
+          reply,
+          fastify.log,
+          "communications.createAviso",
+        );
       }
     },
   );
@@ -187,7 +195,12 @@ export const communicationsRoutes: FastifyPluginAsync = async (fastify) => {
         });
         return aviso;
       } catch (err: unknown) {
-        handleServiceError(err, reply, fastify.log, "communications.updateAviso");
+        handleServiceError(
+          err,
+          reply,
+          fastify.log,
+          "communications.updateAviso",
+        );
       }
     },
   );
@@ -218,7 +231,12 @@ export const communicationsRoutes: FastifyPluginAsync = async (fastify) => {
         await service.deleteAviso(ctx, request.params.id);
         return { success: true };
       } catch (err: unknown) {
-        handleServiceError(err, reply, fastify.log, "communications.deleteAviso");
+        handleServiceError(
+          err,
+          reply,
+          fastify.log,
+          "communications.deleteAviso",
+        );
       }
     },
   );
@@ -278,7 +296,10 @@ export const communicationsRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       await attachCountryScope(request, fastify.db);
-      const ctx = assertTenant(request.scope, "communications.listAvisoClickers");
+      const ctx = assertTenant(
+        request.scope,
+        "communications.listAvisoClickers",
+      );
 
       try {
         const clickers = await service.listAvisoClickers(
@@ -394,7 +415,12 @@ export const communicationsRoutes: FastifyPluginAsync = async (fastify) => {
         );
         return { prompt };
       } catch (err: unknown) {
-        handleServiceError(err, reply, fastify.log, "communications.resolvePrompt");
+        handleServiceError(
+          err,
+          reply,
+          fastify.log,
+          "communications.resolvePrompt",
+        );
       }
     },
   );
@@ -426,7 +452,12 @@ export const communicationsRoutes: FastifyPluginAsync = async (fastify) => {
         );
         return { success: true };
       } catch (err: unknown) {
-        handleServiceError(err, reply, fastify.log, "communications.recordEvent");
+        handleServiceError(
+          err,
+          reply,
+          fastify.log,
+          "communications.recordEvent",
+        );
       }
     },
   );
@@ -452,7 +483,12 @@ export const communicationsRoutes: FastifyPluginAsync = async (fastify) => {
         );
         return { tarjetas };
       } catch (err: unknown) {
-        handleServiceError(err, reply, fastify.log, "communications.listTarjetas");
+        handleServiceError(
+          err,
+          reply,
+          fastify.log,
+          "communications.listTarjetas",
+        );
       }
     },
   );
@@ -482,8 +518,17 @@ export const communicationsRoutes: FastifyPluginAsync = async (fastify) => {
           defaultWhatsappText: DEFAULT_WHATSAPP_TEXT,
         };
       } catch (err: unknown) {
-        handleServiceError(err, reply, fastify.log, "communications.getMemberConfig");
+        handleServiceError(
+          err,
+          reply,
+          fastify.log,
+          "communications.getMemberConfig",
+        );
       }
     },
   );
+
+  // Novedades de Mi Templo: mismo prefijo y mismo criterio (core, sin
+  // moduleScope). Plugin aparte solo para no engordar este archivo.
+  await fastify.register(novedadesRoutes);
 };

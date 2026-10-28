@@ -38,16 +38,17 @@
               {{ exercise.exerciseName }}
             </div>
           </div>
-          <div class="exercise-count q-mt-sm text-caption text-grey-7">
+          <div class="exercise-count q-mt-sm text-caption">
             {{ option.block.exercises.length }} ejercicios - {{ option.block.format }}
           </div>
         </div>
         <!-- Selection indicator — empty circle when unselected, filled when selected -->
         <q-icon
           :name="selected === option.id ? 'check_circle' : 'radio_button_unchecked'"
-          :color="selected === option.id ? 'primary' : 'grey-5'"
+          :color="selected === option.id ? 'primary' : undefined"
           size="24px"
           class="selection-indicator"
+          :class="{ 'selection-indicator--empty': selected !== option.id }"
         />
       </div>
     </div>
@@ -57,6 +58,7 @@
       <q-btn
         :disable="!selected"
         :label="buttonLabel"
+        icon="play_arrow"
         :color="selected ? 'primary' : 'grey-4'"
         size="lg"
         class="full-width"
@@ -148,6 +150,7 @@ const buttonLabel = computed(() => {
 
 <style scoped lang="scss">
 @import 'src/css/quasar.variables.scss';
+@import 'src/css/premium-card';
 
 .block-choice {
   display: flex;
@@ -164,14 +167,16 @@ const buttonLabel = computed(() => {
     font-family: 'Montserrat', sans-serif;
     font-size: 14px;
     font-weight: 800;
-    color: rgba($primary, 0.6);
+    // Fase 197 D-16: texto sólido (antes rgba($primary, .6), 2.35:1 medido)
+    color: $pd-kicker-ink;
     text-transform: uppercase;
     letter-spacing: 0.05em;
   }
 
   &__desc {
     font-size: 13px;
-    color: rgba(0, 0, 0, 0.5);
+    // Fase 197 D-16: texto sólido (antes rgba(0,0,0,.5), 3.86:1 medido)
+    color: $pd-ink-2;
     margin-top: 4px;
     line-height: 1.4;
   }
@@ -212,7 +217,8 @@ const buttonLabel = computed(() => {
 }
 
 .text-white-7 {
-  color: rgba(255, 255, 255, 0.7);
+  // Fase 197 D-16: blanco sólido sobre el encabezado de color (antes rgba(255,255,255,.7), 3.62:1 medido)
+  color: #fff;
 }
 
 .card-content {
@@ -235,6 +241,8 @@ const buttonLabel = computed(() => {
 }
 
 .exercise-count {
+  // Fase 197 D-16: texto sólido (antes la clase de gris 7 de Quasar #757575, 3.95:1 medido)
+  color: $pd-ink-2;
   padding-top: 8px;
   border-top: 1px solid rgba(0, 0, 0, 0.08);
 }
@@ -245,6 +253,11 @@ const buttonLabel = computed(() => {
   right: 12px;
   background: $cream;
   border-radius: 50%;
+
+  // Fase 197 D-16: ícono informativo sólido (antes grey-5 #bdbdbd, 1.61:1 medido)
+  &--empty {
+    color: $pd-light-edge;
+  }
 }
 
 .action-container {

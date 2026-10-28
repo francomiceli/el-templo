@@ -1,6 +1,6 @@
 {
   "name": "el-templo-app",
-  "version": "1.8.2",
+  "version": "1.9.1",
   "description": "Training module for El Templo gym",
   "productName": "El Templo",
   "author": "Franco Miceli <francomiceli.94@gmail.com>",
@@ -34,6 +34,7 @@
     "@fontsource/cormorant-garamond": "^5.2.11",
     "@fontsource/geologica": "^5.2.8",
     "@fontsource/montserrat": "^5.2.8",
+    "@fontsource/nunito-sans": "^5.3.0",
     "@quasar/extras": "^1.16.4",
     "@sentry/vue": "^10.38.0",
     "axios": "^1.13.5",

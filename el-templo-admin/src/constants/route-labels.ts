@@ -10,13 +10,14 @@
 export const ROUTE_LABELS: Record<string, string> = {
   // Pull
   FL: 'Front Lever',
-  FLR: 'Front Lever Pull Ups',
+  // Fase 200 D1 (2026-10-21): nombres oficiales de HR, MN/RP, HD/ID y FLR (SIDE PCK ya era Side Pancake)
+  FLR: 'Front Lever Row',
   BL: 'Back Lever',
   MU: 'Muscle Up',
   OAP: 'Dominadas',
   OAR: 'Remos',
   TTB: 'Toe to Bar',
-  'MN/RP': 'L-Sit',
+  'MN/RP': 'Manna',
 
   // Push
   PL: 'Planche',
@@ -25,7 +26,7 @@ export const ROUTE_LABELS: Record<string, string> = {
   HS: 'Handstand',
   PHS: 'Press to Handstand',
   OAPU: 'Push Ups',
-  'HD/ID': 'Hefesto / Impossible Dips',
+  'HD/ID': 'Fondos',
 
   // Legs
   PS: 'Pistol Squat',
@@ -33,7 +34,7 @@ export const ROUTE_LABELS: Record<string, string> = {
   NC: 'Nordic Curl',
   SS: 'Sissy Squat',
   QC: 'Quad Curl',
-  HR: 'Ham Raise',
+  HR: 'Espinales y planchas laterales',
   HT: 'Hip Thrust',
   L: 'Lunge',
   SU: 'Step Up',

@@ -541,3 +541,167 @@ export const tvAvisoActivoResponseSchema = {
     },
   },
 };
+
+// =============================================================================
+// Novedades de Mi Templo — entidad APARTE de `avisos` (D-1). Una oración corta
+// (máx. 120), sedes, destino opcional, fecha de publicación y estado.
+// `additionalProperties: false` en los 2 bodies. El largo del texto se valida
+// en el service DESPUÉS de `trim` (acá solo hay una cota gruesa), igual que la
+// coherencia del destino, que solo conoce `destinations.ts`.
+// =============================================================================
+
+const NOVEDAD_STATUS_ENUM = ["active", "paused"] as const;
+const NOVEDAD_EVENT_TYPE_ENUM = ["seen", "clicked"] as const;
+
+// ── Respuestas ───────────────────────────────────────────────────────────────
+
+const novedadAdminResponseProperties = {
+  id: { type: "integer" },
+  text: { type: "string" },
+  scopeBranchIds: { type: ["array", "null"], items: { type: "integer" } },
+  destinationType: {
+    type: ["string", "null"],
+    enum: [...DESTINATION_TYPE_ENUM, null],
+  },
+  destinationSection: { type: ["string", "null"] },
+  whatsappText: { type: ["string", "null"] },
+  publishAt: { type: "string" },
+  status: { type: "string", enum: NOVEDAD_STATUS_ENUM },
+  pushRequested: { type: "boolean" },
+  pushTitle: { type: ["string", "null"] },
+  pushQueuedAt: { type: ["string", "null"] },
+  createdBy: { type: ["integer", "null"] },
+  createdAt: { type: "string" },
+  views: { type: "integer" },
+  clicks: { type: "integer" },
+};
+
+export const listNovedadesResponseSchema = {
+  200: {
+    type: "object",
+    properties: {
+      novedades: {
+        type: "array",
+        items: { type: "object", properties: novedadAdminResponseProperties },
+      },
+    },
+  },
+};
+
+export const novedadWriteResponseSchema = {
+  200: { type: "object", properties: novedadAdminResponseProperties },
+  201: { type: "object", properties: novedadAdminResponseProperties },
+};
+
+// ── POST /admin/novedades ────────────────────────────────────────────────────
+
+export const createNovedadSchema = {
+  body: {
+    type: "object",
+    required: ["text"],
+    properties: {
+      text: { type: "string", minLength: 1, maxLength: 200 },
+      scopeBranchIds: {
+        type: ["array", "null"],
+        items: { type: "integer" },
+      },
+      destinationType: {
+        type: ["string", "null"],
+        enum: [...DESTINATION_TYPE_ENUM, null],
+      },
+      destinationSection: { type: ["string", "null"], maxLength: 40 },
+      whatsappText: { type: ["string", "null"], maxLength: 300 },
+      publishAt: { type: "string", format: "date-time" },
+      status: { type: "string", enum: NOVEDAD_STATUS_ENUM },
+      // Push opcional (mig 0297). El largo real (1-50 tras trim) lo valida el
+      // service, acá solo una cota gruesa para cortar payloads absurdos.
+      sendPush: { type: "boolean" },
+      pushTitle: { type: ["string", "null"], maxLength: 200 },
+    },
+    additionalProperties: false,
+  },
+};
+
+export interface CreateNovedadBody {
+  text: string;
+  scopeBranchIds?: number[] | null;
+  destinationType?: "app_section" | "whatsapp_sales" | null;
+  destinationSection?: string | null;
+  whatsappText?: string | null;
+  publishAt?: string;
+  status?: "active" | "paused";
+  sendPush?: boolean;
+  pushTitle?: string | null;
+}
+
+// ── PUT /admin/novedades/:id ─────────────────────────────────────────────────
+
+export const novedadIdParamsSchema = {
+  params: {
+    type: "object",
+    required: ["id"],
+    properties: {
+      id: { type: "integer" },
+    },
+  },
+};
+
+export const updateNovedadSchema = {
+  body: {
+    type: "object",
+    properties: createNovedadSchema.body.properties,
+    additionalProperties: false,
+  },
+};
+
+export type UpdateNovedadBody = Partial<CreateNovedadBody>;
+
+// ── GET /me/novedades ────────────────────────────────────────────────────────
+
+export const memberNovedadesResponseSchema = {
+  200: {
+    type: "object",
+    properties: {
+      novedades: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            key: { type: "string" },
+            id: { type: "integer" },
+            text: { type: "string" },
+            branchLabel: { type: ["string", "null"] },
+            publishedAt: { type: "string" },
+            destination: {
+              type: ["object", "null"],
+              properties: {
+                type: { type: "string", enum: DESTINATION_TYPE_ENUM },
+                section: { type: ["string", "null"] },
+                route: { type: "string" },
+                whatsappText: { type: ["string", "null"] },
+              },
+            },
+            seen: { type: "boolean" },
+          },
+        },
+      },
+    },
+  },
+};
+
+// ── POST /me/novedades/:id/event ─────────────────────────────────────────────
+
+export const novedadEventSchema = {
+  body: {
+    type: "object",
+    required: ["type"],
+    properties: {
+      type: { type: "string", enum: NOVEDAD_EVENT_TYPE_ENUM },
+    },
+    additionalProperties: false,
+  },
+};
+
+export interface NovedadEventBody {
+  type: "seen" | "clicked";
+}

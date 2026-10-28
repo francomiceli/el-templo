@@ -31,7 +31,7 @@ const memberListItemSchema = {
     // NULL — though staff are filtered out of member list endpoints).
     status: {
       type: ["string", "null"],
-      enum: ["freemium", "prueba", "activo", "inactivo", null],
+      enum: ["freemium", "prueba", "activo", "inactivo", "wellhub", null],
     },
     planName: { type: ["string", "null"] },
     segment: { type: ["string", "null"] },
@@ -42,6 +42,12 @@ const memberListItemSchema = {
     createdAt: { type: "string" },
     // Phase 102 (R7): true iff user has ≥1 is_trial=TRUE booking.
     hasUsedTrial: { type: "boolean" },
+    // Fase 194 (D-18): tiene una invitación `active` (chip "Invitación").
+    isInvited: { type: "boolean" },
+    // Fase 204 (D-01/D-03): gympass_id presente / etiqueta Wellhub visible
+    // (gympass_id y no socio activo).
+    isWellhub: { type: "boolean" },
+    showWellhubLabel: { type: "boolean" },
   },
 } as const;
 
@@ -87,7 +93,7 @@ const memberProfileSchema = {
     // Phase 103 (R10): see memberListItemSchema.status.
     status: {
       type: ["string", "null"],
-      enum: ["freemium", "prueba", "activo", "inactivo", null],
+      enum: ["freemium", "prueba", "activo", "inactivo", "wellhub", null],
     },
     // Etiqueta de membresía: override manual (null = automático) + efectiva ya
     // resuelta (override ?? sub vigente ?? 'paga').
@@ -108,6 +114,9 @@ const memberProfileSchema = {
     onboardingProfile: onboardingProfileSchema,
     // Phase 102 (R7): true iff user has ≥1 is_trial=TRUE booking.
     hasUsedTrial: { type: "boolean" },
+    // Fase 204 (D-02/D-03): ver memberListItemSchema.
+    isWellhub: { type: "boolean" },
+    showWellhubLabel: { type: "boolean" },
     // Phase 114 (D-38): lead-lifecycle fields. Fastify's response
     // serializer strips unlisted fields (see Plan 106-04), so these must
     // be declared explicitly. `createdBy` allows additionalProperties:true
@@ -216,11 +225,13 @@ export const listMembersSchema = {
       // accepted — admin-app updated in lockstep (no shim, per SPEC).
       status: {
         type: "string",
-        enum: ["todos", "freemium", "prueba", "activo", "inactivo"],
+        enum: ["todos", "freemium", "prueba", "activo", "inactivo", "wellhub"],
       },
       // Fase 194-20 (D-18): origen del alumno. Enum de un valor, extensible;
       // Fastify rechaza cualquier otro con 400 antes del handler.
       origin: { type: "string", enum: ["invitacion"] },
+      // Fase 204 D-07: "Solo Wellhub" (no finance-gated, combinable con status).
+      wellhubOnly: { type: "boolean" },
       page: { type: "integer", minimum: 1, default: 1 },
       limit: { type: "integer", minimum: 1, maximum: 100, default: 20 },
     },
@@ -283,6 +294,9 @@ export const searchMembersSchema = {
               dni: { type: ["string", "null"] },
               planName: { type: ["string", "null"] },
               status: { type: ["string", "null"] },
+              // Fase 204 (D-09): badge Wellhub en el buscador de Cobros.
+              isWellhub: { type: "boolean" },
+              showWellhubLabel: { type: "boolean" },
               isOtherBranch: { type: "boolean" },
               visitorBranchId: { type: "integer" },
               visitorBranchName: { type: ["string", "null"] },
@@ -508,7 +522,7 @@ export const updateLeadSchema = {
           anyOf: [
             {
               type: "string",
-              enum: ["freemium", "prueba", "activo", "inactivo"],
+              enum: ["freemium", "prueba", "activo", "inactivo", "wellhub"],
             },
             { type: "null" },
           ],
@@ -705,6 +719,137 @@ export const resetMemberPasswordSchema = {
   },
 };
 
+/**
+ * Fase 204 (D-20): card "Wellhub" de la ficha. `wellhub` es null cuando la
+ * persona no tiene `gympass_id`. Todo campo va declarado: fast-json-stringify
+ * descarta lo que no está en el schema.
+ */
+const wellhubBookingSummaryProperties = {
+  bookingId: { type: "integer" },
+  date: { type: "string" },
+  startTime: { type: "string" },
+  activityName: { type: "string" },
+  branchName: { type: "string" },
+} as const;
+
+export const memberWellhubCardSchema = {
+  params: {
+    type: "object",
+    required: ["userId"],
+    properties: {
+      userId: { type: "integer" },
+    },
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        wellhub: {
+          type: ["object", "null"],
+          properties: {
+            gympassId: { type: "string" },
+            linkedSince: { type: ["string", "null"] },
+            lastVisitDate: { type: ["string", "null"] },
+            visitsThisMonth: { type: "integer" },
+            visitsTotal: { type: "integer" },
+            manualVisitsTotal: { type: "integer" },
+            branchesVisited: { type: "array", items: { type: "string" } },
+            nextWellhubBooking: {
+              type: ["object", "null"],
+              properties: wellhubBookingSummaryProperties,
+            },
+            recentWellhubBookings: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  ...wellhubBookingSummaryProperties,
+                  status: { type: "string" },
+                },
+              },
+            },
+            showLabel: { type: "boolean" },
+            canConvert: { type: "boolean" },
+            canMerge: { type: "boolean" },
+            hasLoggedIn: { type: "boolean" },
+          },
+        },
+      },
+    },
+    404: errorSchema,
+  },
+};
+
+/**
+ * Fase 204 (D-17/D-26): "Enviar acceso a la app". Resetea la contraseña a la
+ * temporal y manda el mail de contraseña (best-effort: `emailSent`).
+ */
+export const memberAppAccessSchema = {
+  params: {
+    type: "object",
+    required: ["userId"],
+    properties: {
+      userId: { type: "integer" },
+    },
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        ok: { type: "boolean" },
+        emailSent: { type: "boolean" },
+      },
+    },
+    400: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
+  },
+};
+
+/**
+ * Fase 204 (D-05/D-21): "Unir con alumno existente". `:userId` es el duplicado
+ * Wellhub a absorber y `targetUserId` el alumno que lo recibe.
+ */
+export const memberWellhubMergeSchema = {
+  params: {
+    type: "object",
+    required: ["userId"],
+    properties: {
+      userId: { type: "integer" },
+    },
+  },
+  body: {
+    type: "object",
+    required: ["targetUserId"],
+    additionalProperties: false,
+    properties: {
+      targetUserId: { type: "integer", minimum: 1 },
+    },
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        ok: { type: "boolean" },
+        targetUserId: { type: "integer" },
+        moved: {
+          type: "object",
+          properties: {
+            bookings: { type: "integer" },
+            attendance: { type: "integer" },
+            wellhubBookings: { type: "integer" },
+            notes: { type: "integer" },
+          },
+        },
+      },
+    },
+    400: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
+    409: errorSchema,
+  },
+};
+
 export const checkDniSchema = {
   querystring: {
     type: "object",
@@ -759,7 +904,14 @@ export const checkDuplicatesSchema = {
               isVirtual: { type: "boolean" },
               status: {
                 type: ["string", "null"],
-                enum: ["freemium", "prueba", "activo", "inactivo", null],
+                enum: [
+                  "freemium",
+                  "prueba",
+                  "activo",
+                  "inactivo",
+                  "wellhub",
+                  null,
+                ],
               },
               deletedAt: { type: ["string", "null"] },
               matchedField: { type: "string", enum: ["dni", "phone"] },
@@ -797,11 +949,13 @@ export const exportMembersSchema = {
       // Phase 103 (R8): export uses the same status enum as the list endpoint.
       status: {
         type: "string",
-        enum: ["todos", "freemium", "prueba", "activo", "inactivo"],
+        enum: ["todos", "freemium", "prueba", "activo", "inactivo", "wellhub"],
       },
       planId: { type: "integer" },
       avatarType: { type: "string" },
       country: { type: "string", enum: ["AR", "ES"] },
+      // Fase 204 D-07: mismo toggle "Solo Wellhub" que el listado.
+      wellhubOnly: { type: "boolean" },
       // Phase 154 (ALUM-05): the caller (admin AlumnosPage) gates the "Nivel"
       // column server-side via this param. Absent = true (default preserves the
       // El Templo behavior). The Templo-surface flag lives front-only in

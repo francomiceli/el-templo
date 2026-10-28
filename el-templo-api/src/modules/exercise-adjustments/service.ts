@@ -26,6 +26,7 @@ import * as schema from "../../db/schema";
 import { ExerciseProgressionService } from "../sessions/progressions/exercise-progression-service";
 import type { NeighborDirection } from "../sessions/progressions/exercise-progression-service";
 import type { ExerciseCandidate } from "../sessions/fallback/exercise-fallback";
+import { buildVideoResolver } from "../shared/exercise-video-fallback";
 
 type DbInstance = MySql2Database<typeof schema>;
 
@@ -143,9 +144,17 @@ export class ExerciseAdjustmentService {
       .select({ videoUrl: schema.exercises.videoUrl })
       .from(schema.exercises)
       .where(eq(schema.exercises.id, neighbor.id));
+    // Sin clip propio, el de otra copia del mismo ejercicio en el catálogo.
+    const neighborVideoUrl = neighborRow?.videoUrl ?? null;
+    const resolveVideo = await buildVideoResolver(this.db, [
+      { exerciseId: neighbor.id, videoUrl: neighborVideoUrl },
+    ]);
 
     return {
-      neighbor: { ...neighbor, videoUrl: neighborRow?.videoUrl ?? null },
+      neighbor: {
+        ...neighbor,
+        videoUrl: resolveVideo(neighbor.id, neighborVideoUrl),
+      },
       message: null,
     };
   }

@@ -18,6 +18,9 @@
  *  - No `any` (CLAUDE.md / C-03).
  */
 
+// Solo tipos (se borra al compilar): sigue sin haber imports de runtime.
+import type { TvZonaSlug } from "../anatomy/content/regiones";
+
 // =============================================================================
 // Timer — normalized spec and computed frame
 // =============================================================================
@@ -250,6 +253,43 @@ export interface TvPollResponse {
    * `screen === "aviso"`.
    */
   aviso: TvAvisoPollPayload | null;
+  /**
+   * El recorrido de hoy: los bloques de la clase con sus zonas musculares,
+   * ya resueltos (el kiosco no hace un segundo fetch). Solo en `screen ===
+   * "idle"` con plani aprobada: es la pantalla de inicio (2026-10-13). `null`
+   * en todo otro caso.
+   */
+  recorrido: TvRecorridoPayload | null;
+}
+
+/**
+ * Zonas musculares que pintan los cuerpos H/M del recorrido. Fase 200 D20: las
+ * 15 regiones con `enTv` del modelo de anatomía (tibialis no viaja a la TV en
+ * v1). Orden = `ZONAS_TV` (`anatomy/projection.ts`).
+ */
+export type TvZonaMuscular = TvZonaSlug;
+
+/** Un item del recorrido: un bloque (con su `_ALT`, si tiene). Los deuteros
+ *  van siempre separados: DEUTEROS I y DEUTEROS II son dos items. */
+export interface TvRecorridoBloque {
+  /** Rol del bloque (con `_ALT`, el principal, ej. "COMBOS_II"). */
+  role: string;
+  /** Rotulo como lo muestra la TV (ej. "NUCLEUS", "DEUTEROS I", "KINESIS", "TREN INFERIOR"). */
+  title: string;
+  /** Rutas del bloque (`getRouteLabel`) distintas, unidas con " · "; `null` si no hay ruta "de ejercicio". */
+  subtitle: string | null;
+  /** Unicas, en el orden de declaracion de `TvZonaMuscular`. */
+  zonas: TvZonaMuscular[];
+  /** Formatos de los bloques del grupo (`formatName`), distintos, unidos con " / ";
+   *  `null` si ninguno trae formato. */
+  format: string | null;
+  /** Intensidad (%) de los bloques del grupo en los niveles mostrados: cada nivel
+   *  planifica la suya, así que viaja como rango. `null` sin bloques. */
+  intensity: { min: number; max: number } | null;
+}
+
+export interface TvRecorridoPayload {
+  bloques: TvRecorridoBloque[];
 }
 
 /** Texto minimo de un aviso de TV, tal como lo necesita el kiosco (D-27). */

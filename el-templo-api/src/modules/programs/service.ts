@@ -15,6 +15,7 @@ import {
 } from "../../db/schema";
 import { NotFoundError, ConflictError, ForbiddenError } from "../shared/errors";
 import { tenantWhere, type TenantContext } from "../shared/tenant";
+import { buildVideoResolver } from "../shared/exercise-video-fallback";
 import type { AuraService } from "../aura/service";
 import type {
   CreateProgramInput,
@@ -166,6 +167,15 @@ export class ProgramsService {
         ),
       );
 
+    // Sin clip propio, el de otra copia del mismo ejercicio en el catálogo.
+    const resolveVideo = await buildVideoResolver(
+      this.db,
+      blockRows.map((b) => ({
+        exerciseId: b.exerciseId,
+        videoUrl: b.exerciseVideoUrl,
+      })),
+    );
+
     const contentBlocks: ContentBlockDetail[] = blockRows.map((b) => ({
       id: b.id,
       weekNumber: b.weekNumber,
@@ -176,7 +186,7 @@ export class ProgramsService {
       videoUrl: b.videoUrl,
       exerciseId: b.exerciseId,
       exerciseName: b.exerciseName ?? null,
-      exerciseVideoUrl: b.exerciseVideoUrl ?? null,
+      exerciseVideoUrl: resolveVideo(b.exerciseId, b.exerciseVideoUrl),
     }));
 
     return {
@@ -702,6 +712,15 @@ export class ProgramsService {
       )
       .orderBy(programContentBlocks.sortOrder);
 
+    // Sin clip propio, el de otra copia del mismo ejercicio en el catálogo.
+    const resolveVideo = await buildVideoResolver(
+      this.db,
+      blockRows.map((b) => ({
+        exerciseId: b.exerciseId,
+        videoUrl: b.exerciseVideoUrl,
+      })),
+    );
+
     const contentBlocks: ContentBlockDetail[] = blockRows.map((b) => ({
       id: b.id,
       weekNumber: b.weekNumber,
@@ -712,7 +731,7 @@ export class ProgramsService {
       videoUrl: b.videoUrl,
       exerciseId: b.exerciseId,
       exerciseName: b.exerciseName ?? null,
-      exerciseVideoUrl: b.exerciseVideoUrl ?? null,
+      exerciseVideoUrl: resolveVideo(b.exerciseId, b.exerciseVideoUrl),
     }));
 
     // Calculate derived fields

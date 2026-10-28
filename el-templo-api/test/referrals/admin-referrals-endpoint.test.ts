@@ -245,7 +245,11 @@ describe("GET /api/admin/members/:id/referrals — ficha admin", () => {
     expect(res.statusCode).toBe(200);
   });
 
-  it.each(["coach", "recepcion"])("%s recibe 403", async (role) => {
+  // 2026-10-13: recepción ve la pestaña Invitaciones (antes 403); coach no.
+  it.each([
+    ["coach", 403],
+    ["recepcion", 200],
+  ])("%s recibe %i", async (role, expected) => {
     const target = await createMember(app, { email: `a-${role}-t@test.com` });
     await createStaffUser(app, {
       email: `ref-${role}@test.local`,
@@ -266,7 +270,7 @@ describe("GET /api/admin/members/:id/referrals — ficha admin", () => {
       url: url(target.id),
       headers: { authorization: `Bearer ${staffToken}` },
     });
-    expect(res.statusCode).toBe(403);
+    expect(res.statusCode, res.body).toBe(expected);
   });
 
   it("owner sí lee cross-country (200)", async () => {

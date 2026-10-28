@@ -198,6 +198,8 @@ const TABLES_TO_CLEAN = [
   // Integración Wellhub (0186): bookings/slots/classes en orden de FKs, y el
   // log de eventos (sin FKs). users.gympass_id se limpia con el DELETE de
   // users de más abajo.
+  // Conversiones Wellhub (0300, fase 204): FK a users/subscriptions → antes que ellas.
+  schema.wellhubConversions,
   schema.wellhubBookings,
   schema.wellhubSlots,
   schema.wellhubClasses,
@@ -242,6 +244,22 @@ const TABLES_TO_CLEAN = [
   schema.userStatusHistory,
   // Tables referencing layer-3 parents
   schema.attendance,
+  // Bloque libre (0286): FK a users, basura de test genuina.
+  schema.extraBlocksCompleted,
+  // Fase 201 (Conquer v2, 0291): las 6 tablas de ESTADO del alumno, en orden de
+  // FK (hijas antes que padres) y antes de users. El catálogo (conquer_ladders,
+  // conquer_rungs, conquer_exercises, conquer_template_days) NO va acá: lo
+  // siembra la 0292 una vez y un DELETE global lo borraría para el resto del worker.
+  // Fase 202 (0298-0299): no las siembra ninguna migración, se limpian enteras.
+  // Referencian users y el catálogo, y nada las referencia a ellas.
+  schema.conquerCorrections,
+  schema.conquerTutorials,
+  schema.conquerSessionSteps,
+  schema.conquerSessions,
+  schema.conquerSteps,
+  schema.conquerAlerts,
+  schema.conquerBodyChecks,
+  schema.conquerMembers,
   schema.auraTransactions,
   // Fase 157: vínculo de referido + registro auditable. FK a users/subscriptions
   // (FK checks off durante el DELETE), se limpian para no filtrar vínculos entre tests.
@@ -250,6 +268,13 @@ const TABLES_TO_CLEAN = [
   // Fase 194 (0255): invitaciones. FK a users/subscriptions/branches (FK checks
   // off durante el DELETE); se limpian antes de subscriptions y users.
   schema.invitations,
+  // Novedades en Mi Templo (0275): sin semilla de sistema, así que son basura de
+  // test genuina. Vistas (FK a novedades/users) antes que novedades.
+  schema.novedadViews,
+  schema.novedades,
+  // Patrocinadores (0279): vistas antes que marcas, marcas antes que partners.
+  schema.sponsorViews,
+  schema.sponsorBrands,
   // Fase 179: comercio partner. Orden de FK: comisiones (FK a partner_referrals
   // y subscriptions) -> vínculos (FK a referral_partners y users) -> partners.
   schema.partnerCommissions,

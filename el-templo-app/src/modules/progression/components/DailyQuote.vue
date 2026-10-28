@@ -1,75 +1,141 @@
 <template>
-  <div class="daily-quote">
-    <div class="daily-quote__line"></div>
-    <div class="daily-quote__body">
-      <p class="daily-quote__text">{{ quoteText }}</p>
-      <span class="daily-quote__author">— {{ quote.author }}</span>
-    </div>
-    <div class="daily-quote__line"></div>
-  </div>
+  <section
+    ref="root"
+    class="daily-quote"
+    :class="{ 'daily-quote--on': isVisible }"
+    aria-label="Frase del día"
+  >
+    <p class="daily-quote__text">
+      <span class="sr-only">{{ fullText }}</span>
+      <span
+        v-for="(w, i) in words"
+        :key="i"
+        class="daily-quote__w"
+        :class="{ 'daily-quote__w--gold': w.gold }"
+        :style="{ animationDelay: delayFor(i) }"
+        aria-hidden="true"
+        >{{ w.text }}</span
+      >
+    </p>
+    <p class="daily-quote__author" :style="{ transitionDelay: authorDelay }">
+      {{ quote.author }}
+    </p>
+  </section>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { QUOTES } from 'src/modules/training/data/quotes'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { quoteOfTheDay, splitWordsKeepingSpaces } from 'src/modules/training/data/quotes'
+import { useUserStore } from 'src/stores/useUserStore'
+import { DEFAULT_BRANCH_TZ, todayInTz } from 'src/utils/tz'
+import { useInViewport } from 'src/composables/useInViewport'
 
-/** Pick a quote deterministically based on the day of the year */
-const quote = computed(() => {
-  const now = new Date()
-  const start = new Date(now.getFullYear(), 0, 0)
-  const dayOfYear = Math.floor((now.getTime() - start.getTime()) / 86400000)
-  return QUOTES[dayOfYear % QUOTES.length]
-})
+/** Escalón entre palabras (s) */
+const WORD_STEP_S = 0.09
 
-/** Clean up the quote text — remove curly quotes and combine text+goldText */
-const quoteText = computed(() => {
-  const full = (quote.value.text + quote.value.goldText).replace(/[\u201C\u201D]/g, '').trim()
-  return `\u201C${full}\u201D`
-})
+const userStore = useUserStore()
+const tz = computed(() => userStore.profile?.branchTimezone ?? DEFAULT_BRANCH_TZ)
+/** Frase del día en la zona de la sede (estable todo el día de la sede) */
+const quote = computed(() => quoteOfTheDay(todayInTz(tz.value)))
+
+/** Palabras con su espacio final, marcando los tramos dorados */
+const words = computed(() =>
+  quote.value.segments.flatMap((s) =>
+    splitWordsKeepingSpaces(s.text).map((text) => ({ text, gold: s.gold === true })),
+  ),
+)
+const fullText = computed(() => quote.value.segments.map((s) => s.text).join(''))
+
+function delayFor(i: number): string {
+  return `${(i * WORD_STEP_S).toFixed(2)}s`
+}
+/** El autor aparece cuando termina la última palabra */
+const authorDelay = computed(() => delayFor(words.value.length))
+
+const root = ref<HTMLElement | null>(null)
+const { isVisible, observe, cleanup } = useInViewport({ threshold: 0.4, once: true })
+
+onMounted(() => observe(root.value))
+onUnmounted(() => cleanup())
 </script>
 
 <style scoped lang="scss">
-@import 'src/css/quasar.variables.scss';
-
 .daily-quote {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 0 16px 24px;
-  gap: 12px;
-}
-
-.daily-quote__line {
-  width: 40px;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba($secondary, 0.4), transparent);
-}
-
-.daily-quote__body {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 8px;
+  position: relative;
+  padding: 20px 8px 28px;
+  text-align: left;
 }
 
 .daily-quote__text {
-  font-family: 'Cormorant Garamond', serif;
-  font-size: 16px;
-  font-style: italic;
-  font-weight: 600;
-  color: $primary;
-  line-height: 1.6;
   margin: 0;
-  max-width: 320px;
+  font:
+    700 21px/1.5 'Cinzel',
+    Georgia,
+    serif;
+  text-transform: uppercase;
+  color: #3d3732;
+}
+
+.daily-quote__w {
+  display: inline-block;
+  white-space: pre;
+  opacity: 0;
+  transform: translateY(0.14em);
+}
+
+.daily-quote__w--gold {
+  color: #96593a;
+}
+
+.daily-quote--on .daily-quote__w {
+  animation: palabraEntra 0.55s ease forwards;
+}
+
+@keyframes palabraEntra {
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .daily-quote__author {
-  font-family: 'Montserrat', sans-serif;
-  font-size: 11px;
-  font-weight: 700;
-  color: rgba($secondary, 0.6);
-  letter-spacing: 0.1em;
+  margin: 18px 0 0;
+  font:
+    700 11px 'Nunito Sans',
+    system-ui;
+  letter-spacing: 0.3em;
   text-transform: uppercase;
+  color: #5c5347;
+  opacity: 0;
+  transition: opacity 0.9s ease;
+}
+
+.daily-quote--on .daily-quote__author {
+  opacity: 1;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .daily-quote__w {
+    opacity: 1;
+    transform: none;
+    animation: none !important;
+  }
+
+  .daily-quote__author {
+    opacity: 1;
+    transition: none;
+  }
 }
 </style>

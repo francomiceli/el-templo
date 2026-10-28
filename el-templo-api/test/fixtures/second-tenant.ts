@@ -415,6 +415,70 @@ export async function limpiarSegundoGimnasio(
   await app.db.execute(
     sql`DELETE FROM tv_avisos WHERE tenant_id = ${TENANT_DOS}`,
   );
+  // Novedades en Mi Templo (0275): `novedad_views` tiene FK a `novedades` y a
+  // `users` (cascade, pero igual salen primero y en orden) y `novedades.created_by`
+  // apunta a `users` — ambas tienen que salir ANTES del `DELETE FROM users` de
+  // más abajo y del `DELETE FROM tenants` final.
+  await app.db.execute(
+    sql`DELETE FROM novedad_views WHERE tenant_id = ${TENANT_DOS}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM novedades WHERE tenant_id = ${TENANT_DOS}`,
+  );
+  // Patrocinadores (0279): las vistas por socio (gym-owned) tienen FK a `users` y
+  // tienen que salir ANTES del `DELETE FROM users`. `sponsor_brands` no se limpia
+  // acá: es de plataforma y no tiene tenant.
+  await app.db.execute(
+    sql`DELETE FROM sponsor_views WHERE tenant_id = ${TENANT_DOS}`,
+  );
+  // Bloque libre (0286): FK a users, sale antes que users.
+  await app.db.execute(
+    sql`DELETE FROM extra_blocks_completed WHERE tenant_id = ${TENANT_DOS}`,
+  );
+  // Fase 201 (Conquer v2, 0291): estado del alumno. Hijas antes que padres y
+  // todas ANTES del `DELETE FROM users` (members/sessions/alerts/body_checks
+  // tienen FK a users) y del `DELETE FROM tenants` final.
+  // Fase 202 (0298-0299): correcciones y tutoriales primero, apuntan a users y
+  // al catálogo (conquer_exercises y conquer_rungs se borran más abajo).
+  await app.db.execute(
+    sql`DELETE FROM conquer_corrections WHERE tenant_id = ${TENANT_DOS}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM conquer_tutorials WHERE tenant_id = ${TENANT_DOS}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM conquer_session_steps WHERE tenant_id = ${TENANT_DOS}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM conquer_sessions WHERE tenant_id = ${TENANT_DOS}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM conquer_steps WHERE tenant_id = ${TENANT_DOS}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM conquer_alerts WHERE tenant_id = ${TENANT_DOS}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM conquer_body_checks WHERE tenant_id = ${TENANT_DOS}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM conquer_members WHERE tenant_id = ${TENANT_DOS}`,
+  );
+  // Catálogo (0290): el gimnasio 2 no debería tener filas (lo siembra la 0292
+  // solo para el tenant 1), pero si un test las crea tienen que irse antes del
+  // `DELETE FROM tenants`. Orden de FK: plantillas, ejercicios, peldaños, escaleras.
+  await app.db.execute(
+    sql`DELETE FROM conquer_template_days WHERE tenant_id = ${TENANT_DOS}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM conquer_exercises WHERE tenant_id = ${TENANT_DOS}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM conquer_rungs WHERE tenant_id = ${TENANT_DOS}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM conquer_ladders WHERE tenant_id = ${TENANT_DOS}`,
+  );
   await app.db.execute(
     sql`DELETE FROM user_branches WHERE tenant_id = ${TENANT_DOS}`,
   );

@@ -9,6 +9,7 @@
 
 import { FastifyPluginAsync } from "fastify";
 import { SubscriptionService } from "./service";
+import { notifyMemberPlanLoaded } from "./plan-loaded-notification";
 import { BookingService } from "../scheduling/booking-service";
 import { NotificationService } from "../notifications/service";
 import {
@@ -378,11 +379,21 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: assignPlanSchema },
     async (request, reply) => {
       try {
+        const ctx = assertTenant(request.scope, "subscriptions.assign");
         const subscription = await subscriptionService.assignPlan(
-          assertTenant(request.scope, "subscriptions.assign"),
+          ctx,
           request.params.userId,
           { ...request.body, moduleInput: pricingModuleInput(request.body) },
           request.user.userId,
+        );
+        // Carga manual por staff: pelotita + push al socio (best-effort, después
+        // de que el service devolvió OK). `subscription.id` es la sub NUEVA.
+        await notifyMemberPlanLoaded(
+          fastify.db,
+          request.log,
+          ctx,
+          subscription.id,
+          "loaded",
         );
         return reply.code(201).send(subscription);
       } catch (err: unknown) {
@@ -423,11 +434,20 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: changePlanSchema },
     async (request, reply) => {
       try {
+        const ctx = assertTenant(request.scope, "subscriptions.changePlan");
         const subscription = await subscriptionService.changePlan(
-          assertTenant(request.scope, "subscriptions.changePlan"),
+          ctx,
           request.params.userId,
           { ...request.body, moduleInput: pricingModuleInput(request.body) },
           request.user.userId,
+        );
+        // Ambos modos (inmediato y after_current) devuelven la sub NUEVA.
+        await notifyMemberPlanLoaded(
+          fastify.db,
+          request.log,
+          ctx,
+          subscription.id,
+          "change",
         );
         return reply.code(201).send(subscription);
       } catch (err: unknown) {
@@ -639,11 +659,20 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: renewSubscriptionSchema },
     async (request, reply) => {
       try {
+        const ctx = assertTenant(request.scope, "subscriptions.renew");
         const sub = await subscriptionService.renewSubscription(
-          assertTenant(request.scope, "subscriptions.renew"),
+          ctx,
           request.params.userId,
           request.body,
           request.user.userId,
+        );
+        // `sub.id` es el período NUEVO (no el que se renovó).
+        await notifyMemberPlanLoaded(
+          fastify.db,
+          request.log,
+          ctx,
+          sub.id,
+          "loaded",
         );
         return reply.code(201).send(sub);
       } catch (err: unknown) {

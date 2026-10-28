@@ -311,6 +311,7 @@ import {
   type RuleTriggerType,
 } from 'src/config/rule-triggers';
 import type { BranchOption } from 'src/types/member';
+import { COUNTRY_OPTIONS } from 'src/config/countries';
 import type { MemberSearchResult } from 'src/composables/useMembersApi';
 
 const log = createLogger('PushRuleEditorDialog');
@@ -436,10 +437,7 @@ watch(
 // ── Sedes / países ─────────────────────────────────────────────────────
 const branches = ref<BranchOption[]>([]);
 const branchOptions = computed(() => branches.value.map((b) => ({ label: b.name, value: b.id })));
-const countryOptions = [
-  { label: 'Argentina', value: 'AR' },
-  { label: 'España', value: 'ES' },
-];
+const countryOptions = COUNTRY_OPTIONS;
 
 async function loadBranches() {
   try {

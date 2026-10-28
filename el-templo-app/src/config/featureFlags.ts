@@ -16,3 +16,35 @@ export const MEMBER_TREE_ENABLED = false
 
 /** In-session difficulty adjustment — "más fácil / más difícil" + objective label. */
 export const IN_SESSION_ADJUST_ENABLED = false
+
+/**
+ * Fase 197: modo "Libre" (canasta de bloques + player de bloque libre). Apagado mientras se
+ * decide a quiénes se les presenta: sin la tab (ni como "pronto"), sin `?tab=libre`, sin los
+ * links de Semana y de la card de hoy, y sin la ruta del player. El código y la API quedan.
+ */
+export const FREE_BLOCKS_ENABLED = false
+
+/**
+ * Fase 197: tabs de Entrenar. Fase 201 D-10: vuelven prendidas, pero solo Semana y Conquer
+ * (Libre sigue con FREE_BLOCKS_ENABLED y Desafíos con ENTRENAR_DESAFIOS_ENABLED, ambos apagados).
+ * Con false Entrenar muestra solo Semana, sin barra de tabs, y cualquier `?tab=` abre Semana.
+ *
+ * 2026-10-27: apagado para OCULTAR Conquer (pedido de Franco) aunque esté todo en producción: sin la
+ * tab no hay entrada a Conquer en el app, y el `?tab=conquer` del pop-up de lanzamiento abre Semana.
+ * El código, las rutas y el API de Conquer quedan.
+ */
+export const ENTRENAR_TABS_ENABLED = false
+
+/**
+ * Fase 201 D-10: tab Desafíos de Entrenar. Apagada (mismo patrón que Libre): sin tab, ni como
+ * "pronto", y sin `?tab=desafios`. El pane "Próximamente" queda en el código.
+ */
+export const ENTRENAR_DESAFIOS_ENABLED = false
+
+/**
+ * Fase 200: lo de anatomía para socios (Guía en dos cards, Tu cuerpo, cuerpo tocable de
+ * Entrenar). Prendido en todos los entornos por decisión de Franco (2026-10-22), con el
+ * contenido en borrador. Con false, la Guía abre las historias como antes y el cuerpo de
+ * Entrenar no es tocable.
+ */
+export const ANATOMIA_ALUMNOS_ENABLED = true

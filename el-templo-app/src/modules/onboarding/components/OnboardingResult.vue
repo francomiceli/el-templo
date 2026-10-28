@@ -2,7 +2,7 @@
   <div class="result-screen">
     <h2 class="result-heading">Tu perfil est&aacute; listo</h2>
 
-    <div class="glass-card">
+    <PremiumGlassCard>
       <!-- Profile summary rows -->
       <div class="summary-rows">
         <div
@@ -36,10 +36,10 @@
         unelevated
         no-caps
         :loading="submitting"
-        class="result-cta full-width"
+        class="pd-cta full-width"
         @click="emit('enter')"
       />
-    </div>
+    </PremiumGlassCard>
   </div>
 </template>
 
@@ -47,6 +47,7 @@
 import { ref, onMounted } from 'vue'
 import { SUMMARY_ROWS } from '../types'
 import type { OnboardingAnswers } from '../types'
+import PremiumGlassCard from 'src/components/PremiumGlassCard.vue'
 
 const props = defineProps<{
   answers: OnboardingAnswers
@@ -77,6 +78,7 @@ onMounted(() => {
 
 <style lang="scss" scoped>
 @import 'src/css/brand';
+@import 'src/css/premium-card';
 $terracotta: $brand-terracotta;
 $amber: #d4a843;
 $bronze: #d4b896;
@@ -101,15 +103,7 @@ $charcoal-mid: #3d3732;
   line-height: 1.2;
 }
 
-.glass-card {
-  width: 100%;
-  background: rgba($charcoal-mid, 0.85);
-  border-top: 2px solid rgba($terracotta, 0.6);
-  border-radius: 8px;
-  padding: 28px 24px 20px;
-  backdrop-filter: blur(10px);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-}
+// Marco, superficie translúcida, línea luminosa y botón `pd-cta`: PremiumGlassCard.
 
 // =========================================================================
 // Profile summary rows
@@ -123,7 +117,7 @@ $charcoal-mid: #3d3732;
   align-items: center;
   gap: 12px;
   padding: 12px 0;
-  border-bottom: 1px solid rgba($cream, 0.08);
+  border-bottom: 1px solid rgba(240, 230, 214, 0.14);
 
   &--last {
     border-bottom: none;
@@ -131,7 +125,7 @@ $charcoal-mid: #3d3732;
 }
 
 .summary-icon {
-  color: $terracotta;
+  color: $pd-cream-2;
   flex-shrink: 0;
 }
 
@@ -145,7 +139,7 @@ $charcoal-mid: #3d3732;
   font-family: 'Geologica', sans-serif;
   font-weight: 400;
   font-size: 0.8125rem;
-  color: rgba($cream, 0.5);
+  color: $pd-cream-3;
   line-height: 1.5;
 }
 
@@ -245,36 +239,6 @@ $particle-colors: $bronze, $amber;
   100% {
     opacity: 0;
     transform: translate(var(--px, 20px), var(--py, -30px)) scale(0.3);
-  }
-}
-
-// =========================================================================
-// CTA
-// =========================================================================
-.result-cta {
-  background: linear-gradient(135deg, $terracotta 0%, #ad6540 100%) !important;
-  color: $cream !important;
-  font-family: 'Montserrat', sans-serif;
-  font-weight: 700;
-  font-size: 0.9375rem;
-  letter-spacing: 0.12em;
-  padding: 12px 0;
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  transition:
-    box-shadow 0.3s ease,
-    transform 0.2s ease;
-
-  &:hover {
-    box-shadow:
-      0 4px 24px rgba($terracotta, 0.5),
-      0 0 40px rgba($terracotta, 0.15);
-    transform: scale(1.02);
-  }
-
-  &:active {
-    transform: scale(0.98);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   }
 }
 </style>

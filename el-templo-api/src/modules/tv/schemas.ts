@@ -193,7 +193,14 @@ export const tvControlScreenSchema = {
   response: {
     200: {
       type: "object",
-      required: ["serverNow", "branch", "screen", "class", "aviso"],
+      required: [
+        "serverNow",
+        "branch",
+        "screen",
+        "class",
+        "aviso",
+        "recorrido",
+      ],
       properties: {
         // Sello del server en TODOS los polls (Pattern 6): el TV corrige su
         // reloj contra el, porque el suyo puede estar corrido.
@@ -225,6 +232,45 @@ export const tvControlScreenSchema = {
                 title: { type: "string" },
                 body: { type: "string" },
                 tema: { type: "string", enum: ["claro", "oscuro"] },
+              },
+            },
+          ],
+        },
+        // El recorrido de hoy: bloques de la clase con sus zonas musculares,
+        // YA RESUELTOS. Solo en `screen === "idle"` con plani aprobada (es la
+        // pantalla de inicio, 2026-10-13); `null` en todo otro caso.
+        // fast-json-stringify solo serializa lo declarado.
+        recorrido: {
+          anyOf: [
+            { type: "null" },
+            {
+              type: "object",
+              properties: {
+                bloques: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      role: { type: "string" },
+                      title: { type: "string" },
+                      subtitle: { type: ["string", "null"] },
+                      zonas: { type: "array", items: { type: "string" } },
+                      format: { type: ["string", "null"] },
+                      intensity: {
+                        anyOf: [
+                          { type: "null" },
+                          {
+                            type: "object",
+                            properties: {
+                              min: { type: "integer" },
+                              max: { type: "integer" },
+                            },
+                          },
+                        ],
+                      },
+                    },
+                  },
+                },
               },
             },
           ],

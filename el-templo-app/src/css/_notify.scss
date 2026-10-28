@@ -1,0 +1,211 @@
+// =============================================================================
+// Mensajes flash (Notify) — sketch 014 variante B
+// =============================================================================
+// Píldora oscura, centrada, ENCIMA de la barra de navegación. Es GLOBAL: pisa el
+// DOM que genera el plugin Notify de Quasar, así los ~60 `$q.notify`/`Notify.create`
+// no cambian. Defaults (posición, íconos por tipo) en `src/boot/notify.ts` y
+// `framework.config.notify` de quasar.config.js.
+//
+// Posición: TODAS las listas del plugin (también las que piden `position: 'top'`
+// explícito) se anclan abajo. Offset en móvil = barra 56px + safe-area + 12px.
+// En escritorio (>= 768px, sin barra inferior: `isDesktop` de MainLayout) queda
+// abajo con solo 24px. Si el botón "Marcar asistencia" está en pantalla, el toast
+// sube por encima de él (56px de botón + 16px de aire) para no taparlo.
+
+$notify-dark: #2c2318;
+$notify-cream: #f0e6d6;
+$notify-action: #e3c9a8;
+$notify-positive: #4f8a5a;
+$notify-warning: #a8892c;
+$notify-negative: #b34a4a;
+$notify-info: #96593a;
+
+$notify-bar: 56px;
+$notify-gap: 12px;
+$notify-fab: 56px + 16px;
+
+// El plugin crea una lista `fixed` por posición; si todas se anclaran abajo se pisarían.
+// Acá el contenedor raíz es UNA sola columna fija abajo y las listas fluyen dentro.
+.q-notifications {
+  --notify-bottom: calc(#{$notify-bar} + env(safe-area-inset-bottom, 0px) + #{$notify-gap});
+
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: var(--notify-bottom);
+  z-index: 9500;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+}
+
+.q-notifications__list {
+  position: relative !important;
+  // Ancho completo: es el contenedor del toast que se va (ver `leave-active` abajo).
+  align-self: stretch;
+  top: auto !important;
+  bottom: auto !important;
+  margin-bottom: 0;
+  align-items: center !important;
+  justify-content: flex-end !important;
+}
+
+// Con el FAB de check-in visible: por encima de él.
+body:has(.check-in-fab) .q-notifications {
+  --notify-bottom: calc(
+    #{$notify-bar} + env(safe-area-inset-bottom, 0px) + #{$notify-fab} + #{$notify-gap}
+  );
+}
+
+@media (min-width: 768px) {
+  .q-notifications,
+  body:has(.check-in-fab) .q-notifications {
+    --notify-bottom: 24px;
+  }
+}
+
+.q-notifications .q-notification {
+  --notify-tone: #{$notify-info};
+
+  align-items: center;
+  width: max-content;
+  // vw y no %: la lista crece con el contenido, así que el % nunca cortaba el texto.
+  max-width: calc(100vw - 32px);
+  min-height: 0;
+  margin: 8px 16px 0;
+  padding: 11px 16px 11px 12px;
+  border-radius: 24px; // píldora en 1 línea, card redondeada si el texto ocupa 2 o más
+  // Quasar pinta `.bg-<tipo>` con !important: la píldora oscura también.
+  background: $notify-dark !important;
+  color: $notify-cream;
+  font-family: 'Geologica', sans-serif;
+  font-weight: 500;
+  font-size: 14.5px;
+  line-height: 1.35;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.3);
+
+  &.bg-positive {
+    --notify-tone: #{$notify-positive};
+  }
+  &.bg-warning {
+    --notify-tone: #{$notify-warning};
+  }
+  &.bg-negative {
+    --notify-tone: #{$notify-negative};
+  }
+  &.bg-info {
+    --notify-tone: #{$notify-info};
+  }
+
+  // El texto lo pone el tema (Quasar suma text-white / text-dark según el tipo).
+  // Textos largos: varias líneas en vez de pasarse del ancho de la pantalla.
+  .q-notification__message {
+    min-width: 0;
+    padding: 0;
+    color: $notify-cream;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .q-notification__caption {
+    opacity: 0.8;
+  }
+
+  // Ícono en círculo de 26px con el color del tipo.
+  .q-notification__icon {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    margin-right: 10px;
+    border-radius: 50%;
+    background: var(--notify-tone);
+    color: #fff;
+    font-size: 16px;
+  }
+
+  .q-notification__avatar,
+  .q-notification__spinner {
+    font-size: 26px;
+    margin-right: 10px;
+  }
+
+  // Acción opcional (`actions` del Notify): crema dorado, subrayada.
+  .q-notification__actions {
+    padding: 0;
+    margin: 0 0 0 4px;
+    color: $notify-action;
+
+    .q-btn {
+      padding: 0 4px;
+      min-height: 0;
+      color: $notify-action !important;
+      font-weight: 600;
+      font-size: 14.5px;
+      text-transform: none;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+  }
+
+  &.q-notification--standard {
+    padding: 11px 16px 11px 12px;
+    min-height: 0;
+  }
+}
+
+// Entrada/salida: sube unos px desde abajo (no desde arriba aunque pidan `top`).
+.q-notification--top-enter-from,
+.q-notification--top-leave-to,
+.q-notification--center-enter-from,
+.q-notification--center-leave-to,
+.q-notification--bottom-enter-from,
+.q-notification--bottom-leave-to {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.q-notifications .q-notification {
+  transition:
+    transform 0.3s ease,
+    opacity 0.25s;
+}
+
+// El plugin deja los toasts que se van como `position: absolute` (top: 0 en las listas
+// top/center, bottom: 0 en las bottom); acá van todos abajo con el resto. Sin `left/right`
+// el toast absoluto arrancaba en el centro de la lista (que se quedó sin contenido) y el
+// ícono quedaba solo en el medio de la pantalla mientras se desvanecía (2026-10-18):
+// left/right 0 + margen auto lo dejan centrado donde estaba. `!important` en left/right: al
+// descartar, Quasar fija `left` inline (el offsetLeft de antes) y, sin el `!important`, ese
+// valor + `right: 0` + margen auto corrían el toast ~46 px a la derecha mientras se iba.
+.q-notifications .q-notification--top-leave-active,
+.q-notifications .q-notification--center-leave-active,
+.q-notifications .q-notification--bottom-leave-active {
+  top: auto;
+  bottom: 0;
+  left: 0 !important;
+  right: 0 !important;
+  margin-left: auto;
+  margin-right: auto;
+  // Vue (FLIP del <TransitionGroup>) le pone un `transform` inline de ~55 px: al pasar a
+  // absoluto la lista se colapsa y el toast arrancaba esa distancia más abajo, tapando la
+  // barra de navegación mientras se desvanecía. Sin desplazamiento: solo se desvanece en su lugar.
+  transform: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .q-notifications .q-notification {
+    transition: none !important;
+  }
+
+  .q-notification--top-enter-from,
+  .q-notification--top-leave-to,
+  .q-notification--center-enter-from,
+  .q-notification--center-leave-to,
+  .q-notification--bottom-enter-from,
+  .q-notification--bottom-leave-to {
+    transform: none;
+  }
+}

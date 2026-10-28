@@ -38,9 +38,9 @@ const props = defineProps<Props>()
 
 /**
  * Block labels for 4-step progress display
- * User completes 4 blocks: Initium, Nucleus, one Deuteros, Athlos
+ * User completes 4 blocks: Pyros, Nucleus, one Deuteros, Athlos
  */
-const blockLabels = ['Initium', 'Nucleus', 'Deuteros', 'Athlos']
+const blockLabels = ['Pyros', 'Nucleus', 'Deuteros', 'Athlos']
 
 /**
  * Number of completed blocks

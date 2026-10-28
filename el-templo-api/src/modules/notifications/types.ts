@@ -299,4 +299,17 @@ export const TEMPLATE_SEEDS: TemplateSeed[] = [
       "Te esperamos. Si podes, registra como llegas antes de entrenar.",
     route: "/reservas",
   },
+  {
+    // Planes (2026-10-28): aviso al socio cuando el staff le carga una membresía
+    // (alta, cambio de plan o renovación anticipada). `notifyMemberPlanLoaded`
+    // encola SIEMPRE con titleOverride/bodyOverride (nombre del plan + fechas), el
+    // copy de acá es el fallback del seed.
+    templateKey: "plan_loaded",
+    category: "planes",
+    title: "Tu plan ya está cargado",
+    body: "Ya cargamos tu membresía. Tocá para verla.",
+    titleFemale: "Tu plan ya está cargado",
+    bodyFemale: "Ya cargamos tu membresía. Tocá para verla.",
+    route: "/planes",
+  },
 ];

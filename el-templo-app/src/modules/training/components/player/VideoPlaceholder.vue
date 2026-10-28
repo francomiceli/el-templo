@@ -1,10 +1,7 @@
 <template>
   <div class="video-container">
-    <!-- Placeholder when no video URL or video failed to load -->
-    <div v-if="!videoUrl || videoFailed" class="video-placeholder">
-      <q-icon name="videocam" size="48px" color="grey-6" />
-      <span class="video-placeholder__text">Video proximamente</span>
-    </div>
+    <!-- Sin URL o si el video no carga: solo el fondo oscuro (el pie del player lleva el nombre) -->
+    <div v-if="!videoUrl || videoFailed" class="video-placeholder" />
 
     <template v-else>
       <!-- HTML5 video with iOS compatibility attributes -->
@@ -115,14 +112,6 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   background: linear-gradient(135deg, #1e1b18 0%, #2e2a26 50%, #3d3732 100%);
-  gap: 12px;
-}
-
-.video-placeholder__text {
-  color: #9e9e9e;
-  font-size: 14px;
-  text-transform: uppercase;
-  letter-spacing: 1px;
 }
 
 .video-player {

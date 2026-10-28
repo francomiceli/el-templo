@@ -27,6 +27,7 @@ import {
   type TenantContext,
 } from "../modules/shared/tenant";
 import { normalizeSpecialLine } from "../modules/scheduling/special-line";
+import { isWellhubBookingSource } from "../modules/shared/wellhub-sources";
 
 const log = pino({ name: "mark-no-shows" });
 
@@ -150,6 +151,7 @@ async function runMarkNoShowsForTenantTz(
     .select({
       id: bookings.id,
       memberId: bookings.memberId,
+      source: bookings.source,
       isSpecial: schema.activities.isSpecial,
       specialLine: schema.activities.specialLine,
     })
@@ -200,6 +202,9 @@ async function runMarkNoShowsForTenantTz(
     }
   >();
   for (const b of toMark) {
+    // Fase 204 D-18: una reserva Wellhub no cumplida queda no_show (el reporte
+    // de Wellhub la necesita) pero NO descuenta del plan del socio.
+    if (isWellhubBookingSource(b.source)) continue;
     const isSpecial = !!b.isSpecial;
     const specialLine = isSpecial ? normalizeSpecialLine(b.specialLine) : null;
     const key = `${b.memberId}:${isSpecial ? 1 : 0}:${specialLine?.toLowerCase() ?? ""}`;

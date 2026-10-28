@@ -47,3 +47,12 @@ export const APP_STORE_SETTINGS_KEYS = {
   /** URL pública de App Store para el QR de iOS. */
   ios: "app.store_url.ios",
 } as const;
+
+// Fase 199 (D-24): límite de patrocinadores activos por país en el carrusel de
+// Mi Templo. Vive en `system_settings` (configuración de PLATAFORMA, no del
+// gimnasio) y NO en `tenant_settings`. Se lee vía
+// SettingsService.getSponsorsMaxActivePerCountry (default 6, rango 1..50).
+export const SPONSORS_SETTINGS_KEYS = {
+  /** Máximo de marcas activas por país (entero 1..50). */
+  maxActivePerCountry: "sponsors.max_active_per_country",
+} as const;

@@ -1,0 +1,460 @@
+// Fase 201: tipos del app de Conquer. Espejo EXACTO de los JSON-schemas de respuesta del API
+// (`el-templo-api/src/modules/conquer/schemas.ts`). Si cambia un contrato, cambia acá.
+
+// ── Uniones ─────────────────────────────────────────────────────────
+
+export type Level = 'ternero' | 'novillo' | 'toro'
+export type StepKey = 'e1' | 'e2' | 'e3' | 'hold'
+/** Escalones que cuentan para Subir (el hold no sube). */
+export type CountedStep = 'e1' | 'e2' | 'e3'
+export type Mode = 'completa' | 'negativa' | 'hold'
+export type Unit = 'reps' | 's'
+export type Estado = 'sin_datos' | 'rango' | 'techo1' | 'bajo' | 'subir'
+export type ComboKey = 'plancha' | 'front' | 'vertical' | 'dominadas' | 'push' | 'pull'
+export type Pose = 'frente' | 'perfil' | 'espalda'
+export type ConquerStatus = 'bloqueado' | 'pedido' | 'activo'
+
+// ── Estado, Inicio y control físico (GET /state, POST /unlock-request) ──
+
+export interface PlanDayView {
+  dayKey: string
+  label: string
+  done: boolean
+}
+
+/** Semana calendario del plan (D-16), común a `TodayResponse` y `HomeView`. */
+export interface PlanWeek {
+  weekMonday: string
+  plan: PlanDayView[]
+  nextDayKey: string | null
+  weekComplete: boolean
+}
+
+export interface HomeLastByDay {
+  dayKey: string
+  label: string
+  date: string | null
+  /** `unilateral`: el peldaño de la marca se carga por lado (§1.4). */
+  e1: { exerciseName: string; value: number; unit: Unit; unilateral: boolean }[]
+}
+
+export interface HomeView extends PlanWeek {
+  lastByDay: HomeLastByDay[]
+}
+
+/** `member.bodyCheck`: banderas del control físico (§6, D-15). */
+export interface BodyCheckSummary {
+  hasDay0: boolean
+  day0Skipped: boolean
+  mustPromptDay0: boolean
+  day0Pending: boolean
+  lastCheckDate: string | null
+  nextDueDate: string | null
+  due: boolean
+  overdue: boolean
+}
+
+export interface ConquerMemberState {
+  level: Level | null
+  daysCount: number | null
+  incReps: number
+  incS: number
+  activationDate: string | null
+  blockWeek: number
+  cutStage: number
+  publishEnabled: boolean
+  publishNoFace: boolean
+  /** Fase 201 DA-21: ya vio la guía "¿Cómo funciona?" (vive en la base, no en el teléfono). */
+  guideSeen: boolean
+  home: HomeView
+  bodyCheck: BodyCheckSummary
+  /** Fase 202 DA-46: contadores de correcciones. Solo llega con `status === 'activo'`. */
+  corrections?: CorrectionCounts
+}
+
+export interface ConquerStateResponse {
+  status: ConquerStatus
+  requestedAt: string | null
+  /** Solo viene con `status === 'activo'`. */
+  member: ConquerMemberState | null
+}
+
+// ── Hoy, guardado y cambio de escalón ───────────────────────────────
+
+export interface ComboRung {
+  id: number
+  code: string
+  name: string
+  position: number
+}
+
+/** Combo de apertura (Toro) o del sábado: peldaño de arranque y series completadas (§3.3). */
+export interface ComboView {
+  comboKey: ComboKey
+  label: string
+  press: string
+  push: string
+  hold: string
+  rungs: ComboRung[]
+  rungId: number
+  rungName: string
+  target: number
+  value: number
+  /** Solo el sábado. */
+  maxSeries: number | null
+  drops: number | null
+  subir: { ready: boolean; toRungName: string | null }
+}
+
+export interface TodayRung {
+  id: number
+  code: string
+  name: string
+  position: number
+  unilateral: boolean
+}
+
+export interface TodayStep {
+  step: StepKey
+  rungId: number
+  rungName: string
+  mode: Mode
+  /** Modos que ofrece el desplegable de este escalón (anexo §1): lo decide el API. */
+  modes: Mode[]
+  /** `null` en el hold. */
+  target: number | null
+  /** `null` en el hold. */
+  estado: Estado | null
+  value: number
+  brazosRectos: boolean
+  unilateral: boolean
+}
+
+export interface TodayExercise {
+  exerciseId: number
+  code: string
+  name: string
+  unit: Unit
+  /** Opciones de peldaño de E1-E3. */
+  rungs: TodayRung[]
+  /** Opciones de peldaño del hold final (su propia escalera, anexo §2). */
+  holdRungs: TodayRung[]
+  steps: TodayStep[]
+}
+
+export interface SaturdayView {
+  warmup: string
+  push: ComboView
+  pull: ComboView
+}
+
+export interface TodayResponse extends PlanWeek {
+  date: string
+  dayKey: string
+  label: string
+  alreadySaved: boolean
+  pain: number
+  finisher: string
+  level: Level
+  exercises: TodayExercise[]
+  opening: ComboView | null
+  saturday: SaturdayView | null
+}
+
+export interface ComboEntry {
+  rungId: number
+  series: number
+}
+
+export interface SaveSessionExercise {
+  exerciseId: number
+  e1: number
+  e2: number
+  e3: number
+  hold: number
+}
+
+/** Body de `PUT /sessions`: la fecha y el prev los pone el servidor (T-201-21). */
+export interface SaveSessionBody {
+  dayKey: string
+  pain: number
+  exercises?: SaveSessionExercise[]
+  opening?: ComboEntry
+  push?: ComboEntry
+  pull?: ComboEntry
+}
+
+export interface Lighting {
+  primary: string[]
+  secondary: string[]
+}
+
+export interface CalibrationProposal {
+  exerciseId: number
+  exerciseName: string
+  proposal: 'subir' | 'quedarse' | 'bajar'
+  fromRungName: string
+  toRungName: string | null
+}
+
+/** Escalón E1-E3 que llegó al techo por primera vez al guardar (anexo §9 `fin_sesion_techo`). */
+export interface SessionTecho {
+  exerciseName: string
+  step: 'e1' | 'e2' | 'e3'
+}
+
+export interface SaveSessionResponse {
+  sessionId: number
+  date: string
+  dayKey: string
+  lighting: Lighting
+  calibration: CalibrationProposal[]
+  techo: SessionTecho[]
+}
+
+/** Body de `PUT /steps/:exerciseId/:step`. */
+export interface ChangeStepBody {
+  rungId: number
+  mode: Mode
+}
+
+// ── Progreso, Subir y calibración ───────────────────────────────────
+
+export interface SubirItem {
+  exerciseId: number
+  exerciseName: string
+  step: CountedStep
+  fromRungName: string
+  /** `null` = tope de la escalera: sin botón, el coach ya está avisado. */
+  toRungName: string | null
+}
+
+export interface ComboSubirItem {
+  comboKey: ComboKey
+  label: string
+  fromRungName: string
+  toRungName: string | null
+}
+
+export interface ProgressStep {
+  step: StepKey
+  rungId: number
+  rungName: string
+  /** El peldaño ACTUAL del escalón se carga por lado (§1.4). */
+  unilateral: boolean
+  mode: Mode
+  last: number | null
+  target: number | null
+  estado: Estado | null
+}
+
+export interface ProgressExercise {
+  exerciseId: number
+  name: string
+  unit: Unit
+  e1Curve: number[]
+  steps: ProgressStep[]
+}
+
+export interface ProgressDay {
+  dayKey: string
+  label: string
+  sessionsCount: number
+  exercises: ProgressExercise[]
+}
+
+export interface ProgressResponse {
+  sessionsCount: number
+  accuracy: { n: number; hits: number; pct: number | null; delta: number | null }
+  weekLighting: Lighting
+  subir: SubirItem[]
+  comboSubir: ComboSubirItem[]
+  calibrations: CalibrationProposal[]
+  days: ProgressDay[]
+}
+
+export interface SubirComboResponse {
+  combo: ComboView
+}
+
+// ── Control físico ──────────────────────────────────────────────────
+
+/** Nunca lleva claves de storage ni URLs (T-201-43). */
+export interface BodyCheckView {
+  id: number
+  checkDate: string
+  kind: 'dia0' | 'periodico'
+  photos: Record<Pose, boolean>
+  armCm: number | null
+  chestCm: number | null
+  shouldersCm: number | null
+  waistCm: number | null
+  weightKg: number | null
+}
+
+export interface CheckComparisonRef {
+  id: number
+  checkDate: string
+}
+
+export interface CheckMeasure {
+  key: 'arm' | 'chest' | 'shoulders' | 'waist' | 'weight'
+  label: string
+  from: number | null
+  to: number | null
+  diff: number | null
+}
+
+export interface CheckComparison {
+  from: CheckComparisonRef
+  to: CheckComparisonRef
+  weeks: number
+  measures: CheckMeasure[]
+}
+
+export interface BodyChecksResponse {
+  checks: BodyCheckView[]
+  compare: CheckComparison | null
+  due: { nextDueDate: string | null; due: boolean; overdue: boolean }
+}
+
+/** Body de `POST /body-checks`: todos opcionales (perímetros 10-300 cm, peso 20-400 kg). */
+export interface UpsertBodyCheckBody {
+  armCm?: number
+  chestCm?: number
+  shouldersCm?: number
+  waistCm?: number
+  weightKg?: number
+}
+
+/** Tipos de foto que acepta el API (`upload-url`). */
+export type PhotoMime = 'image/jpeg' | 'image/png' | 'image/webp'
+
+export interface PhotoUploadResponse {
+  uploadUrl: string
+  key: string
+  contentType: string
+  expiresIn: number
+}
+
+export interface PhotoUrlResponse {
+  url: string
+  expiresIn: number
+}
+
+export interface PublishPermissionBody {
+  enabled: boolean
+  noFace: boolean
+}
+
+export interface PublishPermission {
+  enabled: boolean
+  noFace: boolean
+  changedAt: string
+}
+
+/** POST /guide-seen: la guía quedó marcada como vista (DA-21). */
+export interface GuideSeenResponse {
+  guideSeen: boolean
+}
+
+// ── Fase 202: correcciones con video y tutoriales ───────────────────
+
+/** Contadores de `member.corrections` (GET /state) y base de los avisos de Inicio (DA-46). */
+export interface CorrectionCounts {
+  pending: number
+  unseenReplies: number
+}
+
+export type CorrectionKind = 'escalon' | 'combo'
+export type CorrectionStatus = 'pendiente' | 'respondida'
+
+/** Qué video se pide: el del alumno o el de la respuesta del coach (minúsculas, igual que el API). */
+export type CorrectionVideoWho = 'alumno' | 'coach'
+
+/** Un objetivo elegible (GET /corrections `targets`): un escalón del plan o un combo. */
+export interface CorrectionTarget {
+  /** `escalon:{exerciseId}:{step}` | `combo:{comboKey}` */
+  key: string
+  kind: CorrectionKind
+  exerciseId: number | null
+  step: StepKey | null
+  comboKey: ComboKey | null
+  /** Nombre del ejercicio o "Combos": agrupa las opciones del selector. */
+  group: string
+  label: string
+}
+
+export interface CorrectionReply {
+  text: string | null
+  hasVideo: boolean
+  videoSeconds: number | null
+  repliedAt: string
+}
+
+/** Vista de la corrección para el ALUMNO: sin claves de video ni nombre del coach. */
+export interface CorrectionView {
+  id: number
+  kind: CorrectionKind
+  targetLabel: string
+  comment: string | null
+  durationSec: number
+  createdAt: string
+  status: CorrectionStatus
+  videoDeleted: boolean
+  reply: CorrectionReply | null
+  replyUnseen: boolean
+}
+
+export interface CorrectionLimits {
+  pending: number
+  pendingMax: number
+  maxSeconds: number
+  maxBytes: number
+  commentMax: number
+}
+
+/** GET /corrections. */
+export interface CorrectionsResponse {
+  items: CorrectionView[]
+  targets: CorrectionTarget[]
+  limits: CorrectionLimits
+}
+
+/** POST /corrections/upload-url: el PUT del archivo lleva EXACTAMENTE este `contentType`. */
+export interface CorrectionUploadResponse {
+  uploadUrl: string
+  key: string
+  contentType: string
+  expiresIn: number
+  maxBytes: number
+}
+
+/** Body de POST /corrections: el objetivo es un escalón (`exerciseId` + `step`) o un combo. */
+export interface CreateCorrectionBody {
+  exerciseId?: number | null
+  step?: StepKey | null
+  comboKey?: ComboKey | null
+  comment?: string | null
+  key: string
+  /** Entero 1..30: lo redondea el cliente (DA-40). */
+  durationSec: number
+}
+
+/** GET /corrections/:id/video-url. `available: false` NO es un error (D-28). */
+export interface CorrectionVideoUrl {
+  available: boolean
+  url: string | null
+  expiresIn: number | null
+}
+
+/** POST /corrections/seen. */
+export interface CorrectionsSeenResponse {
+  unseenReplies: number
+}
+
+/** GET /tutorials: solo los ejercicios y combos que tienen video (sin video, sin botón, DA-49). */
+export interface MemberTutorials {
+  exercises: { exerciseId: number; url: string }[]
+  combos: { comboKey: ComboKey; url: string }[]
+}

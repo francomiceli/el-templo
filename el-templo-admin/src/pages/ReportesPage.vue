@@ -82,6 +82,8 @@
         label="Invitaciones"
         icon="card_giftcard"
       />
+      <!-- Fase 204 (D-16): reporte Wellhub. Autocarga: no pasa por fetchTabData. -->
+      <q-tab name="wellhub" label="Wellhub" icon="fitness_center" />
       <!-- Recategorización: agregado CROSS-SEDE (dry-run del cron sobre todo
            el gimnasio). El API se lo deniega a los roles de alcance forzado
            (admin_sede), así que la pestaña se oculta en vez de mostrarles un
@@ -211,6 +213,21 @@
           flat
           bordered
         >
+          <!-- Fase 204 (D-14): Wellhub (validada o a mano) se distingue con su color. -->
+          <template #body-cell-source="props">
+            <q-td :props="props">
+              <q-chip
+                v-if="isWellhubSource(props.row.source)"
+                dense
+                :color="WELLHUB_COLOR"
+                text-color="white"
+                :label="sourceLabels[props.row.source as AttendanceSource]"
+              />
+              <span v-else>{{
+                sourceLabels[props.row.source as AttendanceSource] ?? props.row.source
+              }}</span>
+            </q-td>
+          </template>
           <template #no-data>
             <div class="full-width text-center q-pa-lg text-grey-6">
               No hay registros de acceso para los filtros seleccionados
@@ -771,6 +788,13 @@
       </q-tab-panel>
 
       <!-- ================================================================ -->
+      <!-- Wellhub Tab (Fase 204: D-16 reporte único + D-22 tasa a socio) -->
+      <!-- ================================================================ -->
+      <q-tab-panel name="wellhub">
+        <WellhubReport :branch-options="branchOptions" :branch-id="selectedBranchId" />
+      </q-tab-panel>
+
+      <!-- ================================================================ -->
       <!-- Recategorización multisucursal (banner) -->
       <!-- ================================================================ -->
       <q-tab-panel name="recategorizacion">
@@ -798,6 +822,8 @@ import { useAuthStore } from 'src/stores/useAuthStore';
 import { isBranchScopedRole } from 'src/utils/branch-scope';
 import { useAdminStore } from 'src/stores/useAdminStore';
 import { createLogger } from 'src/utils/logger';
+import { WELLHUB_COLOR, isWellhubSource } from 'src/utils/wellhub-label';
+import { sourceLabels, type AttendanceSource } from 'src/types/attendance';
 import { formatPrice } from 'src/utils/format-price';
 import {
   PAYMENT_METHOD_LABELS,
@@ -826,6 +852,7 @@ import AsistenciaTab from 'src/components/analytics/AsistenciaTab.vue';
 import PorDeudaTab from 'src/components/deudas/PorDeudaTab.vue';
 import RenovacionesTab from 'src/components/renovaciones/RenovacionesTab.vue';
 import InvitationsReport from 'src/components/reports/InvitationsReport.vue';
+import WellhubReport from 'src/components/reports/WellhubReport.vue';
 
 // -- Setup -------------------------------------------------------------------
 
@@ -1031,6 +1058,7 @@ const VALID_TABS = [
   'conversion',
   'sesiones-de-prueba',
   'invitaciones',
+  'wellhub',
   'recategorizacion',
   'origen-altas',
 ];
@@ -1067,6 +1095,7 @@ const sourceOptions = [
   { label: 'Todas', value: undefined as string | undefined },
   { label: 'QR', value: 'qr' },
   { label: 'Manual', value: 'manual' },
+  { label: 'Wellhub', value: 'wellhub' },
 ];
 
 // -- Payment method filter options -------------------------------------------
@@ -1161,7 +1190,7 @@ const accessColumns: QTableColumn[] = [
     label: 'Fuente',
     field: 'source',
     align: 'left',
-    format: (val: string) => (val === 'qr' ? 'QR' : 'Manual'),
+    format: (val: string) => sourceLabels[val as AttendanceSource] ?? val,
   },
   {
     name: 'scheduleSlot',
@@ -1181,7 +1210,7 @@ async function fetchAccessData() {
       dateFrom: accessDateFrom.value,
       dateTo: accessDateTo.value,
       search: accessSearch.value || undefined,
-      source: accessSource.value as 'qr' | 'manual' | undefined,
+      source: accessSource.value as 'qr' | 'manual' | 'wellhub' | undefined,
       page: accessPagination.value.page,
       limit: accessPagination.value.rowsPerPage,
     });
@@ -1210,7 +1239,7 @@ async function onExportAccess() {
       dateFrom: accessDateFrom.value,
       dateTo: accessDateTo.value,
       search: accessSearch.value || undefined,
-      source: accessSource.value as 'qr' | 'manual' | undefined,
+      source: accessSource.value as 'qr' | 'manual' | 'wellhub' | undefined,
     });
     const today = new Date().toISOString().split('T')[0];
     downloadBlob(blob, `reportes-accesos-${today}.xlsx`);

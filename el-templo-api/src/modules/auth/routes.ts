@@ -28,6 +28,7 @@ import {
 } from "./password-reset-service";
 import { EmailService } from "../email";
 import { appBranchName } from "../shared/app-branch-name";
+import { DEFAULT_TENANT_TIMEZONE } from "../shared/date-utils";
 import { SegmentationService } from "../segmentation/service";
 import { SubscriptionService } from "../subscriptions/service";
 import {
@@ -587,6 +588,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           name: branches.name,
           isVirtual: branches.isVirtual,
           country: branches.country,
+          timezone: branches.timezone,
         })
         .from(branches)
         .where(
@@ -625,6 +627,8 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           branchName: appBranchName(branchRow?.name ?? "", branchTenantId),
           branchIsVirtual: branchRow?.isVirtual ?? false,
           branchCountry: branchRow?.country ?? "AR",
+          // Fase 199 (D-04): siempre presente; la app arma el perfil con setProfile desde esta respuesta (zona de la sede).
+          branchTimezone: branchRow?.timezone ?? DEFAULT_TENANT_TIMEZONE,
         },
         promoApplied,
         partnerBenefit,
@@ -726,6 +730,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           name: branches.name,
           isVirtual: branches.isVirtual,
           country: branches.country,
+          timezone: branches.timezone,
         })
         .from(branches)
         .where(
@@ -736,6 +741,9 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       const branchName = branchResults[0]?.name || null;
       const branchIsVirtual = branchResults[0]?.isVirtual ?? false;
       const branchCountry = branchResults[0]?.country ?? "AR";
+      // Fase 199 (D-04): siempre presente; la app arma el perfil con setProfile desde esta respuesta (zona de la sede).
+      const branchTimezone =
+        branchResults[0]?.timezone ?? DEFAULT_TENANT_TIMEZONE;
 
       // Check onboarding status
       const profileRows = await fastify.db
@@ -790,6 +798,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
               : branchName,
           branchIsVirtual,
           branchCountry,
+          branchTimezone,
           gender: user.gender,
           dateOfBirth: user.dateOfBirth,
           onboardingCompleted,
@@ -966,6 +975,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           name: branches.name,
           isVirtual: branches.isVirtual,
           country: branches.country,
+          timezone: branches.timezone,
         })
         .from(branches)
         .where(
@@ -976,6 +986,9 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       const branchName = branchResults[0]?.name || null;
       const branchIsVirtual = branchResults[0]?.isVirtual ?? false;
       const branchCountry = branchResults[0]?.country ?? "AR";
+      // Fase 199 (D-04): siempre presente; la app arma el perfil con setProfile desde esta respuesta (zona de la sede).
+      const branchTimezone =
+        branchResults[0]?.timezone ?? DEFAULT_TENANT_TIMEZONE;
 
       // Segment calculation + login tracking for members only (per D-05)
       let segment: string | null = null;
@@ -1063,6 +1076,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
             : branchName,
         branchIsVirtual,
         branchCountry,
+        branchTimezone,
         gender: user.gender,
         dateOfBirth: user.dateOfBirth,
         segment,

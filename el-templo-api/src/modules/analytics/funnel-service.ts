@@ -35,12 +35,17 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { and, eq, sql, type SQL } from "drizzle-orm";
+import { and, eq, isNotNull, sql, type SQL } from "drizzle-orm";
+import type { AnyMySqlColumn } from "drizzle-orm/mysql-core";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { applyScope } from "./scope";
 // Path directo, NUNCA por el barrel `shared/index.ts` (fase 169).
 import { tenantWhere, type TenantContext } from "../shared/tenant";
+import {
+  isWellhubAttendanceSql,
+  isWellhubBookingSql,
+} from "../shared/wellhub-sources";
 import type {
   AnalyticsFilters,
   FunnelAnalytics,
@@ -125,6 +130,13 @@ export class FunnelService {
     // of that origin (the `from_status` of the earliest `prueba` transition) and
     // read as a 2-stage prueba → activo funnel.
     const entryOrigin: FunnelEntryOrigin = filters.entryOrigin ?? "all";
+
+    // Fase 204 (D-15/D-22): Wellhub es un origen más, con su propio embudo de
+    // 2 etapas (Wellhub → socio). No toca el pipeline de leads/pruebas: sale
+    // temprano, antes de leer `user_status_history`.
+    if (entryOrigin === "wellhub") {
+      return this.getWellhubFunnel(ctx, filters);
+    }
 
     const { conditions: scopeConditions, needsBranchJoin } = applyScope({
       branchId: filters.branchId,
@@ -343,5 +355,166 @@ export class FunnelService {
       }));
 
     return { cohorts, entryOrigin };
+  }
+
+  /**
+   * Embudo Wellhub → socio (Fase 204, D-15/D-22). 2 etapas:
+   *
+   *   - Cohorte: usuarios en alcance (`applyScope` por sede/país) con
+   *     `gympass_id` y alguna actividad Wellhub (reserva `source='wellhub'` o
+   *     visita `wellhub`/`wellhub_manual`). El mes de la cohorte es el de su
+   *     PRIMERA actividad Wellhub.
+   *   - `toPruebaPct` = 100 por construcción (la etapa de entrada es la visita
+   *     Wellhub misma, no hay etapa de prueba).
+   *   - `toActivoPct` = % con alguna fila en `wellhub_conversions`.
+   *   - `medianDaysFreemiumToPrueba` = null (no aplica).
+   *   - `medianDaysPruebaToActivo` = mediana de días enteros entre la primera
+   *     actividad Wellhub y la primera conversión (`converted_at`).
+   *
+   * Cohorte sin conversiones: 0% y mediana null, nunca NaN. Las visitas y
+   * reservas Wellhub también siguen sumando en los totales de los otros
+   * orígenes (D-13): este método solo agrega una vista más.
+   */
+  private async getWellhubFunnel(
+    ctx: TenantContext,
+    filters: AnalyticsFilters,
+  ): Promise<FunnelAnalytics> {
+    const { conditions: scopeConditions, needsBranchJoin } = applyScope({
+      branchId: filters.branchId,
+      country: filters.country,
+      branchColumn: schema.users.branchId,
+    });
+
+    // Usuarios Wellhub en alcance. `tenantWhere` en el mismo statement que el
+    // `.from(schema.users)` (ver getFunnel).
+    let usersQuery = this.db
+      .select({ userId: schema.users.id })
+      .from(schema.users)
+      .where(
+        and(
+          tenantWhere(schema.users, ctx),
+          isNotNull(schema.users.gympassId),
+          ...scopeConditions,
+        ),
+      )
+      .$dynamic();
+
+    if (needsBranchJoin) {
+      /* tenant-safe: branches joineado por FK para resolver country/nombre de una fila de users ya scopeada por tenantWhere arriba, no expone datos cross-gym (D4) */
+      usersQuery = usersQuery.innerJoin(
+        schema.branches,
+        sql`/* tenant-safe: branches joineado por FK para resolver country/nombre de una fila de users ya scopeada por tenantWhere arriba, no expone datos cross-gym (D4) */ ${schema.branches.id} = ${schema.users.branchId}`,
+      );
+    }
+
+    const userRows = await usersQuery;
+    if (userRows.length === 0) {
+      return { cohorts: [], entryOrigin: "wellhub" };
+    }
+    const userIds = userRows.map((u) => u.userId);
+    const inUsers = (column: AnyMySqlColumn) =>
+      sql`${column} IN (${sql.join(
+        userIds.map((id) => sql`${id}`),
+        sql`, `,
+      )})`;
+
+    // Primera reserva Wellhub por usuario.
+    const bookingRows = await this.db
+      .select({
+        userId: schema.bookings.memberId,
+        firstAt: sql<string>`MIN(${schema.bookings.bookedAt})`,
+        cohort: sql<string>`DATE_FORMAT(MIN(${schema.bookings.bookedAt}), '%Y-%m')`,
+      })
+      .from(schema.bookings)
+      .where(
+        and(
+          tenantWhere(schema.bookings, ctx),
+          isWellhubBookingSql(),
+          inUsers(schema.bookings.memberId),
+        ),
+      )
+      .groupBy(schema.bookings.memberId);
+
+    // Primera visita Wellhub (validada o a mano) por usuario.
+    const attendanceRows = await this.db
+      .select({
+        userId: schema.attendance.memberId,
+        firstAt: sql<string>`MIN(${schema.attendance.checkedInAt})`,
+        cohort: sql<string>`DATE_FORMAT(MIN(${schema.attendance.checkedInAt}), '%Y-%m')`,
+      })
+      .from(schema.attendance)
+      .where(
+        and(
+          tenantWhere(schema.attendance, ctx),
+          isWellhubAttendanceSql(),
+          inUsers(schema.attendance.memberId),
+        ),
+      )
+      .groupBy(schema.attendance.memberId);
+
+    // Primera conversión por usuario.
+    const conversionRows = await this.db
+      .select({
+        userId: schema.wellhubConversions.userId,
+        firstAt: sql<string>`MIN(${schema.wellhubConversions.convertedAt})`,
+      })
+      .from(schema.wellhubConversions)
+      .where(
+        and(
+          tenantWhere(schema.wellhubConversions, ctx),
+          inUsers(schema.wellhubConversions.userId),
+        ),
+      )
+      .groupBy(schema.wellhubConversions.userId);
+
+    // Primera actividad (la más temprana entre reserva y visita) + su mes.
+    const firstActivity = new Map<number, { ms: number; cohort: string }>();
+    for (const r of [...bookingRows, ...attendanceRows]) {
+      if (r.firstAt === null || r.cohort === null) continue;
+      const ms = toMs(r.firstAt);
+      const prev = firstActivity.get(r.userId);
+      if (prev === undefined || ms < prev.ms) {
+        firstActivity.set(r.userId, { ms, cohort: r.cohort });
+      }
+    }
+    const firstConversion = new Map<number, number>();
+    for (const r of conversionRows) {
+      if (r.firstAt === null) continue;
+      firstConversion.set(r.userId, toMs(r.firstAt));
+    }
+
+    interface WellhubCohortAcc {
+      size: number;
+      toActivo: number;
+      daysToActivo: number[];
+    }
+    const cohortMap = new Map<string, WellhubCohortAcc>();
+    for (const [userId, activity] of firstActivity) {
+      let acc = cohortMap.get(activity.cohort);
+      if (acc === undefined) {
+        acc = { size: 0, toActivo: 0, daysToActivo: [] };
+        cohortMap.set(activity.cohort, acc);
+      }
+      acc.size += 1;
+      const convertedMs = firstConversion.get(userId);
+      if (convertedMs !== undefined) {
+        acc.toActivo += 1;
+        acc.daysToActivo.push(dayDiffMs(activity.ms, convertedMs));
+      }
+    }
+
+    const cohorts: FunnelCohort[] = [...cohortMap.entries()]
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([cohortMonth, acc]) => ({
+        cohortMonth,
+        size: acc.size,
+        toPruebaPct: 100,
+        toActivoPct:
+          acc.size > 0 ? Math.round((acc.toActivo / acc.size) * 100) : 0,
+        medianDaysFreemiumToPrueba: null,
+        medianDaysPruebaToActivo: median(acc.daysToActivo),
+      }));
+
+    return { cohorts, entryOrigin: "wellhub" };
   }
 }

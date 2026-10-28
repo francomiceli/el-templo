@@ -5,6 +5,7 @@
 
 import type { LegacyPaymentMethod } from './transaction';
 import type { LeadStage } from './member';
+import type { AttendanceSource } from './attendance';
 
 // -- Response Row Types ------------------------------------------------------
 
@@ -14,7 +15,7 @@ export interface AccessReportRow {
   memberName: string;
   memberId: number;
   branchName: string;
-  source: 'qr' | 'manual';
+  source: AttendanceSource;
   scheduleSlot: string | null;
 }
 
@@ -72,7 +73,8 @@ export interface AccessReportParams {
   dateFrom?: string;
   dateTo?: string;
   search?: string;
-  source?: 'qr' | 'manual';
+  // 'wellhub' matchea las visitas validadas y las marcadas a mano (Fase 204 D-14).
+  source?: 'qr' | 'manual' | 'wellhub';
   page?: number;
   limit?: number;
 }

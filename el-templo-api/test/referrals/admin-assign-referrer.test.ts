@@ -375,12 +375,13 @@ describe("POST /api/admin/members/:id/referrals — atribución retroactiva", ()
       expect(await referralRow(target.id)).toBeNull();
     });
 
-    // WR-05: recepción carga el alta pero NO atribuye referidos — decidir a
-    // quién se le acredita un descuento es de gestión para arriba.
-    it("403 para recepción", async () => {
+    // 2026-10-13: la pestaña Invitaciones es la de todas las operaciones y
+    // recepción ve todo — también carga quién lo invitó (antes WR-05 se lo
+    // negaba). Queda registrado QUIÉN atribuyó (created_by).
+    it("recepción atribuye: 201 y el vínculo lleva su id", async () => {
       const target = await createMember(app, { email: "ar-rec-t@test.com" });
       const referrer = await createMember(app, { email: "ar-rec-r@test.com" });
-      await createStaffUser(app, {
+      const recepId = await createStaffUser(app, {
         email: "ar-recepcion@test.local",
         password: MEMBER_PASSWORD,
         firstName: "Recep",
@@ -394,8 +395,10 @@ describe("POST /api/admin/members/:id/referrals — atribución retroactiva", ()
         MEMBER_PASSWORD,
       );
       const res = await assign(target.id, referrer.id, recepToken);
-      expect(res.statusCode).toBe(403);
-      expect(await referralRow(target.id)).toBeNull();
+      expect(res.statusCode, res.body).toBe(201);
+      const row = await referralRow(target.id);
+      expect(row?.referrer_id).toBe(referrer.id);
+      expect(row?.created_by).toBe(recepId);
     });
 
     it("cross-country: admin ES (no-owner) recibe 404 para un alumno AR", async () => {

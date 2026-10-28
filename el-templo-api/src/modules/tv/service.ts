@@ -46,6 +46,7 @@ import {
   visualGroupOf,
 } from "./roster";
 import { getRouteLabel } from "./route-labels";
+import { buildRecorridoDeInicio } from "./recorrido";
 import { toTimerSpec } from "./timer-spec";
 import type {
   TvAvisoPollPayload,
@@ -409,6 +410,7 @@ export class TvService {
         screen: "idle",
         class: null,
         aviso: null,
+        recorrido: null,
       };
     }
 
@@ -444,16 +446,40 @@ export class TvService {
     // está activo cae al reposo de abajo.
     if (!classDay.approved && stored?.screen === "aviso") {
       const aviso = await this.resolveAviso(stored.tvAvisoId, branch.tenantId);
-      if (aviso) return { ...base, screen: "aviso", class: null, aviso };
+      if (aviso)
+        return {
+          ...base,
+          screen: "aviso",
+          class: null,
+          aviso,
+          recorrido: null,
+        };
     }
 
     if (!classDay.approved || !stored) {
+      // El recorrido de hoy (2026-10-13): con plani aprobada y sin clase en
+      // curso, la pantalla de inicio ES el recorrido (cuerpos con las zonas de
+      // cada bloque, del par del nivel de referencia ALFA/DELTA: una ruta por
+      // bloque, `buildRecorridoDeInicio`) y REEMPLAZA a la flexibilidad
+      // inicial / notas técnicas, que quedan para los días sin plani.
+      if (classDay.approved) {
+        const recorrido = buildRecorridoDeInicio(classDay);
+        if (recorrido.bloques.length > 0) {
+          return {
+            ...base,
+            screen: "idle",
+            class: null,
+            aviso: null,
+            recorrido,
+          };
+        }
+      }
       const aviso = await this.resolveReplacementAviso(
         branchId,
         branch.tenantId,
         "flex_inicio",
       );
-      return { ...base, screen: "idle", class: null, aviso };
+      return { ...base, screen: "idle", class: null, aviso, recorrido: null };
     }
 
     const state = this.clampState(stored, classDay);
@@ -485,7 +511,7 @@ export class TvService {
     }
 
     if (screen !== "class") {
-      return { ...base, screen, class: null, aviso };
+      return { ...base, screen, class: null, aviso, recorrido: null };
     }
 
     return {
@@ -493,6 +519,7 @@ export class TvService {
       screen,
       class: this.buildClassPayload(classDay, state, now),
       aviso: null,
+      recorrido: null,
     };
   }
 

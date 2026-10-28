@@ -98,7 +98,7 @@ async function onSelect(lvl: Level): Promise<void> {
   flex-direction: row;
   align-items: center;
   gap: 2px;
-  opacity: 0.6;
+  opacity: 1;
   padding-bottom: 2px;
   margin-right: 6px;
 }
@@ -116,7 +116,7 @@ async function onSelect(lvl: Level): Promise<void> {
 }
 
 .header-greeting__level {
-  font-size: 8px;
+  font-size: 10px;
   color: #fff;
   letter-spacing: 2px;
   text-transform: uppercase;
@@ -128,7 +128,7 @@ async function onSelect(lvl: Level): Promise<void> {
 
   &__chevron {
     color: #fff;
-    opacity: 0.85;
+    opacity: 1;
     vertical-align: middle;
     font-size: 24px;
     padding-right: 6px;
@@ -167,7 +167,7 @@ async function onSelect(lvl: Level): Promise<void> {
 
 .level-menu__banner-label {
   font-size: 11px;
-  color: rgba(#96593a, 0.7);
+  color: #6b6459;
   font-family: 'Montserrat', sans-serif;
 }
 
@@ -224,7 +224,7 @@ async function onSelect(lvl: Level): Promise<void> {
 .level-menu__own {
   font-size: 10px;
   font-weight: 700;
-  color: rgba($brand-aged-gold, 0.7);
+  color: #7d5d42;
   font-style: italic;
   margin-top: 2px;
 }

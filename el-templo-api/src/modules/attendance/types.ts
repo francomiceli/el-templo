@@ -7,7 +7,9 @@
 // ─── Enum Union Types ────────────────────────────────────────────────────────
 
 export type AttendanceStatus = "confirmado";
-export type AttendanceSource = "qr" | "manual";
+// Fase 204: 'wellhub' (validada contra Wellhub) y 'wellhub_manual' (marcada a
+// mano por el staff) se suman a las dos fuentes propias.
+export type AttendanceSource = "qr" | "manual" | "wellhub" | "wellhub_manual";
 
 // ─── Record Types ────────────────────────────────────────────────────────────
 

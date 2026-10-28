@@ -8,7 +8,7 @@
     <!-- ================================================================== -->
     <!-- Global Filters: Country (owner only) + Branch (calcado ReportesPage) -->
     <!-- ================================================================== -->
-    <div class="row items-center q-gutter-sm q-mb-md">
+    <div v-if="activeTab !== 'patrocinadores'" class="row items-center q-gutter-sm q-mb-md">
       <div v-if="isOwner" class="col-auto" style="min-width: 180px">
         <q-select
           v-model="selectedCountry"
@@ -51,6 +51,7 @@
       <q-tab name="partners" label="Partners" />
       <q-tab name="conversiones" label="Conversiones" />
       <q-tab name="liquidacion" label="Liquidación" />
+      <q-tab v-if="canManageSponsors" name="patrocinadores" label="Patrocinadores" />
     </q-tabs>
 
     <q-tab-panels v-model="activeTab" animated>
@@ -135,6 +136,17 @@
                 @click="openQrDialog(props.row)"
               >
                 <q-tooltip>QR</q-tooltip>
+              </q-btn>
+              <q-btn
+                v-if="canManageSponsors"
+                flat
+                dense
+                round
+                icon="add_card"
+                color="primary"
+                @click="createSponsorFromPartner(props.row)"
+              >
+                <q-tooltip>Crear card para Mi Templo</q-tooltip>
               </q-btn>
             </q-td>
           </template>
@@ -252,12 +264,20 @@
           @settled="onSettled"
         />
       </q-tab-panel>
+
+      <!-- ================================================================ -->
+      <!-- Tab: Patrocinadores (D-26) — marcas de Mi Templo, NO partners (D-17) -->
+      <!-- ================================================================ -->
+      <q-tab-panel v-if="canManageSponsors" name="patrocinadores">
+        <SponsorsTab :prefill="sponsorPrefill" @prefill-consumed="sponsorPrefill = null" />
+      </q-tab-panel>
     </q-tab-panels>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+// deploy: forzar build del admin tras el CI rojo de la fase 202 (test de corrections-reply, paths-filter, 2026-10-27)
+import { ref, computed, onMounted, watch } from 'vue';
 import { useQuasar, type QTableProps } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import {
@@ -274,6 +294,9 @@ import PartnerFormDialog from 'src/components/partners/PartnerFormDialog.vue';
 import PartnerQrDialog from 'src/components/partners/PartnerQrDialog.vue';
 import PartnerConversionsTable from 'src/components/partners/PartnerConversionsTable.vue';
 import PartnerSettleDialog from 'src/components/partners/PartnerSettleDialog.vue';
+import SponsorsTab from 'src/components/sponsors/SponsorsTab.vue';
+import { useSponsorsApi } from 'src/composables/useSponsorsApi';
+import type { SponsorPrefill } from 'src/components/sponsors/SponsorEditorDialog.vue';
 
 const log = createLogger('PartnersPage');
 const $q = useQuasar();
@@ -309,6 +332,46 @@ function onCountryChange() {
 // =========================================================================
 
 const activeTab = ref('partners');
+
+// D-26 / REVIEW-admin WR-03: la gestión de patrocinadores es SOLO de los admins de El Templo
+// (la plataforma carga las marcas; los otros gimnasios solo las consumen). El gate real es el
+// API (`isTemploPlatformAdmin`: rol de admin Y tenant El Templo). El front no conoce el tenant
+// del usuario, así que además del rol owner/admin se usa el resultado de la primera llamada
+// (`canManage`: 200/403): mientras no responde, o si responde 403, no se muestra la pestaña
+// ni el botón `add_card` ni se puede abrir el editor.
+const sponsorsApi = useSponsorsApi();
+const hasSponsorRole = computed(() => ['owner', 'admin'].includes(authStore.user?.role ?? ''));
+const sponsorsAllowed = ref(false);
+const canManageSponsors = computed(() => hasSponsorRole.value && sponsorsAllowed.value);
+
+watch(
+  hasSponsorRole,
+  (hasRole) => {
+    if (!hasRole) {
+      sponsorsAllowed.value = false;
+      return;
+    }
+    void sponsorsApi.canManage().then((allowed) => {
+      sponsorsAllowed.value = allowed;
+    });
+  },
+  { immediate: true }
+);
+
+// Atajo de la fila (add_card): precarga el editor de patrocinadores desde un partner.
+const sponsorPrefill = ref<SponsorPrefill | null>(null);
+
+function createSponsorFromPartner(partner: PartnerListItem) {
+  sponsorPrefill.value = {
+    name: partner.name,
+    country: partner.country === 'ES' ? 'ES' : 'AR',
+    partnerId: partner.id,
+    partnerName: partner.name,
+    contactName: partner.contactName,
+    contactPhone: partner.contactPhone,
+  };
+  activeTab.value = 'patrocinadores';
+}
 
 // =========================================================================
 // Partners state

@@ -102,7 +102,8 @@ export function expiryBadge(
 // Phase 103 (R10): user lifecycle status. NULL only for staff rows
 // (members always have a value). UI labels mirror the enum 1:1
 // (Freemium, En Prueba, Activo, Inactivo) per CONTEXT D-09.
-export type UserStatus = 'freemium' | 'prueba' | 'activo' | 'inactivo';
+// Fase 204 D-01: 'wellhub' = visitante Wellhub nuevo (sin membresía propia).
+export type UserStatus = 'freemium' | 'prueba' | 'activo' | 'inactivo' | 'wellhub';
 
 export interface MemberListItem {
   id: number;
@@ -127,6 +128,12 @@ export interface MemberListItem {
   endDate: string | null;
   createdAt: string;
   hasUsedTrial: boolean;
+  /** Fase 194 (D-18): tiene una invitación activa (chip "Invitación" en la fila). */
+  isInvited: boolean;
+  /** Fase 204 (D-01): el alumno está vinculado a Wellhub (gympass_id). */
+  isWellhub?: boolean;
+  /** Fase 204 (D-02/D-03): el API pide el sufijo " · Wellhub" junto al estado. */
+  showWellhubLabel?: boolean;
 }
 
 export const AVATAR_LABELS: Record<string, string> = {
@@ -404,6 +411,8 @@ export interface MemberListParams {
   segment?: MemberSegment;
   avatarType?: string;
   debtorOnly?: boolean;
+  // Fase 204 D-07: solo alumnos Wellhub (visible también para roles sin finanzas).
+  wellhubOnly?: boolean;
   country?: 'AR' | 'ES';
   // Phase 103 (R8): first-class users.status filter (replaces Phase 102's
   // 'leads'/'alumnos' derived values). 'todos' is a no-op default.

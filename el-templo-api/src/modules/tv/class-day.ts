@@ -17,6 +17,7 @@ import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../db/schema";
 import type { FormatParams } from "../admin/format-params";
 import { todayInTz } from "../shared/date-utils";
+import { buildVideoResolver } from "../shared/exercise-video-fallback";
 import {
   DAY_NAME_TO_NUMBER,
   DAY_OF_WEEK_MAP,
@@ -58,6 +59,16 @@ export interface ClassDayPrescription {
   sortOrder: number;
   /** Key de R2 tal cual sale de la DB — `assembleVideoUrl` la prefija al servir. */
   videoKey: string | null;
+  /**
+   * Datos del ejercicio para el mapeo a zonas musculares del recorrido
+   * (`anatomy/projection.ts`, por ruta; la categoría solo cuenta para
+   * ejercicios sin ruta). `null` cuando la prescripcion no tiene fila en
+   * `exercises` (hay prescripciones sueltas sin `exercise_id`) o la columna es
+   * NULL: el mapeo lo tolera.
+   */
+  exerciseCategory: string | null;
+  exerciseCategorySecondary: string | null;
+  exerciseRoute: string | null;
 }
 
 /** Un bloque de la sesion, con sus prescripciones ya agrupadas. */
@@ -300,6 +311,7 @@ export async function resolveClassDayForDate(
           .select({
             id: schema.sessionPrescriptions.id,
             blockId: schema.sessionPrescriptions.blockId,
+            exerciseId: schema.sessionPrescriptions.exerciseId,
             exerciseName: schema.sessionPrescriptions.exerciseName,
             contraction: schema.sessionPrescriptions.contraction,
             reps: schema.sessionPrescriptions.reps,
@@ -312,6 +324,9 @@ export async function resolveClassDayForDate(
             weighted: schema.sessionPrescriptions.weighted,
             sortOrder: schema.sessionPrescriptions.sortOrder,
             videoKey: schema.exercises.videoUrl,
+            exerciseCategory: schema.exercises.category,
+            exerciseCategorySecondary: schema.exercises.categorySecondary,
+            exerciseRoute: schema.exercises.route,
           })
           .from(schema.sessionPrescriptions)
           .leftJoin(
@@ -321,6 +336,16 @@ export async function resolveClassDayForDate(
           .where(inArray(schema.sessionPrescriptions.blockId, blockIds))
           .orderBy(asc(schema.sessionPrescriptions.sortOrder))
       : [];
+
+  // 4b. Si la fila prescrita no tiene video, usar el de otra copia del mismo
+  //     ejercicio en el catálogo (ver shared/exercise-video-fallback.ts).
+  const resolveVideo = await buildVideoResolver(
+    db,
+    prescriptionRows.map((p) => ({
+      exerciseId: p.exerciseId,
+      videoUrl: p.videoKey,
+    })),
+  );
 
   // 5. Agrupar en Maps (una pasada por tabla).
   const prescriptionsByBlock = new Map<number, ClassDayPrescription[]>();
@@ -339,7 +364,10 @@ export async function resolveClassDayForDate(
       exerciseType: p.exerciseType,
       weighted: p.weighted,
       sortOrder: p.sortOrder,
-      videoKey: p.videoKey,
+      videoKey: resolveVideo(p.exerciseId, p.videoKey),
+      exerciseCategory: p.exerciseCategory,
+      exerciseCategorySecondary: p.exerciseCategorySecondary,
+      exerciseRoute: p.exerciseRoute,
     });
     prescriptionsByBlock.set(p.blockId, list);
   }

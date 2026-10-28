@@ -1,33 +1,29 @@
 <template>
   <!-- Salteable → SIN persistent (mismo criterio que RatingPromptDialog) -->
   <q-dialog v-model="show">
-    <q-card class="proposal-dialog">
-      <q-card-section class="proposal-dialog__body">
-        <h3 class="proposal-dialog__title">{{ title }}</h3>
-        <p class="proposal-dialog__question">{{ bodyText }}</p>
+    <PremiumDialogCard kicker="El Templo te escucha">
+      <h3 class="pd-title">{{ title }}</h3>
+      <p class="pd-text">{{ bodyText }}</p>
 
-        <q-input
-          v-model="proposal"
-          class="proposal-dialog__input"
-          type="textarea"
-          autogrow
-          dark
-          outlined
-          counter
-          maxlength="1000"
-          label="Tu sugerencia"
-        />
+      <q-input
+        v-model="proposal"
+        class="pd-area"
+        type="textarea"
+        autogrow
+        dark
+        outlined
+        counter
+        maxlength="1000"
+        label="Tu sugerencia"
+      />
 
-        <p class="proposal-dialog__helper">
-          Tu sugerencia es anónima. Leemos cada una.
-        </p>
-      </q-card-section>
+      <p class="pd-help">Tu sugerencia es anónima. Leemos cada una.</p>
 
-      <q-card-actions class="proposal-dialog__actions">
+      <div class="pd-acts">
         <q-btn
           unelevated
           no-caps
-          class="proposal-dialog__primary full-width"
+          class="pd-cta"
           :disable="proposal.trim().length === 0"
           :loading="submitting"
           :label="buttonText"
@@ -37,13 +33,13 @@
           flat
           no-caps
           dense
-          class="proposal-dialog__secondary"
+          class="pd-skip"
           :disable="submitting"
           label="Ahora no"
           @click="onSkip"
         />
-      </q-card-actions>
-    </q-card>
+      </div>
+    </PremiumDialogCard>
   </q-dialog>
 </template>
 
@@ -54,6 +50,7 @@ import { useAvisosStore } from 'src/stores/useAvisosStore'
 import { useImprovementProposalsApi } from 'src/composables/useImprovementProposalsApi'
 import { extractError, isExpectedClientError } from 'src/utils/extract-error'
 import { createLogger } from 'src/utils/logger'
+import PremiumDialogCard from 'src/components/PremiumDialogCard.vue'
 
 const log = createLogger('ImprovementPromptDialog')
 const $q = useQuasar()
@@ -133,84 +130,3 @@ watch(
   { immediate: true },
 )
 </script>
-
-<style lang="scss" scoped>
-@import 'src/css/brand';
-
-$terracotta: $brand-terracotta;
-$cream: #f2ede5;
-$charcoal: #2e2a26;
-
-.proposal-dialog {
-  width: 100%;
-  max-width: 340px;
-  background: $charcoal;
-  color: $cream;
-  border-radius: 16px;
-  border-top: 2px solid rgba($terracotta, 0.6);
-  padding: 8px 4px 16px;
-}
-
-.proposal-dialog__body {
-  text-align: center;
-  padding-top: 16px;
-}
-
-.proposal-dialog__title {
-  font-family: 'Montserrat', sans-serif;
-  font-weight: 700;
-  font-size: 1.125rem;
-  letter-spacing: 0.04em;
-  margin: 0 0 8px 0;
-  color: $cream;
-}
-
-.proposal-dialog__question {
-  font-family: 'Geologica', sans-serif;
-  font-weight: 500;
-  font-size: 0.9375rem;
-  line-height: 1.5;
-  color: rgba($cream, 0.85);
-  margin: 0 4px 16px;
-}
-
-.proposal-dialog__input {
-  margin-bottom: 12px;
-  text-align: left;
-}
-
-.proposal-dialog__helper {
-  font-family: 'Geologica', sans-serif;
-  font-weight: 400;
-  font-size: 0.8125rem;
-  line-height: 1.5;
-  color: rgba($cream, 0.65);
-  margin: 0;
-}
-
-.proposal-dialog__actions {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 16px 20px 4px;
-}
-
-.proposal-dialog__primary {
-  background: linear-gradient(135deg, $terracotta 0%, #ad6540 100%) !important;
-  color: $cream !important;
-  font-family: 'Montserrat', sans-serif;
-  font-weight: 700;
-  font-size: 0.9375rem;
-  letter-spacing: 0.12em;
-  padding: 12px 0;
-  border-radius: 8px;
-}
-
-.proposal-dialog__secondary {
-  color: rgba($cream, 0.55) !important;
-  font-family: 'Geologica', sans-serif;
-  font-weight: 400;
-  font-size: 0.8125rem;
-  margin-top: 4px;
-}
-</style>

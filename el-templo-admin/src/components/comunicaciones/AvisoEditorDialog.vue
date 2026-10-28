@@ -192,6 +192,7 @@ import DestinoSelector from 'src/components/comunicaciones/DestinoSelector.vue';
 import AvisoPreview from 'src/components/comunicaciones/AvisoPreview.vue';
 import { APP_SECTIONS, type Destination } from 'src/config/destinations';
 import type { BranchOption } from 'src/types/member';
+import { COUNTRY_OPTIONS } from 'src/config/countries';
 
 const log = createLogger('AvisoEditorDialog');
 const $q = useQuasar();
@@ -260,10 +261,7 @@ const segmentOptions: Array<{ label: string; value: MemberSegmentKey }> = [
   { label: 'Ausente', value: 'ausente' },
 ];
 
-const countryOptions = [
-  { label: 'Argentina', value: 'AR' },
-  { label: 'España', value: 'ES' },
-];
+const countryOptions = COUNTRY_OPTIONS;
 
 const branches = ref<BranchOption[]>([]);
 const branchOptions = computed(() =>

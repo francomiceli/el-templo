@@ -189,6 +189,24 @@
             </aside>
           </div>
         </div>
+        <!-- "El recorrido de hoy" (sketch 004 D): la pantalla de inicio cuando
+             hay plani aprobada (poll `idle` con `recorrido`). Cuerpos de mármol
+             H/M con las zonas de cada bloque, clave diurna. `src/tv/recorrido/`
+             arma TODO el contenido dentro de #recorridoHost; acá solo vive el
+             escenario. -->
+        <div class="pantalla pantalla--dia" id="pantallaRecorrido">
+          <div class="transFoto" aria-hidden="true"></div>
+          <div class="recMarco" id="recorridoHost"></div>
+          <!-- Identidad abajo a la izquierda (UAT 2026-10-13): logo, hora y fecha,
+               los mismos nodos de reloj/fecha que reposo, cierre y aviso. -->
+          <aside class="recIdentidad">
+            <img class="transLogo recLogo" :src="tvParthenonCharcoal" alt="El Templo" />
+            <div class="recReloj">
+              <div class="relojXl" id="recorridoReloj">--:--</div>
+              <div class="fechaXl" id="recorridoFecha"></div>
+            </div>
+          </aside>
+        </div>
         <!-- Sello de la vista previa (Planis, 2026-09): dentro de #tv para que
              escale con el marco (rem) y por encima de las pantallas de
              transición. Fuera del contrato de render.ts (sin id). -->
@@ -282,9 +300,11 @@ function leerEstadoTimer(): 'calmo' | 'activo' | 'completo' {
 function leerOverlayVisible(): boolean {
   const reposo = document.getElementById('pantallaReposo');
   const cierre = document.getElementById('pantallaCierre');
+  const recorrido = document.getElementById('pantallaRecorrido');
   return (
     (reposo !== null && reposo.classList.contains('visible')) ||
-    (cierre !== null && cierre.classList.contains('visible'))
+    (cierre !== null && cierre.classList.contains('visible')) ||
+    (recorrido !== null && recorrido.classList.contains('visible'))
   );
 }
 onMounted(() => {
@@ -650,6 +670,7 @@ function renderPreview(): void {
     screen: screen ? 'class' : 'idle',
     class: screen ? screen.class : null,
     aviso: null,
+    recorrido: null,
   };
   renderState(payload);
   postToParent({
@@ -2651,6 +2672,387 @@ onUnmounted(() => {
   #tvScreenRoot .columnaDorica__brillo::after,
   #tvScreenRoot .cabecera .cabLine::after {
     animation: none;
+  }
+}
+/* ── Intro "el recorrido de hoy" (sketch 004 variante D): columna de texto +
+   leyenda a la izquierda, dos cuerpos de mármol a todo el alto a la derecha.
+   Presupuesto de TV: cada capa es un <svg> propio y lo único animado es su
+   opacity (y el transform de entrada de las figuras); degradés y vetas son
+   estáticos. Sin filter, sin blend, sin drop-shadow. ── */
+#tvScreenRoot #pantallaRecorrido .transFoto {
+  /* Velo más denso que la pre-clase: el dibujo se lee limpio sobre el relieve. */
+  background:
+    linear-gradient(
+      100deg,
+      rgba(242, 236, 226, 0.94) 0%,
+      rgba(242, 236, 226, 0.9) 40%,
+      rgba(241, 234, 223, 0.93) 70%,
+      rgba(240, 232, 220, 0.9) 100%
+    ),
+    var(--trans-foto, none) center / cover no-repeat;
+}
+#tvScreenRoot .recMarco {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+}
+#tvScreenRoot .recDefs {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+#tvScreenRoot .recTexto {
+  /* Angosta a propósito: los rótulos de la cadera del cuerpo masculino salen
+     hacia la izquierda y no pueden pisar la leyenda (UAT 2026-10-05). */
+  width: 34rem;
+  padding-left: 5rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  /* Centrado vertical corrido hacia arriba (UAT 2026-10-13). */
+  padding-bottom: 7rem;
+  position: relative;
+  z-index: 2;
+}
+#tvScreenRoot .recIdentidad {
+  position: absolute;
+  left: 4rem;
+  bottom: 3rem;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 1.6rem;
+}
+#tvScreenRoot .recIdentidad .recLogo {
+  width: 7.5rem;
+  margin-bottom: 0;
+}
+#tvScreenRoot #pantallaRecorrido .relojXl {
+  font-size: 3.6rem;
+}
+#tvScreenRoot #pantallaRecorrido .fechaXl {
+  font-size: 1.05rem;
+  letter-spacing: 0.24em;
+  margin-top: 0.6rem;
+}
+#tvScreenRoot .recSubtitulo {
+  font-family: var(--nunito);
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: 0.3em;
+  color: var(--gold);
+  margin-bottom: 2rem;
+}
+#tvScreenRoot .recTitulo {
+  font-family: var(--cinzel);
+  font-weight: 700;
+  font-size: 4.4rem;
+  line-height: 1.04;
+  letter-spacing: 0.03em;
+  color: var(--navy);
+  margin-bottom: 0.9rem;
+}
+/* Ventana de la leyenda (UAT 2026-10-13): alto fijo; la pista se desplaza hasta el
+   bloque en foco y el degradé avisa que hay más arriba/abajo (render: desplazarLeyenda). */
+#tvScreenRoot .recLeyenda {
+  position: relative;
+  /* Alto FIJO (no max-height): con el resumen, más corto, la columna centrada
+     corría el título hacia abajo (UAT 2026-10-13). */
+  height: 27rem;
+  overflow: hidden;
+}
+#tvScreenRoot .recLeyenda.masAbajo {
+  -webkit-mask-image: linear-gradient(to bottom, #000 78%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 78%, transparent 100%);
+}
+#tvScreenRoot .recLeyenda.masArriba {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 18%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 18%);
+}
+#tvScreenRoot .recLeyenda.masArriba.masAbajo {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 18%,
+    #000 78%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(to bottom, transparent 0, #000 18%, #000 78%, transparent 100%);
+}
+#tvScreenRoot .recPista {
+  transition: transform 0.9s ease;
+  will-change: transform;
+}
+#tvScreenRoot .recItem {
+  display: flex;
+  margin-bottom: 1.55rem;
+  opacity: 0;
+  transform: translateX(-1.2rem);
+  transition:
+    opacity 0.6s ease,
+    transform 0.6s ease;
+}
+#tvScreenRoot .recItem.on {
+  opacity: 1;
+  transform: none;
+}
+/* Los bloques fuera del centro, atenuados y más chicos (UAT 2026-10-13). */
+#tvScreenRoot .recItem.on.dim {
+  opacity: 0.38;
+  transform: scale(0.85);
+  transform-origin: left center;
+}
+/* Ancho de los bloques = el que entra agrandado al 112 % (1 / 1.12 ≈ 89 %): el texto
+   largo parte en líneas en vez de cortarse contra el borde del panel. */
+#tvScreenRoot .recPanel--bloques .recItem {
+  max-width: 89%;
+}
+/* El bloque en foco (centrado en la ventana) un poco más grande, anclado a la
+   izquierda: `transform` no mueve el layout, así el centrado no cambia. */
+#tvScreenRoot .recItem.on.focus {
+  transform: scale(1.12);
+  transform-origin: left center;
+}
+/* Columna del templo parada al costado de cada bloque (UAT 2026-10-13): la tira
+   horizontal de la dórica (mismas piezas) rotada 90° desde su esquina superior
+   izquierda; `left: 100%` la deja dentro del ancho de `.recColumna`. El largo de la
+   tira lo pone `ajustarColumnas` (= alto de la fila). */
+#tvScreenRoot .recColumna {
+  position: relative;
+  flex: none;
+  width: 1.3rem;
+  margin-right: 1.2rem;
+}
+#tvScreenRoot .recColumna__tira {
+  position: absolute;
+  top: 0;
+  left: 100%;
+  height: 1.3rem;
+  transform-origin: top left;
+  transform: rotate(90deg);
+}
+/* El brillo de las listas barre en loop cada 12 s; acá barre UNA vez (de arriba a
+   abajo, por la rotación) cuando el bloque entra en foco. */
+#tvScreenRoot .recColumna .columnaDorica__brillo::after {
+  animation: none;
+}
+#tvScreenRoot .recItem.focus .recColumna .columnaDorica__brillo::after {
+  animation: recColumnaBrillo 2.6s ease-in-out 0.5s 1 both;
+}
+/* Color del bloque: cada pieza es el color plano recortado con su imagen (máscara). */
+#tvScreenRoot .recColumna .columnaDorica__cap,
+#tvScreenRoot .recColumna .columnaDorica__fuste {
+  background-image: none;
+  background-color: var(--recColumnaColor);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+}
+#tvScreenRoot .recColumna .columnaDorica__cap--izq {
+  -webkit-mask-image: url('/tv-col-cap-izq.png');
+  mask-image: url('/tv-col-cap-izq.png');
+}
+#tvScreenRoot .recColumna .columnaDorica__cap--der {
+  -webkit-mask-image: url('/tv-col-cap-der.png');
+  mask-image: url('/tv-col-cap-der.png');
+}
+#tvScreenRoot .recColumna .columnaDorica__fuste {
+  -webkit-mask-image: url('/tv-col-fuste.png');
+  mask-image: url('/tv-col-fuste.png');
+}
+@keyframes recColumnaBrillo {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+#tvScreenRoot .recRol {
+  font-family: var(--cinzel);
+  font-weight: 700;
+  font-size: 2.7rem;
+  line-height: 1.05;
+  letter-spacing: 0.04em;
+}
+/* Carril de la leyenda (UAT 2026-10-13): RUTAS DEL DÍA | BLOQUES DEL DÍA lado a lado;
+   el cambio entre los dos se ve como un desplazamiento horizontal. */
+#tvScreenRoot .recCarril {
+  display: flex;
+  width: 200%;
+  transform: translateX(-50%);
+  transition: transform 0.9s cubic-bezier(0.45, 0, 0.2, 1);
+  will-change: transform;
+}
+#tvScreenRoot .recLeyenda.resumen .recCarril {
+  transform: none;
+}
+#tvScreenRoot .recPanel {
+  flex: 0 0 50%;
+  min-width: 0;
+  /* Cada panel recorta lo suyo: nada del panel escondido asoma en el otro. */
+  overflow: hidden;
+}
+/* Las filas de rutas no siguen el foco de los bloques (comparten `data-b`): sin
+   escala ni atenuado; si no, una ruta agrandada asomaba en el panel de bloques. */
+#tvScreenRoot .recItem--ruta.on.focus,
+#tvScreenRoot .recItem--ruta.on.dim {
+  opacity: 1;
+  transform: none;
+}
+/* Rutas del día: solo el nombre, con la letra de los ejercicios (`.ej-nombre`) y el
+   color del título "La sesión de hoy" (2026-10-27: sin barra de color). */
+#tvScreenRoot .recRutaSola {
+  color: var(--navy);
+  font-family: var(--nunito);
+  font-weight: 700;
+  font-size: 2.35rem;
+  line-height: 1.25;
+}
+#tvScreenRoot .recMeta {
+  font-family: var(--nunito);
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin-top: 0.3rem;
+}
+#tvScreenRoot .recSub {
+  font-family: var(--nunito);
+  font-size: 1.9rem;
+  font-weight: 700;
+  color: var(--trans-apagado-dia);
+  margin: 0.15rem 0 0.35rem;
+}
+#tvScreenRoot .recCuerpos {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  /* La leyenda de zonas va ENTRE los cuerpos (UAT 2026-10-13): poco aire afuera.
+     `relative`: es el offsetParent con el que se miden los puntos de la leyenda. */
+  position: relative;
+  padding: 0 2rem 1.6rem 2rem;
+}
+/* Hueco central para la leyenda de zonas. */
+#tvScreenRoot .recFig + .recFig {
+  margin-left: 13rem;
+}
+/* Leyenda de zonas única: una capa por vista que se funde con el giro, igual que las
+   vistas de las figuras; adentro, una capa por bloque (`.recCall`, encendida por foco). */
+#tvScreenRoot .recCallVista {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 3;
+  transition: opacity 1.5s ease-in-out;
+}
+#tvScreenRoot .recCallVista--espalda,
+#tvScreenRoot .recCuerpos.back .recCallVista--frente {
+  opacity: 0;
+}
+#tvScreenRoot .recCuerpos.back .recCallVista--espalda {
+  opacity: 1;
+}
+#tvScreenRoot .recCallVista .recCall {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+#tvScreenRoot .recFig {
+  position: relative;
+  margin: 0 0.5rem;
+  opacity: 0;
+  transform: translateY(1.6rem);
+  transition:
+    opacity 1s ease,
+    transform 1.2s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+#tvScreenRoot .recFig.in {
+  opacity: 1;
+  transform: none;
+}
+#tvScreenRoot .recMarcoFig {
+  position: relative;
+}
+/* Fundido frente↔espalda: las dos vistas existen siempre y se cruzan por opacity. */
+#tvScreenRoot .recVista {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  transition: opacity 1.5s ease-in-out;
+  will-change: opacity;
+}
+#tvScreenRoot .recVista--espalda,
+#tvScreenRoot .recFig.back .recVista--frente {
+  opacity: 0;
+}
+#tvScreenRoot .recFig.back .recVista--espalda {
+  opacity: 1;
+}
+#tvScreenRoot .recCapa {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+#tvScreenRoot .recOv {
+  opacity: 0;
+  transition: opacity 0.9s ease;
+  will-change: opacity;
+}
+#tvScreenRoot .recOv.on {
+  opacity: 1;
+}
+/* 2026-10-27: un bloque a la vez, solo se ven las zonas del bloque en foco. */
+#tvScreenRoot .recOv.on.dim {
+  opacity: 0;
+}
+#tvScreenRoot .recCall {
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+#tvScreenRoot .recCall.on {
+  opacity: 1;
+}
+#tvScreenRoot .recCallTxt {
+  font-family: var(--nunito);
+  font-weight: 700;
+}
+#tvScreenRoot.tv-sobrio .recItem,
+#tvScreenRoot.tv-sobrio .recPista,
+#tvScreenRoot.tv-sobrio .recCarril,
+#tvScreenRoot.tv-sobrio .recFig,
+#tvScreenRoot.tv-sobrio .recVista,
+#tvScreenRoot.tv-sobrio .recOv,
+#tvScreenRoot.tv-sobrio .recCall {
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  #tvScreenRoot .recItem,
+  #tvScreenRoot .recPista,
+  #tvScreenRoot .recCarril,
+  #tvScreenRoot .recFig,
+  #tvScreenRoot .recVista,
+  #tvScreenRoot .recOv,
+  #tvScreenRoot .recCall {
+    transition: none;
   }
 }
 </style>

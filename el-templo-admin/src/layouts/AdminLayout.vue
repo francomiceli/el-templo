@@ -67,6 +67,7 @@ import { useAuthStore } from 'src/stores/useAuthStore';
 import { useAdminStore } from 'src/stores/useAdminStore';
 import { canAccessTraining } from 'src/utils/trainingAccess';
 import {
+  CONQUER_MANAGER_ROLES,
   NAV_MODEL,
   isNavCategoryVisible,
   isNavItemVisible,
@@ -109,6 +110,8 @@ function badgeCount(item: NavItem): number {
       return adminStore.landingInbox.labs;
     case 'landing-franquicias':
       return adminStore.landingInbox.franchise;
+    case 'conquer':
+      return adminStore.conquerRequestsCount + adminStore.conquerCorrectionsCount;
     default:
       return 0;
   }
@@ -133,6 +136,12 @@ const canSeeReports = computed(() => {
   return role === 'gestion' || role === 'admin' || role === 'owner' || role === 'admin_sede';
 });
 
+// Quiénes ven Conquer (y por ende su pelotita de pedidos): owner/admin, fase 201 D-08.
+const canSeeConquer = computed(() => {
+  const role = authStore.user?.role;
+  return role !== undefined && CONQUER_MANAGER_ROLES.includes(role);
+});
+
 async function handleLogout() {
   await authStore.logout();
   router.push('/login');
@@ -150,6 +159,10 @@ onMounted(() => {
   if (canSeeLanding.value) {
     adminStore.fetchLandingInbox();
   }
+  if (canSeeConquer.value) {
+    adminStore.fetchConquerRequestsCount();
+    adminStore.fetchConquerCorrectionsCount();
+  }
 });
 
 // Refresh pending count on route change (only for training viewers)
@@ -164,6 +177,10 @@ watch(
     }
     if (canSeeLanding.value) {
       adminStore.fetchLandingInbox();
+    }
+    if (canSeeConquer.value) {
+      adminStore.fetchConquerRequestsCount();
+      adminStore.fetchConquerCorrectionsCount();
     }
   }
 );

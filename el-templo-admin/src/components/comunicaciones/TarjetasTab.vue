@@ -20,7 +20,7 @@
       <div class="col">
         <div class="text-subtitle1 text-weight-medium">Tarjetas de Mi Templo</div>
         <div class="text-caption text-grey-7">
-          Carrusel premium que ve el socio en Mi Templo. Las 4 fijas siempre están; el staff suma
+          Carrusel premium que ve el socio en Mi Templo. Las 3 fijas siempre están; el staff suma
           tarjetas propias con destino, alcance y vigencia.
         </div>
       </div>
@@ -38,7 +38,7 @@
     </div>
 
     <div v-if="!tarjetas.length" class="text-center q-pa-lg text-grey-6">
-      No hay tarjetas todavía. Las 4 de sistema aparecen solas al abrir esta categoría por primera
+      No hay tarjetas todavía. Las 3 de sistema aparecen solas al abrir esta categoría por primera
       vez.
     </div>
 
@@ -146,8 +146,8 @@ const groupedTarjetas = computed(() =>
   groupByAudience(
     orderedTarjetas.value,
     (row) => audienceOfAviso(row, props.branches),
-    () => 0,
-  ),
+    () => 0
+  )
 );
 
 // D-15b: el alta de una tarjeta libre entra al final del orden vigente.

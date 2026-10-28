@@ -35,6 +35,7 @@ const emit = defineEmits<{
 
 <style lang="scss" scoped>
 @import 'src/css/brand';
+@import 'src/css/premium-card';
 
 $terracotta: $brand-terracotta;
 $cream: #f2ede5;
@@ -116,33 +117,13 @@ $cream: #f2ede5;
   animation: fade-up 600ms 750ms ease both;
 }
 
+// Botón primario compartido (sketch 011): degradé terracota, radio 10, destello.
 .open-cta {
-  background: linear-gradient(135deg, $terracotta 0%, #ad6540 100%) !important;
-  color: $cream !important;
-  font-family: 'Montserrat', sans-serif;
-  font-weight: 700;
-  font-size: 0.9375rem;
-  letter-spacing: 0.18em;
-  padding: 14px 32px;
-  border-radius: 8px;
+  @include pd-cta(50px);
+  width: auto;
+  padding: 0 32px;
   margin-top: 12px;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
   animation: fade-up 600ms 950ms ease both;
-  transition:
-    box-shadow 0.3s ease,
-    transform 0.2s ease;
-
-  &:hover {
-    box-shadow:
-      0 6px 24px rgba($terracotta, 0.55),
-      0 0 48px rgba($terracotta, 0.18);
-    transform: scale(1.02);
-  }
-
-  &:active {
-    transform: scale(0.98);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-  }
 }
 
 @keyframes fade-up {
@@ -167,4 +148,6 @@ $cream: #f2ede5;
     animation: none;
   }
 }
+
+@include pd-sheen-keyframes;
 </style>

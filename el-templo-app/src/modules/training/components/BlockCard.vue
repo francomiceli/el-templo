@@ -17,7 +17,7 @@
             dense
             size="xs"
             icon="help_outline"
-            color="primary"
+            color="info"
             class="block-guia-link"
             :aria-label="guiaLink.question"
             @click.stop="openGuia"
@@ -189,13 +189,17 @@ const blockCaption = computed(() => {
   font-family: 'Montserrat', sans-serif;
   font-weight: 700;
   letter-spacing: 0.08em;
-  color: $primary;
+  color: #2c2318;
+}
+
+// Fase 197 D-16: flecha de expandir en tinta sólida (antes #757575 de Quasar, 2.73:1 medido)
+.block-card :deep(.q-item__section--side) {
+  color: #2c2318;
 }
 
 .block-guia-link {
   vertical-align: middle;
   margin-left: 2px;
-  opacity: 0.7;
 }
 
 .block-meta {
@@ -209,10 +213,6 @@ const blockCaption = computed(() => {
     align-items: center;
     gap: 12px;
     flex-wrap: wrap;
-
-    &--secondary {
-      opacity: 0.85;
-    }
   }
 
   &__route {
@@ -224,7 +224,7 @@ const blockCaption = computed(() => {
   &__intensity {
     font-size: 12px;
     font-weight: 600;
-    color: $primary;
+    color: #2c2318;
     background: rgba($primary, 0.1);
     padding: 2px 6px;
     border-radius: 4px;
@@ -233,18 +233,19 @@ const blockCaption = computed(() => {
   &__label {
     font-size: 10px;
     font-weight: 700;
-    color: rgba($primary, 0.6);
+    color: #2c2318;
     margin-right: 2px;
   }
 
   &__exercises {
     font-size: 12px;
-    color: color.adjust($secondary, $lightness: -8%);
+    color: #2c2318;
   }
 
   &__format {
     font-size: 11px;
-    color: color.adjust($secondary, $lightness: -5%);
+    // Fase 197 D-16: texto sólido de la tinta del rework (antes secondary -5%, 3.9-4.5:1 medido sobre su chip)
+    color: #2c2318;
     background: rgba($secondary, 0.15);
     padding: 2px 6px;
     border-radius: 4px;

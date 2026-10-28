@@ -1,13 +1,6 @@
 <template>
   <div class="prog-card-outer">
     <div class="prog-card-inner">
-      <!-- Decorative effects -->
-      <div class="prog-radial-glow" />
-      <div class="prog-sparkle" />
-      <div class="prog-sparkle" />
-      <div class="prog-sparkle" />
-      <div class="prog-bottom-line" />
-
       <!-- Header + Title + CTA arrow -->
       <div class="prog-top">
         <div class="prog-top__info">
@@ -16,8 +9,7 @@
               <svg class="prog-badge-icon" width="12" height="12" viewBox="0 0 12 12">
                 <polygon
                   points="6,0.5 7.5,4.2 11.5,4.5 8.5,7.2 9.3,11.2 6,9.2 2.7,11.2 3.5,7.2 0.5,4.5 4.5,4.2"
-                  fill="#C4956A"
-                  opacity=".9"
+                  fill="#96593a"
                 />
               </svg>
               <span class="prog-badge-text">{{ badgeText }}</span>
@@ -115,7 +107,7 @@
           round
           dense
           :icon="expanded ? 'expand_less' : 'expand_more'"
-          color="white"
+          color="primary"
           size="sm"
           @click="expanded = !expanded"
         />
@@ -138,17 +130,13 @@
 
   <!-- Text content dialog -->
   <q-dialog v-model="textDialogVisible">
-    <q-card style="min-width: 300px; max-width: 500px">
-      <q-card-section>
-        <div class="text-h6">{{ textDialogTitle }}</div>
-      </q-card-section>
-      <q-card-section class="q-pt-none">
-        <div class="text-body2" style="white-space: pre-wrap">{{ textDialogContent }}</div>
-      </q-card-section>
-      <q-card-actions align="right">
-        <q-btn flat label="Cerrar" color="primary" v-close-popup />
-      </q-card-actions>
-    </q-card>
+    <PremiumDialogCard tone="light">
+      <h3 class="pd-title">{{ textDialogTitle }}</h3>
+      <p class="pd-text pd-text--pre">{{ textDialogContent }}</p>
+      <div class="pd-acts">
+        <q-btn unelevated no-caps class="pd-cta" label="Cerrar" v-close-popup />
+      </div>
+    </PremiumDialogCard>
   </q-dialog>
 </template>
 
@@ -156,6 +144,7 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { createLogger } from 'src/utils/logger'
+import PremiumDialogCard from 'src/components/PremiumDialogCard.vue'
 import { useUserStore } from 'src/stores/useUserStore'
 import { useCurrentProgram } from 'src/modules/training/composables/useCurrentProgram'
 import { buildWhatsAppUrl } from 'src/utils/whatsapp'
@@ -277,15 +266,14 @@ function openRenewalWhatsApp() {
 </script>
 
 <style lang="scss" scoped>
-@keyframes shimmer {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
-  }
+// Texto del diálogo (contenido del programa): respeta los saltos de línea.
+.pd-text--pre {
+  white-space: pre-wrap;
 }
 
+// Fase 199 (D-15): superficie clara con texto sólido por rol. Principal #2c2318,
+// secundario #6b6459, acentos #96593a, positivo #3b7249. Sin brillos ni dorado
+// (el dorado es de Aura). La opacidad solo se usa en FONDOS, nunca en `color`.
 @keyframes fadeUp {
   from {
     opacity: 0;
@@ -297,131 +285,19 @@ function openRenewalWhatsApp() {
   }
 }
 
-@keyframes pulseGlow {
-  0%,
-  100% {
-    opacity: 0.08;
-  }
-  50% {
-    opacity: 0.18;
-  }
-}
-
-@keyframes sparkle1 {
-  0%,
-  100% {
-    opacity: 0;
-    transform: scale(0.5);
-  }
-  50% {
-    opacity: 0.7;
-    transform: scale(1);
-  }
-}
-
-@keyframes sparkle2 {
-  0%,
-  100% {
-    opacity: 0;
-    transform: scale(0.4);
-  }
-  40% {
-    opacity: 0.5;
-    transform: scale(1.1);
-  }
-}
-
-@keyframes sparkle3 {
-  0%,
-  100% {
-    opacity: 0;
-    transform: scale(0.6);
-  }
-  60% {
-    opacity: 0.6;
-    transform: scale(0.9);
-  }
-}
-
 .prog-card-outer {
   position: relative;
-  border-radius: 18px;
-  padding: 1.5px;
-  background: linear-gradient(
-    135deg,
-    rgba(180, 140, 80, 0.15),
-    rgba(196, 149, 106, 0.4) 30%,
-    rgba(220, 190, 130, 0.6) 50%,
-    rgba(196, 149, 106, 0.4) 70%,
-    rgba(180, 140, 80, 0.15)
-  );
-  background-size: 200% 200%;
-  animation: shimmer 4s ease-in-out infinite;
+  border-radius: 16px;
+  background: #ffffff;
+  border: 1px solid #e5dbcd;
 }
 
 .prog-card-inner {
-  background: linear-gradient(135deg, #1a1612 0%, #2c2318 50%, #1e1914 100%);
-  border-radius: 16.5px;
+  border-radius: 16px;
   padding: 18px;
   position: relative;
   overflow: hidden;
   animation: fadeUp 0.6s ease-out both;
-}
-
-.prog-radial-glow {
-  position: absolute;
-  top: -40px;
-  right: -40px;
-  width: 180px;
-  height: 180px;
-  background: radial-gradient(circle, rgba(196, 149, 106, 0.12) 0%, transparent 70%);
-  pointer-events: none;
-  animation: pulseGlow 4s ease-in-out infinite;
-}
-
-.prog-sparkle {
-  position: absolute;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(220, 190, 130, 0.8) 0%, transparent 70%);
-  pointer-events: none;
-
-  &:nth-child(2) {
-    top: 18px;
-    right: 60px;
-    width: 6px;
-    height: 6px;
-    animation: sparkle1 3s ease-in-out infinite;
-  }
-  &:nth-child(3) {
-    top: 50px;
-    right: 30px;
-    width: 4px;
-    height: 4px;
-    animation: sparkle2 4s ease-in-out infinite 0.8s;
-  }
-  &:nth-child(4) {
-    top: 35px;
-    right: 90px;
-    width: 5px;
-    height: 5px;
-    animation: sparkle3 3.5s ease-in-out infinite 1.5s;
-  }
-}
-
-.prog-bottom-line {
-  position: absolute;
-  bottom: 0;
-  left: 22px;
-  right: 22px;
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(196, 149, 106, 0.2) 20%,
-    rgba(196, 149, 106, 0.35) 50%,
-    rgba(196, 149, 106, 0.2) 80%,
-    transparent
-  );
 }
 
 .prog-top {
@@ -443,7 +319,7 @@ function openRenewalWhatsApp() {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #c4956a, #a07850);
+  background: #96593a;
   color: #fff;
   flex-shrink: 0;
   cursor: pointer;
@@ -460,8 +336,8 @@ function openRenewalWhatsApp() {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: linear-gradient(135deg, rgba(196, 149, 106, 0.18), rgba(196, 149, 106, 0.08));
-  border: 0.5px solid rgba(196, 149, 106, 0.3);
+  background: rgba(150, 89, 58, 0.08);
+  border: 0.5px solid #e5dbcd;
   border-radius: 20px;
   padding: 4px 12px 4px 8px;
 }
@@ -473,7 +349,7 @@ function openRenewalWhatsApp() {
 .prog-badge-text {
   font-size: 10px;
   font-weight: 600;
-  color: #c4956a;
+  color: #96593a;
   letter-spacing: 0.8px;
   text-transform: uppercase;
 }
@@ -490,13 +366,13 @@ function openRenewalWhatsApp() {
     border-radius: 6px;
 
     &:hover {
-      background: rgba(196, 149, 106, 0.08);
+      background: rgba(150, 89, 58, 0.08);
     }
   }
 }
 
 .prog-title-chevron {
-  color: rgba(240, 230, 214, 0.65);
+  color: #6b6459;
   flex-shrink: 0;
   margin-top: 2px;
 }
@@ -504,42 +380,43 @@ function openRenewalWhatsApp() {
 .prog-title {
   font-size: 20px;
   font-weight: 600;
-  color: #f0e6d6;
+  color: #2c2318;
   letter-spacing: 0.3px;
   line-height: 1.3;
   margin: 0;
 }
 
 .prog-menu {
-  background: linear-gradient(135deg, #1a1612 0%, #2c2318 50%, #1e1914 100%);
+  background: #ffffff;
+  border: 1px solid #e5dbcd;
   min-width: 240px;
   padding: 4px 0;
 
   :deep(.q-item) {
-    color: #f0e6d6;
+    color: #2c2318;
     transition: background 0.15s ease;
   }
 
   :deep(.q-item__label) {
-    color: #f0e6d6;
+    color: #2c2318;
   }
 
   :deep(.q-item__label--caption) {
-    color: rgba(240, 230, 214, 0.65);
+    color: #6b6459;
   }
 
   :deep(.q-item--active) {
-    color: #c4956a;
-    background: rgba(196, 149, 106, 0.12);
+    color: #96593a;
+    background: rgba(150, 89, 58, 0.08);
 
     .q-item__label,
     .q-item__label--caption {
-      color: #c4956a;
+      color: #96593a;
     }
   }
 
   :deep(.q-item:hover:not(.q-item--active)) {
-    background: rgba(196, 149, 106, 0.08);
+    background: rgba(150, 89, 58, 0.08);
   }
 }
 
@@ -547,7 +424,7 @@ function openRenewalWhatsApp() {
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.6px;
-  color: #c4956a;
+  color: #96593a;
   padding: 8px 16px 4px;
 }
 
@@ -564,7 +441,7 @@ function openRenewalWhatsApp() {
 
 .prog-bar-name {
   font-size: 11px;
-  color: rgba(240, 230, 214, 0.5);
+  color: #6b6459;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -572,19 +449,19 @@ function openRenewalWhatsApp() {
 .prog-bar-value {
   font-size: 12px;
   font-weight: 600;
-  color: #c4956a;
+  color: #96593a;
 }
 
 .prog-bar-track {
   height: 6px;
-  background: rgba(196, 149, 106, 0.12);
+  background: #e5dbcd;
   border-radius: 3px;
   overflow: hidden;
 }
 
 .prog-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, #c4956a, #dcbe82);
+  background: #96593a;
   border-radius: 3px;
   transition: width 0.4s ease;
 }
@@ -593,7 +470,7 @@ function openRenewalWhatsApp() {
   display: flex;
   align-items: center;
   gap: 6px;
-  color: #8bc34a;
+  color: #3b7249;
   font-size: 12px;
   font-weight: 500;
   margin-bottom: 8px;
@@ -601,9 +478,9 @@ function openRenewalWhatsApp() {
 
 .prog-renewal {
   font-size: 11px;
-  color: #ffb74d;
-  background: rgba(255, 183, 77, 0.1);
-  border: 0.5px solid rgba(255, 183, 77, 0.3);
+  color: #96593a;
+  background: rgba(150, 89, 58, 0.08);
+  border: 0.5px solid #e5dbcd;
   border-radius: 8px;
   padding: 6px 12px;
   cursor: pointer;
@@ -628,42 +505,30 @@ function openRenewalWhatsApp() {
   align-items: center;
   gap: 10px;
   padding: 8px 12px;
-  background: rgba(196, 149, 106, 0.08);
+  background: rgba(150, 89, 58, 0.08);
   border-radius: 8px;
   cursor: pointer;
   transition: background 0.2s;
 
   &:active {
-    background: rgba(196, 149, 106, 0.18);
+    background: rgba(150, 89, 58, 0.14);
   }
 }
 
 .prog-block-icon {
-  color: #c4956a;
+  color: #96593a;
 }
 
 .prog-block-title {
   font-size: 13px;
-  color: rgba(240, 230, 214, 0.8);
+  color: #2c2318;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .prog-card-outer {
-    animation: none;
-    background-size: 100% 100%;
-  }
   .prog-card-inner {
     animation: none;
     opacity: 1;
     transform: none;
-  }
-  .prog-radial-glow {
-    animation: none;
-    opacity: 0.12;
-  }
-  .prog-sparkle {
-    animation: none;
-    opacity: 0;
   }
 }
 </style>

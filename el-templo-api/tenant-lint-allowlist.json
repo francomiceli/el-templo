@@ -428,14 +428,6 @@
       "table": "formats"
     },
     {
-      "file": "el-templo-api/src/modules/sessions/routes.ts",
-      "table": "program_enrollments"
-    },
-    {
-      "file": "el-templo-api/src/modules/sessions/routes.ts",
-      "table": "programs"
-    },
-    {
       "file": "el-templo-api/src/modules/sessions/service.ts",
       "table": "exercises"
     },

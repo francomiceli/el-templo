@@ -418,7 +418,6 @@ export class SchedulingService {
       // weekStartDate is Monday (day 1), so offset = dayOfWeek - 1
       const slotDate = addDays(weekStartDate, row.dayOfWeek - 1);
 
-
       // Per-date cancellation: hidden entirely from members (same rationale
       // as the isActive filter — no booking is possible), flagged for admins.
       const exception = exceptionMap.get(`${row.id}-${slotDate}`);
@@ -597,6 +596,8 @@ export class SchedulingService {
         bookedAt: schema.bookings.bookedAt,
         cancelledAt: schema.bookings.cancelledAt,
         isTrial: schema.bookings.isTrial,
+        // Fase 204 D-10: origen de la reserva ('wellhub' o NULL = propia).
+        source: schema.bookings.source,
         segment: schema.memberProfiles.segment,
         createdAt: schema.users.createdAt,
         endDate: endDateExpr,
@@ -658,6 +659,7 @@ export class SchedulingService {
       specialLine: slot.specialLine,
       memberBranchId: r.memberBranchId,
       memberBranchName: r.memberBranchName ?? null,
+      source: r.source ?? null,
     }));
 
     // Query attendance records for this branch + date

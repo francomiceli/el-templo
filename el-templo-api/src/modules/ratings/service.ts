@@ -29,7 +29,7 @@ import {
 import * as schema from "../../db/schema";
 import { BadRequestError } from "../shared/errors";
 import { tenantWhere, type TenantContext } from "../shared/tenant";
-import { todayInTz } from "../shared/date-utils";
+import { DEFAULT_TENANT_TIMEZONE, todayInTz } from "../shared/date-utils";
 // La regla de atribución (día ISO, turno, semana efectiva) vive en un módulo
 // aparte porque el export de sesiones de prueba resuelve el mismo profe por
 // otro camino — ver roster-attribution.ts.
@@ -180,7 +180,22 @@ export class RatingsService {
 
     // History is read-only: a change can only take effect from the current ISO
     // week onward, so already-taught classes keep their attribution.
-    const currentWeek = isoWeekStart(new Date().toISOString().split("T")[0]);
+    // "Hoy" en la zona de la sede, no en UTC: con la fecha UTC, un domingo entre
+    // las 21 y las 24 h de Argentina la semana en curso ya contaba como pasada
+    // (2026-10-18, CI rojo en prompt-endpoint.test.ts).
+    const [branchRow] = await this.db
+      .select({ timezone: schema.branches.timezone })
+      .from(schema.branches)
+      .where(
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, branchId),
+        ),
+      )
+      .limit(1);
+    const currentWeek = isoWeekStart(
+      todayInTz(branchRow?.timezone ?? DEFAULT_TENANT_TIMEZONE),
+    );
     if (weekStartDate < currentWeek) {
       throw new BadRequestError(
         "No se puede editar el roster de una semana pasada",

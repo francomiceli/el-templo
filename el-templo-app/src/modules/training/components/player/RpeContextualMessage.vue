@@ -74,6 +74,7 @@ const message = computed<RpeMessage | null>(() => {
 
 <style scoped lang="scss">
 @import 'src/css/quasar.variables.scss';
+@import 'src/css/premium-card';
 
 .rpe-contextual {
   display: flex;
@@ -86,7 +87,8 @@ const message = computed<RpeMessage | null>(() => {
   &__text {
     font-size: 14px;
     line-height: 1.5;
-    color: rgba($primary, 0.8);
+    // Fase 197 D-16: texto sólido (antes rgba($primary, .8), 2.91:1 medido)
+    color: $pd-kicker-ink;
   }
 }
 

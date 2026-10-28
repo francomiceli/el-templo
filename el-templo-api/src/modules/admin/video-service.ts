@@ -11,6 +11,7 @@ import {
   PutObjectCommand,
   GetObjectCommand,
   DeleteObjectCommand,
+  HeadObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { eq } from "drizzle-orm";
@@ -43,6 +44,25 @@ const PRESIGN_EXPIRY_SECONDS = 900;
 
 /** FFmpeg compression timeout (120 seconds) */
 const FFMPEG_TIMEOUT_MS = 120_000;
+
+/**
+ * Fase 201 D-25: "el objeto no existe" de S3/R2 (`NotFound` en HEAD, `NoSuchKey`
+ * o HTTP 404). Se replica acá (la copia de `conquer/private-media.ts` es privada
+ * y este servicio de Ejercicios no debe importar del módulo conquer).
+ */
+function isObjectMissingError(err: unknown): boolean {
+  if (
+    err instanceof Error &&
+    (err.name === "NotFound" || err.name === "NoSuchKey")
+  ) {
+    return true;
+  }
+  if (typeof err === "object" && err !== null) {
+    const meta = (err as { $metadata?: { httpStatusCode?: number } }).$metadata;
+    return meta?.httpStatusCode === 404;
+  }
+  return false;
+}
 
 export class VideoService {
   constructor(
@@ -215,6 +235,56 @@ export class VideoService {
       .update(schema.exercises)
       .set({ videoUrl: null })
       .where(eq(schema.exercises.id, exerciseId));
+  }
+
+  // =========================================================================
+  // Fase 201 D-25: subida genérica por clave (tutoriales de Conquer)
+  // Métodos ADITIVOS: no tocan los de Ejercicios ni `processVideo`. Trabajan
+  // sobre el mismo bucket (público) pero con la clave que decide quien llama.
+  // =========================================================================
+
+  async presignPutForKey(
+    key: string,
+    contentType: string,
+    expiresSec: number,
+  ): Promise<string> {
+    return getSignedUrl(
+      this.r2,
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        ContentType: contentType,
+      }),
+      { expiresIn: expiresSec },
+    );
+  }
+
+  /** Tamaño y tipo del objeto, o null si no existe. */
+  async headObject(
+    key: string,
+  ): Promise<{ contentLength: number; contentType: string } | null> {
+    try {
+      const res = await this.r2.send(
+        new HeadObjectCommand({ Bucket: this.bucket, Key: key }),
+      );
+      return {
+        contentLength: res.ContentLength ?? 0,
+        contentType: res.ContentType ?? "",
+      };
+    } catch (err: unknown) {
+      if (isObjectMissingError(err)) return null;
+      throw err;
+    }
+  }
+
+  /** Borra el objeto. Un "no existe" no es error, cualquier otro se re-tira. */
+  async deleteObject(key: string): Promise<void> {
+    try {
+      await this.deleteFromR2(key);
+    } catch (err: unknown) {
+      if (isObjectMissingError(err)) return;
+      throw err;
+    }
   }
 
   // =========================================================================

@@ -21,10 +21,14 @@ export const attendanceStatusEnum = mysqlEnum("attendance_status", [
 // vía Access Control API (webhook checkin + POST /access/v1/validate). Estas
 // visitas NO descuentan classesRemaining, NO otorgan AURA y NO registran
 // completed_sessions. Append-last, byte-idéntico al ALTER de la 0186.
+// Fase 204 (D-19, mig 0300): 'wellhub_manual' = visita Wellhub marcada a mano
+// por el staff (Wellhub no la ve ni la paga). Mismas reglas que 'wellhub': no
+// descuenta clases, no da AURA, no registra completed_sessions.
 export const attendanceSourceEnum = mysqlEnum("attendance_source", [
   "qr",
   "manual",
   "wellhub",
+  "wellhub_manual",
 ]);
 
 export const attendance = mysqlTable(

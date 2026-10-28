@@ -21,9 +21,15 @@ import {
   LEADS_SETTINGS_KEYS,
   APP_STORE_SETTINGS_KEYS,
   TRIALS_SETTINGS_KEYS,
+  SPONSORS_SETTINGS_KEYS,
 } from "./keys";
 
 type DbInstance = MySql2Database<typeof schema>;
+
+/** Fase 199 (D-24): límite por defecto de patrocinadores activos por país. */
+export const SPONSORS_DEFAULT_MAX_ACTIVE = 6;
+const SPONSORS_MIN_MAX_ACTIVE = 1;
+const SPONSORS_MAX_MAX_ACTIVE = 50;
 
 /** Serialized on/off values persisted in system_settings.setting_value. */
 const ON = "on";
@@ -218,5 +224,42 @@ export class SettingsService {
     if (input.ios !== undefined) {
       await this.setStringValue(APP_STORE_SETTINGS_KEYS.ios, input.ios);
     }
+  }
+
+  /**
+   * Fase 199 (D-24): máximo de patrocinadores activos por país. Fallback 6
+   * cuando la fila falta, no es un entero o está fuera de 1..50.
+   */
+  async getSponsorsMaxActivePerCountry(): Promise<number> {
+    const raw = await this.getStringValue(
+      SPONSORS_SETTINGS_KEYS.maxActivePerCountry,
+    );
+    if (raw === null || !/^\d+$/.test(raw.trim())) {
+      return SPONSORS_DEFAULT_MAX_ACTIVE;
+    }
+    const n = parseInt(raw, 10);
+    return n >= SPONSORS_MIN_MAX_ACTIVE && n <= SPONSORS_MAX_MAX_ACTIVE
+      ? n
+      : SPONSORS_DEFAULT_MAX_ACTIVE;
+  }
+
+  /**
+   * Fase 199 (D-24): guarda el límite. Bajarlo por debajo de las activas
+   * actuales NO desactiva nada: solo impide nuevas activaciones.
+   */
+  async setSponsorsMaxActivePerCountry(value: number): Promise<void> {
+    if (
+      !Number.isInteger(value) ||
+      value < SPONSORS_MIN_MAX_ACTIVE ||
+      value > SPONSORS_MAX_MAX_ACTIVE
+    ) {
+      throw new BadRequestError(
+        "El límite tiene que ser un entero entre 1 y 50",
+      );
+    }
+    await this.setStringValue(
+      SPONSORS_SETTINGS_KEYS.maxActivePerCountry,
+      String(value),
+    );
   }
 }

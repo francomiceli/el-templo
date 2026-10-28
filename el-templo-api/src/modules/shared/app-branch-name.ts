@@ -23,7 +23,7 @@
  * Idempotente: si el nombre ya trae el prefijo, no lo duplica. Es deuda
  * temporal -- se retira cuando salga un build de la app con la logica corregida.
  */
-const TEMPLO_TENANT_ID = 1;
+import { TEMPLO_TENANT_ID } from "./platform";
 
 export function appBranchName<T extends string | null | undefined>(
   name: T,
@@ -32,7 +32,5 @@ export function appBranchName<T extends string | null | undefined>(
   if (!name) return name;
   // Otro gimnasio: su nombre real, sin el branding de El Templo.
   if (tenantId != null && tenantId !== TEMPLO_TENANT_ID) return name;
-  return (
-    /^El Templo\s/i.test(name) ? name : `El Templo ${name}`
-  ) as T;
+  return (/^El Templo\s/i.test(name) ? name : `El Templo ${name}`) as T;
 }

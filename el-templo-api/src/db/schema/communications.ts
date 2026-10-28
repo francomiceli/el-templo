@@ -11,6 +11,7 @@ import {
   json,
   mysqlEnum,
   boolean,
+  datetime,
   index,
   uniqueIndex,
 } from "drizzle-orm/mysql-core";
@@ -22,10 +23,18 @@ import { tenantIdColumn } from "./tenant-column";
 // el-templo-db-migrations): tiene que coincidir byte a byte con la migración.
 export const avisoKindEnum = mysqlEnum("kind", ["system", "custom"]);
 export const avisoPlacementEnum = mysqlEnum("placement", ["popup", "tarjeta"]);
-export const avisoDestinationTypeEnum = mysqlEnum("destination_type", [
+// Valores compartidos por `avisos.destination_type` y `novedades.destination_type`
+// (mismo modelo de destino). Cada tabla declara su PROPIO `mysqlEnum`: el builder
+// es mutable (`.notNull()` modifica la instancia), así que reusar uno ya marcado
+// NOT NULL haría NOT NULL a la columna nullable de `novedades`.
+export const DESTINATION_TYPE_VALUES = [
   "app_section",
   "whatsapp_sales",
-]);
+] as const;
+export const avisoDestinationTypeEnum = mysqlEnum(
+  "destination_type",
+  DESTINATION_TYPE_VALUES,
+);
 export const avisoFrequencyTypeEnum = mysqlEnum("frequency_type", [
   "once",
   "every_n_days",
@@ -41,6 +50,7 @@ export const avisoEventTypeEnum = mysqlEnum("event_type", [
   "dismissed",
   "clicked",
 ]);
+export const novedadStatusEnum = mysqlEnum("status", ["active", "paused"]);
 export const tvAvisoModeEnum = mysqlEnum("mode", [
   "manual",
   "flex_inicio",
@@ -78,9 +88,7 @@ export const avisos = mysqlTable(
     title: varchar("title", { length: 200 }).notNull(),
     body: text("body").notNull(),
     buttonText: varchar("button_text", { length: 60 }).notNull(),
-    destinationType: avisoDestinationTypeEnum
-      .notNull()
-      .default("app_section"),
+    destinationType: avisoDestinationTypeEnum.notNull().default("app_section"),
     destinationSection: varchar("destination_section", { length: 40 }),
     whatsappText: varchar("whatsapp_text", { length: 300 }),
     frequencyType: avisoFrequencyTypeEnum.notNull().default("every_n_days"),
@@ -190,3 +198,89 @@ export const avisoEventsRelations = relations(avisoEvents, ({ one }) => ({
     references: [users.id],
   }),
 }));
+
+/**
+ * `novedades` — feed de oraciones cortas de Mi Templo ("Incorporamos clases de
+ * yoga"). Tabla propia y no un `placement` de `avisos` (D-1): `avisos` exige
+ * botón, destino y frecuencia NOT NULL, y las apps viejas mostrarían estas
+ * filas en el carrusel. Gym-owned desde el día uno.
+ *
+ * Sin "visible hasta" ni vencimiento (D-3): una novedad deja de verse cuando
+ * la desplazan 3 más nuevas, se pausa o se borra. `scopeBranchIds` NULL o `[]`
+ * = todas las sedes. El destino es opcional (los 3 campos NULL = solo informa).
+ *
+ * `publishAt` es DATETIME en UTC (Drizzle lo escribe/lee como UTC): una
+ * novedad futura queda programada.
+ */
+export const novedades = mysqlTable(
+  "novedades",
+  {
+    id: int("id").primaryKey().autoincrement(),
+    // Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+    tenantId: tenantIdColumn(),
+    text: varchar("text", { length: 120 }).notNull(), // 0283: era 80 (2026-10-18, card a 2 líneas + desplazamiento)
+    scopeBranchIds: json("scope_branch_ids").$type<number[]>(),
+    // Nullable a propósito: NULL = sin destino, solo informa. Enum propio (ver
+    // DESTINATION_TYPE_VALUES).
+    destinationType: mysqlEnum("destination_type", DESTINATION_TYPE_VALUES),
+    destinationSection: varchar("destination_section", { length: 40 }),
+    whatsappText: varchar("whatsapp_text", { length: 300 }),
+    publishAt: datetime("publish_at").notNull(),
+    status: novedadStatusEnum.notNull().default("active"),
+    // 0297 — push opcional. `pushRequested` lo pide el admin; `pushTitle` NULL
+    // = título por defecto (nombre del gimnasio, `tenants.name`) al enviar;
+    // `pushQueuedAt` lo estampa el tick de notificaciones al reclamar la
+    // novedad (UPDATE condicional = idempotencia) y congela los 3 campos.
+    pushRequested: boolean("push_requested").notNull().default(false),
+    pushTitle: varchar("push_title", { length: 50 }),
+    pushQueuedAt: datetime("push_queued_at"),
+    createdBy: int("created_by").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => [
+    index("idx_novedades_tenant_status_publish").on(
+      table.tenantId,
+      table.status,
+      table.publishAt,
+    ),
+    index("idx_novedades_tenant_push").on(
+      table.tenantId,
+      table.pushRequested,
+      table.pushQueuedAt,
+    ),
+  ],
+);
+
+/**
+ * `novedad_views` — una fila por (novedad, socio) (D-5). Existe la fila =
+ * el socio la vio en pantalla (se acaba el "NUEVO"); `clickedAt` se completa
+ * al tocarla (solo tiene destino si la novedad lo tiene). Alimenta las
+ * métricas "vistas" y "clics" del admin. Cae en cascada al borrar la novedad
+ * o el socio.
+ */
+export const novedadViews = mysqlTable(
+  "novedad_views",
+  {
+    id: int("id").primaryKey().autoincrement(),
+    // Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
+    tenantId: tenantIdColumn(),
+    novedadId: int("novedad_id")
+      .references(() => novedades.id, { onDelete: "cascade" })
+      .notNull(),
+    userId: int("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    firstSeenAt: datetime("first_seen_at").notNull(),
+    clickedAt: datetime("clicked_at"),
+  },
+  (table) => [
+    uniqueIndex("uq_novedad_views_novedad_user").on(
+      table.novedadId,
+      table.userId,
+    ),
+    index("idx_novedad_views_user").on(table.userId),
+  ],
+);

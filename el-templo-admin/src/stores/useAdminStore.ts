@@ -18,6 +18,11 @@ export const useAdminStore = defineStore('admin', () => {
   // Pelotitas del grupo Landing: leads del sitio público todavía en estado
   // "new" (Academy, Labs, Franquicias). Un solo request para las tres.
   const landingInbox = ref<LandingInboxCounts>({ academy: 0, labs: 0, franchise: 0 });
+  // Pelotita de Conquer (fase 201 D-12): alumnos que pidieron el desbloqueo y todavía no
+  // fueron activados. Solo la piden owner/admin.
+  const conquerRequestsCount = ref(0);
+  // Correcciones con video sin responder (fase 202 D-26). Suma a la pelotita de Conquer (DA-46).
+  const conquerCorrectionsCount = ref(0);
 
   async function fetchPendingCount() {
     try {
@@ -51,6 +56,26 @@ export const useAdminStore = defineStore('admin', () => {
     }
   }
 
+  async function fetchConquerRequestsCount() {
+    try {
+      const { data } = await api.get<{ count: number }>('/admin/conquer/requests/count');
+      conquerRequestsCount.value = data.count;
+    } catch {
+      // Silently fail - badge will show nothing
+      conquerRequestsCount.value = 0;
+    }
+  }
+
+  async function fetchConquerCorrectionsCount() {
+    try {
+      const { data } = await api.get<{ count: number }>('/admin/conquer/corrections/count');
+      conquerCorrectionsCount.value = data.count;
+    } catch {
+      // Silently fail - badge will show nothing
+      conquerCorrectionsCount.value = 0;
+    }
+  }
+
   async function checkSessionCoverage() {
     try {
       const { data } = await api.get<{
@@ -74,9 +99,13 @@ export const useAdminStore = defineStore('admin', () => {
     weeksAhead,
     appTrialsPendingCount,
     landingInbox,
+    conquerRequestsCount,
+    conquerCorrectionsCount,
     fetchPendingCount,
     fetchAppTrialsPendingCount,
     fetchLandingInbox,
+    fetchConquerRequestsCount,
+    fetchConquerCorrectionsCount,
     checkSessionCoverage,
   };
 });

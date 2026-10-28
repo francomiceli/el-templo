@@ -1,0 +1,662 @@
+// Fase 201 (Conquer v2): chequeo local SIN dependencias ni vitest.
+//
+// Uso: node --no-warnings test/conquer/oracle-check.mjs
+//
+// Secciones:
+//   1. oraculo: carga conquer-app.html con node:vm (oracle.ts) y verifica un caso conocido.
+//   2. semilla (plan 201-02): paridad de 0292_conquer_catalog_seed.sql con LAD y DIAS.
+//   3. motor (plan 201-03): paridad de engine.ts con next() del oraculo, dorados,
+//      hoja Simulacion, calibracion y A1/A3/A6/A8 (imprime MOTOR OK (<n> casos)).
+//   4. reglas (plan 201-04): calendario, recortes, combos, paso de nivel y encendido
+//      muscular (12 casos, uno por funcion; imprime REGLAS OK).
+//   5. anexo (plan 201-25): arma el catalogo en memoria desde 0292 + 0293 y lo
+//      compara con el anexo de Nacho (fixtures/conquer-catalogo.md) con el mismo
+//      annexDiffs que usa el test de CI (imprime ANEXO OK).
+//      Los planes siguientes suman sus secciones al final, antes del resumen.
+//
+// Imprime ORACULO OK / SEMILLA OK / MOTOR OK / REGLAS OK / ANEXO OK (o la lista de diferencias) y sale con codigo 1 si algo falla.
+import { existsSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
+import { loadOracle } from "./oracle.ts";
+import { annexDiffs, loadAnnex } from "./annex.ts";
+import {
+  DEFAULT_INC,
+  accuracy,
+  calibracion,
+  caidaE1,
+  nextTarget,
+  pickSubir,
+  selectReales,
+} from "../../src/modules/conquer/engine.ts";
+import {
+  blockWeek,
+  comboSubirReady,
+  levelUpStreak,
+  mondayOfIso,
+  nextPendingDay,
+} from "../../src/modules/conquer/calendar.ts";
+import {
+  exerciseWorked,
+  lightZones,
+} from "../../src/modules/conquer/lighting.ts";
+import { alertText } from "../../src/modules/conquer/alert-text.ts";
+import {
+  allowedModes,
+  cutProposal,
+  openingTarget,
+  saturdayPlan,
+  worstLight,
+} from "../../src/modules/conquer/rules.ts";
+
+const HERE = new URL(".", import.meta.url);
+const FIXTURE = fileURLToPath(new URL("fixtures/conquer-app.html", HERE));
+const SEED_SQL = fileURLToPath(
+  new URL("../../src/db/migrations/0292_conquer_catalog_seed.sql", HERE),
+);
+const ANNEX_SQL = fileURLToPath(
+  new URL("../../src/db/migrations/0293_conquer_catalogo_anexo.sql", HERE),
+);
+const ANNEX_MD = fileURLToPath(new URL("fixtures/conquer-catalogo.md", HERE));
+
+/** Salida por stdout (sin console: el chequeo es un CLI, no logging de la app). */
+function out(line) {
+  process.stdout.write(`${line}\n`);
+}
+
+const oracle = loadOracle(FIXTURE);
+let failed = false;
+
+// ---------------------------------------------------------------- 1. oraculo
+const probe = oracle.next([6, 7, 8, 8], "reps");
+if (probe.obj === 3 && probe.est === "subir") {
+  out("ORACULO OK");
+} else {
+  failed = true;
+  out(`ORACULO FALLA: next([6,7,8,8],"reps") = ${JSON.stringify(probe)}`);
+}
+
+// ---------------------------------------------------------------- 2. semilla
+function seedDiffs(sql) {
+  const diffs = [];
+  const lines = sql.split("\n");
+
+  const rungRe =
+    /^INSERT IGNORE INTO conquer_rungs .*SELECT 1, l\.id, '([^']+)', '([^']+)', (\d+), (\d), (\d), (\d) FROM conquer_ladders l WHERE l\.tenant_id = 1 AND l\.code = '([^']+)'/;
+  const exerciseRe =
+    /^INSERT IGNORE INTO conquer_exercises .*SELECT 1, '([^']+)', '([^']+)', l\.id, '([^']+)', '(\[.*?\])', '(\[.*?\])', (\d+), (\d) FROM conquer_ladders l WHERE l\.tenant_id = 1 AND l\.code = '([^']+)'/;
+  const templateRe =
+    /^INSERT IGNORE INTO conquer_template_days .*VALUES \(1, (\d), '([^']+)', '([^']+)', (\d+), '([^']*)', '(\[.*?\])', (NULL|'[^']*')\)/;
+
+  // code de escalera -> [{ code, name, position }]
+  const rungsByLadder = new Map();
+  const exercises = [];
+  const templates = [];
+  for (const line of lines) {
+    let m = rungRe.exec(line);
+    if (m) {
+      const list = rungsByLadder.get(m[7]) ?? [];
+      list.push({ code: m[1], name: m[2], position: Number(m[3]) });
+      rungsByLadder.set(m[7], list);
+      continue;
+    }
+    m = exerciseRe.exec(line);
+    if (m) {
+      exercises.push({
+        code: m[1],
+        name: m[2],
+        unit: m[3],
+        muscles: JSON.parse(m[4]),
+        startSteps: JSON.parse(m[5]),
+        ladder: m[8],
+      });
+      continue;
+    }
+    m = templateRe.exec(line);
+    if (m) {
+      templates.push({
+        daysCount: Number(m[1]),
+        dayKey: m[2],
+        label: m[3],
+        finisher: m[5],
+        codes: JSON.parse(m[6]),
+        openingComboKey: m[7] === "NULL" ? null : m[7].slice(1, -1),
+      });
+    }
+  }
+
+  // Escaleras: mismo set de codes y mismo orden de peldanos que LAD.
+  const ladderCodes = [...rungsByLadder.keys()].sort();
+  const oracleCodes = Object.keys(oracle.LAD).sort();
+  if (ladderCodes.join(",") !== oracleCodes.join(",")) {
+    diffs.push(
+      `escaleras: semilla [${ladderCodes}] vs oraculo [${oracleCodes}]`,
+    );
+  }
+  const nameByRung = new Map(); // "escalera/rungCode" -> name
+  for (const [ladder, expected] of Object.entries(oracle.LAD)) {
+    const rungs = [...(rungsByLadder.get(ladder) ?? [])].sort(
+      (a, b) => a.position - b.position,
+    );
+    const names = rungs.map((r) => r.name);
+    if (names.join("|") !== expected.join("|")) {
+      diffs.push(
+        `peldanos de ${ladder}: semilla [${names.join("|")}] vs oraculo [${expected.join("|")}]`,
+      );
+    }
+    if (!rungs.every((r, i) => r.position === i)) {
+      diffs.push(`posiciones de ${ladder} no son 0..n-1`);
+    }
+    for (const r of rungs) nameByRung.set(`${ladder}/${r.code}`, r.name);
+  }
+
+  // Tabla de arranque: plantillas de 4 dias contra DIAS.
+  for (const [dayName, day] of Object.entries(oracle.DIAS)) {
+    const tpl = templates.find((t) => t.daysCount === 4 && t.label === dayName);
+    if (!tpl) {
+      diffs.push(`plantilla de 4 dias "${dayName}" no existe`);
+      continue;
+    }
+    if (tpl.finisher !== day.fin) {
+      diffs.push(`finisher de ${dayName}: "${tpl.finisher}" vs "${day.fin}"`);
+    }
+    if (tpl.openingComboKey !== tpl.dayKey || !oracle.CMB[dayName]) {
+      diffs.push(`combo de apertura de ${dayName}`);
+    }
+    if (tpl.codes.length !== day.ex.length) {
+      diffs.push(
+        `${dayName}: ${tpl.codes.length} ejercicios vs ${day.ex.length}`,
+      );
+      continue;
+    }
+    day.ex.forEach((oex, i) => {
+      const ex = exercises.find((e) => e.code === tpl.codes[i]);
+      if (!ex) {
+        diffs.push(`${dayName}[${i}]: ejercicio ${tpl.codes[i]} no existe`);
+        return;
+      }
+      if (ex.name !== oex.n)
+        diffs.push(`${dayName}[${i}] nombre ${ex.name} vs ${oex.n}`);
+      if (ex.ladder !== oex.lad)
+        diffs.push(`${dayName}[${i}] escalera ${ex.ladder} vs ${oex.lad}`);
+      if (ex.unit !== oex.tipo)
+        diffs.push(`${dayName}[${i}] unidad ${ex.unit} vs ${oex.tipo}`);
+      const got = ["e1", "e2", "e3", "hold"].map((key) => {
+        const s = ex.startSteps.find((x) => x.step === key);
+        return s
+          ? `${nameByRung.get(`${ex.ladder}/${s.rung}`)}:${s.mode}`
+          : "?";
+      });
+      const want = [
+        ...oex.st.map(([rung, mode]) => `${rung}:${mode}`),
+        `${oex.hold}:hold`,
+      ];
+      if (got.join("|") !== want.join("|")) {
+        diffs.push(
+          `${dayName}[${i}] arranque [${got.join("|")}] vs [${want.join("|")}]`,
+        );
+      }
+    });
+  }
+  return diffs;
+}
+
+if (!existsSync(SEED_SQL)) {
+  out("SEMILLA PENDIENTE");
+} else {
+  const diffs = seedDiffs(readFileSync(SEED_SQL, "utf8"));
+  if (diffs.length === 0) {
+    out("SEMILLA OK");
+  } else {
+    failed = true;
+    out("SEMILLA FALLA:");
+    for (const d of diffs) out(`  - ${d}`);
+  }
+}
+
+// ------------------------------------------------- 3. motor (plan 201-03)
+
+const ESTADO_DEL_ORACULO = {
+  "sin datos": "sin_datos",
+  rango: "rango",
+  techo1: "techo1",
+  bajo: "bajo",
+  subir: "subir",
+};
+
+function motorDiffs() {
+  const diffs = [];
+  let cases = 0;
+  const same = (label, got, want) => {
+    cases += 1;
+    if (JSON.stringify(got) !== JSON.stringify(want)) {
+      diffs.push(
+        `${label}: motor=${JSON.stringify(got)} esperado=${JSON.stringify(want)}`,
+      );
+    }
+  };
+
+  // Diferencial completo: todas las secuencias de 0 a 4 marcas, por unidad.
+  const alphabet = [0, 2, 3, 5, 6, 7, 8, 9, 12];
+  let level = [[]];
+  const sequences = [[]];
+  for (let len = 1; len <= 4; len++) {
+    const next = [];
+    for (const seq of level) for (const v of alphabet) next.push([...seq, v]);
+    sequences.push(...next);
+    level = next;
+  }
+  for (const unit of ["reps", "s"]) {
+    for (const seq of sequences) {
+      const want = oracle.next(seq, unit);
+      same(
+        `diferencial ${unit} [${seq}]`,
+        nextTarget(seq, unit, DEFAULT_INC[unit]),
+        { target: want.obj, estado: ESTADO_DEL_ORACULO[want.est] },
+      );
+    }
+  }
+
+  // Dorados clave (research 9.1).
+  const dorados = [
+    [[6, 7, 8, 8], "reps", 3, "subir"],
+    [[12, 12], "s", 4, "subir"],
+    [[8, 7], "reps", 8, "rango"],
+    [[2], "reps", 3, "bajo"],
+    [[10, 12], "s", 12, "techo1"],
+    [[], "reps", 3, "sin_datos"],
+  ];
+  for (const [values, unit, target, estado] of dorados) {
+    same(
+      `dorado ${unit} [${values}]`,
+      nextTarget(values, unit, DEFAULT_INC[unit]),
+      { target, estado },
+    );
+  }
+
+  // Hoja Simulacion del xlsx: cambio de progresion tras la 5a sesion.
+  const reales = [5, 6, 7, 8, 8, 3, 4, 5, 6, 7, 8, 8];
+  const day = (i) => `2026-03-${String(i + 1).padStart(2, "0")}`;
+  const rows = [];
+  let rungId = 1;
+  let sinceDate = null;
+  const targets = [];
+  const estados = [];
+  reales.forEach((value, i) => {
+    if (i === 5) {
+      rungId = 2;
+      sinceDate = day(4);
+    }
+    rows.push({ date: day(i), value, rungId, prevTarget: null });
+    const marks = selectReales(rows, sinceDate, rungId).map((r) => r.value);
+    const res = nextTarget(marks, "reps", 1);
+    targets.push(res.target);
+    estados.push(res.estado);
+  });
+  same("simulacion objetivos", targets, [6, 7, 8, 8, 3, 4, 5, 6, 7, 8, 8, 3]);
+  same("simulacion estados", estados, [
+    "rango",
+    "rango",
+    "rango",
+    "techo1",
+    "subir",
+    "rango",
+    "rango",
+    "rango",
+    "rango",
+    "rango",
+    "techo1",
+    "subir",
+  ]);
+
+  // Calibracion (3 casos por unidad en los bordes).
+  same("calibracion reps 2", calibracion(2, "reps"), "bajar");
+  same("calibracion reps 5", calibracion(5, "reps"), "quedarse");
+  same("calibracion reps 6", calibracion(6, "reps"), "subir");
+  same("calibracion s 3", calibracion(3, "s"), "bajar");
+  same("calibracion s 8", calibracion(8, "s"), "quedarse");
+  same("calibracion s 9", calibracion(9, "s"), "subir");
+
+  // A1: el dia del cambio.
+  const a1 = (date, rung) => [
+    { date, value: 3, rungId: rung, prevTarget: null },
+  ];
+  same(
+    "A1 mismo dia, peldano nuevo",
+    selectReales(a1("2026-03-05", 2), "2026-03-05", 2).length,
+    1,
+  );
+  same(
+    "A1 mismo dia, peldano viejo",
+    selectReales(a1("2026-03-05", 1), "2026-03-05", 2).length,
+    0,
+  );
+
+  // A3: un SUBIR por ejercicio, en orden e1, e2, e3.
+  same("A3 e1+e2", pickSubir({ e1: "subir", e2: "subir", e3: "rango" }), "e1");
+  same("A3 e2+e3", pickSubir({ e1: "rango", e2: "subir", e3: "subir" }), "e2");
+  same(
+    "A3 ninguno",
+    pickSubir({ e1: "rango", e2: "rango", e3: "rango" }),
+    null,
+  );
+
+  // A6: caida del E1.
+  same("A6 5,6,4,3", caidaE1([5, 6, 4, 3]), true);
+  same("A6 5,6,4,5", caidaE1([5, 6, 4, 5]), false);
+  same("A6 9,8,7", caidaE1([9, 8, 7]), false);
+
+  // A8: acierto sobre todo el historial.
+  same(
+    "A8 acierto",
+    accuracy([
+      { value: 7, prevTarget: 7 },
+      { value: 5, prevTarget: 8 },
+      { value: 9, prevTarget: 8 },
+      { value: 6, prevTarget: null },
+    ]),
+    { n: 3, hits: 2, pct: 67, delta: -0.7 },
+  );
+
+  return { diffs, cases };
+}
+
+{
+  const { diffs, cases } = motorDiffs();
+  if (diffs.length === 0) {
+    out(`MOTOR OK (${cases} casos)`);
+  } else {
+    failed = true;
+    out(`MOTOR FALLA (${diffs.length} de ${cases}):`);
+    for (const d of diffs.slice(0, 40)) out(`  - ${d}`);
+  }
+}
+
+// ---------------------------------------------------------------- 4. reglas
+function reglasDiffs() {
+  const diffs = [];
+  const same = (label, got, want) => {
+    if (JSON.stringify(got) !== JSON.stringify(want)) {
+      diffs.push(
+        `${label}: obtuve ${JSON.stringify(got)}, esperaba ${JSON.stringify(want)}`,
+      );
+    }
+  };
+  const w = (monday, hit) => ({ monday, hit });
+  const wk = (monday, daysDone, maxPain) => ({ monday, daysDone, maxPain });
+  const plan = ["plancha", "front", "vertical", "dominadas", "sabado"];
+
+  // calendar.ts (D-16, A11, D-14, A13)
+  same("mondayOfIso domingo", mondayOfIso("2026-10-25"), "2026-10-19");
+  same("mondayOfIso cruce de anio", mondayOfIso("2027-01-01"), "2026-12-28");
+  same("blockWeek +14 dias", blockWeek("2026-10-21", "2026-11-04"), 3);
+  same("nextPendingDay todo hecho", nextPendingDay(plan, plan), null);
+  same(
+    "nextPendingDay salta lo hecho",
+    nextPendingDay(plan, ["plancha", "vertical"]),
+    "front",
+  );
+  same(
+    "comboSubirReady con hueco",
+    comboSubirReady([w("2026-10-05", true), w("2026-10-19", true)], 2),
+    false,
+  );
+  same(
+    "comboSubirReady consecutivas",
+    comboSubirReady([w("2026-10-12", true), w("2026-10-19", true)], 2),
+    true,
+  );
+  same(
+    "levelUpStreak molestia corta",
+    levelUpStreak(
+      [wk("2026-10-05", 4, 0), wk("2026-10-12", 4, 4), wk("2026-10-19", 4, 0)],
+      4,
+      4,
+      "2026-10-19",
+    ),
+    1,
+  );
+
+  // rules.ts (5.1, 3.2, 5). El arranque por nivel (8.2) ya no esta: 201-25 DA-5.
+  same("cutProposal toro 4", cutProposal("toro", 4)?.stage, 5);
+  // el anexo 8 manda sobre la sintesis A12: Toro no tiene el paso 6 (201-26 DA-12).
+  same("cutProposal toro 5", cutProposal("toro", 5), null);
+  same("cutProposal toro 7", cutProposal("toro", 7), null);
+  same("cutProposal novillo", cutProposal("novillo", 0)?.kind, "bajar_escalon");
+  same("cutProposal ternero", cutProposal("ternero", 3)?.kind, "bajar_escalon");
+  // allowedModes (anexo 1, 201-26 DA-10): isometricos y hold final solo hold.
+  same("allowedModes s e1", allowedModes("s", "e1"), ["hold"]);
+  same("allowedModes s e3", allowedModes("s", "e3"), ["hold"]);
+  same("allowedModes reps e2", allowedModes("reps", "e2"), [
+    "completa",
+    "negativa",
+  ]);
+  same("allowedModes reps hold", allowedModes("reps", "hold"), ["hold"]);
+  same("allowedModes s hold", allowedModes("s", "hold"), ["hold"]);
+  // alert-text.ts (anexo 8, 201-26 DA-13): las frases con sus datos.
+  same(
+    "alertText molestia",
+    alertText(
+      "molestia",
+      { pain: 6, date: "2026-10-21", dayKey: "plancha", dayLabel: "Plancha" },
+      "Ana",
+    ),
+    "Molestia 6/10 en Plancha el 21/10",
+  );
+  same(
+    "alertText caida",
+    alertText("caida", { exerciseName: "HSPU" }, "Ana"),
+    "El E1 de HSPU bajó 2 sesiones seguidas",
+  );
+  same(
+    "alertText tope",
+    alertText("tope_escalera", { exerciseName: "HSPU", step: "e3" }, "Ana"),
+    "HSPU E3 llegó al tope de su escalera",
+  );
+  same("openingTarget semana 2", openingTarget("toro", 2, 0), 3);
+  same("openingTarget semana 3", openingTarget("toro", 3, 0), 4);
+  same("openingTarget etapa 4", openingTarget("toro", 3, 4), 3);
+  same("openingTarget etapa 5", openingTarget("toro", 3, 5), null);
+  same("saturdayPlan etapa 2", saturdayPlan("toro", 2)?.target, 8);
+  same("saturdayPlan etapa 3", saturdayPlan("toro", 3), null);
+  same(
+    "worstLight amarillo",
+    worstLight(["paso_nivel", "inactivo"]),
+    "amarillo",
+  );
+  same("worstLight vacio", worstLight([]), "ok");
+
+  // lighting.ts (D-13)
+  same(
+    "exerciseWorked solo ceros",
+    exerciseWorked({ e1: 0, e2: 0, e3: 0 }),
+    false,
+  );
+  same("exerciseWorked e3", exerciseWorked({ e1: 0, e2: 0, e3: 1 }), true);
+  const tri = { zone: "triceps", role: "secundario" };
+  same(
+    "lightZones secundaria con un ejercicio",
+    lightZones([{ muscles: [tri], worked: true }]),
+    { primary: [], secondary: [] },
+  );
+  same(
+    "lightZones secundaria con dos ejercicios",
+    lightZones([
+      { muscles: [tri], worked: true },
+      { muscles: [tri], worked: true },
+    ]),
+    { primary: [], secondary: ["triceps"] },
+  );
+
+  return diffs;
+}
+
+{
+  const diffs = reglasDiffs();
+  if (diffs.length === 0) {
+    out("REGLAS OK");
+  } else {
+    failed = true;
+    out(`REGLAS FALLA (${diffs.length}):`);
+    for (const d of diffs) out(`  - ${d}`);
+  }
+}
+
+// ------------------------------------------------- 5. anexo (plan 201-25)
+
+// Plantillas de linea de las migraciones 0292 y 0293 (un statement de datos por
+// linea, ver los encabezados de los .sql).
+const LADDER_INSERT_RE =
+  /^INSERT IGNORE INTO conquer_ladders .*VALUES \(1, '([^']+)', '([^']+)', (\d+), (\d)\);/;
+const LADDER_UPDATE_RE =
+  /^UPDATE conquer_ladders SET name = '([^']+)', sort_order = (\d+), is_active = (\d) WHERE tenant_id = 1 AND code = '([^']+)';/;
+const RUNG_INSERT_RE =
+  /^INSERT IGNORE INTO conquer_rungs .*SELECT 1, l\.id, '([^']+)', '([^']+)', (\d+), (\d), (\d), (\d) FROM conquer_ladders l WHERE l\.tenant_id = 1 AND l\.code = '([^']+)'/;
+const EXERCISE_INSERT_RE =
+  /^INSERT IGNORE INTO conquer_exercises .*SELECT 1, '([^']+)', '([^']+)', l\.id, '([^']+)', '(\[.*?\])', '(\[.*?\])', (\d+), (\d) FROM conquer_ladders l WHERE l\.tenant_id = 1 AND l\.code = '([^']+)'/;
+const EXERCISE_UPDATE_RE =
+  /^UPDATE conquer_exercises SET ladder_id = \(SELECT l\.id FROM conquer_ladders l WHERE l\.tenant_id = 1 AND l\.code = '([^']+)'\), hold_ladder_id = (NULL|\(SELECT h\.id FROM conquer_ladders h WHERE h\.tenant_id = 1 AND h\.code = '([^']+)'\)), brazos_rectos = (\d), muscles = '(\[.*?\])', start_steps_novillo = '(\[.*?\])', start_steps_ternero = '(\[.*?\])' WHERE tenant_id = 1 AND code = '([^']+)';/;
+const TEMPLATE_INSERT_RE =
+  /^INSERT IGNORE INTO conquer_template_days .*VALUES \(1, (\d), '([^']+)', '([^']+)', (\d+), '([^']*)', '(\[.*?\])', (NULL|'[^']*')\)/;
+const TEMPLATE_UPDATE_RE =
+  /^UPDATE conquer_template_days SET finisher_text = '([^']*)' WHERE tenant_id = 1 AND days_count = (\d) AND day_key = '([^']+)';/;
+
+/** Aplica una linea de migracion al modelo en memoria (INSERT IGNORE no pisa). */
+function applyModelLine(model, line) {
+  let m = LADDER_INSERT_RE.exec(line);
+  if (m) {
+    if (!model.ladders.has(m[1])) {
+      model.ladders.set(m[1], {
+        code: m[1],
+        name: m[2],
+        isActive: m[4] === "1",
+        rungs: [],
+      });
+    }
+    return;
+  }
+  m = LADDER_UPDATE_RE.exec(line);
+  if (m) {
+    const ladder = model.ladders.get(m[4]);
+    if (ladder) {
+      ladder.name = m[1];
+      ladder.isActive = m[3] === "1";
+    }
+    return;
+  }
+  m = RUNG_INSERT_RE.exec(line);
+  if (m) {
+    const ladder = model.ladders.get(m[7]);
+    if (ladder && !ladder.rungs.some((r) => r.code === m[1])) {
+      ladder.rungs.push({
+        code: m[1],
+        name: m[2],
+        position: Number(m[3]),
+        unilateral: m[5] === "1",
+        isActive: m[6] === "1",
+      });
+    }
+    return;
+  }
+  m = EXERCISE_INSERT_RE.exec(line);
+  if (m) {
+    model.exercises.set(m[1], {
+      code: m[1],
+      name: m[2],
+      unit: m[3],
+      ladderCode: m[8],
+      holdLadderCode: null,
+      brazosRectos: false,
+      muscles: JSON.parse(m[4]),
+      startSteps: { toro: JSON.parse(m[5]), novillo: [], ternero: [] },
+    });
+    return;
+  }
+  m = EXERCISE_UPDATE_RE.exec(line);
+  if (m) {
+    const ex = model.exercises.get(m[8]);
+    if (ex) {
+      ex.ladderCode = m[1];
+      ex.holdLadderCode = m[2] === "NULL" ? null : m[3];
+      ex.brazosRectos = m[4] === "1";
+      ex.muscles = JSON.parse(m[5]);
+      ex.startSteps.novillo = JSON.parse(m[6]);
+      ex.startSteps.ternero = JSON.parse(m[7]);
+    }
+    return;
+  }
+  m = TEMPLATE_INSERT_RE.exec(line);
+  if (m) {
+    model.templates.push({
+      daysCount: Number(m[1]),
+      dayKey: m[2],
+      label: m[3],
+      sortOrder: Number(m[4]),
+      finisherText: m[5],
+      exerciseCodes: JSON.parse(m[6]),
+    });
+    return;
+  }
+  m = TEMPLATE_UPDATE_RE.exec(line);
+  if (m) {
+    const tpl = model.templates.find(
+      (t) => t.daysCount === Number(m[2]) && t.dayKey === m[3],
+    );
+    if (tpl) tpl.finisherText = m[1];
+  }
+}
+
+/** Catalogo en memoria tal como queda tras aplicar 0292 y luego 0293. */
+function buildCatalogModel(sqlTexts) {
+  const model = {
+    ladders: new Map(),
+    exercises: new Map(),
+    templates: [],
+  };
+  for (const sql of sqlTexts) {
+    for (const line of sql.split("\n")) applyModelLine(model, line);
+  }
+  return {
+    ladders: [...model.ladders.values()],
+    exercises: [...model.exercises.values()],
+    templates: model.templates,
+  };
+}
+
+/** Chequeos de forma de la 0293: 111 statements y ningun `;` en comentarios. */
+function annexSqlShapeDiffs(sql) {
+  const diffs = [];
+  const breakpoints = sql
+    .split("\n")
+    .filter((l) => l.startsWith("--> statement-breakpoint")).length;
+  if (breakpoints !== 110) {
+    diffs.push(`0293: ${breakpoints} statement-breakpoint, esperaba 110`);
+  }
+  for (const [i, l] of sql.split("\n").entries()) {
+    if (/^\s*--/.test(l) && l.includes(";")) {
+      diffs.push(`0293 linea ${i + 1}: punto y coma en un comentario`);
+    }
+  }
+  return diffs;
+}
+
+if (!existsSync(ANNEX_SQL)) {
+  failed = true;
+  out("ANEXO PENDIENTE");
+} else {
+  const seedSql = readFileSync(SEED_SQL, "utf8");
+  const annexSql = readFileSync(ANNEX_SQL, "utf8");
+  const diffs = [
+    ...annexSqlShapeDiffs(annexSql),
+    ...annexDiffs(loadAnnex(ANNEX_MD), buildCatalogModel([seedSql, annexSql])),
+  ];
+  if (diffs.length === 0) {
+    out("ANEXO OK");
+  } else {
+    failed = true;
+    out(`ANEXO FALLA (${diffs.length}):`);
+    for (const d of diffs.slice(0, 40)) out(`  - ${d}`);
+  }
+}
+
+if (failed) process.exit(1);

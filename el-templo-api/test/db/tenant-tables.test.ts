@@ -96,7 +96,7 @@ describe("tenant-tables — clasificación canónica de tablas (COL-01)", () => 
     ).toEqual([]);
   });
 
-  it("los conteos son 103 gym-owned + 4 exentas y cubren las 107 tablas del schema", () => {
+  it("los conteos son 121 gym-owned + 5 exentas y cubren las 126 tablas del schema", () => {
     // Fase 159 (SEM-05) sumó `session_week_regime` a GYM_OWNED_TABLES (era 87,
     // ver el comentario de src/db/tenant-tables.ts:32-41): 87 -> 88, 91 -> 92.
     // Fase 179 sumó `referral_partners`, `partner_referrals`,
@@ -115,6 +115,18 @@ describe("tenant-tables — clasificación canónica de tablas (COL-01)", () => 
     // Prueba, brief Nacho, mig 0241, nace strict): 98 -> 99, 102 -> 103.
     // 2026-10: sumó `invitations` (fase 194, mig 0255, nace strict en el módulo
     // `referrals`): 99 -> 100, 103 -> 104.
+    // 2026-10-14 sumó `novedades`, `novedad_views` (Novedades en Mi Templo, mig
+    // 0275, nacen strict en `communications`): 100 -> 102, 104 -> 106.
+    // 2026-10-15 sumó `sponsor_views` (gym-owned) y `sponsor_brands` (exenta) —
+    // fase 199, mig 0279: 102 -> 103, 4 -> 5, 106 -> 108.
+    // 2026-10-20 sumó `extra_blocks_completed` (fase 197, mig 0286, nace strict
+    // en `free-blocks`): 103 -> 104, 108 -> 109.
+    // 2026-10-21 sumó las 10 tablas `conquer_*` (fase 201, migs 0290-0291, nacen
+    // strict en `conquer`): 104 -> 114, 109 -> 119.
+    // 2026-10-26 sumó `conquer_corrections` y `conquer_tutorials` (fase 202, migs
+    // 0298-0299, nacen strict en `conquer`): 114 -> 116, 119 -> 121.
+    // 2026-10-27 sumó `wellhub_conversions` (fase 204, mig 0300, nace strict en
+    // `wellhub`): 116 -> 117, 121 -> 122.
     // 2026-10-07 (fase 195-07) sumó `signup_attributions` (atribución propia de
     // altas, mig 0272, nace strict en el módulo nuevo `marketing`): +1.
     // 2026-10-07 (fase 195-08) sumó `meta_capi_events` (outbox de CAPI) y
@@ -122,13 +134,14 @@ describe("tenant-tables — clasificación canónica de tablas (COL-01)", () => 
     // `marketing`: +2.
     // 2026-10-07 (fase 195-09) sumó `search_console_stats` (estadísticas de Google
     // Search Console, mig 0274, nace strict en el módulo `marketing`): +1.
-    // Total con fase 194 (invitations): 99 + 1 + 4 = 104 gym-owned, 108 tablas.
-    expect(GYM_OWNED_TABLES.length).toBe(104);
-    expect(TENANT_EXEMPT_TABLES.length).toBe(4);
+    // Integración de la 195 con master (2026-10-28): las 4 tablas de `marketing`
+    // sobre los conteos de master: 117 -> 121 gym-owned, 122 -> 126 tablas.
+    expect(GYM_OWNED_TABLES.length).toBe(121);
+    expect(TENANT_EXEMPT_TABLES.length).toBe(5);
     // Sin duplicados dentro de cada lista.
     expect(gymOwned.size).toBe(GYM_OWNED_TABLES.length);
     expect(exempt.size).toBe(TENANT_EXEMPT_TABLES.length);
-    expect(schemaTables.size).toBe(108);
+    expect(schemaTables.size).toBe(126);
     expect(gymOwned.size + exempt.size).toBe(schemaTables.size);
   });
 
@@ -405,8 +418,8 @@ describe("TENANT_STRICT_MODULES (fase 170, D-05/D-06)", () => {
    * `campaigns`; `improvement_proposals`; `device_tokens`,
    * `notification_preferences`, `notification_templates`,
    * `pending_notifications`; `referral_credits`, `referral_cta_clicks`,
-   * `referrals`; `wellhub_bookings`, `wellhub_classes`, `wellhub_events`,
-   * `wellhub_slots`. `analytics` NO está: no posee ninguna tabla propia
+   * `referrals`; `wellhub_bookings`, `wellhub_classes`, `wellhub_conversions`
+   * (fase 204), `wellhub_events`, `wellhub_slots`. `analytics` NO está: no posee ninguna tabla propia
    * (D-01, fase 175.1) — ver el docblock de `TENANT_STRICT_MODULES`.
    * `aura_balances` / `aura_transactions` NO están: las escribe gamification y
    * su throw llega con la adopción de ESE módulo.
@@ -449,7 +462,31 @@ describe("TENANT_STRICT_MODULES (fase 170, D-05/D-06)", () => {
       "campaign_unsubscribes",
       "campaigns",
     ],
-    communications: ["aviso_events", "avisos", "tv_avisos"],
+    // 2026-10-14: `novedades` y `novedad_views` (mig 0275) nacen strict acá.
+    communications: [
+      "aviso_events",
+      "avisos",
+      "novedad_views",
+      "novedades",
+      "tv_avisos",
+    ],
+    // Fase 201 (Conquer v2): el módulo nace strict.
+    conquer: [
+      "conquer_alerts",
+      "conquer_body_checks",
+      "conquer_corrections",
+      "conquer_exercises",
+      "conquer_ladders",
+      "conquer_members",
+      "conquer_rungs",
+      "conquer_session_steps",
+      "conquer_sessions",
+      "conquer_steps",
+      "conquer_template_days",
+      "conquer_tutorials",
+    ],
+    // Fase 197: el módulo nace strict.
+    "free-blocks": ["extra_blocks_completed"],
     "improvement-proposals": ["improvement_proposals"],
     notifications: [
       "device_tokens",
@@ -467,6 +504,8 @@ describe("TENANT_STRICT_MODULES (fase 170, D-05/D-06)", () => {
     // 2026-09-24: módulo de Renovaciones (brief Nacho). Nace strict, sin
     // deuda de allowlist previa.
     renewals: ["renewal_followups", "renewal_reasons"],
+    // Fase 199: el módulo nace strict.
+    sponsors: ["sponsor_views"],
     // 2026-09-07: jornada laboral del staff (check-in/out con el QR de sede).
     // Nace strict, sin deuda de allowlist previa.
     "staff-attendance": ["staff_shifts"],
@@ -486,6 +525,7 @@ describe("TENANT_STRICT_MODULES (fase 170, D-05/D-06)", () => {
     wellhub: [
       "wellhub_bookings",
       "wellhub_classes",
+      "wellhub_conversions",
       "wellhub_events",
       "wellhub_slots",
     ],

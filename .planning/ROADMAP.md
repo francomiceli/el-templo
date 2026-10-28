@@ -54,6 +54,9 @@ El recorrido: primero se cierra la **fase de diseño bloqueante** (las 7 definic
 - [ ] **Phase 191: Panel del profesor** - Lista de alumnos con señales servidas sin buscarlas y ficha con planificado vs realizado
 - [ ] **Phase 192: Onboarding del tenant 2 (cierre del milestone)** - Un gimnasio real dado de alta con el wizard y operando en producción
 - [ ] **Phase 194: Invitaciones (fuera del milestone)** - Referidos → Invitaciones: 3 accesos gratis en prueba, cupo 2/mes, ventana 90 días, descuento por conversión con flag por plan, leads con origen Invitación
+- [ ] **Phase 197: Entrenar en tabs + canasta + bloque libre (fuera del milestone)** - Entrenar con 4 tabs (Semana · Libre · Desafíos · Conquer), canasta de bloques de su subnivel filtrada por figura tocable, bloque libre en el player con +5 AURA (primero del día que llega a 10')
+- [ ] **Phase 200: Anatomía funcional (fuera del milestone)** - Un solo modelo de contenido (archivos) músculo ↔ zona ↔ ruta ↔ rol que reemplaza a `muscle-zones.ts`, con la sección Anatomía del admin para profes, la Guía partida en dos (Empezá acá + Tu cuerpo) y el cuerpo tocable en Entrenar
+- [ ] **Phase 204: Usuarios Wellhub como tipo de usuario (fuera del milestone)** - Distinguir a quien usa Wellhub en admin, Horarios y métricas — visitantes nuevos, ex-alumnos y socios activos vinculados por email — y que sus reservas no toquen el plan del socio
 - [ ] **Phase 195: Web SEO local + AEO + atribución (fuera del milestone)** - eltemplo.org con datos reales desde `branches`, páginas por sede, schema correcto, medición GA4/Meta/Search Console, atribución propia + CAPI, y guía final de pasos en Meta y Google
 
 ## Phase Details
@@ -353,6 +356,93 @@ Plans:
 - [ ] 194-29-PLAN.md — Pre-flight de release: numeración, gates y builds de los 3 paquetes, checklist
 - [ ] 194-30-PLAN.md — Checkpoints humanos: feriados ES (D-29), backup + validación, UAT AR+ES, SEPA con Leandro
 
+### Phase 197: Entrenar en tabs + canasta de bloques + bloque libre (fuera del milestone v6.1)
+
+**Goal**: Entrenar se ordena en 4 tabs y el socio puede elegir y hacer un bloque de trabajo suelto de las planis aprobadas de su subnivel, buscándolo por zona del cuerpo, en el player, sumando 5 AURA con el primer bloque del día que llega a 10 minutos
+**Depends on**: intro TV "recorrido" en master (`tv/muscle-zones.ts`, `25f941f4d`). Independiente de la 196 (D-01: Conquer queda "Próximamente")
+**Requirements**: `197-CONTEXT.md` (D-01..D-18), decisiones de Franco 2026-10-20
+**Success Criteria** (what must be TRUE):
+
+1. Entrenar muestra 4 tabs (Semana · Libre · Desafíos · Conquer). Semana: tira de días, título + CTA, chips de bloque con figura (Nucleus por defecto) y lista de ejercicios. Desafíos y Conquer: "Próximamente". Sin plan: vidriera desenfocada con "Activá Tu Plan"
+2. Libre lista los bloques de trabajo aprobados del subnivel hasta hoy (sin GP, con ROM, sin INITIUM), sin duplicados, de 20 en 20, filtrables por grupo de zona tocando la figura o los chips, con la sugerencia de complemento
+3. Un bloque se juega en el player en modo bloque libre. Cuenta y se guarda al terminar sus ejercicios (si abandona, no se guarda nada). Si el formato no declara minutos, el reloj corre libre
+4. +5 AURA (fuente nueva `extra_block` en `aura_config`) solo para el primer bloque libre del día (zona de la sede) que llega a 10 minutos
+5. El bloque libre se registra en `extra_blocks_completed` y no cambia racha, programa, RPE/evaluación, `todaySession` ni contadores (tests de integración)
+6. Contrastes del player y la Guía en sólido (WCAG 2.2) y link "Probá el modo Libre" en la card de hoy de Mi Templo
+
+**Plans**: 23 plans (ejecución secuencial en un solo worktree, una ola por plan; ejecutor sonnet; sin typecheck ni tests locales: los tests se escriben y corren en CI). Reglas del ejecutor: `197-EXECUTOR-RULES.md`.
+
+Plans:
+
+- [x] 197-01-PLAN.md — API: migraciones 0285 (fuente AURA `extra_block` = 5) y 0286 (`extra_blocks_completed`) + schema + AuraSourceType
+- [x] 197-02-PLAN.md — API: gates de tenancy de la tabla nueva (gym-owned strict `free-blocks`, conteos 104/109, limpieza de fixtures)
+- [x] 197-03-PLAN.md — API: `session-view`/`session-response` fuera de sessions/routes + grupos de zona puros en muscle-zones (D-10)
+- [x] 197-04-PLAN.md — API: `zones`/`groups` por bloque en /weekly y /daily + fixtures de la canasta
+- [x] 197-05-PLAN.md — API (TDD): ranking puro de la canasta (dedupe, orden, "ya lo trabajaste hoy", página) + weekDayToDate
+- [x] 197-06-PLAN.md — API: FreeBlocksService (subnivel, ≤ hoy en tz de la sede, sin GP, roles, contexto de hoy, AURA disponible)
+- [x] 197-07-PLAN.md — API: GET /sessions/free-blocks y /free-blocks/:blockId + manifiesto 475 + integración de la canasta
+- [x] 197-08-PLAN.md — API: POST /sessions/free-blocks/complete con AURA del día (≥10', primero del día, extra_block_day) + manifiesto 476 + tests
+- [x] 197-09-PLAN.md — API: invariante de contadores (D-13) + aislamiento de tenant de las 3 rutas
+- [x] 197-10-PLAN.md — App: tokens/mixins del rework + figura anatómica compartida (copia única con cmp, chunk propio, D-07)
+- [x] 197-11-PLAN.md — App: utilidades puras (formato D-11, CTA de Semana, rótulos de semana, sugerencia de Libre) + tests
+- [x] 197-12-PLAN.md — App: Semana A (useTrainingWeek, rótulo y flechas, tira de días, título + CTA) + DayPlayer abre otras semanas
+- [x] 197-13-PLAN.md — App: Semana B (chips apilados, figura con Nucleus por defecto, lista de ejercicios)
+- [x] 197-14-PLAN.md — App: tipos, store de la canasta y cierre del bloque libre
+- [x] 197-15-PLAN.md — App: player en modo libre (neutraliza NUCLEUS/DEUTEROS, último bloque, barrita dorada, sin ajustes)
+- [x] 197-16-PLAN.md — App: pantallas del bloque libre (inicio, celebración, resumen con "Seguir entrenando")
+- [x] 197-17-PLAN.md — App: ruta /training/libre/:blockId y FreeBlockPlayer (Session sintética XB, guardado y AURA)
+- [x] 197-18-PLAN.md — App: tab Libre (aviso de AURA, sugerencia, figura tocable, chips, lista de 20 en 20, vacío)
+- [x] 197-19-PLAN.md — App: Entrenar en 4 tabs "puertas" + Próximamente + ?tab=libre + vidriera sin plan; fin del carrusel viejo
+- [x] 197-20-PLAN.md — App: contraste D-16 en player (sesión completa incluida) y Guía
+- [x] 197-21-PLAN.md — App: link "Probá el modo Libre" en la card de hoy de Mi Templo (D-17)
+- [x] 197-22-PLAN.md — Verificación visual medida (capturas 360/390/412, contraste, viewport, desborde) — checkpoint de build
+- [ ] 197-23-PLAN.md — UAT guiado de Franco en staging (checkpoint)
+
+### Phase 201: Conquer v2 (de cero, simple)
+
+**Goal**: Modo Conquer simple según la síntesis de Nacho del 2026-10-21. El coach activa al alumno eligiendo nivel y días. El alumno carga un número por escalón y la app calcula objetivos y cuándo subir. El coach trabaja por excepción con alertas.
+**Depends on**: Phase 197 (tabs de Entrenar, en staging); de cero, la rama 196 queda guardada como cantera
+**Requirements**: `.planning/phases/201-conquer/ref/conquer-desarrollo-sintesis.md` + decisiones en `201-CONTEXT.md`. Los criterios de éxito son el §12 de la síntesis.
+**Plans**: 35 plans (ejecución secuencial en un solo worktree, una ola por plan; ejecutor sonnet; tests en CI). 201-25..35: hallazgos del UAT local. Los pedidos del UAT en staging (D-25..D-29) pasaron a la Phase 202.
+
+Plans:
+
+- [ ] 201-01-PLAN.md — Schema y DDL de las 10 tablas (0290/0291) + gates de tenancy
+- [ ] 201-02-PLAN.md — Semilla del catálogo (0292) + fixture del oráculo
+- [ ] 201-03-PLAN.md — Motor puro (§4) + test diferencial contra el oráculo
+- [ ] 201-04-PLAN.md — Reglas puras: calendario (D-16), caída, recortes, nivel, encendido muscular
+- [ ] 201-05-PLAN.md — Permisos (D-08), settings, carga del catálogo, estado y pedidos de desbloqueo (D-12)
+- [ ] 201-06-PLAN.md — Alta del alumno por nivel y días + edición
+- [ ] 201-07-PLAN.md — API de Hoy, guardado de la sesión, cambio de escalón, home
+- [ ] 201-08-PLAN.md — Progreso, Subir, calibración, base de alertas
+- [ ] 201-09-PLAN.md — Alertas (con reapertura), alertas derivadas, tablero
+- [ ] 201-10-PLAN.md — Combos de Toro y Sábado (opening opcional)
+- [ ] 201-11-PLAN.md — Recortes, paso de nivel, ficha del alumno
+- [ ] 201-12-PLAN.md — Control físico con fotos privadas, día 0 (regla de contenido), env vars
+- [ ] 201-13-PLAN.md — Permiso de publicación, fotos en el admin, galería
+- [ ] 201-14-PLAN.md — API de edición de catálogo y ajustes (D-14)
+- [ ] 201-15-PLAN.md — Tabs de Entrenar Semana + Conquer, D-17, destino `conquer` del pop-up
+- [ ] 201-16-PLAN.md — App: capa de datos + submarca (tokens, letras, componentes, portada)
+- [ ] 201-17-PLAN.md — App: ConquerTab, Bloqueado, Inicio, Niveles
+- [ ] 201-18-PLAN.md — App: pantalla Hoy
+- [ ] 201-19-PLAN.md — App: Progreso y Sábado
+- [ ] 201-20-PLAN.md — App: control físico y Evolución
+- [ ] 201-21-PLAN.md — Admin: pedidos, alta, tablero
+- [ ] 201-22-PLAN.md — Admin: ficha del alumno y galería
+- [ ] 201-23-PLAN.md — Admin: catálogo y ajustes
+- [ ] 201-24-PLAN.md — E2E del recorrido + UAT + checkpoint humano (Franco + Nacho)
+- [ ] 201-25-PLAN.md — Catálogo del anexo de Nacho, parte datos (0293)
+- [ ] 201-26-PLAN.md — Catálogo del anexo: reglas, modos, textos y alertas
+- [ ] 201-27-PLAN.md — Guía "¿Cómo funciona?": dato (0294), ruta y contenido
+- [ ] 201-28-PLAN.md — Estética variante B del sketch 022: base visual
+- [ ] 201-29-PLAN.md — Guía: pantalla, ruta y disparo después del día 0
+- [ ] 201-30-PLAN.md — Inicio y camino de niveles con la variante B
+- [ ] 201-31-PLAN.md — Hoy, hoja de guardado y Sábado con la variante B
+- [ ] 201-32-PLAN.md — Progreso con la variante B
+- [ ] 201-33-PLAN.md — Control físico y Evolución con la variante B
+- [ ] 201-34-PLAN.md — Fuera el cielo; UAT y CONTEXT al día (D-23, D-24)
+- [ ] 201-35-PLAN.md — Barrido final y prueba visual de Franco (checkpoint)
+
 ### Phase 195: Web SEO local + AEO + atribución (fuera del milestone v6.1)
 
 **Goal**: Que eltemplo.org traiga alumnos nuevos: datos de sedes siempre correctos (fuente única `branches`), páginas por sede/disciplina/profes indexables y citables por buscadores e IA, medición real (GA4, Pixel, Search Console, Bing) y atribución de punta a punta (de dónde vino cada alumno → pagó), automatizando todo lo posible del lado de Meta y Google
@@ -429,3 +519,103 @@ Plans:
 ---
 
 _Roadmap v6.1 creado 2026-08-27. Fases 181-192. Migraciones reservan desde 0216._
+
+### Phase 202: Conquer — tutoriales y correcciones con video
+
+**Goal**: Pedidos del profe probando la 201 en staging. Tutoriales: un video por ejercicio y por combo que sube el coach y el alumno ve con "Ver cómo se hace". Correcciones: el alumno manda un video de 30 s como máximo, el coach responde con texto y/o video y puede borrar el del alumno. Videos de alumnos en el bucket R2 privado con vencimiento a los 60 días.
+**Depends on**: Phase 201 (Conquer v2, en staging)
+**Requirements**: D-25..D-29 de `.planning/phases/201-conquer/201-CONTEXT.md`; decisiones DA-37..DA-52 en `202-01-PLAN.md`. Retomar desde `202-HANDOFF.md`.
+**Plans**: 15 plans (planificados 2026-10-23 como 201-36..50 y renumerados; ejecución secuencial en el worktree de la 201, ejecutor sonnet, tests en CI)
+
+Plans:
+
+- [ ] 202-01-PLAN.md — Tablas de correcciones y tutoriales (0298/0299) + tenancy
+- [ ] 202-02-PLAN.md — Reglas de video y almacenamiento privado para videos
+- [ ] 202-03-PLAN.md — API alumno: objetivos, URL de subida y alta de la corrección
+- [ ] 202-04-PLAN.md — API alumno: ver videos, respuestas vistas y contador en el estado
+- [ ] 202-05-PLAN.md — API coach: bandeja, contador, videos y borrar el del alumno
+- [ ] 202-06-PLAN.md — API coach: respuesta con texto y/o video
+- [ ] 202-07-PLAN.md — API tutoriales (bucket público, admin + alumno)
+- [ ] 202-08-PLAN.md — Admin: tutoriales en Catálogo y Ajustes de combos
+- [ ] 202-09-PLAN.md — Admin: bandeja de correcciones, contador del menú y borrado
+- [ ] 202-10-PLAN.md — Admin: respuesta del coach
+- [ ] 202-11-PLAN.md — App: datos, store y validación del video (puros con test)
+- [ ] 202-12-PLAN.md — App: "Ver cómo se hace" en Hoy, Progreso y combos
+- [ ] 202-13-PLAN.md — App: pantalla de correcciones y contador en Inicio
+- [ ] 202-14-PLAN.md — App: mandar un video (grabar/galería) + permiso de micrófono iOS
+- [ ] 202-15-PLAN.md — Barrido final y UAT (infra R2, casos D-25..D-29)
+
+### Phase 200: Anatomía funcional — profes, Guía y Entrenar (fuera del milestone v6.1)
+
+**Goal**: Profes y socios entienden qué trabaja cada ejercicio: un modelo de contenido único (músculo, zona del dibujo, ruta, rol, ficha) alimenta la sección Anatomía del admin, la vista Tu cuerpo de la Guía y el cuerpo tocable de Entrenar, y reemplaza a `muscle-zones.ts` como fuente de zonas
+**Depends on**: fase 197 (pantalla Semana con chips + figura, `BodyFigure.vue`, zonas por bloque). Base `origin/staging` `99152a195`; sale con o después del tren de la 197
+**Requirements**: `200-CONTEXT.md` (D1–D20 + P1–P4), investigación `.planning/research/anatomia-profes-2026-10-21.md`, sketches 019 (B2), 020 (síntesis), 021 (A2)
+**Success Criteria** (what must be TRUE):
+
+1. El contenido (28 músculos, 30 rutas con roles, fichas de profe y de alumno, glosario) vive en archivos versionados, validados por tests de coherencia contra `routes` y el dibujo, en estado borrador
+2. TV, `/weekly`/`/daily` y la canasta pintan zonas desde el modelo nuevo; las diferencias con `muscle-zones.ts` están documentadas como correcciones
+3. Admin › Anatomía (celular): cuerpo tocable → hoja con músculos y roles como frase con (i) → ficha completa de la ruta con marcas de evidencia y "Borrador · sin validar"
+4. Guía en dos cards (Empezá acá + Tu cuerpo) y Tu cuerpo en tono alumno (qué hace, 3 grupos, ficha corta), detrás de `ANATOMIA_ALUMNOS_ENABLED`
+5. Entrenar › Semana: tocar una zona abre la hoja con "Hoy en tu clase", marca los chips de los bloques que la trabajan y no mezcla los dos modos ni recarga la lista
+6. Nombres D1 en DB/TV/app y los 5 SISSY SQ OL en SS, por migraciones 0287+
+
+**Plans:** 23 plans (ejecución secuencial, un plan por wave)
+
+Plans:
+- [x] 200-01-PLAN.md — Contrato de tipos, 16 regiones, 28 músculos, glosario, grupos de alumno y validador
+- [x] 200-02-PLAN.md — Catálogo de banderas (§3.1/§3.2) y citas del Apéndice A con validación
+- [x] 200-03-PLAN.md — Relaciones de las 7 rutas PULL + ficha completa de FL
+- [x] 200-04-PLAN.md — Relaciones de las 8 rutas PUSH + HR, índice RUTAS y validarRutas
+- [x] 200-05-PLAN.md — Relaciones de las 14 rutas LOWER/MOVILIDAD/FLOW + ficha de PS + cobertura de las 30
+- [x] 200-06-PLAN.md — Proyección ruta → zonas, hits "Hoy en tu clase" (con fallback ROM), snapshot pre-200 y diferencias aprobadas
+- [x] 200-07-PLAN.md — TV, /weekly, /daily y canasta al modelo + zoneHits; adiós al mapeo anterior de zonas
+- [x] 200-08-PLAN.md — Tests de integración de canasta, /weekly y TV por ruta
+- [x] 200-09-PLAN.md — GET /api/admin/anatomy y GET /api/anatomy con recorte por audiencia, roles R1 y manifiesto
+- [x] 200-10-PLAN.md — Migraciones 0287 (nombres D1) y 0288 (SISSY → SS) + route-labels ×3
+- [x] 200-11-PLAN.md — Admin: tipos, store, figura por rol, ruta /anatomia y menú
+- [x] 200-12-PLAN.md — Admin: hoja desde abajo con roles como frase e (i), profundos y escritorio
+- [x] 200-13-PLAN.md — Admin: ficha de ruta a pantalla completa con marcas y glosario
+- [x] 200-14-PLAN.md — App: flag ANATOMIA_ALUMNOS_ENABLED, tibialis, BodyFigure extensible, store y hoja de alumno
+- [x] 200-15-PLAN.md — App: Guía en dos cards, Tu cuerpo y ficha corta
+- [x] 200-16-PLAN.md — App: Semana tocable con Hoy en tu clase y modos sin mezclar
+- [x] 200-17-PLAN.md — Fichas FLR, OAP, OAR, MU, TTB
+- [x] 200-18-PLAN.md — Fichas MN/RP, BL, HD/ID, OAPU, PL
+- [x] 200-19-PLAN.md — Fichas PLPU, HS, HSPU, PHS, HR
+- [x] 200-20-PLAN.md — Fichas L, QC, SS, SU, DS
+- [x] 200-21-PLAN.md — Fichas HT, NC, REVERSE HYPER, SPAGAT
+- [x] 200-22-PLAN.md — Fichas BRIDGE, SIDE PCK, PIKE, AF
+- [x] 200-23-PLAN.md — Cierre: coherencia estricta, barrido, UAT y firma de validación
+
+### Phase 204: Usuarios Wellhub como tipo de usuario (fuera del milestone v6.1)
+
+**Goal**: El staff distingue a quien viene por Wellhub (visitante nuevo, ex-alumno o socio activo vinculado por email) en el admin y en Horarios, las métricas separan la actividad Wellhub de la de socios, y una reserva o visita Wellhub nunca afecta el plan de un socio
+**Depends on**: integración Wellhub en prod (piloto Moreno, gym 856836, master `66939bec8` 2026-10-27). Base `origin/master` `3bf682d95`
+**Requirements**: inventario `204-INVENTARIO.md`; decisiones a tomar en discuss-phase
+**Success Criteria** (what must be TRUE):
+
+1. Admin: estado 'wellhub' con label, color y filtro propios (hoy badge vacío, filtro rechazado con 400, export en blanco); la etiqueta "Wellhub" sale de `gympass_id` y es permanente aunque el estado cambie
+2. Ex-alumnos y socios activos vinculados por email se ven como tales + Wellhub; los ex-alumnos salen de la campaña `bajas`
+3. Horarios: el roster de la clase marca las reservas/asistencias Wellhub antes y después del check-in
+4. Métricas de asistencia, no-show, embudo y log de accesos separan Wellhub de socios; existe un reporte Wellhub por sede (visitas/mes, conversión Wellhub → socio)
+5. Un no-show o una visita Wellhub no descuenta clases ni consume el límite diario/semanal del plan de un socio activo
+6. Tests de integración cubren los tres casos (visitante nuevo, ex-alumno, socio activo)
+
+**Plans:** 16 plans (16 olas secuenciales — ejecutores comparten worktree)
+
+Plans:
+- [x] 204-01-PLAN.md — Migración 0300 (attendance_source += wellhub_manual, tabla wellhub_conversions) + gates de tenancy
+- [x] 204-02-PLAN.md — Helper wellhub-sources + fixtures de las 3 personas + fugas D-18 de asistencia (no-show, QR, límites)
+- [x] 204-03-PLAN.md — Fugas D-18 de reservas (límites semanal/presupuesto/bonus, regla del día) + guards del webhook
+- [x] 204-04-PLAN.md — Presente a mano Wellhub (D-19): coachCheckIn/removeCheckIn + upgrade a validada
+- [x] 204-05-PLAN.md — Reservas Wellhub no cancelables por staff ni socio; ciclo del plan y baja no las tocan (D-11/D-24/D-25)
+- [x] 204-06-PLAN.md — Horarios API: origen de la reserva en ambos rosters (D-10)
+- [x] 204-07-PLAN.md — Members API: etiqueta Wellhub, status=wellhub, Solo Wellhub, export, buscador, bajas (D-01..D-12)
+- [x] 204-08-PLAN.md — Evento de conversión Wellhub → socio en recomputeUserStatus + embudo entryOrigin wellhub (D-04/D-23/D-15)
+- [x] 204-09-PLAN.md — API card Wellhub de la ficha + POST app-access (D-20/D-26) + ISO-01/ISO-03
+- [x] 204-10-PLAN.md — API unir duplicado Wellhub (D-05/D-21) transaccional con auditoría + ISO-03
+- [x] 204-11-PLAN.md — API reporte Wellhub por sede y mes + categoría Wellhub en log de accesos (D-16/D-14)
+- [x] 204-12-PLAN.md — Admin: estado/etiqueta Wellhub, toggle Solo Wellhub, fuentes de asistencia
+- [x] 204-13-PLAN.md — Admin: chip y cancelación deshabilitada en Horarios + aviso en Cobros (D-09/D-10/D-11)
+- [x] 204-14-PLAN.md — Admin: card Wellhub en la ficha, Asociar al templo, Enviar acceso a la app
+- [x] 204-15-PLAN.md — Admin: diálogo Unir con alumno existente (D-21)
+- [x] 204-16-PLAN.md — Admin: pestaña Reportes › Wellhub + filtro Wellhub del log de accesos

@@ -1,6 +1,7 @@
 /**
  * Fase 194-20 Task 2 (D-18) — filtro `origin=invitacion` del listado de alumnos
- * (`GET /api/admin/members`).
+ * (`GET /api/admin/members`) y la proyección `isInvited` de cada fila (chip
+ * "Invitación"), que usa la misma expresión.
  *
  * Contra MySQL real por worker; fechas relativas a `todayInTz(<tz de la sede>)`.
  * Vive en su propio archivo (el plan lo pedía como `describe` de
@@ -102,6 +103,28 @@ describe("Fase 194-20 D-18 — filtro origin=invitacion de GET /api/admin/member
     );
     expect(res.ids).not.toContain(voided.userId);
     expect(res.ids).not.toContain(plain.id);
+  });
+
+  it("isInvited de cada fila = misma regla que el filtro (activa sí; anulada y sin invitación no)", async () => {
+    const { inviter, inPrueba, converted, voided, plain } = await seed();
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/admin/members?limit=100",
+      headers: { authorization: `Bearer ${ownerToken}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body) as {
+      members: Array<{ id: number; isInvited: boolean }>;
+    };
+    const flagOf = (id: number) =>
+      body.members.find((member) => member.id === id)?.isInvited;
+    expect(flagOf(inPrueba.userId)).toBe(true);
+    expect(flagOf(converted.userId)).toBe(true);
+    expect(flagOf(voided.userId)).toBe(false);
+    expect(flagOf(plain.id)).toBe(false);
+    expect(flagOf(inviter.id)).toBe(false);
   });
 
   it("origen desconocido -> 400", async () => {

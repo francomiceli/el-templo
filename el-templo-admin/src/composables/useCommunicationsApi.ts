@@ -23,10 +23,7 @@ import { ref } from 'vue';
 import { api } from 'src/boot/axios';
 import { extractError } from 'src/utils/extract-error';
 import type { AppSectionKey, Destination } from 'src/config/destinations';
-import type {
-  NotificationCategoryKey,
-  RuleTriggerType,
-} from 'src/config/rule-triggers';
+import type { NotificationCategoryKey, RuleTriggerType } from 'src/config/rule-triggers';
 
 // ── Avisos (el-templo-api/src/modules/communications/schemas.ts) ──────────
 
@@ -247,6 +244,57 @@ export interface CreateTvAvisoInput {
 
 export type UpdateTvAvisoInput = Partial<CreateTvAvisoInput>;
 
+// ── Novedades de Mi Templo (el-templo-api/src/modules/communications/novedades-service.ts) ──
+// Oración corta (máx. 80) que el socio ve arriba de Mi Templo. Entidad APARTE
+// de `avisos` (D-1): sin título/botón/frecuencia. `publishAt` en el futuro =
+// programada; `scopeBranchIds` null (o vacío) = todas las sedes.
+
+export type NovedadStatus = 'active' | 'paused';
+export type NovedadDestinationType = 'app_section' | 'whatsapp_sales';
+
+export interface AdminNovedad {
+  id: number;
+  text: string;
+  scopeBranchIds: number[] | null;
+  destinationType: NovedadDestinationType | null;
+  destinationSection: string | null;
+  whatsappText: string | null;
+  /** ISO UTC. */
+  publishAt: string;
+  status: NovedadStatus;
+  /** Push opcional (mig 0297): el admin pidió además una notificación. */
+  pushRequested: boolean;
+  /** Título de la push. `null` = el server usa el nombre del gimnasio. */
+  pushTitle: string | null;
+  /** ISO UTC en que el server encoló la push. `null` = todavía no (y mientras sea null se puede editar). */
+  pushQueuedAt: string | null;
+  createdBy: number | null;
+  createdAt: string;
+  views: number;
+  clicks: number;
+}
+
+export interface CreateNovedadInput {
+  text: string;
+  scopeBranchIds?: number[] | null;
+  destinationType?: NovedadDestinationType | null;
+  destinationSection?: string | null;
+  whatsappText?: string | null;
+  /** ISO date-time. Omitido = ahora. */
+  publishAt?: string;
+  status?: NovedadStatus;
+  /** Enviar también como push al publicarse (default false). */
+  sendPush?: boolean;
+  /** 1-50 caracteres. `null`/omitido = nombre del gimnasio. Solo con `sendPush`. */
+  pushTitle?: string | null;
+}
+
+/**
+ * Todo opcional. Si viene la key `destinationType` (aunque sea null) el server
+ * REEMPLAZA el destino entero (tipo + sección + texto de WhatsApp).
+ */
+export type UpdateNovedadInput = Partial<CreateNovedadInput>;
+
 export function useCommunicationsApi() {
   const loading = ref(false);
   const error = ref<string | null>(null);
@@ -316,7 +364,7 @@ export function useCommunicationsApi() {
     try {
       const { data } = await api.get<{ clickers: AvisoClicker[] }>(
         `/communications/admin/avisos/${id}/clickers`,
-        { params: limit ? { limit } : undefined },
+        { params: limit ? { limit } : undefined }
       );
       return data.clickers;
     } catch (err: unknown) {
@@ -363,7 +411,7 @@ export function useCommunicationsApi() {
     error.value = null;
     try {
       const { data } = await api.get<{ templates: TemplateRow[] }>(
-        '/notifications/admin/templates',
+        '/notifications/admin/templates'
       );
       return data.templates;
     } catch (err: unknown) {
@@ -378,10 +426,7 @@ export function useCommunicationsApi() {
     loading.value = true;
     error.value = null;
     try {
-      const { data } = await api.put<TemplateRow>(
-        `/notifications/admin/templates/${id}`,
-        input,
-      );
+      const { data } = await api.put<TemplateRow>(`/notifications/admin/templates/${id}`, input);
       return data;
     } catch (err: unknown) {
       error.value = extractError(err, 'No se pudo actualizar la plantilla');
@@ -397,7 +442,7 @@ export function useCommunicationsApi() {
     try {
       const { data } = await api.post<{ queued: number }>(
         '/notifications/admin/send-segment',
-        input,
+        input
       );
       return data;
     } catch (err: unknown) {
@@ -452,7 +497,7 @@ export function useCommunicationsApi() {
     try {
       const { data } = await api.post<{ count: number }>(
         '/notifications/admin/templates/preview-audience',
-        input,
+        input
       );
       return data.count;
     } catch (err: unknown) {
@@ -473,7 +518,7 @@ export function useCommunicationsApi() {
     try {
       const { data } = await api.post<SendTestTemplateResult>(
         '/notifications/admin/templates/send-test',
-        input,
+        input
       );
       return data;
     } catch (err: unknown) {
@@ -514,7 +559,7 @@ export function useCommunicationsApi() {
     error.value = null;
     try {
       const { data } = await api.post<RestoreSystemResult>(
-        '/communications/admin/avisos/restore-system',
+        '/communications/admin/avisos/restore-system'
       );
       return data;
     } catch (err: unknown) {
@@ -532,7 +577,7 @@ export function useCommunicationsApi() {
     error.value = null;
     try {
       const { data } = await api.get<{ avisos: TvAvisoRow[] }>(
-        '/communications/tv/admin/tv-avisos',
+        '/communications/tv/admin/tv-avisos'
       );
       return data.avisos;
     } catch (err: unknown) {
@@ -547,10 +592,7 @@ export function useCommunicationsApi() {
     loading.value = true;
     error.value = null;
     try {
-      const { data } = await api.post<TvAvisoRow>(
-        '/communications/tv/admin/tv-avisos',
-        input,
-      );
+      const { data } = await api.post<TvAvisoRow>('/communications/tv/admin/tv-avisos', input);
       return data;
     } catch (err: unknown) {
       error.value = extractError(err, 'No se pudo crear el aviso de TV');
@@ -564,10 +606,7 @@ export function useCommunicationsApi() {
     loading.value = true;
     error.value = null;
     try {
-      const { data } = await api.put<TvAvisoRow>(
-        `/communications/tv/admin/tv-avisos/${id}`,
-        input,
-      );
+      const { data } = await api.put<TvAvisoRow>(`/communications/tv/admin/tv-avisos/${id}`, input);
       return data;
     } catch (err: unknown) {
       error.value = extractError(err, 'No se pudo actualizar el aviso de TV');
@@ -584,6 +623,65 @@ export function useCommunicationsApi() {
       await api.delete(`/communications/tv/admin/tv-avisos/${id}`);
     } catch (err: unknown) {
       error.value = extractError(err, 'No se pudo borrar el aviso de TV');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  // -- Novedades de Mi Templo --------------------------------------------------
+
+  async function listNovedades(): Promise<AdminNovedad[]> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<{ novedades: AdminNovedad[] }>(
+        '/communications/admin/novedades'
+      );
+      return data.novedades;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'No se pudieron cargar las novedades');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function createNovedad(input: CreateNovedadInput): Promise<AdminNovedad> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.post<AdminNovedad>('/communications/admin/novedades', input);
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'No se pudo crear la novedad');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function updateNovedad(id: number, input: UpdateNovedadInput): Promise<AdminNovedad> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.put<AdminNovedad>(`/communications/admin/novedades/${id}`, input);
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'No se pudo actualizar la novedad');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function deleteNovedad(id: number): Promise<void> {
+    loading.value = true;
+    error.value = null;
+    try {
+      await api.delete(`/communications/admin/novedades/${id}`);
+    } catch (err: unknown) {
+      error.value = extractError(err, 'No se pudo borrar la novedad');
       throw err;
     } finally {
       loading.value = false;
@@ -618,6 +716,10 @@ export function useCommunicationsApi() {
     createTvAviso,
     updateTvAviso,
     deleteTvAviso,
+    listNovedades,
+    createNovedad,
+    updateNovedad,
+    deleteNovedad,
     cleanup,
   };
 }

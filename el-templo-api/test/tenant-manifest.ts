@@ -120,6 +120,76 @@
 //   ─────────────────────────
 //   TOTAL          400 → 405   (+5)
 //
+// 2026-10-22 — **493 rutas**: Conquer v2 (fase 201, plan 10): Subir la
+// progresión de arranque de un combo de Toro (`POST
+// /api/members/conquer/combos/:comboKey/subir`). Es `templo-module`
+// (`moduleScope` de `templo-training`).
+//
+//   tenant-scoped  sin cambio
+//   templo-module  +1   (la ruta nueva)
+//   global         sin cambio
+//   ─────────────────────────
+//   TOTAL          492 → 493   (+1)
+//
+// 2026-10-22 — **492 rutas**: Conquer v2 (fase 201, plan 09): tablero con
+// semáforo (`GET /api/admin/conquer/members`) y estado de una alerta (`PATCH
+// /api/admin/conquer/alerts/:id`) para owner/admin. Las 2 son `templo-module`
+// (`moduleScope` de `templo-training`).
+//
+//   tenant-scoped  sin cambio
+//   templo-module  +2   (las rutas nuevas)
+//   global         sin cambio
+//   ─────────────────────────
+//   TOTAL          490 → 492   (+2)
+//
+// 2026-10-21 — **487 rutas**: Conquer v2 (fase 201, plan 07): Hoy
+// (`GET /api/members/conquer/today`), guardado de la sesión (`PUT
+// /api/members/conquer/sessions`) y cambio de progresión de un escalón (`PUT
+// /api/members/conquer/steps/:exerciseId/:step`). Las 3 son `templo-module`
+// (`moduleScope` de `templo-training`).
+//
+//   tenant-scoped  sin cambio
+//   templo-module  +3   (las rutas nuevas)
+//   global         sin cambio
+//   ─────────────────────────
+//   TOTAL          484 → 487   (+3)
+//
+// 2026-10-21 — **484 rutas**: Conquer v2 (fase 201, plan 06): alta
+// (`POST /api/admin/conquer/members`) y edición (`PUT
+// /api/admin/conquer/members/:userId`) del alumno por owner/admin. Las 2 son
+// `templo-module` (`moduleScope` de `templo-training`).
+//
+//   tenant-scoped  sin cambio
+//   templo-module  +2   (las rutas nuevas)
+//   global         sin cambio
+//   ─────────────────────────
+//   TOTAL          482 → 484   (+2)
+//
+// 2026-10-21 — **482 rutas**: Conquer v2 (fase 201, plan 05): estado y pedido
+// de desbloqueo del alumno (`GET /api/members/conquer/state`, `POST
+// /api/members/conquer/unlock-request`) y lista + contador de pedidos para
+// owner/admin (`GET /api/admin/conquer/requests`, `.../requests/count`). Las 4
+// son `templo-module` (`moduleScope` de `templo-training`).
+//
+//   tenant-scoped  sin cambio
+//   templo-module  +4   (las rutas nuevas)
+//   global         sin cambio
+//   ─────────────────────────
+//   TOTAL          478 → 482   (+4)
+//
+// 2026-10-21 — **478 rutas**: la anatomía funcional (fase 200) agregó
+// `GET /api/admin/anatomy` (vista de profe, ANATOMIA_STAFF_ROLES) y
+// `GET /api/anatomy` (vista de alumno, cualquier autenticado). Las 2 son
+// `templo-module` (`moduleScope` de `templo-training`). Entre 431 y 476 hubo
+// altas que no actualizaron este header (ver el bloque de `ENTRADAS_BASELINE`
+// en `iso-01-manifiesto.test.ts`), así que acá solo se contabiliza esta unidad:
+//
+//   tenant-scoped  sin cambio
+//   templo-module  +2   (las rutas nuevas)
+//   global         sin cambio
+//   ─────────────────────────
+//   TOTAL          476 → 478   (+2)
+//
 // 2026-09-10 — **431 rutas**: "Planis", vista previa de la plani para el staff
 // (reemplaza el PDF que se subía al Drive): `GET /api/admin/tv/preview/day` +
 // `GET /api/admin/tv/preview/week`. Las 2 son `tenant-scoped` (gate
@@ -595,6 +665,14 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     categoria: "tenant-scoped",
   },
   "PUT /api/admin/members/:userId/password": { categoria: "tenant-scoped" },
+  // Fase 204 (D-20/D-26): card Wellhub y acceso a la app. Leen
+  // users/attendance/bookings/wellhub_bookings con tenantWhere (cada tabla unida).
+  "GET /api/admin/members/:userId/wellhub": { categoria: "tenant-scoped" },
+  "POST /api/admin/members/:userId/app-access": { categoria: "tenant-scoped" },
+  // Fase 204 D-21: unir duplicado Wellhub; escribe users/bookings/attendance/wellhub_bookings/member_notes/audit_log con tenantWhere
+  "POST /api/admin/members/:userId/wellhub-merge": {
+    categoria: "tenant-scoped",
+  },
 
   // ── /api/admin/ratings ────────────────────────────────────────────────────
   // D-04 veredicto (caso 6): confirmadas `tenant-scoped` (core). "Rating de clase"
@@ -667,6 +745,8 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   },
   "GET /api/admin/reports/access": { categoria: "tenant-scoped" },
   "GET /api/admin/reports/access/export": { categoria: "tenant-scoped" },
+  // Fase 204 D-16: reporte Wellhub por sede y mes; lee attendance/bookings/wellhub_*/subscriptions/users con tenantWhere
+  "GET /api/admin/reports/wellhub": { categoria: "tenant-scoped" },
   "GET /api/admin/reports/charges": { categoria: "tenant-scoped" },
   "GET /api/admin/reports/charges/export": { categoria: "tenant-scoped" },
   "GET /api/admin/reports/expired-members": { categoria: "tenant-scoped" },
@@ -794,6 +874,47 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     categoria: "global",
     motivo:
       "Escribe `system_settings` (TENANT_EXEMPT_TABLES): mismo motivo que el GET hermano — valor único de instalación, gateado owner-only server-side.",
+  },
+
+  // ── /api/admin/sponsors (fase 199, patrocinadores) ───────────────────────
+  // `sponsor_brands` es la quinta de las `TENANT_EXEMPT_TABLES`: catálogo de
+  // patrocinadores de la PLATAFORMA sin `tenant_id` (D-18). Un plugin con un
+  // único guard `isTemploPlatformAdmin` (owner/admin del tenant El Templo,
+  // D-26) cubre las 7 rutas.
+  "GET /api/admin/sponsors": {
+    categoria: "global",
+    motivo:
+      "Lee `sponsor_brands` (TENANT_EXEMPT_TABLES): catálogo de patrocinadores de la PLATAFORMA sin tenant_id (D-18), gateado server-side a owner/admin del tenant El Templo con `isTemploPlatformAdmin`. Las métricas por marca del listado se leen con `tenantWhere` sobre `sponsor_views`.",
+  },
+  "POST /api/admin/sponsors": {
+    categoria: "global",
+    motivo:
+      "Escribe `sponsor_brands` (TENANT_EXEMPT_TABLES): catálogo de patrocinadores de la PLATAFORMA sin tenant_id (D-18), gateado server-side a owner/admin del tenant El Templo con `isTemploPlatformAdmin`. El partner vinculado se valida con `tenantWhere` sobre `referral_partners`.",
+  },
+  "PUT /api/admin/sponsors/:id": {
+    categoria: "global",
+    motivo:
+      "Edita una fila de `sponsor_brands` (TENANT_EXEMPT_TABLES): catálogo de patrocinadores de la PLATAFORMA sin tenant_id (D-18), gateado server-side a owner/admin del tenant El Templo con `isTemploPlatformAdmin`. El partner vinculado se valida con `tenantWhere` sobre `referral_partners`.",
+  },
+  "DELETE /api/admin/sponsors/:id": {
+    categoria: "global",
+    motivo:
+      "Borra una fila de `sponsor_brands` (TENANT_EXEMPT_TABLES): catálogo de patrocinadores de la PLATAFORMA sin tenant_id (D-18), gateado server-side a owner/admin del tenant El Templo con `isTemploPlatformAdmin`. Las vistas de los socios caen por ON DELETE CASCADE.",
+  },
+  "GET /api/admin/sponsors/settings": {
+    categoria: "global",
+    motivo:
+      "Lee `system_settings` (TENANT_EXEMPT_TABLES): el límite de patrocinadores activos por país es configuración de plataforma (D-24), un valor único de instalación, gateado a admins de El Templo.",
+  },
+  "PUT /api/admin/sponsors/settings": {
+    categoria: "global",
+    motivo:
+      "Escribe `system_settings` (TENANT_EXEMPT_TABLES): el límite de patrocinadores activos por país es configuración de plataforma (D-24), un valor único de instalación, gateado a admins de El Templo.",
+  },
+  "POST /api/admin/sponsors/logo-upload-url": {
+    categoria: "global",
+    motivo:
+      "Genera una URL prefirmada de R2 bajo `sponsors/logos/` sin leer ni escribir datos de ningún gimnasio: el logo pertenece a una marca de plataforma (D-19), gateado a admins de El Templo.",
   },
 
   // ── /api/admin/staff-attendance ───────────────────────────────────────────
@@ -957,6 +1078,21 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   },
   "GET /api/communications/me/tarjetas": { categoria: "tenant-scoped" },
   "GET /api/communications/me/config": { categoria: "tenant-scoped" },
+  // Novedades en Mi Templo (2026-10-14, mig 0275): CRUD admin (ADMIN_ROLES) +
+  // feed y eventos del socio. Entidad APARTE de `avisos`. Core, sin
+  // `moduleScope`. El `userId` sale SIEMPRE de `request.user.userId`.
+  "DELETE /api/communications/admin/novedades/:id": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/communications/admin/novedades": { categoria: "tenant-scoped" },
+  "POST /api/communications/admin/novedades": { categoria: "tenant-scoped" },
+  "PUT /api/communications/admin/novedades/:id": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/communications/me/novedades": { categoria: "tenant-scoped" },
+  "POST /api/communications/me/novedades/:id/event": {
+    categoria: "tenant-scoped",
+  },
 
   // ── /api/communications/tv ────────────────────────────────────────────────
   // Fase 193 Plan 07 (COM-04, D-24/D-29): CRUD admin de avisos de TV + lectura
@@ -1048,9 +1184,24 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   },
   "POST /api/members/scheduling/reserve-trial": { categoria: "tenant-scoped" },
 
+  // ── /api/members/sponsors (fase 199, patrocinadores) ─────────────────────
+  // Feed del socio y eventos (escriben `sponsor_views`, gym-owned). El
+  // `userId` sale siempre del token.
+  "GET /api/members/sponsors": { categoria: "tenant-scoped" },
+  "POST /api/members/sponsors/:id/event": { categoria: "tenant-scoped" },
+
   // ── /api/members/subscription ─────────────────────────────────────────────
   "GET /api/members/subscription/coverage": { categoria: "tenant-scoped" },
   "GET /api/members/subscription/me/especial-pass": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/members/subscription/me/plan-status": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/members/subscription/me/plan-summary": {
+    categoria: "tenant-scoped",
+  },
+  "POST /api/members/subscription/me/plan-summary/seen": {
     categoria: "tenant-scoped",
   },
   "GET /api/members/subscription/me/subscription": {
@@ -1122,6 +1273,18 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     modulo: "templo-training",
   },
   "GET /api/sessions/daily": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/sessions/free-blocks": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/sessions/free-blocks/:blockId": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/sessions/free-blocks/complete": {
     categoria: "templo-module",
     modulo: "templo-training",
   },
@@ -1435,6 +1598,239 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     modulo: "templo-training",
   },
   "POST /api/progression/request-evaluation": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+
+  // ── templo-training · anatomy (fase 200) ─────────────────────────────────
+  "GET /api/admin/anatomy": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/anatomy": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+
+  // ── templo-training · conquer (fase 201) ─────────────────────────────────
+  "GET /api/members/conquer/state": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/members/conquer/unlock-request": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/admin/conquer/requests": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/admin/conquer/requests/count": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/admin/conquer/members": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "PUT /api/admin/conquer/members/:userId": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/members/conquer/today": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "PUT /api/members/conquer/sessions": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "PUT /api/members/conquer/steps/:exerciseId/:step": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/members/conquer/progress": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/members/conquer/steps/:exerciseId/:step/subir": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/members/conquer/calibration/:exerciseId": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/admin/conquer/members": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "PATCH /api/admin/conquer/alerts/:id": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/members/conquer/combos/:comboKey/subir": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/admin/conquer/members/:userId": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "PUT /api/admin/conquer/members/:userId/steps/:exerciseId/:step": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/admin/conquer/members/:userId/recortes": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/admin/conquer/members/:userId/level-up": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/members/conquer/body-checks": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/members/conquer/body-checks": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/members/conquer/body-checks/:checkId/photos/:pose/upload-url": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/members/conquer/body-checks/:checkId/photos/:pose/confirm": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/members/conquer/body-checks/:checkId/photos/:pose/url": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/members/conquer/body-checks/skip-day0": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/members/conquer/guide-seen": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/members/conquer/corrections": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/members/conquer/corrections/upload-url": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/members/conquer/corrections": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/members/conquer/corrections/:id/video-url": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/members/conquer/corrections/seen": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/admin/conquer/corrections": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/admin/conquer/corrections/count": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/admin/conquer/corrections/:id/video-url": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "DELETE /api/admin/conquer/corrections/:id/video": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/admin/conquer/corrections/:id/reply-upload-url": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/admin/conquer/corrections/:id/reply": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/members/conquer/tutorials": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/admin/conquer/tutorials": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/admin/conquer/tutorials/upload-url": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "PUT /api/admin/conquer/tutorials": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "DELETE /api/admin/conquer/tutorials/exercise/:exerciseId": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "DELETE /api/admin/conquer/tutorials/combo/:comboKey": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "PUT /api/members/conquer/publish-permission": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/admin/conquer/members/:userId/body-checks": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/admin/conquer/members/:userId/body-checks/:checkId/photos/:pose/url":
+    {
+      categoria: "templo-module",
+      modulo: "templo-training",
+    },
+  "GET /api/admin/conquer/gallery": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/admin/conquer/catalog": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/admin/conquer/ladders/:ladderId/rungs": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "PUT /api/admin/conquer/rungs/:rungId": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "PUT /api/admin/conquer/ladders/:ladderId/order": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "PUT /api/admin/conquer/exercises/:exerciseId": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "PUT /api/admin/conquer/template-days/:id": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/admin/conquer/settings": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "PUT /api/admin/conquer/settings": {
     categoria: "templo-module",
     modulo: "templo-training",
   },

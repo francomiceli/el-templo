@@ -38,6 +38,7 @@ import type { FastifyBaseLogger, FastifyInstance } from "fastify";
 import * as schema from "../../db/schema";
 import { tenantWhere, type TenantContext } from "../shared/tenant";
 import { appBranchName } from "../shared/app-branch-name";
+import { DEFAULT_TENANT_TIMEZONE } from "../shared/date-utils";
 import { RefreshTokenService } from "../auth/refresh-token-service";
 import { validateMagicLinkToken } from "./token-service";
 import { destinationForSegment } from "./segment-destinations";
@@ -56,6 +57,8 @@ export interface MagicLinkSessionUser {
   branchName: string | null;
   branchIsVirtual: boolean;
   branchCountry: string;
+  /** Fase 199 (D-04): siempre presente; la app arma el perfil con setProfile desde esta respuesta (zona de la sede). */
+  branchTimezone: string;
   gender: string | null;
   dateOfBirth: string | null;
   onboardingCompleted: boolean;
@@ -193,6 +196,7 @@ export class MagicLinkService {
         name: schema.branches.name,
         isVirtual: schema.branches.isVirtual,
         country: schema.branches.country,
+        timezone: schema.branches.timezone,
       })
       .from(schema.branches)
       .where(
@@ -203,6 +207,8 @@ export class MagicLinkService {
     const branchName = branchRow?.name ?? null;
     const branchIsVirtual = branchRow?.isVirtual ?? false;
     const branchCountry = branchRow?.country ?? "AR";
+    // Fase 199 (D-04): siempre presente; la app arma el perfil con setProfile desde esta respuesta (zona de la sede).
+    const branchTimezone = branchRow?.timezone ?? DEFAULT_TENANT_TIMEZONE;
 
     const profileRows = await this.db
       .select({ completedAt: schema.memberProfiles.onboardingCompletedAt })
@@ -264,6 +270,7 @@ export class MagicLinkService {
             : branchName,
         branchIsVirtual,
         branchCountry,
+        branchTimezone,
         gender: user.gender,
         dateOfBirth: user.dateOfBirth,
         onboardingCompleted,

@@ -116,9 +116,10 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useQuasar, copyToClipboard } from 'quasar'
+import { useQuasar } from 'quasar'
 import { api } from 'src/boot/axios'
 import { createLogger } from 'src/utils/logger'
+import { copyWithFallback } from 'src/utils/clipboard'
 import { extractError } from 'src/utils/extract-error'
 import { useUserStore } from 'src/stores/useUserStore'
 import TemploLoader from 'src/components/TemploLoader.vue'
@@ -250,37 +251,6 @@ async function fetchOverview() {
 function isShareCanceled(err: unknown): boolean {
   const msg = (err instanceof Error ? err.message : String(err)).toLowerCase()
   return msg.includes('cancel') || msg.includes('abort')
-}
-
-// El WebView de Android niega `navigator.clipboard.writeText` (Write permission
-// denied) y copyToClipboard de Quasar no tiene fallback propio en ese caso.
-async function copyWithFallback(text: string): Promise<boolean> {
-  try {
-    await copyToClipboard(text)
-    return true
-  } catch (copyErr: unknown) {
-    log.warn('clipboard API failed → fallback execCommand', {
-      err: copyErr instanceof Error ? copyErr.message : String(copyErr),
-    })
-  }
-  try {
-    const textarea = document.createElement('textarea')
-    textarea.value = text
-    textarea.setAttribute('readonly', '')
-    textarea.style.position = 'fixed'
-    textarea.style.opacity = '0'
-    document.body.appendChild(textarea)
-    textarea.select()
-    textarea.setSelectionRange(0, text.length)
-    const ok = document.execCommand('copy')
-    document.body.removeChild(textarea)
-    return ok
-  } catch (execErr: unknown) {
-    log.error('clipboard fallback failed', {
-      err: execErr instanceof Error ? execErr.message : String(execErr),
-    })
-    return false
-  }
 }
 
 async function shareInvitation() {

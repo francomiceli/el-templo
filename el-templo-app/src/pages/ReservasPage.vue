@@ -133,30 +133,45 @@
           emit-value
           map-options
           class="branch-select"
+          hide-dropdown-icon
           :display-value="trialBranchId ? undefined : 'Elegí una sede para ver los horarios'"
         >
           <template #prepend>
             <q-icon name="location_on" size="18px" color="primary" />
           </template>
           <template #append>
-            <q-icon name="unfold_more" size="16px" color="grey-6" />
+            <q-icon name="unfold_more" size="16px" color="info" />
           </template>
         </q-select>
       </div>
 
       <div v-if="!trialBranchId" class="day-slots__empty">
-        <q-icon name="event_busy" size="40px" color="grey-4" />
+        <q-icon name="event_busy" size="40px" color="info" />
         <p>Elegí una sede para ver los horarios disponibles.</p>
       </div>
 
       <template v-else>
-        <div class="day-strip q-mb-md">
+        <div class="day-strip">
           <div class="day-strip__nav">
-            <q-btn flat dense round icon="chevron_left" size="sm" @click="changeWeek(-1)" />
+            <q-btn
+              flat
+              round
+              icon="chevron_left"
+              class="week-nav-btn"
+              aria-label="Semana anterior"
+              @click="changeWeek(-1)"
+            />
             <q-btn flat dense no-caps class="day-strip__week-label" @click="goToCurrentWeek">
               {{ weekLabel }}
             </q-btn>
-            <q-btn flat dense round icon="chevron_right" size="sm" @click="changeWeek(1)" />
+            <q-btn
+              flat
+              round
+              icon="chevron_right"
+              class="week-nav-btn"
+              aria-label="Semana siguiente"
+              @click="changeWeek(1)"
+            />
           </div>
           <div class="day-strip__days">
             <button
@@ -168,10 +183,12 @@
                 'day-pill--today': isToday(day),
                 'day-pill--past': isDayPast(day),
               }"
+              :aria-pressed="selectedDay === day"
               @click="selectedDay = day"
             >
               <span class="day-pill__abbrev">{{ DAY_LABELS[day] }}</span>
               <span class="day-pill__date">{{ dayDateNumber(day) }}</span>
+              <span v-if="isToday(day)" class="day-pill__sr">hoy</span>
             </button>
           </div>
         </div>
@@ -200,7 +217,7 @@
               </div>
               <div class="slot-card__right">
                 <template v-if="isSlotHoliday(slot)">
-                  <q-badge color="accent" label="Feriado" />
+                  <span class="slot-card__avail slot-card__avail--few">Feriado</span>
                 </template>
                 <template v-else-if="slot.isFull">
                   <span class="slot-card__avail slot-card__avail--full">Completo</span>
@@ -212,15 +229,14 @@
                     :class="`slot-card__avail--${availabilityLevel(slot)}`"
                     >{{ availabilityText(slot) }}</span
                   >
-                  <q-btn
-                    flat
-                    dense
-                    no-caps
-                    color="primary"
-                    label="Reservar"
-                    class="slot-card__action"
+                  <button
+                    type="button"
+                    class="slot-card__go"
+                    :aria-label="`Reservar ${formatTime(slot.startTime)}`"
                     @click.stop="onPartnerSlotTap(slot)"
-                  />
+                  >
+                    Reservar
+                  </button>
                 </template>
               </div>
             </div>
@@ -233,7 +249,7 @@
          benefit lapsed 30 days after signup without a first reservation. No
          grid, no reserve — same visual language as the blocked muro below. -->
     <div v-else-if="partnerBenefitExpired" class="reservas__empty">
-      <q-icon name="event_busy" size="64px" color="grey-5" />
+      <q-icon name="event_busy" size="64px" color="info" />
       <h2 class="reservas__empty-title">Tu semana de regalo venció</h2>
       <p class="reservas__empty-text">
         El beneficio de tu semana gratis venció porque no llegaste a reservar a tiempo. Consultá por
@@ -316,13 +332,14 @@
           emit-value
           map-options
           class="branch-select"
+          hide-dropdown-icon
           :display-value="trialBranchId ? undefined : 'Elegí una sede para ver los horarios'"
         >
           <template #prepend>
             <q-icon name="location_on" size="18px" color="primary" />
           </template>
           <template #append>
-            <q-icon name="unfold_more" size="16px" color="grey-6" />
+            <q-icon name="unfold_more" size="16px" color="info" />
           </template>
           <template #option="scope">
             <q-item v-bind="scope.itemProps">
@@ -351,24 +368,31 @@
 
       <!-- Grid hidden until a sede is chosen -->
       <div v-if="!trialBranchId" class="day-slots__empty">
-        <q-icon name="event_busy" size="40px" color="grey-4" />
+        <q-icon name="event_busy" size="40px" color="info" />
         <p>Elegí una sede para ver los horarios disponibles.</p>
       </div>
 
       <template v-else>
         <!-- Day selector strip (30-day window, D-05) -->
-        <div class="day-strip q-mb-md">
+        <div class="day-strip">
           <div class="day-strip__nav">
-            <q-btn flat dense round icon="chevron_left" size="sm" @click="changeWeek(-1)" />
+            <q-btn
+              flat
+              round
+              icon="chevron_left"
+              class="week-nav-btn"
+              aria-label="Semana anterior"
+              @click="changeWeek(-1)"
+            />
             <q-btn flat dense no-caps class="day-strip__week-label" @click="goToCurrentWeek">
               {{ weekLabel }}
             </q-btn>
             <q-btn
               flat
-              dense
               round
               icon="chevron_right"
-              size="sm"
+              class="week-nav-btn"
+              aria-label="Semana siguiente"
               :disable="!canGoForward"
               @click="changeWeek(1)"
             />
@@ -383,10 +407,12 @@
                 'day-pill--today': isToday(day),
                 'day-pill--past': isDayPast(day),
               }"
+              :aria-pressed="selectedDay === day"
               @click="selectedDay = day"
             >
               <span class="day-pill__abbrev">{{ DAY_LABELS[day] }}</span>
               <span class="day-pill__date">{{ dayDateNumber(day) }}</span>
+              <span v-if="isToday(day)" class="day-pill__sr">hoy</span>
             </button>
           </div>
         </div>
@@ -412,7 +438,11 @@
                 <span
                   class="slot-card__activity"
                   :class="{ 'slot-card__activity--tappable': slot.activityDescription }"
+                  :role="slot.activityDescription ? 'button' : undefined"
+                  :tabindex="slot.activityDescription ? 0 : undefined"
                   @click="onActivityNameTap(slot, $event)"
+                  @keydown.enter="onActivityNameTap(slot, $event)"
+                  @keydown.space.prevent="onActivityNameTap(slot, $event)"
                   >{{ slot.activityName }}</span
                 >
                 <span v-if="slot.coachOverride && slot.coachFirstName" class="slot-card__coach"
@@ -421,7 +451,7 @@
               </div>
               <div class="slot-card__right">
                 <template v-if="isSlotHoliday(slot)">
-                  <q-badge color="accent" label="Feriado" />
+                  <span class="slot-card__avail slot-card__avail--few">Feriado</span>
                 </template>
                 <template v-else-if="slotIsFull(slot)">
                   <span class="slot-card__avail slot-card__avail--full">Completo</span>
@@ -433,42 +463,35 @@
                     :class="`slot-card__avail--${availabilityLevel(slot)}`"
                     >{{ availabilityText(slot) }}</span
                   >
-                  <q-btn
-                    flat
-                    dense
-                    no-caps
-                    color="primary"
-                    label="Reservar"
-                    class="slot-card__action"
+                  <button
+                    type="button"
+                    class="slot-card__go"
+                    :aria-label="`Reservar ${formatTime(slot.startTime)}`"
                     @click.stop="onTrialSlotTap(slot)"
-                  />
+                  >
+                    Reservar
+                  </button>
                 </template>
               </div>
             </div>
           </template>
 
-          <div
-            v-if="daySections.length === 0"
-            class="day-slots__empty"
-          >
-            <q-icon name="event_busy" size="40px" color="grey-4" />
+          <div v-if="daySections.length === 0" class="day-slots__empty">
+            <q-icon name="event_busy" size="40px" color="info" />
             <p>No hay horarios este día</p>
           </div>
         </div>
 
-        <p class="reservas__policy">
+        <ReservasRulesNote>
           Es tu sesión de prueba gratis. Podés cancelarla o cambiarla hasta 24 horas antes; dentro
           de las 24 horas queda fija.
-        </p>
+        </ReservasRulesNote>
       </template>
     </template>
 
     <template v-else>
       <!-- Branch selector -->
-      <div
-        v-if="isMultiBranch && branches.length > 1"
-        class="q-mb-md flex justify-center items-center"
-      >
+      <div v-if="isMultiBranch && branches.length > 1" class="branch-row">
         <q-select
           v-model="selectedBranchId"
           :options="branchOptions"
@@ -477,13 +500,16 @@
           outlined
           emit-value
           map-options
-          class="branch-select"
+          class="branch-select branch-select--chip"
+          hide-dropdown-icon
+          :display-value="currentBranchShortName"
+          aria-label="Sede"
         >
           <template #prepend>
-            <q-icon name="location_on" size="18px" color="primary" />
+            <q-icon name="place" size="18px" />
           </template>
           <template #append>
-            <q-icon name="unfold_more" size="16px" color="grey-6" />
+            <q-icon name="expand_more" size="18px" />
           </template>
           <template #option="scope">
             <q-item v-bind="scope.itemProps">
@@ -509,10 +535,12 @@
           @click="openBranchMaps(mapsUrlForBranch(selectedBranchId)!)"
         />
       </div>
-      <p v-else class="branch-label">
-        <q-icon name="location_on" size="14px" class="q-mr-xs" />
-        {{ userStore.branchDisplayName }}
-      </p>
+      <div v-else class="branch-row">
+        <p class="branch-chip">
+          <q-icon name="place" size="18px" />
+          {{ currentBranchShortName }}
+        </p>
+      </div>
 
       <!-- Phase 162 (APP-02): contador del pase especial — un chip dorado POR PASE
            (línea Aura, Yoga...), visible sólo si el usuario tiene algún pase. En 0/N
@@ -545,44 +573,58 @@
         </span>
       </div>
 
-      <!-- Next class hero card -->
-      <div class="next-class-card q-mb-md">
-        <div class="next-class-card__icon">
-          <q-icon :name="nextBooking ? 'event' : 'event_available'" size="28px" color="primary" />
+      <!-- Próxima clase (sketch 013 A): card clara con marco degradé fino -->
+      <div class="next-card">
+        <div class="next-card__body">
+          <span class="next-card__icon">
+            <q-icon :name="nextBooking ? 'event' : 'event_available'" size="22px" />
+          </span>
+          <div class="next-card__info">
+            <p class="next-card__kicker">Tu próxima clase</p>
+            <p class="next-card__title">
+              {{ nextBooking ? nextBookingTitle(nextBooking) : 'Elegí un horario' }}
+            </p>
+            <p class="next-card__meta">
+              {{
+                nextBooking
+                  ? nextBookingMeta(nextBooking)
+                  : 'Podés reservar hasta 2 días en adelante'
+              }}
+            </p>
+          </div>
+          <button
+            v-if="nextBooking"
+            type="button"
+            class="link-btn next-card__cancel"
+            @click="promptCancelBooking(nextBooking)"
+          >
+            Cancelar
+          </button>
         </div>
-        <div v-if="nextBooking" class="next-class-card__info">
-          <p class="next-class-card__label">Próxima clase</p>
-          <p class="next-class-card__activity">{{ nextBooking.activityName }}</p>
-          <p class="next-class-card__time">
-            {{ formatBookingDay(nextBooking) }} · {{ formatTime(nextBooking.startTime) }}
-          </p>
-        </div>
-        <div v-else class="next-class-card__info">
-          <p class="next-class-card__label">Próxima clase</p>
-          <p class="next-class-card__activity-empty">Elegí un horario para reservar</p>
-        </div>
-        <q-btn
-          v-if="nextBooking"
-          flat
-          round
-          dense
-          icon="close"
-          color="negative"
-          size="sm"
-          @click="promptCancelBooking(nextBooking)"
-        >
-          <q-tooltip>Cancelar</q-tooltip>
-        </q-btn>
       </div>
 
       <!-- Day selector strip -->
-      <div class="day-strip q-mb-md">
+      <div class="day-strip">
         <div class="day-strip__nav">
-          <q-btn flat dense round icon="chevron_left" size="sm" @click="changeWeek(-1)" />
+          <q-btn
+            flat
+            round
+            icon="chevron_left"
+            class="week-nav-btn"
+            aria-label="Semana anterior"
+            @click="changeWeek(-1)"
+          />
           <q-btn flat dense no-caps class="day-strip__week-label" @click="goToCurrentWeek">
             {{ weekLabel }}
           </q-btn>
-          <q-btn flat dense round icon="chevron_right" size="sm" @click="changeWeek(1)" />
+          <q-btn
+            flat
+            round
+            icon="chevron_right"
+            class="week-nav-btn"
+            aria-label="Semana siguiente"
+            @click="changeWeek(1)"
+          />
         </div>
         <div class="day-strip__days">
           <button
@@ -595,11 +637,13 @@
               'day-pill--has-booking': dayHasBooking(day),
               'day-pill--past': isDayPast(day),
             }"
+            :aria-pressed="selectedDay === day"
             @click="selectedDay = day"
           >
             <span class="day-pill__abbrev">{{ DAY_LABELS[day] }}</span>
             <span class="day-pill__date">{{ dayDateNumber(day) }}</span>
-            <span v-if="dayHasBooking(day)" class="day-pill__dot"></span>
+            <span v-if="isToday(day)" class="day-pill__sr">hoy</span>
+            <span v-if="dayHasBooking(day)" class="day-pill__sr">con reserva</span>
           </button>
         </div>
       </div>
@@ -627,72 +671,87 @@
               <span
                 class="slot-card__activity"
                 :class="{ 'slot-card__activity--tappable': slot.activityDescription }"
+                :role="slot.activityDescription ? 'button' : undefined"
+                :tabindex="slot.activityDescription ? 0 : undefined"
                 @click="onActivityNameTap(slot, $event)"
+                @keydown.enter="onActivityNameTap(slot, $event)"
+                @keydown.space.prevent="onActivityNameTap(slot, $event)"
                 >{{ slot.activityName }}</span
               >
               <span v-if="slot.coachOverride && slot.coachFirstName" class="slot-card__coach"
                 >Profe {{ slot.coachFirstName }}</span
               >
-              <!-- Phase 162 (APP-01): distintivo dorado en actividades especiales (todos los
-                   estados). 2026-10-01: mismo "Especial" para todas las líneas (Yoga incluida). -->
-              <q-badge v-if="slot.isSpecial" class="slot-card__badge--special">
-                <q-icon name="auto_awesome" size="12px" class="q-mr-xs" />Especial
-              </q-badge>
             </div>
             <div class="slot-card__right">
               <template v-if="isSlotHoliday(slot)">
-                <q-badge color="accent" label="Feriado" />
+                <span class="slot-card__avail slot-card__avail--few">Feriado</span>
               </template>
               <template v-else-if="isSlotAttended(slot)">
-                <q-icon name="verified" size="20px" color="positive" />
-                <span class="slot-card__badge slot-card__badge--positive">Asististe</span>
+                <span class="slot-card__chip slot-card__chip--ok">
+                  <q-icon name="verified" size="16px" />Asististe
+                </span>
               </template>
               <template v-else-if="isSlotBooked(slot)">
-                <q-icon name="check_circle" size="20px" color="positive" />
-                <span class="slot-card__badge slot-card__badge--positive">Reservado</span>
-                <q-btn
-                  flat
-                  round
-                  dense
-                  icon="close"
-                  color="negative"
-                  size="sm"
+                <span class="slot-card__chip slot-card__chip--ok">
+                  <q-icon name="check" size="16px" />Reservado
+                </span>
+                <button
+                  type="button"
+                  class="link-btn"
+                  :aria-label="`Cancelar reserva de las ${formatTime(slot.startTime)}`"
                   @click.stop="cancelSlotBooking(slot)"
                 >
-                  <q-tooltip>Cancelar</q-tooltip>
-                </q-btn>
+                  Cancelar
+                </button>
               </template>
               <template v-else-if="slot.isFull && !slot.isSpecial">
                 <span class="slot-card__avail slot-card__avail--full">Completo</span>
+                <button
+                  v-if="canJoinWaitlist(slot)"
+                  type="button"
+                  class="slot-card__go slot-card__go--wait"
+                  :aria-label="`Lista de espera de las ${formatTime(slot.startTime)}`"
+                  @click.stop="onSlotTap(slot)"
+                >
+                  Lista de espera
+                </button>
               </template>
               <template v-else-if="isSlotPast(slot)"></template>
               <!-- Phase 162 (APP-01): estados de la actividad especial. Se evalúan
                    DESPUÉS de holiday/attended/booked/full/past (que conservan prioridad).
-                   Bloqueo en olive/grey, nunca rojo (no es error, es condición de acceso). -->
+                   Bloqueo en tono apagado, nunca rojo (no es error, es condición de acceso). -->
               <template v-else-if="slot.isSpecial && slotSpecialState(slot) === 'reservable'">
                 <!-- E1/E4: plan especial con saldo → flujo de reserva normal -->
-                <span v-if="slot.isFull" class="slot-card__avail slot-card__avail--full"
-                  >Completo</span
-                >
+                <template v-if="slot.isFull">
+                  <span class="slot-card__avail slot-card__avail--full">Completo</span>
+                  <button
+                    v-if="canJoinWaitlist(slot)"
+                    type="button"
+                    class="slot-card__go slot-card__go--wait"
+                    :aria-label="`Lista de espera de las ${formatTime(slot.startTime)}`"
+                    @click.stop="onSlotTap(slot)"
+                  >
+                    Lista de espera
+                  </button>
+                </template>
                 <template v-else>
                   <span
                     class="slot-card__avail"
                     :class="`slot-card__avail--${availabilityLevel(slot)}`"
                     >{{ availabilityText(slot) }}</span
                   >
-                  <q-btn
-                    flat
-                    dense
-                    no-caps
-                    color="primary"
-                    label="Reservar"
-                    class="slot-card__action"
+                  <button
+                    type="button"
+                    class="slot-card__go"
+                    :aria-label="`Reservar ${formatTime(slot.startTime)}`"
                     @click.stop="onSlotTap(slot)"
-                  />
+                  >
+                    Reservar
+                  </button>
                 </template>
               </template>
               <template v-else-if="slot.isSpecial && slotSpecialState(slot) === 'exhausted'">
-                <!-- E2: pase de la línea sin saldo (0/N) — pill apagada, sin botón -->
+                <!-- E2: pase de la línea sin saldo (0/N) — chip apagado, sin botón -->
                 <span class="slot-card__pill slot-card__pill--muted">Usaste tus clases</span>
               </template>
               <template v-else-if="slot.isSpecial">
@@ -703,10 +762,10 @@
                   v-if="canClaimTrial(userStore.trialLines, slot.specialLine ?? null)"
                   class="slot-card__pill slot-card__pill--trial"
                 >
-                  <q-icon name="redeem" size="13px" class="q-mr-xs" />¡Probá una clase!
+                  <q-icon name="redeem" size="14px" />¡Probá una clase!
                 </span>
                 <span v-else class="slot-card__pill slot-card__pill--locked">
-                  <q-icon name="lock" size="13px" class="q-mr-xs" />{{ specialLockedLabel(slot) }}
+                  <q-icon name="lock" size="14px" />{{ specialLockedLabel(slot) }}
                 </span>
               </template>
               <template v-else>
@@ -715,34 +774,30 @@
                   :class="`slot-card__avail--${availabilityLevel(slot)}`"
                   >{{ availabilityText(slot) }}</span
                 >
-                <q-btn
-                  flat
-                  dense
-                  no-caps
-                  color="primary"
-                  label="Reservar"
-                  class="slot-card__action"
+                <button
+                  type="button"
+                  class="slot-card__go"
+                  :aria-label="`Reservar ${formatTime(slot.startTime)}`"
                   @click.stop="onSlotTap(slot)"
-                />
+                >
+                  Reservar
+                </button>
               </template>
             </div>
           </div>
         </template>
 
         <!-- No slots -->
-        <div
-          v-if="daySections.length === 0"
-          class="day-slots__empty"
-        >
-          <q-icon name="event_busy" size="40px" color="grey-4" />
+        <div v-if="daySections.length === 0" class="day-slots__empty">
+          <q-icon name="event_busy" size="40px" color="info" />
           <p>No hay horarios este día</p>
         </div>
       </div>
 
-      <p class="reservas__policy">
+      <ReservasRulesNote>
         Podés reservar desde hoy hasta 2 días en adelante, hasta 5 minutos antes del inicio de la
         clase. Las cancelaciones deben hacerse con al menos 20 minutos de anticipación.
-      </p>
+      </ReservasRulesNote>
 
       <!-- Week activity summary (collapsible) -->
       <q-expansion-item
@@ -761,178 +816,168 @@
               <q-item-label caption>{{ event.label }}</q-item-label>
             </q-item-section>
             <q-item-section side>
-              <q-badge :color="event.badgeColor" :label="event.badgeLabel" />
+              <span class="week-pill" :class="`week-pill--${event.badgeTone}`">{{
+                event.badgeLabel
+              }}</span>
             </q-item-section>
           </q-item>
         </q-list>
-        <div v-else class="q-pa-md text-center text-grey-6 text-body2">
+        <div v-else class="week-summary__empty q-pa-md text-center text-body2">
           No tenés actividad esta semana
         </div>
       </q-expansion-item>
     </template>
 
+    <!-- Diálogos de trámite: PremiumDialogCard tone="light" (sketch 012 A · Hermana clara).
+         Primario terracota con destello; lo destructivo (cancelar reserva / prueba) en rojo sin
+         destello (`pd-cta--neg`); el secundario es un link. -->
+
     <!-- Reserve confirmation dialog -->
     <q-dialog v-model="reserveDialog.show" persistent>
-      <q-card style="min-width: 300px">
-        <q-card-section>
-          <div class="text-h6">{{ reserveDialog.title }}</div>
-        </q-card-section>
-        <q-card-section class="q-pt-none">
-          {{ reserveDialog.message }}
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat label="Cancelar" color="grey" v-close-popup />
+      <PremiumDialogCard tone="light">
+        <h3 class="pd-title">{{ reserveDialog.title }}</h3>
+        <p class="pd-text">{{ reserveDialog.message }}</p>
+        <div class="pd-acts">
           <q-btn
-            flat
+            unelevated
+            no-caps
+            class="pd-cta"
+            :class="{ 'pd-cta--neg': reserveDialog.confirmColor === 'negative' }"
             :label="reserveDialog.confirmLabel"
-            :color="reserveDialog.confirmColor"
             :loading="reserveDialog.loading"
             @click="confirmReserve"
           />
-        </q-card-actions>
-      </q-card>
+          <q-btn flat no-caps dense class="pd-skip" label="Cancelar" v-close-popup />
+        </div>
+      </PremiumDialogCard>
     </q-dialog>
 
     <!-- Trial reserve confirmation dialog (no-cancel copy, D-03) -->
     <q-dialog v-model="trialDialog.show" persistent>
-      <q-card style="min-width: 300px">
-        <q-card-section>
-          <div class="text-h6">Reservar tu sesión de prueba</div>
-        </q-card-section>
-        <q-card-section class="q-pt-none">
-          {{ trialDialog.message }}
-        </q-card-section>
-        <q-card-section v-if="trialPhoneRequired" class="q-pt-none">
-          <q-input
-            v-model="trialDialog.phone"
-            type="tel"
-            inputmode="tel"
-            label="Teléfono"
-            outlined
-            dense
-            :rules="[
-              (v) => (v ?? '').replace(/\D/g, '').length >= 6 || 'Ingresá un teléfono válido',
-            ]"
-            hint="Lo necesitamos para coordinar tu sesión de prueba"
-          />
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat label="Cancelar" color="grey" v-close-popup />
+      <PremiumDialogCard tone="light">
+        <h3 class="pd-title">Reservar tu sesión de prueba</h3>
+        <p class="pd-text">{{ trialDialog.message }}</p>
+        <q-input
+          v-if="trialPhoneRequired"
+          v-model="trialDialog.phone"
+          class="pd-input"
+          type="tel"
+          inputmode="tel"
+          label="Teléfono"
+          outlined
+          :rules="[(v) => (v ?? '').replace(/\D/g, '').length >= 6 || 'Ingresá un teléfono válido']"
+          hint="Lo necesitamos para coordinar tu sesión de prueba"
+        />
+        <div class="pd-acts">
           <q-btn
-            flat
+            unelevated
+            no-caps
+            class="pd-cta"
             label="Confirmar prueba"
-            color="primary"
             :loading="trialDialog.loading"
             :disable="trialPhoneRequired && trialDialog.phone.replace(/\D/g, '').length < 6"
             @click="confirmTrialReserve"
           />
-        </q-card-actions>
-      </q-card>
+          <q-btn flat no-caps dense class="pd-skip" label="Cancelar" v-close-popup />
+        </div>
+      </PremiumDialogCard>
     </q-dialog>
 
     <!-- Trial cancel confirmation dialog (D-03 revised, >24h only) -->
     <q-dialog v-model="trialCancelDialog" persistent>
-      <q-card style="min-width: 300px">
-        <q-card-section>
-          <div class="text-h6">Cancelar tu sesión de prueba</div>
-        </q-card-section>
-        <q-card-section class="q-pt-none">
+      <PremiumDialogCard tone="light">
+        <h3 class="pd-title">Cancelar tu sesión de prueba</h3>
+        <p class="pd-text">
           ¿Seguro que querés cancelar tu sesión de prueba? Vas a poder reservar otra cuando quieras.
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat label="No, volver" color="grey" v-close-popup :disable="trialCancelLoading" />
+        </p>
+        <div class="pd-acts">
           <q-btn
-            flat
+            unelevated
+            no-caps
+            class="pd-cta pd-cta--neg"
             label="Sí, cancelar"
-            color="negative"
             :loading="trialCancelLoading"
             @click="confirmTrialCancel"
           />
-        </q-card-actions>
-      </q-card>
+          <q-btn
+            flat
+            no-caps
+            dense
+            class="pd-skip"
+            label="No, volver"
+            :disable="trialCancelLoading"
+            v-close-popup
+          />
+        </div>
+      </PremiumDialogCard>
     </q-dialog>
 
     <!-- Partner free-week reserve confirmation dialog (Phase 179, D-05/D-06) -->
     <q-dialog v-model="partnerDialog.show" persistent>
-      <q-card style="min-width: 300px">
-        <q-card-section>
-          <div class="text-h6">Arrancar tu semana de regalo</div>
-        </q-card-section>
-        <q-card-section class="q-pt-none">
-          {{ partnerDialog.message }}
-        </q-card-section>
-        <q-card-actions align="right">
+      <PremiumDialogCard tone="light">
+        <h3 class="pd-title">Arrancar tu semana de regalo</h3>
+        <p class="pd-text">{{ partnerDialog.message }}</p>
+        <div class="pd-acts">
           <q-btn
-            flat
-            label="Cancelar"
-            color="grey"
-            v-close-popup
-            :disable="partnerDialog.loading"
-          />
-          <q-btn
-            flat
+            unelevated
+            no-caps
+            class="pd-cta"
             label="Confirmar"
-            color="primary"
             :loading="partnerDialog.loading"
             @click="confirmPartnerReserve"
           />
-        </q-card-actions>
-      </q-card>
+          <q-btn
+            flat
+            no-caps
+            dense
+            class="pd-skip"
+            label="Cancelar"
+            :disable="partnerDialog.loading"
+            v-close-popup
+          />
+        </div>
+      </PremiumDialogCard>
     </q-dialog>
 
     <!-- Cancel confirmation dialog -->
     <q-dialog v-model="cancelDialog.show" persistent>
-      <q-card style="min-width: 300px">
-        <q-card-section>
-          <div class="text-h6">Cancelar reserva</div>
-        </q-card-section>
-        <q-card-section class="q-pt-none">
-          {{ cancelDialog.message }}
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat label="Volver" color="grey" v-close-popup />
+      <PremiumDialogCard tone="light">
+        <h3 class="pd-title">Cancelar reserva</h3>
+        <p class="pd-text">{{ cancelDialog.message }}</p>
+        <div class="pd-acts">
           <q-btn
-            flat
+            unelevated
+            no-caps
+            class="pd-cta pd-cta--neg"
             label="Cancelar reserva"
-            color="negative"
             :loading="cancelDialog.loading"
             @click="confirmCancel"
           />
-        </q-card-actions>
-      </q-card>
+          <q-btn flat no-caps dense class="pd-skip" label="Volver" v-close-popup />
+        </div>
+      </PremiumDialogCard>
     </q-dialog>
 
     <!-- Phase 144-04 (D-15): booking-block renewal dialog (COVERAGE_EXPIRED).
          NOT persistent — action-scoped, re-shows on every too-late retry. -->
     <q-dialog v-model="showCoverageDialog">
-      <q-card class="coverage-dialog">
-        <q-card-section class="coverage-dialog__body">
-          <q-icon class="coverage-dialog__icon" name="event_busy" size="2.5em" />
-          <h3 class="coverage-dialog__title">Necesitás renovar tu membresía</h3>
-          <p class="coverage-dialog__text">
-            Esta clase es posterior al vencimiento de tu plan. Renovalo por WhatsApp para poder
-            reservarla.
-          </p>
-        </q-card-section>
-
-        <q-card-actions class="coverage-dialog__actions">
+      <PremiumDialogCard tone="light" icon="event_busy">
+        <h3 class="pd-title">Necesitás renovar tu membresía</h3>
+        <p class="pd-text">
+          Esta clase es posterior al vencimiento de tu plan. Renovalo por WhatsApp para poder
+          reservarla.
+        </p>
+        <div class="pd-acts">
           <q-btn
             unelevated
             no-caps
-            class="coverage-dialog__primary full-width"
+            class="pd-cta"
             label="Renovar por WhatsApp"
             @click="openCoverageWhatsApp"
           />
-          <q-btn
-            flat
-            no-caps
-            dense
-            class="coverage-dialog__secondary"
-            label="Entendido"
-            v-close-popup
-          />
-        </q-card-actions>
-      </q-card>
+          <q-btn flat no-caps dense class="pd-skip" label="Entendido" v-close-popup />
+        </div>
+      </PremiumDialogCard>
     </q-dialog>
 
     <!-- Phase 162-05 (APP-03/D-02): dialog informativo del pase especial. Se dispara
@@ -940,32 +985,29 @@
          (code PASS_REQUIRED). Consciente de la LÍNEA (Aura, Yoga...) que lo abrió y sin
          precios (cambian). SIN pago in-app — la venta es por gestión/PoS (el CTA
          "Adquirí tu pase" de la clase de prueba solo abre el WhatsApp de administración).
-         Acento dorado (Aura). NOT persistent. -->
+         NOT persistent salvo mientras se reserva la prueba. -->
     <q-dialog v-model="showAuraInfoDialog" :persistent="trialClaimLoading">
-      <q-card class="aura-dialog">
-        <q-card-section class="aura-dialog__body">
-          <q-icon class="aura-dialog__icon" name="auto_awesome" size="2.5em" />
-          <h3 class="aura-dialog__title">{{ passInfoTitle }}</h3>
-          <p v-if="passInfoTrialSlot" class="aura-dialog__text">
-            Podés probar una clase gratis con tu plan. Si te gustó, podés pedir tu pase especial de
-            <strong>{{ passInfoLine }}</strong> contactándote con nosotros.
-          </p>
-          <p v-else class="aura-dialog__text">
-            Esta clase se reserva con el pase de <strong>{{ passInfoLine }}</strong
-            >, aparte de tu plan. Pedilo en la recepción de tu sede.
-          </p>
-        </q-card-section>
+      <PremiumDialogCard tone="light" icon="auto_awesome">
+        <h3 class="pd-title">{{ passInfoTitle }}</h3>
+        <p v-if="passInfoTrialSlot" class="pd-text">
+          Podés probar una clase gratis con tu plan. Si te gustó, podés pedir tu pase especial de
+          <strong>{{ passInfoLine }}</strong> contactándote con nosotros.
+        </p>
+        <p v-else class="pd-text">
+          Esta clase se reserva con el pase de <strong>{{ passInfoLine }}</strong
+          >, aparte de tu plan. Pedilo en la recepción de tu sede.
+        </p>
 
         <!-- Clase de prueba gratis (2026-09-29): si el server marcó la línea como elegible
              (trialLines) y hay un turno concreto detrás del tap, el CTA primario es probarla.
              2026-10-01: un solo paso — "Probá una clase gratis" reserva ese turno directo,
              sin confirmación. "Adquirí tu pase" lleva al WhatsApp de administración. Sin
              turno o sin elegibilidad queda el "Entendido" de siempre. -->
-        <q-card-actions v-if="passInfoTrialSlot" vertical class="aura-dialog__actions">
+        <div v-if="passInfoTrialSlot" class="pd-acts">
           <q-btn
             unelevated
             no-caps
-            class="aura-dialog__primary full-width"
+            class="pd-cta"
             label="Probá una clase gratis"
             :loading="trialClaimLoading"
             :disable="trialClaimLoading"
@@ -974,7 +1016,7 @@
           <q-btn
             unelevated
             no-caps
-            class="aura-dialog__primary full-width"
+            class="pd-cta"
             label="Adquirí tu pase"
             :disable="trialClaimLoading"
             @click="openPassWhatsApp"
@@ -983,22 +1025,16 @@
             flat
             no-caps
             dense
-            class="coverage-dialog__secondary"
+            class="pd-skip"
             label="Ahora no"
             :disable="trialClaimLoading"
             v-close-popup
           />
-        </q-card-actions>
-        <q-card-actions v-else class="aura-dialog__actions">
-          <q-btn
-            unelevated
-            no-caps
-            class="aura-dialog__primary full-width"
-            label="Entendido"
-            v-close-popup
-          />
-        </q-card-actions>
-      </q-card>
+        </div>
+        <div v-else class="pd-acts">
+          <q-btn unelevated no-caps class="pd-cta" label="Entendido" v-close-popup />
+        </div>
+      </PremiumDialogCard>
     </q-dialog>
 
     <!-- Plan 180-13 (D-18): hoja de detalle de actividad, montada una sola vez. -->
@@ -1017,10 +1053,19 @@ import axios from 'axios'
 import { useQuasar } from 'quasar'
 import TemploLoader from 'src/components/TemploLoader.vue'
 import FirstVisitTipBanner from 'src/components/FirstVisitTipBanner.vue'
+import PremiumDialogCard from 'src/components/PremiumDialogCard.vue'
 import BranchPickerDialog from 'src/components/BranchPickerDialog.vue'
 import ActivityInfoSheet from 'src/components/ActivityInfoSheet.vue'
 import TurnoHeader from 'src/components/TurnoHeader.vue'
 import { splitDaySections } from 'src/utils/turno-sections'
+import {
+  availabilityLevel as availabilityLevelFor,
+  availabilityText as availabilityTextFor,
+  slotIsFull as slotIsFullFor,
+  type AvailabilityLevel,
+} from 'src/utils/slot-availability'
+import { shortBranchName } from 'src/modules/progression/utils/today-card'
+import ReservasRulesNote from 'src/components/ReservasRulesNote.vue'
 import { useSchedulingApi } from 'src/composables/useSchedulingApi'
 import type {
   TrialEligibility,
@@ -1028,6 +1073,7 @@ import type {
   PartnerBenefitEligibility,
 } from 'src/composables/useSchedulingApi'
 import { useUserStore } from 'src/stores/useUserStore'
+import { useTodayBookingStore } from 'src/stores/useTodayBookingStore'
 import { createLogger } from 'src/utils/logger'
 import {
   fullLineLabel,
@@ -1054,6 +1100,10 @@ import { buildGoogleCalendarUrl } from 'src/utils/calendar-link'
 const $q = useQuasar()
 const log = createLogger('ReservasV2')
 const userStore = useUserStore()
+// Turno de hoy (botón QR de MainLayout): reservar o cancelar no cambia de ruta,
+// así que hay que recargarlo a mano. Si no, quien reserva dentro de la ventana
+// ±20 min (se puede hasta 5 min antes) no ve el botón para marcar asistencia.
+const todayBookingStore = useTodayBookingStore()
 const {
   getWeeklyGrid,
   reserve,
@@ -1203,7 +1253,7 @@ const trialConfirmationBody = computed(() => {
   const dateStr = `${d.getDate()} ${MONTH_ABBREV[d.getMonth()]}`
   const timeStr = formatTime(b.startTime)
   const sede = b.branchAddress ? `${b.branchName} (${b.branchAddress})` : b.branchName
-  return `Te esperamos el ${dayLabel} ${dateStr} a las ${timeStr} en ${sede}. ¡Llegá unos minutos antes!`
+  return `Te esperamos el ${dayLabel.toLowerCase()} ${dateStr} a las ${timeStr} en ${sede}. ¡Llegá unos minutos antes!`
 })
 
 // D-20: botón primario "Agregar al calendario" de la confirmación de prueba
@@ -1346,6 +1396,7 @@ async function confirmEspecialTrial() {
       type: 'positive',
       message: `Reserva confirmada. ¡Disfrutá tu clase de prueba de ${passInfoLine.value}!`,
     })
+    void todayBookingStore.load()
     await loadGrid()
     // El pase de prueba recién asignado tiene que aparecer en el chip y la línea deja de
     // ser elegible (trialLines).
@@ -1410,19 +1461,20 @@ const partnerDialog = ref({
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
+// Meses en minúscula ("16 oct", "12 al 16 de octubre"): van dentro de frases.
 const MONTH_ABBREV = [
-  'Ene',
-  'Feb',
-  'Mar',
-  'Abr',
-  'May',
-  'Jun',
-  'Jul',
-  'Ago',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dic',
+  'ene',
+  'feb',
+  'mar',
+  'abr',
+  'may',
+  'jun',
+  'jul',
+  'ago',
+  'sep',
+  'oct',
+  'nov',
+  'dic',
 ]
 
 /**
@@ -1506,18 +1558,18 @@ const visibleDays = computed<DayOfWeek[]>(() => {
 
 const weekLabel = computed(() => {
   const monthNames = [
-    'Enero',
-    'Febrero',
-    'Marzo',
-    'Abril',
-    'Mayo',
-    'Junio',
-    'Julio',
-    'Agosto',
-    'Septiembre',
-    'Octubre',
-    'Noviembre',
-    'Diciembre',
+    'enero',
+    'febrero',
+    'marzo',
+    'abril',
+    'mayo',
+    'junio',
+    'julio',
+    'agosto',
+    'septiembre',
+    'octubre',
+    'noviembre',
+    'diciembre',
   ]
   // weekStart is anchored at UTC noon so calendar math uses UTC methods —
   // see getMondayInTz() for why.
@@ -1669,61 +1721,32 @@ function slotCardClass(slot: WeeklySlotView): Record<string, boolean> {
 }
 
 // ─── Availability tier ──────────────────────────────────────────────
-// Mirrors the admin Horarios grid thresholds (HorariosPage.vue cellClass):
-// 1 lugar → 'last' (pill NARANJA), 2-4 → 'few' (pill amarilla), 5+ →
-// 'available' (verde), 0 → 'full'. Umbral ABSOLUTO (no porcentual) para que el
-// aviso sea consistente sin importar el tamaño de la clase.
-//
-// Copy (pedido de negocio): cuando hay lugar de sobra la etiqueta muestra
-// cuánta gente YA reservó ("N personas anotadas" = prueba social); cuando queda
-// poco lugar pasa a mostrar los lugares RESTANTES ("Quedan N lugares" =
-// urgencia). El color sale del CSS por nivel.
-type AvailabilityLevel = 'available' | 'few' | 'last' | 'full'
-
-const FEW_THRESHOLD = 5
-
-// En modo prueba (freemium eligiendo SP) la disponibilidad NO es la del cupo
-// general de la clase, sino la del cupo ESPECIAL de SP (tope 3, `trialSpotsRemaining`).
-// El bloque de prueba y el regular son mutuamente excluyentes (v-if/v-else-if
-// sobre `trialEligible`), así que estas funciones ramifican por `isTrialMode`.
+// Nivel y copy del chip de cupo: lógica pura en `utils/slot-availability` (con tests). Acá solo se
+// ata al modo del componente: en modo prueba (freemium eligiendo SP) la disponibilidad es la del
+// cupo ESPECIAL de SP. El bloque de prueba y el regular son mutuamente excluyentes (v-if/v-else-if
+// sobre `trialEligible`), así que las funciones ramifican por `isTrialMode`.
 function slotIsFull(slot: WeeklySlotView): boolean {
-  if (isTrialMode.value) return slot.trialSpotsRemaining <= 0
-  return slot.isFull
-}
-
-function spotsLeft(slot: WeeklySlotView): number {
-  if (isTrialMode.value) return Math.max(0, slot.trialSpotsRemaining)
-  return Math.max(0, slot.maxCapacity - slot.bookedCount)
+  return slotIsFullFor(slot, isTrialMode.value)
 }
 
 function availabilityLevel(slot: WeeklySlotView): AvailabilityLevel {
-  const left = spotsLeft(slot)
-  if (slotIsFull(slot) || left <= 0) return 'full'
-  if (left === 1) return 'last'
-  if (left < FEW_THRESHOLD) return 'few'
-  return 'available'
+  return availabilityLevelFor(slot, isTrialMode.value)
 }
 
 function availabilityText(slot: WeeklySlotView): string {
-  const level = availabilityLevel(slot)
-  if (level === 'full') return 'Completo'
-  if (level === 'last') return 'Queda 1 lugar'
-  if (level === 'few') return `Quedan ${spotsLeft(slot)} lugares`
-  // 'available': prueba social — cuántos ya se anotaron. (En modo prueba nunca
-  // se llega acá: el tope de SP es 3, siempre < FEW_THRESHOLD, así que cae en
-  // 'few'/'last'/'full' y muestra los cupos restantes.)
-  const booked = Math.max(0, slot.bookedCount)
-  if (booked === 1) return '1 persona anotada'
-  return `${booked} personas anotadas`
+  return availabilityTextFor(slot, isTrialMode.value)
 }
 
 // ─── Week events (for collapsible summary) ──────────────────────────
+
+type WeekEventTone = 'ok' | 'neutral' | 'warn' | 'bad'
 
 interface WeekEvent {
   key: string
   activityName: string
   label: string
-  badgeColor: string
+  /** Tono semántico del estado; los colores salen del rework (pills de cupos), no de Quasar. */
+  badgeTone: WeekEventTone
   badgeLabel: string
 }
 
@@ -1741,7 +1764,7 @@ const weekEvents = computed<WeekEvent[]>(() => {
       key: `att-${att.id}`,
       activityName: att.activityName,
       label: `${dayLabel} ${dateLabel} - ${formatTime(att.startTime)}`,
-      badgeColor: att.status === 'confirmado' ? 'positive' : 'info',
+      badgeTone: att.status === 'confirmado' ? 'ok' : 'neutral',
       badgeLabel: att.status === 'confirmado' ? 'Asististe' : 'Check-in',
     })
   }
@@ -1761,16 +1784,16 @@ const weekEvents = computed<WeekEvent[]>(() => {
     const d = new Date(b.bookingDate + 'T00:00:00')
     const dateStr = `${d.getDate()} ${MONTH_ABBREV[d.getMonth()]}`
 
-    let badgeColor: string
+    let badgeTone: WeekEventTone
     let badgeLabel: string
     if (b.status === 'no_show') {
-      badgeColor = 'negative'
+      badgeTone = 'bad'
       badgeLabel = BOOKING_STATUS_LABELS.no_show
     } else if (b.status === 'confirmado') {
-      badgeColor = 'positive'
+      badgeTone = 'ok'
       badgeLabel = 'Asististe'
     } else {
-      badgeColor = b.status === 'reservado' || b.status === 'qr_escaneado' ? 'primary' : 'warning'
+      badgeTone = b.status === 'reservado' || b.status === 'qr_escaneado' ? 'neutral' : 'warn'
       badgeLabel =
         b.status === 'lista_espera' && b.waitlistPosition !== null
           ? `${BOOKING_STATUS_LABELS.lista_espera} (#${b.waitlistPosition})`
@@ -1781,7 +1804,7 @@ const weekEvents = computed<WeekEvent[]>(() => {
       key: `bk-${b.id}`,
       activityName: b.activityName,
       label: `${dayLabel} ${dateStr} - ${formatTime(b.startTime)}`,
-      badgeColor,
+      badgeTone,
       badgeLabel,
     })
   }
@@ -1791,10 +1814,58 @@ const weekEvents = computed<WeekEvent[]>(() => {
 
 // ─── Booking flow ───────────────────────────────────────────────────
 
-function formatBookingDay(booking: BookingRecord): string {
+/** "Viernes 16 · 19:00": título de la card "Tu próxima clase". */
+function nextBookingTitle(booking: BookingRecord): string {
   const dayLabel = DAY_LABELS_FULL[booking.dayOfWeek as DayOfWeek] ?? ''
   const d = new Date(booking.bookingDate + 'T00:00:00')
-  return `${dayLabel} ${d.getDate()} ${MONTH_ABBREV[d.getMonth()]}`
+  return `${dayLabel} ${d.getDate()} · ${formatTime(booking.startTime)}`
+}
+
+/**
+ * Meta de la card "Tu próxima clase": actividad + sede de la RESERVA. El weekly-grid trae las reservas
+ * de todas las sedes sin `branchName`; la sede se toma del slot de la grilla con el mismo `scheduleId`
+ * (que sí la trae). Si la clase no está en la grilla que se está viendo, se omite en vez de inventarla.
+ */
+function nextBookingMeta(booking: BookingRecord): string {
+  const branchName = slots.value.find((s) => s.id === booking.scheduleId)?.branchName
+  const short = branchName ? shortBranchName(branchName) : ''
+  return short ? `${booking.activityName} · ${short}` : booking.activityName
+}
+
+/** Nombre corto de la sede que se está viendo ("Mario Bravo"), para el chip de sede y la meta. */
+const currentBranchShortName = computed(() => {
+  const picked =
+    isTrialMode.value || partnerBenefitEligible.value ? trialBranchId.value : selectedBranchId.value
+  const fromList = branches.value.find((b) => b.id === picked)?.name
+  return shortBranchName(fromList ?? userStore.profile?.branchName ?? '')
+})
+
+/**
+ * Reserva activa del socio que choca con `slot` el mismo día. El choque diario es POR CATEGORÍA, igual
+ * que la guarda 8b del server: una especial (pase Aura) no colisiona con una regular del mismo día — el
+ * socio puede tener ROM el sábado y la clase con Aura ese mismo sábado. Sin este filtro la app ofrecía
+ * "Cambiar horario" y le cancelaba la otra reserva. Entre especiales el choque es POR LÍNEA (yoga + Aura
+ * el mismo día están permitidos).
+ */
+function findSameDayBooking(slot: WeeklySlotView, date: string): BookingRecord | undefined {
+  return myBookings.value.find(
+    (b) =>
+      b.bookingDate === date &&
+      b.isSpecial === slot.isSpecial &&
+      (!slot.isSpecial || sameSpecialLine(b.specialLine, slot.specialLine)) &&
+      ['reservado', 'qr_escaneado', 'confirmado', 'lista_espera'].includes(b.status),
+  )
+}
+
+/**
+ * ¿Se ofrece "Lista de espera" en este horario completo? La guarda 8b del server rechaza CUALQUIER
+ * reserva (también la que cae en lista de espera) si el socio ya tiene otra el mismo día y categoría
+ * ("Cancela la existente primero"): anotarse implicaría soltar la reserva confirmada sin garantía de
+ * entrar. Con una reserva ese día no se ofrece, queda solo el chip "Completo".
+ */
+function canJoinWaitlist(slot: WeeklySlotView): boolean {
+  if (isSlotPast(slot)) return false
+  return !findSameDayBooking(slot, dateForDay(slot.dayOfWeek as DayOfWeek))
 }
 
 function onSlotTap(slot: WeeklySlotView) {
@@ -1833,25 +1904,18 @@ function onSlotTap(slot: WeeklySlotView) {
   const dateStr = `${d.getDate()} ${MONTH_ABBREV[d.getMonth()]}`
   const timeStr = formatTime(slot.startTime)
 
-  // El choque diario es POR CATEGORÍA, igual que la guarda 8b del server: una
-  // especial (pase Aura) no colisiona con una regular del mismo día — el socio
-  // puede tener ROM el sábado y la clase con Aura ese mismo sábado. Sin este
-  // filtro la app ofrecía "Cambiar horario" y le cancelaba la otra reserva. Entre
-  // especiales el choque es POR LÍNEA (yoga + Aura el mismo día están permitidos).
-  const existingBooking = myBookings.value.find(
-    (b) =>
-      b.bookingDate === date &&
-      b.isSpecial === slot.isSpecial &&
-      (!slot.isSpecial || sameSpecialLine(b.specialLine, slot.specialLine)) &&
-      ['reservado', 'qr_escaneado', 'confirmado', 'lista_espera'].includes(b.status),
-  )
+  const existingBooking = findSameDayBooking(slot, date)
+
+  // Horario completo + reserva ese día: no hay cambio posible (el server no admite lista de espera
+  // sin soltar la reserva) → sin acción, el card ya muestra "Completo".
+  if (existingBooking && slot.isFull) return
 
   if (existingBooking) {
     const existingTime = formatTime(existingBooking.startTime)
     reserveDialog.value = {
       show: true,
       title: 'Cambiar horario',
-      message: `Ya tenés una reserva el ${dayLabel} ${dateStr} a las ${existingTime}. Querés cambiarla por las ${timeStr}?`,
+      message: `Ya tenés una reserva el ${dayLabel.toLowerCase()} ${dateStr} a las ${existingTime}. ¿Querés cambiarla por la de las ${timeStr}?`,
       confirmLabel: 'Cambiar',
       confirmColor: 'primary',
       loading: false,
@@ -1863,7 +1927,7 @@ function onSlotTap(slot: WeeklySlotView) {
     reserveDialog.value = {
       show: true,
       title: 'Horario completo',
-      message: `Este horario está completo. Querés anotarte en la lista de espera?`,
+      message: 'Este horario está completo. ¿Querés anotarte en la lista de espera?',
       confirmLabel: 'Lista de espera',
       confirmColor: 'warning',
       loading: false,
@@ -1875,7 +1939,7 @@ function onSlotTap(slot: WeeklySlotView) {
     reserveDialog.value = {
       show: true,
       title: 'Reservar',
-      message: `Reservar ${slot.activityName} ${dayLabel} ${dateStr} ${timeStr}?`,
+      message: `¿Reservar ${slot.activityName} el ${dayLabel.toLowerCase()} ${dateStr} a las ${timeStr}?`,
       confirmLabel: 'Confirmar',
       confirmColor: 'primary',
       loading: false,
@@ -1898,7 +1962,7 @@ async function confirmReserve() {
     if (booking.status === 'lista_espera') {
       $q.notify({
         type: 'warning',
-        message: `Te anotaste en la lista de espera (posicion #${booking.waitlistPosition})`,
+        message: `Te anotaste en la lista de espera (posición #${booking.waitlistPosition})`,
       })
     } else {
       $q.notify({
@@ -1906,6 +1970,7 @@ async function confirmReserve() {
         message: reserveDialog.value.cancelFirst ? 'Horario cambiado' : 'Reserva confirmada',
       })
     }
+    void todayBookingStore.load()
     await loadGrid()
     // Phase 162 (Pitfall 3): recargar el pase para que el contador x/2 no mienta
     // tras consumir una clase especial.
@@ -1968,7 +2033,7 @@ function onTrialSlotTap(slot: WeeklySlotView) {
 
   trialDialog.value = {
     show: true,
-    message: `¿Reservar ${slot.activityName} el ${dayLabel} ${dateStr} a las ${timeStr} en ${sede}? Es tu única sesión de prueba. ${policyLine}`,
+    message: `¿Reservar ${slot.activityName} el ${dayLabel.toLowerCase()} ${dateStr} a las ${timeStr} en ${sede}? Es tu única sesión de prueba. ${policyLine}`,
     loading: false,
     scheduleId: slot.id,
     date,
@@ -2074,7 +2139,7 @@ function onPartnerSlotTap(slot: WeeklySlotView) {
 
   partnerDialog.value = {
     show: true,
-    message: `¿Reservar ${slot.activityName} el ${dayLabel} ${formatDateLabel(date)} a las ${timeStr} en ${sede}? Al confirmar arranca tu semana de regalo (3 clases).`,
+    message: `¿Reservar ${slot.activityName} el ${dayLabel.toLowerCase()} ${formatDateLabel(date)} a las ${timeStr} en ${sede}? Al confirmar arranca tu semana de regalo (3 clases).`,
     loading: false,
     scheduleId: slot.id,
     date,
@@ -2102,6 +2167,7 @@ async function confirmPartnerReserve() {
     // para que canAccessGrid pase a true y la página caiga a la grilla normal
     // con la reserva recién creada.
     selectedBranchId.value = trialBranchId.value
+    void todayBookingStore.load()
     await Promise.all([loadPartnerBenefit(), userStore.loadSubscription()])
     await loadGrid()
   } catch (err: unknown) {
@@ -2129,7 +2195,7 @@ function promptCancelBooking(booking: BookingRecord) {
   const dayLabel = DAY_LABELS_FULL[booking.dayOfWeek as DayOfWeek] ?? ''
   cancelDialog.value = {
     show: true,
-    message: `Cancelar reserva de ${dayLabel} ${formatTime(booking.startTime)}?`,
+    message: `¿Cancelar tu reserva del ${dayLabel.toLowerCase()} a las ${formatTime(booking.startTime)}?`,
     loading: false,
     bookingId: booking.id,
   }
@@ -2141,6 +2207,7 @@ async function confirmCancel() {
     await cancelBooking(cancelDialog.value.bookingId)
     cancelDialog.value.show = false
     $q.notify({ type: 'positive', message: 'Reserva cancelada' })
+    void todayBookingStore.load()
     await loadGrid()
     // Phase 162 (Pitfall 3): cancelar una especial devuelve el crédito — recargar el pase.
     await userStore.loadEspecialPass()
@@ -2315,78 +2382,13 @@ onBeforeUnmount(() => cleanup())
 <style scoped lang="scss">
 @use 'sass:color';
 @import 'src/css/quasar.variables.scss';
+@import 'src/css/premium-card';
 
 .reservas {
   max-width: 600px;
   margin: 0 auto;
-}
-
-// Phase 144-04 (D-15): booking-block renewal dialog — reuses the charcoal-card
-// visual from RatingPromptDialog/PushPermissionDialog (no new styling per
-// UI-SPEC §143). $primary (#96593a) is the brand terracotta; $dark-page the
-// charcoal card; $cream the marble-cream text.
-.coverage-dialog {
-  width: 100%;
-  max-width: 340px;
-  background: $dark-page;
-  color: $cream;
-  border-radius: 16px;
-  border-top: 2px solid rgba($primary, 0.6);
-  padding: 8px 4px 16px;
-}
-
-.coverage-dialog__body {
-  text-align: center;
-  padding-top: 16px;
-}
-
-.coverage-dialog__icon {
-  color: $primary;
-  margin-bottom: 12px;
-}
-
-.coverage-dialog__title {
-  font-family: 'Montserrat', sans-serif;
-  font-weight: 700;
-  font-size: 1.125rem;
-  letter-spacing: 0.04em;
-  margin: 0 0 12px 0;
-  color: $cream;
-}
-
-.coverage-dialog__text {
-  font-family: 'Geologica', sans-serif;
-  font-weight: 400;
-  font-size: 0.875rem;
-  line-height: 1.5;
-  color: rgba($cream, 0.75);
-  margin: 0;
-}
-
-.coverage-dialog__actions {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 16px 20px 4px;
-}
-
-.coverage-dialog__primary {
-  background: linear-gradient(135deg, $primary 0%, #ad6540 100%) !important;
-  color: $cream !important;
-  font-family: 'Montserrat', sans-serif;
-  font-weight: 700;
-  font-size: 0.9375rem;
-  letter-spacing: 0.12em;
-  padding: 12px 0;
-  border-radius: 8px;
-}
-
-.coverage-dialog__secondary {
-  color: rgba($cream, 0.55) !important;
-  font-family: 'Geologica', sans-serif;
-  font-weight: 400;
-  font-size: 0.8125rem;
-  margin-top: 4px;
+  // Mismo margen lateral que Mi Templo (sketch 013 A); antes 8px del padding de q-page.
+  padding: 16px 16px 24px;
 }
 
 // ─── Phase 162 (APP-02): chip contador x/2 del plan especial ─────────
@@ -2409,74 +2411,6 @@ onBeforeUnmount(() => cleanup())
     color: $info !important;
     background: rgba($info, 0.1) !important;
   }
-}
-
-// ─── Phase 162 (APP-03): dialog informativo "Actividades con Aura" ───
-// Clona coverage-dialog (charcoal card) con acento dorado en vez de terracotta.
-// El botón "Entendido" es neutro (cream) — el dorado queda reservado al ícono.
-.aura-dialog {
-  width: 100%;
-  max-width: 340px;
-  background: $dark-page;
-  color: $cream;
-  border-radius: 16px;
-  border-top: 2px solid rgba($warning, 0.7);
-  padding: 8px 4px 16px;
-}
-
-.aura-dialog__body {
-  text-align: center;
-  padding-top: 16px;
-}
-
-.aura-dialog__icon {
-  color: #d4b896; // bronze-light — legible sobre charcoal (el $warning puro es muy oscuro)
-  margin-bottom: 12px;
-}
-
-.aura-dialog__title {
-  font-family: 'Montserrat', sans-serif;
-  font-weight: 700;
-  font-size: 1.125rem;
-  letter-spacing: 0.04em;
-  color: $cream;
-  margin: 0 0 8px;
-}
-
-.aura-dialog__text {
-  font-family: 'Geologica', sans-serif;
-  font-weight: 400;
-  font-size: 0.875rem;
-  line-height: 1.5;
-  color: rgba($cream, 0.75);
-  margin: 0 0 8px;
-}
-
-.aura-dialog__price {
-  font-family: 'Montserrat', sans-serif;
-  font-weight: 700;
-  font-size: 0.9375rem;
-  color: #d4b896;
-  margin: 8px 0;
-}
-
-.aura-dialog__actions {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 16px 20px 4px;
-}
-
-.aura-dialog__primary {
-  background: $cream !important;
-  color: $dark !important;
-  font-family: 'Montserrat', sans-serif;
-  font-weight: 700;
-  font-size: 0.9375rem;
-  letter-spacing: 0.12em;
-  padding: 12px 0;
-  min-height: 44px;
-  border-radius: 8px;
 }
 
 .bonus-banner {
@@ -2521,13 +2455,13 @@ onBeforeUnmount(() => cleanup())
   font-family: 'Montserrat', sans-serif;
   font-size: 16px;
   font-weight: 700;
-  color: $primary;
+  color: $pd-ink; // 199-29: texto sólido sobre Sandy Beige (11.7)
   margin: 0;
 }
 
 .trial-banner__body {
   font-size: 13px;
-  color: #8a8472; // Olive Stone
+  color: $pd-ink; // 199-29: antes Olive Stone #8a8472 (2.68)
   margin: 4px 0 0;
   line-height: 1.4;
 }
@@ -2568,19 +2502,35 @@ onBeforeUnmount(() => cleanup())
 }
 
 // ─── Branch ─────────────────────────────────────────────────────────
+// Sede como chip (sketch 013 A): pastilla blanca con borde y sombra suave. En multi-sede el chip ES
+// el q-select (abre el mismo menú de siempre); con una sola sede es un chip sin caret ni toque.
 
-.branch-label {
+.branch-row {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: 'Montserrat', sans-serif;
-  font-size: 18px;
-  font-weight: 800;
-  color: $primary;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin: 0 0 12px;
-  padding-top: 8px;
+  margin-bottom: 14px;
+}
+
+.branch-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 36px;
+  margin: 0;
+  padding: 0 14px 0 10px;
+  border-radius: 999px;
+  border: 1px solid $pd-light-edge;
+  background: #fff;
+  color: $pd-ink;
+  font-family: 'Geologica', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(150, 89, 58, 0.08);
+
+  .q-icon {
+    color: $pd-terra-ink;
+  }
 }
 
 .branch-select {
@@ -2610,10 +2560,49 @@ onBeforeUnmount(() => cleanup())
     letter-spacing: 0.02em;
   }
 
+  // 199-29: sin opacity en el ícono (antes .5, medía 1.57-1.94)
   :deep(.q-field__append) {
     .q-icon {
-      opacity: 0.5;
+      color: $info;
     }
+  }
+}
+
+.branch-select--chip {
+  margin-top: 0;
+
+  :deep(.q-field__control) {
+    height: 36px;
+    min-height: 36px;
+    padding: 0 10px;
+    border-radius: 999px;
+    background: #fff;
+    box-shadow: 0 2px 8px rgba(150, 89, 58, 0.08);
+
+    &::before {
+      border-radius: 999px;
+      border: 1px solid $pd-light-edge;
+    }
+
+    &::after {
+      border-radius: 999px;
+    }
+  }
+
+  :deep(.q-field__native) {
+    min-height: 34px;
+    padding: 0 4px;
+    font-family: 'Geologica', sans-serif;
+    color: $pd-ink;
+    letter-spacing: 0;
+  }
+
+  :deep(.q-field__prepend .q-icon) {
+    color: $pd-terra-ink;
+  }
+
+  :deep(.q-field__append .q-icon) {
+    color: $pd-ink-2;
   }
 }
 
@@ -2623,6 +2612,7 @@ onBeforeUnmount(() => cleanup())
 .branch-maps-link {
   align-self: center;
   text-decoration: underline;
+  color: $pd-ink !important; // 199-29: sobre la página (antes $primary 4.35)
 
   :deep(.q-btn__content) {
     text-decoration: underline;
@@ -2651,15 +2641,6 @@ onBeforeUnmount(() => cleanup())
   min-width: 0;
 }
 
-.next-class-card__label {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: rgba($primary, 0.5);
-  margin: 0;
-}
-
 .next-class-card__activity {
   font-family: 'Montserrat', sans-serif;
   font-size: 16px;
@@ -2676,7 +2657,7 @@ onBeforeUnmount(() => cleanup())
 
 .next-class-card__address {
   font-size: 12px;
-  color: #8a8472; // Olive Stone, igual que .trial-banner__body
+  color: $pd-ink-2; // 199-29: sobre card blanca (antes Olive Stone #8a8472)
   margin: 4px 0 0;
 }
 
@@ -2690,103 +2671,130 @@ onBeforeUnmount(() => cleanup())
   padding: 10px 24px;
 }
 
-.next-class-card__activity-empty {
-  font-size: 14px;
-  color: $grey-6;
-  margin: 2px 0 0;
-}
-
 // ─── Day strip ──────────────────────────────────────────────────────
+
+.day-strip {
+  margin-bottom: 14px;
+}
 
 .day-strip__nav {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 4px;
-  margin-bottom: 8px;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+// Flechas: 36px redondas (sketch 013 A). El ícono va en tinta (15:1).
+.week-nav-btn {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  min-height: 36px;
+  color: $pd-ink;
 }
 
 .day-strip__week-label {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Geologica', sans-serif;
   font-size: 14px;
   font-weight: 600;
-  color: rgba($primary, 0.6);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  color: $pd-ink-2;
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 .day-strip__days {
   display: flex;
   gap: 6px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-
-  &::-webkit-scrollbar {
-    display: none;
-  }
 }
 
+// Fichas de día (sketch 013 A): blanca con borde suave; la elegida con el degradé terracota del
+// botón y texto blanco; hoy con borde tinta. Día con reserva: el número va dentro de un círculo
+// salvia (2026-10-18; antes un punto debajo que le robaba alto a la ficha).
 .day-pill {
   display: flex;
   flex-direction: column;
   align-items: center;
   flex: 1;
-  min-width: 48px;
-  padding: 8px 4px;
-  border: 1px solid rgba($primary, 0.12);
-  border-radius: 12px;
-  background: white;
+  min-width: 0;
+  padding: 8px 0 9px;
+  border: 1px solid $pd-light-edge;
+  border-radius: 14px;
+  background: #fff;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
   position: relative;
 
   &--selected {
-    background: $primary;
-    border-color: $primary;
+    border-color: transparent;
+    background: linear-gradient(135deg, $pd-btn-a, $pd-btn-b);
+    box-shadow: 0 4px 12px rgba(126, 69, 41, 0.3);
 
     .day-pill__abbrev,
     .day-pill__date {
-      color: white;
+      color: #fff;
     }
   }
 
   &--today:not(&--selected) {
-    border-color: $primary;
+    border-color: $pd-ink;
   }
 
+  // 199-29: día pasado = fondo atenuado y texto sólido (antes opacity .5 sobre todo, 1.4-2.1)
   &--past:not(&--selected) {
-    opacity: 0.5;
+    background: #f4f1ed;
+
+    .day-pill__abbrev,
+    .day-pill__date {
+      color: $pd-ink-2;
+    }
   }
 
   &__abbrev {
     font-family: 'Montserrat', sans-serif;
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 600;
     text-transform: uppercase;
-    color: rgba($primary, 0.5);
+    color: $pd-ink-2;
     letter-spacing: 0.03em;
   }
 
+  // El círculo siempre ocupa su lugar (así las fichas no cambian de alto); se pinta solo con reserva.
   &__date {
-    font-size: 18px;
-    font-weight: 700;
-    color: $primary;
-    line-height: 1.2;
-  }
-
-  &__dot {
-    position: absolute;
-    top: 6px;
-    right: 6px;
-    width: 6px;
-    height: 6px;
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    margin-top: 2px;
     border-radius: 50%;
-    background: $primary;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 19px;
+    font-weight: 700;
+    color: $pd-ink;
+    line-height: 1;
   }
 
-  &--selected &__dot {
-    background: white;
+  // Con reserva: círculo salvia y número blanco (6.2:1).
+  &--has-booking &__date,
+  &--has-booking.day-pill--past:not(.day-pill--selected) &__date {
+    background: #3f6a47;
+    color: #fff;
+  }
+
+  // Elegido y con reserva: sobre el degradé, círculo blanco con el número salvia.
+  &--selected.day-pill--has-booking &__date {
+    background: #fff;
+    color: #3f6a47;
+  }
+
+  &__sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
   }
 }
 
@@ -2797,10 +2805,10 @@ onBeforeUnmount(() => cleanup())
   align-items: center;
   gap: 8px;
   padding: 10px 16px;
-  background: rgba($accent, 0.08);
-  border-radius: 10px;
+  background: #f6efdc;
+  border-radius: 14px;
   font-size: 14px;
-  color: $accent;
+  color: #7d6520; // ocre sobre tinte: 5.0:1
   margin-bottom: 12px;
 }
 
@@ -2809,202 +2817,297 @@ onBeforeUnmount(() => cleanup())
   flex-direction: column;
   align-items: center;
   padding: 32px 0;
-  color: $grey-6;
+  color: $pd-ink; // 199-29: sobre la página (antes $grey-6)
   font-size: 14px;
   gap: 8px;
 }
 
-.reservas__policy {
-  font-size: 12px;
-  color: $grey-6;
-  margin: 16px 0 0;
-  line-height: 1.5;
+// Link de acción discreto ("Cancelar"): tinta-2 subrayado, 32px de alto para el toque.
+.link-btn {
+  flex: none;
+  min-height: 32px;
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: $pd-ink-2; // 5.4:1 sobre blanco
+  font-family: 'Geologica', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
 }
+
+// ─── Próxima clase (sketch 013 A) ───────────────────────────────────
+// Marco degradé fino en versión clara (mismo marco que la card de hoy, borde de 1.5px).
+
+.next-card {
+  @include pd-frame-light;
+  margin-bottom: 14px;
+}
+
+.next-card__body {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: $pd-light-surface;
+}
+
+.next-card__icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #f3ede4;
+  color: $pd-terra-ink;
+}
+
+.next-card__info {
+  flex: 1;
+  min-width: 0;
+
+  p {
+    margin: 0;
+  }
+}
+
+.next-card__kicker {
+  font-family: 'Cinzel', serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: $pd-terra-ink;
+}
+
+.next-card__info .next-card__title {
+  margin-top: 2px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: $pd-ink;
+}
+
+.next-card__meta {
+  font-size: 13.5px;
+  color: $pd-ink-2;
+}
+
+.next-card__cancel {
+  align-self: center;
+}
+
+// ─── Horarios (sketch 013 A) ────────────────────────────────────────
 
 .slot-card {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
-  margin-bottom: 6px;
-  border-radius: 10px;
-  background: white;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  transition: all 0.15s ease;
+  gap: 10px;
+  padding: 12px 12px 12px 16px;
+  margin-bottom: 10px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid $pd-light-edge;
+  box-shadow: 0 6px 18px rgba(150, 89, 58, 0.06);
+  transition: background 0.15s ease;
 
-  &--available {
-    cursor: pointer;
-
-    &:active {
-      background: rgba($primary, 0.04);
-    }
-  }
-
-  &--booked {
-    border-color: rgba($primary, 0.3);
-    background: rgba($primary, 0.04);
-  }
-
-  &--attended {
-    border-color: rgba($positive, 0.3);
-    background: rgba($positive, 0.04);
-  }
-
+  &--available,
   &--full {
     cursor: pointer;
 
     &:active {
-      background: rgba($negative, 0.04);
+      background: $pd-light-surface;
     }
   }
 
-  &--holiday {
-    opacity: 0.5;
+  // Reservado: borde salvia.
+  &--booked {
+    border-color: #3f6a47;
+    box-shadow: 0 6px 18px rgba(63, 106, 71, 0.12);
   }
 
+  &--attended {
+    border-color: #3f6a47;
+  }
+
+  // Pasado / feriado: sin fondo, borde punteado, hora en tinta-2 (≥ 5.2:1 sobre la página).
+  &--holiday,
   &--past {
-    opacity: 0.4;
+    background: transparent;
+    border-style: dashed;
+    border-color: #cbbfae;
+    box-shadow: none;
+
+    .slot-card__hour,
+    .slot-card__activity,
+    .slot-card__coach {
+      color: $pd-ink-2;
+    }
   }
 
   &__time {
     display: flex;
     flex-direction: column;
+    align-items: flex-start;
+    min-width: 0;
   }
 
   // 2026-09-29: profe propio del horario (ej. la profe de yoga dentro del turno de
   // otro profe). Línea secundaria discreta bajo el nombre de la actividad.
   &__coach {
-    font-size: 11px;
-    color: $grey-6;
+    font-size: 12px;
+    color: $pd-ink-2;
     margin-top: 1px;
   }
 
   &__hour {
     font-family: 'Montserrat', sans-serif;
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 700;
-    color: $primary;
+    color: $pd-ink;
   }
 
   &__activity {
-    font-size: 12px;
-    color: $grey-7;
+    margin-top: 2px;
+    font-size: 13px;
+    color: $pd-ink-2;
 
-    // Plan 180-13 (D-18): affordance de tap SOLO cuando el slot trae
-    // activityDescription (:class condicional en el template — sin copy
-    // cargado, este modificador nunca se aplica).
+    // Plan 180-13 (D-18): affordance de tap SOLO cuando el slot trae activityDescription
+    // (:class condicional en el template — sin copy cargado, este modificador nunca se aplica).
+    // Subrayado suave que invita a abrir la hoja de info.
     &--tappable {
-      text-decoration: underline dotted rgba($grey-7, 0.5);
-      text-underline-offset: 2px;
+      text-decoration: underline;
+      text-decoration-color: #cbbfae;
+      text-underline-offset: 3px;
       cursor: pointer;
+
+      &:focus-visible {
+        outline: 2px solid $pd-terra-ink;
+        outline-offset: 2px;
+        border-radius: 4px;
+      }
     }
   }
 
+  // Derecha: arriba el chip (cupo / estado), abajo la acción.
   &__right {
+    flex: none;
     display: flex;
-    align-items: center;
-    gap: 8px;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
   }
 
-  &__avail {
-    font-size: 11px;
-    font-weight: 600;
-    padding: 2px 9px;
-    border-radius: 8px;
-    white-space: nowrap;
-    letter-spacing: 0.01em;
-
-    &--available {
-      color: #2e7d32;
-      background: #e8f5e9;
-    }
-
-    &--few {
-      color: #a06a00;
-      background: #fff8e1;
-    }
-
-    &--last {
-      color: #e65100;
-      background: #fff3e0;
-    }
-
-    &--full {
-      color: $negative;
-      background: #ffebee;
-    }
-  }
-
-  &__badge {
-    font-size: 12px;
-    font-weight: 600;
-
-    &--positive {
-      color: $positive;
-    }
-  }
-
-  // Phase 162 (APP-01): distintivo dorado "Aura" — RESERVADO a la actividad especial.
-  // Espeja el patrón de .slot-card__avail. Aged Gold ($warning #7d6520) sobre tinte #f5ecd9.
-  &__badge--special {
-    margin-top: 4px;
-    align-self: flex-start;
-    color: $warning;
-    background: #f5ecd9;
-    padding: 2px 9px;
-    border-radius: 8px;
-    font-family: 'Montserrat', sans-serif;
-    font-size: 11px;
-    font-weight: 600;
-    line-height: 1.2;
-  }
-
-  // Phase 162 (E2/E3): estados de bloqueo del plan especial. Olive/grey apagado, NUNCA
-  // rojo — no es un error, es una condición de acceso (UI-SPEC §Color).
+  // Chips (pastillas de 999): salvia = anotados / reservado, ocre = pocos lugares / feriado,
+  // rojo tierra = completo. Todos ≥ 4.5:1 sobre su tinte.
+  &__avail,
+  &__chip,
   &__pill {
     display: inline-flex;
     align-items: center;
-    font-size: 11px;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-family: 'Geologica', sans-serif;
+    font-size: 12px;
     font-weight: 600;
-    padding: 2px 9px;
-    border-radius: 8px;
+    line-height: 1.3;
     white-space: nowrap;
-    letter-spacing: 0.01em;
+  }
 
+  &__avail {
+    &--available {
+      color: #3f6a47; // 5.4:1 sobre #e9f0e6
+      background: #e9f0e6;
+    }
+
+    &--few,
+    &--last {
+      color: #7d6520; // 5.0:1 sobre #f6efdc
+      background: #f6efdc;
+    }
+
+    &--full {
+      color: #a8423f; // 4.9:1 sobre #f7e6e2
+      background: #f7e6e2;
+    }
+  }
+
+  &__chip--ok {
+    height: 28px;
+    padding: 0 10px;
+    font-size: 13px;
+    color: #3f6a47;
+    background: #e9f0e6;
+  }
+
+  // Phase 162 (E2/E3): estados de bloqueo del plan especial. Tono apagado, NUNCA rojo — no es un
+  // error, es una condición de acceso (UI-SPEC §Color).
+  &__pill {
     &--muted,
     &--locked {
-      color: $info; // Olive Stone
-      background: rgba($info, 0.1);
+      color: $pd-ink-2; // 5.0:1 sobre #f3ede4
+      background: #f3ede4;
     }
 
     // 2026-10-01: clase de prueba gratis disponible — invitación, no bloqueo.
     &--trial {
-      color: $primary;
-      background: rgba($primary, 0.1);
+      color: $pd-terra-ink; // 4.9:1 sobre #f7ece4
+      background: #f7ece4;
     }
   }
 
-  &__action {
-    font-family: 'Montserrat', sans-serif;
-    font-size: 12px;
+  // "Reservar": pastilla terracota sólida, SIN destello (se repite en cada horario).
+  &__go {
+    height: 36px;
+    padding: 0 16px;
+    border: 1.5px solid $pd-terra-ink;
+    border-radius: 999px;
+    background: $pd-terra-ink;
+    color: #fff; // 5.6:1
+    font-family: 'Geologica', sans-serif;
+    font-size: 14px;
     font-weight: 600;
-    letter-spacing: 0.03em;
+    white-space: nowrap;
+    cursor: pointer;
+
+    // "Lista de espera": borde terracota sobre blanco.
+    &--wait {
+      background: #fff;
+      color: $pd-terra-ink;
+    }
+
+    &:focus-visible {
+      outline: 2px solid $pd-ink;
+      outline-offset: 2px;
+    }
   }
 }
 
 // ─── Week summary ───────────────────────────────────────────────────
 
-.week-summary {
-  border: 1px solid rgba($primary, 0.12);
-  border-radius: 12px;
+.week-summary,
+.first-timer-card {
+  border: 1px solid $pd-light-line;
+  border-radius: 14px;
+  background: #fff;
   overflow: hidden;
+}
+
+.week-summary {
+  margin-top: 16px;
 }
 
 :deep(.week-summary__header) {
   font-family: 'Montserrat', sans-serif;
   font-size: 13px;
   font-weight: 600;
-  color: $primary;
+  color: $pd-ink; // 199-29: sobre la página (antes $primary 4.15)
 }
 
 .week-summary__list {
@@ -3016,27 +3119,64 @@ onBeforeUnmount(() => cleanup())
   }
 
   :deep(.q-item__label) {
-    color: rgba($primary, 0.8);
+    color: $pd-ink; // sólido (antes rgba($primary, .8))
   }
 
   :deep(.q-item__label--caption) {
-    color: $grey-7;
+    color: $pd-ink-2; // secundario sólido (antes $grey-7)
+  }
+}
+
+.week-summary__empty {
+  color: $pd-ink-2;
+}
+
+// Ícono `history` del header: terracota sólido, igual que el de "Planes anteriores".
+.week-summary :deep(.q-item__section--avatar .q-icon) {
+  color: $pd-terra-ink;
+}
+
+// Estado del evento: mismas pills del rework que los cupos de los horarios (salvia / neutro /
+// ocre / rojo tierra), texto sólido ≥ 4.5:1 sobre su tinte.
+.week-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-family: 'Geologica', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+
+  &--ok {
+    color: $pd-sage;
+    background: $pd-sage-tint;
+  }
+
+  &--neutral {
+    color: $pd-ink-3;
+    background: #f3ede4;
+  }
+
+  &--warn {
+    color: $pd-gold-ink;
+    background: $pd-gold-tint;
+  }
+
+  &--bad {
+    color: $pd-neg-title;
+    background: #f7e6e2;
   }
 }
 
 // ─── D-16: "¿Primera vez? Qué esperar" ───────────────────────────────
 // Mismo patrón que .week-summary (borde redondeado, header en $primary).
-.first-timer-card {
-  border: 1px solid rgba($primary, 0.12);
-  border-radius: 12px;
-  overflow: hidden;
-}
-
 :deep(.first-timer-card__header) {
   font-family: 'Montserrat', sans-serif;
   font-size: 13px;
   font-weight: 600;
-  color: $primary;
+  color: $pd-ink; // 199-29: sobre la página (antes $primary 4.35)
 }
 
 .first-timer-card__list {

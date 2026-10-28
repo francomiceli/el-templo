@@ -474,20 +474,37 @@ describe("Fase 194 D-16/D-24 — canal asistido de invitaciones (admin)", () => 
       expect(sub.status).toBe("completed");
     });
 
-    it("recepcion y coach NO anulan (403, T-194-40) y la invitación sigue activa", async () => {
-      const recepcion = await staff("recepcion");
+    it("coach NO anula (403) y la invitación sigue activa", async () => {
       const coach = await staff("coach");
       const act = await activateAssisted();
 
-      for (const token of [recepcion.token, coach.token]) {
-        const res = await post(
-          `${invitationsUrl(act.inviteeId)}/${act.invitationId}/void`,
-          token,
-          { reason: "no corresponde" },
-        );
-        expect(res.statusCode, res.body).toBe(403);
-      }
+      const res = await post(
+        `${invitationsUrl(act.inviteeId)}/${act.invitationId}/void`,
+        coach.token,
+        { reason: "no corresponde" },
+      );
+      expect(res.statusCode, res.body).toBe(403);
       expect((await invitationRows(act.inviteeId))[0].status).toBe("active");
+    });
+
+    // 2026-10-13: la pestaña Invitaciones es la de todas las operaciones y
+    // recepción ve todo — también anula (antes T-194-40 se lo negaba).
+    it("recepcion anula: 200, libera el cupo y deja el rastro con su id", async () => {
+      const recepcion = await staff("recepcion");
+      const act = await activateAssisted();
+      expect(await quotaRemaining(act.inviterId)).toBe(1);
+
+      const res = await post(
+        `${invitationsUrl(act.inviteeId)}/${act.invitationId}/void`,
+        recepcion.token,
+        { reason: "se equivocó de socio" },
+      );
+      expect(res.statusCode, res.body).toBe(200);
+
+      const [row] = await invitationRows(act.inviteeId);
+      expect(row.status).toBe("voided");
+      expect(row.voidedBy).toBe(recepcion.id);
+      expect(await quotaRemaining(act.inviterId)).toBe(2);
     });
 
     it("una invitación de OTRO alumno en la URL es 404 y no se toca; anular dos veces es 409; motivo corto es 400", async () => {

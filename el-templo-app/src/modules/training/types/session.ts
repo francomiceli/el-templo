@@ -5,6 +5,10 @@
  * and provide the foundation for all Weekly View components.
  */
 
+import type { ZoneGroup, ZoneSlug } from 'src/components/anatomy/zones'
+import type { HitsZona } from 'src/modules/anatomy/types'
+import type { TimerSpec } from '../utils/blockTimer'
+
 /**
  * Block role in session structure
  * Defines the purpose and positioning of each block in a training session
@@ -67,6 +71,9 @@ export interface Prescription {
 
   /** URL to exercise demonstration video (null if no video available) */
   videoUrl: string | null
+
+  /** Slug de la ruta en el modelo de anatomía (sketch 027 D); null = sin ruta modelada */
+  rutaSlug?: string | null
 }
 
 /**
@@ -98,11 +105,25 @@ export interface Block {
   /** Format-specific parameters (AMRAP minutes, EMOM interval, etc.) */
   formatParams: Record<string, unknown> | null
 
+  /** Reloj del formato (la misma normalización que la TV); ausente en respuestas viejas */
+  timerSpec?: TimerSpec | null
+
   /** Human-readable description of the format (from DB) */
   formatDescription: string | null
 
   /** Position within the session (0-indexed) */
   sortOrder: number
+
+  // Fase 197 D-10: vienen calculadas del API (opcionales: payloads viejos no las traen)
+  /** Zonas musculares que trabaja el bloque (unión de las de sus ejercicios) */
+  zones?: ZoneSlug[]
+
+  /** Grupos de zona del bloque (Hombros, Pecho, ...) en el orden de los chips */
+  groups?: ZoneGroup[]
+
+  // Fase 200 D17: Hoy en tu clase, calculado por el API (blockToResponse)
+  /** Qué pega el bloque en cada zona (ids de músculos por grupo); opcional: payloads viejos no lo traen */
+  zoneHits?: Partial<Record<ZoneSlug, HitsZona>>
 
   /** Ordered list of exercises in this block */
   exercises: Prescription[]
@@ -117,6 +138,7 @@ export interface Block {
     rest: number
     notes: string | null
     videoUrl: string | null
+    rutaSlug?: string | null
   } | null
 }
 

@@ -21,6 +21,44 @@ import type { TimerClock, TimerSpec } from './timer';
  *  un aviso de TV, disparada desde el control del profe. */
 export type TvScreen = 'idle' | 'class' | 'closing' | 'aviso';
 
+/** Zonas musculares que dibuja el recorrido de hoy. Son los `slug` de la
+ *  geometria anatomica (`tv/recorrido/anatomy-data.ts`); el server las deriva
+ *  desde el modelo de anatomia del API (`modules/anatomy/projection.ts`); la TV
+ *  recibe solo estas 15 zonas. */
+export type TvZonaMuscular =
+  | 'chest'
+  | 'deltoids'
+  | 'triceps'
+  | 'biceps'
+  | 'forearm'
+  | 'trapezius'
+  | 'upper-back'
+  | 'lower-back'
+  | 'abs'
+  | 'obliques'
+  | 'gluteal'
+  | 'quadriceps'
+  | 'hamstring'
+  | 'adductors'
+  | 'calves';
+
+/** Un bloque de la clase (`_ALT` unido a su bloque; DEUTEROS I y II separados). */
+export interface TvRecorridoBloque {
+  role: string;
+  title: string;
+  subtitle: string | null;
+  zonas: TvZonaMuscular[];
+  /** Formatos del bloque (distintos, unidos con " / "); `null` si no trae. */
+  format: string | null;
+  /** Rango de intensidad (%) entre los niveles mostrados; `null` sin bloques. */
+  intensity: { min: number; max: number } | null;
+}
+
+/** Payload de la intro: los bloques de la clase sin PYROS, en orden. */
+export interface TvRecorridoPayload {
+  bloques: TvRecorridoBloque[];
+}
+
 /** Texto minimo de un aviso de TV, ya resuelto por el poll (D-27: sin
  *  segundo fetch, el kiosco es una pagina estatica). */
 export interface TvAvisoPollPayload {
@@ -111,6 +149,9 @@ export interface TvPollResponse {
   class: TvClassPayload | null;
   /** Fase 193 (D-25/D-28): `null` salvo cuando `screen === 'aviso'`. */
   aviso: TvAvisoPollPayload | null;
+  /** El recorrido de hoy: solo en `screen === 'idle'` con plani aprobada (2026-10-13,
+   *  reemplaza a la pantalla de inicio); `null` en todo otro caso. */
+  recorrido: TvRecorridoPayload | null;
 }
 
 // =============================================================================

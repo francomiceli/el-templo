@@ -67,12 +67,14 @@ import { useAttendanceApi } from 'src/composables/useAttendanceApi'
 import { createLogger } from 'src/utils/logger'
 import { extractError } from 'src/utils/extract-error'
 import TemploLoader from 'src/components/TemploLoader.vue'
+import { useTodayBookingStore } from 'src/stores/useTodayBookingStore'
 
 type PageState = 'scanning' | 'permission-denied' | 'success' | 'error' | 'loading'
 
 const router = useRouter()
 const { checkIn, cleanup } = useAttendanceApi()
 const log = createLogger('CheckIn')
+const todayBookingStore = useTodayBookingStore()
 
 const state = ref<PageState>('scanning')
 const errorMessage = ref('')
@@ -142,8 +144,17 @@ async function onScanSuccess(decodedText: string) {
     resultBranchName.value = record.branchName.replace(/^El Templo\s+/i, 'Sede ')
     state.value = 'success'
     log.info('Check-in successful', { branchName: record.branchName })
+    // D-06: primero marcar (la categoría sale de la reserva que estaba en ventana
+    // al escanear) y recién después refrescar la card.
+    todayBookingStore.markAttendanceDone()
+    void todayBookingStore.load()
   } catch (err: unknown) {
     errorMessage.value = extractError(err, 'Error al registrar asistencia')
+    // El server ya tiene asistencia de hoy para esa categoría: el FAB no debe reaparecer.
+    if (errorMessage.value.includes('Ya registraste asistencia')) {
+      todayBookingStore.markAttendanceDone()
+      void todayBookingStore.load()
+    }
     state.value = 'error'
     log.warn('Check-in failed', { error: errorMessage.value })
   }

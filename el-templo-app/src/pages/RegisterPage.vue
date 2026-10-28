@@ -49,7 +49,7 @@
           </div>
 
           <!-- Register Card -->
-          <div class="register-card">
+          <PremiumGlassCard class="register-card">
             <q-form @submit="onSubmit" class="q-gutter-y-md">
               <q-input
                 v-model="firstName"
@@ -61,6 +61,7 @@
                 label-color="cream"
                 input-class="text-cream"
                 color="primary"
+                class="pd-field"
               />
 
               <q-input
@@ -73,6 +74,7 @@
                 label-color="cream"
                 input-class="text-cream"
                 color="primary"
+                class="pd-field"
               />
 
               <q-input
@@ -84,6 +86,7 @@
                 label-color="cream"
                 input-class="text-cream"
                 color="primary"
+                class="pd-field"
               />
 
               <q-input
@@ -96,6 +99,7 @@
                 label-color="cream"
                 input-class="text-cream"
                 color="primary"
+                class="pd-field"
               />
 
               <q-select
@@ -110,6 +114,7 @@
                 outlined
                 label-color="cream"
                 color="primary"
+                class="pd-field"
                 popup-content-class="bg-dark text-cream"
               />
 
@@ -124,6 +129,7 @@
                 label-color="cream"
                 input-class="text-cream"
                 color="primary"
+                class="pd-field"
               />
 
               <q-input
@@ -137,6 +143,7 @@
                 label-color="cream"
                 input-class="text-cream"
                 color="primary"
+                class="pd-field"
               >
                 <template v-slot:append>
                   <q-icon
@@ -163,6 +170,7 @@
                 label-color="cream"
                 input-class="text-cream"
                 color="primary"
+                class="pd-field"
               />
 
               <!-- Campo unificado de código (D-02/D-03): socio, promo o partner -->
@@ -175,6 +183,7 @@
                 label-color="cream"
                 input-class="text-cream"
                 color="primary"
+                class="pd-field"
                 @update:model-value="onSignupCodeInput"
               />
 
@@ -182,7 +191,7 @@
                 type="submit"
                 label="Crear Cuenta"
                 :loading="loading"
-                class="full-width enter-btn"
+                class="full-width pd-cta"
                 unelevated
                 no-caps
               />
@@ -204,15 +213,15 @@
               </p>
             </div>
 
-            <div class="card-links">
+            <div class="pd-links">
               <router-link
                 :to="inviteCode ? { path: '/login', query: { invitacion: inviteCode } } : '/login'"
-                class="card-link"
+                class="pd-link"
               >
                 Ya tengo cuenta
               </router-link>
             </div>
-          </div>
+          </PremiumGlassCard>
         </div>
       </q-page>
     </q-page-container>
@@ -235,6 +244,7 @@ import {
   rememberPhoneForActivation,
 } from 'src/utils/pending-invitation'
 import type { PartnerBenefit } from 'stores/useAuthStore'
+import PremiumGlassCard from 'src/components/PremiumGlassCard.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -435,6 +445,7 @@ async function onSubmit() {
 // Brand tokens (same as LoginPage)
 // =========================================================================
 @import 'src/css/brand';
+@import 'src/css/premium-card';
 $terracotta: $brand-terracotta;
 $amber: #d4a843;
 $bronze: #d4b896;
@@ -971,83 +982,16 @@ $charcoal-mid: #3d3732;
 }
 
 .brand-welcome {
-  font-family: 'Montserrat', sans-serif;
-  font-weight: 700;
-  font-size: 1.35rem;
-  letter-spacing: 0.08em;
-  color: $cream;
-  margin: 0;
-  text-align: center;
-  white-space: nowrap;
-  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
+  @include pd-screen-title;
 }
 
 .brand-subtitle {
-  color: rgba($cream, 0.5);
-  font-size: 0.95rem;
-  margin: 0 0 24px 0;
-  text-align: center;
+  @include pd-screen-subtitle;
 }
 
 // =========================================================================
-// Register Card
+// Register Card — vive en PremiumGlassCard (marco, campos, botón y links); acá solo el ojo
 // =========================================================================
-.register-card {
-  width: 100%;
-  background: rgba($charcoal-mid, 0.85);
-  border-top: 2px solid rgba($terracotta, 0.6);
-  border-radius: 8px;
-  padding: 28px 24px 20px;
-  backdrop-filter: blur(10px);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-}
-
-.register-card :deep(.q-field__control) {
-  border-color: rgba($cream, 0.15);
-  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.25);
-  transition:
-    box-shadow 0.3s ease,
-    border-color 0.3s ease;
-}
-
-.register-card :deep(.q-field--outlined .q-field__control:before) {
-  border-color: rgba($cream, 0.2);
-  transition: border-color 0.3s ease;
-}
-
-.register-card :deep(.q-field--outlined:hover .q-field__control:before) {
-  border-color: rgba($cream, 0.35);
-}
-
-.register-card :deep(.q-field--outlined.q-field--focused .q-field__control) {
-  box-shadow:
-    inset 0 1px 4px rgba(0, 0, 0, 0.25),
-    0 0 0 1px rgba($terracotta, 0.3);
-}
-
-.register-card :deep(.q-field--outlined.q-field--focused .q-field__control:before) {
-  border-color: $terracotta;
-}
-
-.register-card :deep(.q-field__label) {
-  color: rgba($cream, 0.5);
-  transition:
-    color 0.3s ease,
-    transform 0.3s ease;
-}
-
-.register-card :deep(.q-field--float .q-field__label) {
-  color: rgba($cream, 0.7);
-}
-
-// Select text color
-.register-card :deep(.q-field__native),
-.register-card :deep(.q-field__prefix),
-.register-card :deep(.q-field__suffix),
-.register-card :deep(.q-field__input) {
-  color: $cream !important;
-}
-
 .text-cream {
   color: $cream !important;
 }
@@ -1060,38 +1004,11 @@ $charcoal-mid: #3d3732;
   animation: eye-bounce 0.3s ease;
 }
 
-.enter-btn {
-  background: linear-gradient(135deg, $terracotta 0%, #855038 100%) !important;
-  color: $cream !important;
-  font-family: 'Montserrat', sans-serif;
-  font-weight: 600;
-  font-size: 0.95rem;
-  letter-spacing: 0.12em;
-  padding: 12px 0;
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  transition:
-    box-shadow 0.3s ease,
-    transform 0.2s ease;
-
-  &:hover {
-    box-shadow:
-      0 4px 24px rgba($terracotta, 0.5),
-      0 0 40px rgba($terracotta, 0.15);
-    transform: scale(1.02);
-  }
-
-  &:active {
-    transform: scale(0.98);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-  }
-}
-
 // 409 con código de invitación (Fase 194): caminos de login / recepción.
 .conflict-box {
   margin-top: 16px;
   padding: 12px 14px;
-  border-radius: 6px;
+  border-radius: 10px;
   background: rgba($terracotta, 0.12);
   border: 1px solid rgba($terracotta, 0.4);
   text-align: center;
@@ -1105,7 +1022,7 @@ $charcoal-mid: #3d3732;
     &--small {
       margin: 8px 0 0;
       font-size: 0.75rem;
-      color: rgba($cream, 0.6);
+      color: $pd-cream-3;
     }
   }
 
@@ -1114,25 +1031,6 @@ $charcoal-mid: #3d3732;
     font-size: 0.85rem;
     font-weight: 600;
     text-decoration: underline;
-  }
-}
-
-.card-links {
-  text-align: center;
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid rgba($cream, 0.08);
-}
-
-.card-link {
-  color: rgba($cream, 0.45);
-  text-decoration: none;
-  font-size: 0.8rem;
-  letter-spacing: 0.02em;
-  transition: color 0.2s ease;
-
-  &:hover {
-    color: $terracotta;
   }
 }
 
@@ -1165,7 +1063,7 @@ $charcoal-mid: #3d3732;
     font-size: 0.75rem;
     font-weight: 600;
     letter-spacing: 0.1em;
-    color: rgba($cream, 0.6);
+    color: $pd-cream-3;
   }
 
   &__offer {
@@ -1179,7 +1077,7 @@ $charcoal-mid: #3d3732;
     font-family: 'Montserrat', sans-serif;
     font-size: 0.75rem;
     font-weight: 400;
-    color: rgba($cream, 0.6);
+    color: $pd-cream-3;
   }
 }
 </style>

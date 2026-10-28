@@ -1,56 +1,50 @@
 <template>
   <!-- D-P1: salteable → SIN persistent -->
   <q-dialog v-model="show">
-    <q-card class="rating-dialog">
-      <q-card-section class="rating-dialog__body">
-        <h3 class="rating-dialog__title">{{ title }}</h3>
+    <PremiumDialogCard kicker="Tu opinión">
+      <h3 class="pd-title">{{ title }}</h3>
 
-        <div class="rating-dialog__row">
-          <span class="rating-dialog__label">La clase</span>
-          <q-rating
-            v-model="classStars"
-            size="2.2em"
-            color="primary"
-            icon="star_border"
-            icon-selected="star"
-            :max="5"
-            no-reset
-          />
-        </div>
+      <span class="pd-label">La clase</span>
+      <q-rating
+        v-model="classStars"
+        class="pd-rating"
+        size="34px"
+        icon="star_border"
+        icon-selected="star"
+        :max="5"
+        no-reset
+      />
 
-        <div class="rating-dialog__row">
-          <span class="rating-dialog__label">El profe</span>
-          <q-rating
-            v-model="stars"
-            size="2.2em"
-            color="primary"
-            icon="star_border"
-            icon-selected="star"
-            :max="5"
-            no-reset
-          />
-        </div>
+      <span class="pd-label">El profe</span>
+      <q-rating
+        v-model="stars"
+        class="pd-rating"
+        size="34px"
+        icon="star_border"
+        icon-selected="star"
+        :max="5"
+        no-reset
+      />
 
-        <q-input
-          v-model="comment"
-          class="rating-dialog__comment"
-          type="textarea"
-          autogrow
-          dark
-          outlined
-          counter
-          maxlength="280"
-          label="Comentario (opcional)"
-        />
+      <q-input
+        v-model="comment"
+        class="pd-area"
+        type="textarea"
+        autogrow
+        dark
+        outlined
+        counter
+        maxlength="280"
+        label="Comentario (opcional)"
+      />
 
-        <p class="rating-dialog__helper">Tu opinión es anónima y nos ayuda a mejorar las clases.</p>
-      </q-card-section>
+      <p class="pd-help">Tu opinión es anónima y nos ayuda a mejorar las clases.</p>
 
-      <q-card-actions class="rating-dialog__actions">
+      <div class="pd-acts">
         <q-btn
           unelevated
           no-caps
-          class="rating-dialog__primary full-width"
+          class="pd-cta"
           :disable="stars < 1 || classStars < 1"
           :loading="submitting"
           label="Enviar puntuación"
@@ -60,13 +54,13 @@
           flat
           no-caps
           dense
-          class="rating-dialog__secondary"
+          class="pd-skip"
           :disable="submitting"
           label="Ahora no"
           @click="onSkip"
         />
-      </q-card-actions>
-    </q-card>
+      </div>
+    </PremiumDialogCard>
   </q-dialog>
 </template>
 
@@ -77,6 +71,7 @@ import { Preferences } from '@capacitor/preferences'
 import { useAvisosStore, type PendingRatingPrompt } from 'src/stores/useAvisosStore'
 import { useRatingsApi } from 'src/composables/useRatingsApi'
 import { createLogger } from 'src/utils/logger'
+import PremiumDialogCard from 'src/components/PremiumDialogCard.vue'
 
 const log = createLogger('RatingPromptDialog')
 const $q = useQuasar()
@@ -180,90 +175,3 @@ watch(
   { immediate: true },
 )
 </script>
-
-<style lang="scss" scoped>
-@import 'src/css/brand';
-
-$terracotta: $brand-terracotta;
-$cream: #f2ede5;
-$charcoal: #2e2a26;
-
-.rating-dialog {
-  width: 100%;
-  max-width: 340px;
-  background: $charcoal;
-  color: $cream;
-  border-radius: 16px;
-  border-top: 2px solid rgba($terracotta, 0.6);
-  padding: 8px 4px 16px;
-}
-
-.rating-dialog__body {
-  text-align: center;
-  padding-top: 16px;
-}
-
-.rating-dialog__title {
-  font-family: 'Montserrat', sans-serif;
-  font-weight: 700;
-  font-size: 1.125rem;
-  letter-spacing: 0.04em;
-  margin: 0 0 16px 0;
-  color: $cream;
-}
-
-.rating-dialog__row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin: 0 4px 12px;
-}
-
-.rating-dialog__label {
-  font-family: 'Geologica', sans-serif;
-  font-weight: 500;
-  font-size: 0.9375rem;
-  color: rgba($cream, 0.85);
-}
-
-.rating-dialog__comment {
-  margin-bottom: 12px;
-  text-align: left;
-}
-
-.rating-dialog__helper {
-  font-family: 'Geologica', sans-serif;
-  font-weight: 400;
-  font-size: 0.8125rem;
-  line-height: 1.5;
-  color: rgba($cream, 0.65);
-  margin: 0;
-}
-
-.rating-dialog__actions {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 16px 20px 4px;
-}
-
-.rating-dialog__primary {
-  background: linear-gradient(135deg, $terracotta 0%, #ad6540 100%) !important;
-  color: $cream !important;
-  font-family: 'Montserrat', sans-serif;
-  font-weight: 700;
-  font-size: 0.9375rem;
-  letter-spacing: 0.12em;
-  padding: 12px 0;
-  border-radius: 8px;
-}
-
-.rating-dialog__secondary {
-  color: rgba($cream, 0.55) !important;
-  font-family: 'Geologica', sans-serif;
-  font-weight: 400;
-  font-size: 0.8125rem;
-  margin-top: 4px;
-}
-</style>

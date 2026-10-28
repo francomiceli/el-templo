@@ -335,8 +335,90 @@ import {
 // `GET /api/admin/staff-attendance/dashboard`, `tenant-scoped`.
 // 2026-10-08: +1 por el cierre forzado de jornadas (owner/admin):
 // `POST /api/admin/staff-attendance/shifts/:id/force-checkout`, `tenant-scoped`.
-// Integración 195 + master 2026-10-10: 455 + 3 + 2 = 460.
-const ENTRADAS_BASELINE = 460;
+// 2026-10-14: 457 -> 463 por Novedades en Mi Templo (6 rutas bajo
+// `/api/communications`): `GET/POST /admin/novedades`, `PUT/DELETE
+// /admin/novedades/:id`, `GET /me/novedades` y `POST /me/novedades/:id/event`,
+// todas `tenant-scoped`.
+// 2026-10-15: 463 -> 472 por Patrocinadores (fase 199): 7 rutas `global` bajo
+// `/api/admin/sponsors` (catálogo de plataforma en `sponsor_brands`, límite en
+// `system_settings`, URL de logo en R2) y 2 `tenant-scoped` bajo
+// `/api/members/sponsors` (feed y eventos, escriben `sponsor_views`).
+// 2026-10-15: 472 -> 473 por GET /api/members/subscription/me/plan-status
+// (fase 199, D-05), `tenant-scoped`.
+// 2026-10-20: 473 -> 475 por la canasta del bloque libre (fase 197): GET
+// /api/sessions/free-blocks y /free-blocks/:blockId, templo-module.
+// 2026-10-20: 475 -> 476 por el cierre del bloque libre (fase 197): POST
+// /api/sessions/free-blocks/complete, templo-module.
+// 2026-10-21: 476 -> 478 por la anatomía (fase 200): GET /api/admin/anatomy y
+// GET /api/anatomy, templo-module.
+// 2026-10-21: 478 -> 482 por Conquer v2 (fase 201, plan 05): GET
+// /api/members/conquer/state, POST /api/members/conquer/unlock-request, GET
+// /api/admin/conquer/requests y GET /api/admin/conquer/requests/count,
+// templo-module.
+// 2026-10-21: 482 -> 484 por Conquer v2 (fase 201, plan 06): POST
+// /api/admin/conquer/members y PUT /api/admin/conquer/members/:userId,
+// templo-module.
+// 2026-10-21: 484 -> 487 por Conquer v2 (fase 201, plan 07): GET
+// /api/members/conquer/today, PUT /api/members/conquer/sessions y PUT
+// /api/members/conquer/steps/:exerciseId/:step, templo-module.
+// 2026-10-21: 487 -> 490 por Conquer v2 (fase 201, plan 08): GET
+// /api/members/conquer/progress, POST
+// /api/members/conquer/steps/:exerciseId/:step/subir y POST
+// /api/members/conquer/calibration/:exerciseId, templo-module.
+// 2026-10-22: 490 -> 492 por Conquer v2 (fase 201, plan 09): GET
+// /api/admin/conquer/members y PATCH /api/admin/conquer/alerts/:id,
+// templo-module.
+// 2026-10-22: 492 -> 493 por Conquer v2 (fase 201, plan 10): POST
+// /api/members/conquer/combos/:comboKey/subir, templo-module.
+// 2026-10-22: 493 -> 497 por Conquer v2 (fase 201, plan 11): GET
+// /api/admin/conquer/members/:userId, PUT .../members/:userId/steps/:exerciseId/:step,
+// POST .../members/:userId/recortes y POST .../members/:userId/level-up, templo-module.
+// 2026-10-22: 497 -> 503 por Conquer v2 (fase 201, plan 12): control físico del
+// alumno, POST/GET /api/members/conquer/body-checks, POST .../body-checks/skip-day0,
+// POST .../body-checks/:checkId/photos/:pose/upload-url, POST .../confirm y
+// GET .../photos/:pose/url, templo-module.
+// 2026-10-22: 503 -> 507 por Conquer v2 (fase 201, plan 13): PUT
+// /api/members/conquer/publish-permission, GET /api/admin/conquer/members/:userId/body-checks,
+// GET .../body-checks/:checkId/photos/:pose/url y GET /api/admin/conquer/gallery,
+// templo-module.
+// 2026-10-22: 507 -> 515 por Conquer v2 (fase 201, plan 14): edición del
+// catálogo y de los parámetros desde el admin, GET /api/admin/conquer/catalog,
+// POST .../ladders/:ladderId/rungs, PUT .../rungs/:rungId, PUT .../ladders/:ladderId/order,
+// PUT .../exercises/:exerciseId, PUT .../template-days/:id, GET y PUT .../settings,
+// templo-module.
+// 2026-10-22: 515 -> 516 por Conquer v2 (fase 201, plan 27): POST
+// /api/members/conquer/guide-seen, templo-module.
+// 2026-10-26: 516 -> 519 por Conquer v2 (fase 202, plan 202-03): correcciones del
+// alumno, GET /api/members/conquer/corrections, POST .../corrections/upload-url
+// y POST .../corrections, templo-module.
+// 2026-10-27: 519 -> 521 por Conquer v2 (fase 202, plan 202-04): GET
+// /api/members/conquer/corrections/:id/video-url y POST .../corrections/seen,
+// templo-module.
+// 2026-10-27: 521 -> 525 por Conquer v2 (fase 202, plan 202-05): bandeja de
+// correcciones del coach, GET /api/admin/conquer/corrections, GET .../corrections/count,
+// GET .../corrections/:id/video-url y DELETE .../corrections/:id/video, templo-module.
+// 2026-10-27: 525 -> 527 por Conquer v2 (fase 202, plan 202-06): respuesta del
+// coach, POST /api/admin/conquer/corrections/:id/reply-upload-url y
+// POST .../corrections/:id/reply, templo-module.
+// 2026-10-27: 527 -> 533 por Conquer v2 (fase 202, plan 202-07): tutoriales en
+// video, GET /api/members/conquer/tutorials, GET /api/admin/conquer/tutorials,
+// POST .../tutorials/upload-url, PUT .../tutorials y DELETE
+// .../tutorials/exercise/:exerciseId y .../tutorials/combo/:comboKey, templo-module.
+// 2026-10-27: 533 -> 535 por la card Wellhub y el acceso a la app (fase 204-09):
+// GET /api/admin/members/:userId/wellhub y POST /api/admin/members/:userId/app-access,
+// `tenant-scoped`.
+// 2026-10-27: 535 -> 536 por la unión de fichas Wellhub (fase 204-10):
+// POST /api/admin/members/:userId/wellhub-merge, `tenant-scoped`.
+// 2026-10-27: 536 -> 537 por el reporte Wellhub (fase 204-11):
+// GET /api/admin/reports/wellhub, `tenant-scoped`.
+// 2026-10-28: 537 -> 539 por el resumen de Planes del socio: GET
+// /api/members/subscription/me/plan-summary y POST
+// /api/members/subscription/me/plan-summary/seen, `tenant-scoped`.
+// 2026-10-28 (integración de la fase 195 con master): 539 -> 542 por las 3
+// rutas de la 195 anotadas arriba (`GET /api/web/site-data`, templo-module, y
+// `GET /api/admin/reports/attribution` + `.../attribution/search-console`,
+// `tenant-scoped`).
+const ENTRADAS_BASELINE = 542;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -479,7 +561,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 458 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 542 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(

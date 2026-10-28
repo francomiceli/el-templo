@@ -52,11 +52,14 @@ import {
   checkInRosterRoutes,
 } from "./modules/check-ins";
 import { programRoutes } from "./modules/programs";
+import { anatomyRoutes } from "./modules/anatomy";
+import { conquerMemberRoutes, conquerAdminRoutes } from "./modules/conquer";
 import { notificationRoutes } from "./modules/notifications";
 import { communicationsRoutes, tvAvisosRoutes } from "./modules/communications";
 import { referralMemberRoutes } from "./modules/referrals/routes";
 import { referralAdminRoutes } from "./modules/referrals/admin-routes";
 import { referralPartnersAdminRoutes } from "./modules/referral-partners";
+import { sponsorsAdminRoutes, sponsorsMemberRoutes } from "./modules/sponsors";
 import { campaignRoutes } from "./modules/campaigns/routes";
 import { wellhubWebhookRoutes } from "./modules/wellhub/routes";
 import { wellhubOccupancyListener } from "./modules/wellhub/occupancy-listener";
@@ -278,6 +281,11 @@ export async function buildApp(opts: BuildAppOptions = {}) {
     prefix: "/api/admin/referral-partners",
   });
 
+  // Patrocinadores (fase 199, D-17..D-26): admin solo El Templo + feed y
+  // eventos del socio.
+  await app.register(sponsorsAdminRoutes, { prefix: "/api/admin/sponsors" });
+  await app.register(sponsorsMemberRoutes, { prefix: "/api/members/sponsors" });
+
   // Scheduling management routes (activities, schedules, bookings, holidays)
   await app.register(schedulingAdminRoutes, {
     prefix: "/api/admin/scheduling",
@@ -385,6 +393,18 @@ export async function buildApp(opts: BuildAppOptions = {}) {
 
   // Program management routes (admin CRUD + member catalog/progress)
   await moduleScope(app, "templo-training", programRoutes, { prefix: "/api" });
+
+  // Fase 200: contenido de anatomía (solo lectura)
+  await moduleScope(app, "templo-training", anatomyRoutes, { prefix: "/api" });
+
+  // Fase 201: Conquer v2, exclusivo de El Templo (404 en gimnasios sin el
+  // módulo). Alumno bajo /api/members/conquer, admin bajo /api/admin/conquer.
+  await moduleScope(app, "templo-training", conquerMemberRoutes, {
+    prefix: "/api/members/conquer",
+  });
+  await moduleScope(app, "templo-training", conquerAdminRoutes, {
+    prefix: "/api/admin/conquer",
+  });
 
   // Notification routes (push notifications, preferences, admin templates)
   await app.register(notificationRoutes, { prefix: "/api/notifications" });

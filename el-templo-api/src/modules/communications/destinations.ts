@@ -25,7 +25,7 @@
 // destino roto no puede tumbar el render de un pop-up o una tarjeta.
 
 /**
- * Las 9 secciones curadas de la app a las que puede apuntar un destino
+ * Las 10 secciones curadas de la app a las que puede apuntar un destino
  * `app_section`. Agregar una sección es un cambio de código chico: sumar un
  * valor acá (y en los dos espejos).
  */
@@ -40,7 +40,9 @@ export type AppSectionKey =
   // SPEC "Empezá acá" A4: destinos nuevos para que un pop-up/tarjeta/placa TV
   // pueda apuntar directo a la Guía o a las historias de bienvenida.
   | "guia"
-  | "empeza_aca";
+  | "empeza_aca"
+  // Fase 201 D-11: destino del pop-up de lanzamiento de Conquer.
+  | "conquer";
 
 export interface AppSection {
   key: AppSectionKey;
@@ -111,6 +113,13 @@ export const APP_SECTIONS: readonly AppSection[] = [
     label: "Empezá acá",
     route: "/training/guia",
   },
+  // Fase 201 D-11: destino del pop-up de lanzamiento de Conquer, Entrenar ▸
+  // Conquer. Un build viejo abre `/training` y cae en Semana (no rompe).
+  {
+    key: "conquer",
+    label: "Conquer",
+    route: "/training?tab=conquer",
+  },
 ];
 
 /** Los dos tipos de destino (D-01). */
@@ -148,7 +157,7 @@ const APP_SECTION_ROUTE_BY_KEY: ReadonlyMap<AppSectionKey, string> = new Map(
   APP_SECTIONS.map((section) => [section.key, section.route]),
 );
 
-/** Type guard: si `value` es una de las 9 keys curadas de {@link APP_SECTIONS}. */
+/** Type guard: si `value` es una de las 10 keys curadas de {@link APP_SECTIONS}. */
 export function isAppSectionKey(value: unknown): value is AppSectionKey {
   return typeof value === "string" && APP_SECTION_KEYS.has(value);
 }
@@ -174,8 +183,12 @@ export function appSectionForRoute(route: string): AppSectionKey {
       return "reservas";
     case "/mis-referidos":
       return "referidos";
+    case "/planes":
+      return "mi_plan";
     case "/mi-camino":
       return "programas";
+    case "/training?tab=conquer":
+      return "conquer";
     default:
       return "mi_templo";
   }

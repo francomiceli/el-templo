@@ -342,12 +342,14 @@ export const MEMBER_LIFECYCLE_ROLES = [
 ] as const;
 
 /**
- * Fase 194 D-16: roles que crean una invitación EN NOMBRE de un socio (canal
- * asistido: ficha del invitado y alta "Nuevo en Prueba"). Incluye `recepcion`
- * (es quien de verdad carga las invitaciones) pero NO `coach`. Anular una
- * invitación sigue siendo de {@link MEMBER_LIFECYCLE_ROLES}.
+ * Fase 194: roles que operan las invitaciones desde la ficha del alumno — ver
+ * la pestaña Invitaciones, crear una invitación EN NOMBRE de un socio (canal
+ * asistido D-16: ficha del invitado y alta "Nuevo en Prueba"), cargar quién lo
+ * invitó (D-17) y anular. Incluye `recepcion` (es quien de verdad carga las
+ * invitaciones; decisión de Franco 2026-10-13: la pestaña es la de todas las
+ * operaciones y recepción ve todo) pero NO `coach`.
  */
-export const INVITATION_ASSISTED_ROLES = [
+export const INVITATION_ROLES = [
   "owner",
   "admin",
   "gestion",
@@ -379,6 +381,19 @@ export const TV_CONTROL_ROLES = [
   "coach",
   "tv",
   // 2026-10-06: el profe de actividad (yoga) tiene el TV enfrente igual que el coach.
+  "coach_actividad",
+] as const;
+
+/**
+ * Fase 200 R1: Admin › Anatomía = staff de piso, mismo valor que PLANIS_ROLES
+ * del admin (`coach`, `admin`, `owner`, `coach_actividad`). No es trainingOnly:
+ * si no, los profes no la ven (200-RESEARCH Open Question 1). Deliberadamente
+ * EXCLUYE gestion, recepcion, member, tv y admin_sede. Fijado byte a byte por
+ * `rbac-sets.test.ts`.
+ */
+export const ANATOMIA_STAFF_ROLES = [
+  ...ADMIN_ROLES,
+  "coach",
   "coach_actividad",
 ] as const;
 

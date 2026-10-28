@@ -181,6 +181,147 @@ export const weeklySessionsResponse = {
 };
 
 // =============================================================================
+// Fase 197 D-14: canasta de bloques libres
+// =============================================================================
+
+const FREE_BLOCK_LEVELS = [
+  "kairos",
+  "alfa",
+  "delta",
+  "sigma",
+  "omega",
+  "spartan",
+];
+
+export const getFreeBlocksSchema = {
+  querystring: {
+    type: "object",
+    properties: {
+      group: {
+        type: "string",
+        enum: ["hombros", "pecho", "espalda", "core", "piernas", "brazos"],
+      },
+      page: { type: "integer", minimum: 1, default: 1 },
+      limit: { type: "integer", minimum: 1, maximum: 100, default: 20 },
+      level: { type: "string", enum: FREE_BLOCK_LEVELS },
+    },
+  },
+};
+
+export interface GetFreeBlocksInput {
+  group?: "hombros" | "pecho" | "espalda" | "core" | "piernas" | "brazos";
+  page?: number;
+  limit?: number;
+  level?: "kairos" | "alfa" | "delta" | "sigma" | "omega" | "spartan";
+}
+
+export const getFreeBlockSchema = {
+  params: {
+    type: "object",
+    required: ["blockId"],
+    properties: {
+      blockId: {
+        type: "string",
+        maxLength: 100,
+        pattern: "^[A-Za-z0-9_-]+$",
+      },
+    },
+  },
+  querystring: {
+    type: "object",
+    properties: {
+      level: { type: "string", enum: FREE_BLOCK_LEVELS },
+    },
+  },
+};
+
+export interface GetFreeBlockParams {
+  blockId: string;
+}
+
+export interface GetFreeBlockQuery {
+  level?: "kairos" | "alfa" | "delta" | "sigma" | "omega" | "spartan";
+}
+
+export const freeBlocksListResponse = {
+  200: {
+    type: "object",
+    properties: {
+      items: { type: "array" },
+      total: { type: "integer" },
+      page: { type: "integer" },
+      limit: { type: "integer" },
+      auraAvailableToday: { type: "boolean" },
+      todayZones: {
+        type: ["array", "null"],
+        items: { type: "string" },
+      },
+      weekWorkedZones: { type: "array", items: { type: "string" } },
+    },
+  },
+  403: errorResponseSchema,
+  404: errorResponseSchema,
+};
+
+export const freeBlockResponse = {
+  200: {
+    type: "object",
+    properties: {
+      item: { type: "object", additionalProperties: true },
+      auraAvailableToday: { type: "boolean" },
+    },
+  },
+  403: errorResponseSchema,
+  404: errorResponseSchema,
+};
+
+export const completeFreeBlockSchema = {
+  body: {
+    type: "object",
+    required: ["blockId", "startedAt", "exercisesCompleted"],
+    additionalProperties: false,
+    properties: {
+      blockId: {
+        type: "string",
+        maxLength: 100,
+        pattern: "^[A-Za-z0-9_-]+$",
+      },
+      startedAt: { type: "string", maxLength: 40 },
+      exercisesCompleted: {
+        type: "array",
+        maxItems: 50,
+        items: { type: "integer" },
+      },
+      completionId: { type: "integer", minimum: 1 },
+      level: { type: "string", enum: FREE_BLOCK_LEVELS },
+    },
+  },
+};
+
+export interface CompleteFreeBlockBody {
+  blockId: string;
+  startedAt: string;
+  exercisesCompleted: number[];
+  completionId?: number;
+  level?: "kairos" | "alfa" | "delta" | "sigma" | "omega" | "spartan";
+}
+
+export const completeFreeBlockResponse = {
+  200: {
+    type: "object",
+    properties: {
+      completionId: { type: "integer" },
+      durationSeconds: { type: "integer" },
+      auraAwarded: { type: "boolean" },
+      auraAvailableToday: { type: "boolean" },
+    },
+  },
+  400: errorResponseSchema,
+  403: errorResponseSchema,
+  404: errorResponseSchema,
+};
+
+// =============================================================================
 // Session completion types
 // =============================================================================
 

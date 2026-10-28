@@ -60,6 +60,12 @@ export interface MemberListParams {
    * con `status` (p.ej. `status=prueba&origin=invitacion` = leads de invitación).
    */
   origin?: "invitacion";
+  /**
+   * Fase 204 D-07: "Solo Wellhub" = etiqueta Wellhub visible (gympass_id y no
+   * socio activo) + socios activos con reserva o visita Wellhub en los últimos
+   * 30 días. Se combina con `status`. NO está finance-gated.
+   */
+  wellhubOnly?: boolean;
   page: number;
   limit: number;
 }
@@ -119,6 +125,13 @@ export interface MemberSearchItem {
   planName: string | null;
   status: UserStatus | null;
   /**
+   * Fase 204 (D-09): `isWellhub` = tiene gympass_id (omitido en la proyección
+   * mínima de otra sede). `showWellhubLabel` = además NO es socio activo
+   * (badge Wellhub del buscador de Cobros).
+   */
+  isWellhub?: boolean;
+  showWellhubLabel: boolean;
+  /**
    * 2026-09-26 (feat/admin-sede-visitantes) — presentes SOLO cuando la fila es
    * de OTRA sede que la del actor (`includeOtherBranches`). `dni` viaja
    * enmascarado a los últimos 3 dígitos, `planName`/`status` viajan null — la
@@ -168,6 +181,18 @@ export interface MemberListItem {
    * in their history. Derived via EXISTS subquery — no per-row N+1.
    */
   hasUsedTrial: boolean;
+  /**
+   * Fase 194 (D-18): tiene una invitación `active` — el chip "Invitación" de la
+   * fila. Misma expresión que el filtro `origin=invitacion`.
+   */
+  isInvited: boolean;
+  /** Fase 204 (D-02): tiene gympass_id (permanente). */
+  isWellhub: boolean;
+  /**
+   * Fase 204 (D-03): `isWellhub` y NO es socio activo (estado efectivo). Mismo
+   * fragmento SQL que el filtro `wellhubOnly`.
+   */
+  showWellhubLabel: boolean;
 }
 
 /**
@@ -268,6 +293,10 @@ export interface MemberProfile {
   } | null;
   /** Domiciliación bancaria (SEPA). NULL si nunca se cargaron datos. */
   sepaDetails: SepaDetails | null;
+  /** Fase 204 (D-02): tiene gympass_id (permanente). */
+  isWellhub: boolean;
+  /** Fase 204 (D-03): `isWellhub` y NO es socio activo (estado efectivo). */
+  showWellhubLabel: boolean;
 }
 
 export interface CreateMemberInput {

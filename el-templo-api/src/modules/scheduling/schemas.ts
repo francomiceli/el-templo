@@ -147,6 +147,24 @@ const bookingRecordSchema = {
     // los lookups de una sola reserva (adminAddBooking/adminRemoveBooking).
     memberBranchId: { type: ["integer", "null"] },
     memberBranchName: { type: ["string", "null"] },
+    // Fase 204 D-10: origen de la reserva ('wellhub' o null). Declarado acá
+    // porque fast-json-stringify descarta lo no declarado (mismo caso que
+    // memberBranchName arriba). Va fuera de `required`.
+    source: { type: ["string", "null"] },
+  },
+} as const;
+
+// Fase 199 (D-03/D-04/D-06): my-bookings suma sede/zona/asistencia. Sin declarar
+// estas properties acá, fast-json-stringify las recorta de la respuesta. El
+// `bookingRecordSchema` compartido (roster admin, slot detail) NO se toca.
+const myBookingRecordSchema = {
+  type: "object",
+  properties: {
+    ...bookingRecordSchema.properties,
+    branchId: { type: "integer" },
+    branchName: { type: "string" },
+    branchTimezone: { type: "string" },
+    checkedInAt: { type: ["string", "null"] },
   },
 } as const;
 
@@ -1161,7 +1179,7 @@ export const myBookingsSchema = {
     200: {
       type: "object",
       properties: {
-        bookings: { type: "array", items: bookingRecordSchema },
+        bookings: { type: "array", items: myBookingRecordSchema },
       },
     },
   },

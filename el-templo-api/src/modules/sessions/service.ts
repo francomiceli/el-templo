@@ -34,6 +34,7 @@ import type {
   FormatParams,
 } from "./types";
 import { getFinalBlockRole } from "./types";
+import { buildVideoResolver } from "../shared/exercise-video-fallback";
 import { validateSessionForTrace } from "./validators/session-validator";
 import { createSessionLogger } from "./trace/logger";
 import { aggregateBlockTrace, aggregateSessionTrace } from "./trace/emitter";
@@ -652,6 +653,9 @@ export class SessionGeneratorService {
               exerciseType: schema.sessionPrescriptions.exerciseType,
               sortOrder: schema.sessionPrescriptions.sortOrder,
               videoUrl: schema.exercises.videoUrl,
+              category: schema.exercises.category,
+              categorySecondary: schema.exercises.categorySecondary,
+              exerciseRoute: schema.exercises.route,
             })
             .from(schema.sessionPrescriptions)
             .leftJoin(
@@ -661,6 +665,9 @@ export class SessionGeneratorService {
             .where(inArray(schema.sessionPrescriptions.blockId, blockIds))
             .orderBy(schema.sessionPrescriptions.sortOrder)
         : [];
+
+    // Video de otra copia del mismo ejercicio si la fila prescrita no tiene.
+    const resolveVideo = await buildVideoResolver(this.db, allPrescriptions);
 
     // Group prescriptions by blockId
     const prescByBlock = new Map<number, typeof allPrescriptions>();
@@ -697,7 +704,10 @@ export class SessionGeneratorService {
           notes: p.notes ?? undefined,
           dificultadLineal: p.difficulty ?? undefined,
           exerciseType: p.exerciseType as "main" | "mobility",
-          videoUrl: p.videoUrl ?? undefined,
+          videoUrl: resolveVideo(p.exerciseId, p.videoUrl) ?? undefined,
+          category: p.category ?? null,
+          categorySecondary: p.categorySecondary ?? null,
+          exerciseRoute: p.exerciseRoute ?? null,
         }));
 
         let role: BlockRole = block.role as BlockRole;
@@ -806,6 +816,9 @@ export class SessionGeneratorService {
           exerciseType: schema.sessionPrescriptions.exerciseType,
           sortOrder: schema.sessionPrescriptions.sortOrder,
           videoUrl: schema.exercises.videoUrl,
+          category: schema.exercises.category,
+          categorySecondary: schema.exercises.categorySecondary,
+          exerciseRoute: schema.exercises.route,
         })
         .from(schema.sessionPrescriptions)
         .leftJoin(
@@ -814,6 +827,9 @@ export class SessionGeneratorService {
         )
         .where(eq(schema.sessionPrescriptions.blockId, block.id))
         .orderBy(schema.sessionPrescriptions.sortOrder);
+
+      // Video de otra copia del mismo ejercicio si la fila prescrita no tiene.
+      const resolveVideo = await buildVideoResolver(this.db, prescriptions);
 
       const exercises: ExercisePrescription[] = prescriptions.map((p) => ({
         exerciseId: p.exerciseId,
@@ -828,7 +844,10 @@ export class SessionGeneratorService {
         notes: p.notes ?? undefined,
         dificultadLineal: p.difficulty ?? undefined, // Load difficulty for display to users
         exerciseType: p.exerciseType as "main" | "mobility",
-        videoUrl: p.videoUrl ?? undefined,
+        videoUrl: resolveVideo(p.exerciseId, p.videoUrl) ?? undefined,
+        category: p.category ?? null,
+        categorySecondary: p.categorySecondary ?? null,
+        exerciseRoute: p.exerciseRoute ?? null,
       }));
 
       // Transform legacy ATHLOS_EPIKOS to correct role based on week

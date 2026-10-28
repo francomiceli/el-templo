@@ -316,11 +316,13 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
     expect(payload.screen).toBe("idle");
     expect(payload.class).toBeNull();
     expect(payload.aviso).toBeNull();
+    expect(payload.recorrido).toBeNull();
     // El reposo es indistinguible de "no hay clase": ni error, ni mensaje.
     expect(Object.keys(payload).sort()).toEqual([
       "aviso",
       "branch",
       "class",
+      "recorrido",
       "screen",
       "serverNow",
     ]);
@@ -341,6 +343,9 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
 
     expect(payload.screen).toBe("idle");
     expect(payload.class).toBeNull();
+    // 2026-10-13: con plani aprobada el reposo trae el recorrido de hoy
+    // (sin INITIUM, que es la entrada en calor compartida).
+    expect(payload.recorrido?.bloques.map((b) => b.role)).toEqual(["NUCLEUS"]);
   });
 
   it("arma el bloque en curso con roster, etiquetas, movilidad y timer", async () => {

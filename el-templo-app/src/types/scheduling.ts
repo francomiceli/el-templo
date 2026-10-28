@@ -4,12 +4,7 @@
  */
 
 export type BookingStatus =
-  | 'reservado'
-  | 'qr_escaneado'
-  | 'confirmado'
-  | 'cancelado'
-  | 'lista_espera'
-  | 'no_show'
+  'reservado' | 'qr_escaneado' | 'confirmado' | 'cancelado' | 'lista_espera' | 'no_show'
 export type DayOfWeek = 1 | 2 | 3 | 4 | 5 | 6
 
 export interface WeeklySlotView {
@@ -70,6 +65,17 @@ export interface BookingRecord {
   // Línea del pase especial de la actividad reservada (NULL = Aura/regular):
   // la regla diaria de especiales es por línea (yoga no choca con Aura).
   specialLine: string | null
+}
+
+/**
+ * Reserva de `GET /members/scheduling/my-bookings` (plan 06): suma la sede de la
+ * CLASE y la hora de asistencia. Opcionales porque una API vieja no los manda.
+ */
+export interface MyBookingRecord extends BookingRecord {
+  branchId?: number
+  branchName?: string
+  branchTimezone?: string
+  checkedInAt?: string | null
 }
 
 export interface AttendanceWeekRecord {

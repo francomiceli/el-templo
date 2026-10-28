@@ -35,6 +35,7 @@ import { elapsedFrom, formatDigits, phaseAt } from './timer';
 import type { SessionQuote } from '../utils/pdf/quotes';
 import { rotationIndex } from '../utils/pdf/quotes';
 import type { CapsulaTecnica } from './capsulas';
+import { mostrarRecorrido, ocultarRecorrido, resetRecorrido } from './recorrido';
 
 const log = createTvLogger('render');
 
@@ -107,6 +108,14 @@ interface Nodes {
   avisoCuerpo: HTMLElement;
   avisoReloj: ClockNodes;
   avisoFecha: HTMLElement;
+  /** Reloj y fecha del recorrido de hoy (pantalla de inicio con plani). */
+  recorridoReloj: ClockNodes;
+  recorridoFecha: HTMLElement;
+  /** "El recorrido de hoy" (pantalla de inicio con plani: `screen === 'idle'` y
+   *  `recorrido` en el poll): `recorrido/index.ts` arma su contenido dentro de
+   *  `recorridoHost`. */
+  pantallaRecorrido: HTMLElement;
+  recorridoHost: HTMLElement;
 }
 
 let nodes: Nodes | null = null;
@@ -181,6 +190,10 @@ function ensureNodes(): Nodes {
     avisoCuerpo: byId('avisoCuerpo'),
     avisoReloj: clockNodes(byId('avisoReloj')),
     avisoFecha: byId('avisoFecha'),
+    recorridoReloj: clockNodes(byId('recorridoReloj')),
+    recorridoFecha: byId('recorridoFecha'),
+    pantallaRecorrido: byId('pantallaRecorrido'),
+    recorridoHost: byId('recorridoHost'),
   };
   return nodes;
 }
@@ -388,6 +401,7 @@ let arranqueUntil = 0;
  */
 export function resetRender(): void {
   clearQuoteTimeouts();
+  resetRecorrido();
   nodes = null;
   last = null;
   lastListKey = '';
@@ -417,6 +431,16 @@ export function setCapsulas(next: CapsulaTecnica[]): void {
 // =============================================================================
 // Render del estado
 // =============================================================================
+
+/** `?sobrio=1` o reduced-motion: el recorrido se muestra quieto, sin coreografía. */
+function sinMovimiento(): boolean {
+  const root = document.getElementById('tvScreenRoot');
+  if (root !== null && root.classList.contains('tv-sobrio')) return true;
+  return (
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
+}
 
 /** El bloque en curso, o `null` si el payload no trae clase (reposo o cierre). */
 function classOf(payload: TvPollResponse): TvClassPayload | null {
@@ -746,6 +770,7 @@ export function renderState(payload: TvPollResponse): void {
   setText(n.reposoFecha, fecha);
   setText(n.cierreFecha, fecha);
   setText(n.avisoFecha, fecha);
+  setText(n.recorridoFecha, fecha);
   setText(n.cierreTitulo, 'SESIÓN COMPLETA');
 
   const avisoVelo = avisoVeloFor(payload);
@@ -798,6 +823,18 @@ export function renderState(payload: TvPollResponse): void {
     avisoIsVisible
   );
 
+  // El recorrido de hoy (2026-10-13): REEMPLAZA a la pantalla de inicio cuando hay
+  // plani aprobada (el server manda `recorrido` solo en ese caso). Clave diurna, como
+  // el reposo. Se hace visible ANTES de montar: el armado mide con getBBox().
+  const recorridoVisible =
+    payload.screen === 'idle' && payload.recorrido !== null && !avisoIsVisible;
+  setVisible(n.pantallaRecorrido, 'pantalla pantalla--dia', recorridoVisible);
+  if (recorridoVisible && payload.recorrido !== null) {
+    mostrarRecorrido(n.recorridoHost, payload.recorrido, sinMovimiento());
+  } else {
+    ocultarRecorrido();
+  }
+
   const c = classOf(payload);
   // OJO: setVisible reescribe el className COMPLETO — la base tiene que repetir
   // el modificador diurno del template o la pre-clase cae al estilo nocturno.
@@ -808,7 +845,7 @@ export function renderState(payload: TvPollResponse): void {
   setVisible(
     n.pantallaReposo,
     'pantalla pantalla--dia',
-    !c && payload.screen !== 'closing' && !avisoIsVisible
+    !c && payload.screen !== 'closing' && !avisoIsVisible && !recorridoVisible
   );
   setVisible(n.pantallaCierre, 'pantalla', payload.screen === 'closing' && !avisoIsVisible);
 
@@ -899,6 +936,7 @@ export function tickClock(): void {
     paintAviso(n, last.aviso, avisoVeloFor(last));
   } else if (last.screen === 'idle') {
     paintClock(n.reposoReloj, d);
+    paintClock(n.recorridoReloj, d);
     paintCapsula(n);
   } else if (last.screen === 'closing') {
     paintClock(n.cierreReloj, d);

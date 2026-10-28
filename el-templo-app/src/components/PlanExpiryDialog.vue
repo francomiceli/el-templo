@@ -1,33 +1,15 @@
 <template>
   <!-- D-07: salteable → el q-dialog NO usa el modo bloqueante. -->
   <q-dialog v-model="show">
-    <q-card class="plan-expiry-dialog">
-      <q-card-section class="plan-expiry-dialog__body">
-        <q-icon name="event_busy" class="plan-expiry-dialog__icon" size="40px" />
+    <PremiumDialogCard kicker="Tu membresía" icon="event_busy">
+      <h3 class="pd-title">{{ title }}</h3>
+      <p class="pd-text">{{ body }}</p>
 
-        <h3 class="plan-expiry-dialog__title">{{ title }}</h3>
-
-        <p class="plan-expiry-dialog__text">{{ body }}</p>
-      </q-card-section>
-
-      <q-card-actions class="plan-expiry-dialog__actions">
-        <q-btn
-          unelevated
-          no-caps
-          class="plan-expiry-dialog__primary full-width"
-          :label="buttonText"
-          @click="onRenew"
-        />
-        <q-btn
-          flat
-          no-caps
-          dense
-          class="plan-expiry-dialog__secondary"
-          label="Ahora no"
-          @click="onSkip"
-        />
-      </q-card-actions>
-    </q-card>
+      <div class="pd-acts">
+        <q-btn unelevated no-caps class="pd-cta" :label="buttonText" @click="onRenew" />
+        <q-btn flat no-caps dense class="pd-skip" label="Ahora no" @click="onSkip" />
+      </div>
+    </PremiumDialogCard>
   </q-dialog>
 </template>
 
@@ -37,6 +19,7 @@ import { useRouter } from 'vue-router'
 import { Preferences } from '@capacitor/preferences'
 import { useAvisosStore } from 'src/stores/useAvisosStore'
 import { createLogger } from 'src/utils/logger'
+import PremiumDialogCard from 'src/components/PremiumDialogCard.vue'
 
 const log = createLogger('PlanExpiryDialog')
 const router = useRouter()
@@ -122,78 +105,3 @@ async function onSkip(): Promise<void> {
   show.value = false
 }
 </script>
-
-<style lang="scss" scoped>
-@import 'src/css/brand';
-
-$terracotta: $brand-terracotta;
-$cream: #f2ede5;
-$charcoal: #2e2a26;
-
-// Estilos copiados de RatingPromptDialog.vue (mandato de reuse de UI-SPEC):
-// card charcoal #2e2a26, gradiente terracotta, secundario flat cream-55,
-// max-width 340px, border-radius 16px. NO re-estilizar.
-.plan-expiry-dialog {
-  width: 100%;
-  max-width: 340px;
-  background: $charcoal;
-  color: $cream;
-  border-radius: 16px;
-  border-top: 2px solid rgba($terracotta, 0.6);
-  padding: 8px 4px 16px;
-}
-
-.plan-expiry-dialog__body {
-  text-align: center;
-  padding-top: 16px;
-}
-
-.plan-expiry-dialog__icon {
-  color: $terracotta;
-  margin-bottom: 8px;
-}
-
-.plan-expiry-dialog__title {
-  font-family: 'Montserrat', sans-serif;
-  font-weight: 700;
-  font-size: 1.125rem;
-  letter-spacing: 0.04em;
-  margin: 0 0 16px 0;
-  color: $cream;
-}
-
-.plan-expiry-dialog__text {
-  font-family: 'Geologica', sans-serif;
-  font-weight: 400;
-  font-size: 0.9375rem;
-  line-height: 1.5;
-  color: rgba($cream, 0.85);
-  margin: 0;
-}
-
-.plan-expiry-dialog__actions {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 16px 20px 4px;
-}
-
-.plan-expiry-dialog__primary {
-  background: linear-gradient(135deg, $terracotta 0%, #ad6540 100%) !important;
-  color: $cream !important;
-  font-family: 'Montserrat', sans-serif;
-  font-weight: 700;
-  font-size: 0.9375rem;
-  letter-spacing: 0.12em;
-  padding: 12px 0;
-  border-radius: 8px;
-}
-
-.plan-expiry-dialog__secondary {
-  color: rgba($cream, 0.55) !important;
-  font-family: 'Geologica', sans-serif;
-  font-weight: 400;
-  font-size: 0.8125rem;
-  margin-top: 4px;
-}
-</style>

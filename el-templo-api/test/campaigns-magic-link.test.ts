@@ -129,13 +129,21 @@ describe("POST /api/campaigns/exchange — canje de magic-link (D-01/D-02)", () 
       token: string;
       accessToken: string;
       refreshToken: string;
-      user: { id: number; email: string; onboardingCompleted: boolean };
+      user: {
+        id: number;
+        email: string;
+        onboardingCompleted: boolean;
+        branchTimezone: string;
+      };
       destination: string;
     };
     expect(typeof body.token).toBe("string");
     expect(typeof body.accessToken).toBe("string");
     expect(typeof body.refreshToken).toBe("string");
     expect(body.user.email).toBe(email);
+    // Fase 199 (D-04): la zona de la sede viaja siempre en el perfil del canje.
+    expect(typeof body.user.branchTimezone).toBe("string");
+    expect(body.user.branchTimezone.length).toBeGreaterThan(0);
     expect(body.destination).toBe("reservas-prueba");
     expect(res.headers["referrer-policy"]).toBe("no-referrer");
   });

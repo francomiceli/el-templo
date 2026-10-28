@@ -1,123 +1,95 @@
 <template>
-  <q-page padding>
-    <!-- Loading state -->
-    <div v-if="loading" class="planes-loading">
-      <TemploLoader size="lg" />
-    </div>
-
-    <!-- Empty state -->
-    <div v-if="!loading && plans.length === 0" class="text-center text-grey-6 q-pa-xl">
-      No hay planes disponibles
-    </div>
-
-    <!-- Tu plan actual — hero card at top -->
-    <!-- Tu plan actual -->
-    <div v-if="currentPlan" class="q-mb-lg">
-      <p class="planes-section-title">Tu plan actual</p>
-      <div class="plan-card plan-card--active">
-        <div class="plan-card__header">
-          <span class="plan-card__name">{{ currentPlan.name }}</span>
-          <q-badge
-            :style="{ backgroundColor: '#96593a' }"
-            :label="tierLabel(currentPlan.planTier)"
-          />
-        </div>
-        <div class="plan-card__badges">
-          <q-badge v-if="currentPlan.classesPerWeek" outline color="grey-7">
-            {{ currentPlan.classesPerWeek }} clases/semana
-          </q-badge>
-        </div>
-        <div class="plan-card__status">
-          <q-icon name="check_circle" size="16px" color="positive" />
-          <span>Activo — vence {{ formatEndDate() }}</span>
-        </div>
+  <!-- Sketch 028 D: arriba "Tu plan" (card oscura con la línea de tiempo), después los planes
+       anteriores (plegados) y el catálogo con el lenguaje del rework. Página transparente sobre
+       el fondo `.app-bg` del layout. -->
+  <q-page class="planes-page">
+    <div class="planes-wrap">
+      <!-- Tu plan: carga / error con reintento / contenido -->
+      <div v-if="summaryLoading && !summary" class="planes-loading">
+        <TemploLoader size="lg" />
       </div>
-    </div>
 
-    <!-- Planes Por Objetivos -->
-    <div v-if="experiencias.length > 0" class="q-mb-lg">
-      <p class="planes-section-title">Planes Por Objetivos</p>
-      <div class="text-body2 text-grey-7 q-mb-md" style="padding-left: 4px">
-        Planes diseñados a tu medida para potenciar tu entrenamiento.
+      <div v-else-if="summaryError" class="planes-error" role="alert">
+        <p class="planes-error__text">No pudimos cargar tu plan.</p>
+        <button type="button" class="planes-error__retry" @click="loadSummary">Reintentar</button>
       </div>
-      <div
-        v-for="exp in experiencias"
-        :key="exp.id"
-        class="plan-card q-mb-sm"
-        :class="{ 'plan-card--active': enrolledProgramId === exp.id }"
-      >
-        <div class="plan-card__header">
-          <span class="plan-card__name">{{ exp.name }}</span>
-          <q-badge :style="{ backgroundColor: '#96593a' }" label="POR OBJETIVOS" />
-        </div>
-        <div v-if="exp.description" class="plan-card__desc">{{ exp.description }}</div>
-        <div class="plan-card__badges">
-          <q-badge v-if="!exp.hasContent" color="grey" label="Proximamente" />
-          <q-badge outline color="grey-7">{{ exp.durationWeeks }} semanas</q-badge>
-          <q-badge v-if="exp.price != null" outline color="primary">{{
-            formatPrice(exp.price, exp.currency ?? 'ARS')
-          }}</q-badge>
-        </div>
-        <div v-if="enrolledProgramId === exp.id" class="plan-card__status">
-          <q-icon name="check_circle" size="16px" color="positive" />
-          <span>Ya estas inscripto</span>
-        </div>
-        <q-btn
-          v-else
-          flat
-          dense
-          no-caps
-          color="positive"
-          class="plan-card__cta"
-          @click="openExperienciaWhatsApp(exp)"
-        >
-          <q-icon name="img:/icons/whatsapp.svg" size="16px" class="q-ml-xs q-mr-sm" />
-          Mas info
-        </q-btn>
-      </div>
-    </div>
 
-    <!-- Planes Regulares -->
-    <div v-if="plans.length > 0" :class="experiencias.length > 0 ? 'q-mt-lg' : ''">
-      <p class="planes-section-title">Planes Regulares</p>
+      <template v-else-if="timeline && summary">
+        <TuPlanCard :model="timeline" @cta="openPlanWhatsApp" />
+        <PlanHistoryCard :items="summary.history" :today="today" />
+      </template>
 
-      <!-- All regular plans -->
-      <div
-        v-for="plan in allRegularPlans"
-        :key="plan.id"
-        class="plan-card q-mb-sm"
-        :class="{ 'plan-card--active': isCurrentPlan(plan) }"
-      >
-        <div class="plan-card__header">
-          <span class="plan-card__name">{{ plan.name }}</span>
-          <q-badge :style="{ backgroundColor: '#96593a' }" :label="tierLabel(plan.planTier)" />
-        </div>
-        <div v-if="plan.description" class="plan-card__desc">{{ plan.description }}</div>
-        <div class="plan-card__badges">
-          <q-badge v-if="plan.durationDays" outline color="grey-7">
-            {{ plan.durationDays }} dias
-          </q-badge>
-          <q-badge v-if="plan.classesPerWeek" outline color="grey-7">
-            {{ plan.classesPerWeek }} clases/semana
-          </q-badge>
-        </div>
-        <div v-if="isCurrentPlan(plan)" class="plan-card__status">
-          <q-icon name="check_circle" size="16px" color="positive" />
-          <span>Activo — vence {{ formatEndDate() }}</span>
-        </div>
-        <q-btn
-          v-else
-          flat
-          dense
-          no-caps
-          color="positive"
-          class="plan-card__cta"
-          @click="openWhatsApp(plan)"
-        >
-          <q-icon name="img:/icons/whatsapp.svg" size="16px" class="q-ml-xs q-mr-sm" />
-          {{ ctaText }}
-        </q-btn>
+      <!-- Catálogo -->
+      <div v-if="catalogLoading" class="planes-loading planes-loading--catalog">
+        <TemploLoader size="md" />
       </div>
+
+      <div v-else-if="plans.length === 0 && experiencias.length === 0" class="planes-empty">
+        No hay planes disponibles
+      </div>
+
+      <section v-if="experiencias.length > 0" class="planes-section">
+        <h3 class="planes-title">Planes por objetivos</h3>
+        <p class="planes-sub">Planes diseñados a tu medida para potenciar tu entrenamiento.</p>
+        <article v-for="exp in experiencias" :key="exp.id" class="pc">
+          <div class="pc__head">
+            <span class="pc__name">{{ exp.name }}</span>
+            <span v-if="exp.durationWeeks" class="pc-pill pc-pill--neu"
+              >{{ exp.durationWeeks }} semanas</span
+            >
+          </div>
+          <p v-if="exp.description" class="pc__desc">{{ exp.description }}</p>
+          <div v-if="!exp.hasContent || exp.price != null" class="pc__tags">
+            <span v-if="!exp.hasContent" class="pc-pill pc-pill--mid">Próximamente</span>
+            <span v-if="exp.price != null" class="pc-pill pc-pill--neu">{{
+              formatPrice(exp.price, exp.currency ?? 'ARS')
+            }}</span>
+          </div>
+          <div class="pc__foot">
+            <span v-if="enrolledProgramId === exp.id" class="pc-pill pc-pill--ok">
+              <q-icon name="check" size="14px" aria-hidden="true" />
+              Ya estás inscripto
+            </span>
+            <button v-else type="button" class="pc__cta" @click="openExperienciaWhatsApp(exp)">
+              <q-icon name="img:/icons/whatsapp.svg" size="18px" aria-hidden="true" />
+              Más info
+            </button>
+          </div>
+        </article>
+      </section>
+
+      <section v-if="plans.length > 0" class="planes-section">
+        <h3 class="planes-title">Planes regulares</h3>
+        <article v-for="plan in allRegularPlans" :key="plan.id" class="pc">
+          <div class="pc__head">
+            <span class="pc__name">{{ plan.name }}</span>
+            <span v-if="isCurrentPlan(plan)" class="pc-pill pc-pill--ok">
+              <q-icon name="check" size="14px" aria-hidden="true" />
+              Tu plan
+            </span>
+            <span v-else-if="plan.durationDays" class="pc-pill pc-pill--neu"
+              >{{ plan.durationDays }} días</span
+            >
+          </div>
+          <p v-if="plan.description" class="pc__desc">{{ plan.description }}</p>
+          <div v-if="plan.classesPerWeek || tierLabel(plan.planTier)" class="pc__tags">
+            <span v-if="tierLabel(plan.planTier)" class="pc-pill pc-pill--neu">{{
+              tierLabel(plan.planTier)
+            }}</span>
+            <span v-if="plan.classesPerWeek" class="pc-pill pc-pill--neu">{{
+              plan.classesPerWeek === 1
+                ? '1 clase por semana'
+                : `${plan.classesPerWeek} clases por semana`
+            }}</span>
+          </div>
+          <div v-if="!isCurrentPlan(plan)" class="pc__foot">
+            <button type="button" class="pc__cta" @click="openWhatsApp(plan)">
+              <q-icon name="img:/icons/whatsapp.svg" size="18px" aria-hidden="true" />
+              Consultar
+            </button>
+          </div>
+        </article>
+      </section>
     </div>
   </q-page>
 </template>
@@ -130,8 +102,14 @@ import { useUserStore } from 'src/stores/useUserStore'
 import { createLogger } from 'src/utils/logger'
 import { formatPrice } from 'src/utils/format-price'
 import { buildWhatsAppUrl } from 'src/utils/whatsapp'
+import { DEFAULT_BRANCH_TZ, todayInTz } from 'src/utils/tz'
 import { useProgramsApi } from 'src/modules/programs/composables/useProgramsApi'
 import type { MemberProgramCatalogItem } from 'src/modules/programs/types'
+import TuPlanCard from '../components/TuPlanCard.vue'
+import PlanHistoryCard from '../components/PlanHistoryCard.vue'
+import { fetchPlanSummary, markPlanSummarySeen } from '../api'
+import { buildPlanTimeline } from '../utils/plan-timeline'
+import type { PlanSummary } from '../types'
 
 const log = createLogger('PlanesPage')
 
@@ -154,45 +132,37 @@ const PLAN_TIER_LABELS: Record<string, string> = {
   flex: 'Flex',
   foundation: 'Foundation',
   performance: 'Performance',
-  other: 'Otro',
 }
 
 const userStore = useUserStore()
 const plans = ref<MemberPlan[]>([])
-const loading = ref(false)
+const catalogLoading = ref(false)
 
 const { getCatalog, getMyProgress } = useProgramsApi()
 const experiencias = ref<MemberProgramCatalogItem[]>([])
 const enrolledProgramId = ref<number | null>(null)
 
+// ── Tu plan ──
+const summary = ref<PlanSummary | null>(null)
+const summaryLoading = ref(false)
+const summaryError = ref(false)
+// "Hoy" en la sede (no en el teléfono): se recalcula en cada carga.
+const today = ref(todayInTz(DEFAULT_BRANCH_TZ))
+
+const timeline = computed(() =>
+  summary.value ? buildPlanTimeline(summary.value, today.value) : null,
+)
+
 const allRegularPlans = computed(() => plans.value.filter((p) => !p.linkedProgramId))
 
-const hasSubscription = computed(() => !!userStore.subscription)
-
-const ctaText = computed(() =>
-  hasSubscription.value ? 'Contacta para cambiar de plan' : 'Contacta para elegir tu plan',
-)
-
-const currentPlan = computed(
-  () => plans.value.find((p) => userStore.subscription?.planName === p.name) ?? null,
-)
-
+/** El plan del socio se marca por id de plan (no por nombre) con su membresía actual. */
 function isCurrentPlan(plan: MemberPlan): boolean {
-  return userStore.subscription?.planName === plan.name
+  return summary.value?.current?.planId === plan.id
 }
 
-function formatEndDate(): string {
-  const endDate = userStore.subscription?.endDate
-  if (!endDate) return 'sin fecha'
-  return new Intl.DateTimeFormat('es-AR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  }).format(new Date(endDate))
-}
-
+/** Etiqueta del nivel del plan; vacía para "other"/desconocidos (no aporta nada al socio). */
 function tierLabel(tier: string): string {
-  return PLAN_TIER_LABELS[tier] ?? tier
+  return PLAN_TIER_LABELS[tier] ?? ''
 }
 
 /**
@@ -216,29 +186,70 @@ function buildWhatsAppMessage(
   currency?: 'ARS' | 'EUR',
 ): string {
   if (monthlyPrice == null) {
-    return `Hola! Me interesa el plan ${planName}. Quiero mas info.`
+    return `Hola! Me interesa el plan ${planName}. Quiero más info.`
   }
   const wp = computeWeeklyPrice(monthlyPrice, currency)
-  return `Hola! Me interesa el plan ${planName} (${wp}/semana). Quiero mas info.`
+  return `Hola! Me interesa el plan ${planName} (${wp}/semana). Quiero más info.`
+}
+
+function openWhatsAppWith(message: string): void {
+  window.open(buildWhatsAppUrl(userStore.profile?.branchCountry, message), '_blank')
 }
 
 function openWhatsApp(plan: MemberPlan): void {
-  const message = buildWhatsAppMessage(plan.name, plan.priceRegular, plan.currency)
-  window.open(buildWhatsAppUrl(userStore.profile?.branchCountry, message), '_blank')
+  openWhatsAppWith(buildWhatsAppMessage(plan.name, plan.priceRegular, plan.currency))
 }
 
-function openExperienciaWhatsApp(exp: MemberProgramCatalogItem) {
-  const message = buildWhatsAppMessage(exp.name, exp.price, exp.currency)
-  window.open(buildWhatsAppUrl(userStore.profile?.branchCountry, message), '_blank')
+function openExperienciaWhatsApp(exp: MemberProgramCatalogItem): void {
+  openWhatsAppWith(buildWhatsAppMessage(exp.name, exp.price, exp.currency))
 }
 
-onMounted(async () => {
-  // Ensure subscription is loaded for "Tu plan actual" card
-  if (!userStore.subscription && !userStore.subscriptionLoading) {
-    await userStore.loadSubscription()
+/** Botón de la card "Tu plan" (renovar / consultar): el texto ya viene armado por el modelo. */
+function openPlanWhatsApp(message: string): void {
+  openWhatsAppWith(message)
+}
+
+/**
+ * Abrir Planes = "visto": apaga la pelotita de la tab (flag local) y avisa al server, best-effort.
+ * El `summary` ya cargado conserva sus `isNew`, así el "Nuevo" se ve en esta visita.
+ */
+async function markSeen(): Promise<void> {
+  userStore.clearPlanUpdateUnseen()
+  try {
+    await markPlanSummarySeen()
+  } catch (err: unknown) {
+    log.warn('No se pudo marcar Planes como visto', {
+      error: err instanceof Error ? err.message : String(err),
+    })
   }
+}
 
-  loading.value = true
+/** Siempre pide el resumen al server (aunque haya datos en memoria): es lo que el socio espera ver. */
+async function loadSummary(): Promise<void> {
+  summaryLoading.value = true
+  summaryError.value = false
+  try {
+    const data = await fetchPlanSummary()
+    today.value = todayInTz(userStore.profile?.branchTimezone ?? DEFAULT_BRANCH_TZ)
+    summary.value = data
+    if (data.hasUnseen) {
+      void markSeen()
+    } else {
+      // El server no tiene nada sin ver: una pelotita vieja en memoria no corresponde.
+      userStore.clearPlanUpdateUnseen()
+    }
+  } catch (err: unknown) {
+    summaryError.value = true
+    log.error('Failed to load plan summary', {
+      error: err instanceof Error ? err.message : String(err),
+    })
+  } finally {
+    summaryLoading.value = false
+  }
+}
+
+async function loadCatalog(): Promise<void> {
+  catalogLoading.value = true
   try {
     const response = await api.get<{ plans: MemberPlan[] }>('/members/subscription/plans')
     plans.value = response.data.plans
@@ -246,19 +257,18 @@ onMounted(async () => {
     const message = err instanceof Error ? err.message : 'Unknown error'
     log.error('Failed to load plans', { error: message })
   } finally {
-    loading.value = false
+    catalogLoading.value = false
   }
 
   // Fetch Planes Por Objetivos catalog
   try {
-    const catalog = await getCatalog()
-    experiencias.value = catalog
+    experiencias.value = await getCatalog()
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error'
     log.error('Failed to load experiencias', { error: message })
   }
 
-  // Check enrollment status for "Ya estas inscripto" per D-47
+  // Check enrollment status for "Ya estás inscripto" per D-47
   try {
     const progress = await getMyProgress()
     if (progress) {
@@ -267,82 +277,168 @@ onMounted(async () => {
   } catch {
     /* ignore -- non-critical for catalog display */
   }
+}
+
+onMounted(() => {
+  void loadSummary()
+  void loadCatalog()
 })
 </script>
 
 <style scoped lang="scss">
-@import 'src/css/quasar.variables.scss';
+@import 'src/css/brand';
+@import 'src/css/premium-card';
+
+.planes-page {
+  background-color: transparent; // la foto de fondo (.app-bg) se ve detrás
+}
+
+.planes-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px 16px 28px;
+}
 
 .planes-loading {
   display: flex;
   align-items: center;
   justify-content: center;
   min-height: 40vh;
+
+  &--catalog {
+    min-height: 96px;
+  }
 }
 
-.planes-section-title {
-  font-family: 'Montserrat', sans-serif;
-  font-size: 18px;
-  font-weight: 800;
-  color: $primary;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin: 4px 0 12px;
-  padding: 4px 0 0 4px;
+.planes-empty {
+  padding: 24px 0;
+  text-align: center;
+  color: $pd-ink; // sobre la página: tinta sólida
 }
 
-.plan-card {
+.planes-error {
+  @include pd-surface-light;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   padding: 16px;
-  background: white;
-  border: 1px solid rgba($primary, 0.15);
-  border-radius: 12px;
-  border-left: 4px solid rgba($primary, 0.3);
 
-  &--active {
-    border-left-color: $positive;
+  &__text {
+    margin: 0;
+    font-size: 14px;
+    color: $pd-ink;
   }
 
-  &__header {
+  &__retry {
+    @include pd-cta;
+    @include pd-cta-secondary-light;
+  }
+}
+
+.planes-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+// Título de bloque del rework; sobre la PÁGINA va en tinta (terracota no llega a AA ahí).
+.planes-title {
+  @include mt-block-title;
+  margin: 0;
+  color: $pd-ink;
+}
+
+.planes-sub {
+  margin: -8px 0 0;
+  font-size: 14px;
+  line-height: 1.4;
+  color: $pd-ink;
+}
+
+// ── Cards del catálogo ──
+.pc {
+  @include pd-surface-light;
+  padding: 14px 16px;
+
+  &__head {
     display: flex;
-    align-items: center;
     justify-content: space-between;
-    gap: 8px;
-    margin-bottom: 4px;
+    align-items: flex-start;
+    gap: 10px;
   }
 
   &__name {
+    min-width: 0;
     font-family: 'Montserrat', sans-serif;
-    font-size: 15px;
     font-weight: 700;
-    color: $primary;
+    font-size: 16px;
+    color: $pd-ink;
+    overflow-wrap: anywhere;
   }
 
   &__desc {
-    font-size: 13px;
-    color: $grey-7;
+    margin: 4px 0 0;
+    font-size: 13.5px;
     line-height: 1.4;
-    margin-bottom: 8px;
+    color: $pd-ink-2;
   }
 
-  &__badges {
+  &__tags {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
-    margin-bottom: 8px;
+    margin-top: 8px;
   }
 
-  &__status {
+  &__foot {
     display: flex;
+    justify-content: space-between;
     align-items: center;
-    gap: 6px;
-    font-size: 13px;
-    color: $positive;
-    font-weight: 500;
+    margin-top: 6px;
   }
 
   &__cta {
-    margin-top: 4px;
-    margin-left: -8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 44px;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    font-family: 'Geologica', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    color: $pd-terra-ink;
+  }
+}
+
+.pc-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-family: 'Geologica', sans-serif;
+  font-weight: 600;
+  font-size: 12px;
+  white-space: nowrap;
+
+  &--neu {
+    background: #f3ede4;
+    color: $pd-ink-3;
+  }
+
+  &--ok {
+    background: $pd-sage-tint;
+    color: $pd-sage;
+  }
+
+  &--mid {
+    background: $pd-gold-tint;
+    color: $pd-gold-ink;
   }
 }
 </style>

@@ -160,6 +160,27 @@ export interface BookingRecord {
   // criterio que `segment`/`seniority`/`endDate` en ese path.
   memberBranchId: number | null;
   memberBranchName: string | null;
+  /**
+   * Fase 204 D-10: origen de la reserva. 'wellhub' para reservas Wellhub, null
+   * en filas viejas o propias. Opcional: lo setea `getSlotDetail`; el resto de
+   * los constructores de BookingRecord lo dejan sin definir.
+   */
+  source?: string | null;
+}
+
+/**
+ * Fase 199 (D-03/D-04/D-06): solo my-bookings. Sede de la CLASE
+ * (`schedules.branch_id`), no la de origen del socio. Hereda `isSpecial` /
+ * `specialLine` de BookingRecord: la app los usa para la regla de una
+ * asistencia por día POR CATEGORÍA (espejo de `sameActivityKindSql`).
+ */
+export interface MyBookingRecord extends BookingRecord {
+  branchId: number;
+  branchName: string;
+  /** Zona de la sede de la clase; nunca vacía (fallback DEFAULT_TENANT_TIMEZONE). */
+  branchTimezone: string;
+  /** ISO de la asistencia registrada para ESA clase y fecha, o null. */
+  checkedInAt: string | null;
 }
 
 export interface HolidayRecord {

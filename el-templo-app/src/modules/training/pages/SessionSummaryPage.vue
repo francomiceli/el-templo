@@ -10,8 +10,10 @@
       v-else-if="!todaySession"
       class="session-summary-page__empty flex flex-center column q-pa-xl"
     >
-      <q-icon name="event_busy" size="64px" color="grey-4" />
-      <div class="text-h6 text-grey-6 q-mt-md">No hay sesión completada hoy</div>
+      <q-icon name="event_busy" size="64px" class="session-summary-page__empty-icon" />
+      <div class="text-h6 session-summary-page__empty-text q-mt-md">
+        No hay sesión completada hoy
+      </div>
       <q-btn flat color="primary" label="Volver" class="q-mt-lg" @click="router.back()" />
     </div>
 
@@ -37,7 +39,9 @@ import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import TemploLoader from 'src/components/TemploLoader.vue'
 import { useQuasar } from 'quasar'
+import { confirmDialog } from 'src/utils/confirm-dialog'
 import { useProgressionStore } from 'src/modules/progression/stores/progressionStore'
+import { useProgressionApi } from 'src/modules/progression/composables/useProgressionApi'
 import { useSessionPlayerStore } from '../stores/sessionPlayerStore'
 import { useWeekStore } from '../stores/weekStore'
 import { useWeekData } from '../composables/useWeekData'
@@ -51,6 +55,13 @@ const progressionStore = useProgressionStore()
 const sessionPlayerStore = useSessionPlayerStore()
 const weekStore = useWeekStore()
 const { sessions: weekSessions, completedDates, fetchWeekSessions } = useWeekData()
+const { fetchStats } = useProgressionApi()
+
+// Gap 197-24 (hallazgo 2): `todaySession` solo lo hidrata Mi Templo. Con carga directa en /training
+// (recarga o deep link, entrando por "Ver resumen" de Semana) el store llega vacío: se pide acá con la
+// misma acción que usa Mi Templo. Va en el setup (no en onMounted) para que `loading` ya esté en true
+// en el primer render y no parpadee el estado vacío.
+if (!progressionStore.todaySession) void fetchStats()
 
 const loading = computed(() => progressionStore.loading)
 const todaySession = computed(() => progressionStore.todaySession)
@@ -100,12 +111,11 @@ async function loadWeekDataIfNeeded() {
 }
 
 function handleRestart() {
-  $q.dialog({
-    title: 'Repetir sesión',
-    message: 'Vas a reiniciar la sesión de hoy. El progreso registrado anteriormente se perderá.',
-    cancel: { label: 'Cancelar', flat: true },
-    ok: { label: 'Repetir', color: 'primary' },
-    persistent: true,
+  confirmDialog($q, {
+    title: '¿Repetir la sesión?',
+    message: 'Vas a reiniciar la sesión de hoy y se pierde lo que habías registrado.',
+    okLabel: 'Repetir',
+    destructive: true,
   }).onOk(async () => {
     const today = weekStore.weekDays.find((d) => d.date === todayStr.value)
     const dayId = today?.session?.dayId
@@ -123,6 +133,7 @@ onMounted(() => {
 
 <style scoped lang="scss">
 @import 'src/css/quasar.variables.scss';
+@import 'src/css/premium-card';
 
 .session-summary-page {
   display: flex;
@@ -134,5 +145,12 @@ onMounted(() => {
 .session-summary-page__loading,
 .session-summary-page__empty {
   flex: 1;
+}
+
+// Gap 197-24: grises de Quasar fuera de D-16 (texto 2,30:1, ícono 1,13:1) -> tinta sólida del sistema
+// (texto 6,2:1 y ícono >= 3:1 sobre la crema de la página).
+.session-summary-page__empty-icon,
+.session-summary-page__empty-text {
+  color: $pd-ink-2;
 }
 </style>

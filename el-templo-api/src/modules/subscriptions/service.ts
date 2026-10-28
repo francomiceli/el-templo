@@ -100,6 +100,7 @@ import {
 import { todayInTz, DEFAULT_TENANT_TIMEZONE } from "../shared/date-utils";
 import { assertBranchDelGimnasio } from "../shared/branch-consistency";
 import { membershipInEffectSql } from "../shared/membership";
+import { notWellhubAttendanceSql } from "../shared/wellhub-sources";
 import { EnrollmentService } from "../programs/enrollment-service";
 import { SettingsService } from "../settings/service";
 import { PRICING_SETTINGS_KEYS } from "../settings/keys";
@@ -109,6 +110,7 @@ import {
   invitationConvertedAtGateSql,
   invitationLeadGateSql,
 } from "../referrals/invitation-conversion";
+import { recordWellhubConversion } from "../wellhub/conversion";
 import { PartnerReferralService } from "../referral-partners/service";
 import { trimInvitationAccessEnd } from "./invitation-access";
 import {
@@ -219,6 +221,67 @@ export interface ListPlansFilters {
   includeArchived?: boolean;
   country?: "AR" | "ES";
   branchId?: number;
+}
+
+/**
+ * D-05 (fase 199): estado de plan del socio. Ver `getMemberPlanStatus`.
+ */
+export interface MemberPlanStatus {
+  hasActivePlan: boolean;
+  hasScheduledPlan: boolean;
+  scheduledStartDate: string | null;
+  hadPlan: boolean;
+  lastPlan: {
+    planName: string;
+    endDate: string | null;
+    status: "expired" | "completed" | "cancelled" | "changed";
+  } | null;
+  /**
+   * El staff cargó una membresía que el socio todavía no vio (pelotita de la
+   * tab Planes al arrancar la app). Mismo criterio que `isNew` de
+   * `getMemberPlanSummary`: notificada y sin visto, de cualquier fila no
+   * cancelada.
+   */
+  hasUnseenPlanUpdate: boolean;
+}
+
+/**
+ * Una membresía vigente o programada en el resumen de Planes de la app. SIN
+ * montos: nunca se expone `pricePaid` ni nada de plata al socio.
+ */
+export interface PlanSummaryItem {
+  id: number;
+  planId: number;
+  planName: string;
+  planCategory: string;
+  status: "active" | "paused" | "scheduled";
+  startDate: string;
+  endDate: string | null;
+  pauseEndDate: string | null;
+  classesPerWeek: number | null;
+  classesRemaining: number | null;
+  classesBudget: number | null;
+  /** Cargada por el staff y todavía no vista por el socio. */
+  isNew: boolean;
+}
+
+/** Plan anterior del historial del socio. SIN precio ni montos. */
+export interface PlanHistoryItem {
+  id: number;
+  planName: string;
+  startDate: string;
+  endDate: string | null;
+}
+
+/**
+ * Resumen de Planes del socio: plan actual -> (hueco) -> próxima, y anteriores.
+ * Ver `getMemberPlanSummary`.
+ */
+export interface MemberPlanSummary {
+  current: PlanSummaryItem | null;
+  next: PlanSummaryItem | null;
+  history: PlanHistoryItem[];
+  hasUnseen: boolean;
 }
 
 /**
@@ -1411,6 +1474,274 @@ export class SubscriptionService {
     if (rows.length === 0) return null;
 
     return this.enrichWithScheduleIds(ctx, this.mapSubscriptionRow(rows[0]));
+  }
+
+  /**
+   * D-05 (fase 199): estado de plan del socio para la card de "sin plan" de la
+   * app. Nunca tuvo -> `hadPlan=false`. Tuvo y venció -> `hadPlan=true` +
+   * `lastPlan` (nombre y fecha de fin). NO reemplaza a `getMemberSubscription`
+   * (el 204 de `/me/subscription` es contrato de apps viejas en las tiendas).
+   *
+   * LECTURA PURA (L10): no llama a `autoExpireSubscriptions` desde un GET. La
+   * regla replica su criterio sin escribir: una sub `active` con `endDate` menor
+   * que hoy (UTC, igual que el barrido) todavía no barrida cuenta como vencida
+   * (`expired`), no como plan activo. `paused` cuenta como plan activo; las
+   * `scheduled` se informan aparte. Misma regla que `hasActivePlan` de
+   * `SponsorsService`, para que canje y card nunca diverjan. Los
+   * `membership_kind` staff/bonificadas son filas normales de `subscriptions`,
+   * por eso cuentan igual.
+   *
+   * `tenantWhere` en `subscriptions` y en `subscription_plans` (T-199-18); el
+   * `userId` viene siempre del token en la ruta.
+   */
+  async getMemberPlanStatus(
+    ctx: TenantContext,
+    userId: number,
+  ): Promise<MemberPlanStatus> {
+    const todayUtc = new Date().toISOString().split("T")[0];
+
+    const rows = await this.db
+      .select({
+        status: schema.subscriptions.status,
+        startDate: schema.subscriptions.startDate,
+        endDate: schema.subscriptions.endDate,
+        planName: schema.subscriptionPlans.name,
+        memberNotifiedAt: schema.subscriptions.memberNotifiedAt,
+        memberSeenAt: schema.subscriptions.memberSeenAt,
+      })
+      .from(schema.subscriptions)
+      .innerJoin(
+        schema.subscriptionPlans,
+        and(
+          eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+          tenantWhere(schema.subscriptionPlans, ctx),
+        ),
+      )
+      .where(
+        and(
+          tenantWhere(schema.subscriptions, ctx),
+          eq(schema.subscriptions.userId, userId),
+        ),
+      )
+      .orderBy(
+        desc(schema.subscriptions.endDate),
+        desc(schema.subscriptions.id),
+      );
+
+    let hasActivePlan = false;
+    let hasUnseenPlanUpdate = false;
+    let scheduledStartDate: string | null = null;
+    const past: MemberPlanStatus["lastPlan"][] = [];
+
+    for (const row of rows) {
+      if (
+        row.status !== "cancelled" &&
+        row.memberNotifiedAt !== null &&
+        row.memberSeenAt === null
+      ) {
+        hasUnseenPlanUpdate = true;
+      }
+      if (row.status === "paused") {
+        hasActivePlan = true;
+      } else if (row.status === "active") {
+        if (row.endDate === null || row.endDate >= todayUtc) {
+          hasActivePlan = true;
+        } else {
+          // Vencida por fecha, todavía sin barrer (L10): se informa como vencida.
+          past.push({
+            planName: row.planName,
+            endDate: row.endDate,
+            status: "expired",
+          });
+        }
+      } else if (row.status === "scheduled") {
+        if (scheduledStartDate === null || row.startDate < scheduledStartDate) {
+          scheduledStartDate = row.startDate;
+        }
+      } else {
+        past.push({
+          planName: row.planName,
+          endDate: row.endDate,
+          status: row.status,
+        });
+      }
+    }
+
+    // Más reciente primero por fecha de fin (los `null` quedan al final). El
+    // orden de la query ya desempata por id; el sort es estable.
+    past.sort((a, b) => (b?.endDate ?? "").localeCompare(a?.endDate ?? ""));
+
+    return {
+      hasActivePlan,
+      hasScheduledPlan: scheduledStartDate !== null,
+      scheduledStartDate,
+      hadPlan: past.length > 0,
+      lastPlan: past[0] ?? null,
+      hasUnseenPlanUpdate,
+    };
+  }
+
+  /**
+   * Resumen de Planes del socio (app): plan actual -> (hueco) -> próxima, y los
+   * planes anteriores. `today` = "YYYY-MM-DD" de hoy en la zona del gimnasio
+   * (lo resuelve la ruta con `todayInTz`).
+   *
+   * LECTURA PURA (como `getMemberPlanStatus`): no llama a
+   * `autoExpireSubscriptions` desde un GET. Una sub `active` con `endDate < today`
+   * todavía sin barrer cuenta como vencida: va al historial, no a `current`.
+   *
+   *  - `current`: `active`/`paused` + `scheduled` que ya empezó (`startDate <=
+   *    today`). Orden = el de `getMemberSubscription`: no-especial primero, luego
+   *    active > paused > scheduled, luego `startDate` asc.
+   *  - `next`: `scheduled` con `startDate > today` (no-especial primero, la más
+   *    próxima primero). Si no hay `current` y sí `next`, es el "hueco".
+   *  - `history`: `completed`/`expired`/`changed` + `active` vencida sin barrer.
+   *    Excluye `cancelled`. Todas las categorías, sin límite, la más reciente
+   *    primero. Sin precio: nunca se expone `pricePaid` ni montos.
+   *  - `isNew` = el staff la cargó (`member_notified_at`) y el socio todavía no la
+   *    vio (`member_seen_at` NULL). `hasUnseen` = alguna fila no cancelada `isNew`.
+   *
+   * `tenantWhere` en `subscriptions` y en `subscription_plans`; el `userId` viene
+   * siempre del token en la ruta.
+   */
+  async getMemberPlanSummary(
+    ctx: TenantContext,
+    userId: number,
+    today: string,
+  ): Promise<MemberPlanSummary> {
+    const rows = await this.db
+      .select({
+        id: schema.subscriptions.id,
+        planId: schema.subscriptions.planId,
+        planName: schema.subscriptionPlans.name,
+        planCategory: schema.subscriptionPlans.planCategory,
+        classesPerWeek: schema.subscriptionPlans.classesPerWeek,
+        status: schema.subscriptions.status,
+        startDate: schema.subscriptions.startDate,
+        endDate: schema.subscriptions.endDate,
+        pauseEndDate: schema.subscriptions.pauseEndDate,
+        classesRemaining: schema.subscriptions.classesRemaining,
+        classesBudget: schema.subscriptions.classesBudget,
+        memberNotifiedAt: schema.subscriptions.memberNotifiedAt,
+        memberSeenAt: schema.subscriptions.memberSeenAt,
+      })
+      .from(schema.subscriptions)
+      .innerJoin(
+        schema.subscriptionPlans,
+        and(
+          eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+          tenantWhere(schema.subscriptionPlans, ctx),
+        ),
+      )
+      .where(
+        and(
+          tenantWhere(schema.subscriptions, ctx),
+          eq(schema.subscriptions.userId, userId),
+        ),
+      );
+
+    type Row = (typeof rows)[number];
+    const isEspecial = (r: Row): number =>
+      r.planCategory === "especial" ? 1 : 0;
+    const statusRank = (r: Row): number =>
+      r.status === "active" ? 0 : r.status === "paused" ? 1 : 2;
+    const isNew = (r: Row): boolean =>
+      r.memberNotifiedAt !== null && r.memberSeenAt === null;
+    const toItem = (r: Row): PlanSummaryItem => ({
+      id: r.id,
+      planId: r.planId,
+      planName: r.planName,
+      planCategory: r.planCategory,
+      status: r.status as PlanSummaryItem["status"],
+      startDate: r.startDate,
+      endDate: r.endDate,
+      pauseEndDate: r.pauseEndDate,
+      classesPerWeek: r.classesPerWeek,
+      classesRemaining: r.classesRemaining,
+      classesBudget: r.classesBudget,
+      isNew: isNew(r),
+    });
+
+    // `active` con fin pasado y todavía sin barrer: vencida (L10).
+    const isStaleActive = (r: Row): boolean =>
+      r.status === "active" && r.endDate !== null && r.endDate < today;
+
+    const currentCandidates = rows
+      .filter(
+        (r) =>
+          (r.status === "active" && !isStaleActive(r)) ||
+          r.status === "paused" ||
+          (r.status === "scheduled" && r.startDate <= today),
+      )
+      .sort(
+        (a, b) =>
+          isEspecial(a) - isEspecial(b) ||
+          statusRank(a) - statusRank(b) ||
+          a.startDate.localeCompare(b.startDate) ||
+          a.id - b.id,
+      );
+    const current = currentCandidates[0] ?? null;
+
+    const nextCandidates = rows
+      .filter((r) => r.status === "scheduled" && r.startDate > today)
+      .sort(
+        (a, b) =>
+          isEspecial(a) - isEspecial(b) ||
+          a.startDate.localeCompare(b.startDate) ||
+          a.id - b.id,
+      );
+    const next = nextCandidates[0] ?? null;
+
+    // Historial: las filas de estado final + la active vencida sin barrer. Es
+    // disjunto de current/next por construcción (otros estados o endDate pasado).
+    const history: PlanHistoryItem[] = rows
+      .filter(
+        (r) =>
+          r.status === "completed" ||
+          r.status === "expired" ||
+          r.status === "changed" ||
+          isStaleActive(r),
+      )
+      .sort(
+        (a, b) =>
+          (b.endDate ?? "").localeCompare(a.endDate ?? "") || b.id - a.id,
+      )
+      .map((r) => ({
+        id: r.id,
+        planName: r.planName,
+        startDate: r.startDate,
+        endDate: r.endDate,
+      }));
+
+    return {
+      current: current ? toItem(current) : null,
+      next: next ? toItem(next) : null,
+      history,
+      hasUnseen: rows.some((r) => r.status !== "cancelled" && isNew(r)),
+    };
+  }
+
+  /**
+   * El socio abrió la tab Planes: marca como vistas (`member_seen_at = ahora`)
+   * todas sus membresías avisadas y no vistas. Devuelve cuántas filas marcó.
+   * `tenantWhere` + `userId` del token (la ruta no acepta userId).
+   */
+  async markMemberPlansSeen(
+    ctx: TenantContext,
+    userId: number,
+  ): Promise<number> {
+    const [result] = await this.db
+      .update(schema.subscriptions)
+      .set({ memberSeenAt: new Date() })
+      .where(
+        and(
+          tenantWhere(schema.subscriptions, ctx),
+          eq(schema.subscriptions.userId, userId),
+          isNotNull(schema.subscriptions.memberNotifiedAt),
+          isNull(schema.subscriptions.memberSeenAt),
+        ),
+      );
+    return result.affectedRows;
   }
 
   /**
@@ -2959,6 +3290,8 @@ export class SubscriptionService {
           eq(schema.attendance.memberId, sub.userId),
           sql`${schema.attendance.sessionDate} >= ${sub.startDate}`,
           sql`${schema.attendance.sessionDate} < ${newStartDate}`,
+          // Fase 204 D-18: las visitas Wellhub van por separado del plan
+          notWellhubAttendanceSql(),
         ),
       )
       .limit(1);
@@ -3509,6 +3842,8 @@ export class SubscriptionService {
           eq(schema.attendance.memberId, sub.userId),
           sql`${schema.attendance.sessionDate} >= ${fromDate}`,
           sql`${schema.attendance.sessionDate} <= ${toDate}`,
+          // Fase 204 D-18: las visitas Wellhub van por separado del plan
+          notWellhubAttendanceSql(),
         ),
       )
       .limit(1);
@@ -6294,6 +6629,33 @@ export class SubscriptionService {
   ): Promise<void> {
     const today = new Date().toISOString().split("T")[0];
 
+    // Reparación al leer (fix 2026-10-15): si una sucesora ya está `active`
+    // y su predecesora sigue `active` en su último día (estado que dejaba el
+    // cron antes del fix), se completa el traspaso acá. Así los socios que
+    // quedaron superpuestos se arreglan apenas alguien abre la ficha, sin
+    // esperar al día siguiente ni tocar datos a mano.
+    const activeSuccessors = await this.db
+      .select({
+        previousSubscriptionId: schema.subscriptions.previousSubscriptionId,
+      })
+      .from(schema.subscriptions)
+      .where(
+        and(
+          ctx
+            ? tenantWhere(schema.subscriptions, ctx)
+            : isNotNull(schema.subscriptions.tenantId),
+          eq(schema.subscriptions.userId, userId),
+          eq(schema.subscriptions.status, "active"),
+          isNotNull(schema.subscriptions.previousSubscriptionId),
+        ),
+      );
+    await this.completePredecessorsOnLastDay(
+      ctx,
+      activeSuccessors.flatMap((s) =>
+        s.previousSubscriptionId === null ? [] : [s.previousSubscriptionId],
+      ),
+    );
+
     // Find active subs past their end date
     const expiredSubs = await this.db
       .select({ id: schema.subscriptions.id })
@@ -6435,6 +6797,44 @@ export class SubscriptionService {
   }
 
   /**
+   * Fix 2026-10-15 — cierra (`completed`) las predecesoras que siguen
+   * `active` en su último día (endDate <= hoy) cuando su sucesora ya arrancó.
+   *
+   * Una renovación normal arranca el MISMO día que vence la anterior
+   * (startDate = endDate), así que el cron `activateDueScheduledSubs` la
+   * activa mientras la predecesora todavía no venció
+   * (`autoExpireSubscriptions` recién la cierra con endDate < hoy, al día
+   * siguiente). Durante ese día el socio quedaba con DOS presenciales
+   * `active`: el admin mostraba la vieja como vigente y la renovación no
+   * aparecía en ninguna tarjeta (no se podía cancelar ni cambiar), y al día
+   * siguiente la predecesora terminaba `expired` en vez de `completed`.
+   *
+   * Solo toca predecesoras `active` en su último día: si todavía tienen días
+   * por delante (fecha de renovación adelantada a mano, pausa que corrió el
+   * vencimiento) o están pausadas, no se tocan. Idempotente: una ya
+   * `completed` no matchea el guard por status.
+   */
+  private async completePredecessorsOnLastDay(
+    ctx: TenantContext | null,
+    predecessorIds: number[],
+  ): Promise<void> {
+    if (predecessorIds.length === 0) return;
+    await this.db
+      .update(schema.subscriptions)
+      .set({ status: "completed" })
+      .where(
+        and(
+          ctx
+            ? tenantWhere(schema.subscriptions, ctx)
+            : isNotNull(schema.subscriptions.tenantId),
+          inArray(schema.subscriptions.id, predecessorIds),
+          eq(schema.subscriptions.status, "active"),
+          sql`${schema.subscriptions.endDate} <= ${todayDateString()}`,
+        ),
+      );
+  }
+
+  /**
    * Activate a scheduled subscription. Flips status to "active", and if the
    * incoming plan differs from the outgoing plan (scheduled plan change),
    * handles program enrollment transitions and branch migration from virtual.
@@ -6496,6 +6896,12 @@ export class SubscriptionService {
 
     // If there's no predecessor (shouldn't happen for scheduled), we're done.
     if (!scheduled.previousSubscriptionId) return;
+
+    // Traspaso completo: la predecesora se cierra en el mismo paso (ver
+    // `completePredecessorsOnLastDay`).
+    await this.completePredecessorsOnLastDay(ctx, [
+      scheduled.previousSubscriptionId,
+    ]);
 
     // Phase 112 D-19: transfer admin add-ons from the predecessor sub to
     // the freshly-activated successor BEFORE any teardown below cancels
@@ -6901,6 +7307,8 @@ export class SubscriptionService {
           eq(schema.attendance.status, "confirmado"),
           sql`${schema.attendance.checkedInAt} >= ${monday.toISOString().slice(0, 19).replace("T", " ")}`,
           sql`${schema.attendance.checkedInAt} <= ${sunday.toISOString().slice(0, 19).replace("T", " ")}`,
+          // Fase 204 D-18: las visitas Wellhub van por separado del plan
+          notWellhubAttendanceSql(),
         ),
       );
 
@@ -7707,11 +8115,31 @@ export class SubscriptionService {
 
     // Fase 194 D-18: conversión explícita de la invitación (ex socio con
     // `converted_at` histórico + atribución de la compra a la invitación, D-13).
-    // Con `ctx === null` se saltea: ese caso SOLO llega del cron de vencimiento
-    // (`autoExpireDueSubscriptions`), que nunca crea una membresía paga — toda
-    // compra pasa por una charge-path con `ctx` real y ahí corre este paso.
+    // Con `ctx === null` se saltea (también el hook Wellhub de abajo): ese caso
+    // SOLO llega del cron de vencimiento (`autoExpireDueSubscriptions`), que
+    // nunca crea una membresía paga — toda compra pasa por una charge-path con
+    // `ctx` real y ahí corren estos pasos.
     if (ctx) {
       await attributeInvitationPurchase(tx, this.db, ctx, userId, this.log);
+      // Fase 204 (D-04/D-17/D-23): evento de conversión Wellhub → socio, misma
+      // tx que el cambio de estado. Es un dato para el reporte: si falla NO
+      // tiene que voltear el cobro (en MySQL un statement fallido no aborta la
+      // tx, así que atrapar acá es seguro).
+      try {
+        await recordWellhubConversion(
+          tx,
+          ctx,
+          userId,
+          statusBefore,
+          statusAfter,
+          this.log,
+        );
+      } catch (err: unknown) {
+        this.log.error(
+          { err, userId },
+          "No se pudo registrar la conversión Wellhub (el cobro sigue)",
+        );
+      }
     }
   }
 }

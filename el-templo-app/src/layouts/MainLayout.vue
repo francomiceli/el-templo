@@ -1,5 +1,8 @@
 <template>
   <q-layout view="lHh Lpr lFf">
+    <!-- D-16 (fase 199): la foto de fondo es el primer hijo y va DETRÁS (z-index -1) -->
+    <div class="app-bg" aria-hidden="true" />
+
     <!-- Header: full bar on mobile, greeting-only on desktop Mi Templo, hidden otherwise -->
     <q-header
       v-if="!isDesktop || isMiTemplo"
@@ -50,36 +53,30 @@
       <!-- Navigation -->
       <nav class="desktop-rail__nav">
         <router-link
-          v-for="tab in mobileTabs"
+          v-for="tab in navTabs"
           :key="'rail-' + tab.to"
           :to="tab.to"
           class="desktop-rail__tab"
-          :class="{ 'desktop-rail__tab--active': isTabActive(tab.to) }"
+          :class="{ 'desktop-rail__tab--active': isTabActive(tab) }"
         >
           <q-icon :name="tab.icon" :size="tab.size ?? '24px'" />
           <span class="desktop-rail__label">{{ tab.label }}</span>
-          <q-badge
-            v-if="tab.badge && progressionStore.evaluationEligible"
-            floating
-            rounded
-            color="primary"
-            class="desktop-rail__badge"
-          />
-          <q-badge
-            v-else-if="tab.introBadge && showIntroBadge"
-            floating
-            rounded
-            color="negative"
-            label="1"
-            class="desktop-rail__badge desktop-rail__badge--count"
-            aria-label="Novedad: Empezá acá"
+          <span
+            v-if="tab.dot"
+            class="tab-dot desktop-rail__badge"
+            role="status"
+            :aria-label="tab.dot.label"
           />
         </router-link>
       </nav>
 
       <!-- Profile + Logout -->
       <div v-if="authStore.isAuthenticated" class="desktop-rail__actions">
-        <router-link to="/profile" class="desktop-rail__tab">
+        <router-link
+          to="/profile"
+          class="desktop-rail__tab"
+          :class="{ 'desktop-rail__tab--active': route.path.startsWith('/profile') }"
+        >
           <q-icon name="person" size="24px" />
           <span class="desktop-rail__label">Mi Perfil</span>
         </router-link>
@@ -110,14 +107,14 @@
     <q-btn
       v-if="showCheckInFab && !isDesktop"
       fab
+      no-caps
       icon="qr_code_scanner"
-      color="primary"
-      class="check-in-fab"
+      label="Marcar asistencia"
+      aria-label="Marcar asistencia"
+      class="check-in-fab check-in-fab--extended"
       :class="{ 'check-in-fab--with-footer': !isDesktop }"
       @click="router.push('/check-in')"
-    >
-      <q-tooltip>Registrar asistencia</q-tooltip>
-    </q-btn>
+    />
 
     <!-- Tip de primer uso del QR (SPEC "Empezá acá" A2): globo persistente
          anclado al FAB, una sola vez por socio (useTipsSeenStorage). -->
@@ -140,35 +137,23 @@
       </div>
     </transition>
 
-    <div class="app-bg" />
-
     <!-- Mobile bottom tab bar -->
     <q-footer v-if="!isDesktop" elevated class="mobile-footer">
       <div class="mobile-tabs">
         <router-link
-          v-for="tab in mobileTabs"
+          v-for="tab in navTabs"
           :key="tab.to"
           :to="tab.to"
           class="mobile-tab"
-          :class="{ 'mobile-tab--active': isTabActive(tab.to) }"
+          :class="{ 'mobile-tab--active': isTabActive(tab) }"
         >
           <q-icon :name="tab.icon" :size="tab.size ?? '24px'" />
           <span class="mobile-tab__label">{{ tab.label }}</span>
-          <q-badge
-            v-if="tab.badge && progressionStore.evaluationEligible"
-            floating
-            rounded
-            color="primary"
-            class="mobile-tab__badge"
-          />
-          <q-badge
-            v-else-if="tab.introBadge && showIntroBadge"
-            floating
-            rounded
-            color="negative"
-            label="1"
-            class="mobile-tab__badge mobile-tab__badge--count"
-            aria-label="Novedad: Empezá acá"
+          <span
+            v-if="tab.dot"
+            class="tab-dot mobile-tab__badge"
+            role="status"
+            :aria-label="tab.dot.label"
           />
         </router-link>
       </div>
@@ -196,7 +181,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useAuthStore } from 'stores/useAuthStore'
@@ -204,6 +189,9 @@ import { useUserStore } from 'stores/useUserStore'
 import { useProgressionStore } from 'src/modules/progression/stores/progressionStore'
 import { useCommunicationsStore } from 'src/stores/useCommunicationsStore'
 import { useAvisosStore } from 'src/stores/useAvisosStore'
+import { useNovedadesStore } from 'src/stores/useNovedadesStore'
+import { useSponsorsStore } from 'src/stores/useSponsorsStore'
+import { useTodayBookingStore } from 'src/stores/useTodayBookingStore'
 import PushPermissionDialog from 'src/components/PushPermissionDialog.vue'
 import ImprovementPromptDialog from 'src/components/ImprovementPromptDialog.vue'
 import RatingPromptDialog from 'src/components/RatingPromptDialog.vue'
@@ -214,6 +202,7 @@ import VeteranSeal from 'src/components/VeteranSeal.vue'
 import { useTipsSeenStorage } from 'src/composables/useTipsSeenStorage'
 import { TIPS_CONTENT } from 'src/config/tips-content'
 import { isNewMember } from 'src/modules/guia/new-member'
+import { ANATOMIA_ALUMNOS_ENABLED } from 'src/config/featureFlags'
 import { maybeRequestReview } from 'src/utils/in-app-review'
 
 const $q = useQuasar()
@@ -224,6 +213,9 @@ const userStore = useUserStore()
 const progressionStore = useProgressionStore()
 const communicationsStore = useCommunicationsStore()
 const avisosStore = useAvisosStore()
+const novedadesStore = useNovedadesStore()
+const sponsorsStore = useSponsorsStore()
+const todayBookingStore = useTodayBookingStore()
 
 // Fase 193 (D-20/D-21): hidrata el número de ventas del servidor + el texto
 // por defecto de WhatsApp una vez por sesión, mismo patrón `watch` +
@@ -250,12 +242,50 @@ watch(
   (isAuth) => {
     if (isAuth) {
       void avisosStore.evaluate()
+      // Pelotita de Planes: el flag viene en plan-status, que si no se carga al arrancar recién
+      // llegaría al abrir Mi Templo sin plan activo. Cubre boot con token y login recién hecho.
+      void userStore.loadPlanStatus()
+      // D-04/D-06: turno de hoy + reloj de la ventana ±20 min (compartido con Mi Templo).
+      void todayBookingStore.load()
+      todayBookingStore.startClock()
     } else {
       avisosStore.reset()
+      // Novedades de Mi Templo: la próxima sesión (otro socio/sede) arranca de cero.
+      novedadesStore.reset()
+      // Patrocinadores (D-20): el feed (y sus vistas) de un socio no se arrastra al siguiente.
+      sponsorsStore.reset()
+      // Reservas del socio anterior + reloj: nada vivo tras el logout.
+      todayBookingStore.reset()
     }
   },
   { immediate: true },
 )
+
+// Refresca el turno de hoy al volver del escáner o de reservar (D-06).
+watch(
+  () => route.path,
+  (path) => {
+    if (authStore.isAuthenticated && (path === '/mi-templo' || path === '/reservas')) {
+      void todayBookingStore.load()
+    }
+  },
+)
+
+// Al volver de segundo plano también: una reserva hecha por recepción o desde
+// otro teléfono no pasa por un cambio de ruta, y sin recarga el botón QR no
+// aparece aunque el socio esté en la ventana ±20 min.
+function onVisibilityChange(): void {
+  if (document.visibilityState === 'visible' && authStore.isAuthenticated) {
+    void todayBookingStore.load()
+  }
+}
+
+onMounted(() => document.addEventListener('visibilitychange', onVisibilityChange))
+
+onUnmounted(() => {
+  document.removeEventListener('visibilitychange', onVisibilityChange)
+  todayBookingStore.stopClock()
+})
 
 // Fase 195 (D-14): pedido de reseña nativa de las tiendas, neutral (sin
 // preguntar antes si le gusta la app). `maybeRequestReview` decide solo: nada
@@ -308,20 +338,31 @@ const memberName = computed(() => {
   return profile.firstName ?? profile.displayName ?? 'Atleta'
 })
 
-const formattedDate = computed(() => {
-  const date = new Date().toLocaleDateString('es-ES', {
+// Formatea un 'YYYY-MM-DD' como "Hoy es <día> <n> de <mes>". Mediodía UTC +
+// timeZone 'UTC' = el día calendario exacto, sin corrimiento por zona.
+function formatGreetingDate(dateStr: string): string {
+  const date = new Date(`${dateStr}T12:00:00Z`).toLocaleDateString('es-ES', {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
+    timeZone: 'UTC',
   })
   return 'Hoy es ' + date.charAt(0).toUpperCase() + date.slice(1)
-})
+}
+
+// D-04: 'hoy' en la zona de la sede, no del teléfono (un socio de Madrid con el
+// teléfono en hora AR veía el día equivocado de 19 a 24). Sale del store del
+// turno de hoy: su reloj de 30 s cambia la fecha solo a la medianoche de la sede.
+const formattedDate = computed(() => formatGreetingDate(todayBookingStore.todayStr))
 
 const showCheckInFab = computed(() => {
   if (!authStore.isAuthenticated) return false
   if (!userStore.profile) return false
   if (userStore.profile.branchIsVirtual) return false
   if (!userStore.hasActiveSubscription) return false
+  // Solo en la ventana ±20 min de una reserva `reservado` de hoy, misma ventana
+  // que el server. Fuera de la ventana escanear siempre falla (D-06).
+  if (!todayBookingStore.fabVisible) return false
   return route.path === '/mi-templo' || route.path === '/reservas'
 })
 
@@ -332,6 +373,12 @@ const showIntroBadge = computed(() => {
   const profile = userStore.profile
   return !!profile && profile.role === 'member' && !profile.introStoriesSeenAt
 })
+
+// Sketch 028: punto en la tab Planes cuando el staff cargó una membresía y el socio todavía no abrió
+// Planes. Dentro de Planes no se muestra (la página lo apaga al abrir, con el POST `seen`).
+const showPlanBadge = computed(
+  () => userStore.planStatus?.hasUnseenPlanUpdate === true && !route.path.startsWith('/planes'),
+)
 
 // SPEC "Empezá acá" A2 — tip de primer uso del QR de check-in: se muestra
 // una sola vez por socio (useTipsSeenStorage), la primera vez que el FAB se
@@ -371,22 +418,51 @@ interface MobileTab {
   label: string
   size?: string
   badge?: boolean
-  /** Pelotita roja con "1" mientras el socio no abrió "Empezá acá". */
+  /** Punto mientras el socio no abrió "Empezá acá". */
   introBadge?: boolean
+  /** Punto mientras haya un plan cargado por el staff que el socio todavía no vio en Planes. */
+  planBadge?: boolean
+  /** Prefijo de ruta con el que la tab se marca activa, si no es el propio `to`. */
+  match?: string
 }
 
 const mobileTabs = computed<MobileTab[]>(() => {
   const tabs: MobileTab[] = [
     { to: '/mi-templo', icon: 'account_balance', label: 'Mi Templo', badge: true },
-    { to: '/training/guia', icon: 'menu_book', label: 'Guía', size: '26px', introBadge: true },
+    {
+      // Fase 200 P1/D12: con el flag ON la tab abre la portada (Empezá acá + Tu cuerpo); apagado,
+      // las historias directo como hoy. `match` mantiene la tab activa en todo /training/guia*.
+      to: ANATOMIA_ALUMNOS_ENABLED ? '/training/guia/inicio' : '/training/guia',
+      match: '/training/guia',
+      icon: 'menu_book',
+      label: 'Guía',
+      size: '26px',
+      introBadge: true,
+    },
     { to: '/training', icon: 'img:/icons/entrenar.svg', label: 'Entrenar', size: '26px' },
   ]
   tabs.push({ to: '/reservas', icon: 'event_available', label: 'Reservas' })
-  tabs.push({ to: '/planes', icon: 'card_membership', label: 'Planes' })
+  tabs.push({ to: '/planes', icon: 'card_membership', label: 'Planes', planBadge: true })
   return tabs
 })
 
-function isTabActive(tabTo: string): boolean {
+interface TabDot {
+  /** Texto para lectores de pantalla; sin él el punto es solo decorativo. */
+  label?: string
+}
+
+/** Un único punto por tab (evaluación en Mi Templo, "Empezá acá" en Guía, plan cargado en Planes). */
+function dotFor(tab: MobileTab): TabDot | null {
+  if (tab.badge && progressionStore.evaluationEligible) return {}
+  if (tab.introBadge && showIntroBadge.value) return { label: 'Novedad: Empezá acá' }
+  if (tab.planBadge && showPlanBadge.value) return { label: 'Novedad: plan cargado' }
+  return null
+}
+
+const navTabs = computed(() => mobileTabs.value.map((tab) => ({ ...tab, dot: dotFor(tab) })))
+
+function isTabActive(tab: MobileTab): boolean {
+  const tabTo = tab.match ?? tab.to
   // Exact match for /training to avoid matching /training/guia
   if (tabTo === '/training') {
     return (
@@ -408,6 +484,10 @@ async function onLogout() {
 @import 'src/css/brand';
 @import 'src/css/quasar.variables.scss';
 
+// D-16 fase 199: la foto va DETRÁS de páginas y cards. z-index negativo dentro
+// del stacking context raíz: se pinta sobre el fondo crema del body/canvas y
+// debajo de todo el contenido en flujo. Antes iba después de q-page-container
+// con z-index 0 y velaba las cards.
 .app-bg {
   position: fixed;
   top: 0;
@@ -418,7 +498,7 @@ async function onLogout() {
   filter: saturate(0.3) sepia(0.4) contrast(1.05);
   opacity: 0.08;
   pointer-events: none;
-  z-index: 0;
+  z-index: -1;
 }
 
 .main-header {
@@ -500,8 +580,8 @@ async function onLogout() {
 
   &__date {
     font-family: 'Geologica', sans-serif;
-    font-size: 12px;
-    color: rgba(white, 0.7);
+    font-size: 13px;
+    color: #fff;
     margin: 2px 0 0;
   }
 
@@ -509,7 +589,7 @@ async function onLogout() {
     display: flex;
     flex-direction: column;
     align-items: center;
-    opacity: 0.6;
+    opacity: 1;
     padding-bottom: 2px;
     margin-right: 6px;
   }
@@ -521,7 +601,7 @@ async function onLogout() {
   }
 
   &__level {
-    font-size: 8px;
+    font-size: 10px;
     color: #fff;
     letter-spacing: 2px;
     text-transform: uppercase;
@@ -533,7 +613,7 @@ async function onLogout() {
    ------------------------------------------------------------------ */
 .mobile-greeting {
   position: relative;
-  z-index: 1; // above app-bg overlay
+  z-index: 1;
   background: linear-gradient(135deg, $brand-terracotta 0%, $brand-aged-gold 100%);
   margin: -1px 0 0; // close gap with header
 }
@@ -622,7 +702,7 @@ async function onLogout() {
   align-items: center;
   gap: 14px;
   padding: 14px 20px;
-  color: rgba(white, 0.6);
+  color: #f2ede5; // inactiva: crema sólido, igual que la barra de abajo (fase 199-11, sketch 009 A)
   text-decoration: none;
   white-space: nowrap;
   transition:
@@ -634,16 +714,21 @@ async function onLogout() {
     background-color: rgba(white, 0.1);
   }
 
-  &--active {
-    color: white;
+  // Activa: blanco + franja translúcida con filete a la izquierda, así se distingue sin
+  // depender solo del color (el fondo y el filete son decoración; el texto sigue sólido).
+  &--active,
+  &--active:hover {
+    color: #fff;
+    background-color: rgba(white, 0.2);
+    box-shadow: inset 3px 0 0 #fff;
+
+    .desktop-rail__label {
+      font-weight: 700;
+    }
   }
 
+  // Íconos imagen (SVG): no heredan `color`; a opacidad plena como los de la barra de abajo.
   :deep(.q-icon img) {
-    opacity: 0.6;
-    transition: opacity 200ms ease;
-  }
-
-  &--active :deep(.q-icon img) {
     opacity: 1;
   }
 
@@ -679,16 +764,14 @@ async function onLogout() {
   left: 38px;
 }
 
-// "1" rojo de "Empezá acá" sobre Guía: un número legible, no un punto.
-.desktop-rail__badge--count,
-.mobile-tab__badge--count {
-  min-width: 16px;
-  height: 16px;
-  padding: 0 4px;
-  font-size: 10px;
-  font-weight: 700;
-  line-height: 16px;
-  justify-content: center;
+// Punto de novedad (evaluación, Guía, plan cargado) en la barra y el rail. Crema con aro oscuro:
+// un `q-badge` color primary era terracota sobre el degradé terracota y no se veía (sketch 028).
+.tab-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #f0e6d6;
+  box-shadow: 0 0 0 2px #7e4529;
 }
 
 .with-desktop-rail {
@@ -736,12 +819,16 @@ async function onLogout() {
   flex: 1;
   height: 100%;
   text-decoration: none;
-  color: rgba(white, 0.6);
+  color: #f2ede5; // inactiva: crema sólido (4.75 sobre el gradiente, D-15)
   transition: color 200ms ease;
   -webkit-tap-highlight-color: transparent;
 
   &--active {
-    color: white;
+    color: #fff;
+
+    .mobile-tab__label {
+      font-weight: 700;
+    }
   }
 
   &__label {
@@ -758,14 +845,49 @@ async function onLogout() {
   }
 
   // img-based icons (SVG via img: prefix) don't inherit CSS color.
-  // Match active/inactive opacity to the text color alpha.
+  // El ícono no es texto (>= 3:1 alcanza): inactivo 0.9, activo 1.
   :deep(.q-icon img) {
-    opacity: 0.6;
+    opacity: 0.9;
     transition: opacity 200ms ease;
   }
 
   &--active :deep(.q-icon img) {
     opacity: 1;
+  }
+
+  // Pestaña activa (sketch 009 A): píldora translúcida detrás del ícono que se estira
+  // al activarse. El ícono blanco sobre la píldora queda ≥ 3:1 (no es texto).
+  .q-icon {
+    position: relative;
+    z-index: 0;
+
+    &::before {
+      content: '';
+      position: absolute;
+      z-index: -1;
+      left: 50%;
+      top: 50%;
+      width: 58px;
+      height: 30px;
+      border-radius: 999px;
+      background: rgba(#fff, 0.2);
+      opacity: 0;
+      transform: translate(-50%, -50%) scaleX(0.5);
+      transition:
+        transform 250ms ease,
+        opacity 200ms ease;
+    }
+  }
+
+  &--active .q-icon::before {
+    opacity: 1;
+    transform: translate(-50%, -50%) scaleX(1);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .q-icon::before {
+      transition: none;
+    }
   }
 }
 
@@ -781,6 +903,53 @@ async function onLogout() {
   &--with-footer {
     // Above mobile footer tabs (56px height + safe area)
     bottom: calc(56px + env(safe-area-inset-bottom, 0px) + 16px);
+  }
+
+  // D-06: extendido con "Marcar asistencia", solo aparece en la ventana ±20 min.
+  &--extended {
+    right: 16px;
+    height: 56px;
+    min-height: 56px;
+    padding: 0 22px 0 18px;
+    border-radius: 28px;
+    background: #96593a;
+    color: #fff;
+    font-family: 'Geologica', sans-serif;
+    font-weight: 600;
+    font-size: 16px;
+    box-shadow: 0 8px 20px rgba(150, 89, 58, 0.45);
+
+    // Quasar centra el ícono del fab con `margin: auto` y pisa el `on-left`:
+    // sin esto el ícono queda pegado al texto.
+    :deep(.q-icon) {
+      margin: 0 10px 0 0;
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      animation:
+        fabIn 0.35s ease,
+        pulse 2s ease-in-out 0.4s infinite;
+    }
+  }
+}
+
+@keyframes fabIn {
+  from {
+    transform: translateY(20px) scale(0.9);
+    opacity: 0;
+  }
+
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+@keyframes pulse {
+  50% {
+    box-shadow:
+      0 8px 20px rgba(150, 89, 58, 0.45),
+      0 0 0 10px rgba(150, 89, 58, 0.15);
   }
 }
 

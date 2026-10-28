@@ -4,7 +4,20 @@
          accesibilidad que tenía EmpezaAcaPage.vue). -->
     <div class="sr-only" aria-live="polite">{{ ariaAnnouncement }}</div>
 
-    <div class="guia-page__scene" :style="sceneStyle" @click="onSceneTap">
+    <div class="guia-page__scene" :style="photoStyle" @click="onSceneTap">
+      <!-- Velos de día y de noche en capas fijas: se funden por opacidad (nunca animando el fondo) -->
+      <div
+        class="guia-page__veil"
+        :class="{ 'guia-page__veil--on': currentSlide.theme !== 'noche' }"
+        :style="{ backgroundImage: DIA_GRADIENT }"
+        aria-hidden="true"
+      />
+      <div
+        class="guia-page__veil"
+        :class="{ 'guia-page__veil--on': currentSlide.theme === 'noche' }"
+        :style="{ backgroundImage: NOCHE_GRADIENT }"
+        aria-hidden="true"
+      />
       <!-- Header: progreso segmentado. Ya no hay botón "cerrar" — esta
            pantalla es un tab más del nav (el tab bar inferior sigue visible
            y navegable), no un diálogo que haya que cerrar; ver nota en el
@@ -23,94 +36,98 @@
            CTA abajo) — nada centrado con bandas vacías. -->
       <Transition name="story-slide" mode="out-in">
         <div :key="currentSlide.id" class="guia-page__content">
-          <div class="guia-page__top">
-            <p class="story-slide__kicker">{{ currentSlide.kicker }}</p>
-            <h1 class="story-slide__title">
-              <template v-for="(line, li) in titleLines" :key="li">
-                <br v-if="li > 0" />
-                <span
-                  v-for="w in line"
-                  :key="w.index"
-                  class="story-slide__word"
-                  :style="{ animationDelay: `${w.index * 40}ms` }"
-                  >{{ w.word }}&nbsp;</span
-                >
-              </template>
-            </h1>
-          </div>
+          <!-- Panel: en las historias de día el texto va en una card blanca centrada (sketch 023);
+               en las de noche es transparente (`display: contents`) y nada cambia. -->
+          <div class="guia-page__panel">
+            <div class="guia-page__top">
+              <p class="story-slide__kicker">{{ currentSlide.kicker }}</p>
+              <h1 class="story-slide__title">
+                <template v-for="(line, li) in titleLines" :key="li">
+                  <br v-if="li > 0" />
+                  <span
+                    v-for="w in line"
+                    :key="w.index"
+                    class="story-slide__word"
+                    :style="{ animationDelay: `${w.index * 40}ms` }"
+                    >{{ w.word }}&nbsp;</span
+                  >
+                </template>
+              </h1>
+            </div>
 
-          <div class="guia-page__body">
-            <!-- Tipo A — texto + bullets -->
-            <template v-if="currentSlide.type === 'text'">
-              <p
-                v-for="(paragraph, i) in currentSlide.body"
-                :key="i"
-                class="story-slide__item story-slide__paragraph"
-                :style="itemDelay(i)"
-              >
-                {{ paragraph }}
-              </p>
-              <ul v-if="currentSlide.bullets?.length" class="story-bullets">
-                <li
-                  v-for="(bullet, i) in currentSlide.bullets"
+            <div class="guia-page__body">
+              <!-- Tipo A — texto + bullets -->
+              <template v-if="currentSlide.type === 'text'">
+                <p
+                  v-for="(paragraph, i) in currentSlide.body"
                   :key="i"
-                  class="story-slide__item"
+                  class="story-slide__item story-slide__paragraph"
                   :style="itemDelay(i)"
                 >
-                  <strong>{{ bullet.bold }}</strong
-                  >{{ bullet.rest }}
-                </li>
-              </ul>
-            </template>
+                  {{ paragraph }}
+                </p>
+                <ul v-if="currentSlide.bullets?.length" class="story-bullets">
+                  <li
+                    v-for="(bullet, i) in currentSlide.bullets"
+                    :key="i"
+                    class="story-slide__item"
+                    :style="itemDelay(i)"
+                  >
+                    <strong>{{ bullet.bold }}</strong
+                    >{{ bullet.rest }}
+                  </li>
+                </ul>
+              </template>
 
-            <!-- Tipo C — bloques -->
-            <template v-else-if="currentSlide.type === 'blocks'">
-              <div class="story-blocks">
-                <div
-                  v-for="(row, i) in currentSlide.blocks"
-                  :key="row.role"
-                  class="story-blocks__row story-slide__item"
-                  :style="{ borderColor: getBlockCSSColor(row.role), ...itemDelay(i) }"
-                >
-                  <div class="story-blocks__label">{{ row.label }}</div>
-                  <div class="story-blocks__desc">{{ row.description }}</div>
-                </div>
-              </div>
-            </template>
-
-            <!-- Tipo B — niveles -->
-            <template v-else-if="currentSlide.type === 'levels'">
-              <div class="story-levels">
-                <div
-                  v-for="(row, i) in currentSlide.levels"
-                  :key="row.level"
-                  class="story-levels__row story-slide__item"
-                  :style="itemDelay(i)"
-                >
-                  <span class="story-levels__glyph">{{ LEVEL_GREEK_MAP[row.level] }}</span>
-                  <div class="story-levels__info">
-                    <div class="story-levels__name">{{ LEVEL_DISPLAY_MAP[row.level] }}</div>
-                    <p class="story-levels__phrase">{{ row.phrase }}</p>
+              <!-- Tipo C — bloques -->
+              <template v-else-if="currentSlide.type === 'blocks'">
+                <div class="story-blocks">
+                  <div
+                    v-for="(row, i) in currentSlide.blocks"
+                    :key="row.role"
+                    class="story-blocks__row story-slide__item"
+                    :style="{ borderColor: getBlockCSSColor(row.role), ...itemDelay(i) }"
+                  >
+                    <div class="story-blocks__label">{{ row.label }}</div>
+                    <div class="story-blocks__desc">{{ row.description }}</div>
                   </div>
                 </div>
-              </div>
-            </template>
+              </template>
 
-            <!-- Tipo D — CTA final -->
-            <template v-else-if="currentSlide.type === 'cta'">
-              <p
-                v-for="(paragraph, i) in currentSlide.body"
-                :key="i"
-                class="story-slide__item story-slide__paragraph"
-                :style="itemDelay(i)"
-              >
-                {{ paragraph }}
+              <!-- Tipo B — niveles -->
+              <template v-else-if="currentSlide.type === 'levels'">
+                <div class="story-levels">
+                  <div
+                    v-for="(row, i) in currentSlide.levels"
+                    :key="row.level"
+                    class="story-levels__row story-slide__item"
+                    :style="itemDelay(i)"
+                  >
+                    <span class="story-levels__glyph">{{ LEVEL_GREEK_MAP[row.level] }}</span>
+                    <div class="story-levels__info">
+                      <div class="story-levels__name">{{ LEVEL_DISPLAY_MAP[row.level] }}</div>
+                      <p class="story-levels__phrase">{{ row.phrase }}</p>
+                    </div>
+                  </div>
+                </div>
+              </template>
+
+              <!-- Tipo D — CTA final -->
+              <template v-else-if="currentSlide.type === 'cta'">
+                <p
+                  v-for="(paragraph, i) in currentSlide.body"
+                  :key="i"
+                  class="story-slide__item story-slide__paragraph"
+                  :style="itemDelay(i)"
+                >
+                  {{ paragraph }}
+                </p>
+              </template>
+
+              <p v-if="currentSlide.footnote" class="story-slide__footnote">
+                {{ currentSlide.footnote }}
               </p>
-            </template>
-
-            <p v-if="currentSlide.footnote" class="story-slide__footnote">
-              {{ currentSlide.footnote }}
-            </p>
+            </div>
           </div>
 
           <!-- Pista "Tocá para seguir" (primer slide): no es un botón — el
@@ -196,6 +213,7 @@
 import { computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from 'src/stores/useUserStore'
+import { DIA_GRADIENT, NOCHE_GRADIENT, scenePhotoStyle } from 'src/constants/sceneVeil'
 import { useStoryNavigation } from '../composables/useStoryNavigation'
 import SegmentedProgressBar from '../components/player/SegmentedProgressBar.vue'
 import { LEVEL_GREEK_MAP, LEVEL_DISPLAY_MAP } from '../level-display'
@@ -238,17 +256,10 @@ const ariaAnnouncement = computed(
 // `TvScreenPage.vue` (diurno/nocturno), gradiente adaptado a vertical
 // (180deg, más denso arriba detrás de kicker+título) en vez del 100deg de la
 // TV (pensado para texto a la izquierda en horizontal).
-const DIA_GRADIENT =
-  'linear-gradient(180deg, rgba(242,236,226,0.9) 0%, rgba(242,236,226,0.82) 42%, rgba(240,232,220,0.66) 68%, rgba(238,229,214,0.55) 100%)'
-const NOCHE_GRADIENT =
-  'linear-gradient(180deg, rgba(20,18,16,0.87) 0%, rgba(20,18,16,0.78) 42%, rgba(26,23,20,0.55) 68%, rgba(33,30,27,0.4) 100%)'
-
-const sceneStyle = computed(() => ({
-  backgroundImage: `${currentSlide.value.theme === 'noche' ? NOCHE_GRADIENT : DIA_GRADIENT}, url(/bars-open.webp)`,
-  backgroundSize: 'cover',
-  backgroundPosition: 'center',
-  backgroundRepeat: 'no-repeat',
-}))
+// Los velos viven en `src/constants/sceneVeil.ts` (el player usa el de noche). El de día es liviano:
+// el texto ya no se apoya sobre el velo sino sobre un panel blanco centrado (sketch 023, 2026-10-23).
+// La foto queda fija y los dos velos se funden por opacidad (ver `.guia-page__veil`).
+const photoStyle = scenePhotoStyle()
 
 // Entrada escalonada de bullets/filas: 150ms después del título + 80ms por
 // ítem. `prefers-reduced-motion` anula todo esto vía CSS puro (media query
@@ -361,6 +372,7 @@ onUnmounted(() => {
 
 <style scoped lang="scss">
 @import 'src/css/quasar.variables.scss';
+@import 'src/css/premium-card';
 
 // ─── Fuentes de la TV, SOLO para esta página (SPEC punto 4) — extraídas de
 // los base64 de `el-templo-admin/src/utils/pdf/pdf-assets.ts` a archivos
@@ -400,12 +412,20 @@ onUnmounted(() => {
 // Tokens de color por tema (mismos valores de marca que ya usaba el viewer
 // anterior — sin token nuevo en quasar.variables.scss).
 $story-dark-text: $cream; // #f2ede5
-$story-dark-muted: rgba($cream, 0.9);
+// Fase 197 D-16: texto sólido, nunca rgba (antes rgba($cream, .9)). Gap 197-24: $pd-cream-2 (#e3c9a8)
+// era MÁS oscuro que el .9 de antes y daba 4.29:1 sobre la foto: el crema pleno es el sólido más claro.
+$story-dark-muted: $cream;
 $story-dark-accent: $bronze-light; // #d4b896
 
 $story-light-text: $accent; // #3d3732
-$story-light-muted: rgba($accent, 0.88);
-$story-light-accent: $primary; // #96593a
+// Fase 197 D-16: texto sólido, nunca rgba (antes rgba($accent, .88)). Gap 197-24: $pd-ink-2 (#5f584d)
+// daba 4.26-4.49:1 sobre el velo claro: la tinta plena ($accent #3d3732) equivale al .88 que sí pasaba.
+$story-light-muted: $accent;
+// Terracotta profundo para kicker, lead en negrita y glifos de nivel sobre el
+// velo del día: ≥ 5.1:1 (era $primary #96593a: 4.2:1 el kicker, 2.6:1 los
+// bullets y 2.6:1 los glifos Δ Σ Ω). Mismo matiz, más oscuro; $primary queda
+// para el botón, que lleva su propio fondo.
+$story-light-accent: #6f3f25;
 
 // Escala tipográfica (TV → mobile, ver SPEC punto 4): título domina, kicker
 // chico con tracking amplio, cuerpo legible sin achicarse en pantallas
@@ -455,7 +475,19 @@ $story-glyph-size: 56px;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
-  transition: background-image 0.25s ease;
+}
+
+// Velo de día / de noche sobre la foto fija: el del tema actual a opacidad plena.
+.guia-page__veil {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+
+  &--on {
+    opacity: 1;
+  }
 }
 
 .guia-page__header {
@@ -478,6 +510,37 @@ $story-glyph-size: 56px;
   width: 100%;
   margin: 0 auto;
   overflow-y: auto; // 360x640: scroll interno antes que recortar texto
+}
+
+// Noche: el panel no existe (sus hijos son hijos directos del contenido, como siempre).
+.guia-page__panel {
+  display: contents;
+}
+
+// Día: el texto va en un panel blanco, centrado en vertical y horizontal (máx. 340 px). `margin: auto`
+// en vez de `justify-content: center`: si el contenido no entra en pantallas chicas, arranca arriba y
+// scrollea en lugar de recortar el título.
+.guia-page--dia .guia-page__panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 340px;
+  margin: auto;
+  padding: 22px 20px 16px;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 12px 30px rgba(44, 35, 24, 0.18);
+
+  .guia-page__body {
+    flex: none;
+    justify-content: flex-start;
+  }
+
+  .story-slide__title {
+    font-size: clamp(24px, 7vw, 28px);
+    margin-bottom: 16px;
+    text-shadow: none; // el halo claro era para el velo; sobre blanco ensucia
+  }
 }
 
 // Franja superior: kicker + título, pegados arriba del todo (no centrado).
@@ -582,7 +645,7 @@ $story-glyph-size: 56px;
   font-size: 13px;
   font-style: italic;
   margin-top: 16px;
-  opacity: 0.9;
+  // Fase 197 D-16: sin transparencia en el texto (antes .9), hereda el color sólido del tema
 }
 
 .story-bullets {
@@ -634,7 +697,7 @@ $story-glyph-size: 56px;
   font-family: 'Nunito Sans', sans-serif;
   font-size: 14px;
   line-height: 1.4;
-  opacity: 0.95;
+  // Fase 197 D-16: sin transparencia en el texto (antes .95), hereda el color sólido del tema
   margin-top: 2px;
 }
 
@@ -674,7 +737,7 @@ $story-glyph-size: 56px;
   font-family: 'Nunito Sans', sans-serif;
   font-size: 14px;
   line-height: 1.4;
-  opacity: 0.95;
+  // Fase 197 D-16: sin transparencia en el texto (antes .95), hereda el color sólido del tema
   margin: 2px 0 0;
 }
 
@@ -690,24 +753,31 @@ $story-glyph-size: 56px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   animation: story-tap-hint 1.8s ease-in-out infinite;
+  // Pastilla sólida: la pista se lee sobre cualquier foto/video (UAT D10)
+  width: fit-content;
+  margin-left: auto;
+  // Separada de la card aunque haya poco lugar, y despegada del borde de abajo
+  margin-top: 20px;
+  margin-bottom: 14px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #2c2318;
+  color: #f0e6d6;
+}
 
-  .guia-page--noche & {
-    color: $story-dark-accent;
-  }
-
-  .guia-page--dia & {
-    color: $story-light-accent;
-  }
+// Día: la pista queda abajo, centrada (el panel blanco ocupa el medio)
+.guia-page--dia .guia-page__tap-hint {
+  justify-content: center;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 @keyframes story-tap-hint {
   0%,
   100% {
-    opacity: 0.55;
     transform: translateX(0);
   }
   50% {
-    opacity: 1;
     transform: translateX(4px);
   }
 }
@@ -726,28 +796,28 @@ $story-glyph-size: 56px;
 .story-cta-secondary {
   font-family: 'Nunito Sans', sans-serif;
   font-weight: 600;
-  color: inherit;
-  opacity: 0.85;
+  // Pastilla sólida como la pista "Tocá para seguir": 12.5:1 sobre su fondo
+  // (era crema al 85 % sobre la foto del cierre, 3.6:1).
+  background: #2c2318;
+  color: #f0e6d6;
+  border-radius: 22px;
+  padding: 6px 18px;
 }
 
 // ─── Transición entre slides: opacity+translateY, NUNCA blur/filter/scale.
+// La historia que sale desaparece en el acto: si se desvanecía, se la veía un instante con el fondo
+// y el tema de la que entra.
 .story-slide-enter-active {
   transition:
     opacity 0.2s ease,
     transform 0.2s ease;
 }
 .story-slide-leave-active {
-  transition:
-    opacity 0.2s ease,
-    transform 0.2s ease;
+  display: none;
 }
 .story-slide-enter-from {
   opacity: 0;
   transform: translateY(8px);
-}
-.story-slide-leave-to {
-  opacity: 0;
-  transform: translateY(-8px);
 }
 
 @keyframes story-word-in {
@@ -781,9 +851,12 @@ $story-glyph-size: 56px;
     transform: none !important;
   }
 
-  .story-slide-enter-active,
-  .story-slide-leave-active {
+  .story-slide-enter-active {
     transition: opacity 0.15s ease !important;
+  }
+
+  .guia-page__veil {
+    transition: none;
   }
   .story-slide-enter-from,
   .story-slide-leave-to {

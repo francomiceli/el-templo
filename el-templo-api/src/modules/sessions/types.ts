@@ -155,6 +155,10 @@ export interface ExercisePrescription {
   readonly exerciseType?: "main" | "mobility";
   /** Video demonstration URL from exercises table (resolved at read time) */
   readonly videoUrl?: string;
+  /** Fase 197 D-10: insumo de zonas musculares, viene del join con exercises */
+  readonly category?: string | null;
+  readonly categorySecondary?: string | null;
+  readonly exerciseRoute?: string | null;
 }
 
 /** Complete block plan output */

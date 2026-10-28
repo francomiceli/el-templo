@@ -10,7 +10,8 @@
 
 import { FastifyPluginAsync } from "fastify";
 import { Workbook } from "exceljs";
-import { ReportsService } from "./service";
+import { ACCESS_SOURCE_LABELS, ReportsService } from "./service";
+import { WellhubReportService } from "./wellhub-report-service";
 import { handleServiceError } from "../shared/error-handler";
 import { styleHeaderRow, sendExcelReply } from "../shared/excel";
 import type {
@@ -33,6 +34,7 @@ import type {
 } from "./types";
 import {
   accessReportSchema,
+  wellhubReportSchema,
   chargeReportSchema,
   debtManagementPatchSchema,
   expiringReportSchema,
@@ -69,7 +71,14 @@ import type { TrialSessionStatus } from "./trial-cadence";
 
 export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
   const reportsService = new ReportsService(fastify.db, fastify.log);
-  const trialFollowupService = new TrialFollowupService(fastify.db, fastify.log);
+  const trialFollowupService = new TrialFollowupService(
+    fastify.db,
+    fastify.log,
+  );
+  const wellhubReportService = new WellhubReportService(
+    fastify.db,
+    fastify.log,
+  );
 
   /**
    * Preferido a un preHandler inline repetido — 403 con el mismo formato que
@@ -114,7 +123,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
       dateFrom?: string;
       dateTo?: string;
       search?: string;
-      source?: "qr" | "manual";
+      source?: "qr" | "manual" | "wellhub";
       page?: number;
       limit?: number;
     };
@@ -143,6 +152,36 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
         return await reportsService.getAccessLog(ctx, filters);
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get access report");
+      }
+    },
+  );
+
+  // GET /wellhub — Reporte Wellhub por sede y mes (Fase 204, D-16)
+  fastify.get<{
+    Querystring: {
+      month?: string;
+      branchId?: number;
+    };
+  }>(
+    "/wellhub",
+    {
+      schema: wellhubReportSchema,
+      preHandler: [
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+        enforceBranchScope({ from: "query.branchId" }),
+      ],
+    },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(request.scope, "reports.wellhub");
+        return await wellhubReportService.getReport(ctx, {
+          month: request.query.month,
+          branchId: request.query.branchId,
+          branchIds: enforcedBranchIds(request.scope) ?? undefined,
+          country: request.scope.country,
+        });
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "get wellhub report");
       }
     },
   );
@@ -485,7 +524,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
       dateFrom?: string;
       dateTo?: string;
       search?: string;
-      source?: "qr" | "manual";
+      source?: "qr" | "manual" | "wellhub";
     };
   }>(
     "/access/export",
@@ -529,7 +568,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
             checkedInAt: row.checkedInAt,
             memberName: row.memberName,
             branchName: row.branchName,
-            source: row.source,
+            source: ACCESS_SOURCE_LABELS[row.source],
             scheduleSlot: row.scheduleSlot ?? "",
           });
         }

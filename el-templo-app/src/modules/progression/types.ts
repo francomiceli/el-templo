@@ -137,13 +137,13 @@ export const CHECK_IN_QUESTIONS: CheckInQuestionConfig[] = [
     options: [
       { label: 'Bajo', value: 'bajo' },
       { label: 'Normal', value: 'normal' },
-      { label: 'Alto', value: 'alto' },
+      { label: 'Bien', value: 'alto' },
     ],
     needsBodyArea: () => false,
   },
   {
     type: 'soreness',
-    question: '¿Tenés alguna molestia?',
+    question: '¿Tenés alguna molestia hoy?',
     icon: 'accessibility_new',
     options: [
       { label: 'No', value: 'ninguna' },
@@ -154,7 +154,7 @@ export const CHECK_IN_QUESTIONS: CheckInQuestionConfig[] = [
   },
   {
     type: 'sleep',
-    question: '¿Cómo dormiste?',
+    question: '¿Cómo dormiste hoy?',
     icon: 'bedtime',
     options: [
       { label: 'Mal', value: 'mal' },

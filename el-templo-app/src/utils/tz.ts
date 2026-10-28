@@ -44,9 +44,26 @@ export function zonedWallClockToUtc(dateStr: string, timeStr: string, tz: string
   return new Date(guess - offset)
 }
 
+/**
+ * Zona por defecto cuando el perfil no trae `branchTimezone` (API vieja o sede
+ * sin zona). Única definición en la app: check-in-window.ts (plan 12) la re-exporta.
+ */
+export const DEFAULT_BRANCH_TZ = 'America/Argentina/Buenos_Aires'
+
 /** "YYYY-MM-DD" in the given timezone. */
 export function todayInTz(tz: string, now: Date = new Date()): string {
-  return now.toLocaleDateString('en-CA', { timeZone: tz })
+  // formatToParts y no `toLocaleDateString('en-CA')`: ese formato depende del
+  // motor y algunos iPhone (iOS 17) no devuelven YYYY-MM-DD, lo que terminaba
+  // en "RangeError: Invalid Date" río abajo (Sentry, Mi Templo a medio cargar).
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now)
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${get('year')}-${pad(get('month'))}-${pad(get('day'))}`
 }
 
 /** ISO day-of-week (1=Mon ... 7=Sun) in the given timezone. */

@@ -8,6 +8,8 @@ import {
   DUENO_ROLES,
   TV_CONTROL_ROLES,
   PLANIS_ROLES,
+  ANATOMIA_ROLES,
+  CONQUER_MANAGER_ROLES,
   PARTNERS_ROLES,
   JORNADA_ROLES,
   ANALITICAS_ROLES,
@@ -246,6 +248,28 @@ const routes: RouteRecordRaw[] = [
         path: 'planis',
         component: () => import('pages/PlanisPage.vue'),
         meta: { allowedRoles: PLANIS_ROLES },
+      },
+      {
+        // Anatomía (fase 200 D6/R1): músculos por zona y por ruta para el staff de piso.
+        // Mismo set que Planis; el gate real es GET /api/admin/anatomy (ANATOMIA_STAFF_ROLES).
+        path: 'anatomia',
+        component: () => import('pages/AnatomiaPage.vue'),
+        meta: { allowedRoles: ANATOMIA_ROLES },
+      },
+      {
+        // Conquer (fase 201 D-08): tablero, pedidos y alta para owner/admin. Las tabs viajan en
+        // ?tab=. El gate real es el API.
+        path: 'conquer',
+        name: 'conquer',
+        component: () => import('pages/ConquerPage.vue'),
+        meta: { allowedRoles: CONQUER_MANAGER_ROLES },
+      },
+      {
+        // Ficha del alumno de Conquer (fase 201 §7.2): Progreso, Evolución y acciones del coach.
+        path: 'conquer/alumno/:userId',
+        name: 'conquer-alumno',
+        component: () => import('pages/ConquerAlumnoPage.vue'),
+        meta: { allowedRoles: CONQUER_MANAGER_ROLES },
       },
       {
         path: 'analiticas',
