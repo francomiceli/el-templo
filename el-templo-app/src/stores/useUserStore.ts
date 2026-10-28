@@ -20,7 +20,13 @@ export type { Level }
 export type MemberSegment = 'optima' | 'regular' | 'alerta' | 'ausente'
 
 export type SubscriptionStatus =
-  'active' | 'paused' | 'cancelled' | 'expired' | 'completed' | 'changed' | 'scheduled'
+  | 'active'
+  | 'paused'
+  | 'cancelled'
+  | 'expired'
+  | 'completed'
+  | 'changed'
+  | 'scheduled'
 
 export interface UserProfile {
   id: number
@@ -432,6 +438,14 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
+  /**
+   * Apaga la pelotita de la tab Planes al abrir la pantalla (el POST `seen` lo manda la página).
+   * Solo toca el flag: el resto de `planStatus` queda igual.
+   */
+  function clearPlanUpdateUnseen(): void {
+    if (planStatus.value) planStatus.value = { ...planStatus.value, hasUnseenPlanUpdate: false }
+  }
+
   async function loadSubscription() {
     subscriptionLoading.value = true
     try {
@@ -708,6 +722,7 @@ export const useUserStore = defineStore('user', () => {
     setLoading,
     loadSubscription,
     loadPlanStatus,
+    clearPlanUpdateUnseen,
     loadEspecialPass,
     fetchProgramEnrollmentStatus,
     // Phase 104: current-program actions

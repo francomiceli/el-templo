@@ -10,4 +10,9 @@ export interface MemberPlanStatus {
   scheduledStartDate: string | null
   hadPlan: boolean
   lastPlan: { planName: string; endDate: string | null; status: string } | null
+  /**
+   * El staff cargó una membresía y el socio todavía no abrió Planes: prende la pelotita de la tab.
+   * Opcional por compatibilidad con un server que aún no lo manda (= sin pelotita).
+   */
+  hasUnseenPlanUpdate?: boolean
 }
