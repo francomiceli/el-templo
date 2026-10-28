@@ -1,12 +1,8 @@
 <template>
   <q-page class="tu-cuerpo">
-    <div class="tu-cuerpo__top">
-      <button type="button" class="tu-cuerpo__back" @click="volverALaGuia">
-        <q-icon name="chevron_left" size="22px" aria-hidden="true" />
-        <span>Guía</span>
-      </button>
-      <h1 class="tu-cuerpo__h1">Tus músculos</h1>
-    </div>
+    <!-- Sin barra de arriba (2026-10-28): el título queda para lectores de pantalla y la flecha de
+         volver va dentro de la card, arriba a la derecha; así la figura gana esos 50 px. -->
+    <h1 class="tu-cuerpo__h1">Tus músculos</h1>
 
     <div ref="scroller" class="tu-cuerpo__scroll">
       <div v-if="!store.vista && !store.error" class="tu-cuerpo__estado">
@@ -22,6 +18,14 @@
         <!-- Todo el texto va sobre blanco (sketch 023 "Después"): la ayuda, el selector y la figura
              comparten una card; el crema queda solo de fondo. -->
         <div class="tu-cuerpo__card">
+          <button
+            type="button"
+            class="tu-cuerpo__back"
+            aria-label="Volver a la Guía"
+            @click="volverALaGuia"
+          >
+            <q-icon name="arrow_back" size="20px" aria-hidden="true" />
+          </button>
           <p v-show="!sheetOpen" class="tu-cuerpo__hint">Tocá un músculo</p>
 
           <div class="tu-cuerpo__flip" role="group" aria-label="Vista del cuerpo">
@@ -38,14 +42,14 @@
             </button>
           </div>
 
-          <div class="tu-cuerpo__fig">
+          <div ref="figEl" class="tu-cuerpo__fig">
             <BodyFigure
               :side="vistaActual"
               interactive
               tap-style="cursor"
               :lit="zona ? [zona] : []"
               :selected="zona"
-              :height="sheetOpen ? 300 : 540"
+              :height="sheetOpen ? figHeightOpen : FIG_HEIGHT"
               @select-zone="onSelectZone"
             />
           </div>
@@ -91,7 +95,7 @@
  * ruta `tu-cuerpo` no se registra apagado). Slugs y ids de la URL se resuelven contra el store; si
  * no existen se ignoran.
  */
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import TemploLoader from 'src/components/TemploLoader.vue'
@@ -112,6 +116,13 @@ const VISTAS: readonly { id: VistaCuerpo; label: string }[] = [
 
 // Alto de la tab bar del layout (móvil): la hoja se apoya encima.
 const TAB_BAR_FALLBACK = 56
+// Figura sin hoja, y alto de la hoja cerrada a medias (`.anat-sheet` height: 54vh).
+const FIG_HEIGHT = 540
+const SHEET_VH = 0.54
+// Con la hoja abierta la figura se achica a lo que queda visible encima de la hoja (antes un 300
+// fijo quedaba tapado en pantallas bajas). Piso para que siga siendo tocable.
+const FIG_HEIGHT_MIN = 160
+const FIG_GAP_OVER_SHEET = 8
 
 const store = useAnatomyStore()
 const router = useRouter()
@@ -119,6 +130,8 @@ const route = useRoute()
 const $q = useQuasar()
 
 const scroller = ref<HTMLElement | null>(null)
+const figEl = ref<HTMLElement | null>(null)
+const figHeightOpen = ref(300)
 const vistaActual = ref<VistaCuerpo>('front')
 const zona = ref<ZoneSlug | null>(null)
 const sheetOpen = ref(false)
@@ -163,6 +176,17 @@ function abrirHoja(): void {
   sheetFull.value = false
   sheetOpen.value = true
   if (scroller.value) scroller.value.scrollTop = 0
+  void medirFiguraSobreHoja()
+}
+
+/** Alto de la figura para que entre entera entre su borde de arriba y el borde de la hoja. */
+async function medirFiguraSobreHoja(): Promise<void> {
+  await nextTick()
+  if (!figEl.value) return
+  const top = figEl.value.getBoundingClientRect().top
+  const bordeHoja = window.innerHeight * (1 - SHEET_VH) - bottomOffset.value
+  const libre = Math.floor(bordeHoja - top - FIG_GAP_OVER_SHEET)
+  figHeightOpen.value = Math.max(FIG_HEIGHT_MIN, Math.min(FIG_HEIGHT, libre))
 }
 
 function onSelectZone(slug: ZoneSlug, vista: VistaCuerpo): void {
@@ -229,42 +253,15 @@ onMounted(async () => {
   background-color: $brand-cream;
 }
 
-.tu-cuerpo__top {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  height: 50px;
-  padding: 0 8px;
-  background: #fff;
-  border-bottom: 1px solid $pd-light-line;
-}
-
-.tu-cuerpo__back {
-  @include pd-hit-44;
-  display: inline-flex;
-  align-items: center;
-  padding: 8px 6px;
-  border: 0;
-  background: none;
-  font-family: 'Geologica', sans-serif;
-  font-weight: 600;
-  font-size: 15px;
-  color: $pd-terra-ink;
-  cursor: pointer;
-
-  &:focus-visible {
-    outline: 2px solid $pd-terra-ink;
-    outline-offset: 2px;
-  }
-}
-
+// Título solo para lectores de pantalla (la barra de arriba se fue).
 .tu-cuerpo__h1 {
-  margin: 0 auto 0 0;
-  font-family: 'Montserrat', sans-serif;
-  font-weight: 700;
-  font-size: 17px;
-  color: $pd-ink;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
 .tu-cuerpo__scroll {
@@ -309,11 +306,37 @@ onMounted(async () => {
 
 // Sobre blanco: la ayuda, el selector y la figura (el crema queda solo de fondo)
 .tu-cuerpo__card {
+  position: relative;
   padding: 10px 10px 14px;
   border: 1px solid $pd-light-line;
   border-radius: 16px;
   background: #fff;
   box-shadow: 0 4px 14px rgba(150, 89, 58, 0.06);
+}
+
+// Volver a la Guía: círculo de 36 como la × de la hoja, área tocable de 44.
+.tu-cuerpo__back {
+  @include pd-hit-44;
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: #f3ede4;
+  color: $pd-ink;
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 2px solid $pd-terra-ink;
+    outline-offset: 2px;
+  }
 }
 
 .tu-cuerpo__hint {
