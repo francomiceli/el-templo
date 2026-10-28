@@ -108,7 +108,17 @@ cp .env.example .env
 ```
 
 Env vars: `VITE_API_URL` (local: `http://localhost:3000/api`), `VITE_APP_NAME`,
-optional `VITE_SENTRY_DSN`.
+optional `VITE_SENTRY_DSN`,
+optional dev-only `VITE_DEV_LATENCY_MS`.
+
+**Reproducir red lenta en local (fase 203).** La API local responde en ~11 ms, así que los
+parpadeos (estados intermedios y carreras entre pedidos) no se ven. Poner
+`VITE_DEV_LATENCY_MS=800` en el `.env` de la app y levantar `quasar dev`: cada pedido de axios
+espera esa latencia con jitter 0.5x-1.5x (cambia el orden de llegada). Se puede sumar DevTools
+"Slow 4G". El log de depuración `dev request` numera cada pedido (método y URL) para contarlos
+(meta SC-4: menos de 18 pedidos al abrir con plan activo). Solo corre en desarrollo (guard
+`import.meta.env.DEV`, Vite lo elimina en `quasar build`); sin la variable no hace nada y el tope
+es 10000 ms.
 
 ### 3.3 Admin app (`el-templo-admin/`)
 
