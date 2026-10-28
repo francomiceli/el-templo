@@ -138,13 +138,16 @@ export const useAvisosStore = defineStore('avisos', () => {
     let ok = false
     try {
       const { data } = await api.get<TarjetasResponse>('/communications/me/tarjetas')
+      // Tras un reset() (logout) la respuesta del socio anterior no escribe nada: ni tarjetas, ni flags.
+      if (mine !== tarjetasGeneration) return
       tarjetas.value = data.tarjetas
       ok = true
     } catch (err: unknown) {
-      tarjetas.value = []
       log.error('Failed to load tarjetas', {
         error: err instanceof Error ? err.message : String(err),
       })
+      if (mine !== tarjetasGeneration) return
+      tarjetas.value = []
     }
     if (mine !== tarjetasGeneration) return
     tarjetasOk.value = ok

@@ -320,4 +320,49 @@ describe('useAvisosStore — tarjetasSettled / tarjetasOk (fase 203, D-02/D-07)'
     expect(store.tarjetasSettled).toBe(false)
     expect(store.tarjetasOk).toBeNull()
   })
+
+  it('una respuesta OK del socio anterior (reset() a mitad) no pisa las tarjetas del nuevo', async () => {
+    const gateOld = deferred<unknown>()
+    const gateNew = deferred<unknown>()
+    vi.mocked(api.get)
+      .mockReturnValueOnce(gateOld.promise as never)
+      .mockReturnValueOnce(gateNew.promise as never)
+    const store = useAvisosStore()
+    const pendingOld = store.loadTarjetas()
+
+    store.reset()
+    const pendingNew = store.loadTarjetas()
+    gateNew.resolve({ data: { tarjetas: [{ ...TARJETAS_RESPONSE.tarjetas[0], id: 2 }] } })
+    await pendingNew
+    expect(store.tarjetas.map((t) => t.id)).toEqual([2])
+
+    gateOld.resolve({ data: TARJETAS_RESPONSE })
+    await pendingOld
+
+    expect(store.tarjetas.map((t) => t.id)).toEqual([2])
+    expect(store.tarjetasOk).toBe(true)
+  })
+
+  it('un error del socio anterior (reset() a mitad) no vacía las tarjetas del nuevo ni baja tarjetasOk', async () => {
+    const gateOld = deferred<unknown>()
+    const gateNew = deferred<unknown>()
+    vi.mocked(api.get)
+      .mockReturnValueOnce(gateOld.promise as never)
+      .mockReturnValueOnce(gateNew.promise as never)
+    const store = useAvisosStore()
+    const pendingOld = store.loadTarjetas()
+
+    store.reset()
+    const pendingNew = store.loadTarjetas()
+    gateNew.resolve({ data: TARJETAS_RESPONSE })
+    await pendingNew
+    const delSocioNuevo = store.tarjetas.length
+    expect(delSocioNuevo).toBeGreaterThan(0)
+
+    gateOld.reject(new Error('Network Error'))
+    await pendingOld
+
+    expect(store.tarjetas).toHaveLength(delSocioNuevo)
+    expect(store.tarjetasOk).toBe(true)
+  })
 })
