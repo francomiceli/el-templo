@@ -14,12 +14,18 @@
           focusable="false"
         >
           <defs>
-            <linearGradient :id="gradientIdFor(view.key)" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0" :stop-color="LIT_A" />
-              <stop offset="1" :stop-color="LIT_B" />
-            </linearGradient>
+            <radialGradient :id="gradientIdFor(view.key)" v-bind="RELIEVE">
+              <stop offset="0" :stop-color="LIT[0]" />
+              <stop offset="0.5" :stop-color="LIT[1]" />
+              <stop offset="1" :stop-color="LIT[2]" />
+            </radialGradient>
+            <radialGradient :id="muscleIdFor(view.key)" v-bind="RELIEVE">
+              <stop offset="0" :stop-color="MUSCLE[0]" />
+              <stop offset="0.55" :stop-color="MUSCLE[1]" />
+              <stop offset="1" :stop-color="MUSCLE[2]" />
+            </radialGradient>
           </defs>
-          <g>
+          <g :style="{ '--mu-base': `url(#${muscleIdFor(view.key)})` }">
             <path class="body-figure__outline" :d="view.outline" />
             <g
               v-for="group in view.groups"
@@ -44,7 +50,7 @@
 /**
  * Figura anatómica compartida (fase 197 D-01, D-03, D-04, D-07): frente y espalda.
  *
- * Intensidades: `lit` = bloque elegido (degradé terracota, o salvia si `tone="sage"`),
+ * Intensidades: `lit` = bloque elegido (ámbar con relieve, o salvia si `tone="sage"`),
  * `lit2` = zonas de los otros bloques, resto = músculo sin trabajar. Con `interactive` los
  * músculos son tocables y emiten su GRUPO (D-10); `dim` atenúa lo que no está encendido.
  * Las partes no musculares (pelo, cabeza, cuello, manos, pies...) se pintan como piel y no se tocan.
@@ -104,15 +110,22 @@ const emit = defineEmits<{
 
 const log = createLogger('BodyFigure')
 
-// Mismos valores que $fig-lit-a / $fig-lit-b de _brand.scss: el SVG necesita el color como atributo.
-const LIT_A = '#c47a52'
-const LIT_B = '#8a4e30'
+// Mismos valores que $fig-lit-a/b/c y $fig-muscle-a/-/c de _brand.scss: el SVG necesita el color
+// como atributo. Variante A2 (2026-10-27): cada músculo es una "almohada" con luz de arriba a la
+// izquierda, como el recorrido de la TV.
+const LIT = ['#e6cd92', '#d4a843', '#83682a'] as const
+const MUSCLE = ['#fdfbf7', '#ece5d9', '#c7baa6'] as const
+const RELIEVE = { cx: '.42', cy: '.36', r: '.74', fx: '.34', fy: '.26' } as const
 
-// Un degradé por vista (ids únicos en el documento); useId puede traer caracteres que rompen url(#...).
-const gradientBase = `body-figure-lit-${useId().replace(/[^\w-]/g, '')}`
+// Degradés por vista (ids únicos en el documento); useId puede traer caracteres que rompen url(#...).
+const gradientBase = `body-figure-${useId().replace(/[^\w-]/g, '')}`
 
 function gradientIdFor(key: ViewKey): string {
-  return `${gradientBase}-${key}`
+  return `${gradientBase}-lit-${key}`
+}
+
+function muscleIdFor(key: ViewKey): string {
+  return `${gradientBase}-mu-${key}`
 }
 
 const anatomy = ref<Anatomia | null>(null)
@@ -176,7 +189,7 @@ function muClass(slug: string, key: ViewKey): Record<string, boolean> {
   }
 }
 
-// El degradé terracota va inline (gana a las reglas del <style>); en salvia el elegido es sólido por CSS.
+// El degradé ámbar va inline (gana a las reglas del <style>); en salvia el elegido es sólido por CSS.
 function muStyle(slug: string, key: ViewKey): Record<string, string> | undefined {
   if (props.tone !== 'terra' || NON_MUSCLE_SLUGS.has(slug)) return undefined
   const role = roleOf(slug, key)
@@ -306,11 +319,11 @@ watch(
   stroke-width: 1.2;
 }
 
-// Músculo sin trabajar (estado base)
+// Músculo sin trabajar (estado base): relieve de mármol (inline --mu-base), sólido de respaldo
 .mu path {
-  fill: $fig-muscle;
+  fill: var(--mu-base, $fig-muscle);
   stroke: $fig-muscle-edge;
-  stroke-width: 0.6;
+  stroke-width: 0.8;
 }
 
 // Partes no musculares: piel, sin borde
@@ -319,10 +332,11 @@ watch(
   stroke: none;
 }
 
-// Bloque elegido: degradé terracota (inline --mu-fill) o salvia sólido
+// Bloque elegido: ámbar con relieve (inline --mu-fill) o salvia sólido
 .mu--lit path {
   fill: var(--mu-fill, $fig-lit-b);
   stroke: $fig-lit-edge;
+  stroke-width: 1.1;
 }
 
 .mu--lit2 path {
@@ -355,6 +369,7 @@ watch(
 .mu--r-fuerte path {
   fill: var(--mu-fill, $fig-lit-b);
   stroke: $fig-lit-edge;
+  stroke-width: 1.1;
 }
 
 .mu--r-sostiene path {

@@ -2,7 +2,7 @@
  * "El recorrido de hoy": la pantalla de inicio (FLEXIBILIDAD - INICIO, `screen === 'idle'`
  * con `recorrido` en el poll) cuando hay plani aprobada (2026-10-13: antes era una intro
  * que el profe disparaba durante PYROS). La TV presenta los bloques de la clase sobre
- * dos cuerpos (H/M, el mismo cuerpo de la Guía del app); en cada bloque se encienden sus zonas.
+ * dos cuerpos (H/M, el mismo cuerpo de la figura del app); en cada bloque se encienden sus zonas.
  *
  * Diseño: sketch 004, variante D (escultura + puntos con rótulo + fundido frente/espalda).
  * Coreografía "bloque a bloque" (UAT 2026-10-05/13): todos los bloques se ven siempre y
@@ -308,7 +308,7 @@ function construirFigura(
     const key = v === 'frente' ? fig.frente : fig.espalda;
     const vistaEl = div('recVista recVista--' + v);
     vistaEl.setAttribute('data-key', key);
-    vistaEl.appendChild(capaSvg('recCapa recBase', svgBase(an, key, contornoDe(an, fig, v))));
+    vistaEl.appendChild(capaSvg('recCapa recBase', svgBase(defs, an, key, contornoDe(an, fig, v))));
     bloques.forEach((b, i) => {
       const capa = capaSvg('recCapa recOv', svgBloque(defs, an, key, b.zonas), i);
       capa.style.zIndex = String(zBloque(i, bloques.length));

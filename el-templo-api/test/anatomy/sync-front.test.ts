@@ -384,8 +384,15 @@ describe("anatomy/sync-front — tipos espejo del payload (WR-03)", () => {
 
 // Cuerpo de la figura (el de la Guía): lo copian admin y TV. El encendido
 // (`lit-*`) lo copia solo la TV: el admin pinta por rol con su propia paleta.
-const CLAVES_CUERPO = ["muscle", "muscle-edge", "skin", "skin-edge"] as const;
-const CLAVES_ENCENDIDO = ["lit-a", "lit-b", "lit-edge"] as const;
+const CLAVES_CUERPO = [
+  "muscle-a",
+  "muscle",
+  "muscle-c",
+  "muscle-edge",
+  "skin",
+  "skin-edge",
+] as const;
+const CLAVES_ENCENDIDO = ["lit-a", "lit-b", "lit-c", "lit-edge"] as const;
 
 /** `$fig-<clave>: #hex;` de un SCSS, solo las claves pedidas. */
 function figScss(
@@ -446,5 +453,48 @@ describe("anatomy/sync-front — la figura de la Guía en app, admin y TV", () =
 
   it("la TV tiene el mismo cuerpo y encendido que el app", () => {
     expect(tv).toEqual(app);
+  });
+
+  // Los degradés del SVG necesitan el color como atributo: los componentes
+  // repiten luz/medio/sombra en TS (`const MUSCLE = [...]`, `const LIT = [...]`).
+  const appFigPath = path.resolve(
+    __dirname,
+    "../../../el-templo-app/src/components/anatomy/BodyFigure.vue",
+  );
+  const adminFigPath = path.resolve(
+    __dirname,
+    "../../../el-templo-admin/src/components/anatomy/AnatomyFigure.vue",
+  );
+
+  function paradas(contenido: string, nombre: string, origen: string) {
+    const m = contenido.match(new RegExp(`const ${nombre} = \\[([^\\]]*)\\]`));
+    if (!m)
+      throw new Error(`sync-front: no se encontró ${nombre} en ${origen}`);
+    return [...m[1].matchAll(/'(#[0-9a-fA-F]{3,8})'/g)].map((x) =>
+      x[1].toLowerCase(),
+    );
+  }
+
+  it("BodyFigure.vue repite los degradés de músculo y encendido del app", () => {
+    const vue = leerEspejo(appFigPath);
+    expect(paradas(vue, "MUSCLE", appFigPath)).toEqual([
+      app["muscle-a"],
+      app.muscle,
+      app["muscle-c"],
+    ]);
+    expect(paradas(vue, "LIT", appFigPath)).toEqual([
+      app["lit-a"],
+      app["lit-b"],
+      app["lit-c"],
+    ]);
+  });
+
+  it("AnatomyFigure.vue repite el degradé de músculo del app", () => {
+    const vue = leerEspejo(adminFigPath);
+    expect(paradas(vue, "MUSCLE", adminFigPath)).toEqual([
+      app["muscle-a"],
+      app.muscle,
+      app["muscle-c"],
+    ]);
   });
 });

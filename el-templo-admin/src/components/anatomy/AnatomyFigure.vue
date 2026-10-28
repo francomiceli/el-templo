@@ -15,7 +15,14 @@
           aria-hidden="true"
           focusable="false"
         >
-          <g>
+          <defs>
+            <radialGradient :id="muscleIdFor(v.key)" v-bind="RELIEVE">
+              <stop offset="0" :stop-color="MUSCLE[0]" />
+              <stop offset="0.55" :stop-color="MUSCLE[1]" />
+              <stop offset="1" :stop-color="MUSCLE[2]" />
+            </radialGradient>
+          </defs>
+          <g :style="{ '--mu-base': `url(#${muscleIdFor(v.key)})` }">
             <path class="anat-figure__outline" :d="v.contorno" />
             <g
               v-for="grupo in v.grupos"
@@ -47,7 +54,7 @@
  * tocó. La geometría se carga con `cargarAnatomia()` (import dinámico, chunk propio). Las partes
  * no musculares (pelo, cabeza, cuello, manos, pies, tobillos, rodillas) no se tocan.
  */
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, useId, watch } from 'vue';
 import { createLogger } from 'src/utils/logger';
 import { cargarAnatomia } from 'src/tv/recorrido/anatomia';
 import type { Anatomia, GrupoAnatomico } from 'src/tv/recorrido/anatomia';
@@ -76,6 +83,18 @@ const props = withDefaults(
 const emit = defineEmits<{ 'select-zone': [slug: string, view: 'front' | 'back'] }>();
 
 const log = createLogger('AnatomyFigure');
+
+// Mismos valores que $fig-muscle-a/-/c de _anatomia.scss (cuerpo de la Guía del app, variante A2):
+// el SVG necesita el color como atributo. Cada músculo es una "almohada" con luz arriba a la izquierda.
+const MUSCLE = ['#fdfbf7', '#ece5d9', '#c7baa6'] as const;
+const RELIEVE = { cx: '.42', cy: '.36', r: '.74', fx: '.34', fy: '.26' } as const;
+
+// Un degradé por vista (ids únicos en el documento); useId puede traer caracteres que rompen url(#...).
+const gradientBase = `anat-figure-${useId().replace(/[^\w-]/g, '')}`;
+
+function muscleIdFor(key: VistaKey): string {
+  return `${gradientBase}-mu-${key}`;
+}
 
 // Partes no musculares: color de piel, no tocables (mismo set que SKIP del sketch 019). Pelo y
 // cabeza se dibujan, como en la figura del app (2026-10-27: mismo cuerpo en todas las pantallas).
@@ -235,11 +254,11 @@ watch(
   stroke-width: 1.2;
 }
 
-// Músculo sin rol: color base
+// Músculo sin rol: relieve de mármol (inline --mu-base), sólido de respaldo
 .mu path {
-  fill: $fig-muscle;
+  fill: var(--mu-base, $fig-muscle);
   stroke: $fig-muscle-edge;
-  stroke-width: 0.6;
+  stroke-width: 0.8;
 }
 
 // Partes no musculares: piel, sin borde

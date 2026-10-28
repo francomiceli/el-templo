@@ -19,18 +19,30 @@ $mt-block-title-color: $brand-terracotta; // títulos de bloque de Mi Templo (UA
 }
 
 // Figura anatómica (fase 197, sketch 015 ronda 3b). Los componentes usan estos tokens, no hex sueltos.
-// Para el degradé del SVG (necesita el color como atributo), BodyFigure.vue replica $fig-lit-a/b en TS.
-// Es el cuerpo de TODAS las figuras (2026-10-27): el admin (_anatomia.scss) y la TV (FIGURA_BASE de
-// tv/recorrido/figuras.ts) copian estos valores; lo verifica el API en test/anatomy/sync-front.test.ts.
-$fig-muscle: #e2d7c8; // músculo sin trabajar
-$fig-muscle-edge: #c9bba8;
-$fig-skin: #ece4d8; // piel / contorno / partes no musculares
-$fig-skin-edge: #b9a993;
-$fig-lit-a: #c47a52; // bloque elegido: degradé terracota
-$fig-lit-b: #8a4e30;
-$fig-lit-edge: #7e4529;
-$fig-lit2: #d39a78; // zonas de los otros bloques de la sesión
-$fig-lit2-edge: #b57b59;
+// Para los degradés del SVG (necesitan el color como atributo), BodyFigure.vue replica $fig-muscle-*
+// y $fig-lit-* en TS. Es el cuerpo de TODAS las figuras (2026-10-27, variante A2): el admin
+// (_anatomia.scss) y la TV (FIGURA_BASE de tv/recorrido/figuras.ts) copian estos valores; lo
+// verifica el API en test/anatomy/sync-front.test.ts.
+// Cada músculo es una "almohada" con luz de arriba a la izquierda (degradé radial de 3 paradas).
+$fig-muscle-a: #fdfbf7; // músculo sin trabajar: luz
+$fig-muscle: #ece5d9; // músculo sin trabajar: medio (y color sólido de respaldo)
+$fig-muscle-c: #c7baa6; // músculo sin trabajar: sombra
+$fig-muscle-edge: #b9ae9d;
+$fig-skin: #f3eee6; // piel / contorno / partes no musculares
+$fig-skin-edge: #b1a38e;
+// Encendido: ámbar de la plani de la TV (--trans-ambar), con relieve. Los demás tonos de la familia
+// salen de mezclar #d4a843 con blanco o negro (como `mezclar()` de la TV).
+$fig-lit-a: #e6cd92; // bloque elegido: luz (42 % blanco)
+$fig-lit-b: #d4a843; // bloque elegido: medio
+$fig-lit-c: #83682a; // bloque elegido: sombra (38 % negro)
+$fig-lit-edge: #755c25; // 45 % negro
+
+// Muestra de leyenda con el mismo encendido que la figura.
+@mixin fig-lit-swatch {
+  background: radial-gradient(circle at 34% 26%, $fig-lit-a, $fig-lit-b 50%, $fig-lit-c);
+}
+$fig-lit2: #ead4a1; // zonas de los otros bloques de la sesión (50 % blanco)
+$fig-lit2-edge: #aa8636; // 20 % negro
 $fig-done-lit: #6f8f73; // sesión completada: bloque elegido en salvia
 $fig-done-lit-edge: #3f6a47;
 $fig-done-lit2: #b9cdb9; // sesión completada: otros bloques
@@ -40,6 +52,6 @@ $fig-tap-edge: #bba891;
 $fig-dim: #ebe3d7; // modo tocable, atenuado
 $fig-dim-edge: #d8ccbc;
 // Fase 200 (sketch 020): figura pintada por grupo de alumno. "Hace el movimiento" usa $fig-lit-b / $fig-lit-edge.
-$fig-sost: #e6c3a1; // "te sostiene" (--sost del sketch 020), borde $fig-lit2-edge
-$fig-estira: #f6ecdf; // "se estira": relleno claro con borde punteado terracota
-$fig-estira-edge: #96593a;
+$fig-sost: #efdeb8; // "te sostiene" (62 % blanco), borde $fig-lit2-edge
+$fig-estira: #f6ecdf; // "se estira": relleno claro con borde punteado ámbar
+$fig-estira-edge: #94762f; // 30 % negro

@@ -1,8 +1,9 @@
 /**
  * SVG de la intro "el recorrido de hoy" (sketch 004, variante D): los cuerpos y las zonas
- * de cada bloque "encendidas". 2026-10-27: el cuerpo es el MISMO de la Guía del app
- * (`FIGURA_BASE` = `$fig-*` de su _brand.scss) y las zonas se encienden con el terracota de
- * la Guía, un solo color para todos los bloques (antes, mármol con vetas y un color por bloque).
+ * de cada bloque "encendidas". 2026-10-27 (variante A2): el cuerpo es el MISMO de la figura
+ * del app (`FIGURA_BASE` = `$fig-*` de su _brand.scss): músculos sueltos con relieve de mármol
+ * y las zonas encendidas en ámbar con relieve, un solo color para todos los bloques (antes,
+ * mármol con vetas y silueta oscura, y un color por bloque).
  *
  * Funciones PURAS que devuelven markup SVG. Ningún texto que venga del server entra acá:
  * los rótulos de los puntos salen de `ZONA_ES` (fijo) y los colores de `FIGURA_BASE` y
@@ -21,18 +22,21 @@ import type { Anatomia, FiguraKey, GrupoAnatomico, PathAnatomico } from './anato
  * (lo verifica el API en test/anatomy/sync-front.test.ts).
  */
 export const FIGURA_BASE = {
-  muscle: '#e2d7c8',
-  'muscle-edge': '#c9bba8',
-  skin: '#ece4d8',
-  'skin-edge': '#b9a993',
-  'lit-a': '#c47a52',
-  'lit-b': '#8a4e30',
-  'lit-edge': '#7e4529',
+  'muscle-a': '#fdfbf7',
+  muscle: '#ece5d9',
+  'muscle-c': '#c7baa6',
+  'muscle-edge': '#b9ae9d',
+  skin: '#f3eee6',
+  'skin-edge': '#b1a38e',
+  'lit-a': '#e6cd92',
+  'lit-b': '#d4a843',
+  'lit-c': '#83682a',
+  'lit-edge': '#755c25',
 };
 
 /** Color de la lista de bloques y de los rótulos de zona (2026-10-27: uno solo para todos los
- *  bloques, el terracota de la marca; antes cada bloque tenía el suyo). */
-export const COLOR_RECORRIDO = '#96593a';
+ *  bloques, el mismo ámbar del encendido; antes cada bloque tenía el suyo). */
+export const COLOR_RECORRIDO = FIGURA_BASE['lit-b'];
 
 export const ZONA_ES: Record<TvZonaMuscular, string> = {
   chest: 'PECHO',
@@ -110,15 +114,30 @@ export class Defs {
     return id;
   }
 
-  /** Encendido de la Guía: degradé terracota en diagonal, por path (como BodyFigure.vue). */
+  /** Luz de arriba-izquierda: cada músculo es una "almohada" con su propio relieve
+   *  (mismos parámetros que `RELIEVE` de BodyFigure.vue). */
+  private radial(id: string, stops: Array<[number, string]>): string {
+    let s = `<radialGradient id="${id}" cx=".42" cy=".36" r=".74" fx=".34" fy=".26">`;
+    for (const [o, c] of stops) s += `<stop offset="${o}" stop-color="${c}"/>`;
+    return this.add(id, s + '</radialGradient>');
+  }
+
+  /** Músculo sin trabajar. */
+  musculo(): string {
+    return this.radial('recMu', [
+      [0, FIGURA_BASE['muscle-a']],
+      [0.55, FIGURA_BASE.muscle],
+      [1, FIGURA_BASE['muscle-c']],
+    ]);
+  }
+
+  /** Zona encendida. */
   encendido(): string {
-    return this.add(
-      'recLit',
-      '<linearGradient id="recLit" x1="0" y1="0" x2="1" y2="1">' +
-        `<stop offset="0" stop-color="${FIGURA_BASE['lit-a']}"/>` +
-        `<stop offset="1" stop-color="${FIGURA_BASE['lit-b']}"/>` +
-        '</linearGradient>'
-    );
+    return this.radial('recLit', [
+      [0, FIGURA_BASE['lit-a']],
+      [0.5, FIGURA_BASE['lit-b']],
+      [1, FIGURA_BASE['lit-c']],
+    ]);
   }
 }
 
@@ -134,10 +153,11 @@ function path(d: string, fill: string, stroke: string, w: number): string {
 }
 
 /**
- * Cuerpo base, como la Guía: contorno con relleno de piel debajo y los músculos encima.
- * `.anat` envuelve todo: su bbox es el que fija el viewBox.
+ * Cuerpo base, como la figura del app: contorno con relleno de piel debajo y los músculos
+ * encima. `.anat` envuelve todo: su bbox es el que fija el viewBox.
  */
-export function svgBase(an: Anatomia, key: FiguraKey, contorno: string): string {
+export function svgBase(defs: Defs, an: Anatomia, key: FiguraKey, contorno: string): string {
+  const musculo = `url(#${defs.musculo()})`;
   let s =
     `<g class="anat"><path d="${contorno}" fill="${FIGURA_BASE.skin}" ` +
     `stroke="${FIGURA_BASE['skin-edge']}" stroke-width="1.2"/>`;
@@ -145,14 +165,14 @@ export function svgBase(an: Anatomia, key: FiguraKey, contorno: string): string 
     const muscular = NO_MUSCULARES.indexOf(g.slug) < 0;
     for (const p of g.p) {
       s += muscular
-        ? path(p[0], FIGURA_BASE.muscle, FIGURA_BASE['muscle-edge'], 0.6)
+        ? path(p[0], musculo, FIGURA_BASE['muscle-edge'], 0.8)
         : `<path d="${p[0]}" fill="${FIGURA_BASE.skin}"/>`;
     }
   }
   return s + '</g>';
 }
 
-/** Capa de un bloque: solo sus zonas, con el encendido de la Guía. */
+/** Capa de un bloque: solo sus zonas, encendidas. */
 export function svgBloque(
   defs: Defs,
   an: Anatomia,
@@ -163,7 +183,7 @@ export function svgBloque(
   let s = '<g>';
   for (const g of an[key]) {
     if ((zonas as string[]).indexOf(g.slug) < 0) continue;
-    for (const p of g.p) s += path(p[0], fill, FIGURA_BASE['lit-edge'], 0.6);
+    for (const p of g.p) s += path(p[0], fill, FIGURA_BASE['lit-edge'], 1.1);
   }
   return s + '</g>';
 }

@@ -310,7 +310,7 @@ onMounted(() => {
 }
 
 .ficha__leg-item--fuerte::before {
-  background: linear-gradient(135deg, $fig-lit-a, $fig-lit-b);
+  @include fig-lit-swatch;
 }
 
 .ficha__leg-item--sostiene::before {
