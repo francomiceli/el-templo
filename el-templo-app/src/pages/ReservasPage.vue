@@ -1058,6 +1058,7 @@ import BranchPickerDialog from 'src/components/BranchPickerDialog.vue'
 import ActivityInfoSheet from 'src/components/ActivityInfoSheet.vue'
 import TurnoHeader from 'src/components/TurnoHeader.vue'
 import { splitDaySections } from 'src/utils/turno-sections'
+import { needsExplicitGridLoad } from 'src/utils/reservas-initial-load'
 import {
   availabilityLevel as availabilityLevelFor,
   availabilityText as availabilityTextFor,
@@ -2295,6 +2296,9 @@ async function loadGrid() {
   }
 }
 
+// Único que pide la grilla al cambiar la sede (fase 203, R-1): quien asigna
+// `selectedBranchId` solo llama a `loadGrid()` a mano si el valor no cambió
+// (ver `needsExplicitGridLoad`), para no pedir /weekly dos veces.
 watch(selectedBranchId, () => loadGrid())
 
 // Trial mode: reloading the grid for the chosen physical sede (D-06). Reset the
@@ -2365,6 +2369,7 @@ onMounted(async () => {
     return
   }
 
+  const prevBranch = selectedBranchId.value
   if (isMultiBranch.value) {
     try {
       branches.value = await getBranches()
@@ -2373,7 +2378,8 @@ onMounted(async () => {
       // fall through
     }
   }
-  loadGrid()
+  // Si la sede cambió, el watch de selectedBranchId ya pide la grilla (una vez).
+  if (needsExplicitGridLoad(prevBranch, selectedBranchId.value)) loadGrid()
 })
 
 onBeforeUnmount(() => cleanup())
