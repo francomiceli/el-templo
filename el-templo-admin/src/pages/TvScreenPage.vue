@@ -3026,8 +3026,9 @@ onUnmounted(() => {
 #tvScreenRoot .recOv.on {
   opacity: 1;
 }
+/* 2026-10-27: un bloque a la vez, solo se ven las zonas del bloque en foco. */
 #tvScreenRoot .recOv.on.dim {
-  opacity: 0.3;
+  opacity: 0;
 }
 #tvScreenRoot .recCall {
   opacity: 0;

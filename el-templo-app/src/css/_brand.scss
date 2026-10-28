@@ -20,6 +20,8 @@ $mt-block-title-color: $brand-terracotta; // títulos de bloque de Mi Templo (UA
 
 // Figura anatómica (fase 197, sketch 015 ronda 3b). Los componentes usan estos tokens, no hex sueltos.
 // Para el degradé del SVG (necesita el color como atributo), BodyFigure.vue replica $fig-lit-a/b en TS.
+// Es el cuerpo de TODAS las figuras (2026-10-27): el admin (_anatomia.scss) y la TV (FIGURA_BASE de
+// tv/recorrido/figuras.ts) copian estos valores; lo verifica el API en test/anatomy/sync-front.test.ts.
 $fig-muscle: #e2d7c8; // músculo sin trabajar
 $fig-muscle-edge: #c9bba8;
 $fig-skin: #ece4d8; // piel / contorno / partes no musculares

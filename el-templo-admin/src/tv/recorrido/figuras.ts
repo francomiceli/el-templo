@@ -1,45 +1,38 @@
 /**
- * SVG de la intro "el recorrido de hoy" (sketch 004, variante D ganadora): cuerpos de
- * mármol con relieve por músculo, vetas recortadas a la silueta y las zonas de cada
- * bloque "encendidas" con un degradé del color del bloque.
+ * SVG de la intro "el recorrido de hoy" (sketch 004, variante D): los cuerpos y las zonas
+ * de cada bloque "encendidas". 2026-10-27: el cuerpo es el MISMO de la Guía del app
+ * (`FIGURA_BASE` = `$fig-*` de su _brand.scss) y las zonas se encienden con el terracota de
+ * la Guía, un solo color para todos los bloques (antes, mármol con vetas y un color por bloque).
  *
  * Funciones PURAS que devuelven markup SVG. Ningún texto que venga del server entra acá:
- * los rótulos de los puntos salen de `ZONA_ES` (fijo) y los colores de `COLORES_BLOQUE`
- * (fijo). Los títulos de bloque se pintan en `index.ts` con `textContent`.
+ * los rótulos de los puntos salen de `ZONA_ES` (fijo) y los colores de `FIGURA_BASE` y
+ * `COLOR_RECORRIDO` (fijos). Los títulos de bloque se pintan en `index.ts` con `textContent`.
  *
  * Presupuesto de TV (incidentes f655466c / 750e11f58): todo lo "detallado" es ESTÁTICO
- * (degradés, vetas) y se rasteriza una vez; lo que se anima es la `opacity` de cada capa
+ * (degradés) y se rasteriza una vez; lo que se anima es la `opacity` de cada capa
  * `<svg>` entera, que el navegador compone sin repintar el cuerpo. Sin filter, sin blend.
  */
 
 import type { TvZonaMuscular } from '../poll';
 import type { Anatomia, FiguraKey, GrupoAnatomico, PathAnatomico } from './anatomia';
 
-/** Paleta del recorrido, en orden de bloque: terracota, ámbar, oro (`--gold`), piedra
- *  (`--trans-apagado-dia`) y oliva (Olive Stone de la marca). Sin el carbón de la plani
- *  (UAT 2026-10-13: un bloque negro no se leía como zona trabajada; se probaron oliva y
- *  verde en 3er lugar y quedó el oro). */
-export const COLORES_BLOQUE = ['#96593a', '#d4a843', '#b08d6e', '#6f6455', '#8a8472'];
-
 /**
- * Color de cada bloque, en orden, de la paleta. DEUTEROS I y II comparten color (UAT
- * 2026-10-13: son el mismo tramo de la clase), así el color que liberan pasa al bloque
- * siguiente.
+ * Cuerpo y encendido de la figura: MISMOS valores que `$fig-*` de el-templo-app/src/css/_brand.scss
+ * (lo verifica el API en test/anatomy/sync-front.test.ts).
  */
-export function coloresDeBloques(bloques: ReadonlyArray<{ role: string }>): string[] {
-  const colores: string[] = [];
-  let siguiente = 0;
-  bloques.forEach((b, i) => {
-    const previo = bloques[i - 1];
-    if (b.role === 'DEUTEROS_2' && previo?.role === 'DEUTEROS_1') {
-      colores.push(colores[i - 1] as string);
-      return;
-    }
-    colores.push(COLORES_BLOQUE[siguiente % COLORES_BLOQUE.length] as string);
-    siguiente++;
-  });
-  return colores;
-}
+export const FIGURA_BASE = {
+  muscle: '#e2d7c8',
+  'muscle-edge': '#c9bba8',
+  skin: '#ece4d8',
+  'skin-edge': '#b9a993',
+  'lit-a': '#c47a52',
+  'lit-b': '#8a4e30',
+  'lit-edge': '#7e4529',
+};
+
+/** Color de la lista de bloques y de los rótulos de zona (2026-10-27: uno solo para todos los
+ *  bloques, el terracota de la marca; antes cada bloque tenía el suyo). */
+export const COLOR_RECORRIDO = '#96593a';
 
 export const ZONA_ES: Record<TvZonaMuscular, string> = {
   chest: 'PECHO',
@@ -102,7 +95,7 @@ export function mezclar(h: string, hacia: string, t: number): string {
 }
 
 // =============================================================================
-// Defs (degradés y recortes): se registran una vez en un <defs> compartido
+// Defs (degradés): se registran una vez en un <defs> compartido
 // =============================================================================
 
 export class Defs {
@@ -117,38 +110,15 @@ export class Defs {
     return id;
   }
 
-  /** Luz de arriba-izquierda: cada músculo es una "almohada" con su propio relieve. */
-  radial(id: string, stops: Array<[number, string]>): string {
-    let s = `<radialGradient id="${id}" cx=".42" cy=".36" r=".74" fx=".34" fy=".26">`;
-    for (const [o, c] of stops) s += `<stop offset="${o}" stop-color="${c}"/>`;
-    return this.add(id, s + '</radialGradient>');
-  }
-
-  marmol(): string {
-    return this.radial('recMar', [
-      [0, '#fdfbf7'],
-      [0.55, '#ece5d9'],
-      [1, '#c7baa6'],
-    ]);
-  }
-
-  marmolPelo(): string {
-    return this.radial('recMarH', [
-      [0, '#efe8dc'],
-      [1, '#bfb19b'],
-    ]);
-  }
-
-  color(c: string): string {
-    return this.radial('recC' + c.slice(1), [
-      [0, mezclar(c, '#ffffff', 0.42)],
-      [0.5, c],
-      [1, mezclar(c, '#000000', 0.38)],
-    ]);
-  }
-
-  recorte(id: string, d: string): string {
-    return this.add(id, `<clipPath id="${id}"><path d="${d}"/></clipPath>`);
+  /** Encendido de la Guía: degradé terracota en diagonal, por path (como BodyFigure.vue). */
+  encendido(): string {
+    return this.add(
+      'recLit',
+      '<linearGradient id="recLit" x1="0" y1="0" x2="1" y2="1">' +
+        `<stop offset="0" stop-color="${FIGURA_BASE['lit-a']}"/>` +
+        `<stop offset="1" stop-color="${FIGURA_BASE['lit-b']}"/>` +
+        '</linearGradient>'
+    );
   }
 }
 
@@ -156,77 +126,44 @@ export class Defs {
 // Capas
 // =============================================================================
 
-const CONTORNO_RELLENO = '#b1a38e';
-const CONTORNO_TRAZO = '#8f816c';
+/** Partes no musculares: se pintan como piel (mismo set que `NON_MUSCLE_SLUGS` del app). */
+const NO_MUSCULARES = ['hair', 'head', 'neck', 'hands', 'feet', 'ankles', 'knees'];
 
 function path(d: string, fill: string, stroke: string, w: number): string {
   return `<path d="${d}" fill="${fill}" stroke="${stroke}" stroke-width="${w}" stroke-linejoin="round"/>`;
 }
 
-/** Vetas de mármol: curvas suaves, deterministas por figura, recortadas a la silueta. */
-function vetas(defs: Defs, key: FiguraKey, grupos: GrupoAnatomico[], contorno: string): string {
-  const clip = defs.recorte('recClip' + key, contorno);
-  let seed = key.length * 97 + key.charCodeAt(0);
-  const r = (): number => {
-    seed = (seed * 9301 + 49297) % 233280;
-    return seed / 233280;
-  };
-  const xs: number[] = [];
-  const ys: number[] = [];
-  for (const g of grupos) {
+/**
+ * Cuerpo base, como la Guía: contorno con relleno de piel debajo y los músculos encima.
+ * `.anat` envuelve todo: su bbox es el que fija el viewBox.
+ */
+export function svgBase(an: Anatomia, key: FiguraKey, contorno: string): string {
+  let s =
+    `<g class="anat"><path d="${contorno}" fill="${FIGURA_BASE.skin}" ` +
+    `stroke="${FIGURA_BASE['skin-edge']}" stroke-width="1.2"/>`;
+  for (const g of an[key]) {
+    const muscular = NO_MUSCULARES.indexOf(g.slug) < 0;
     for (const p of g.p) {
-      xs.push(p[3]);
-      ys.push(p[4]);
+      s += muscular
+        ? path(p[0], FIGURA_BASE.muscle, FIGURA_BASE['muscle-edge'], 0.6)
+        : `<path d="${p[0]}" fill="${FIGURA_BASE.skin}"/>`;
     }
-  }
-  const x0 = Math.min(...xs) - 80;
-  const x1 = Math.max(...xs) + 80;
-  const y0 = Math.min(...ys) - 80;
-  const y1 = Math.max(...ys) + 80;
-  let s = `<g clip-path="url(#${clip})" fill="none">`;
-  for (let i = 0; i < 9; i++) {
-    const ya = y0 + r() * (y1 - y0);
-    const yb = ya + (r() - 0.3) * 380;
-    const c1 = `${x0 + (x1 - x0) * 0.3},${ya + (r() - 0.5) * 300}`;
-    const c2 = `${x0 + (x1 - x0) * 0.7},${yb + (r() - 0.5) * 300}`;
-    const alfa = (0.12 + r() * 0.16).toFixed(2);
-    const ancho = (1 + r() * 2.2).toFixed(1);
-    s += `<path d="M${x0} ${ya}C${c1} ${c2} ${x1} ${yb}" stroke="rgba(150,136,116,${alfa})" stroke-width="${ancho}"/>`;
   }
   return s + '</g>';
 }
 
-/**
- * Cuerpo base de mármol. `.anat` envuelve SOLO la anatomía (sin vetas): su bbox es el que
- * fija el viewBox — las vetas se salen del cuerpo antes del recorte y lo inflarían.
- */
-export function svgBase(defs: Defs, an: Anatomia, key: FiguraKey, contorno: string): string {
-  const grupos = an[key];
-  let s = `<g class="anat"><path d="${contorno}" fill="${CONTORNO_RELLENO}"/>`;
-  for (const g of grupos) {
-    const fill = `url(#${g.slug === 'hair' ? defs.marmolPelo() : defs.marmol()})`;
-    for (const p of g.p) s += path(p[0], fill, 'rgba(143,129,108,.55)', 0.8);
-  }
-  s += '</g>';
-  s += vetas(defs, key, grupos, contorno);
-  s += `<path d="${contorno}" fill="none" stroke="${CONTORNO_TRAZO}" stroke-width="2"/>`;
-  return s;
-}
-
-/** Capa de un bloque: solo sus zonas, con el degradé de su color. */
+/** Capa de un bloque: solo sus zonas, con el encendido de la Guía. */
 export function svgBloque(
   defs: Defs,
   an: Anatomia,
   key: FiguraKey,
-  zonas: TvZonaMuscular[],
-  color: string
+  zonas: TvZonaMuscular[]
 ): string {
-  const fill = `url(#${defs.color(color)})`;
-  const trazo = mezclar(color, '#000000', 0.45);
-  let s = '<g opacity="0.93">';
+  const fill = `url(#${defs.encendido()})`;
+  let s = '<g>';
   for (const g of an[key]) {
     if ((zonas as string[]).indexOf(g.slug) < 0) continue;
-    for (const p of g.p) s += path(p[0], fill, trazo, 1.1);
+    for (const p of g.p) s += path(p[0], fill, FIGURA_BASE['lit-edge'], 0.6);
   }
   return s + '</g>';
 }

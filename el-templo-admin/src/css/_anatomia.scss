@@ -17,9 +17,13 @@ $anat-r-sinergista: #c27c54;
 $anat-r-estabilizador: #e3b892;
 $anat-r-estira: #f4ead9;
 $anat-base: #e9e0d4;
-$anat-skip: #f1ebe2;
-$anat-ol: #d4c7b6;
-$anat-ol-fill: #fbf8f3;
+
+// Cuerpo de la figura (2026-10-27): MISMOS valores que $fig-* de el-templo-app/src/css/_brand.scss,
+// el cuerpo de la Guía (lo verifica el API en test/anatomy/sync-front.test.ts).
+$fig-muscle: #e2d7c8; // músculo sin rol
+$fig-muscle-edge: #c9bba8;
+$fig-skin: #ece4d8; // piel / contorno / partes no musculares
+$fig-skin-edge: #b9a993;
 
 @mixin anat-chip {
   display: inline-flex;

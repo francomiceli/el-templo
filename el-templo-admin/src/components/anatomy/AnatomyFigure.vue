@@ -77,10 +77,9 @@ const emit = defineEmits<{ 'select-zone': [slug: string, view: 'front' | 'back']
 
 const log = createLogger('AnatomyFigure');
 
-// Partes no musculares: color de piel, no tocables (mismo set que SKIP del sketch 019).
+// Partes no musculares: color de piel, no tocables (mismo set que SKIP del sketch 019). Pelo y
+// cabeza se dibujan, como en la figura del app (2026-10-27: mismo cuerpo en todas las pantallas).
 const NO_MUSCULARES = new Set(['hair', 'head', 'neck', 'hands', 'feet', 'ankles', 'knees']);
-// Pelo y cabeza no se dibujan (el sketch también los filtra).
-const NO_SE_DIBUJAN = new Set(['hair', 'head']);
 
 const anatomia = ref<Anatomia | null>(null);
 const viewBoxes = ref<Record<VistaKey, string | undefined>>({ front: undefined, back: undefined });
@@ -96,10 +95,9 @@ interface VistaFigura {
 const figura = computed<{ front: VistaFigura; back: VistaFigura } | null>(() => {
   const a = anatomia.value;
   if (!a) return null;
-  const visibles = (g: GrupoAnatomico[]) => g.filter((x) => !NO_SE_DIBUJAN.has(x.slug));
   return {
-    front: { key: 'front', titulo: 'Frente', contorno: a.mOutline[0], grupos: visibles(a.mFront) },
-    back: { key: 'back', titulo: 'Espalda', contorno: a.mOutline[1], grupos: visibles(a.mBack) },
+    front: { key: 'front', titulo: 'Frente', contorno: a.mOutline[0], grupos: a.mFront },
+    back: { key: 'back', titulo: 'Espalda', contorno: a.mOutline[1], grupos: a.mBack },
   };
 });
 
@@ -230,22 +228,24 @@ watch(
   color: $anat-ink-2;
 }
 
+// Mismo cuerpo que la figura de la Guía del app (BodyFigure.vue)
 .anat-figure__outline {
-  fill: $anat-ol-fill;
-  stroke: $anat-ol;
-  stroke-width: 2;
+  fill: $fig-skin;
+  stroke: $fig-skin-edge;
+  stroke-width: 1.2;
 }
 
 // Músculo sin rol: color base
 .mu path {
-  fill: $anat-base;
-  stroke: #fff;
-  stroke-width: 1.2;
+  fill: $fig-muscle;
+  stroke: $fig-muscle-edge;
+  stroke-width: 0.6;
 }
 
-// Partes no musculares: piel
+// Partes no musculares: piel, sin borde
 .mu--x path {
-  fill: $anat-skip;
+  fill: $fig-skin;
+  stroke: none;
 }
 
 .mu--motor path {

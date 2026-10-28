@@ -14,6 +14,10 @@
 // campo nuevo en el API se perderia en silencio: aca se compara el payload real
 // contra las propiedades de cada interfaz espejo.
 //
+// Y el cuerpo de la figura (2026-10-27): el admin (`$fig-*` de `_anatomia.scss`) y
+// la TV (`FIGURA_BASE` de `tv/recorrido/figuras.ts`) copian los colores de la
+// figura de la Guía (`$fig-*` de `_brand.scss` del app).
+//
 // FAIL-CLOSED: si una copia no se puede leer, el test FALLA con el path en el
 // mensaje (no hay skip silencioso).
 import { describe, it, expect } from "vitest";
@@ -375,5 +379,72 @@ describe("anatomy/sync-front — tipos espejo del payload (WR-03)", () => {
     const espejo = propiedadesDe(app, "HitsZona", appPath);
     expect(espejo.length).toBeGreaterThan(0);
     expect(espejo).toEqual(api);
+  });
+});
+
+// Cuerpo de la figura (el de la Guía): lo copian admin y TV. El encendido
+// (`lit-*`) lo copia solo la TV: el admin pinta por rol con su propia paleta.
+const CLAVES_CUERPO = ["muscle", "muscle-edge", "skin", "skin-edge"] as const;
+const CLAVES_ENCENDIDO = ["lit-a", "lit-b", "lit-edge"] as const;
+
+/** `$fig-<clave>: #hex;` de un SCSS, solo las claves pedidas. */
+function figScss(
+  contenido: string,
+  claves: readonly string[],
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const m of contenido.matchAll(
+    /^\$fig-([a-z0-9-]+):\s*(#[0-9a-fA-F]{3,8});/gm,
+  )) {
+    if (claves.includes(m[1])) out[m[1]] = m[2].toLowerCase();
+  }
+  return out;
+}
+
+/** Claves de `export const FIGURA_BASE = { ... }` de la TV. */
+function figuraTv(contenido: string, origen: string): Record<string, string> {
+  const inicio = contenido.indexOf("export const FIGURA_BASE = {");
+  if (inicio < 0) {
+    throw new Error(`sync-front: no se encontró FIGURA_BASE en ${origen}`);
+  }
+  const fin = contenido.indexOf("};", inicio);
+  const out: Record<string, string> = {};
+  for (const m of contenido
+    .slice(inicio, fin)
+    .matchAll(/^\s+'?([a-z0-9-]+)'?:\s*'(#[0-9a-fA-F]{3,8})',?$/gm)) {
+    out[m[1]] = m[2].toLowerCase();
+  }
+  return out;
+}
+
+describe("anatomy/sync-front — la figura de la Guía en app, admin y TV", () => {
+  const appPath = path.resolve(
+    __dirname,
+    "../../../el-templo-app/src/css/_brand.scss",
+  );
+  const adminPath = path.resolve(
+    __dirname,
+    "../../../el-templo-admin/src/css/_anatomia.scss",
+  );
+  const tvPath = path.resolve(
+    __dirname,
+    "../../../el-templo-admin/src/tv/recorrido/figuras.ts",
+  );
+
+  const todas = [...CLAVES_CUERPO, ...CLAVES_ENCENDIDO];
+  const app = figScss(leerEspejo(appPath), todas);
+  const admin = figScss(leerEspejo(adminPath), todas);
+  const tv = figuraTv(leerEspejo(tvPath), tvPath);
+
+  it("el app define el cuerpo y el encendido", () => {
+    expect(Object.keys(app).sort()).toEqual([...todas].sort());
+  });
+
+  it("el admin tiene el mismo cuerpo que el app (y no define encendido)", () => {
+    expect(admin).toEqual(figScss(leerEspejo(appPath), CLAVES_CUERPO));
+  });
+
+  it("la TV tiene el mismo cuerpo y encendido que el app", () => {
+    expect(tv).toEqual(app);
   });
 });
