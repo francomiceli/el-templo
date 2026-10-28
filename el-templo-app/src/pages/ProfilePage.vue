@@ -20,53 +20,28 @@
       </div>
     </div>
 
-    <!-- Subscription -->
-    <div class="info-card q-mb-md">
+    <!-- Plan: solo el nombre y un link; fechas y días viven en Planes (sketch 028) -->
+    <router-link to="/planes" class="info-card info-card--link q-mb-md">
       <q-icon name="card_membership" size="24px" color="primary" class="info-card__icon" />
-      <div v-if="userStore.subscriptionLoading" class="info-card__content">
-        <TemploLoader size="sm" />
-      </div>
-      <div v-else-if="userStore.subscription" class="info-card__content">
-        <div class="info-card__row">
-          <span class="info-card__value">{{ userStore.subscription.planName }}</span>
-          <q-badge
-            :color="userStore.subscriptionStatusColor"
-            :label="userStore.subscriptionStatusLabel"
-          />
-        </div>
-        <div class="subscription-details">
-          <div class="subscription-detail">
-            <span class="subscription-detail__label">Inicio</span>
-            <span class="subscription-detail__value">{{
-              formatDate(userStore.subscription.startDate)
-            }}</span>
-          </div>
-          <div class="subscription-detail">
-            <span class="subscription-detail__label">Vencimiento</span>
-            <span class="subscription-detail__value">{{
-              userStore.subscription.endDate ? formatDate(userStore.subscription.endDate) : '—'
-            }}</span>
-          </div>
-          <div class="subscription-detail">
-            <span class="subscription-detail__label">Dias restantes</span>
-            <span
-              class="subscription-detail__value"
-              :class="{
-                'text-negative text-weight-bold': userStore.subscription.daysRemaining < 7,
-              }"
-            >
-              {{ userStore.subscription.daysRemaining }}
-            </span>
-          </div>
-        </div>
-      </div>
-      <div v-else class="info-card__content">
-        <span class="info-card__label">Mi Suscripcion</span>
-        <span class="info-card__value info-card__value--muted text-italic"
-          >Sin suscripcion activa</span
+      <div class="info-card__content">
+        <span class="info-card__label">Tu plan</span>
+        <TemploLoader v-if="userStore.subscriptionLoading" size="sm" />
+        <span
+          v-else
+          class="info-card__value"
+          :class="{ 'info-card__value--muted': !userStore.hasActiveSubscription }"
+          >{{
+            userStore.hasActiveSubscription && userStore.subscription
+              ? userStore.subscription.planName
+              : 'Sin plan activo'
+          }}</span
         >
+        <span class="plan-link__go">
+          Ver en Planes
+          <q-icon name="chevron_right" size="18px" aria-hidden="true" />
+        </span>
       </div>
-    </div>
+    </router-link>
 
     <!-- Ajustes -->
     <p class="section-title">Ajustes</p>
@@ -186,7 +161,6 @@ import { ref, onMounted, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from 'stores/useUserStore'
 import { useAuthStore } from 'stores/useAuthStore'
-import { formatDate } from 'src/utils/format-date'
 import { api } from 'src/boot/axios'
 import { createLogger } from 'src/utils/logger'
 import { extractError } from 'src/utils/extract-error'
@@ -373,13 +347,6 @@ onMounted(async () => {
     }
   }
 
-  &__row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 8px;
-  }
-
   &__label {
     font-size: 11px;
     font-weight: 600;
@@ -401,27 +368,26 @@ onMounted(async () => {
   }
 }
 
-.subscription-details {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+.info-card--link {
+  text-decoration: none;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease;
+
+  &:active {
+    box-shadow: 0 0 0 2px rgba($primary, 0.15);
+  }
 }
 
-.subscription-detail {
+.plan-link__go {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-
-  &__label {
-    font-size: 13px;
-    color: #6b6459; // 199-27: sólido sobre card blanca
-  }
-
-  &__value {
-    font-size: 14px;
-    font-weight: 500;
-    color: $accent;
-  }
+  justify-content: space-between;
+  margin-top: 8px;
+  min-height: 24px;
+  font-family: 'Geologica', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b6459; // sólido sobre card blanca
 }
 
 .settings-card {
