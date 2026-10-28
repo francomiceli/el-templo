@@ -404,18 +404,25 @@ async function onProgramChanged(): Promise<void> {
   await Promise.all([userStore.ensureMemberState({ force: true }), requestWeeks({ force: true })])
 }
 
-// Perfil tardío (boot optimista, D-08): sin perfil no se pide la semana (no hay zona ni nivel). Cuando
-// el perfil recién llega (`prevTz === null`) se espera la hidratación del nivel antes de pedir, para
-// que la clave ya lleve el nivel final: `retryProfileLoad` hace `setProfile` (cambia la zona) y luego
-// `hydrateSelection` (cambia el nivel), y sin esta espera saldrían dos pedidos. El disparo siguiente
-// por el cambio de nivel cae en la misma clave y comparte la promesa o se saltea. Cambios posteriores
-// reales de zona o nivel -> clave nueva -> un pedido. No es inmediato: el montaje pide por su cuenta.
+// Perfil tardío (boot optimista, D-08): sin perfil no se pide la semana (no hay zona ni nivel). Se
+// dispara por PRESENCIA de perfil, no por la zona: `branchTimezone` es opcional en `UserProfile` y un
+// perfil sin zona igual debe pedir la semana. Cuando el perfil recién llega (`!hadProfile`) se espera
+// la hidratación del nivel antes de pedir, para que la clave ya lleve el nivel final:
+// `retryProfileLoad` hace `setProfile` (cambia la zona) y luego `hydrateSelection` (cambia el nivel),
+// y sin esta espera saldrían dos pedidos. El disparo siguiente por el cambio de nivel cae en la misma
+// clave y comparte la promesa o se saltea. Cambios posteriores reales de zona o nivel -> clave nueva
+// -> un pedido. No es inmediato: el montaje pide por su cuenta.
 let disposed = false
 watch(
-  () => [userStore.profile?.branchTimezone ?? null, userStore.selectedLevel] as const,
-  async ([tz], [prevTz]) => {
-    if (tz === null) return
-    if (prevTz === null) await userStore.hydrateSelection()
+  () =>
+    [
+      userStore.profile !== null,
+      userStore.profile?.branchTimezone ?? null,
+      userStore.selectedLevel,
+    ] as const,
+  async ([hasProfile], [hadProfile]) => {
+    if (!hasProfile) return
+    if (!hadProfile) await userStore.hydrateSelection()
     if (disposed) return
     void requestWeeks()
   },
