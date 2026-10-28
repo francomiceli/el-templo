@@ -138,7 +138,8 @@ const props = withDefaults(
     monday: string
     canPrev: boolean
     canNext: boolean
-    hasProgress: boolean
+    /** null: todavía no se leyó el progreso local (203 C-10) */
+    hasProgress: boolean | null
     /** `users.gender`: elige la figura (D-07) */
     gender?: string | null
     interactive?: boolean

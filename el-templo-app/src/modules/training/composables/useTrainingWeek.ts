@@ -26,8 +26,11 @@ export interface UseTrainingWeekReturn {
   selectedDate: Ref<string | null>
   selectedDay: ComputedRef<WeekDay | undefined>
   completedDates: Ref<string[]>
-  /** Hay progreso guardado de la sesión del día elegido (para "Continuar") */
-  hasProgress: Ref<boolean>
+  /**
+   * Hay progreso guardado de la sesión del día elegido (para "Continuar"). `null` mientras no se
+   * leyó el progreso local: el botón de hoy reserva su lugar sin texto (203 C-10).
+   */
+  hasProgress: Ref<boolean | null>
   loading: Ref<boolean>
   error: Ref<string | null>
   canPrev: ComputedRef<boolean>
@@ -56,7 +59,7 @@ export function useTrainingWeek(): UseTrainingWeekReturn {
 
   const monday = ref(mondayOfDate(today.value))
   const selectedDate = ref<string | null>(null)
-  const hasProgress = ref(false)
+  const hasProgress = ref<boolean | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
 
@@ -93,6 +96,8 @@ export function useTrainingWeek(): UseTrainingWeekReturn {
       hasProgress.value = false
       return
     }
+    // Día elegido con sesión: hasta leer el progreso local, el botón reserva su lugar sin texto
+    hasProgress.value = null
     try {
       const progress = await sessionPlayerStore.loadProgress(dayId)
       if (request !== progressRequest) return
@@ -151,6 +156,8 @@ export function useTrainingWeek(): UseTrainingWeekReturn {
         if (request === latestRequest) {
           error.value = 'Error cargando semana'
           loading.value = false
+          // Nunca dejar el botón de hoy en pending si la carga falló antes de leer el progreso
+          hasProgress.value = false
         }
       })
     return queue

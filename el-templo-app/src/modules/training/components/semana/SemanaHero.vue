@@ -11,9 +11,7 @@
           <MarqueeText tag="p" class="semana-hero__kicker">{{
             dayKicker(day.date, today)
           }}</MarqueeText>
-          <MarqueeText tag="h1" :lines="2" class="semana-hero__title">{{
-            title
-          }}</MarqueeText>
+          <MarqueeText tag="h1" :lines="2" class="semana-hero__title">{{ title }}</MarqueeText>
           <span v-if="cta.showDoneChip" class="semana-hero__done">
             <q-icon name="check" size="16px" />
             Hecha
@@ -28,10 +26,18 @@
             'semana-hero__cta--unavailable': cta.variant === 'unavailable',
           }"
           :disabled="cta.variant === 'unavailable'"
+          :aria-busy="cta.pending"
           @click="onCta"
         >
-          <q-icon v-if="cta.startsTraining" name="play_arrow" size="20px" aria-hidden="true" />
-          <span>{{ cta.label }}</span>
+          <!-- pending (203 C-10): el botón reserva el lugar del ícono y del texto sin mostrarlos -->
+          <q-icon
+            v-if="cta.startsTraining || cta.pending"
+            name="play_arrow"
+            size="20px"
+            aria-hidden="true"
+            :style="cta.pending ? { visibility: 'hidden' } : undefined"
+          />
+          <span :style="cta.pending ? { visibility: 'hidden' } : undefined">{{ cta.label }}</span>
         </button>
       </div>
 
@@ -72,7 +78,8 @@ const props = defineProps<{
   day: WeekDay | undefined
   /** Hoy en la zona de la sede */
   today: string
-  hasProgress: boolean
+  /** null: todavía no se leyó el progreso local (el botón de hoy reserva su lugar, 203 C-10) */
+  hasProgress: boolean | null
 }>()
 
 const emit = defineEmits<{
@@ -103,7 +110,7 @@ const cta = computed(() =>
 
 function onCta(): void {
   const date = props.day?.date
-  if (!date) return
+  if (!date || cta.value.pending) return
   switch (cta.value.action) {
     case 'start':
       emit('start', date)
