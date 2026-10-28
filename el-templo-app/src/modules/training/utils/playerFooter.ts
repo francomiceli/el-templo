@@ -41,8 +41,6 @@ export interface PlayerFooterInput {
   isMobilitySlide: boolean
   exercise: FooterSource | null
   mobility: FooterSource | null
-  /** Hay video para el slide. Sin video la app ya muestra el nombre grande centrado: no se repite */
-  hasVideo: boolean
   /** "Bloque completo" / "Sesión completa" tapa el video: el pie no se muestra */
   blockDone: boolean
 }
@@ -51,8 +49,8 @@ export interface PlayerFooterInput {
 export const MOBILITY_LABEL = 'Descanso activo'
 
 /**
- * Tamaño según el largo del texto (Cinzel a 58 px mide ~40 px por carácter y la cantidad tiene
- * poco más de la mitad del ancho): "12″" entra grande, "10-12-10″" ya no.
+ * Tamaño según el largo del texto (los cortes se midieron con Cinzel, ~40 px por carácter a 58 px;
+ * Nunito Sans, la fuente actual, es más angosta y entra holgada): "12″" entra grande, "10-12-10″" ya no.
  */
 export function footerValueSize(value: string): FooterValueSize {
   const len = value.length
@@ -64,7 +62,8 @@ export function footerValueSize(value: string): FooterValueSize {
 
 /** Qué muestra el pie para el slide actual. `null` = no se muestra nada. */
 export function playerFooter(input: PlayerFooterInput): PlayerFooter | null {
-  if (input.blockDone || !input.hasVideo) return null
+  // Con o sin video: sin video el pie va sobre el fondo oscuro, con la misma visual (pedido de Franco)
+  if (input.blockDone) return null
 
   const isMobility = input.isMobilitySlide
   const source = isMobility ? input.mobility : input.exercise
@@ -83,13 +82,4 @@ export function playerFooter(input: PlayerFooterInput): PlayerFooter | null {
     value,
     valueSize: footerValueSize(value),
   }
-}
-
-/**
- * Indicaciones del profe para el slide actual (las que expandía la lista con "Indicaciones").
- * Vacío si no hay, o si es el marcador "PAUSA" (ya se ve como cantidad).
- */
-export function slideNotes(notes: string | null | undefined): string {
-  const text = (notes ?? '').trim()
-  return text === 'PAUSA' ? '' : text
 }

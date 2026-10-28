@@ -34,19 +34,10 @@
         class="story-card__video"
       />
 
-      <!-- Name Hero fallback when no video -->
-      <div v-else class="story-card__name-hero">
-        <div class="story-card__name-hero-text">
-          {{ activeName }}
-        </div>
-        <q-badge
-          :color="getBlockAccentColor(blockRole)"
-          class="story-card__name-hero-badge"
-          :label="activeContraction"
-        />
-      </div>
+      <!-- Sin video: fondo oscuro y el mismo pie que con video (nombre y cantidad) -->
+      <div v-else class="story-card__no-video" />
 
-      <!-- Pie con el ejercicio de ahora sobre un fade a negro (solo con video y sin cierre de bloque) -->
+      <!-- Pie con el ejercicio de ahora sobre un fade a negro (sin cierre de bloque) -->
       <StoryFooter v-if="footer" :footer="footer" />
 
       <!-- Tap zones — navigation only, hidden when block complete -->
@@ -61,7 +52,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { Prescription, Block, BlockRole } from '../../types/session'
-import { getBlockAccentColor } from '../../utils/blockColors'
 import { playerFooter } from '../../utils/playerFooter'
 import StoryFooter from './StoryFooter.vue'
 import VideoPlaceholder from './VideoPlaceholder.vue'
@@ -82,6 +72,11 @@ interface Props {
   isLastBlock?: boolean
   /** Dosis compacta del slide actual (ejercicio o movilidad), para la cantidad del pie */
   quickDose?: string
+  /**
+   * Muestra el cierre "Sesión completa / Hacé una elongación…" al tildar todo el último bloque. El
+   * DayPlayer lo apaga: ahí aparece directo el modal "¡Sesión completada!".
+   */
+  showFinalPrompt?: boolean
 }
 
 interface Emits {
@@ -96,16 +91,9 @@ const props = withDefaults(defineProps<Props>(), {
   mode: 'session',
   isLastBlock: true,
   quickDose: '',
+  showFinalPrompt: true,
 })
 const emit = defineEmits<Emits>()
-
-// Active data: exercise or mobility
-const activeName = computed(() => {
-  if (props.isMobilitySlide && props.mobilityExercise) {
-    return props.mobilityExercise.exerciseName
-  }
-  return props.exercise?.exerciseName ?? ''
-})
 
 const activeVideoUrl = computed(() => {
   if (props.isMobilitySlide && props.mobilityExercise) {
@@ -114,23 +102,16 @@ const activeVideoUrl = computed(() => {
   return props.exercise?.videoUrl ?? null
 })
 
-const activeContraction = computed(() => {
-  if (props.isMobilitySlide && props.mobilityExercise) {
-    return props.mobilityExercise.contraction
-  }
-  return props.exercise?.contraction ?? ''
-})
-
 const isFreeMode = computed(() => props.mode === 'free')
 
 // Fase 197 D-15: en modo libre el bloque único siempre es el último
 const isFinal = computed(() => isFreeMode.value || props.isLastBlock)
 
 const showBlockDone = computed(
-  () => props.allExercisesCompleted && !props.readOnly && isFinal.value,
+  () => props.allExercisesCompleted && !props.readOnly && isFinal.value && props.showFinalPrompt,
 )
 
-// Pie sobre el video: el ejercicio (o la movilidad) de ahora. Sin video o con el bloque completo, null
+// Pie sobre el video (o el fondo oscuro): el ejercicio (o la movilidad) de ahora. Con el bloque completo, null
 const footer = computed(() =>
   playerFooter({
     isMobilitySlide: props.isMobilitySlide,
@@ -148,7 +129,6 @@ const footer = computed(() =>
           quickDose: props.quickDose,
         }
       : null,
-    hasVideo: !!activeVideoUrl.value,
     blockDone: showBlockDone.value,
   }),
 )
@@ -194,32 +174,10 @@ const blockDoneButtonLabel = computed(() => {
   }
 }
 
-.story-card__name-hero {
+.story-card__no-video {
   position: absolute;
   inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
   background: linear-gradient(135deg, #1e1b18 0%, #2e2a26 50%, #3d3732 100%);
-  padding: 24px;
-  gap: 12px;
-}
-
-.story-card__name-hero-text {
-  font-family: 'Montserrat', sans-serif;
-  font-size: 28px;
-  font-weight: 600;
-  color: white;
-  text-align: center;
-  line-height: 1.3;
-}
-
-.story-card__name-hero-badge {
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: 0.5px;
-  padding: 4px 12px;
 }
 
 // Block-complete prompt (replaces video)

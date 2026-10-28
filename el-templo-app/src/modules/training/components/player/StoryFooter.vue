@@ -150,12 +150,13 @@ $tv-cream: #f2ebe1;
   text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
 }
 
-// Cantidad en Cinzel crema, como el contador de la TV. Los valores largos achican el cuerpo
+// Cantidad en crema con la fuente de la dosis de la plani de la TV (Nunito Sans 700, números de
+// ancho parejo). Los valores largos achican el cuerpo
 .story-footer__value {
   flex: 0 1 auto;
   max-width: 52%;
-  font-family: 'Cinzel', Georgia, serif;
-  font-weight: 800;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 700;
   line-height: 0.9;
   text-align: right;
   font-variant-numeric: tabular-nums;

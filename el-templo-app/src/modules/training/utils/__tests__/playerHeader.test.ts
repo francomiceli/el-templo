@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { Block } from '../../types/session'
 import {
+  playerBlockContent,
   playerFormatLine,
   playerFormatParts,
   playerHeaderLines,
@@ -196,5 +197,53 @@ describe('playerFormatParts', () => {
       const joined = parts.detail ? `${parts.name} · ${parts.detail}` : parts.name
       expect(joined).toBe(playerFormatLine(b, mode))
     }
+  })
+})
+
+describe('playerBlockContent', () => {
+  const ex = (exerciseId: number) => ({
+    exerciseId,
+    exerciseName: `Ejercicio ${exerciseId}`,
+    contraction: 'CON',
+    reps: 8,
+    repsMax: null,
+    seconds: null,
+    secondsMax: null,
+    increment: null,
+    rest: 0,
+    notes: null,
+    sortOrder: exerciseId,
+    videoUrl: null,
+  })
+  const movilidad = {
+    exerciseId: 99,
+    exerciseName: 'Movilidad de hombros',
+    contraction: 'ISO',
+    reps: null,
+    seconds: 40,
+    rest: 0,
+    notes: null,
+    videoUrl: null,
+  }
+
+  it('cuenta los ejercicios, en singular o plural', () => {
+    expect(playerBlockContent(block({ exercises: [ex(1)] }))).toBe('1 ejercicio')
+    expect(playerBlockContent(block({ exercises: [ex(1), ex(2), ex(3), ex(4)] }))).toBe(
+      '4 ejercicios',
+    )
+  })
+
+  it('suma la flexibilidad cuando el bloque trae movilidad', () => {
+    expect(
+      playerBlockContent(block({ exercises: [ex(1), ex(2)], mobilityExercise: movilidad })),
+    ).toBe('2 ejercicios + 1 de flexibilidad')
+  })
+
+  it('el INITIUM no muestra la movilidad (como la barra de segmentos)', () => {
+    expect(
+      playerBlockContent(
+        block({ role: 'INITIUM', exercises: [ex(1), ex(2)], mobilityExercise: movilidad }),
+      ),
+    ).toBe('2 ejercicios')
   })
 })

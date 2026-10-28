@@ -3,7 +3,6 @@ import {
   MOBILITY_LABEL,
   footerValueSize,
   playerFooter,
-  slideNotes,
   type PlayerFooterInput,
 } from '../playerFooter'
 import { SECONDS_MARK } from '../exerciseCard'
@@ -12,7 +11,6 @@ const base: PlayerFooterInput = {
   isMobilitySlide: false,
   exercise: { name: 'Dominada estricta', contraction: 'CON', quickDose: '8 REPS' },
   mobility: { name: 'Movilidad de hombros', contraction: null, quickDose: '40 SEG' },
-  hasVideo: true,
   blockDone: false,
 }
 
@@ -71,10 +69,6 @@ describe('playerFooter', () => {
     expect(playerFooter(base)?.name).toBe('Dominada estricta')
   })
 
-  it('sin video no se muestra (el nombre grande centrado ya está)', () => {
-    expect(playerFooter({ ...base, hasVideo: false })).toBeNull()
-  })
-
   it('con el bloque completo no se muestra', () => {
     expect(playerFooter({ ...base, blockDone: true })).toBeNull()
   })
@@ -120,22 +114,5 @@ describe('footerValueSize', () => {
     expect(footerValueSize('PAUSA')).toBe('lg')
     expect(footerValueSize('10-12-10')).toBe('md')
     expect(footerValueSize('2-4...10...4-2″')).toBe('sm')
-  })
-})
-
-describe('slideNotes', () => {
-  it('devuelve las indicaciones sin espacios sobrantes', () => {
-    expect(slideNotes('  Agarre supino  ')).toBe('Agarre supino')
-  })
-
-  it('vacío, null y undefined = sin indicaciones', () => {
-    expect(slideNotes('')).toBe('')
-    expect(slideNotes('   ')).toBe('')
-    expect(slideNotes(null)).toBe('')
-    expect(slideNotes(undefined)).toBe('')
-  })
-
-  it('el marcador PAUSA no es una indicación', () => {
-    expect(slideNotes('PAUSA')).toBe('')
   })
 })

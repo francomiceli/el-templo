@@ -62,6 +62,17 @@ export function zonaInputDe(ex: {
   return { route: ex.exerciseRoute, category: ex.category };
 }
 
+/**
+ * Slug de la ruta del ejercicio en el modelo (la figura del player la busca en
+ * la vista de anatomía del alumno). `null` si el ejercicio no tiene ruta o la
+ * ruta no está modelada: ahí el player no dibuja el cuerpo.
+ */
+export function rutaSlugDe(ex: {
+  exerciseRoute?: string | null;
+}): string | null {
+  return RUTAS_POR_CODIGO.get(normalizarCodigo(ex.exerciseRoute))?.slug ?? null;
+}
+
 /** `trim().toUpperCase()` + colapso de espacios internos. `""` si es null/undefined. */
 export function normalizarCodigo(valor: string | null | undefined): string {
   if (!valor) return "";

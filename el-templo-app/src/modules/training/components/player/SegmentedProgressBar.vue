@@ -7,6 +7,7 @@
       :class="{
         'story-progress__segment--active': index - 1 === activeIndex,
         'story-progress__segment--done': index - 1 < activeIndex,
+        'story-progress__segment--completed': completedIndices.includes(index - 1),
       }"
     />
   </div>
@@ -24,13 +25,19 @@ interface Props {
    * tercer estado ("visto") con la paleta de marca para las historias.
    */
   theme?: 'video' | 'story-dark' | 'story-light'
+  /**
+   * Segmentos (base 0) de ejercicios ya completados: en el tema `'video'` van en verde, así se ve
+   * qué está hecho mientras se hace otro.
+   */
+  completedIndices?: readonly number[]
 }
 
-withDefaults(defineProps<Props>(), { theme: 'video' })
+withDefaults(defineProps<Props>(), { theme: 'video', completedIndices: () => [] })
 </script>
 
 <style scoped lang="scss">
 @import 'src/css/quasar.variables.scss';
+@import 'src/css/premium-card';
 
 .story-progress {
   display: flex;
@@ -46,13 +53,22 @@ withDefaults(defineProps<Props>(), { theme: 'video' })
   transition: background-color 0.3s ease;
 }
 
-// Tema 'video' (default) — SIN CAMBIOS respecto al original.
+// Tema 'video' (default): activo dorado con glow, resto blanco translúcido y los completados en
+// verde (también el activo si ya está completado, con su glow).
 .story-progress--video .story-progress__segment {
   background: rgba(255, 255, 255, 0.75);
 
   &.story-progress__segment--active {
     background: #e8c84a;
     box-shadow: 0 0 6px rgba(232, 200, 74, 0.7);
+  }
+
+  &.story-progress__segment--completed {
+    background: $pd-sage-on-dark;
+  }
+
+  &.story-progress__segment--active.story-progress__segment--completed {
+    box-shadow: 0 0 6px rgba($pd-sage-on-dark, 0.7);
   }
 }
 

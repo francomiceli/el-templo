@@ -101,8 +101,11 @@ function openGuia(): void {
 <style scoped lang="scss">
 @import 'src/css/premium-card';
 
+// flex: none: dentro de la columna con scroll del resumen, una card con overflow: hidden se podía
+// achicar por debajo de su contenido y quedaba cortada (min-height: auto vale 0 con overflow hidden)
 .sbc {
   @include pd-surface-light;
+  flex: none;
   overflow: hidden;
 }
 
