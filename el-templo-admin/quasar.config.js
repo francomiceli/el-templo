@@ -1,7 +1,12 @@
 // Configuration for El Templo Admin app
 // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file
 
+import { existsSync, realpathSync } from 'node:fs';
 import { defineConfig } from '#q-app/wrappers';
+
+// En un worktree, node_modules suele ser un symlink a otro checkout: sin esto Vite responde 403
+// a todo lo que vive afuera del proyecto (p. ej. la fuente de los íconos) y se ven sus nombres.
+const nodeModulesReal = existsSync('node_modules') ? [realpathSync('node_modules')] : [];
 
 export default defineConfig((/* ctx */) => {
   return {
@@ -45,6 +50,7 @@ export default defineConfig((/* ctx */) => {
       // Admin app runs on port 9100 (member app uses 9000)
       port: 9100,
       open: true,
+      fs: { allow: ['.', ...nodeModulesReal] },
     },
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#framework
