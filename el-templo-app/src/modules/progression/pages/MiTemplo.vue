@@ -432,15 +432,14 @@ const todayCard = computed(() => {
     weekLoading: !weekLoaded.value,
     programLoading: !userStore.memberStateLoaded,
     trialLoading: !userStore.trialEligibilityLoaded,
-    // TODO(203-12): reemplazar por !progressionStore.statsLoaded
-    statsLoading: progressionStore.stats === null && progressionStore.error === null,
+    statsLoading: !progressionStore.statsLoaded,
     // Sin suscripción 204/vencida y plan-status caído no se sabe si venció ni si hay un plan programado.
     planFailed:
       userStore.planStatus === null && (userStore.subscriptionFailed || userStore.planStatusFailed),
     bookingsFailed: todayBookingStore.loadFailed,
     programFailed: userStore.programFailed,
-    // TODO(203-12): reemplazar por progressionStore.statsFailed
-    statsFailed: progressionStore.stats === null && progressionStore.error !== null,
+    // Stats falló y no hay previas: "no sé", nunca "no completada" (D-07).
+    statsFailed: progressionStore.statsFailed,
     deadlinePassed: deadline.passed.value,
   })
 })

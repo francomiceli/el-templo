@@ -30,10 +30,14 @@ export function useProgressionApi() {
     try {
       const response = await api.get<ProgressionResponse>('/progression/stats')
       progressionStore.setProgressionData(response.data)
+      progressionStore.markStatsSettled(true)
     } catch (err: unknown) {
       const errorMessage = extractError(err, 'Error cargando progresión')
       error.value = errorMessage
       progressionStore.setError(errorMessage)
+      // Fase 203: fail-open. Respondió (mal): la card sale del esqueleto. NO se borran las stats
+      // previas (un refresco fallido conserva el dato bueno) y el toast de D-16 se mantiene.
+      progressionStore.markStatsSettled(false)
 
       Notify.create({
         type: 'negative',

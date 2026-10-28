@@ -303,6 +303,8 @@ watch(
       todayBookingStore.reset()
       // Flags "tuvo contenido" (D-02): los del socio anterior no se arrastran al siguiente.
       cardFlags.reset()
+      // Stats/check-ins (fase 203): `statsLoaded` y los datos del socio anterior no se arrastran.
+      progressionStore.reset()
     }
   },
   { immediate: true },
