@@ -14,12 +14,18 @@
           focusable="false"
         >
           <defs>
-            <linearGradient :id="gradientIdFor(view.key)" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0" :stop-color="LIT_A" />
-              <stop offset="1" :stop-color="LIT_B" />
-            </linearGradient>
+            <radialGradient :id="gradientIdFor(view.key)" v-bind="RELIEVE">
+              <stop offset="0" :stop-color="LIT[0]" :stop-opacity="LIT_OP[0]" />
+              <stop offset="0.5" :stop-color="LIT[1]" :stop-opacity="LIT_OP[1]" />
+              <stop offset="1" :stop-color="LIT[2]" :stop-opacity="LIT_OP[2]" />
+            </radialGradient>
+            <radialGradient :id="muscleIdFor(view.key)" v-bind="RELIEVE">
+              <stop offset="0" :stop-color="MUSCLE[0]" :stop-opacity="MUSCLE_OP[0]" />
+              <stop offset="0.55" :stop-color="MUSCLE[1]" :stop-opacity="MUSCLE_OP[1]" />
+              <stop offset="1" :stop-color="MUSCLE[2]" :stop-opacity="MUSCLE_OP[2]" />
+            </radialGradient>
           </defs>
-          <g>
+          <g :style="{ '--mu-base': `url(#${muscleIdFor(view.key)})` }">
             <path class="body-figure__outline" :d="view.outline" />
             <g
               v-for="group in view.groups"
@@ -44,7 +50,7 @@
 /**
  * Figura anatómica compartida (fase 197 D-01, D-03, D-04, D-07): frente y espalda.
  *
- * Intensidades: `lit` = bloque elegido (degradé terracota, o salvia si `tone="sage"`),
+ * Intensidades: `lit` = bloque elegido (oro con relieve, o salvia si `tone="sage"`),
  * `lit2` = zonas de los otros bloques, resto = músculo sin trabajar. Con `interactive` los
  * músculos son tocables y emiten su GRUPO (D-10); `dim` atenúa lo que no está encendido.
  * Las partes no musculares (pelo, cabeza, cuello, manos, pies...) se pintan como piel y no se tocan.
@@ -104,15 +110,26 @@ const emit = defineEmits<{
 
 const log = createLogger('BodyFigure')
 
-// Mismos valores que $fig-lit-a / $fig-lit-b de _brand.scss: el SVG necesita el color como atributo.
-const LIT_A = '#c47a52'
-const LIT_B = '#8a4e30'
+// Mismos valores que $fig-lit-a/b/c y $fig-muscle-a/-/c de _brand.scss: el SVG necesita el color
+// como atributo. Variante A2 (2026-10-27): cada músculo es una "almohada" con luz de arriba a la
+// izquierda, como el recorrido de la TV.
+const LIT = ['#aa9482', '#8d7158', '#574637'] as const
+const MUSCLE = ['#fdfbf7', '#ece5d9', '#e6ddd0'] as const
+// Todo se funde en la piel (2026-10-27, cuerpos comunes): el músculo sin trabajar con el borde
+// transparente y el encendido con el borde al 35 %, los dos sin línea.
+const MUSCLE_OP = [1, 0.85, 0] as const
+const LIT_OP = [1, 1, 0.35] as const
+const RELIEVE = { cx: '.42', cy: '.36', r: '.74', fx: '.34', fy: '.26' } as const
 
-// Un degradé por vista (ids únicos en el documento); useId puede traer caracteres que rompen url(#...).
-const gradientBase = `body-figure-lit-${useId().replace(/[^\w-]/g, '')}`
+// Degradés por vista (ids únicos en el documento); useId puede traer caracteres que rompen url(#...).
+const gradientBase = `body-figure-${useId().replace(/[^\w-]/g, '')}`
 
 function gradientIdFor(key: ViewKey): string {
-  return `${gradientBase}-${key}`
+  return `${gradientBase}-lit-${key}`
+}
+
+function muscleIdFor(key: ViewKey): string {
+  return `${gradientBase}-mu-${key}`
 }
 
 const anatomy = ref<Anatomia | null>(null)
@@ -176,7 +193,7 @@ function muClass(slug: string, key: ViewKey): Record<string, boolean> {
   }
 }
 
-// El degradé terracota va inline (gana a las reglas del <style>); en salvia el elegido es sólido por CSS.
+// El degradé oro va inline (gana a las reglas del <style>); en salvia el elegido es sólido por CSS.
 function muStyle(slug: string, key: ViewKey): Record<string, string> | undefined {
   if (props.tone !== 'terra' || NON_MUSCLE_SLUGS.has(slug)) return undefined
   const role = roleOf(slug, key)
@@ -306,23 +323,26 @@ watch(
   stroke-width: 1.2;
 }
 
-// Músculo sin trabajar (estado base)
+// Músculo sin trabajar (estado base): relieve que se funde en la piel (inline --mu-base), sin
+// línea. Los demás estados ponen su propio borde.
 .mu path {
-  fill: $fig-muscle;
-  stroke: $fig-muscle-edge;
-  stroke-width: 0.6;
+  fill: var(--mu-base, $fig-muscle);
+  stroke: none;
+  stroke-width: 0.8;
 }
 
-// Partes no musculares: piel, sin borde
+// Partes no musculares: piel, con el borde del contorno (sin él la cabeza se perdía en el fondo)
 .mu--x path {
   fill: $fig-skin;
-  stroke: none;
+  stroke: $fig-skin-edge;
+  stroke-width: 0.8;
 }
 
-// Bloque elegido: degradé terracota (inline --mu-fill) o salvia sólido
+// Bloque elegido: oro con relieve que se funde en el borde (inline --mu-fill) o salvia sólido
 .mu--lit path {
   fill: var(--mu-fill, $fig-lit-b);
-  stroke: $fig-lit-edge;
+  stroke: none;
+  stroke-width: 1.1;
 }
 
 .mu--lit2 path {
@@ -354,7 +374,7 @@ watch(
 // Fase 200: figura pintada por grupo de alumno (sketch 020 `.r-M` / `.r-Est` / `.r-Al`)
 .mu--r-fuerte path {
   fill: var(--mu-fill, $fig-lit-b);
-  stroke: $fig-lit-edge;
+  stroke: none;
 }
 
 .mu--r-sostiene path {

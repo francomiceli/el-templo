@@ -382,7 +382,7 @@ function alternar(grupo: GrupoAlumno): void {
 }
 
 .zona-alumno__gr--fuerte .zona-alumno__swatch {
-  background: linear-gradient(135deg, $fig-lit-a, $fig-lit-b);
+  @include fig-lit-swatch;
 }
 
 .zona-alumno__gr--sostiene .zona-alumno__swatch {

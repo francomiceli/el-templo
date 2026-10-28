@@ -2,7 +2,7 @@
  * "El recorrido de hoy": la pantalla de inicio (FLEXIBILIDAD - INICIO, `screen === 'idle'`
  * con `recorrido` en el poll) cuando hay plani aprobada (2026-10-13: antes era una intro
  * que el profe disparaba durante PYROS). La TV presenta los bloques de la clase sobre
- * dos cuerpos de mármol (H/M) con las zonas de cada bloque en su color.
+ * dos cuerpos (H/M, el mismo cuerpo de la figura del app); en cada bloque se encienden sus zonas.
  *
  * Diseño: sketch 004, variante D (escultura + puntos con rótulo + fundido frente/espalda).
  * Coreografía "bloque a bloque" (UAT 2026-10-05/13): todos los bloques se ven siempre y
@@ -22,7 +22,7 @@ import type { TvRecorridoBloque, TvRecorridoPayload } from '../poll';
 import { cargarAnatomia } from './anatomia';
 import type { Anatomia, FiguraKey } from './anatomia';
 import {
-  coloresDeBloques,
+  COLOR_RECORRIDO,
   contornoDe,
   Defs,
   FIGURAS,
@@ -132,9 +132,8 @@ function capaSvg(clase: string, markup: string, bloque?: number): SVGSVGElement 
 // Construcción
 // =============================================================================
 
-/** Una zona trabajada por varios bloques muestra el color del PRIMERO (el que la
- *  abre en la clase): las capas se apilan al revés del orden de los bloques. El
- *  bloque en foco sube por encima de todas (`Z_FOCO`). */
+/** Las capas se apilan al revés del orden de los bloques y el bloque en foco sube por
+ *  encima de todas (`Z_FOCO`). */
 const Z_FOCO = 60;
 function zBloque(i: number, total: number): number {
   return total - i + 1;
@@ -211,12 +210,10 @@ function construirTexto(bloques: TvRecorridoBloque[]): {
   panelBloques.appendChild(pista);
   carril.append(panelRutas, panelBloques);
   ventana.appendChild(carril);
-  const colores = coloresDeBloques(bloques);
+  const color = COLOR_RECORRIDO;
+  const tinta = mezclar(color, '#000000', 0.18);
   const nombreRuta = (x: TvRecorridoBloque): string => x.subtitle ?? x.title;
   bloques.forEach((b, i) => {
-    const color = colores[i] as string;
-    const tinta = mezclar(color, '#000000', 0.18);
-
     // Panel de rutas: solo el nombre de la ruta (sin ruta, el del bloque). DEUTEROS I
     // y II van en UNA fila: "ruta I / ruta II".
     const previo = bloques[i - 1];
@@ -229,11 +226,9 @@ function construirTexto(bloques: TvRecorridoBloque[]): {
         'recRutaSola',
         unido ? `${nombreRuta(b)} / ${nombreRuta(unido)}` : nombreRuta(b)
       );
-      rutaSola.style.color = tinta;
-      // En las rutas del día queda la barra de color (UAT 2026-10-13).
-      const barraRuta = div('recBarra');
-      barraRuta.style.background = color;
-      fila.append(barraRuta, rutaSola);
+      // 2026-10-27: sin barra de color (todos los bloques tienen el mismo) y con el color del
+      // título "La sesión de hoy" (CSS).
+      fila.appendChild(rutaSola);
       panelRutas.appendChild(fila);
     }
 
@@ -307,18 +302,13 @@ function construirFigura(
 ): HTMLElement {
   const el = div('recFig');
   const marco = div('recMarcoFig');
-  const colores = coloresDeBloques(bloques);
   for (const v of ['frente', 'espalda'] as Vista[]) {
     const key = v === 'frente' ? fig.frente : fig.espalda;
     const vistaEl = div('recVista recVista--' + v);
     vistaEl.setAttribute('data-key', key);
     vistaEl.appendChild(capaSvg('recCapa recBase', svgBase(defs, an, key, contornoDe(an, fig, v))));
     bloques.forEach((b, i) => {
-      const capa = capaSvg(
-        'recCapa recOv',
-        svgBloque(defs, an, key, b.zonas, colores[i] as string),
-        i
-      );
+      const capa = capaSvg('recCapa recOv', svgBloque(defs, an, key, b.zonas), i);
       capa.style.zIndex = String(zBloque(i, bloques.length));
       vistaEl.appendChild(capa);
     });
@@ -333,7 +323,6 @@ function construirFigura(
  * fundido no "salta"; pies apoyados en la base), tamaño en rem y capas de rótulos.
  */
 function medirYRotular(m: Montaje, an: Anatomia): void {
-  const colores = coloresDeBloques(m.bloques);
   const puntos: PuntosPorVista = { frente: [], espalda: [] };
   const pendientes: Array<() => void> = [];
   FIGURAS.forEach((fig, fi) => {
@@ -384,7 +373,7 @@ function medirYRotular(m: Montaje, an: Anatomia): void {
     }
   });
   for (const medir of pendientes) medir();
-  construirLeyendaZonas(m, puntos, colores);
+  construirLeyendaZonas(m, puntos);
 }
 
 /** Puntos de cada bloque por vista y por figura, en px de `.recCuerpos`. */
@@ -404,7 +393,7 @@ const ZONA_FILA_REM = 3.6;
  * cuerpo. Las capas viven en dos envoltorios (frente/espalda) que se funden con el giro
  * (`.recCuerpos.back`) y se encienden con el foco (`.recCall.on`).
  */
-function construirLeyendaZonas(m: Montaje, puntos: PuntosPorVista, colores: string[]): void {
+function construirLeyendaZonas(m: Montaje, puntos: PuntosPorVista): void {
   const remPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
   const fontPx = ZONA_FONT_REM * remPx;
   const filaPx = ZONA_FILA_REM * remPx;
@@ -430,7 +419,7 @@ function construirLeyendaZonas(m: Montaje, puntos: PuntosPorVista, colores: stri
       svg.setAttribute('data-b', String(i));
       svg.setAttribute('viewBox', `0 0 ${ancho} ${alto}`);
       envoltorio.appendChild(svg);
-      const tinta = mezclar(colores[i] as string, '#000000', 0.3);
+      const tinta = mezclar(COLOR_RECORRIDO, '#000000', 0.3);
       // Una fila por zona, en el orden de la zona en el cuerpo (de arriba a abajo).
       const filas = b.zonas
         .map((zona) => {
@@ -527,8 +516,8 @@ function todos(m: Montaje, selector: string): Element[] {
   return Array.prototype.slice.call(m.host.querySelectorAll(selector)) as Element[];
 }
 
-/** Enciende todos los bloques (zonas e ítems de la leyenda): se ven SIEMPRE, el foco
- *  solo atenúa a los que no se están explicando (UAT 2026-10-13). */
+/** Enciende todos los bloques (zonas e ítems de la leyenda). Con un bloque en foco, las
+ *  zonas de los demás se apagan (`.recOv.on.dim`, 2026-10-27) y sus ítems se atenúan. */
 function encenderTodo(m: Montaje): void {
   for (const el of todos(m, '.recOv, .recItem')) el.classList.add('on');
 }

@@ -1,8 +1,13 @@
 // Configuration for your app
 // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file
 
+import { existsSync, realpathSync } from 'node:fs'
 import { defineConfig } from '#q-app/wrappers'
 import { sentryVitePlugin } from '@sentry/vite-plugin'
+
+// En un worktree, node_modules suele ser un symlink a otro checkout: sin esto Vite responde 403
+// a todo lo que vive afuera del proyecto (p. ej. la fuente de los íconos) y se ven sus nombres.
+const nodeModulesReal = existsSync('node_modules') ? [realpathSync('node_modules')] : []
 
 export default defineConfig((/* ctx */) => {
   return {
@@ -102,6 +107,7 @@ export default defineConfig((/* ctx */) => {
     devServer: {
       // https: true,
       open: true, // opens browser window automatically
+      fs: { allow: ['.', ...nodeModulesReal] },
     },
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#framework

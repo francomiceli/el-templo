@@ -8,7 +8,10 @@
           {{ musculosResumidos(ruta.fuerte, MAX_FUERTE) }}
           <small>Hace el movimiento</small>
         </p>
-        <p v-if="ruta.sostiene.length > 0" class="player-cuerpo__line player-cuerpo__line--sostiene">
+        <p
+          v-if="ruta.sostiene.length > 0"
+          class="player-cuerpo__line player-cuerpo__line--sostiene"
+        >
           {{ musculosResumidos(ruta.sostiene, MAX_SOSTIENE) }}
           <small>Sostiene el movimiento</small>
         </p>
@@ -110,7 +113,7 @@ const roles = computed(() => rolesDeRuta(ruta.value))
 }
 
 .player-cuerpo__line--fuerte::before {
-  background: linear-gradient(135deg, $fig-lit-a, $fig-lit-b);
+  @include fig-lit-swatch;
 }
 
 .player-cuerpo__line--sostiene::before {

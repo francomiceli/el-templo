@@ -17,9 +17,17 @@ $anat-r-sinergista: #c27c54;
 $anat-r-estabilizador: #e3b892;
 $anat-r-estira: #f4ead9;
 $anat-base: #e9e0d4;
-$anat-skip: #f1ebe2;
-$anat-ol: #d4c7b6;
-$anat-ol-fill: #fbf8f3;
+$anat-r-edge: #b9ae9d; // borde de los músculos pintados por rol
+
+// Cuerpo de la figura (2026-10-27, variante A2): MISMOS valores que $fig-* de
+// el-templo-app/src/css/_brand.scss (lo verifica el API en test/anatomy/sync-front.test.ts).
+// AnatomyFigure.vue replica $fig-muscle-a/-/c en TS para el degradé del SVG.
+// El músculo sin rol se funde en la piel: sin línea y con el borde transparente (`MUSCLE_OP`).
+$fig-muscle-a: #fdfbf7; // músculo sin rol: luz
+$fig-muscle: #ece5d9; // músculo sin rol: medio (y color sólido de respaldo)
+$fig-muscle-c: #e6ddd0; // músculo sin rol: borde (transparente)
+$fig-skin: #f3eee6; // piel / contorno / partes no musculares
+$fig-skin-edge: #b1a38e;
 
 @mixin anat-chip {
   display: inline-flex;

@@ -15,7 +15,14 @@
           aria-hidden="true"
           focusable="false"
         >
-          <g>
+          <defs>
+            <radialGradient :id="muscleIdFor(v.key)" v-bind="RELIEVE">
+              <stop offset="0" :stop-color="MUSCLE[0]" :stop-opacity="MUSCLE_OP[0]" />
+              <stop offset="0.55" :stop-color="MUSCLE[1]" :stop-opacity="MUSCLE_OP[1]" />
+              <stop offset="1" :stop-color="MUSCLE[2]" :stop-opacity="MUSCLE_OP[2]" />
+            </radialGradient>
+          </defs>
+          <g :style="{ '--mu-base': `url(#${muscleIdFor(v.key)})` }">
             <path class="anat-figure__outline" :d="v.contorno" />
             <g
               v-for="grupo in v.grupos"
@@ -47,7 +54,7 @@
  * tocó. La geometría se carga con `cargarAnatomia()` (import dinámico, chunk propio). Las partes
  * no musculares (pelo, cabeza, cuello, manos, pies, tobillos, rodillas) no se tocan.
  */
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, useId, watch } from 'vue';
 import { createLogger } from 'src/utils/logger';
 import { cargarAnatomia } from 'src/tv/recorrido/anatomia';
 import type { Anatomia, GrupoAnatomico } from 'src/tv/recorrido/anatomia';
@@ -77,10 +84,23 @@ const emit = defineEmits<{ 'select-zone': [slug: string, view: 'front' | 'back']
 
 const log = createLogger('AnatomyFigure');
 
-// Partes no musculares: color de piel, no tocables (mismo set que SKIP del sketch 019).
+// Mismos valores que $fig-muscle-a/-/c de _anatomia.scss (cuerpo de la Guía del app, variante A2):
+// el SVG necesita el color como atributo. Cada músculo es una "almohada" con luz arriba a la izquierda.
+const MUSCLE = ['#fdfbf7', '#ece5d9', '#e6ddd0'] as const;
+// El músculo sin rol se funde en la piel: borde transparente (2026-10-27, cuerpos comunes).
+const MUSCLE_OP = [1, 0.85, 0] as const;
+const RELIEVE = { cx: '.42', cy: '.36', r: '.74', fx: '.34', fy: '.26' } as const;
+
+// Un degradé por vista (ids únicos en el documento); useId puede traer caracteres que rompen url(#...).
+const gradientBase = `anat-figure-${useId().replace(/[^\w-]/g, '')}`;
+
+function muscleIdFor(key: VistaKey): string {
+  return `${gradientBase}-mu-${key}`;
+}
+
+// Partes no musculares: color de piel, no tocables (mismo set que SKIP del sketch 019). Pelo y
+// cabeza se dibujan, como en la figura del app (2026-10-27: mismo cuerpo en todas las pantallas).
 const NO_MUSCULARES = new Set(['hair', 'head', 'neck', 'hands', 'feet', 'ankles', 'knees']);
-// Pelo y cabeza no se dibujan (el sketch también los filtra).
-const NO_SE_DIBUJAN = new Set(['hair', 'head']);
 
 const anatomia = ref<Anatomia | null>(null);
 const viewBoxes = ref<Record<VistaKey, string | undefined>>({ front: undefined, back: undefined });
@@ -96,10 +116,9 @@ interface VistaFigura {
 const figura = computed<{ front: VistaFigura; back: VistaFigura } | null>(() => {
   const a = anatomia.value;
   if (!a) return null;
-  const visibles = (g: GrupoAnatomico[]) => g.filter((x) => !NO_SE_DIBUJAN.has(x.slug));
   return {
-    front: { key: 'front', titulo: 'Frente', contorno: a.mOutline[0], grupos: visibles(a.mFront) },
-    back: { key: 'back', titulo: 'Espalda', contorno: a.mOutline[1], grupos: visibles(a.mBack) },
+    front: { key: 'front', titulo: 'Frente', contorno: a.mOutline[0], grupos: a.mFront },
+    back: { key: 'back', titulo: 'Espalda', contorno: a.mOutline[1], grupos: a.mBack },
   };
 });
 
@@ -230,34 +249,40 @@ watch(
   color: $anat-ink-2;
 }
 
+// Mismo cuerpo que la figura de la Guía del app (BodyFigure.vue)
 .anat-figure__outline {
-  fill: $anat-ol-fill;
-  stroke: $anat-ol;
-  stroke-width: 2;
-}
-
-// Músculo sin rol: color base
-.mu path {
-  fill: $anat-base;
-  stroke: #fff;
+  fill: $fig-skin;
+  stroke: $fig-skin-edge;
   stroke-width: 1.2;
 }
 
-// Partes no musculares: piel
+// Músculo sin rol: relieve de mármol (inline --mu-base), sólido de respaldo
+.mu path {
+  fill: var(--mu-base, $fig-muscle);
+  stroke: none;
+  stroke-width: 0.8;
+}
+
+// Partes no musculares: piel, con el borde del contorno (como en el app)
 .mu--x path {
-  fill: $anat-skip;
+  fill: $fig-skin;
+  stroke: $fig-skin-edge;
+  stroke-width: 0.8;
 }
 
 .mu--motor path {
   fill: $anat-r-motor;
+  stroke: $anat-r-edge;
 }
 
 .mu--sinergista path {
   fill: $anat-r-sinergista;
+  stroke: $anat-r-edge;
 }
 
 .mu--estabilizador path {
   fill: $anat-r-estabilizador;
+  stroke: $anat-r-edge;
 }
 
 // Se estira y antagonista: relleno claro con borde punteado terracota
