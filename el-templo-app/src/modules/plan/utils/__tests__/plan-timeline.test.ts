@@ -214,6 +214,17 @@ describe('buildPlanTimeline · pase especial', () => {
   })
 })
 
+describe('buildPlanTimeline · plan regular con tope mensual de clases', () => {
+  it('no muestra el saldo ("Te quedan 30 de 30 clases"): clases por semana y barra por días', () => {
+    const regular = item({ classesPerWeek: 6, classesRemaining: 30, classesBudget: 30 })
+    const c = current(buildPlanTimeline(summary({ current: regular }), TODAY))
+    expect(c.meta).toBe('6 clases por semana')
+    expect(c.progress).toBe(
+      current(buildPlanTimeline(summary({ current: item({ classesPerWeek: 6 }) }), TODAY)).progress,
+    )
+  })
+})
+
 describe('buildPlanTimeline · próxima', () => {
   it('misma plan: "Después sigue", "Nuevo" si isNew', () => {
     const m = buildPlanTimeline(

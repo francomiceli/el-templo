@@ -87,8 +87,17 @@ function daysLeftText(daysLeft: number): string {
   return daysLeft === 1 ? 'queda 1 día' : `quedan ${daysLeft} días`
 }
 
+/**
+ * Saldo de clases solo para pases especiales. Los planes regulares también pueden traer un tope
+ * mensual (`classesBudget`, ej. Flex+ 30), pero "Te quedan 30 de 30 clases" no le dice nada al
+ * socio: ahí va "N clases por semana" y la barra mide días (Franco, 2026-10-28).
+ */
+function hasClassBalance(item: PlanSummaryItem): boolean {
+  return isSpecial(item) && item.classesBudget !== null && item.classesRemaining !== null
+}
+
 function currentMeta(item: PlanSummaryItem): string | null {
-  if (item.classesBudget !== null && item.classesRemaining !== null) {
+  if (hasClassBalance(item) && item.classesBudget !== null && item.classesRemaining !== null) {
     return `Te quedan ${item.classesRemaining} de ${item.classesBudget} clases`
   }
   if (item.classesPerWeek !== null) {
@@ -105,7 +114,12 @@ function clampPercent(value: number): number {
 
 function currentProgress(item: PlanSummaryItem, daysLeft: number | null): number | null {
   // Pase con tope de clases: lo que queda del saldo.
-  if (item.classesBudget !== null && item.classesRemaining !== null && item.classesBudget > 0) {
+  if (
+    hasClassBalance(item) &&
+    item.classesBudget !== null &&
+    item.classesRemaining !== null &&
+    item.classesBudget > 0
+  ) {
     return clampPercent((100 * item.classesRemaining) / item.classesBudget)
   }
   if (item.endDate === null || daysLeft === null) return null
