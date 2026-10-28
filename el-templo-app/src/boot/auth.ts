@@ -188,20 +188,24 @@ export async function runAuthBoot(): Promise<void> {
       role: response.data.role,
     })
     userStore.setProfile(response.data)
-    // Phase 99: load persisted level selection for this user before boot
-    // resolves — Quasar awaits this function, so the first MainLayout render
-    // and the first session fetch see the hydrated selectedLevel.
-    await userStore.hydrateSelection()
-    // Fase 203 (D-02): flags "tuvo contenido" del socio (lectura local de Preferences, igual que
-    // la selección de nivel): el primer frame ya sabe qué cards reservan lugar.
-    await useCardHadContentStore().hydrate(response.data.id)
     // Hydrate the member state at boot so anything that depends on
     // hasActiveSubscription (e.g. the check-in QR FAB on /mi-templo) works
     // on first render, without requiring a visit to /reservas first.
     // Fase 203 (D-06/D-15): suscripción, plan-status, trial-eligibility, my-progress,
     // current-program y enrollments salen todos en paralelo, con promesa compartida:
     // las pantallas que llaman a ensureMemberState() un instante después no repiten pedidos.
+    // Se dispara ANTES de las lecturas locales (cierre 203): solo necesita el perfil (ya está con
+    // `setProfile`) y la red no tiene por qué esperar dos lecturas de Preferences.
     void userStore.ensureMemberState()
+    // Phase 99: load persisted level selection for this user before boot resolves — Quasar awaits
+    // this function, so the first MainLayout render and the first session fetch see the hydrated
+    // selectedLevel. Fase 203 (D-02): flags "tuvo contenido" del socio (también lectura local de
+    // Preferences): el primer frame ya sabe qué cards reservan lugar. Las dos lecturas van en
+    // paralelo y el boot espera a ambas.
+    await Promise.all([
+      userStore.hydrateSelection(),
+      useCardHadContentStore().hydrate(response.data.id),
+    ])
   } catch (err: unknown) {
     const status = err instanceof AxiosError ? err.response?.status : undefined
     if (isSessionRejectedStatus(status)) {

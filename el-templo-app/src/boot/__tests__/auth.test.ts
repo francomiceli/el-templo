@@ -252,6 +252,40 @@ describe('boot/auth.ts — runAuthBoot (App 1.7.9, causa raíz de deslogueos)', 
       expect(cardFlagsMock.hydrate).toHaveBeenCalledTimes(1)
       expect(cardFlagsMock.hydrate).toHaveBeenCalledWith(7)
     })
+
+    it('/auth/me OK → ensureMemberState sale ANTES de las lecturas locales y estas corren en paralelo', async () => {
+      apiGet.mockResolvedValueOnce({
+        data: { id: 7, email: 'socio@test.com', role: 'member' },
+      })
+      let releaseSelection!: () => void
+      let releaseFlags!: () => void
+      userStoreMock.hydrateSelection.mockImplementationOnce(
+        () => new Promise<void>((res) => (releaseSelection = res)),
+      )
+      cardFlagsMock.hydrate.mockImplementationOnce(
+        () => new Promise<void>((res) => (releaseFlags = res)),
+      )
+
+      let bootDone = false
+      const boot = runAuthBoot().then(() => {
+        bootDone = true
+      })
+      await vi.waitFor(() => expect(cardFlagsMock.hydrate).toHaveBeenCalledTimes(1))
+
+      // Las dos lecturas están en vuelo a la vez y el pedido de red ya salió.
+      expect(userStoreMock.hydrateSelection).toHaveBeenCalledTimes(1)
+      expect(userStoreMock.ensureMemberState).toHaveBeenCalledTimes(1)
+      expect(bootDone).toBe(false)
+
+      // El boot espera a AMBAS lecturas (el primer frame necesita nivel y flags).
+      releaseSelection()
+      await Promise.resolve()
+      await Promise.resolve()
+      expect(bootDone).toBe(false)
+      releaseFlags()
+      await boot
+      expect(bootDone).toBe(true)
+    })
   })
 
   // Reporte 2026-10-21 ("abren la app y queda en blanco"): en nativo CapacitorHttp
