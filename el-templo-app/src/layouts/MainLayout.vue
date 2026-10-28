@@ -33,10 +33,29 @@
       <!-- Greeting row — desktop only (stays in sticky header) -->
       <div v-if="isDesktop && isMiTemplo && authStore.isAuthenticated" class="header-greeting">
         <div class="header-greeting__text">
+          <!-- Sin perfil: esqueleto, nunca "Atleta" ni una fecha en la zona por defecto (D-08). -->
           <h1 class="header-greeting__name">
-            Hola, {{ memberName }}!<VeteranSeal :since="memberSince" />
+            <q-skeleton
+              v-if="!profileReady"
+              type="text"
+              tag="span"
+              animation="none"
+              class="header-greeting__sk-name"
+            />
+            <template v-else>
+              Hola, {{ memberName }}!<VeteranSeal :since="memberSince" />
+            </template>
           </h1>
-          <p class="header-greeting__date">{{ formattedDate }}</p>
+          <p class="header-greeting__date">
+            <q-skeleton
+              v-if="!profileReady"
+              type="text"
+              tag="span"
+              animation="none"
+              class="header-greeting__sk-date"
+            />
+            <template v-else>{{ formattedDate }}</template>
+          </p>
         </div>
         <HeaderLevelDropdown v-if="userStore.activeLevel" />
       </div>
@@ -93,9 +112,27 @@
         <div class="header-greeting">
           <div class="header-greeting__text">
             <h1 class="header-greeting__name">
-              Hola, {{ memberName }}!<VeteranSeal :since="memberSince" />
+              <q-skeleton
+                v-if="!profileReady"
+                type="text"
+                tag="span"
+                animation="none"
+                class="header-greeting__sk-name"
+              />
+              <template v-else>
+                Hola, {{ memberName }}!<VeteranSeal :since="memberSince" />
+              </template>
             </h1>
-            <p class="header-greeting__date">{{ formattedDate }}</p>
+            <p class="header-greeting__date">
+              <q-skeleton
+                v-if="!profileReady"
+                type="text"
+                tag="span"
+                animation="none"
+                class="header-greeting__sk-date"
+              />
+              <template v-else>{{ formattedDate }}</template>
+            </p>
           </div>
           <HeaderLevelDropdown v-if="userStore.activeLevel" />
         </div>
@@ -205,6 +242,7 @@ import { TIPS_CONTENT } from 'src/config/tips-content'
 import { isNewMember } from 'src/modules/guia/new-member'
 import { ANATOMIA_ALUMNOS_ENABLED } from 'src/config/featureFlags'
 import { maybeRequestReview } from 'src/utils/in-app-review'
+import { DEFAULT_BRANCH_TZ } from 'src/utils/tz'
 
 const $q = useQuasar()
 const router = useRouter()
@@ -244,9 +282,10 @@ watch(
   (isAuth) => {
     if (isAuth) {
       void avisosStore.evaluate()
-      // Pelotita de Planes: el flag viene en plan-status, que si no se carga al arrancar recién
-      // llegaría al abrir Mi Templo sin plan activo. Cubre boot con token y login recién hecho.
-      void userStore.loadPlanStatus()
+      // Pelotita de Planes: el flag viene en plan-status, que viaja dentro de la carga del socio.
+      // ensureMemberState comparte la promesa con el boot y con Mi Templo, y cubre el boot con token
+      // y el login recién hecho (el boot no corre en ese caso). Fase 203 (SC-4): un solo plan-status.
+      void userStore.ensureMemberState()
       // D-04/D-06: turno de hoy + reloj de la ventana ±20 min (compartido con Mi Templo).
       void todayBookingStore.load()
       todayBookingStore.startClock()
@@ -279,12 +318,28 @@ watch(
   },
 )
 
+// Fase 203 (D-08, Pitfall 7): si el boot cargó los turnos con la zona por defecto (perfil tardío),
+// se recargan con la real cuando llega el perfil. Si la carga en vuelo (`loadedTz` todavía null) ya
+// salió con esa misma zona, no se repite: el perfil llega con `prevTz === null`, o sea, zona por defecto.
+watch(
+  () => userStore.profile?.branchTimezone ?? null,
+  (tz, prevTz) => {
+    if (!tz || !authStore.isAuthenticated) return
+    const inFlightWithThisTz =
+      todayBookingStore.loadedTz === null && tz === (prevTz ?? DEFAULT_BRANCH_TZ)
+    if (todayBookingStore.loadedTz !== tz && !inFlightWithThisTz) void todayBookingStore.load()
+  },
+)
+
 // Al volver de segundo plano también: una reserva hecha por recepción o desde
 // otro teléfono no pasa por un cambio de ruta, y sin recarga el botón QR no
-// aparece aunque el socio esté en la ventana ±20 min.
+// aparece aunque el socio esté en la ventana ±20 min. Con el perfil pendiente
+// (boot optimista) se reintenta acá: si el socio no navega, el esqueleto del saludo
+// y de la card de hoy no se resolvería solo (hoy solo se reintenta al navegar).
 function onVisibilityChange(): void {
   if (document.visibilityState === 'visible' && authStore.isAuthenticated) {
     void todayBookingStore.load()
+    if (userStore.profileStale) void userStore.retryProfileLoad()
   }
 }
 
@@ -340,10 +395,13 @@ const isMiTemplo = computed(() => route.path === '/mi-templo')
 
 const memberSince = computed(() => userStore.profile?.memberSince ?? null)
 
+// Fase 203 (D-08): sin perfil el saludo es un esqueleto, sin tope (el perfil lo resuelve
+// `retryProfileLoad`). "Atleta" queda solo para perfiles sin nombre.
+const profileReady = computed(() => userStore.profile !== null)
+
 const memberName = computed(() => {
   const profile = userStore.profile
-  if (!profile) return 'Atleta'
-  return profile.firstName ?? profile.displayName ?? 'Atleta'
+  return profile?.firstName ?? profile?.displayName ?? 'Atleta'
 })
 
 // Formatea un 'YYYY-MM-DD' como "Hoy es <día> <n> de <mes>". Mediodía UTC +
@@ -589,8 +647,22 @@ async function onLogout() {
   &__date {
     font-family: 'Geologica', sans-serif;
     font-size: 13px;
+    line-height: 1.2; // igual que el esqueleto (1.2em), así la fecha no mueve el layout al llegar
     color: #fff;
     margin: 2px 0 0;
+  }
+
+  // Esqueletos del saludo (D-08): anchos fijos y alto de línea del texto real (type="text" = 1.2em).
+  &__sk-name {
+    display: block; // tag="span": un div dentro de h1/p no es HTML válido
+    width: 160px;
+    max-width: 100%;
+  }
+
+  &__sk-date {
+    display: block;
+    width: 200px;
+    max-width: 100%;
   }
 
   &__badge {
