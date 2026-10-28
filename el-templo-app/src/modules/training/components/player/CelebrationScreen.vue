@@ -1,11 +1,13 @@
 <template>
-  <!-- Celebración de la sesión completa. Mismo marco que la del bloque libre (CelebrationFrame),
-       sin AURA (eso es solo del bloque libre). NO avanza sola: el socio toca "Ver resumen". -->
+  <!-- Celebración de la sesión completa: aparece al tildar el último ejercicio. Mismo marco que la
+       del bloque libre (CelebrationFrame), sin AURA ni kicker. NO avanza sola: el socio toca "Ver
+       resumen" o vuelve al último ejercicio (lo destilda). -->
   <CelebrationFrame
-    kicker="Sesión"
     title="¡Sesión completada!"
     cta-label="Ver resumen"
+    link-label="Volver al último ejercicio"
     @cta="emit('view-summary')"
+    @link="emit('back')"
   >
     <CelebrationQuote :quote="quote" />
   </CelebrationFrame>
@@ -23,6 +25,7 @@ interface Props {
 
 interface Emits {
   (e: 'view-summary'): void
+  (e: 'back'): void
 }
 
 defineProps<Props>()

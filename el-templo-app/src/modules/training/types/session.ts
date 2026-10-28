@@ -7,6 +7,7 @@
 
 import type { ZoneGroup, ZoneSlug } from 'src/components/anatomy/zones'
 import type { HitsZona } from 'src/modules/anatomy/types'
+import type { TimerSpec } from '../utils/blockTimer'
 
 /**
  * Block role in session structure
@@ -70,6 +71,9 @@ export interface Prescription {
 
   /** URL to exercise demonstration video (null if no video available) */
   videoUrl: string | null
+
+  /** Slug de la ruta en el modelo de anatomía (sketch 027 D); null = sin ruta modelada */
+  rutaSlug?: string | null
 }
 
 /**
@@ -101,6 +105,9 @@ export interface Block {
   /** Format-specific parameters (AMRAP minutes, EMOM interval, etc.) */
   formatParams: Record<string, unknown> | null
 
+  /** Reloj del formato (la misma normalización que la TV); ausente en respuestas viejas */
+  timerSpec?: TimerSpec | null
+
   /** Human-readable description of the format (from DB) */
   formatDescription: string | null
 
@@ -131,6 +138,7 @@ export interface Block {
     rest: number
     notes: string | null
     videoUrl: string | null
+    rutaSlug?: string | null
   } | null
 }
 

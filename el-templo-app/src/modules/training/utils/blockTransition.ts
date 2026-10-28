@@ -86,50 +86,16 @@ export interface PreviewItem {
 }
 
 /**
- * Qué muestra la mitad de abajo según la movilidad del bloque que se terminó:
- * - `timed`: movilidad con segundos → aro con cuenta regresiva.
- * - `free`: movilidad con repeticiones (o sin dosis) → sin reloj.
- * - `preview`: sin movilidad → los ejercicios del bloque que viene.
- * - `none`: sin movilidad y sin ejercicios que mostrar (p. ej. el Deuteros todavía sin elegir).
+ * Qué muestra la mitad de abajo: los ejercicios del bloque que viene (`preview`), o nada (`none`) si
+ * no hay bloque siguiente con ejercicios (p. ej. el Deuteros todavía sin elegir, que se elige ahí
+ * mismo). El descanso activo no se muestra nunca entre bloques (2026-10-27).
  */
 export type TransitionRest =
-  | { kind: 'timed'; name: string; seconds: number; videoUrl: string | null; detail: string }
-  | { kind: 'free'; name: string; videoUrl: string | null; detail: string }
   | { kind: 'preview'; items: PreviewItem[]; extra: number }
   | { kind: 'none' }
 
-function positive(v: number | null | undefined): number | null {
-  return typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null
-}
-
-function repsText(reps: number): string {
-  return `${reps} ${reps === 1 ? 'repetición' : 'repeticiones'}`
-}
-
-/** Elige el caso a / b / c de la mitad inferior. */
-export function chooseTransitionRest(completed: Block | null, next: Block | null): TransitionRest {
-  // INITIUM nunca tiene descanso activo (la vista del player tampoco lo muestra)
-  const mobility = completed && completed.role !== 'INITIUM' ? completed.mobilityExercise : null
-  if (mobility) {
-    const notes = mobility.notes?.trim() ?? ''
-    const seconds = positive(mobility.seconds)
-    if (seconds !== null) {
-      return {
-        kind: 'timed',
-        name: mobility.exerciseName,
-        seconds,
-        videoUrl: mobility.videoUrl,
-        detail: [`${seconds}"`, notes].filter(Boolean).join(' · '),
-      }
-    }
-    const reps = positive(mobility.reps)
-    return {
-      kind: 'free',
-      name: mobility.exerciseName,
-      videoUrl: mobility.videoUrl,
-      detail: [reps !== null ? repsText(reps) : '', notes].filter(Boolean).join(' · '),
-    }
-  }
+/** Lista del bloque que viene, con tope de `MAX_PREVIEW_ITEMS` y "y N más". */
+export function chooseTransitionRest(next: Block | null): TransitionRest {
   if (next && next.exercises.length > 0) {
     const pyramid = isPyramidBlock(next)
     return {
@@ -178,7 +144,6 @@ export function buildBlockTransition(input: {
   completedIndex: number
 }): BlockTransitionData {
   const { title, entries, completedIndex } = input
-  const completed = entries[completedIndex]?.block ?? null
   const nextEntry = entries[completedIndex + 1] ?? null
 
   let next: TransitionNext = 'end'
@@ -199,7 +164,7 @@ export function buildBlockTransition(input: {
       nextEntry ? `Bloque ${completedIndex + 2} de ${entries.length}` : 'Sesión completa',
     ),
     items: journeyItems(entries, completedIndex),
-    rest: chooseTransitionRest(completed, nextEntry?.block ?? null),
+    rest: chooseTransitionRest(nextEntry?.block ?? null),
     next,
     actionLabel,
   }
@@ -232,35 +197,21 @@ export function isFinalBlock(opts: {
 
 // ── 3-2-1 ───────────────────────────────────────────────────────────────────────────────────────
 
+// Solo el kicker: el 3-2-1 ya no nombra el primer ejercicio (Franco, 2026-10-23).
 export interface CountdownCopy {
   kicker: string
-  subtitle: string
 }
 
-/** Textos del 3-2-1 de un bloque de sesión: "Bloque 2 de 4 · Combos I" + el primer ejercicio. */
-export function blockCountdownCopy(block: Block, index: number, total: number): CountdownCopy {
-  return {
-    kicker: `Bloque ${index + 1} de ${total} · ${blockLabel(block.role)}`,
-    subtitle: block.exercises[0]?.exerciseName ?? '',
-  }
-}
-
-/** Textos del 3-2-1 del modo bloque libre: "Bloque libre · {nombre}" + el primer ejercicio. */
-export function freeCountdownCopy(
-  block: Pick<Block, 'role' | 'route' | 'exercises'>,
+/** Texto del 3-2-1 de un bloque de sesión: "Bloque 2 de 4 · Combos I". */
+export function blockCountdownCopy(
+  block: Pick<Block, 'role'>,
+  index: number,
+  total: number,
 ): CountdownCopy {
-  return {
-    kicker: `Bloque libre · ${blockDisplayName(block)}`,
-    subtitle: block.exercises[0]?.exerciseName ?? '',
-  }
+  return { kicker: `Bloque ${index + 1} de ${total} · ${blockLabel(block.role)}` }
 }
 
-// ── Aro del descanso ────────────────────────────────────────────────────────────────────────────
-
-/** "m:ss" del aro: 38 → "0:38", 60 → "1:00". Negativos y NaN se leen como 0:00. */
-export function formatCountdown(totalSeconds: number): string {
-  const safe = Number.isFinite(totalSeconds) ? Math.max(0, Math.floor(totalSeconds)) : 0
-  const m = Math.floor(safe / 60)
-  const s = safe % 60
-  return `${m}:${String(s).padStart(2, '0')}`
+/** Texto del 3-2-1 del modo bloque libre: "Bloque libre · {nombre}". */
+export function freeCountdownCopy(block: Pick<Block, 'role' | 'route'>): CountdownCopy {
+  return { kicker: `Bloque libre · ${blockDisplayName(block)}` }
 }

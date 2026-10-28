@@ -6,7 +6,6 @@ import {
   blockLabel,
   buildBlockTransition,
   chooseTransitionRest,
-  formatCountdown,
   freeCountdownCopy,
   isBlockExercisesDone,
   isFinalBlock,
@@ -165,58 +164,9 @@ describe('journeyItems (hecho / siguiente / pendiente)', () => {
   })
 })
 
-describe('chooseTransitionRest (casos a / b / c)', () => {
-  it('a. movilidad con segundos: aro, con la dosis y las notas', () => {
-    const done = block({ mobilityExercise: mobility({ seconds: 60, notes: '30" por lado' }) })
-    const rest = chooseTransitionRest(done, block({}))
-    expect(rest).toEqual({
-      kind: 'timed',
-      name: 'Movilidad de cadera 90/90',
-      seconds: 60,
-      videoUrl: null,
-      detail: '60" · 30" por lado',
-    })
-  })
-
-  it('a. sin notas la dosis es solo los segundos', () => {
-    const done = block({ mobilityExercise: mobility({ seconds: 45, notes: '  ' }) })
-    const rest = chooseTransitionRest(done, block({}))
-    expect(rest).toMatchObject({ kind: 'timed', seconds: 45, detail: '45"' })
-  })
-
-  it('a. si trae segundos Y repeticiones manda el reloj', () => {
-    const done = block({ mobilityExercise: mobility({ seconds: 30, reps: 10 }) })
-    expect(chooseTransitionRest(done, null).kind).toBe('timed')
-  })
-
-  it('b. movilidad con repeticiones: sin reloj', () => {
-    const done = block({
-      mobilityExercise: mobility({ seconds: null, reps: 10, notes: 'lento', videoUrl: 'v.mp4' }),
-    })
-    expect(chooseTransitionRest(done, block({}))).toEqual({
-      kind: 'free',
-      name: 'Movilidad de cadera 90/90',
-      videoUrl: 'v.mp4',
-      detail: '10 repeticiones · lento',
-    })
-  })
-
-  it('b. una sola repetición va en singular', () => {
-    const done = block({ mobilityExercise: mobility({ seconds: null, reps: 1 }) })
-    expect(chooseTransitionRest(done, null)).toMatchObject({ detail: '1 repetición' })
-  })
-
-  it('b. movilidad sin dosis (ni segundos ni reps): igual sin reloj, con las notas', () => {
-    const soft = mobility({ seconds: null, reps: null, notes: 'suave' })
-    const done = block({ mobilityExercise: soft })
-    expect(chooseTransitionRest(done, null)).toMatchObject({ kind: 'free', detail: 'suave' })
-    const bare = block({ mobilityExercise: mobility({ seconds: 0, reps: 0, notes: null }) })
-    expect(chooseTransitionRest(bare, null)).toMatchObject({ kind: 'free', detail: '' })
-  })
-
-  it('c. sin movilidad: lista los ejercicios del bloque que viene con su dosis', () => {
-    const rest = chooseTransitionRest(INITIUM, block({}))
-    expect(rest).toEqual({
+describe('chooseTransitionRest (lo que viene)', () => {
+  it('lista los ejercicios del bloque que viene con su dosis', () => {
+    expect(chooseTransitionRest(block({}))).toEqual({
       kind: 'preview',
       items: [
         { name: 'Sentadilla goblet', dose: '12 REPS' },
@@ -227,18 +177,17 @@ describe('chooseTransitionRest (casos a / b / c)', () => {
     })
   })
 
-  it('c. INITIUM no tiene descanso activo aunque el dato traiga movilidad', () => {
-    const initiumWithMob = block({ role: 'INITIUM', mobilityExercise: mobility() })
-    expect(chooseTransitionRest(initiumWithMob, block({})).kind).toBe('preview')
+  it('la movilidad del bloque no cambia nada: nunca hay descanso activo', () => {
+    expect(chooseTransitionRest(block({ mobilityExercise: mobility() })).kind).toBe('preview')
   })
 
-  it('c. tope de ejercicios con "y N más"', () => {
+  it('tope de ejercicios con "y N más"', () => {
     const many = block({
       exercises: Array.from({ length: MAX_PREVIEW_ITEMS + 2 }, (_, i) =>
         rx({ exerciseId: i + 1, exerciseName: `Ej ${i + 1}` }),
       ),
     })
-    const rest = chooseTransitionRest(INITIUM, many)
+    const rest = chooseTransitionRest(many)
     expect(rest.kind).toBe('preview')
     if (rest.kind === 'preview') {
       expect(rest.items).toHaveLength(MAX_PREVIEW_ITEMS)
@@ -246,14 +195,9 @@ describe('chooseTransitionRest (casos a / b / c)', () => {
     }
   })
 
-  it('sin movilidad y sin bloque siguiente con ejercicios: nada abajo', () => {
-    expect(chooseTransitionRest(INITIUM, null)).toEqual({ kind: 'none' })
-    expect(chooseTransitionRest(INITIUM, block({ exercises: [] }))).toEqual({ kind: 'none' })
-    expect(chooseTransitionRest(null, null)).toEqual({ kind: 'none' })
-  })
-
-  it('la movilidad le gana a la lista del bloque que viene', () => {
-    expect(chooseTransitionRest(NUCLEUS, block({})).kind).toBe('timed')
+  it('sin bloque siguiente con ejercicios: nada abajo', () => {
+    expect(chooseTransitionRest(null)).toEqual({ kind: 'none' })
+    expect(chooseTransitionRest(block({ exercises: [] }))).toEqual({ kind: 'none' })
   })
 })
 
@@ -270,11 +214,11 @@ describe('buildBlockTransition', () => {
     expect(data.items.map((i) => i.status)).toEqual(['done', 'next', 'pending', 'pending'])
   })
 
-  it('después de NUCLEUS: el descanso activo es la movilidad de NUCLEUS', () => {
+  it('después de NUCLEUS: lo que viene es el Deuteros, aunque NUCLEUS traiga movilidad', () => {
     const data = buildBlockTransition({ title: 'Planche', entries, completedIndex: 1 })
     expect(data.kicker).toBe('Planche · Bloque 3 de 4')
     expect(data.actionLabel).toBe('Empezar Deuteros 1')
-    expect(data.rest).toMatchObject({ kind: 'timed', seconds: 60 })
+    expect(data.rest.kind).toBe('preview')
   })
 
   it('sin título el kicker es solo "Bloque n de total"', () => {
@@ -292,8 +236,8 @@ describe('buildBlockTransition', () => {
     expect(data.next).toBe('deuteros')
     expect(data.actionLabel).toBe('Elegir Deuteros')
     expect(data.kicker).toBe('Planche · Bloque 3 de 4')
-    // el descanso activo de NUCLEUS sigue ahí
-    expect(data.rest.kind).toBe('timed')
+    // el Deuteros sin elegir no tiene lista: los dos se eligen en la misma pantalla
+    expect(data.rest.kind).toBe('none')
   })
 
   it('hacia el final: "Ver resumen" y nada de "Bloque n"', () => {
@@ -342,19 +286,14 @@ describe('isFinalBlock', () => {
 })
 
 describe('textos del 3-2-1', () => {
-  it('bloque de sesión: "Bloque n de total · nombre" y el primer ejercicio', () => {
+  it('bloque de sesión: solo "Bloque n de total · nombre", sin el primer ejercicio', () => {
     const copy = blockCountdownCopy(block({ role: 'COMBOS_I' }), 1, 4)
-    expect(copy).toEqual({ kicker: 'Bloque 2 de 4 · Combos I', subtitle: 'Sentadilla goblet' })
-  })
-
-  it('bloque sin ejercicios: subtítulo vacío', () => {
-    expect(blockCountdownCopy(block({ exercises: [] }), 0, 4).subtitle).toBe('')
+    expect(copy).toEqual({ kicker: 'Bloque 2 de 4 · Combos I' })
   })
 
   it('modo libre: "Bloque libre · nombre del bloque"', () => {
     const copy = freeCountdownCopy(block({ role: 'COMBOS_I', route: 'PL' }))
-    expect(copy.kicker).toBe('Bloque libre · Combos I')
-    expect(copy.subtitle).toBe('Sentadilla goblet')
+    expect(copy).toEqual({ kicker: 'Bloque libre · Combos I' })
   })
 
   it('modo libre con INITIUM usa el nombre de pantalla del bloque', () => {
@@ -368,25 +307,5 @@ describe('blockLabel', () => {
   it('rótulo del rol, igual que el resto del app (INITIUM = "Pyros")', () => {
     expect(blockLabel('INITIUM')).toBe('Pyros')
     expect(blockLabel('DEUTEROS_2')).toBe('Deuteros 2')
-  })
-})
-
-describe('formatCountdown (m:ss del aro)', () => {
-  it('segundos sueltos y minutos', () => {
-    expect(formatCountdown(38)).toBe('0:38')
-    expect(formatCountdown(60)).toBe('1:00')
-    expect(formatCountdown(65)).toBe('1:05')
-    expect(formatCountdown(9)).toBe('0:09')
-    expect(formatCountdown(600)).toBe('10:00')
-  })
-
-  it('cero, negativos y valores raros se leen 0:00', () => {
-    expect(formatCountdown(0)).toBe('0:00')
-    expect(formatCountdown(-5)).toBe('0:00')
-    expect(formatCountdown(Number.NaN)).toBe('0:00')
-  })
-
-  it('descarta los decimales', () => {
-    expect(formatCountdown(59.9)).toBe('0:59')
   })
 })

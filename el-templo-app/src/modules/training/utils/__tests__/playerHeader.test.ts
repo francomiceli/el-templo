@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import type { Block } from '../../types/session'
-import { playerFormatLine, playerHeaderLines, playerRoleLabel } from '../playerHeader'
+import {
+  playerBlockContent,
+  playerFormatLine,
+  playerFormatParts,
+  playerHeaderLines,
+  playerRoleLabel,
+} from '../playerHeader'
 
 function block(fields: Partial<Block>): Block {
   return {
@@ -121,5 +127,123 @@ describe('playerFormatLine', () => {
   it('sesión: sin parámetros tipados, el detalle sale del slug', () => {
     const b = block({ format: 'amrap-series', formatParams: null })
     expect(playerFormatLine(b, 'session')).toBe('amrap · series')
+  })
+})
+
+describe('playerFormatParts', () => {
+  it('sesión: EMOM parte el formato de sus parámetros', () => {
+    const b = block({
+      format: 'EMOM',
+      formatParams: { type: 'emom', minutes: 12, intervalSeconds: 60 },
+    })
+    expect(playerFormatParts(b, 'session')).toEqual({ name: 'EMOM', detail: '12 min · cada 60s' })
+  })
+
+  it('sesión: con varios parámetros el detalle conserva todos, en orden', () => {
+    const b = block({
+      format: 'Tabata',
+      formatParams: { type: 'tabata', workSeconds: 20, restSeconds: 10, totalRounds: 8 },
+    })
+    expect(playerFormatParts(b, 'session')).toEqual({
+      name: 'Tabata',
+      detail: '20s/10s · 8 rondas',
+    })
+  })
+
+  it('libre: la línea corta se parte en nombre y "10\' · 3 rondas"', () => {
+    const b = block({
+      format: 'AMRAP Series',
+      formatParams: { type: 'amrap_series', minutes: 10, rounds: 3 },
+    })
+    expect(playerFormatParts(b, 'free')).toEqual({ name: 'AMRAP', detail: "10' · 3 rondas" })
+  })
+
+  it('sin parámetros: solo nombre y detalle vacío', () => {
+    expect(playerFormatParts(block({ format: 'Cluster' }), 'session')).toEqual({
+      name: 'Cluster',
+      detail: '',
+    })
+    expect(playerFormatParts(block({ format: 'Cluster' }), 'free')).toEqual({
+      name: 'Cluster',
+      detail: '',
+    })
+  })
+
+  it('formato vacío o nulo: todo vacío, sin romper', () => {
+    expect(playerFormatParts(block({ format: '', formatParams: null }), 'session')).toEqual({
+      name: '',
+      detail: '',
+    })
+    expect(
+      playerFormatParts(block({ format: null as unknown as string, formatParams: null }), 'free'),
+    ).toEqual({ name: '', detail: '' })
+  })
+
+  it('"Buy-in / Cash-out" no se parte en el guion', () => {
+    const b = block({ format: 'Buy-in / Cash-out', formatParams: { type: 'standard' } })
+    expect(playerFormatParts(b, 'session')).toEqual({
+      name: 'Buy-\u2060in / Cash-\u2060out',
+      detail: '',
+    })
+  })
+
+  it('nombre + detalle vuelven a armar exactamente la línea de siempre', () => {
+    const b = block({
+      format: 'EMOM',
+      formatParams: { type: 'emom', minutes: 12, intervalSeconds: 60 },
+    })
+    for (const mode of ['session', 'free'] as const) {
+      const parts = playerFormatParts(b, mode)
+      const joined = parts.detail ? `${parts.name} · ${parts.detail}` : parts.name
+      expect(joined).toBe(playerFormatLine(b, mode))
+    }
+  })
+})
+
+describe('playerBlockContent', () => {
+  const ex = (exerciseId: number) => ({
+    exerciseId,
+    exerciseName: `Ejercicio ${exerciseId}`,
+    contraction: 'CON',
+    reps: 8,
+    repsMax: null,
+    seconds: null,
+    secondsMax: null,
+    increment: null,
+    rest: 0,
+    notes: null,
+    sortOrder: exerciseId,
+    videoUrl: null,
+  })
+  const movilidad = {
+    exerciseId: 99,
+    exerciseName: 'Movilidad de hombros',
+    contraction: 'ISO',
+    reps: null,
+    seconds: 40,
+    rest: 0,
+    notes: null,
+    videoUrl: null,
+  }
+
+  it('cuenta los ejercicios, en singular o plural', () => {
+    expect(playerBlockContent(block({ exercises: [ex(1)] }))).toBe('1 ejercicio')
+    expect(playerBlockContent(block({ exercises: [ex(1), ex(2), ex(3), ex(4)] }))).toBe(
+      '4 ejercicios',
+    )
+  })
+
+  it('suma la flexibilidad cuando el bloque trae movilidad', () => {
+    expect(
+      playerBlockContent(block({ exercises: [ex(1), ex(2)], mobilityExercise: movilidad })),
+    ).toBe('2 ejercicios + 1 de flexibilidad')
+  })
+
+  it('el INITIUM no muestra la movilidad (como la barra de segmentos)', () => {
+    expect(
+      playerBlockContent(
+        block({ role: 'INITIUM', exercises: [ex(1), ex(2)], mobilityExercise: movilidad }),
+      ),
+    ).toBe('2 ejercicios')
   })
 })

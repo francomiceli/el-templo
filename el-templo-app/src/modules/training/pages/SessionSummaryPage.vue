@@ -39,6 +39,7 @@ import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import TemploLoader from 'src/components/TemploLoader.vue'
 import { useQuasar } from 'quasar'
+import { confirmDialog } from 'src/utils/confirm-dialog'
 import { useProgressionStore } from 'src/modules/progression/stores/progressionStore'
 import { useProgressionApi } from 'src/modules/progression/composables/useProgressionApi'
 import { useSessionPlayerStore } from '../stores/sessionPlayerStore'
@@ -110,12 +111,11 @@ async function loadWeekDataIfNeeded() {
 }
 
 function handleRestart() {
-  $q.dialog({
-    title: 'Repetir sesión',
-    message: 'Vas a reiniciar la sesión de hoy. El progreso registrado anteriormente se perderá.',
-    cancel: { label: 'Cancelar', flat: true },
-    ok: { label: 'Repetir', color: 'primary' },
-    persistent: true,
+  confirmDialog($q, {
+    title: '¿Repetir la sesión?',
+    message: 'Vas a reiniciar la sesión de hoy y se pierde lo que habías registrado.',
+    okLabel: 'Repetir',
+    destructive: true,
   }).onOk(async () => {
     const today = weekStore.weekDays.find((d) => d.date === todayStr.value)
     const dayId = today?.session?.dayId

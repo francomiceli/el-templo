@@ -13,7 +13,6 @@
     <CountdownOverlay
       v-if="showCountdown"
       :kicker="countdownCopy.kicker"
-      :subtitle="countdownCopy.subtitle"
       @done="onCountdownDone"
     />
 
@@ -114,6 +113,7 @@ import { useWakeLock } from '../../training/composables/useWakeLock'
 import { resolvePlayerStart, type PlayerStartMode } from '../../training/utils/playerStart'
 import { useGoalPlanStore } from '../stores/goalPlanStore'
 import { createLogger } from 'src/utils/logger'
+import { confirmDialog, type ConfirmDialogOptions } from 'src/utils/confirm-dialog'
 import {
   blockCountdownCopy,
   buildBlockTransition,
@@ -156,7 +156,7 @@ const sessionStartedAt = ref<string | null>(null)
 const transitionData = shallowRef<BlockTransitionData | null>(null)
 /** true mientras "Empezar" completa el bloque (el guardado es async): congela la pantalla */
 const isAdvancing = ref(false)
-const countdownCopy = ref<CountdownCopy>({ kicker: '', subtitle: '' })
+const countdownCopy = ref<CountdownCopy>({ kicker: '' })
 const progressionView = ref<InstanceType<typeof BlockProgressionView> | null>(null)
 
 // Completion flow
@@ -311,14 +311,14 @@ function beginSession(mode: PlayerStartMode): void {
   if (isFreshStart) openCountdown()
 }
 
-/** Abre el 3-2-1 del bloque activo ("Bloque 1 de 4 · Initium" + su primer ejercicio) */
+/** Abre el 3-2-1 del bloque activo ("Bloque 1 de 4 · Pyros") */
 function openCountdown(): void {
   const p = player.value
   const block = p?.currentBlock.value
   countdownCopy.value =
     p && block
       ? blockCountdownCopy(block, p.currentBlockIndex.value, journey.value.length)
-      : { kicker: '', subtitle: '' }
+      : { kicker: '' }
   showCountdown.value = true
 }
 
@@ -434,13 +434,10 @@ function navigateBack(): void {
   router.push('/training')
 }
 
-const exitDialogOpts = {
-  title: 'Salir de la sesion?',
-  message: 'Tu progreso se guardara y podras continuar despues.',
-  cancel: { label: 'Cancelar', flat: true },
-  // Clase global (css/app.scss): rojo oscuro sólido, igual que el bloque libre
-  ok: { label: 'Salir', flat: true, class: 'player-exit-ok' },
-  persistent: true,
+const exitDialogOpts: ConfirmDialogOptions = {
+  title: '¿Salir de la sesión?',
+  message: 'Tu progreso se guarda y podés seguir después.',
+  okLabel: 'Salir',
 }
 
 async function pauseAndRelease(): Promise<void> {
@@ -450,7 +447,7 @@ async function pauseAndRelease(): Promise<void> {
 
 async function handleBackNavigation(): Promise<void> {
   if (hasUnsavedProgress.value) {
-    $q.dialog(exitDialogOpts).onOk(async () => {
+    confirmDialog($q, exitDialogOpts).onOk(async () => {
       await pauseAndRelease()
       navigateBack()
     })
@@ -460,12 +457,11 @@ async function handleBackNavigation(): Promise<void> {
 }
 
 async function restartSession(): Promise<void> {
-  $q.dialog({
-    title: 'Reiniciar Sesion',
-    message: 'Se perdera todo el progreso actual. Estas seguro?',
-    cancel: { label: 'Cancelar', flat: true },
-    ok: { label: 'Reiniciar', color: 'negative' },
-    persistent: true,
+  confirmDialog($q, {
+    title: '¿Reiniciar la sesión?',
+    message: 'Se pierde todo lo que hiciste hasta ahora.',
+    okLabel: 'Reiniciar',
+    destructive: true,
   }).onOk(async () => {
     if (player.value && session.value) {
       await player.value.clearProgress()
@@ -487,7 +483,7 @@ async function restartSession(): Promise<void> {
 
 onBeforeRouteLeave((_to, _from, next) => {
   if (hasUnsavedProgress.value) {
-    $q.dialog(exitDialogOpts)
+    confirmDialog($q, exitDialogOpts)
       .onOk(async () => {
         await pauseAndRelease()
         next()
