@@ -24,7 +24,7 @@ Mi Templo deja de reemplazarse por el loader "Cargando tu progreso..." y por la 
 ### Task 1 (`5ec01b755`): `resolveMiTemploSlots` pura + test
 - `mi-templo-slots.ts`: función pura (sin stores/axios/boot) que usa `resolveSlot` con `reserve: 'if-had-content'` para novedades, checkIn, sponsors, weekStrip y evaluation (siempre `hasContent` booleano explícito) y devuelve `records`. Para vos: `i.deadlinePassed ? 'content' : resolveSlot({ reserve: 'always', settled, hasContent: true })` (excepción a D-07 documentada en el código; la tabla de `resolveSlot` no se tocó).
 - `records` (Pitfall 6): novedades/sponsors solo con `loaded && ok === true`; checkIn solo con `settled && ok === true` y la card de hoy resuelta en un kind que no sea `cargando` ni `neutral`; evaluation solo con `statsLoaded && statsOk === true`; weekStrip solo con la semana respondida y la card de hoy resuelta (no `cargando`/`neutral`). Exporta además `MI_TEMPLO_CARD_KEYS` para iterar sin `Object.entries`/casts.
-- Test: 37 casos `it(` (>= 16), incluidos "error de novedades no registra flag" y los tres de Para vos (skeleton / content settled / content con tope).
+- Test: 35 casos `it(` (>= 16), incluidos "error de novedades no registra flag" y los tres de Para vos (skeleton / content settled / content con tope).
 
 ### Task 3 (`d856baca9`): WeekStrip con total opcional
 - `totalSessions: number | null`. La fila `.week-strip__total` sigue renderizándose (sin `v-if`, mismo alto) con `visibility: hidden` y `aria-hidden` cuando es null.
@@ -39,7 +39,7 @@ Mi Templo deja de reemplazarse por el loader "Cargando tu progreso..." y por la 
 
 ## Tests escritos SIN correr (D-17) — los corre el orquestador
 
-1. `el-templo-app/src/modules/progression/utils/__tests__/mi-templo-slots.test.ts` (NUEVO, 37 casos)
+1. `el-templo-app/src/modules/progression/utils/__tests__/mi-templo-slots.test.ts` (NUEVO, 35 casos)
 
 No hay test de componente de `MiTemplo.vue` ni de `WeekStrip.vue` (no existían; sin vitest no se agregaron). Verificado por grep que ningún test existente referencia el loader/error de la página. Prettier y eslint pasaron sobre los 4 archivos; `vue-tsc` no se corrió.
 
