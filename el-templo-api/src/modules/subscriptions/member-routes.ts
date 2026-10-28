@@ -22,7 +22,12 @@ import {
 import { attachCountryScope } from "../shared/country-scope";
 import { assertTenant, tenantWhere } from "../shared/tenant";
 import { todayInTz } from "../shared/date-utils";
-import { especialPassSchema, memberPlanStatusSchema } from "./schemas";
+import {
+  especialPassSchema,
+  memberPlanStatusSchema,
+  memberPlanSummarySchema,
+  memberPlanSummarySeenSchema,
+} from "./schemas";
 import { specialLineLabel } from "../scheduling/special-line";
 import { getEspecialTrialLines } from "../scheduling/especial-trial-service";
 
@@ -264,6 +269,39 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     async (request) => {
       const ctx = assertTenant(request.scope, "subscriptions.planStatus");
       return subscriptionService.getMemberPlanStatus(ctx, request.user.userId);
+    },
+  );
+
+  // GET /me/plan-summary — resumen de la tab Planes: plan actual -> (hueco) ->
+  // próxima, planes anteriores y si hay algo nuevo sin ver (pelotita).
+  //
+  // IDOR: el userId sale del token; la ruta NO acepta userId. Lectura pura: el
+  // servicio no barre (autoExpire) desde un GET. Sin montos en la respuesta.
+  fastify.get(
+    "/me/plan-summary",
+    { schema: memberPlanSummarySchema },
+    async (request) => {
+      const ctx = assertTenant(request.scope, "subscriptions.planSummary");
+      return subscriptionService.getMemberPlanSummary(
+        ctx,
+        request.user.userId,
+        todayInTz(AR_TIMEZONE),
+      );
+    },
+  );
+
+  // POST /me/plan-summary/seen — el socio abrió la tab Planes: marca como vistas
+  // sus membresías avisadas (apaga la pelotita). userId del token, sin body.
+  fastify.post(
+    "/me/plan-summary/seen",
+    { schema: memberPlanSummarySeenSchema },
+    async (request) => {
+      const ctx = assertTenant(request.scope, "subscriptions.planSummarySeen");
+      const updated = await subscriptionService.markMemberPlansSeen(
+        ctx,
+        request.user.userId,
+      );
+      return { updated };
     },
   );
 

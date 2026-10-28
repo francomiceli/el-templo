@@ -92,6 +92,10 @@ describe("communications/destinations", () => {
       expect(appSectionForRoute("/mi-camino")).toBe("programas");
     });
 
+    it("la ruta de Planes (plan_loaded) mapea a mi_plan, no al fallback", () => {
+      expect(appSectionForRoute("/planes")).toBe("mi_plan");
+    });
+
     it("la ruta de Conquer mapea a conquer", () => {
       expect(appSectionForRoute("/training?tab=conquer")).toBe("conquer");
     });

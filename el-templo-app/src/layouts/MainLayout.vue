@@ -53,7 +53,7 @@
       <!-- Navigation -->
       <nav class="desktop-rail__nav">
         <router-link
-          v-for="tab in mobileTabs"
+          v-for="tab in navTabs"
           :key="'rail-' + tab.to"
           :to="tab.to"
           class="desktop-rail__tab"
@@ -61,28 +61,22 @@
         >
           <q-icon :name="tab.icon" :size="tab.size ?? '24px'" />
           <span class="desktop-rail__label">{{ tab.label }}</span>
-          <q-badge
-            v-if="tab.badge && progressionStore.evaluationEligible"
-            floating
-            rounded
-            color="primary"
-            class="desktop-rail__badge"
-          />
-          <q-badge
-            v-else-if="tab.introBadge && showIntroBadge"
-            floating
-            rounded
-            color="negative"
-            label="1"
-            class="desktop-rail__badge desktop-rail__badge--count"
-            aria-label="Novedad: Empezá acá"
+          <span
+            v-if="tab.dot"
+            class="tab-dot desktop-rail__badge"
+            role="status"
+            :aria-label="tab.dot.label"
           />
         </router-link>
       </nav>
 
       <!-- Profile + Logout -->
       <div v-if="authStore.isAuthenticated" class="desktop-rail__actions">
-        <router-link to="/profile" class="desktop-rail__tab">
+        <router-link
+          to="/profile"
+          class="desktop-rail__tab"
+          :class="{ 'desktop-rail__tab--active': route.path.startsWith('/profile') }"
+        >
           <q-icon name="person" size="24px" />
           <span class="desktop-rail__label">Mi Perfil</span>
         </router-link>
@@ -147,7 +141,7 @@
     <q-footer v-if="!isDesktop" elevated class="mobile-footer">
       <div class="mobile-tabs">
         <router-link
-          v-for="tab in mobileTabs"
+          v-for="tab in navTabs"
           :key="tab.to"
           :to="tab.to"
           class="mobile-tab"
@@ -155,21 +149,11 @@
         >
           <q-icon :name="tab.icon" :size="tab.size ?? '24px'" />
           <span class="mobile-tab__label">{{ tab.label }}</span>
-          <q-badge
-            v-if="tab.badge && progressionStore.evaluationEligible"
-            floating
-            rounded
-            color="primary"
-            class="mobile-tab__badge"
-          />
-          <q-badge
-            v-else-if="tab.introBadge && showIntroBadge"
-            floating
-            rounded
-            color="negative"
-            label="1"
-            class="mobile-tab__badge mobile-tab__badge--count"
-            aria-label="Novedad: Empezá acá"
+          <span
+            v-if="tab.dot"
+            class="tab-dot mobile-tab__badge"
+            role="status"
+            :aria-label="tab.dot.label"
           />
         </router-link>
       </div>
@@ -257,6 +241,9 @@ watch(
   (isAuth) => {
     if (isAuth) {
       void avisosStore.evaluate()
+      // Pelotita de Planes: el flag viene en plan-status, que si no se carga al arrancar recién
+      // llegaría al abrir Mi Templo sin plan activo. Cubre boot con token y login recién hecho.
+      void userStore.loadPlanStatus()
       // D-04/D-06: turno de hoy + reloj de la ventana ±20 min (compartido con Mi Templo).
       void todayBookingStore.load()
       todayBookingStore.startClock()
@@ -375,6 +362,12 @@ const showIntroBadge = computed(() => {
   return !!profile && profile.role === 'member' && !profile.introStoriesSeenAt
 })
 
+// Sketch 028: punto en la tab Planes cuando el staff cargó una membresía y el socio todavía no abrió
+// Planes. Dentro de Planes no se muestra (la página lo apaga al abrir, con el POST `seen`).
+const showPlanBadge = computed(
+  () => userStore.planStatus?.hasUnseenPlanUpdate === true && !route.path.startsWith('/planes'),
+)
+
 // SPEC "Empezá acá" A2 — tip de primer uso del QR de check-in: se muestra
 // una sola vez por socio (useTipsSeenStorage), la primera vez que el FAB se
 // vuelve visible. `qrTipChecked` evita re-consultar el storage en cada
@@ -413,8 +406,10 @@ interface MobileTab {
   label: string
   size?: string
   badge?: boolean
-  /** Pelotita roja con "1" mientras el socio no abrió "Empezá acá". */
+  /** Punto mientras el socio no abrió "Empezá acá". */
   introBadge?: boolean
+  /** Punto mientras haya un plan cargado por el staff que el socio todavía no vio en Planes. */
+  planBadge?: boolean
   /** Prefijo de ruta con el que la tab se marca activa, si no es el propio `to`. */
   match?: string
 }
@@ -435,9 +430,24 @@ const mobileTabs = computed<MobileTab[]>(() => {
     { to: '/training', icon: 'img:/icons/entrenar.svg', label: 'Entrenar', size: '26px' },
   ]
   tabs.push({ to: '/reservas', icon: 'event_available', label: 'Reservas' })
-  tabs.push({ to: '/planes', icon: 'card_membership', label: 'Planes' })
+  tabs.push({ to: '/planes', icon: 'card_membership', label: 'Planes', planBadge: true })
   return tabs
 })
+
+interface TabDot {
+  /** Texto para lectores de pantalla; sin él el punto es solo decorativo. */
+  label?: string
+}
+
+/** Un único punto por tab (evaluación en Mi Templo, "Empezá acá" en Guía, plan cargado en Planes). */
+function dotFor(tab: MobileTab): TabDot | null {
+  if (tab.badge && progressionStore.evaluationEligible) return {}
+  if (tab.introBadge && showIntroBadge.value) return { label: 'Novedad: Empezá acá' }
+  if (tab.planBadge && showPlanBadge.value) return { label: 'Novedad: plan cargado' }
+  return null
+}
+
+const navTabs = computed(() => mobileTabs.value.map((tab) => ({ ...tab, dot: dotFor(tab) })))
 
 function isTabActive(tab: MobileTab): boolean {
   const tabTo = tab.match ?? tab.to
@@ -680,7 +690,7 @@ async function onLogout() {
   align-items: center;
   gap: 14px;
   padding: 14px 20px;
-  color: rgba(white, 0.6);
+  color: #f2ede5; // inactiva: crema sólido, igual que la barra de abajo (fase 199-11, sketch 009 A)
   text-decoration: none;
   white-space: nowrap;
   transition:
@@ -692,16 +702,21 @@ async function onLogout() {
     background-color: rgba(white, 0.1);
   }
 
-  &--active {
-    color: white;
+  // Activa: blanco + franja translúcida con filete a la izquierda, así se distingue sin
+  // depender solo del color (el fondo y el filete son decoración; el texto sigue sólido).
+  &--active,
+  &--active:hover {
+    color: #fff;
+    background-color: rgba(white, 0.2);
+    box-shadow: inset 3px 0 0 #fff;
+
+    .desktop-rail__label {
+      font-weight: 700;
+    }
   }
 
+  // Íconos imagen (SVG): no heredan `color`; a opacidad plena como los de la barra de abajo.
   :deep(.q-icon img) {
-    opacity: 0.6;
-    transition: opacity 200ms ease;
-  }
-
-  &--active :deep(.q-icon img) {
     opacity: 1;
   }
 
@@ -737,16 +752,14 @@ async function onLogout() {
   left: 38px;
 }
 
-// "1" rojo de "Empezá acá" sobre Guía: un número legible, no un punto.
-.desktop-rail__badge--count,
-.mobile-tab__badge--count {
-  min-width: 16px;
-  height: 16px;
-  padding: 0 4px;
-  font-size: 10px;
-  font-weight: 700;
-  line-height: 16px;
-  justify-content: center;
+// Punto de novedad (evaluación, Guía, plan cargado) en la barra y el rail. Crema con aro oscuro:
+// un `q-badge` color primary era terracota sobre el degradé terracota y no se veía (sketch 028).
+.tab-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #f0e6d6;
+  box-shadow: 0 0 0 2px #7e4529;
 }
 
 .with-desktop-rail {

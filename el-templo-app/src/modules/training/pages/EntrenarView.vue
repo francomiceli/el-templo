@@ -183,8 +183,7 @@ onUnmounted(() => {
 
 <style scoped lang="scss">
 .entrenar-view {
-  // Ocupa el ancho y deja ver la foto de fondo (D-16 de la fase 199)
-  max-width: none;
+  // Deja ver la foto de fondo (D-16 de la fase 199); el ancho (630 en escritorio) lo da MainLayout.
   background: transparent;
 
   &__loading {

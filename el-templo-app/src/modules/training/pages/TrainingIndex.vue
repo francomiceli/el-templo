@@ -51,7 +51,6 @@ onMounted(async () => {
 .training-index {
   background-color: transparent; // D-16: la foto de fondo se ve detrás
   min-height: var(--app-vh);
-  max-width: none !important;
 }
 
 /* Loading state */

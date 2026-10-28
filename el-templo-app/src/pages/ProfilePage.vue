@@ -1,149 +1,110 @@
 <template>
-  <q-page class="profile-page" padding>
-    <!-- Profile Header -->
-    <div class="profile-header">
-      <div class="profile-header__avatar">
-        <q-icon name="person" size="36px" color="white" />
-      </div>
-      <div class="profile-header__info">
-        <div class="profile-header__name">{{ userStore.fullName || 'Atleta' }}</div>
-        <div class="profile-header__email">{{ userStore.profile?.email }}</div>
-      </div>
-    </div>
-
-    <!-- Sucursal -->
-    <div class="info-card q-mb-md">
-      <q-icon name="location_on" size="24px" color="primary" class="info-card__icon" />
-      <div class="info-card__content">
-        <span class="info-card__label">Sucursal</span>
-        <span class="info-card__value">{{ userStore.branchDisplayName }}</span>
-      </div>
-    </div>
-
-    <!-- Subscription -->
-    <div class="info-card q-mb-md">
-      <q-icon name="card_membership" size="24px" color="primary" class="info-card__icon" />
-      <div v-if="userStore.subscriptionLoading" class="info-card__content">
-        <TemploLoader size="sm" />
-      </div>
-      <div v-else-if="userStore.subscription" class="info-card__content">
-        <div class="info-card__row">
-          <span class="info-card__value">{{ userStore.subscription.planName }}</span>
-          <q-badge
-            :color="userStore.subscriptionStatusColor"
-            :label="userStore.subscriptionStatusLabel"
-          />
+  <!-- Perfil con el lenguaje del rework (2026-10-28): página transparente sobre `.app-bg`, títulos de
+       bloque en tinta, cards blancas con borde cálido y filas de 52 px. Sin bordes a la izquierda ni
+       texto con opacidad. -->
+  <q-page class="profile-page">
+    <div class="profile-wrap">
+      <header class="profile-head">
+        <div class="profile-head__avatar" aria-hidden="true">{{ initials }}</div>
+        <div class="profile-head__info">
+          <h1 class="profile-head__name">{{ userStore.fullName || 'Atleta' }}</h1>
+          <p class="profile-head__email">{{ userStore.profile?.email }}</p>
         </div>
-        <div class="subscription-details">
-          <div class="subscription-detail">
-            <span class="subscription-detail__label">Inicio</span>
-            <span class="subscription-detail__value">{{
-              formatDate(userStore.subscription.startDate)
-            }}</span>
+      </header>
+
+      <section class="profile-section">
+        <h2 class="profile-title">Tu cuenta</h2>
+        <div class="profile-card">
+          <div class="profile-row">
+            <q-icon name="location_on" size="22px" class="profile-row__icon" aria-hidden="true" />
+            <div class="profile-row__text">
+              <span class="profile-row__label">Sede</span>
+              <span class="profile-row__value">{{ userStore.branchDisplayName }}</span>
+            </div>
           </div>
-          <div class="subscription-detail">
-            <span class="subscription-detail__label">Vencimiento</span>
-            <span class="subscription-detail__value">{{
-              userStore.subscription.endDate ? formatDate(userStore.subscription.endDate) : '—'
-            }}</span>
-          </div>
-          <div class="subscription-detail">
-            <span class="subscription-detail__label">Dias restantes</span>
-            <span
-              class="subscription-detail__value"
-              :class="{
-                'text-negative text-weight-bold': userStore.subscription.daysRemaining < 7,
-              }"
-            >
-              {{ userStore.subscription.daysRemaining }}
-            </span>
-          </div>
-        </div>
-      </div>
-      <div v-else class="info-card__content">
-        <span class="info-card__label">Mi Suscripcion</span>
-        <span class="info-card__value info-card__value--muted text-italic"
-          >Sin suscripcion activa</span
-        >
-      </div>
-    </div>
-
-    <!-- Ajustes -->
-    <p class="section-title">Ajustes</p>
-    <div class="settings-card q-mb-md">
-      <!-- SPEC "La Guía pasa a ser las historias" (2026-09-24): se retira la
-           entrada "Empezá acá" de Ajustes — la Guía (con las historias
-           adentro) ya tiene su propio tab en el nav, no hace falta un
-           segundo acceso acá. -->
-      <div
-        class="settings-card__item settings-card__item--clickable"
-        @click="router.push('/change-password')"
-      >
-        <q-icon name="lock" size="22px" color="primary" />
-        <span class="settings-card__label">Cambiar contraseña</span>
-        <q-icon name="chevron_right" size="20px" color="info" class="settings-card__chevron" />
-      </div>
-
-      <div class="settings-card__divider" />
-
-      <div
-        class="settings-card__item settings-card__item--clickable"
-        @click="$router.push('/mis-invitados')"
-      >
-        <q-icon name="card_giftcard" size="22px" color="primary" />
-        <span class="settings-card__label">Mis invitados</span>
-        <q-icon name="chevron_right" size="20px" color="info" class="settings-card__chevron" />
-      </div>
-
-      <div class="settings-card__divider" />
-
-      <div
-        class="settings-card__item settings-card__item--clickable"
-        @click="router.push('/proponer-mejora')"
-      >
-        <q-icon name="lightbulb" size="22px" color="primary" />
-        <span class="settings-card__label">Proponer una mejora</span>
-        <q-icon name="chevron_right" size="20px" color="info" class="settings-card__chevron" />
-      </div>
-
-      <div class="settings-card__divider" />
-
-      <div class="settings-card__section-label">
-        <q-icon name="notifications" size="18px" color="info" />
-        <span>Notificaciones</span>
-      </div>
-
-      <div v-if="preferencesLoading" class="flex flex-center q-pa-sm">
-        <TemploLoader size="sm" />
-      </div>
-      <q-list v-else class="notification-list">
-        <q-item v-for="cat in notificationCategories" :key="cat.key" tag="label" dense>
-          <q-item-section>
-            <q-item-label class="settings-card__label">{{ cat.label }}</q-item-label>
-            <q-item-label caption class="settings-card__caption">{{
-              cat.description
-            }}</q-item-label>
-          </q-item-section>
-          <q-item-section side>
-            <q-toggle
-              :model-value="preferences[cat.key]"
-              color="primary"
-              @update:model-value="(val: boolean) => togglePreference(cat.key, val)"
+          <!-- Plan: solo el nombre y un link; fechas y días viven en Planes (sketch 028) -->
+          <router-link to="/planes" class="profile-row profile-row--link">
+            <q-icon
+              name="card_membership"
+              size="22px"
+              class="profile-row__icon"
+              aria-hidden="true"
             />
-          </q-item-section>
-        </q-item>
-      </q-list>
-    </div>
+            <div class="profile-row__text">
+              <span class="profile-row__label">Tu plan</span>
+              <TemploLoader v-if="userStore.subscriptionLoading" size="sm" />
+              <span
+                v-else
+                class="profile-row__value"
+                :class="{ 'profile-row__value--muted': !userStore.hasActiveSubscription }"
+                >{{
+                  userStore.hasActiveSubscription && userStore.subscription
+                    ? userStore.subscription.planName
+                    : 'Sin plan activo'
+                }}</span
+              >
+            </div>
+            <span class="profile-row__go">Ver en Planes</span>
+            <q-icon name="chevron_right" size="22px" class="profile-row__chevron" aria-hidden="true" />
+          </router-link>
+        </div>
+      </section>
 
-    <!-- Delete Account -->
-    <div class="settings-card q-mb-md">
-      <div
-        class="settings-card__item settings-card__item--clickable settings-card__item--danger"
-        @click="showDeleteDialog = true"
-      >
-        <q-icon name="delete_forever" size="22px" color="negative" />
-        <span class="settings-card__label settings-card__label--danger">Eliminar cuenta</span>
-        <q-icon name="chevron_right" size="20px" color="info" class="settings-card__chevron" />
+      <section class="profile-section">
+        <h2 class="profile-title">Ajustes</h2>
+        <!-- SPEC "La Guía pasa a ser las historias" (2026-09-24): se retira la entrada "Empezá acá"
+             de Ajustes — la Guía ya tiene su propio tab en el nav. -->
+        <div class="profile-card">
+          <router-link to="/change-password" class="profile-row profile-row--link">
+            <q-icon name="lock" size="22px" class="profile-row__icon" aria-hidden="true" />
+            <span class="profile-row__value profile-row__value--grow">Cambiar contraseña</span>
+            <q-icon name="chevron_right" size="22px" class="profile-row__chevron" aria-hidden="true" />
+          </router-link>
+          <router-link to="/mis-invitados" class="profile-row profile-row--link">
+            <q-icon name="card_giftcard" size="22px" class="profile-row__icon" aria-hidden="true" />
+            <span class="profile-row__value profile-row__value--grow">Mis invitados</span>
+            <q-icon name="chevron_right" size="22px" class="profile-row__chevron" aria-hidden="true" />
+          </router-link>
+          <router-link to="/proponer-mejora" class="profile-row profile-row--link">
+            <q-icon name="lightbulb" size="22px" class="profile-row__icon" aria-hidden="true" />
+            <span class="profile-row__value profile-row__value--grow">Proponer una mejora</span>
+            <q-icon name="chevron_right" size="22px" class="profile-row__chevron" aria-hidden="true" />
+          </router-link>
+        </div>
+      </section>
+
+      <section class="profile-section">
+        <h2 class="profile-title">Notificaciones</h2>
+        <div class="profile-card">
+          <div v-if="preferencesLoading" class="flex flex-center q-pa-md">
+            <TemploLoader size="sm" />
+          </div>
+          <template v-else>
+            <label v-for="cat in notificationCategories" :key="cat.key" class="profile-row">
+              <div class="profile-row__text profile-row__value--grow">
+                <span class="profile-row__value">{{ cat.label }}</span>
+                <span class="profile-row__caption">{{ cat.description }}</span>
+              </div>
+              <q-toggle
+                :model-value="preferences[cat.key]"
+                color="primary"
+                @update:model-value="(val: boolean) => togglePreference(cat.key, val)"
+              />
+            </label>
+          </template>
+        </div>
+      </section>
+
+      <div class="profile-card">
+        <button
+          type="button"
+          class="profile-row profile-row--link profile-row--danger"
+          @click="showDeleteDialog = true"
+        >
+          <q-icon name="delete_outline" size="22px" class="profile-row__icon" aria-hidden="true" />
+          <span class="profile-row__value profile-row__value--grow">Eliminar cuenta</span>
+          <q-icon name="chevron_right" size="22px" class="profile-row__chevron" aria-hidden="true" />
+        </button>
       </div>
     </div>
 
@@ -182,11 +143,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, reactive } from 'vue'
+import { computed, ref, onMounted, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from 'stores/useUserStore'
 import { useAuthStore } from 'stores/useAuthStore'
-import { formatDate } from 'src/utils/format-date'
 import { api } from 'src/boot/axios'
 import { createLogger } from 'src/utils/logger'
 import { extractError } from 'src/utils/extract-error'
@@ -198,6 +158,14 @@ const router = useRouter()
 const userStore = useUserStore()
 const authStore = useAuthStore()
 
+/** Iniciales del avatar (nombre y apellido); "A" de Atleta si no hay nombre. */
+const initials = computed(() => {
+  const parts = (userStore.fullName || 'Atleta').trim().split(/\s+/)
+  const first = parts[0]?.[0] ?? ''
+  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : ''
+  return (first + last).toUpperCase()
+})
+
 // Notification categories (per D-18)
 const notificationCategories = [
   {
@@ -208,7 +176,12 @@ const notificationCategories = [
   {
     key: 'programas',
     label: 'Programas',
-    description: 'Confirmacion de inscripcion, avance semanal',
+    description: 'Confirmación de inscripción, avance semanal',
+  },
+  {
+    key: 'planes',
+    label: 'Planes',
+    description: 'Cuando cargamos tu plan y avisos de vencimiento',
   },
   {
     key: 'anuncios',
@@ -222,6 +195,7 @@ const preferencesLoading = ref(true)
 const preferences = reactive<Record<string, boolean>>({
   entrenamiento: true,
   programas: true,
+  planes: true,
   anuncios: true,
 })
 
@@ -289,215 +263,180 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="scss">
-@use 'sass:color';
-@import 'src/css/quasar.variables.scss';
+@import 'src/css/brand';
+@import 'src/css/premium-card';
 
 .profile-page {
-  max-width: 600px;
-  margin: 0 auto;
+  background-color: transparent; // la foto de fondo (.app-bg) se ve detrás
 }
 
-.profile-header {
+.profile-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 16px; // entre bloques (Franco: menos aire alrededor de los títulos)
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 16px 16px 32px;
+}
+
+// ── Encabezado: iniciales en el círculo terracota, nombre y mail en tinta sobre la página ──
+.profile-head {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 8px 0 20px;
 
   &__avatar {
-    width: 56px;
-    height: 56px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, $primary, color.adjust($primary, $lightness: 8%));
+    flex: none;
     display: flex;
     align-items: center;
     justify-content: center;
-    flex-shrink: 0;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, $pd-btn-a, $pd-btn-b); // blanco encima ≥ 4.9:1
+    box-shadow: 0 6px 16px rgba(126, 69, 41, 0.25);
+    font-family: 'Montserrat', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: #fff;
+  }
+
+  &__info {
+    min-width: 0;
   }
 
   &__name {
+    margin: 0;
     font-family: 'Montserrat', sans-serif;
-    font-size: 20px;
+    font-size: 22px;
     font-weight: 700;
-    color: $primary;
+    line-height: 1.25;
+    color: $pd-ink;
+    overflow-wrap: anywhere;
   }
 
   &__email {
-    font-size: 13px;
-    color: #2c2318; // 199-27: texto sobre la página (crema + foto), ink sólido
-    margin-top: 2px;
+    margin: 2px 0 0;
+    font-family: 'Geologica', sans-serif;
+    font-size: 14px;
+    color: $pd-ink;
+    overflow-wrap: anywhere;
   }
 }
 
-.section-title {
-  font-family: 'Montserrat', sans-serif;
-  font-size: 14px;
-  font-weight: 600;
-  color: #2c2318; // 199-27: sobre la página, ink sólido
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin: 4px 0 8px;
+.profile-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px; // título → card
 }
 
-.info-card {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 16px;
-  background: white;
-  border: 1px solid rgba($primary, 0.15);
-  border-radius: 12px;
-  border-left: 4px solid $primary;
+// Título de bloque del rework; sobre la PÁGINA va en tinta (terracota no llega a AA ahí).
+.profile-title {
+  @include mt-block-title;
+  margin: 0;
+  color: $pd-ink;
+}
 
-  &--clickable {
+.profile-card {
+  @include pd-surface-light;
+  overflow: hidden;
+}
+
+// ── Filas: 52 px, ícono terracota, separador interno ──
+.profile-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 52px;
+  padding: 10px 16px;
+  border: 0;
+  background: none;
+  text-align: left;
+  text-decoration: none;
+  color: $pd-ink;
+  font: inherit;
+
+  & + & {
+    border-top: 1px solid $pd-light-line;
+  }
+
+  &--link {
     cursor: pointer;
-    align-items: center;
-    transition: box-shadow 0.15s ease;
+    transition: background-color 0.15s ease;
 
     &:active {
-      box-shadow: 0 0 0 2px rgba($primary, 0.15);
+      background-color: #f8f3ec;
+    }
+
+    &:focus-visible {
+      outline: 2px solid $pd-terra-ink;
+      outline-offset: -2px;
     }
   }
 
   &__icon {
-    flex-shrink: 0;
-    margin-top: 2px;
+    flex: none;
+    color: $pd-terra-ink;
   }
 
-  &__content {
+  &__text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
     flex: 1;
     min-width: 0;
-
-    &--full {
-      margin-left: -36px; // align with card edge past icon
-      padding-left: 36px;
-    }
-  }
-
-  &__row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 8px;
   }
 
   &__label {
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: #6b6459; // 199-27: sólido sobre card blanca
-    display: block;
+    @include pd-label-11;
+    color: $pd-ink-2;
   }
 
   &__value {
-    font-family: 'Montserrat', sans-serif;
-    font-size: 14px;
-    font-weight: 600;
-    color: $primary;
+    font-family: 'Geologica', sans-serif;
+    font-size: 15px;
+    font-weight: 500;
+    color: $pd-ink;
+    overflow-wrap: anywhere;
+
+    &--grow {
+      flex: 1;
+      min-width: 0;
+    }
 
     &--muted {
-      color: #6b6459;
+      color: $pd-ink-2;
     }
-  }
-}
-
-.subscription-details {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.subscription-detail {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-
-  &__label {
-    font-size: 13px;
-    color: #6b6459; // 199-27: sólido sobre card blanca
-  }
-
-  &__value {
-    font-size: 14px;
-    font-weight: 500;
-    color: $accent;
-  }
-}
-
-.settings-card {
-  background: white;
-  border: 1px solid rgba($primary, 0.15);
-  border-radius: 12px;
-  border-left: 4px solid $primary;
-  padding: 0;
-  overflow: hidden;
-
-  &__item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 14px 16px;
-
-    &--clickable {
-      cursor: pointer;
-      transition: background 0.15s ease;
-
-      &:active {
-        background: rgba($primary, 0.04);
-      }
-    }
-  }
-
-  &__label {
-    font-family: 'Montserrat', sans-serif;
-    font-size: 14px;
-    font-weight: 600;
-    color: $primary;
-    flex: 1;
-  }
-
-  &__chevron {
-    flex-shrink: 0;
   }
 
   &__caption {
-    color: #6b6459; // 199-27: sólido sobre card blanca
+    font-family: 'Geologica', sans-serif;
+    font-size: 13px;
+    line-height: 1.35;
+    color: $pd-ink-2;
   }
 
-  &__divider {
-    height: 1px;
-    background: rgba($primary, 0.08);
-    margin: 0 16px;
-  }
-
-  &__section-label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 12px 16px 4px;
-    font-size: 11px;
+  &__go {
+    flex: none;
+    font-family: 'Geologica', sans-serif;
+    font-size: 13px;
     font-weight: 600;
-    color: #6b6459; // 199-27: sólido sobre card blanca
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    color: $pd-terra-ink;
   }
-}
 
-.settings-card__item--danger {
-  &:active {
-    background: rgba($negative, 0.04);
+  &__chevron {
+    flex: none;
+    margin-right: -6px;
+    color: $pd-light-edge;
   }
-}
 
-.settings-card__label--danger {
-  color: $negative !important;
-}
-
-.notification-list {
-  padding: 0 8px;
-
-  :deep(.q-item) {
-    padding: 6px 8px;
+  &--danger {
+    .profile-row__icon,
+    .profile-row__value {
+      color: $pd-neg-title;
+    }
   }
 }
 </style>

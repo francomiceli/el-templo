@@ -49,6 +49,7 @@ interface PlanStatusBody {
     endDate: string | null;
     status: string;
   } | null;
+  hasUnseenPlanUpdate: boolean;
 }
 
 /** Fecha UTC relativa a hoy (UTC): misma base que la regla del servidor. */
@@ -149,6 +150,7 @@ describe("GET /me/plan-status — nunca tuvo plan vs. tuvo y venció (D-05)", ()
       scheduledStartDate: null,
       hadPlan: false,
       lastPlan: null,
+      hasUnseenPlanUpdate: false,
     });
   });
 
@@ -530,6 +532,7 @@ describe("GET /me/plan-status — nunca tuvo plan vs. tuvo y venció (D-05)", ()
       scheduledStartDate: null,
       hadPlan: false,
       lastPlan: null,
+      hasUnseenPlanUpdate: false,
     });
 
     const propio = await fetchPlanStatus(conPlan.token);

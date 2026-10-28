@@ -35,6 +35,7 @@ import {
   CashCountService,
 } from ".";
 import { SubscriptionService } from "../subscriptions/service";
+import { notifyMemberPlanLoaded } from "../subscriptions/plan-loaded-notification";
 import type { PriceType, SubscriptionDetail } from "../subscriptions/types";
 import { MemberService } from "../members/service";
 import { EnrollmentService } from "../programs/enrollment-service";
@@ -732,6 +733,15 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
           },
           request.user.userId,
         );
+        // Carga manual por staff: pelotita + push al socio (best-effort).
+        // `subscription.id` es el período NUEVO de la renovación.
+        await notifyMemberPlanLoaded(
+          fastify.db,
+          request.log,
+          ctx,
+          subscription.id,
+          "loaded",
+        );
         // The charge carries the idempotencyKey (renewalPrice>0 → a charge was
         // created); a free renewal (price 0) produces no charge → transaction null.
         const transaction = await transactionService.findByIdempotencyKey(
@@ -1008,6 +1018,16 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
             createdMemberId,
           },
           request.user.userId,
+        );
+
+        // Carga manual por staff: pelotita + push al socio (best-effort).
+        // `subscription.id` es la sub NUEVA del alta.
+        await notifyMemberPlanLoaded(
+          fastify.db,
+          request.log,
+          ctx,
+          subscription.id,
+          "loaded",
         );
 
         // El plan_charge lleva el idempotencyKey (precio>0 → hubo charge). Un

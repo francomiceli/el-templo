@@ -333,6 +333,7 @@ export const memberPlanStatusSchema = {
         "scheduledStartDate",
         "hadPlan",
         "lastPlan",
+        "hasUnseenPlanUpdate",
       ],
       properties: {
         hasActivePlan: { type: "boolean" },
@@ -347,6 +348,89 @@ export const memberPlanStatusSchema = {
             status: { type: "string" },
           },
         },
+        // Pelotita de la tab Planes: el staff cargó una membresía que el socio
+        // todavía no vio. fast-json-stringify descarta lo no declarado.
+        hasUnseenPlanUpdate: { type: "boolean" },
+      },
+    },
+  },
+} as const;
+
+const planSummaryItemSchema = {
+  type: ["object", "null"],
+  additionalProperties: false,
+  required: [
+    "id",
+    "planId",
+    "planName",
+    "planCategory",
+    "status",
+    "startDate",
+    "endDate",
+    "pauseEndDate",
+    "classesPerWeek",
+    "classesRemaining",
+    "classesBudget",
+    "isNew",
+  ],
+  properties: {
+    id: { type: "integer" },
+    planId: { type: "integer" },
+    planName: { type: "string" },
+    planCategory: { type: "string" },
+    status: { type: "string", enum: ["active", "paused", "scheduled"] },
+    startDate: { type: "string" },
+    endDate: { type: ["string", "null"] },
+    pauseEndDate: { type: ["string", "null"] },
+    classesPerWeek: { type: ["integer", "null"] },
+    classesRemaining: { type: ["integer", "null"] },
+    classesBudget: { type: ["integer", "null"] },
+    isNew: { type: "boolean" },
+  },
+} as const;
+
+/**
+ * Resumen de Planes del socio: GET /me/plan-summary. El historial NO lleva
+ * precio ni montos (`additionalProperties: false` + lista cerrada de claves).
+ */
+export const memberPlanSummarySchema = {
+  response: {
+    200: {
+      type: "object",
+      additionalProperties: false,
+      required: ["current", "next", "history", "hasUnseen"],
+      properties: {
+        current: planSummaryItemSchema,
+        next: planSummaryItemSchema,
+        history: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["id", "planName", "startDate", "endDate"],
+            properties: {
+              id: { type: "integer" },
+              planName: { type: "string" },
+              startDate: { type: "string" },
+              endDate: { type: ["string", "null"] },
+            },
+          },
+        },
+        hasUnseen: { type: "boolean" },
+      },
+    },
+  },
+} as const;
+
+/** POST /me/plan-summary/seen: cuántas membresías se marcaron como vistas. */
+export const memberPlanSummarySeenSchema = {
+  response: {
+    200: {
+      type: "object",
+      additionalProperties: false,
+      required: ["updated"],
+      properties: {
+        updated: { type: "integer" },
       },
     },
   },

@@ -37,6 +37,8 @@
  *     PATCH  /api/admin/subscriptions/subscriptions/:subscriptionId/start-date
  *     POST   /api/admin/subscriptions/subscriptions/:subscriptionId/compensate-days
  *     POST   /api/admin/subscriptions/bulk-migrate
+ *   App del socio (1, self-scoped: el userId sale del token):
+ *     POST   /api/members/subscription/me/plan-summary/seen
  *
  * EL CONTRATO QUE SE AFIRMA (D-06 del milestone — cero "prohibido")
  * ---------------------------------------------------------------------------
@@ -118,7 +120,11 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import { and, eq, sql, type SQL } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
-import { createTestApp, cleanAllTestData, ensureEfectivoCaja } from "../helpers";
+import {
+  createTestApp,
+  cleanAllTestData,
+  ensureEfectivoCaja,
+} from "../helpers";
 import * as schema from "../../src/db/schema";
 import {
   tenantWhere,
@@ -252,7 +258,12 @@ async function fotoDePlan(planId: number): Promise<FotoDePlan> {
   );
   const f = filas[0];
   if (f === undefined) {
-    return { tenantId: null, active: null, priceRegular: null, updatedAt: null };
+    return {
+      tenantId: null,
+      active: null,
+      priceRegular: null,
+      updatedAt: null,
+    };
   }
   return {
     tenantId: f.tenant_id === null ? null : Number(f.tenant_id),
@@ -294,7 +305,9 @@ interface FotoDeSuscripcion {
   endDate: string | null;
 }
 
-async function fotoDeSuscripcion(subscriptionId: number): Promise<FotoDeSuscripcion> {
+async function fotoDeSuscripcion(
+  subscriptionId: number,
+): Promise<FotoDeSuscripcion> {
   const filas = await consultar<{
     tenant_id: number | null;
     status: string | null;
@@ -453,9 +466,13 @@ describe("editar plan — PUT /api/admin/subscriptions/plans/:planId", () => {
 
   it("aislamiento: editar un plan de El Templo se rechaza, y la fila (tenant_id/active/price/updated_at) NO cambia", async () => {
     const antes = await fotoDePlan(fx.templo.planId);
-    const res = await comoAdminGimnasioDos("PUT", `/plans/${fx.templo.planId}`, {
-      priceRegular: 1,
-    });
+    const res = await comoAdminGimnasioDos(
+      "PUT",
+      `/plans/${fx.templo.planId}`,
+      {
+        priceRegular: 1,
+      },
+    );
     expect(
       res.statusCode,
       porQueImporta(RUTA, fx.templo.planId) + ` Respuesta: ${res.body}`,
@@ -488,9 +505,10 @@ describe("desactivar plan — PATCH /api/admin/subscriptions/plans/:planId/deact
 
   it("aislamiento: desactivar el plan de El Templo se rechaza, y sigue activo", async () => {
     const antes = await fotoDePlan(fx.templo.planId);
-    expect(antes.active, "Precondicion: el plan de El Templo empieza activo.").toBe(
-      true,
-    );
+    expect(
+      antes.active,
+      "Precondicion: el plan de El Templo empieza activo.",
+    ).toBe(true);
     const res = await comoAdminGimnasioDos(
       "PATCH",
       `/plans/${fx.templo.planId}/deactivate`,
@@ -636,10 +654,14 @@ describe("editar promo — PATCH /api/admin/subscriptions/promo-plans/:promoId",
     );
     expect(
       res.statusCode,
-      porQueImportaElControl(RUTA, fx.dos.promoPlanId) + ` Respuesta: ${res.body}`,
+      porQueImportaElControl(RUTA, fx.dos.promoPlanId) +
+        ` Respuesta: ${res.body}`,
     ).toBe(200);
     const despues = await fotoDePromo(fx.dos.promoPlanId);
-    expect([despues.tenantId, despues.name]).toEqual([TENANT_DOS, "Editado173.1"]);
+    expect([despues.tenantId, despues.name]).toEqual([
+      TENANT_DOS,
+      "Editado173.1",
+    ]);
   });
 });
 
@@ -648,9 +670,10 @@ describe("desactivar promo — PATCH /api/admin/subscriptions/promo-plans/:promo
 
   it("aislamiento: desactivar el promo de El Templo se rechaza, y sigue activo", async () => {
     const antes = await fotoDePromo(fx.templo.promoPlanId);
-    expect(antes.active, "Precondicion: el promo de El Templo empieza activo.").toBe(
-      true,
-    );
+    expect(
+      antes.active,
+      "Precondicion: el promo de El Templo empieza activo.",
+    ).toBe(true);
     const res = await comoAdminGimnasioDos(
       "PATCH",
       `/promo-plans/${fx.templo.promoPlanId}/deactivate`,
@@ -673,7 +696,8 @@ describe("desactivar promo — PATCH /api/admin/subscriptions/promo-plans/:promo
     );
     expect(
       res.statusCode,
-      porQueImportaElControl(RUTA, fx.dos.promoPlanId) + ` Respuesta: ${res.body}`,
+      porQueImportaElControl(RUTA, fx.dos.promoPlanId) +
+        ` Respuesta: ${res.body}`,
     ).toBe(200);
     const despues = await fotoDePromo(fx.dos.promoPlanId);
     expect([despues.tenantId, despues.active]).toEqual([TENANT_DOS, false]);
@@ -685,7 +709,8 @@ describe("desactivar promo — PATCH /api/admin/subscriptions/promo-plans/:promo
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe("asignar plan — POST /api/admin/subscriptions/members/:userId/subscription/assign", () => {
-  const RUTA = "POST /api/admin/subscriptions/members/:userId/subscription/assign";
+  const RUTA =
+    "POST /api/admin/subscriptions/members/:userId/subscription/assign";
 
   function payload(planId: number): Record<string, unknown> {
     return {
@@ -749,9 +774,10 @@ describe("asignar plan — POST /api/admin/subscriptions/members/:userId/subscri
       priceZero: 700000,
       durationDays: 30,
     });
-    expect(planRes.statusCode, `Setup: crear plan online fallo: ${planRes.body}`).toBe(
-      201,
-    );
+    expect(
+      planRes.statusCode,
+      `Setup: crear plan online fallo: ${planRes.body}`,
+    ).toBe(201);
     const nuevoPlan = JSON.parse(planRes.body) as { id: number };
 
     const antes = await contarSuscripcionesDeUsuario(gym2.socios[0].id);
@@ -762,7 +788,8 @@ describe("asignar plan — POST /api/admin/subscriptions/members/:userId/subscri
     );
     expect(
       res.statusCode,
-      porQueImportaElControl(RUTA, gym2.socios[0].id) + ` Respuesta: ${res.body}`,
+      porQueImportaElControl(RUTA, gym2.socios[0].id) +
+        ` Respuesta: ${res.body}`,
     ).toBe(201);
     const body = JSON.parse(res.body) as { id: number; pricePaid: number };
     expect(
@@ -780,13 +807,15 @@ describe("asignar plan — POST /api/admin/subscriptions/members/:userId/subscri
 });
 
 describe("cancelar suscripcion — POST /api/admin/subscriptions/members/:userId/subscription/cancel", () => {
-  const RUTA = "POST /api/admin/subscriptions/members/:userId/subscription/cancel";
+  const RUTA =
+    "POST /api/admin/subscriptions/members/:userId/subscription/cancel";
 
   it("aislamiento: cancelar la suscripcion de un socio de El Templo se rechaza, y CERO cambios", async () => {
     const antes = await fotoDeSuscripcion(fx.templo.subscriptionId);
-    expect(antes.status, "Precondicion: la sub de El Templo empieza activa.").toBe(
-      "active",
-    );
+    expect(
+      antes.status,
+      "Precondicion: la sub de El Templo empieza activa.",
+    ).toBe("active");
     const res = await comoCoachGimnasioDos(
       "POST",
       `/members/${fx.templo.userId}/subscription/cancel`,
@@ -811,10 +840,14 @@ describe("cancelar suscripcion — POST /api/admin/subscriptions/members/:userId
     );
     expect(
       res.statusCode,
-      porQueImportaElControl(RUTA, gym2.socios[1].id) + ` Respuesta: ${res.body}`,
+      porQueImportaElControl(RUTA, gym2.socios[1].id) +
+        ` Respuesta: ${res.body}`,
     ).toBe(200);
     const despues = await fotoDeSuscripcion(fx.dos.subscriptionEspecialId);
-    expect([despues.tenantId, despues.status]).toEqual([TENANT_DOS, "cancelled"]);
+    expect([despues.tenantId, despues.status]).toEqual([
+      TENANT_DOS,
+      "cancelled",
+    ]);
   });
 });
 
@@ -879,9 +912,10 @@ describe("cambiar de plan — POST /api/admin/subscriptions/members/:userId/subs
       durationDays: 30,
       classesPerWeek: 2,
     });
-    expect(planRes.statusCode, `Setup: crear plan destino fallo: ${planRes.body}`).toBe(
-      201,
-    );
+    expect(
+      planRes.statusCode,
+      `Setup: crear plan destino fallo: ${planRes.body}`,
+    ).toBe(201);
     const nuevoPlan = JSON.parse(planRes.body) as { id: number };
 
     const res = await comoCoachGimnasioDos(
@@ -891,7 +925,8 @@ describe("cambiar de plan — POST /api/admin/subscriptions/members/:userId/subs
     );
     expect(
       res.statusCode,
-      porQueImportaElControl(RUTA, gym2.socios[0].id) + ` Respuesta: ${res.body}`,
+      porQueImportaElControl(RUTA, gym2.socios[0].id) +
+        ` Respuesta: ${res.body}`,
     ).toBe(201);
     const body = JSON.parse(res.body) as { id: number; pricePaid: number };
     expect(
@@ -907,7 +942,8 @@ describe("cambiar de plan — POST /api/admin/subscriptions/members/:userId/subs
 });
 
 describe("renovar suscripcion — POST /api/admin/subscriptions/members/:userId/subscription/renew", () => {
-  const RUTA = "POST /api/admin/subscriptions/members/:userId/subscription/renew";
+  const RUTA =
+    "POST /api/admin/subscriptions/members/:userId/subscription/renew";
 
   it("aislamiento: renovar la suscripcion de un socio de El Templo se rechaza, y CERO filas nuevas", async () => {
     const antesFoto = await fotoDeSuscripcion(fx.templo.subscriptionId);
@@ -921,7 +957,9 @@ describe("renovar suscripcion — POST /api/admin/subscriptions/members/:userId/
       res.statusCode,
       porQueImporta(RUTA, fx.templo.userId) + ` Respuesta: ${res.body}`,
     ).toBe(404);
-    expect(await fotoDeSuscripcion(fx.templo.subscriptionId)).toEqual(antesFoto);
+    expect(await fotoDeSuscripcion(fx.templo.subscriptionId)).toEqual(
+      antesFoto,
+    );
     expect(
       await contarSuscripcionesDeUsuario(fx.templo.userId),
       `${RUTA}: el rechazo del userId ajeno no puede crear NINGUNA fila en subscriptions.`,
@@ -955,7 +993,8 @@ describe("renovar suscripcion — POST /api/admin/subscriptions/members/:userId/
     );
     expect(
       res.statusCode,
-      porQueImportaElControl(RUTA, gym2.socios[0].id) + ` Respuesta: ${res.body}`,
+      porQueImportaElControl(RUTA, gym2.socios[0].id) +
+        ` Respuesta: ${res.body}`,
     ).toBe(201);
     const body = JSON.parse(res.body) as { id: number; pricePaid: number };
     expect(
@@ -971,7 +1010,8 @@ describe("renovar suscripcion — POST /api/admin/subscriptions/members/:userId/
 });
 
 describe("pausar suscripcion — POST /api/admin/subscriptions/members/:userId/subscription/pause", () => {
-  const RUTA = "POST /api/admin/subscriptions/members/:userId/subscription/pause";
+  const RUTA =
+    "POST /api/admin/subscriptions/members/:userId/subscription/pause";
 
   it("aislamiento: pausar la suscripcion de un socio de El Templo se rechaza, y sigue activa", async () => {
     const antes = await fotoDeSuscripcion(fx.templo.subscriptionId);
@@ -994,7 +1034,8 @@ describe("pausar suscripcion — POST /api/admin/subscriptions/members/:userId/s
     );
     expect(
       res.statusCode,
-      porQueImportaElControl(RUTA, gym2.socios[0].id) + ` Respuesta: ${res.body}`,
+      porQueImportaElControl(RUTA, gym2.socios[0].id) +
+        ` Respuesta: ${res.body}`,
     ).toBe(200);
     const despues = await fotoDeSuscripcion(fx.dos.subscriptionId);
     expect([despues.tenantId, despues.status]).toEqual([TENANT_DOS, "paused"]);
@@ -1002,7 +1043,8 @@ describe("pausar suscripcion — POST /api/admin/subscriptions/members/:userId/s
 });
 
 describe("reanudar suscripcion — POST /api/admin/subscriptions/members/:userId/subscription/resume", () => {
-  const RUTA = "POST /api/admin/subscriptions/members/:userId/subscription/resume";
+  const RUTA =
+    "POST /api/admin/subscriptions/members/:userId/subscription/resume";
 
   it("aislamiento: reanudar la suscripcion de un socio de El Templo se rechaza (sigue activa, no pausada)", async () => {
     const antes = await fotoDeSuscripcion(fx.templo.subscriptionId);
@@ -1040,7 +1082,8 @@ describe("reanudar suscripcion — POST /api/admin/subscriptions/members/:userId
     );
     expect(
       res.statusCode,
-      porQueImportaElControl(RUTA, gym2.socios[0].id) + ` Respuesta: ${res.body}`,
+      porQueImportaElControl(RUTA, gym2.socios[0].id) +
+        ` Respuesta: ${res.body}`,
     ).toBe(200);
     const despues = await fotoDeSuscripcion(fx.dos.subscriptionId);
     expect([despues.tenantId, despues.status]).toEqual([TENANT_DOS, "active"]);
@@ -1132,7 +1175,8 @@ describe("editar fecha de inicio — PATCH /api/admin/subscriptions/subscription
     );
     expect(
       res.statusCode,
-      porQueImportaElControl(RUTA, gym2.socios[0].id) + ` Respuesta: ${res.body}`,
+      porQueImportaElControl(RUTA, gym2.socios[0].id) +
+        ` Respuesta: ${res.body}`,
     ).toBe(200);
     const body = JSON.parse(res.body) as { startDate: string };
     expect(body.startDate).toBe(nuevaFecha);
@@ -1177,7 +1221,8 @@ describe("compensar dias — POST /api/admin/subscriptions/subscriptions/:subscr
     );
     expect(
       res.statusCode,
-      porQueImportaElControl(RUTA, gym2.socios[0].id) + ` Respuesta: ${res.body}`,
+      porQueImportaElControl(RUTA, gym2.socios[0].id) +
+        ` Respuesta: ${res.body}`,
     ).toBe(200);
     const despues = await fotoDeSuscripcion(fx.dos.subscriptionId);
     expect(despues.tenantId).toBe(TENANT_DOS);
@@ -1205,7 +1250,9 @@ describe("migracion masiva — POST /api/admin/subscriptions/bulk-migrate", () =
     const targetPlan = JSON.parse(targetPlanRes.body) as { id: number };
 
     const antesFotoAjena = await fotoDeSuscripcion(fx.templo.subscriptionId);
-    const antesCountAjeno = await contarSuscripcionesDeUsuario(fx.templo.userId);
+    const antesCountAjeno = await contarSuscripcionesDeUsuario(
+      fx.templo.userId,
+    );
 
     const res = await comoAdminGimnasioDos("POST", "/bulk-migrate", {
       userIds: [gym2.socios[1].id, fx.templo.userId],
@@ -1260,7 +1307,8 @@ describe("migracion masiva — POST /api/admin/subscriptions/bulk-migrate", () =
     const body = JSON.parse(res.body) as { migrated: number; skipped: number };
     expect(
       [body.migrated, body.skipped],
-      porQueImportaElControl(RUTA, gym2.socios[0].id) + ` Respuesta: ${JSON.stringify(body)}`,
+      porQueImportaElControl(RUTA, gym2.socios[0].id) +
+        ` Respuesta: ${JSON.stringify(body)}`,
     ).toEqual([1, 0]);
 
     const viejaFoto = await fotoDeSuscripcion(fx.dos.subscriptionId);
@@ -1272,5 +1320,114 @@ describe("migracion masiva — POST /api/admin/subscriptions/bulk-migrate", () =
       await contarSuscripcionesDeUsuario(gym2.socios[0].id),
       `${RUTA}: la migracion tiene que CANCELAR la vieja y CREAR una nueva (2 filas totales, no reemplazar in-place).`,
     ).toBe(antes + 1);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// App del socio — marca de visto de la tab Planes (self-scoped)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** "Foto" de las dos columnas de la pelotita de una sub, leida de la base. */
+async function fotoDePelotita(
+  subscriptionId: number,
+  tenantId: number,
+): Promise<{ notified: boolean; seen: boolean }> {
+  const [fila] = await app.db
+    .select({
+      notifiedAt: schema.subscriptions.memberNotifiedAt,
+      seenAt: schema.subscriptions.memberSeenAt,
+    })
+    .from(schema.subscriptions)
+    .where(
+      and(
+        tenantWhere(schema.subscriptions, { tenantId }),
+        eq(schema.subscriptions.id, subscriptionId),
+      ),
+    );
+  return {
+    notified: fila?.notifiedAt != null,
+    seen: fila?.seenAt != null,
+  };
+}
+
+/** Deja la sub avisada y sin ver (lo que hace `notifyMemberPlanLoaded`). */
+async function marcarAvisadaSinVer(
+  subscriptionId: number,
+  tenantId: number,
+): Promise<void> {
+  await app.db
+    .update(schema.subscriptions)
+    .set({ memberNotifiedAt: new Date(), memberSeenAt: null })
+    .where(
+      and(
+        tenantWhere(schema.subscriptions, { tenantId }),
+        eq(schema.subscriptions.id, subscriptionId),
+      ),
+    );
+}
+
+async function postVistoComo(token: string) {
+  return app.inject({
+    method: "POST",
+    url: "/api/members/subscription/me/plan-summary/seen",
+    headers: { authorization: `Bearer ${token}` },
+  });
+}
+
+describe("marcar Planes como visto — POST /api/members/subscription/me/plan-summary/seen", () => {
+  const RUTA = "POST /api/members/subscription/me/plan-summary/seen";
+  const CTX_TEMPLO: TenantContext = { tenantId: TENANT_TEMPLO };
+
+  it("aislamiento: el socio del gimnasio 2 no marca como vista la membresia de El Templo ni la de otro socio de su gimnasio", async () => {
+    // Avisadas y sin ver: la de El Templo y la del otro socio del gimnasio 2.
+    // El socio[0] del gimnasio 2 NO tiene nada sin ver.
+    await marcarAvisadaSinVer(fx.templo.subscriptionId, TENANT_TEMPLO);
+    await marcarAvisadaSinVer(fx.dos.subscriptionEspecialId, TENANT_DOS);
+    const antesTemplo = await fotoDePelotita(
+      fx.templo.subscriptionId,
+      CTX_TEMPLO.tenantId,
+    );
+    const antesOtroSocio = await fotoDePelotita(
+      fx.dos.subscriptionEspecialId,
+      CTX_DOS.tenantId,
+    );
+    expect(
+      [antesTemplo, antesOtroSocio],
+      "La siembra del caso no dejo las dos filas avisadas y sin ver.",
+    ).toEqual([
+      { notified: true, seen: false },
+      { notified: true, seen: false },
+    ]);
+
+    const res = await postVistoComo(gym2.socios[0].token);
+    expect(res.statusCode, `${RUTA} fallo: ${res.body}`).toBe(200);
+    expect(
+      (JSON.parse(res.body) as { updated: number }).updated,
+      porQueImporta(RUTA, fx.templo.subscriptionId),
+    ).toBe(0);
+
+    expect(
+      await fotoDePelotita(fx.templo.subscriptionId, CTX_TEMPLO.tenantId),
+      porQueImporta(RUTA, fx.templo.subscriptionId),
+    ).toEqual(antesTemplo);
+    expect(
+      await fotoDePelotita(fx.dos.subscriptionEspecialId, CTX_DOS.tenantId),
+      porQueImporta(RUTA, fx.dos.subscriptionEspecialId),
+    ).toEqual(antesOtroSocio);
+  });
+
+  it("control: el socio del gimnasio 2 SI marca como vista su propia membresia avisada", async () => {
+    await marcarAvisadaSinVer(fx.dos.subscriptionId, TENANT_DOS);
+
+    const res = await postVistoComo(gym2.socios[0].token);
+    expect(res.statusCode, `${RUTA} fallo: ${res.body}`).toBe(200);
+    expect(
+      (JSON.parse(res.body) as { updated: number }).updated,
+      porQueImportaElControl(RUTA, fx.dos.subscriptionId),
+    ).toBe(1);
+    expect(
+      await fotoDePelotita(fx.dos.subscriptionId, CTX_DOS.tenantId),
+      porQueImportaElControl(RUTA, fx.dos.subscriptionId),
+    ).toEqual({ notified: true, seen: true });
   });
 });
