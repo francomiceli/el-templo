@@ -34,7 +34,9 @@
         <article v-for="exp in experiencias" :key="exp.id" class="pc">
           <div class="pc__head">
             <span class="pc__name">{{ exp.name }}</span>
-            <span class="pc-pill pc-pill--neu">{{ exp.durationWeeks }} semanas</span>
+            <span v-if="exp.durationWeeks" class="pc-pill pc-pill--neu"
+              >{{ exp.durationWeeks }} semanas</span
+            >
           </div>
           <p v-if="exp.description" class="pc__desc">{{ exp.description }}</p>
           <div v-if="!exp.hasContent || exp.price != null" class="pc__tags">

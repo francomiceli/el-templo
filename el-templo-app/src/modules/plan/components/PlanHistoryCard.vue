@@ -47,9 +47,13 @@ const rows = computed(() =>
   props.items.map((item) => ({
     id: item.id,
     name: item.planName,
-    range: item.endDate
-      ? `${formatShortDateEs(item.startDate, props.today)} → ${formatShortDateEs(item.endDate, props.today)}`
-      : `Desde el ${formatShortDateEs(item.startDate, props.today)}`,
+    // Un solo día (ej. clase única): "9 jul", no "9 jul → 9 jul".
+    range:
+      item.endDate === null
+        ? `Desde el ${formatShortDateEs(item.startDate, props.today)}`
+        : item.endDate === item.startDate
+          ? formatShortDateEs(item.startDate, props.today)
+          : `${formatShortDateEs(item.startDate, props.today)} → ${formatShortDateEs(item.endDate, props.today)}`,
   })),
 )
 </script>

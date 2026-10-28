@@ -61,12 +61,10 @@
         >
           <q-icon :name="tab.icon" :size="tab.size ?? '24px'" />
           <span class="desktop-rail__label">{{ tab.label }}</span>
-          <q-badge
+          <span
             v-if="tab.dot"
-            floating
-            rounded
-            color="primary"
-            class="desktop-rail__badge"
+            class="tab-dot desktop-rail__badge"
+            role="status"
             :aria-label="tab.dot.label"
           />
         </router-link>
@@ -151,12 +149,10 @@
         >
           <q-icon :name="tab.icon" :size="tab.size ?? '24px'" />
           <span class="mobile-tab__label">{{ tab.label }}</span>
-          <q-badge
+          <span
             v-if="tab.dot"
-            floating
-            rounded
-            color="primary"
-            class="mobile-tab__badge"
+            class="tab-dot mobile-tab__badge"
+            role="status"
             :aria-label="tab.dot.label"
           />
         </router-link>
@@ -754,6 +750,16 @@ async function onLogout() {
   position: absolute;
   top: 8px;
   left: 38px;
+}
+
+// Punto de novedad (evaluación, Guía, plan cargado) en la barra y el rail. Crema con aro oscuro:
+// un `q-badge` color primary era terracota sobre el degradé terracota y no se veía (sketch 028).
+.tab-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #f0e6d6;
+  box-shadow: 0 0 0 2px #7e4529;
 }
 
 .with-desktop-rail {
