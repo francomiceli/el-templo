@@ -3,6 +3,7 @@ import { AxiosError } from 'axios'
 import { useAuthStore } from 'stores/useAuthStore'
 import type { AuthUser } from 'stores/useAuthStore'
 import { useUserStore } from 'stores/useUserStore'
+import { useCardHadContentStore } from 'stores/useCardHadContentStore'
 import { api, runRefresh, isSessionRejectedStatus } from './axios'
 import { useTokenStorage } from 'src/composables/useTokenStorage'
 import { createLogger } from 'src/utils/logger'
@@ -164,6 +165,8 @@ export async function runAuthBoot(): Promise<void> {
         authStore.token = accessToken
         authStore.setAuth(accessToken, optimisticUser)
         userStore.markProfileStale()
+        // Fase 203 (D-02): flags "tuvo contenido" del socio, lectura local, antes del primer frame.
+        await useCardHadContentStore().hydrate(optimisticUser.id)
       }
       // Sin claims decodificables no hay nada seguro que mostrar — se deja
       // como estaba (sin sesión), en vez de arriesgar un estado a medias.
@@ -189,6 +192,9 @@ export async function runAuthBoot(): Promise<void> {
     // resolves — Quasar awaits this function, so the first MainLayout render
     // and the first session fetch see the hydrated selectedLevel.
     await userStore.hydrateSelection()
+    // Fase 203 (D-02): flags "tuvo contenido" del socio (lectura local de Preferences, igual que
+    // la selección de nivel): el primer frame ya sabe qué cards reservan lugar.
+    await useCardHadContentStore().hydrate(response.data.id)
     // Hydrate the member state at boot so anything that depends on
     // hasActiveSubscription (e.g. the check-in QR FAB on /mi-templo) works
     // on first render, without requiring a visit to /reservas first.
@@ -214,6 +220,7 @@ export async function runAuthBoot(): Promise<void> {
       const optimisticUser = decodeAuthUser(accessToken)
       if (optimisticUser) {
         authStore.setAuth(accessToken, optimisticUser)
+        await useCardHadContentStore().hydrate(optimisticUser.id)
       }
       userStore.markProfileStale()
     }

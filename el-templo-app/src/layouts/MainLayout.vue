@@ -192,6 +192,7 @@ import { useAvisosStore } from 'src/stores/useAvisosStore'
 import { useNovedadesStore } from 'src/stores/useNovedadesStore'
 import { useSponsorsStore } from 'src/stores/useSponsorsStore'
 import { useTodayBookingStore } from 'src/stores/useTodayBookingStore'
+import { useCardHadContentStore } from 'src/stores/useCardHadContentStore'
 import PushPermissionDialog from 'src/components/PushPermissionDialog.vue'
 import ImprovementPromptDialog from 'src/components/ImprovementPromptDialog.vue'
 import RatingPromptDialog from 'src/components/RatingPromptDialog.vue'
@@ -216,6 +217,7 @@ const avisosStore = useAvisosStore()
 const novedadesStore = useNovedadesStore()
 const sponsorsStore = useSponsorsStore()
 const todayBookingStore = useTodayBookingStore()
+const cardFlags = useCardHadContentStore()
 
 // Fase 193 (D-20/D-21): hidrata el número de ventas del servidor + el texto
 // por defecto de WhatsApp una vez por sesión, mismo patrón `watch` +
@@ -248,6 +250,10 @@ watch(
       // D-04/D-06: turno de hoy + reloj de la ventana ±20 min (compartido con Mi Templo).
       void todayBookingStore.load()
       todayBookingStore.startClock()
+      // Fase 203 (D-02): flags "tuvo contenido" del socio. Cubre el login sin reinicio; si el
+      // boot ya los hidrató para este socio es un no-op.
+      const userId = authStore.user?.id
+      if (userId !== undefined) void cardFlags.hydrate(userId)
     } else {
       avisosStore.reset()
       // Novedades de Mi Templo: la próxima sesión (otro socio/sede) arranca de cero.
@@ -256,6 +262,8 @@ watch(
       sponsorsStore.reset()
       // Reservas del socio anterior + reloj: nada vivo tras el logout.
       todayBookingStore.reset()
+      // Flags "tuvo contenido" (D-02): los del socio anterior no se arrastran al siguiente.
+      cardFlags.reset()
     }
   },
   { immediate: true },

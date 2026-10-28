@@ -75,6 +75,14 @@ vi.mock('stores/useUserStore', () => ({
   useUserStore: () => userStoreMock,
 }))
 
+// Fase 203 (D-02): flags "tuvo contenido" por socio. Mock plano: sin Pinia activo el store real
+// tiraría "getActivePinia was called with no active Pinia" en todos los casos con sesión.
+const cardFlagsMock = { hydrate: vi.fn(async (_userId: number) => {}) }
+
+vi.mock('stores/useCardHadContentStore', () => ({
+  useCardHadContentStore: () => cardFlagsMock,
+}))
+
 // --- axios.ts (runRefresh discriminado + api.get + isSessionRejectedStatus) -
 
 const apiGet = vi.fn()
@@ -143,6 +151,7 @@ describe('boot/auth.ts — runAuthBoot (App 1.7.9, causa raíz de deslogueos)', 
     expect(runRefresh).not.toHaveBeenCalled()
     expect(apiGet).not.toHaveBeenCalled()
     expect(authStoreMock.clearAuth).not.toHaveBeenCalled()
+    expect(cardFlagsMock.hydrate).not.toHaveBeenCalled()
   })
 
   describe('token expirado + refreshToken (dispara runRefresh)', () => {
@@ -158,6 +167,7 @@ describe('boot/auth.ts — runAuthBoot (App 1.7.9, causa raíz de deslogueos)', 
       expect(clearTokens).toHaveBeenCalledTimes(1)
       expect(authStoreMock.clearAuth).toHaveBeenCalledTimes(1)
       expect(apiGet).not.toHaveBeenCalled() // ni se intenta /auth/me: ya no hay sesión
+      expect(cardFlagsMock.hydrate).not.toHaveBeenCalled()
     })
 
     it('refresh con error de red → NO desloguea, arranca logueado de forma optimista', async () => {
@@ -173,6 +183,9 @@ describe('boot/auth.ts — runAuthBoot (App 1.7.9, causa raíz de deslogueos)', 
         expect.objectContaining({ id: 7, email: 'socio@test.com', role: 'member' }),
       )
       expect(userStoreMock.markProfileStale).toHaveBeenCalledTimes(1)
+      // Fase 203 (D-02): los flags del socio se hidratan también en el boot optimista.
+      expect(cardFlagsMock.hydrate).toHaveBeenCalledTimes(1)
+      expect(cardFlagsMock.hydrate).toHaveBeenCalledWith(7)
       // No se llega a intentar /auth/me con un token que sabemos expirado.
       expect(apiGet).not.toHaveBeenCalled()
     })
@@ -204,6 +217,7 @@ describe('boot/auth.ts — runAuthBoot (App 1.7.9, causa raíz de deslogueos)', 
 
       expect(clearTokens).toHaveBeenCalledTimes(1)
       expect(authStoreMock.clearAuth).toHaveBeenCalledTimes(1)
+      expect(cardFlagsMock.hydrate).not.toHaveBeenCalled()
     })
 
     it('/auth/me con error de red → NO desloguea, se mantiene logueado optimistamente', async () => {
@@ -218,6 +232,8 @@ describe('boot/auth.ts — runAuthBoot (App 1.7.9, causa raíz de deslogueos)', 
         expect.objectContaining({ id: 7, email: 'socio@test.com', role: 'member' }),
       )
       expect(userStoreMock.markProfileStale).toHaveBeenCalledTimes(1)
+      expect(cardFlagsMock.hydrate).toHaveBeenCalledTimes(1)
+      expect(cardFlagsMock.hydrate).toHaveBeenCalledWith(7)
     })
 
     it('/auth/me OK → setProfile + hydrateSelection + ensureMemberState', async () => {
@@ -233,6 +249,8 @@ describe('boot/auth.ts — runAuthBoot (App 1.7.9, causa raíz de deslogueos)', 
       expect(userStoreMock.ensureMemberState).toHaveBeenCalledTimes(1)
       expect(userStoreMock.loadSubscription).not.toHaveBeenCalled()
       expect(userStoreMock.markProfileStale).not.toHaveBeenCalled()
+      expect(cardFlagsMock.hydrate).toHaveBeenCalledTimes(1)
+      expect(cardFlagsMock.hydrate).toHaveBeenCalledWith(7)
     })
   })
 
