@@ -738,5 +738,59 @@ describe('useUserStore · estado del socio (loadMemberState / ensureMemberState)
       expect(store.hasActiveProgramEnrollment).toBe(true)
       expect(store.enrolledGoalPlanType).toBe('gluteos')
     })
+
+    it('tope: una fuente colgada no cuelga a quien espera la carga; no marca memberStateLoaded y la respuesta tardía sigue escribiendo', async () => {
+      vi.useFakeTimers()
+      const sub = deferred<unknown>()
+      mockApi({ subscription: () => sub.promise })
+      const store = useUserStore()
+
+      let done = false
+      const load = store.ensureMemberState().then(() => {
+        done = true
+      })
+      await vi.advanceTimersByTimeAsync(MEMBER_LOAD_MAX_IN_FLIGHT_MS - 1_000)
+      expect(done).toBe(false)
+
+      await vi.advanceTimersByTimeAsync(2_000)
+      await load
+      expect(done).toBe(true)
+      // Ese ciclo no cuenta como cargado: la próxima ensureMemberState vuelve a pedir.
+      expect(store.memberStateLoaded).toBe(false)
+      expect(store.subscriptionLoaded).toBe(false)
+
+      // Nadie lanzó una carga nueva: la respuesta tardía sigue siendo vigente y escribe.
+      sub.resolve({ status: 200, data: ACTIVE_SUB })
+      await flush()
+      expect(store.subscription?.status).toBe('active')
+      expect(store.memberStateLoaded).toBe(false)
+
+      await store.ensureMemberState()
+      expect(count('myProgress')).toBe(2)
+    })
+
+    it('tope: loadSubscription (force) también resuelve aunque la suscripción nunca responda', async () => {
+      vi.useFakeTimers()
+      mockApi({ subscription: () => new Promise(() => {}) })
+      const store = useUserStore()
+
+      let done = false
+      void store.loadSubscription().then(() => {
+        done = true
+      })
+      await vi.advanceTimersByTimeAsync(MEMBER_LOAD_MAX_IN_FLIGHT_MS + 1_000)
+      expect(done).toBe(true)
+    })
+
+    it('el timer del tope se limpia cuando la carga termina antes', async () => {
+      vi.useFakeTimers()
+      mockApi()
+      const store = useUserStore()
+
+      await store.ensureMemberState()
+
+      expect(store.memberStateLoaded).toBe(true)
+      expect(vi.getTimerCount()).toBe(0)
+    })
   })
 })

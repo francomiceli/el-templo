@@ -765,9 +765,28 @@ export const useUserStore = defineStore('user', () => {
         loadPlanStatus(isCurrent),
         loadTrialEligibility(isCurrent),
       )
+    } else {
+      // Esta carga ya es la vigente y NO pide estas fuentes: considera bueno el dato que hay. Si una
+      // carga 'initial' colgada las dejó en "cargando", ya no es current y su `finally` no las apaga.
     }
     tasks.push(fetchProgramEnrollmentStatus(isCurrent), fetchCurrentProgram(isCurrent))
-    await Promise.allSettled(tasks)
+    // Tope (W4): en nativo CapacitorHttp ignora el timeout de axios, y quien hace
+    // `await loadSubscription()` no puede quedar colgado para siempre. Vencido el tope la promesa
+    // resuelve, pero este ciclo NO marca `memberStateLoaded` (la próxima ensureMemberState vuelve a
+    // pedir); las respuestas tardías siguen escribiendo solo si `isCurrent()`.
+    let capTimer: ReturnType<typeof setTimeout> | undefined
+    const capped = new Promise<'capped'>((resolve) => {
+      capTimer = setTimeout(() => resolve('capped'), MEMBER_LOAD_MAX_IN_FLIGHT_MS)
+    })
+    const outcome = await Promise.race([
+      Promise.allSettled(tasks).then(() => 'settled' as const),
+      capped,
+    ])
+    clearTimeout(capTimer)
+    if (outcome === 'capped') {
+      log.warn('La carga del socio superó el tope: se sigue sin esperar las fuentes pendientes')
+      return
+    }
     if (isCurrent()) {
       memberStateLoaded.value = true
       memberStateLoadedAt = Date.now()
