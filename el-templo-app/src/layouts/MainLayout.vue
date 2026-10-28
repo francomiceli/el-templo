@@ -53,7 +53,7 @@
       <!-- Navigation -->
       <nav class="desktop-rail__nav">
         <router-link
-          v-for="tab in mobileTabs"
+          v-for="tab in navTabs"
           :key="'rail-' + tab.to"
           :to="tab.to"
           class="desktop-rail__tab"
@@ -62,28 +62,12 @@
           <q-icon :name="tab.icon" :size="tab.size ?? '24px'" />
           <span class="desktop-rail__label">{{ tab.label }}</span>
           <q-badge
-            v-if="tab.badge && progressionStore.evaluationEligible"
+            v-if="tab.dot"
             floating
             rounded
             color="primary"
             class="desktop-rail__badge"
-          />
-          <q-badge
-            v-else-if="tab.introBadge && showIntroBadge"
-            floating
-            rounded
-            color="negative"
-            label="1"
-            class="desktop-rail__badge desktop-rail__badge--count"
-            aria-label="Novedad: Empezá acá"
-          />
-          <q-badge
-            v-else-if="tab.planBadge && showPlanBadge"
-            floating
-            rounded
-            color="primary"
-            class="desktop-rail__badge"
-            aria-label="Novedad: plan cargado"
+            :aria-label="tab.dot.label"
           />
         </router-link>
       </nav>
@@ -155,7 +139,7 @@
     <q-footer v-if="!isDesktop" elevated class="mobile-footer">
       <div class="mobile-tabs">
         <router-link
-          v-for="tab in mobileTabs"
+          v-for="tab in navTabs"
           :key="tab.to"
           :to="tab.to"
           class="mobile-tab"
@@ -164,28 +148,12 @@
           <q-icon :name="tab.icon" :size="tab.size ?? '24px'" />
           <span class="mobile-tab__label">{{ tab.label }}</span>
           <q-badge
-            v-if="tab.badge && progressionStore.evaluationEligible"
+            v-if="tab.dot"
             floating
             rounded
             color="primary"
             class="mobile-tab__badge"
-          />
-          <q-badge
-            v-else-if="tab.introBadge && showIntroBadge"
-            floating
-            rounded
-            color="negative"
-            label="1"
-            class="mobile-tab__badge mobile-tab__badge--count"
-            aria-label="Novedad: Empezá acá"
-          />
-          <q-badge
-            v-else-if="tab.planBadge && showPlanBadge"
-            floating
-            rounded
-            color="primary"
-            class="mobile-tab__badge"
-            aria-label="Novedad: plan cargado"
+            :aria-label="tab.dot.label"
           />
         </router-link>
       </div>
@@ -438,7 +406,7 @@ interface MobileTab {
   label: string
   size?: string
   badge?: boolean
-  /** Pelotita roja con "1" mientras el socio no abrió "Empezá acá". */
+  /** Punto mientras el socio no abrió "Empezá acá". */
   introBadge?: boolean
   /** Punto mientras haya un plan cargado por el staff que el socio todavía no vio en Planes. */
   planBadge?: boolean
@@ -465,6 +433,21 @@ const mobileTabs = computed<MobileTab[]>(() => {
   tabs.push({ to: '/planes', icon: 'card_membership', label: 'Planes', planBadge: true })
   return tabs
 })
+
+interface TabDot {
+  /** Texto para lectores de pantalla; sin él el punto es solo decorativo. */
+  label?: string
+}
+
+/** Un único punto por tab (evaluación en Mi Templo, "Empezá acá" en Guía, plan cargado en Planes). */
+function dotFor(tab: MobileTab): TabDot | null {
+  if (tab.badge && progressionStore.evaluationEligible) return {}
+  if (tab.introBadge && showIntroBadge.value) return { label: 'Novedad: Empezá acá' }
+  if (tab.planBadge && showPlanBadge.value) return { label: 'Novedad: plan cargado' }
+  return null
+}
+
+const navTabs = computed(() => mobileTabs.value.map((tab) => ({ ...tab, dot: dotFor(tab) })))
 
 function isTabActive(tab: MobileTab): boolean {
   const tabTo = tab.match ?? tab.to
@@ -762,18 +745,6 @@ async function onLogout() {
   position: absolute;
   top: 8px;
   left: 38px;
-}
-
-// "1" rojo de "Empezá acá" sobre Guía: un número legible, no un punto.
-.desktop-rail__badge--count,
-.mobile-tab__badge--count {
-  min-width: 16px;
-  height: 16px;
-  padding: 0 4px;
-  font-size: 10px;
-  font-weight: 700;
-  line-height: 16px;
-  justify-content: center;
 }
 
 .with-desktop-rail {
