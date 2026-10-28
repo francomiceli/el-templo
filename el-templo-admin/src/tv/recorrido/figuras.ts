@@ -30,12 +30,15 @@ export const FIGURA_BASE = {
   'lit-a': '#d1bdab',
   'lit-b': '#b08d6e',
   'lit-c': '#6d5744',
-  'lit-edge': '#614e3d',
 };
 
 /** Opacidades del degradé del músculo sin trabajar (luz, medio, borde): mismas que `MUSCLE_OP`
  *  de BodyFigure.vue. El borde transparente funde el músculo en la piel (2026-10-27). */
 export const MUSCULO_OPACIDAD = [1, 0.85, 0];
+
+/** Opacidades del degradé del encendido: mismas que `LIT_OP` de BodyFigure.vue. Sin línea y con
+ *  el borde al 35 %, se nota menos cada pieza (2026-10-27). */
+export const ENCENDIDO_OPACIDAD = [1, 1, 0.35];
 
 /** Color de la lista de bloques y de los rótulos de zona (2026-10-27: uno solo para todos los
  *  bloques, el mismo oro del encendido; antes cada bloque tenía el suyo). */
@@ -137,12 +140,13 @@ export class Defs {
     ]);
   }
 
-  /** Zona encendida. */
+  /** Zona encendida: se funde en el borde. */
   encendido(): string {
+    const [a, b, c] = ENCENDIDO_OPACIDAD;
     return this.radial('recLit', [
-      [0, FIGURA_BASE['lit-a']],
-      [0.5, FIGURA_BASE['lit-b']],
-      [1, FIGURA_BASE['lit-c']],
+      [0, FIGURA_BASE['lit-a'], a],
+      [0.5, FIGURA_BASE['lit-b'], b],
+      [1, FIGURA_BASE['lit-c'], c],
     ]);
   }
 }
@@ -189,7 +193,7 @@ export function svgBloque(
   let s = '<g>';
   for (const g of an[key]) {
     if ((zonas as string[]).indexOf(g.slug) < 0) continue;
-    for (const p of g.p) s += path(p[0], fill, FIGURA_BASE['lit-edge'], 1.1);
+    for (const p of g.p) s += `<path d="${p[0]}" fill="${fill}"/>`;
   }
   return s + '</g>';
 }

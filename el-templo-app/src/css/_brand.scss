@@ -35,12 +35,16 @@ $fig-skin-edge: #b1a38e;
 // de mezclar #b08d6e con blanco o negro (como `mezclar()` de la TV).
 $fig-lit-a: #d1bdab; // bloque elegido: luz (42 % blanco)
 $fig-lit-b: #b08d6e; // bloque elegido: medio
-$fig-lit-c: #6d5744; // bloque elegido: sombra (38 % negro)
-$fig-lit-edge: #614e3d; // 45 % negro
+$fig-lit-c: #6d5744; // bloque elegido: sombra (38 % negro), al 35 %: el borde se funde en la piel
 
 // Muestra de leyenda con el mismo encendido que la figura.
 @mixin fig-lit-swatch {
-  background: radial-gradient(circle at 34% 26%, $fig-lit-a, $fig-lit-b 50%, $fig-lit-c);
+  background: radial-gradient(
+    circle at 34% 26%,
+    $fig-lit-a,
+    $fig-lit-b 50%,
+    rgba($fig-lit-c, 0.35)
+  );
 }
 $fig-lit2: #c8af9a; // zonas de los otros bloques de la sesión (30 % blanco)
 $fig-lit2-edge: #8d7158; // 20 % negro
@@ -52,7 +56,7 @@ $fig-tap: #d8c9b5; // modo tocable, sin elegir
 $fig-tap-edge: #bba891;
 $fig-dim: #ebe3d7; // modo tocable, atenuado
 $fig-dim-edge: #d8ccbc;
-// Fase 200 (sketch 020): figura pintada por grupo de alumno. "Hace el movimiento" usa $fig-lit-b / $fig-lit-edge.
+// Fase 200 (sketch 020): figura pintada por grupo de alumno. "Hace el movimiento" usa el encendido ($fig-lit-*).
 $fig-sost: #d0bba8; // "te sostiene" (40 % blanco), borde $fig-lit2-edge
 $fig-estira: #f6ecdf; // "se estira": relleno claro con borde punteado oro
 $fig-estira-edge: #7b634d; // 30 % negro

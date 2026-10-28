@@ -391,7 +391,7 @@ const CLAVES_CUERPO = [
   "skin",
   "skin-edge",
 ] as const;
-const CLAVES_ENCENDIDO = ["lit-a", "lit-b", "lit-c", "lit-edge"] as const;
+const CLAVES_ENCENDIDO = ["lit-a", "lit-b", "lit-c"] as const;
 
 /** `$fig-<clave>: #hex;` de un SCSS, solo las claves pedidas. */
 function figScss(
@@ -504,6 +504,14 @@ describe("anatomy/sync-front — la figura de la Guía en app, admin y TV", () =
       throw new Error(`sync-front: no se encontró ${nombre} en ${origen}`);
     return m[1].split(",").map((x) => Number(x.trim()));
   }
+
+  it("app y TV funden el encendido con las mismas opacidades", () => {
+    const app = opacidades(leerEspejo(appFigPath), "LIT_OP", appFigPath);
+    expect(app).toHaveLength(3);
+    expect(
+      opacidades(leerEspejo(tvPath), "ENCENDIDO_OPACIDAD", tvPath),
+    ).toEqual(app);
+  });
 
   it("app, admin y TV funden el músculo con las mismas opacidades", () => {
     const app = opacidades(leerEspejo(appFigPath), "MUSCLE_OP", appFigPath);

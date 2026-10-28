@@ -15,9 +15,9 @@
         >
           <defs>
             <radialGradient :id="gradientIdFor(view.key)" v-bind="RELIEVE">
-              <stop offset="0" :stop-color="LIT[0]" />
-              <stop offset="0.5" :stop-color="LIT[1]" />
-              <stop offset="1" :stop-color="LIT[2]" />
+              <stop offset="0" :stop-color="LIT[0]" :stop-opacity="LIT_OP[0]" />
+              <stop offset="0.5" :stop-color="LIT[1]" :stop-opacity="LIT_OP[1]" />
+              <stop offset="1" :stop-color="LIT[2]" :stop-opacity="LIT_OP[2]" />
             </radialGradient>
             <radialGradient :id="muscleIdFor(view.key)" v-bind="RELIEVE">
               <stop offset="0" :stop-color="MUSCLE[0]" :stop-opacity="MUSCLE_OP[0]" />
@@ -115,8 +115,10 @@ const log = createLogger('BodyFigure')
 // izquierda, como el recorrido de la TV.
 const LIT = ['#d1bdab', '#b08d6e', '#6d5744'] as const
 const MUSCLE = ['#fdfbf7', '#ece5d9', '#e6ddd0'] as const
-// El músculo sin trabajar se funde en la piel: borde transparente (2026-10-27, cuerpos comunes).
+// Todo se funde en la piel (2026-10-27, cuerpos comunes): el músculo sin trabajar con el borde
+// transparente y el encendido con el borde al 35 %, los dos sin línea.
 const MUSCLE_OP = [1, 0.85, 0] as const
+const LIT_OP = [1, 1, 0.35] as const
 const RELIEVE = { cx: '.42', cy: '.36', r: '.74', fx: '.34', fy: '.26' } as const
 
 // Degradés por vista (ids únicos en el documento); useId puede traer caracteres que rompen url(#...).
@@ -336,10 +338,10 @@ watch(
   stroke-width: 0.8;
 }
 
-// Bloque elegido: oro con relieve (inline --mu-fill) o salvia sólido
+// Bloque elegido: oro con relieve que se funde en el borde (inline --mu-fill) o salvia sólido
 .mu--lit path {
   fill: var(--mu-fill, $fig-lit-b);
-  stroke: $fig-lit-edge;
+  stroke: none;
   stroke-width: 1.1;
 }
 
@@ -372,8 +374,7 @@ watch(
 // Fase 200: figura pintada por grupo de alumno (sketch 020 `.r-M` / `.r-Est` / `.r-Al`)
 .mu--r-fuerte path {
   fill: var(--mu-fill, $fig-lit-b);
-  stroke: $fig-lit-edge;
-  stroke-width: 1.1;
+  stroke: none;
 }
 
 .mu--r-sostiene path {
