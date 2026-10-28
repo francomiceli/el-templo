@@ -103,6 +103,10 @@ export const subscriptions = mysqlTable(
     classesBudget: int("classes_budget"),
     previousSubscriptionId: int("previous_subscription_id"),
     replacementCredits: int("replacement_credits").default(0),
+    // Mig 0301: aviso al socio de una membresía cargada por el staff. No visto =
+    // notificado y sin visto. NULL/NULL = nada nuevo (filas existentes).
+    memberNotifiedAt: timestamp("member_notified_at"),
+    memberSeenAt: timestamp("member_seen_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
   },
