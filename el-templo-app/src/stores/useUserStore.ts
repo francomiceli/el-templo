@@ -929,6 +929,9 @@ export const useUserStore = defineStore('user', () => {
     subscriptionLoading,
     subscriptionLoaded,
     planStatus,
+    planStatusLoaded,
+    hasActiveProgramEnrollment,
+    enrolledGoalPlanType,
     // Fase 203: estado del socio (dueño único) y banderas "cargó / falló"
     subscriptionFailed,
     planStatusFailed,

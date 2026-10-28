@@ -150,10 +150,12 @@ describe('useUserStore · estado del socio (loadMemberState / ensureMemberState)
   describe('paralelo y un pedido por endpoint', () => {
     it('primera carga: los 6 pedidos salen en paralelo, antes de que resuelva el primero', async () => {
       const gate = deferred<void>()
-      const gated = (key: RouteKey): Handler => async () => {
-        await gate.promise
-        return defaults[key]()
-      }
+      const gated =
+        (key: RouteKey): Handler =>
+        async () => {
+          await gate.promise
+          return defaults[key]()
+        }
       mockApi({
         subscription: gated('subscription'),
         planStatus: gated('planStatus'),
