@@ -1,8 +1,8 @@
 /**
- * Insignia de contracción (CON / EXC / ISO) del player, como en la TV de la sede: va ANTES del
- * nombre, con ancho fijo (todos los nombres arrancan en la misma x) y un color distinto por tipo
- * (CON carbón, EXC oro, ISO arena) para distinguirlos de un vistazo. Función pura: el color vive en
- * el CSS de `CompactExerciseList` (una clase por `kind`), acá solo se decide qué clase y qué rótulo.
+ * Insignia de contracción (CON / EXC / ISO) del player, como en la TV de la sede: va junto al
+ * nombre del ejercicio de ahora, con ancho fijo y un color distinto por tipo
+ * (CON carbón, EXC bronce, ISO arena) para distinguirlos de un vistazo. Función pura: el color vive en
+ * el CSS de `StoryFooter` (una clase por `kind`), acá solo se decide qué clase y qué rótulo.
  */
 
 export type ContractionKind = 'con' | 'exc' | 'iso'
@@ -10,7 +10,7 @@ export type ContractionKind = 'con' | 'exc' | 'iso'
 export interface ContractionBadge {
   /** Rótulo tal cual se muestra ("CON", "EXC", "ISO") */
   label: string
-  /** Define la clase de color: `compact-list__badge--{kind}` */
+  /** Define la clase de color: `story-footer__badge--{kind}` */
   kind: ContractionKind
 }
 

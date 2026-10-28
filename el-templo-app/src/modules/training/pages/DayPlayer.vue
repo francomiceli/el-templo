@@ -5,22 +5,21 @@
     <TransitionScreen
       v-if="transitionData"
       :data="transitionData"
+      :deuteros-options="transitionDeuterosOptions"
       @start="onTransitionStart"
       @back="onTransitionBack"
+      @choose-deuteros="onTransitionChooseDeuteros"
     />
 
     <!-- 3-2-1 Countdown before a block starts (session start, Deuteros choice, between blocks) -->
-    <CountdownOverlay
-      v-if="showCountdown"
-      :kicker="countdownCopy.kicker"
-      @done="onCountdownDone"
-    />
+    <CountdownOverlay v-if="showCountdown" :kicker="countdownCopy.kicker" @done="onCountdownDone" />
 
     <!-- Celebration Screen (after completing all blocks) -->
     <CelebrationScreen
       v-else-if="showCelebration"
       :quote="celebrationQuote"
       @view-summary="onCelebrationViewSummary"
+      @back="onCelebrationBack"
     />
 
     <!-- Session Summary (after celebration) -->
@@ -69,6 +68,7 @@
         :completed-exercises="allCompletedExercises"
         :is-adjusting="isAdjusting"
         :is-final-block="activeIsFinal"
+        :show-final-prompt="false"
         @back="handleBackNavigation"
         @restart="restartSession"
         @complete-block="onBlockComplete"
@@ -81,7 +81,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, shallowRef, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, shallowRef, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useQuasar } from 'quasar'
 
@@ -105,6 +105,7 @@ import { getWeekDates, formatDayName, getDateState } from '../composables/useDat
 import { resolvePlayerStart, type PlayerStartMode } from '../utils/playerStart'
 import { useUserStore } from 'src/stores/useUserStore'
 import { createLogger } from 'src/utils/logger'
+import { confirmDialog, type ConfirmDialogOptions } from 'src/utils/confirm-dialog'
 import { sessionTitle } from '../utils/blockMeta'
 import {
   blockCountdownCopy,
@@ -238,6 +239,17 @@ const completedBlocks = computed(() => player.value?.completedBlocks.value ?? []
 const elapsedSeconds = computed(() => player.value?.elapsedSeconds.value ?? 0)
 const deuteros1Block = computed(() => player.value?.deuteros1Block.value ?? null)
 const deuteros2Block = computed(() => player.value?.deuteros2Block.value ?? null)
+
+// Los dos Deuteros para la pantalla entre bloques (solo se usan cuando el siguiente es elegirlo)
+const transitionDeuterosOptions = computed(() => {
+  const d1 = deuteros1Block.value
+  const d2 = deuteros2Block.value
+  if (!d1 || !d2) return null
+  return [
+    { id: 'DEUTEROS_1' as const, label: 'Deuteros 1', block: d1 },
+    { id: 'DEUTEROS_2' as const, label: 'Deuteros 2', block: d2 },
+  ]
+})
 const allCompletedExercises = computed<Record<string, number[]>>(() => {
   return player.value?.completedExercises.value ?? {}
 })
@@ -296,6 +308,25 @@ watch(
   },
   { immediate: true },
 )
+
+/**
+ * El último bloque tiene todos los ejercicios tildados. No mira si el bloque ya se dio por terminado:
+ * una sesión retomada puede traerlo cerrado (p. ej. de antes del modal) y sin el cierre dentro del
+ * video no habría otra salida. "Ver resumen" lo cierra solo si hace falta.
+ */
+const finalBlockDone = computed(() => {
+  const p = player.value
+  if (!p || !sessionBegun.value || !isInitialized.value || !activeIsFinal.value) return false
+  const block = p.currentBlock.value
+  if (!block) return false
+  return isBlockExercisesDone(block, p.completedExercises.value)
+})
+
+// Al tildar el último ejercicio de la sesión aparece directo "¡Sesión completada!" (2026-10-27). El
+// bloque se da por terminado recién en "Ver resumen", así "Volver al último ejercicio" solo destilda.
+watch(finalBlockDone, (done) => {
+  if (done) showCelebration.value = true
+})
 
 // Summary computed data
 const daysCompletedThisWeek = computed(() => {
@@ -417,6 +448,33 @@ async function onTransitionStart(): Promise<void> {
   }
 }
 
+/**
+ * Elegir el Deuteros desde la pantalla entre bloques (2026-10-27): fija la elección ANTES de completar
+ * el NUCLEUS, así el avance va directo al Deuteros elegido (sin pasar por el selector aparte), y abre
+ * el 3-2-1 como cualquier otro bloque.
+ */
+async function onTransitionChooseDeuteros(choice: 'DEUTEROS_1' | 'DEUTEROS_2'): Promise<void> {
+  const p = player.value
+  if (!p || !transitionData.value || isAdvancing.value) return
+  isAdvancing.value = true
+  try {
+    // selectDeuteros fija la elección antes de su primer await: el índice siguiente ya es el elegido
+    const saved = p.selectDeuteros(choice)
+    const nextIndex = activeBlockIndex.value + 1
+    const nextBlock = p.playableBlocks.value[nextIndex]
+    if (nextBlock) {
+      countdownCopy.value = blockCountdownCopy(nextBlock, nextIndex, journey.value.length)
+      showCountdown.value = true
+    }
+    transitionData.value = null
+    await saved
+    await p.completeBlock()
+  } finally {
+    transitionData.value = null
+    isAdvancing.value = false
+  }
+}
+
 /** "Volver al último ejercicio": destilda el último (la historia vuelve a él) y la pantalla se apaga sola */
 function onTransitionBack(): void {
   progressionView.value?.undoLast()
@@ -426,9 +484,23 @@ function onCountdownDone(): void {
   showCountdown.value = false
 }
 
-function onCelebrationViewSummary(): void {
+async function onCelebrationViewSummary(): Promise<void> {
+  const p = player.value
+  const block = p?.currentBlock.value
+  // Si llegó por el último ejercicio, el bloque todavía no se cerró: se cierra acá
+  if (p && block && !p.completedBlocks.value.includes(block.role)) {
+    await p.completeBlock()
+    await wakeLock.releaseWakeLock()
+  }
   showCelebration.value = false
   showSummary.value = true
+}
+
+/** "Volver al último ejercicio": cierra la celebración y destilda el último (el player vuelve a él) */
+async function onCelebrationBack(): Promise<void> {
+  showCelebration.value = false
+  await nextTick()
+  progressionView.value?.undoLast()
 }
 
 async function onToggleExerciseComplete(payload: { prescriptionId: number }): Promise<void> {
@@ -565,13 +637,10 @@ function navigateBack(): void {
   router.push({ name: 'training' })
 }
 
-const exitDialogOpts = {
-  title: 'Salir del entrenamiento?',
-  message: 'Tu progreso se guardará y podrás continuar después.',
-  cancel: { label: 'Cancelar', flat: true },
-  // Clase global (css/app.scss): rojo oscuro sólido, igual que el bloque libre
-  ok: { label: 'Salir', flat: true, class: 'player-exit-ok' },
-  persistent: true,
+const exitDialogOpts: ConfirmDialogOptions = {
+  title: '¿Salir del entrenamiento?',
+  message: 'Tu progreso se guarda y podés seguir después.',
+  okLabel: 'Salir',
 }
 
 async function pauseAndRelease(): Promise<void> {
@@ -581,7 +650,7 @@ async function pauseAndRelease(): Promise<void> {
 
 async function handleBackNavigation(): Promise<void> {
   if (hasUnsavedProgress.value) {
-    $q.dialog(exitDialogOpts).onOk(async () => {
+    confirmDialog($q, exitDialogOpts).onOk(async () => {
       await pauseAndRelease()
       navigateBack()
     })
@@ -591,12 +660,11 @@ async function handleBackNavigation(): Promise<void> {
 }
 
 async function restartSession(): Promise<void> {
-  $q.dialog({
-    title: 'Reiniciar Sesión',
-    message: 'Se perderá todo el progreso actual. Estás seguro?',
-    cancel: { label: 'Cancelar', flat: true },
-    ok: { label: 'Reiniciar', color: 'negative' },
-    persistent: true,
+  confirmDialog($q, {
+    title: '¿Reiniciar la sesión?',
+    message: 'Se pierde todo lo que hiciste hasta ahora.',
+    okLabel: 'Reiniciar',
+    destructive: true,
   }).onOk(async () => {
     if (player.value && session.value) {
       await player.value.clearProgress()
@@ -623,7 +691,7 @@ async function restartSession(): Promise<void> {
 
 onBeforeRouteLeave((_to, _from, next) => {
   if (hasUnsavedProgress.value) {
-    $q.dialog(exitDialogOpts)
+    confirmDialog($q, exitDialogOpts)
       .onOk(async () => {
         await pauseAndRelease()
         next()
@@ -698,12 +766,11 @@ onMounted(() => {
   userStore.registerMidSessionGuard(async () => {
     if (!anyExerciseStarted.value) return true
     return await new Promise<boolean>((resolve) => {
-      $q.dialog({
-        title: 'Cambiar nivel',
-        message: 'Si cambias de nivel vas a perder el progreso de esta sesion. ¿Seguro?',
-        cancel: { label: 'Cancelar', flat: true },
-        ok: { label: 'Cambiar nivel', color: 'negative' },
-        persistent: true,
+      confirmDialog($q, {
+        title: '¿Cambiar de nivel?',
+        message: 'Si cambiás de nivel, perdés el progreso de esta sesión.',
+        okLabel: 'Cambiar nivel',
+        destructive: true,
       })
         .onOk(() => resolve(true))
         .onCancel(() => resolve(false))

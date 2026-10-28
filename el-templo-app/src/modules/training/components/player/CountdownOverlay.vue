@@ -11,11 +11,7 @@
           <div v-else key="go" class="countdown-overlay__go">
             <div class="countdown-overlay__go-word" data-t="¡VAMOS!">¡VAMOS!</div>
             <div class="countdown-overlay__go-column" aria-hidden="true">
-              <div class="countdown-overlay__doric">
-                <i class="countdown-overlay__doric-cap countdown-overlay__doric-cap--left" />
-                <i class="countdown-overlay__doric-shaft" />
-                <i class="countdown-overlay__doric-cap countdown-overlay__doric-cap--right" />
-              </div>
+              <DoricColumn :height="16" />
             </div>
           </div>
         </Transition>
@@ -27,6 +23,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import PhotoScene from './PhotoScene.vue'
+import DoricColumn from './DoricColumn.vue'
 import { COUNTDOWN_START, COUNTDOWN_TICK_MS, GO_DONE_DELAY_MS } from '../../utils/countdown'
 
 // 3-2-1 sobre la foto de Guía con su velo (fase 197, sketch 018). Los textos los arma cada página:
@@ -172,29 +169,6 @@ onUnmounted(() => {
 .countdown-overlay__go-column {
   width: 0;
   animation: go-column-open 0.6s 0.2s ease-out forwards;
-}
-
-// Columna dórica de la TV (tv-col-*.png, copiadas de el-templo-admin/public): capiteles + fuste
-.countdown-overlay__doric {
-  display: flex;
-  height: 16px;
-  filter: drop-shadow(0 0 1.2px rgba(255, 238, 196, 0.95))
-    drop-shadow(0 0 4px rgba(232, 205, 150, 0.5));
-}
-
-.countdown-overlay__doric-cap--left {
-  aspect-ratio: 43 / 69;
-  background: url('../../../../assets/tv/tv-col-cap-izq.png') center / 100% 100% no-repeat;
-}
-
-.countdown-overlay__doric-cap--right {
-  aspect-ratio: 45 / 69;
-  background: url('../../../../assets/tv/tv-col-cap-der.png') center / 100% 100% no-repeat;
-}
-
-.countdown-overlay__doric-shaft {
-  flex: 1;
-  background: url('../../../../assets/tv/tv-col-fuste.png') center / 100% 100% no-repeat;
 }
 
 @keyframes go-word-in {

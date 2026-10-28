@@ -100,8 +100,7 @@ import TemploLoader from 'src/components/TemploLoader.vue'
 import BodyFigure from 'src/components/anatomy/BodyFigure.vue'
 import { useAnatomyStore } from '../stores/anatomyStore'
 import type { PatronRuta, RutaAlumno } from '../types'
-
-type Rol = 'fuerte' | 'sostiene'
+import { rolesDeRuta } from '../utils/rolesDeRuta'
 
 // Patrón de movimiento en palabras de alumno (no el código del API).
 const PATRON_LEGIBLE: Readonly<Record<PatronRuta, string>> = {
@@ -129,20 +128,8 @@ const fuerteTexto = computed(() => {
   return nombres.length > 0 ? nombres.join(' · ') : '—'
 })
 
-// Roles de la figura: clave `slug@vista`. El API ya resuelve fuerte > sostiene por (zona, vista)
-// y no manda `both` (WR-01); si llegara una, se abre en frente y espalda.
-// Si una misma clave llega con dos grupos, gana "fuerte".
-const roles = computed<Record<string, Rol>>(() => {
-  const out: Record<string, Rol> = {}
-  for (const z of ruta.value?.zonas ?? []) {
-    const vistas = z.vista === 'both' ? (['front', 'back'] as const) : [z.vista]
-    for (const v of vistas) {
-      const clave = `${z.slug}@${v}`
-      if (out[clave] !== 'fuerte') out[clave] = z.grupo
-    }
-  }
-  return out
-})
+// Roles de la figura: clave `slug@vista` (compartido con el cuerpo del player)
+const roles = computed(() => rolesDeRuta(ruta.value))
 
 const siente = computed(() => ruta.value?.fichaCorta?.siente ?? null)
 const tips = computed(() => ruta.value?.fichaCorta?.tips ?? [])

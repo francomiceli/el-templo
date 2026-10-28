@@ -116,3 +116,17 @@ export function playerFormatParts(
   if (sep === -1) return { name: line, detail: '' }
   return { name: line.slice(0, sep), detail: line.slice(sep + 3) }
 }
+
+/**
+ * Qué trae el bloque, debajo de la definición del formato: "4 ejercicios + 1 de flexibilidad". La
+ * flexibilidad es la movilidad del bloque (el slide de descanso activo); el INITIUM no la muestra, igual
+ * que la barra de segmentos.
+ */
+export function playerBlockContent(
+  b: Pick<Block, 'role' | 'exercises' | 'mobilityExercise'>,
+): string {
+  const n = b.exercises.length
+  const ejercicios = `${n} ${n === 1 ? 'ejercicio' : 'ejercicios'}`
+  const conMovilidad = b.role !== 'INITIUM' && b.mobilityExercise !== null
+  return conMovilidad ? `${ejercicios} + 1 de flexibilidad` : ejercicios
+}

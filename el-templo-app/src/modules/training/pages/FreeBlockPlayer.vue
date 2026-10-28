@@ -90,6 +90,7 @@ import { useFreeBlockCompletion } from '../composables/useFreeBlockCompletion'
 import { useFreeBlocksStore } from '../stores/freeBlocksStore'
 import { useUserStore } from 'src/stores/useUserStore'
 import { createLogger } from 'src/utils/logger'
+import { confirmDialog, type ConfirmDialogOptions } from 'src/utils/confirm-dialog'
 import { DEFAULT_BRANCH_TZ, todayInTz } from 'src/utils/tz'
 import { dayKicker } from '../utils/weekLabels'
 import { freeCountdownCopy } from '../utils/blockTransition'
@@ -222,20 +223,17 @@ async function leaveWithoutSaving(): Promise<void> {
   await wakeLock.releaseWakeLock()
 }
 
-const exitDialogOpts = {
+const exitDialogOpts: ConfirmDialogOptions = {
   title: '¿Salir del bloque libre?',
   message: 'Si salís ahora, el bloque no se guarda.',
-  cancel: { label: 'Cancelar', flat: true },
-  // Gap 197-24 (hallazgo 10): `color: 'negative'` daba 4,43:1 sobre el diálogo. La clase global
-  // `player-exit-ok` (css/app.scss) pone el rojo oscuro $pd-neg-b (>= 7:1).
-  ok: { label: 'Salir', flat: true, class: 'player-exit-ok' },
-  persistent: true,
+  okLabel: 'Salir',
+  destructive: true,
 }
 
 function requestExit(): void {
   if (stage.value === 'saving') return
   if (needsExitConfirm.value) {
-    $q.dialog(exitDialogOpts).onOk(async () => {
+    confirmDialog($q, exitDialogOpts).onOk(async () => {
       exitConfirmed.value = true
       await leaveWithoutSaving()
       goToLibre()
@@ -255,7 +253,7 @@ onBeforeRouteLeave((_to, _from, next) => {
     next()
     return
   }
-  $q.dialog(exitDialogOpts)
+  confirmDialog($q, exitDialogOpts)
     .onOk(async () => {
       exitConfirmed.value = true
       await leaveWithoutSaving()
@@ -284,12 +282,11 @@ async function onToggleExerciseComplete(payload: { prescriptionId: number }): Pr
 
 /** "Reiniciar": sin guardar re-arranca al 3-2-1 con un player nuevo, ya guardado es otra vuelta */
 function restartBlock(): void {
-  $q.dialog({
-    title: 'Reiniciar bloque',
-    message: 'Se perderá lo que hiciste hasta ahora. ¿Seguro?',
-    cancel: { label: 'Cancelar', flat: true },
-    ok: { label: 'Reiniciar', color: 'negative' },
-    persistent: true,
+  confirmDialog($q, {
+    title: '¿Reiniciar el bloque?',
+    message: 'Se pierde lo que hiciste hasta ahora.',
+    okLabel: 'Reiniciar',
+    destructive: true,
   }).onOk(async () => {
     const p = player.value
     const s = session.value

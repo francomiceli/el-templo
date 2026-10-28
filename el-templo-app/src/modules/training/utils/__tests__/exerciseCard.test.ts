@@ -1,23 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { SECONDS_MARK, exerciseCardState, plateValue } from '../exerciseCard'
-
-describe('exerciseCardState', () => {
-  it('activo y sin tildar = AHORA', () => {
-    expect(exerciseCardState(true, false)).toBe('now')
-  })
-
-  it('tildado gana sobre activo: ya no es "ahora", es verde', () => {
-    expect(exerciseCardState(true, true)).toBe('done')
-  })
-
-  it('tildado sin ser el activo = hecho', () => {
-    expect(exerciseCardState(false, true)).toBe('done')
-  })
-
-  it('ni activo ni tildado = idle', () => {
-    expect(exerciseCardState(false, false)).toBe('idle')
-  })
-})
+import { SECONDS_MARK, plateValue } from '../exerciseCard'
 
 describe('plateValue', () => {
   it('reps: solo el número, sin la unidad', () => {
@@ -44,7 +26,7 @@ describe('plateValue', () => {
     expect(plateValue('PAUSA')).toBe('PAUSA')
   })
 
-  it('vacío (sin dosis) = placa vacía', () => {
+  it('vacío (sin dosis) = cantidad vacía', () => {
     expect(plateValue('')).toBe('')
     expect(plateValue('   ')).toBe('')
   })

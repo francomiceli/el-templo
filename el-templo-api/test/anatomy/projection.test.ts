@@ -19,6 +19,7 @@ import {
   ejerciciosPorGrupo,
   grupoDeZona,
   gruposDeZonas,
+  rutaSlugDe,
   soloTv,
   zonaInputDe,
   zonasDeEjercicio,
@@ -183,6 +184,25 @@ describe("zonaInputDe", () => {
       route: null,
       category: null,
     });
+  });
+});
+
+describe("rutaSlugDe", () => {
+  it("da el slug de la ruta modelada, normalizando el código", () => {
+    expect(rutaSlugDe({ exerciseRoute: "MU" })).toBe("muscle-up");
+    expect(rutaSlugDe({ exerciseRoute: "  mu " })).toBe("muscle-up");
+  });
+
+  it("sin ruta o con una ruta fuera del modelo es null", () => {
+    expect(rutaSlugDe({})).toBeNull();
+    expect(rutaSlugDe({ exerciseRoute: null })).toBeNull();
+    expect(rutaSlugDe({ exerciseRoute: "NO-EXISTE" })).toBeNull();
+  });
+
+  it("todas las rutas del modelo se encuentran por su código", () => {
+    for (const ruta of RUTAS) {
+      expect(rutaSlugDe({ exerciseRoute: ruta.code })).toBe(ruta.slug);
+    }
   });
 });
 

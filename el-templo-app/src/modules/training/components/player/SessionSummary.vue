@@ -79,17 +79,17 @@
             <q-spinner v-if="isSubmitting" size="22px" aria-label="Guardando" />
             <template v-else>
               <q-icon name="check" size="22px" aria-hidden="true" />
-              Terminar Sesión
+              Terminar sesión
             </template>
           </button>
           <button type="button" class="session-summary__link" @click="emit('restart')">
             <q-icon name="replay" size="18px" aria-hidden="true" />
-            Repetir Sesión
+            <span class="session-summary__link-text">Repetir sesión</span>
           </button>
         </template>
         <button v-else type="button" class="session-summary__cta" @click="emit('restart')">
           <q-icon name="replay" size="22px" aria-hidden="true" />
-          Repetir Sesión
+          Repetir sesión
         </button>
       </div>
     </div>
@@ -209,6 +209,11 @@ function onFinish(): void {
   padding: 16px 16px calc(24px + env(safe-area-inset-bottom, 0px));
   overflow-y: auto;
   color: $pd-ink;
+
+  // La columna scrollea: ningún bloque se achica (si no, las cards quedaban cortadas)
+  > * {
+    flex-shrink: 0;
+  }
 }
 
 .session-summary__head {
@@ -331,9 +336,13 @@ function onFinish(): void {
   font-family: 'Geologica', sans-serif;
   font-weight: 600;
   font-size: 14px;
+  cursor: pointer;
+}
+
+// El subrayado va solo en el texto: sobre el ícono quedaba a otra altura
+.session-summary__link-text {
   text-decoration: underline;
   text-underline-offset: 3px;
-  cursor: pointer;
 }
 
 @include pd-sheen-keyframes;

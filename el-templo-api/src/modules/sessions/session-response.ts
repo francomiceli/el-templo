@@ -2,10 +2,12 @@
 import { assembleVideoUrl } from "../shared/video-url";
 import {
   gruposDeZonas,
+  rutaSlugDe,
   zonaInputDe,
   zonasDelBloque,
 } from "../anatomy/projection";
 import { zoneHitsDelBloque } from "../anatomy/zone-hits";
+import { toTimerSpec } from "../tv/timer-spec";
 import type { BlockPlan, DaySession, ExercisePrescription } from "./types";
 import { ALTERNATIVE_BLOCK_ROLES } from "./types";
 
@@ -41,6 +43,9 @@ export function blockToResponse(
     repsBudget: block.repsBudget,
     format: block.format?.name || block.format,
     formatParams: block.formatParams ?? null,
+    // Reloj del bloque en el player: la misma normalización que la TV (fase 164),
+    // así el app no conoce los ~50 formatos; solo pinta la fase (`phaseAt`).
+    timerSpec: toTimerSpec(block.formatParams ?? null, mainExercises.length),
     formatDescription:
       formatDescriptions.get((block.format?.name || block.format) as string) ??
       null,
@@ -58,6 +63,8 @@ export function blockToResponse(
       notes: ex.notes,
       videoUrl: assembleVideoUrl(ex.videoUrl),
       sortOrder: exIdx,
+      // Player (sketch 027 D): la figura con los músculos del ejercicio de ahora
+      rutaSlug: rutaSlugDe(ex),
     })),
     mobilityExercise: mobilityEx
       ? {
@@ -72,6 +79,7 @@ export function blockToResponse(
           rest: mobilityEx.rest,
           notes: mobilityEx.notes,
           videoUrl: assembleVideoUrl(mobilityEx.videoUrl),
+          rutaSlug: rutaSlugDe(mobilityEx),
         }
       : null,
     zones,

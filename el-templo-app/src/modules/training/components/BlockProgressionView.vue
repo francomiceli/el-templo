@@ -7,6 +7,7 @@
         v-if="viewingBlock"
         :total-segments="totalSlideCount"
         :active-index="storyNav.currentIndex.value"
+        :completed-indices="completedSlideIndices"
         class="block-progression__progress-bar"
       />
 
@@ -25,13 +26,13 @@
               aria-label="Volver"
               @click="emit('back')"
             />
-            <!-- Dos líneas en los dos modos: kicker (rol) y nombre del bloque -->
-            <div class="block-progression__header-info q-ml-sm">
-              <div class="block-progression__block-name">{{ headerLines.kicker }}</div>
-              <div class="block-progression__route-name">{{ headerLines.name }}</div>
-            </div>
           </div>
           <div class="block-progression__header-right">
+            <!-- El rol (en libre, "Bloque libre · ROL") chico arriba de la ruta / nombre del bloque -->
+            <div class="block-progression__titles">
+              <div class="block-progression__kicker">{{ headerLines.kicker }}</div>
+              <div class="block-progression__route-name">{{ headerLines.name }}</div>
+            </div>
             <q-btn flat round dense icon="more_vert" color="white">
               <q-menu>
                 <q-list style="min-width: 150px">
@@ -59,6 +60,8 @@
         :read-only="isReviewingPrevious"
         :mode="mode"
         :is-last-block="isFinalBlock"
+        :show-final-prompt="showFinalPrompt"
+        :quick-dose="currentSlideQuickDose"
         @tap-next="storyNav.next()"
         @tap-prev="storyNav.prev()"
         @complete-block="emit('complete-block')"
@@ -68,11 +71,30 @@
 
     <!-- Content area — below story: hoja blanca (sketch 025 B). Borde superior recto -->
     <div class="block-progression__content">
-      <!-- Cronómetro + formato en una fila (como la TV: reloj a la izquierda, formato en dos líneas a la derecha) -->
-      <div class="block-progression__sheet-top">
-        <div class="block-progression__clock">
-          <div class="block-progression__timer" aria-label="Tiempo de entrenamiento">
-            {{ formattedTime }}
+      <!-- Fila del formato: nombre + definición a la izquierda y el cronómetro a la derecha (sketch
+           026). La fila existe aunque el bloque no traiga formato: el reloj no puede desaparecer.
+           Separador simple de 1 px debajo (D-11 en libre, todos los parámetros en sesión). -->
+      <div v-if="viewingBlock" class="block-progression__format">
+        <div class="block-progression__format-info">
+          <template v-if="viewingBlock.format">
+            <div class="block-progression__format-line">
+              <span class="block-progression__format-name">{{ formatParts.name }}</span>
+              <span v-if="formatParts.detail" class="block-progression__format-detail">
+                · {{ formatParts.detail }}
+              </span>
+            </div>
+            <div v-if="viewingBlock.formatDescription" class="block-progression__format-desc">
+              {{ viewingBlock.formatDescription }}
+            </div>
+          </template>
+        </div>
+        <div class="block-progression__timer-wrap">
+          <!-- Reloj del FORMATO del bloque (AMRAP regresivo, EMOM por minuto…), como la TV -->
+          <div class="block-progression__timer" aria-label="Reloj del bloque">
+            {{ blockTimer.time }}
+          </div>
+          <div v-if="blockTimer.label" class="block-progression__timer-label">
+            {{ blockTimer.label }}
           </div>
           <!-- Fase 197 D-12: barrita dorada hasta 10', solo en modo libre con AURA disponible -->
           <div
@@ -87,30 +109,13 @@
             <i :style="{ width: auraBarPercent + '%' }" />
           </div>
         </div>
-        <!-- Formato partido en dos líneas: nombre en Cinzel y parámetros chicos debajo (D-11 en libre,
-             todos los parámetros en sesión) -->
-        <div v-if="viewingBlock && viewingBlock.format" class="block-progression__format">
-          <div class="block-progression__format-name">{{ formatParts.name }}</div>
-          <div v-if="formatParts.detail" class="block-progression__format-detail">
-            {{ formatParts.detail }}
-          </div>
-        </div>
-      </div>
-      <div
-        v-if="viewingBlock && viewingBlock.format && viewingBlock.formatDescription"
-        class="block-progression__format-desc"
-      >
-        {{ viewingBlock.formatDescription }}
       </div>
 
-      <!-- Compact exercise list — always visible -->
-      <CompactExerciseList
-        v-if="viewingBlock"
-        :exercises="compactListData"
-        :active-index="storyNav.currentIndex.value"
-        :completed-ids="viewingCompletedIdsSet"
-        @navigate="storyNav.goTo($event)"
-      />
+      <!-- Qué trae el bloque, arriba de los músculos -->
+      <div v-if="viewingBlock" class="block-progression__count">{{ blockContent }}</div>
+
+      <!-- Sketch 027 D: músculos del ejercicio de ahora (por su ruta) -->
+      <PlayerCuerpo v-if="viewingBlock" :ruta-slug="currentSlideRutaSlug" />
 
       <!-- Per-exercise difficulty adjustment (más fácil / más difícil) -->
       <div v-if="viewingBlock && canAdjustCurrentSlide" class="block-progression__adjust">
@@ -210,7 +215,7 @@ import type { Block, BlockRole, Prescription } from '../types/session'
 // New player components
 import SegmentedProgressBar from './player/SegmentedProgressBar.vue'
 import StoryExerciseCard from './player/StoryExerciseCard.vue'
-import CompactExerciseList from './player/CompactExerciseList.vue'
+import PlayerCuerpo from './player/PlayerCuerpo.vue'
 
 // Composables
 import { useStoryNavigation } from '../composables/useStoryNavigation'
@@ -218,7 +223,13 @@ import { useStoryNavigation } from '../composables/useStoryNavigation'
 // Utils
 import { IN_SESSION_ADJUST_ENABLED } from 'src/config/featureFlags'
 import { formatDose, formatQuickDose, isPyramidBlock } from '../utils/formatDose'
-import { playerFormatParts, playerHeaderLines, playerRoleLabel } from '../utils/playerHeader'
+import { blockTimerView } from '../utils/blockTimer'
+import {
+  playerBlockContent,
+  playerFormatParts,
+  playerHeaderLines,
+  playerRoleLabel,
+} from '../utils/playerHeader'
 
 interface Props {
   dayName: string
@@ -241,6 +252,8 @@ interface Props {
    * ejercicio. Default `true` (modo libre y quien no lo pase conservan el cierre de siempre).
    */
   isFinalBlock?: boolean
+  /** Cierre "Sesión completa" dentro del video al tildar todo el último bloque (DayPlayer lo apaga) */
+  showFinalPrompt?: boolean
 }
 
 interface Emits {
@@ -257,6 +270,7 @@ const props = withDefaults(defineProps<Props>(), {
   mode: 'session',
   auraGoalSeconds: null,
   isFinalBlock: true,
+  showFinalPrompt: true,
 })
 const emit = defineEmits<Emits>()
 
@@ -323,8 +337,6 @@ const viewingBlockCompletedExercises = computed<number[]>(() => {
   return props.completedExercises[viewingBlock.value.role] ?? []
 })
 
-const viewingCompletedIdsSet = computed(() => new Set(viewingBlockCompletedExercises.value))
-
 // Total slide count: exercises + mobility (if present and non-INITIUM)
 const totalSlideCount = computed(() => {
   if (!viewingBlock.value) return 0
@@ -360,6 +372,15 @@ watch(
 // Cleanup
 onUnmounted(() => {
   storyNav.cleanup()
+})
+
+// Segmentos de la barra de arriba ya completados (los ejercicios van primero; la movilidad no se tilda)
+const completedSlideIndices = computed<number[]>(() => {
+  const block = viewingBlock.value
+  if (!block) return []
+  return block.exercises.flatMap((ex, i) =>
+    viewingBlockCompletedExercises.value.includes(ex.exerciseId) ? [i] : [],
+  )
 })
 
 // Whether current slide is the mobility slide
@@ -406,6 +427,44 @@ watch(
   { immediate: true },
 )
 
+// Qué trae el bloque ("4 ejercicios + 1 de flexibilidad"), debajo de la definición del formato
+const blockContent = computed(() =>
+  viewingBlock.value ? playerBlockContent(viewingBlock.value) : '',
+)
+
+// Reloj del bloque: arranca cuando el bloque pasa a ser el activo (segundo de la sesión en ese
+// momento) y corre con el reloj de la sesión, así hereda sus pausas. Cada bloque guarda su arranque:
+// al mirar un bloque anterior se ve su propio reloj.
+const blockStartSeconds = ref<Record<string, number>>({})
+
+watch(
+  () => props.playableBlocks[props.activeBlockIndex]?.blockId,
+  (blockId) => {
+    if (blockId && blockStartSeconds.value[blockId] === undefined) {
+      blockStartSeconds.value[blockId] = props.elapsedSeconds
+    }
+  },
+  { immediate: true },
+)
+
+// Modo libre, "Seguir entrenando": el mismo bloque vuelve a empezar, y su reloj también
+watch(
+  () => props.completedBlocks.length,
+  (len, prev) => {
+    const blockId = props.playableBlocks[props.activeBlockIndex]?.blockId
+    if (props.mode === 'free' && len === 0 && prev > 0 && blockId) {
+      blockStartSeconds.value[blockId] = props.elapsedSeconds
+    }
+  },
+)
+
+const blockTimer = computed(() => {
+  const block = viewingBlock.value
+  if (!block) return { time: '00:00', label: '' }
+  const start = blockStartSeconds.value[block.blockId] ?? props.elapsedSeconds
+  return blockTimerView(block.timerSpec, (props.elapsedSeconds - start) * 1000)
+})
+
 // Formato en dos líneas para la cabecera de la hoja
 const formatParts = computed(() => {
   if (!viewingBlock.value) return { name: '', detail: '' }
@@ -448,45 +507,27 @@ function onUndoLast(): void {
 // ejercicio": mismo gesto que el botón de la historia (va al ejercicio y lo destilda).
 defineExpose({ undoLast: onUndoLast })
 
-// Compact list data
-const compactListData = computed(() => {
-  if (!viewingBlock.value) return []
+// Dosis compacta del slide actual (ejercicio o movilidad): alimenta la cantidad del pie del video
+const currentSlideQuickDose = computed(() => {
+  const block = viewingBlock.value
+  if (!block) return ''
+  if (isMobilitySlide.value && block.mobilityExercise) return formatDose(block.mobilityExercise)
+  const exercise = currentSlideExercise.value
+  return exercise ? formatQuickDose(exercise, isPyramidBlock(block)) : ''
+})
 
-  const pyramid = isPyramidBlock(viewingBlock.value)
-  const items = viewingBlock.value.exercises.map((ex) => ({
-    id: ex.exerciseId,
-    name: ex.exerciseName,
-    quickDose: formatQuickDose(ex, pyramid),
-    contraction: ex.contraction,
-    notes: ex.notes ?? '',
-    isMobility: false,
-  }))
-
-  if (viewingBlock.value.role !== 'INITIUM' && viewingBlock.value.mobilityExercise) {
-    const mob = viewingBlock.value.mobilityExercise
-    items.push({
-      id: mob.exerciseId,
-      name: mob.exerciseName,
-      quickDose: formatDose(mob),
-      contraction: mob.contraction,
-      notes: mob.notes ?? '',
-      isMobility: true,
-    })
-  }
-
-  return items
+// Ruta del slide actual (ejercicio o movilidad) para la figura de PlayerCuerpo
+const currentSlideRutaSlug = computed(() => {
+  const block = viewingBlock.value
+  if (!block) return null
+  if (isMobilitySlide.value) return block.mobilityExercise?.rutaSlug ?? null
+  return currentSlideExercise.value?.rutaSlug ?? null
 })
 
 // Computed display values
 const headerLines = computed(() => {
   if (!viewingBlock.value) return { kicker: '', name: '' }
   return playerHeaderLines(viewingBlock.value, props.mode)
-})
-
-const formattedTime = computed(() => {
-  const s = props.elapsedSeconds
-  const m = Math.floor(s / 60)
-  return `${m.toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`
 })
 
 // Fase 197 D-12: la barrita solo existe en modo libre y con una meta de AURA válida
@@ -593,13 +634,20 @@ function onAdjust(direction: 'up' | 'down'): void {
   pointer-events: none;
 }
 
+// Más oscuro que antes (sketch 026): el kicker crema tiene que leerse también sobre zonas claras
+// del video
 .block-progression__header-gradient {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
-  height: 80px;
-  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.6) 0%, transparent 100%);
+  height: 100px;
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.74) 0%,
+    rgba(0, 0, 0, 0.45) 55%,
+    transparent 100%
+  );
 }
 
 .block-progression__header-content {
@@ -611,50 +659,59 @@ function onAdjust(direction: 'up' | 'down'): void {
   pointer-events: auto;
 }
 
-// Gap 197-24 (hallazgo 5): a 360 con rutas largas (FLR, PLPU, HSPU, HD/ID) el encabezado ocupaba
-// 3 líneas y chocaba con el check de "Bloque completo". El bloque izquierdo puede encogerse
-// (min-width: 0) y cada línea es de UNA línea con "…" -> máximo 2 líneas. Vale en los dos modos.
+// A la izquierda solo la flecha; a la derecha el rol arriba de la ruta (2026-10-27), cada uno en UNA
+// línea con "…" (gap 197-24: rutas largas como FLR, PLPU, HSPU, HD/ID a 360). Vale en los dos modos.
 .block-progression__header-left {
   display: flex;
   align-items: center;
-  flex: 1 1 auto;
-  min-width: 0;
+  flex: none;
   margin-right: 8px;
 }
 
-.block-progression__header-info {
+.block-progression__header-right {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  justify-content: flex-end;
   min-width: 0;
-  line-height: 1.3;
 }
 
-.block-progression__block-name,
+.block-progression__titles {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  min-width: 0;
+}
+
+.block-progression__kicker,
 .block-progression__route-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-// Fase 197 D-15 (sketch 016 .n-head): línea 1 = kicker (rol; en libre "BLOQUE LIBRE · ROL")
-.block-progression__block-name {
+// Rol arriba de la ruta, más chico (en libre, "BLOQUE LIBRE · ROL")
+.block-progression__kicker {
+  max-width: 100%;
+  margin-bottom: 1px;
   font-family: 'Montserrat', sans-serif;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: $pd-cream-2;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
 }
 
-// Línea 2 = nombre del bloque (ruta en sesión)
+// Ruta / nombre del bloque arriba a la derecha, debajo del rol
 .block-progression__route-name {
+  max-width: 100%;
   font-family: 'Montserrat', sans-serif;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
+  text-align: right;
   color: #fff;
-}
-
-.block-progression__header-right {
-  display: flex;
-  align-items: center;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
 }
 
 // Fase 197 D-15: hitbox de 44 px en la flecha atrás (los dos modos)
@@ -665,29 +722,21 @@ function onAdjust(direction: 'up' | 'down'): void {
   min-height: 44px;
 }
 
-// Hoja blanca (sketch 025 B): reloj + formato en una fila, borde superior RECTO (sin esquinas
-// redondeadas) y debajo las cards de ejercicio.
-.block-progression__sheet-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  margin: 0 16px;
-  padding: 14px 0 12px;
-  border-bottom: 1px solid $pd-light-line;
-}
-
-.block-progression__clock {
+// Reloj en la fila del formato (sketch 026), en Cinzel tinta oscura como el cronómetro de la TV.
+// Ancho fijo: Cinzel no tiene dígitos de ancho parejo y, sin esto, el texto de la izquierda se movía
+// con cada segundo
+.block-progression__timer-wrap {
+  flex: none;
+  width: 108px;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  flex: none;
+  align-items: flex-end;
+  margin-left: auto;
 }
 
-// Tiempo de entrenamiento en Cinzel, como el cronómetro de la TV
 .block-progression__timer {
   font-family: 'Cinzel', Georgia, serif;
-  font-size: 54px;
+  font-size: 32px;
   font-weight: 700;
   line-height: 1;
   letter-spacing: 0.02em;
@@ -695,58 +744,90 @@ function onAdjust(direction: 'up' | 'down'): void {
   color: #3d3732;
 }
 
-// Fase 197 D-12 (sketch 016 .n-min): barrita bajo el reloj, solo en modo libre. Sobre blanco el
-// dorado AURA no se ve: oro de la TV (#b08d6e, 3.1:1) sobre una pista tintada.
+.block-progression__timer-label {
+  margin-top: 3px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: $pd-ink-2;
+}
+
+// Fase 197 D-12 (sketch 016 .n-min): barrita de 92x4 bajo el reloj. Sobre blanco el fondo es tinta
+// tenue (antes crema sobre el video)
 .block-progression__aura-bar {
-  width: 120px;
-  height: 5px;
+  width: 92px;
+  height: 4px;
   margin-top: 6px;
-  border-radius: 3px;
-  background: rgba(61, 55, 50, 0.14);
+  border-radius: 2px;
+  background: rgba($pd-ink, 0.14);
   overflow: hidden;
 
   i {
     display: block;
     height: 100%;
-    background: #b08d6e;
+    background: $pd-gold;
   }
 }
 
-// Formato a la derecha, en dos líneas: "EMOM" / "12 min · cada 60s"
+// Hoja blanca (sketch 025 B / 026), borde superior RECTO. Fila del formato (nombre + definición a la
+// izquierda, reloj a la derecha) y debajo un separador simple de 1 px
 .block-progression__format {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 16px;
+  padding: 12px 0 10px;
+  border-bottom: 1px solid $pd-light-line;
+}
+
+.block-progression__format-info {
+  flex: 1 1 0;
   min-width: 0;
-  text-align: right;
+}
+
+.block-progression__format-line {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  line-height: 1.2;
 }
 
 .block-progression__format-name {
   font-family: 'Cinzel', Georgia, serif;
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 700;
-  line-height: 1.2;
   letter-spacing: 0.07em;
   text-transform: uppercase;
   color: #3d3732;
-  overflow-wrap: anywhere;
 }
 
 .block-progression__format-detail {
-  margin-top: 4px;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   // Texto sólido (D-16)
   color: $pd-ink-2;
-  overflow-wrap: anywhere;
 }
 
 .block-progression__format-desc {
-  margin: 0 16px;
-  padding: 8px 0 2px;
+  padding-top: 4px;
   font-size: 11px;
   // Fase 197 D-16: texto sólido (antes rgba(0,0,0,.45), 3.27:1 medido)
   color: $pd-ink-2;
   line-height: 1.3;
+}
+
+// "4 ejercicios + 1 de flexibilidad": arriba de Qué trabajás ahora, más grande y en Montserrat
+.block-progression__count {
+  margin: 12px 16px 0;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: $pd-ink;
 }
 
 // Más fácil / más difícil (detrás de IN_SESSION_ADJUST_ENABLED)
@@ -777,13 +858,14 @@ function onAdjust(direction: 'up' | 'down'): void {
   font-weight: 600;
 }
 
-// Botón principal pegado al pie del área que scrollea (sticky), con un degradé blanco para que las
-// cards no se corten en seco debajo
+// Botón principal pegado al pie del área que scrollea (sticky), con un degradé blanco encima
+// margin-top: auto la lleva al fondo de la hoja aunque haya poco contenido; debajo solo quedan los
+// botones de bloque (cambiar Deuteros, ver bloques anteriores)
 .block-progression__cta {
   position: sticky;
   bottom: 0;
   z-index: 2;
-  margin-top: 4px;
+  margin-top: auto;
   padding: 10px 16px 14px;
   background: linear-gradient(rgba(255, 255, 255, 0), #fff 30%);
 }
@@ -887,6 +969,8 @@ function onAdjust(direction: 'up' | 'down'): void {
 
 // Content area below story (blanco, sketch 025)
 .block-progression__content {
+  display: flex;
+  flex-direction: column;
   flex: 1;
   overflow-y: auto;
   background: #fff;
