@@ -183,6 +183,8 @@ export function appSectionForRoute(route: string): AppSectionKey {
       return "reservas";
     case "/mis-referidos":
       return "referidos";
+    case "/planes":
+      return "mi_plan";
     case "/mi-camino":
       return "programas";
     case "/training?tab=conquer":
