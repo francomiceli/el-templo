@@ -388,7 +388,6 @@ const CLAVES_CUERPO = [
   "muscle-a",
   "muscle",
   "muscle-c",
-  "muscle-edge",
   "skin",
   "skin-edge",
 ] as const;
@@ -496,5 +495,24 @@ describe("anatomy/sync-front — la figura de la Guía en app, admin y TV", () =
       app.muscle,
       app["muscle-c"],
     ]);
+  });
+
+  // El músculo sin trabajar se funde en la piel con las mismas opacidades en las tres.
+  function opacidades(contenido: string, nombre: string, origen: string) {
+    const m = contenido.match(new RegExp(`const ${nombre} = \\[([^\\]]*)\\]`));
+    if (!m)
+      throw new Error(`sync-front: no se encontró ${nombre} en ${origen}`);
+    return m[1].split(",").map((x) => Number(x.trim()));
+  }
+
+  it("app, admin y TV funden el músculo con las mismas opacidades", () => {
+    const app = opacidades(leerEspejo(appFigPath), "MUSCLE_OP", appFigPath);
+    expect(app).toHaveLength(3);
+    expect(
+      opacidades(leerEspejo(adminFigPath), "MUSCLE_OP", adminFigPath),
+    ).toEqual(app);
+    expect(opacidades(leerEspejo(tvPath), "MUSCULO_OPACIDAD", tvPath)).toEqual(
+      app,
+    );
   });
 });

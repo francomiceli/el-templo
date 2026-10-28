@@ -17,9 +17,9 @@
         >
           <defs>
             <radialGradient :id="muscleIdFor(v.key)" v-bind="RELIEVE">
-              <stop offset="0" :stop-color="MUSCLE[0]" />
-              <stop offset="0.55" :stop-color="MUSCLE[1]" />
-              <stop offset="1" :stop-color="MUSCLE[2]" />
+              <stop offset="0" :stop-color="MUSCLE[0]" :stop-opacity="MUSCLE_OP[0]" />
+              <stop offset="0.55" :stop-color="MUSCLE[1]" :stop-opacity="MUSCLE_OP[1]" />
+              <stop offset="1" :stop-color="MUSCLE[2]" :stop-opacity="MUSCLE_OP[2]" />
             </radialGradient>
           </defs>
           <g :style="{ '--mu-base': `url(#${muscleIdFor(v.key)})` }">
@@ -86,7 +86,9 @@ const log = createLogger('AnatomyFigure');
 
 // Mismos valores que $fig-muscle-a/-/c de _anatomia.scss (cuerpo de la Guía del app, variante A2):
 // el SVG necesita el color como atributo. Cada músculo es una "almohada" con luz arriba a la izquierda.
-const MUSCLE = ['#fdfbf7', '#ece5d9', '#c7baa6'] as const;
+const MUSCLE = ['#fdfbf7', '#ece5d9', '#e6ddd0'] as const;
+// El músculo sin rol se funde en la piel: borde transparente (2026-10-27, cuerpos comunes).
+const MUSCLE_OP = [1, 0.85, 0] as const;
 const RELIEVE = { cx: '.42', cy: '.36', r: '.74', fx: '.34', fy: '.26' } as const;
 
 // Un degradé por vista (ids únicos en el documento); useId puede traer caracteres que rompen url(#...).
@@ -257,7 +259,7 @@ watch(
 // Músculo sin rol: relieve de mármol (inline --mu-base), sólido de respaldo
 .mu path {
   fill: var(--mu-base, $fig-muscle);
-  stroke: $fig-muscle-edge;
+  stroke: none;
   stroke-width: 0.8;
 }
 
@@ -270,14 +272,17 @@ watch(
 
 .mu--motor path {
   fill: $anat-r-motor;
+  stroke: $anat-r-edge;
 }
 
 .mu--sinergista path {
   fill: $anat-r-sinergista;
+  stroke: $anat-r-edge;
 }
 
 .mu--estabilizador path {
   fill: $anat-r-estabilizador;
+  stroke: $anat-r-edge;
 }
 
 // Se estira y antagonista: relleno claro con borde punteado terracota

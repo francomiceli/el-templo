@@ -4,11 +4,14 @@
  * Los paths salen de react-native-body-highlighter v3.2.0
  * (https://github.com/HichamELBSI/react-native-body-highlighter) — MIT License,
  * Copyright (c) ELABBASSI Hicham. El aviso viaja también dentro del JSON (`_licencia`).
+ * 2026-10-27: proporciones modificadas (cuerpos más comunes). El JSON lo genera
+ * `tools/anatomia/generar-cuerpos.mjs` a partir de `tools/anatomia/anatomia-original.json`:
+ * no se edita a mano.
  *
  * Fase 197 D-01: única copia del app; la 196 la importa al rebasearse. El JSON es una copia
  * byte a byte de `el-templo-admin/src/tv/recorrido/anatomia.json` (se verifica con `cmp`).
  *
- * El JSON (~136 KB) se carga con `import()` dinámico y queda en su propio chunk: Entrenar no lo
+ * El JSON (~170 KB) se carga con `import()` dinámico y queda en su propio chunk: Entrenar no lo
  * paga hasta que se dibuja la primera figura.
  */
 

@@ -20,9 +20,9 @@
               <stop offset="1" :stop-color="LIT[2]" />
             </radialGradient>
             <radialGradient :id="muscleIdFor(view.key)" v-bind="RELIEVE">
-              <stop offset="0" :stop-color="MUSCLE[0]" />
-              <stop offset="0.55" :stop-color="MUSCLE[1]" />
-              <stop offset="1" :stop-color="MUSCLE[2]" />
+              <stop offset="0" :stop-color="MUSCLE[0]" :stop-opacity="MUSCLE_OP[0]" />
+              <stop offset="0.55" :stop-color="MUSCLE[1]" :stop-opacity="MUSCLE_OP[1]" />
+              <stop offset="1" :stop-color="MUSCLE[2]" :stop-opacity="MUSCLE_OP[2]" />
             </radialGradient>
           </defs>
           <g :style="{ '--mu-base': `url(#${muscleIdFor(view.key)})` }">
@@ -114,7 +114,9 @@ const log = createLogger('BodyFigure')
 // como atributo. Variante A2 (2026-10-27): cada músculo es una "almohada" con luz de arriba a la
 // izquierda, como el recorrido de la TV.
 const LIT = ['#d1bdab', '#b08d6e', '#6d5744'] as const
-const MUSCLE = ['#fdfbf7', '#ece5d9', '#c7baa6'] as const
+const MUSCLE = ['#fdfbf7', '#ece5d9', '#e6ddd0'] as const
+// El músculo sin trabajar se funde en la piel: borde transparente (2026-10-27, cuerpos comunes).
+const MUSCLE_OP = [1, 0.85, 0] as const
 const RELIEVE = { cx: '.42', cy: '.36', r: '.74', fx: '.34', fy: '.26' } as const
 
 // Degradés por vista (ids únicos en el documento); useId puede traer caracteres que rompen url(#...).
@@ -319,10 +321,11 @@ watch(
   stroke-width: 1.2;
 }
 
-// Músculo sin trabajar (estado base): relieve de mármol (inline --mu-base), sólido de respaldo
+// Músculo sin trabajar (estado base): relieve que se funde en la piel (inline --mu-base), sin
+// línea. Los demás estados ponen su propio borde.
 .mu path {
   fill: var(--mu-base, $fig-muscle);
-  stroke: $fig-muscle-edge;
+  stroke: none;
   stroke-width: 0.8;
 }
 

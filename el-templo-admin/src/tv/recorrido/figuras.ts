@@ -1,7 +1,7 @@
 /**
  * SVG de la intro "el recorrido de hoy" (sketch 004, variante D): los cuerpos y las zonas
  * de cada bloque "encendidas". 2026-10-27 (variante A2): el cuerpo es el MISMO de la figura
- * del app (`FIGURA_BASE` = `$fig-*` de su _brand.scss): músculos sueltos con relieve de mármol
+ * del app (`FIGURA_BASE` = `$fig-*` de su _brand.scss): músculos con relieve que se funden en la piel
  * y las zonas encendidas en oro (`--gold`) con relieve, un solo color para todos los bloques (antes,
  * mármol con vetas y silueta oscura, y un color por bloque).
  *
@@ -24,8 +24,7 @@ import type { Anatomia, FiguraKey, GrupoAnatomico, PathAnatomico } from './anato
 export const FIGURA_BASE = {
   'muscle-a': '#fdfbf7',
   muscle: '#ece5d9',
-  'muscle-c': '#c7baa6',
-  'muscle-edge': '#b9ae9d',
+  'muscle-c': '#e6ddd0',
   skin: '#f3eee6',
   'skin-edge': '#b1a38e',
   'lit-a': '#d1bdab',
@@ -33,6 +32,10 @@ export const FIGURA_BASE = {
   'lit-c': '#6d5744',
   'lit-edge': '#614e3d',
 };
+
+/** Opacidades del degradé del músculo sin trabajar (luz, medio, borde): mismas que `MUSCLE_OP`
+ *  de BodyFigure.vue. El borde transparente funde el músculo en la piel (2026-10-27). */
+export const MUSCULO_OPACIDAD = [1, 0.85, 0];
 
 /** Color de la lista de bloques y de los rótulos de zona (2026-10-27: uno solo para todos los
  *  bloques, el mismo oro del encendido; antes cada bloque tenía el suyo). */
@@ -116,18 +119,21 @@ export class Defs {
 
   /** Luz de arriba-izquierda: cada músculo es una "almohada" con su propio relieve
    *  (mismos parámetros que `RELIEVE` de BodyFigure.vue). */
-  private radial(id: string, stops: Array<[number, string]>): string {
+  private radial(id: string, stops: Array<[number, string, number?]>): string {
     let s = `<radialGradient id="${id}" cx=".42" cy=".36" r=".74" fx=".34" fy=".26">`;
-    for (const [o, c] of stops) s += `<stop offset="${o}" stop-color="${c}"/>`;
+    for (const [o, c, op] of stops) {
+      s += `<stop offset="${o}" stop-color="${c}"${op === undefined ? '' : ` stop-opacity="${op}"`}/>`;
+    }
     return this.add(id, s + '</radialGradient>');
   }
 
-  /** Músculo sin trabajar. */
+  /** Músculo sin trabajar: se funde en la piel (borde transparente). */
   musculo(): string {
+    const [a, b, c] = MUSCULO_OPACIDAD;
     return this.radial('recMu', [
-      [0, FIGURA_BASE['muscle-a']],
-      [0.55, FIGURA_BASE.muscle],
-      [1, FIGURA_BASE['muscle-c']],
+      [0, FIGURA_BASE['muscle-a'], a],
+      [0.55, FIGURA_BASE.muscle, b],
+      [1, FIGURA_BASE['muscle-c'], c],
     ]);
   }
 
@@ -165,7 +171,7 @@ export function svgBase(defs: Defs, an: Anatomia, key: FiguraKey, contorno: stri
     const muscular = NO_MUSCULARES.indexOf(g.slug) < 0;
     for (const p of g.p) {
       s += muscular
-        ? path(p[0], musculo, FIGURA_BASE['muscle-edge'], 0.8)
+        ? `<path d="${p[0]}" fill="${musculo}"/>`
         : path(p[0], FIGURA_BASE.skin, FIGURA_BASE['skin-edge'], 0.8);
     }
   }

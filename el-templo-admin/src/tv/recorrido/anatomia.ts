@@ -4,12 +4,15 @@
  * Los paths salen de react-native-body-highlighter v3.2.0
  * (https://github.com/HichamELBSI/react-native-body-highlighter) — MIT License,
  * Copyright (c) ELABBASSI Hicham. El aviso viaja también dentro del JSON (`_licencia`).
+ * 2026-10-27: proporciones modificadas (cuerpos más comunes). El JSON lo genera
+ * `tools/anatomia/generar-cuerpos.mjs` a partir de `tools/anatomia/anatomia-original.json`:
+ * no se edita a mano.
  *
  * Cada path trae precalculados (sketch 004) el ángulo de su eje principal, la elongación
  * y el centroide: con eso se orientan las fibras y se ubican los puntos de los rótulos
  * sin medir nada en el televisor.
  *
- * El JSON (~136 KB) se carga con `import()` dinámico la primera vez que se muestra el
+ * El JSON (~170 KB) se carga con `import()` dinámico la primera vez que se muestra el
  * recorrido: la pantalla de clase no lo paga si nadie toca el botón.
  */
 
