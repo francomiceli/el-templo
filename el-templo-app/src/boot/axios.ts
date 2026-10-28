@@ -3,6 +3,7 @@ import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'ax
 import { Capacitor } from '@capacitor/core'
 import { useTokenStorage } from 'src/composables/useTokenStorage'
 import { createLogger } from 'src/utils/logger'
+import { jitteredDelayMs, parseDevLatencyMs } from 'src/utils/dev-latency'
 import { NETWORK_ERROR_MESSAGE } from 'src/utils/network-error'
 
 declare module '@vue/runtime-core' {
@@ -61,7 +62,10 @@ const refreshClient = axios.create({
  *    siendo válido; nunca lo sabemos porque el server nunca contestó. No es
  *    motivo para cerrar sesión.
  */
-export type RefreshResult = { kind: 'ok'; token: string } | { kind: 'rejected' } | { kind: 'network' }
+export type RefreshResult =
+  | { kind: 'ok'; token: string }
+  | { kind: 'rejected' }
+  | { kind: 'network' }
 
 /** 401/403 = el servidor rechazó explícitamente la sesión. Cualquier otro
  * código (o ausencia de respuesta) es un problema transitorio, no una
@@ -161,6 +165,36 @@ api.interceptors.request.use(
     return Promise.reject(error)
   },
 )
+
+// ---------------------------------------------------------------------------
+// Solo desarrollo (fase 203, SC-4 y SC-6). Todo el bloque cuelga de
+// `import.meta.env.DEV`: Vite lo reemplaza por `false` en `quasar build` y el
+// código desaparece del bundle de producción.
+//  - Cuenta los pedidos de una apertura (log de depuración numerado) para
+//    verificar SC-4. Solo método y URL: nunca headers ni body (sin token).
+//  - Con VITE_DEV_LATENCY_MS > 0 demora cada pedido con jitter 0.5x-1.5x para
+//    ver en local los estados intermedios y las carreras. Sin la variable no
+//    demora nada. Se registra DESPUÉS del interceptor de auth: axios corre los
+//    interceptores de request en orden inverso, así que la demora ocurre antes
+//    de leer el token.
+// ---------------------------------------------------------------------------
+if (import.meta.env.DEV) {
+  const devLatencyMs = parseDevLatencyMs(
+    import.meta.env.VITE_DEV_LATENCY_MS as string | undefined,
+    import.meta.env.DEV,
+  )
+  let devRequestSeq = 0
+  api.interceptors.request.use(async (config) => {
+    devRequestSeq += 1
+    log.debug('dev request', { n: devRequestSeq, method: config.method, url: config.url })
+    if (devLatencyMs > 0) {
+      await new Promise<void>((resolve) =>
+        setTimeout(resolve, jitteredDelayMs(devLatencyMs, Math.random())),
+      )
+    }
+    return config
+  })
+}
 
 /**
  * Builds the 401 response error handler. Factored out (and exported) so the unit
