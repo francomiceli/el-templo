@@ -2,14 +2,19 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import type { MyBookingRecord } from 'src/types/scheduling'
 
-const { warn, userStoreMock } = vi.hoisted(() => ({
-  warn: vi.fn(),
-  userStoreMock: {
-    profile: { branchTimezone: 'America/Argentina/Buenos_Aires' } as {
-      branchTimezone: string
-    } | null,
-  },
-}))
+// Reactivo como el store real: `tz` es un computed sobre el perfil y no se
+// entera de un cambio en un objeto plano.
+const { warn, userStoreMock } = await vi.hoisted(async () => {
+  const { reactive } = await import('vue')
+  return {
+    warn: vi.fn(),
+    userStoreMock: reactive({
+      profile: { branchTimezone: 'America/Argentina/Buenos_Aires' } as {
+        branchTimezone: string
+      } | null,
+    }),
+  }
+})
 
 vi.mock('src/utils/logger', () => ({
   createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn, error: vi.fn() }),
