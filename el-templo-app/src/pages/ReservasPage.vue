@@ -2260,6 +2260,15 @@ async function loadTrialEligibility() {
   }
 }
 
+/**
+ * Fase 203: la carga completa de `userStore.loadSubscription()` acaba de traer
+ * trial-eligibility, así que se reusa en lugar de pedirla otra vez. Para socios de
+ * sede virtual el store no la pide, y ahí se sigue llamando a `loadTrialEligibility()`.
+ */
+function applyStoreTrialEligibility(): void {
+  trialEligibility.value = userStore.trialEligibility
+}
+
 async function loadGrid() {
   try {
     const branchId =
@@ -2313,8 +2322,10 @@ watch(trialBranchId, () => {
 })
 
 onMounted(async () => {
+  let trialFromStore = false
   if (!userStore.subscription && !userStore.subscriptionLoading) {
     await userStore.loadSubscription()
+    trialFromStore = userStore.trialEligibilityLoaded && userStore.profile?.branchIsVirtual !== true
   }
 
   // Phase 162 (APP-02/D-06): cargar el plan especial antes de decidir el empty-state.
@@ -2326,7 +2337,10 @@ onMounted(async () => {
   // same point in the lifecycle (Phase 179 plan): they gate mutually
   // exclusive states (D-18, backend-guaranteed) that together decide which
   // of the ReservasPage states renders.
-  await Promise.all([loadTrialEligibility(), loadPartnerBenefit()])
+  await Promise.all([
+    trialFromStore ? Promise.resolve(applyStoreTrialEligibility()) : loadTrialEligibility(),
+    loadPartnerBenefit(),
+  ])
 
   if (trialEligible.value) {
     // Trial mode: load the physical-branch options for the sede selector (D-06).
