@@ -69,7 +69,7 @@
       </div>
     </div>
 
-    <!-- Filter bar — Row 1: search + Solo deudores + Solo Leads -->
+    <!-- Filter bar — Row 1: search + toggles Deudores y Wellhub (juntos, pedido de Franco 2026-10-28) -->
     <div class="row q-col-gutter-sm q-mb-sm items-end">
       <div class="col-12 col-sm-6 col-md-6">
         <q-input
@@ -86,22 +86,23 @@
           </template>
         </q-input>
       </div>
-      <div v-if="!financeBlind" class="col-6 col-sm-3 col-md-3 items-center">
-        <q-toggle
-          v-model="filters.debtorOnly"
-          label="Solo deudores"
-          color="negative"
-          @update:model-value="onFilterChange"
-        />
-      </div>
-      <!-- Fase 204 D-07: sin gate de finanzas (no es dato financiero) -->
-      <div class="col-6 col-sm-3 col-md-3 items-center">
-        <q-toggle
-          v-model="filters.wellhubOnly"
-          label="Solo Wellhub"
-          color="secondary"
-          @update:model-value="onFilterChange"
-        />
+      <div class="col-12 col-sm-6 col-md-6">
+        <div class="row items-center q-gutter-x-md">
+          <q-toggle
+            v-if="!financeBlind"
+            v-model="filters.debtorOnly"
+            label="Deudores"
+            color="negative"
+            @update:model-value="onFilterChange"
+          />
+          <!-- Fase 204 D-07: sin gate de finanzas (no es dato financiero) -->
+          <q-toggle
+            v-model="filters.wellhubOnly"
+            label="Wellhub"
+            color="secondary"
+            @update:model-value="onFilterChange"
+          />
+        </div>
       </div>
     </div>
 
@@ -193,7 +194,7 @@
     </div>
 
     <!-- Total debt banner — owner/admin only (financial data), and only when
-         Solo deudores is on and there are debts. The backend also withholds
+         the Deudores toggle is on and there are debts. The backend also withholds
          the aggregate from other roles (defense in depth). -->
     <q-banner
       v-if="canSeeTotalDebt && filters.debtorOnly && totalDebtByCurrency.length > 0"
