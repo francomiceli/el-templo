@@ -130,7 +130,7 @@ import { useCheckInApi } from '../composables/useCheckInApi'
 import CheckInPanel from '../components/CheckInPanel.vue'
 import WeekStrip from '../components/WeekStrip.vue'
 import { CHECK_IN_QUESTIONS, type CheckInQuestionConfig, type CheckInQuestionType } from '../types'
-import { useUserStore } from 'src/stores/useUserStore'
+import { useUserStore, MEMBER_STATE_MAX_AGE_MS } from 'src/stores/useUserStore'
 import { FREE_BLOCKS_ENABLED, MEMBER_TREE_ENABLED } from 'src/config/featureFlags'
 import { useWeekData } from 'src/modules/training/composables/useWeekData'
 import { getRouteName } from 'src/modules/training/utils/routeNames'
@@ -142,8 +142,6 @@ import { pickNextRoute, resolveTodayCard } from '../utils/today-card'
 import type { CheckInAnswers } from '../utils/check-in-summary'
 import GeneralContent from '../components/GeneralContent.vue'
 import ProgramCtaCard from 'src/modules/programs/components/ProgramCtaCard.vue'
-import { useProgramsApi } from 'src/modules/programs/composables/useProgramsApi'
-import type { MemberEnrollmentProgress } from 'src/modules/programs/types'
 import PermissionBanner from '../components/PermissionBanner.vue'
 import NovedadesCard from '../components/NovedadesCard.vue'
 import SponsorsCarousel from '../components/SponsorsCarousel.vue'
@@ -157,13 +155,11 @@ import { useNovedadesStore } from 'src/stores/useNovedadesStore'
 import { useSponsorsStore, type Sponsor } from 'src/stores/useSponsorsStore'
 import { useNotificationStore } from 'src/stores/useNotificationStore'
 import { useTodayBookingStore } from 'src/stores/useTodayBookingStore'
-import { useSchedulingApi } from 'src/composables/useSchedulingApi'
+import { useLoadDeadline } from 'src/composables/useLoadDeadline'
 import { addDaysStr, formatHHMM, weekStartsFor } from 'src/utils/check-in-window'
 import { dowInTz, todayInTz } from 'src/utils/tz'
 import { useRouter } from 'vue-router'
-import { createLogger } from 'src/utils/logger'
 
-const log = createLogger('MiTemplo')
 const notificationStore = useNotificationStore()
 const router = useRouter()
 const progressionStore = useProgressionStore()
@@ -174,12 +170,20 @@ const sponsorsStore = useSponsorsStore()
 const { fetchStats, requestEvaluation } = useProgressionApi()
 const { fetchTodayCheckIns, submitCheckIn } = useCheckInApi()
 const todayBookingStore = useTodayBookingStore()
-const schedulingApi = useSchedulingApi()
-const { sessions: weekSessions, completedDates, fetchWeekSessions } = useWeekData()
-const { getMyProgress } = useProgramsApi()
-const programProgress = ref<MemberEnrollmentProgress | null>(null)
+// Fase 203 (D-07): tope de carga de la página. Se arma UNA vez al montar (en `onMounted`), nunca
+// dentro de un `watch`: cada `start()` vuelve `passed` a false.
+const deadline = useLoadDeadline()
+const {
+  sessions: weekSessions,
+  completedDates,
+  loaded: weekLoaded,
+  error: weekError,
+  fetchWeekSessions,
+} = useWeekData()
+// Fase 203 (D-06): my-progress, current-program, enrollments, plan-status y trial-eligibility viven
+// en el store (`ensureMemberState`); la página no los pide por su cuenta.
+const programProgress = computed(() => userStore.myProgress)
 const programSheetOpen = ref(false)
-const trialEligible = ref(false)
 // Marca tocada en el carrusel de patrocinadores: abre la hoja de detalle (plan 19).
 const selectedSponsor = ref<Sponsor | null>(null)
 const sheetOpen = computed({
@@ -283,47 +287,80 @@ async function loadWeeks(): Promise<void> {
   await fetchWeekSessions(currentWeekDates())
 }
 
-async function loadProgramProgress(): Promise<void> {
-  try {
-    programProgress.value = await getMyProgress()
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Unknown error'
-    log.warn('Failed to load program progress', { error: message })
+/**
+ * Clave del pedido de `/sessions/weekly`: los mismos datos que arman sus parámetros
+ * (zona de la sede, nivel elegido y lunes de la semana).
+ */
+function weeksKey(): string {
+  return `${userStore.profile?.branchTimezone ?? ''}|${userStore.selectedLevel ?? ''}|${currentWeekDates()[0]}`
+}
+
+// Estado de cierre de `requestWeeks` (no es reactivo a propósito: nada lo lee desde el template).
+let weeksInFlight: { key: string; promise: Promise<void> } | null = null
+let weeksLoadedKey: string | null = null
+
+/**
+ * Pide la semana para `key`. Con un pedido en vuelo de la MISMA clave devuelve esa promesa. Con uno
+ * en vuelo de OTRA clave espera a que termine antes de salir: `fetchWeekSessions` escribe lo último
+ * que llega, y si el pedido viejo terminara después del nuevo pisaría la semana con parámetros
+ * viejos. `weeksLoadedKey` solo se fija si la carga no falló (un error se puede reintentar).
+ */
+function startOrShareWeeks(key: string): Promise<void> {
+  if (weeksInFlight?.key === key) return weeksInFlight.promise
+  const previous = weeksInFlight?.promise
+  const run = previous ? previous.catch(() => undefined).then(() => loadWeeks()) : loadWeeks()
+  const promise: Promise<void> = run
+    .then(() => {
+      if (weekError.value === null) weeksLoadedKey = key
+    })
+    .finally(() => {
+      if (weeksInFlight?.promise === promise) weeksInFlight = null
+    })
+  weeksInFlight = { key, promise }
+  return promise
+}
+
+/**
+ * Único punto que pide `/sessions/weekly` (fase 203, SC-4): un mismo juego de parámetros
+ * (zona, nivel, semana) nunca se pide dos veces, salvo con `force`, que garantiza un pedido que
+ * sale DESPUÉS de la llamada. Con un pedido en vuelo `force` no lo comparte (pudo salir antes del
+ * cambio en el server): espera a que termine y encadena UNA recarga; dos `force` simultáneos
+ * comparten la encadenada. Misma semántica que `ensureMemberState({ force: true })`.
+ */
+function requestWeeks(opts: { force?: boolean } = {}): Promise<void> {
+  const key = weeksKey()
+  if (opts.force) {
+    if (weeksInFlight) {
+      return weeksInFlight.promise.catch(() => undefined).then(() => startOrShareWeeks(weeksKey()))
+    }
+    return startOrShareWeeks(key)
   }
+  if (weeksLoadedKey === key && !weeksInFlight) return Promise.resolve()
+  return startOrShareWeeks(key)
 }
 
 async function onProgramChanged(): Promise<void> {
-  // Bundle members switching programs from the home card. Re-fetch progress
-  // (the my-progress endpoint follows the server-side current-program pointer)
-  // and the week sessions so today's route + day cards reflect the new program.
-  await Promise.all([loadProgramProgress(), loadWeeks()])
+  // Bundle members switching programs from the home card. Re-fetch the member state
+  // (my-progress follows the server-side current-program pointer) and the week sessions
+  // so today's route + day cards reflect the new program. `force` espera la carga en vuelo
+  // y encadena una carga completa, en ambos casos.
+  await Promise.all([userStore.ensureMemberState({ force: true }), requestWeeks({ force: true })])
 }
 
-async function loadTrialEligibility(): Promise<void> {
-  try {
-    const eligibility = await schedulingApi.getTrialEligibility()
-    trialEligible.value = eligibility.eligible && !eligibility.alreadyBooked
-  } catch (err: unknown) {
-    // Fail-open: sin dato no se ofrece la clase de prueba, la card sigue con su gate por defecto.
-    trialEligible.value = false
-    log.warn('Failed to load trial eligibility', {
-      error: err instanceof Error ? err.message : String(err),
-    })
-  }
-}
-
-// Plan-status y prueba gratis SOLO cuando la suscripción terminó de cargar sin plan activo
-// (si todavía carga, esperamos: nunca decidimos "sin plan" por una carrera). L37.
-// Sin `immediate` (REVIEW-app WR-03): `onMounted` recarga la suscripción siempre que no haya
-// plan activo, así que la transición loading -> loaded de esa recarga dispara esto UNA vez por
-// visita. Con `immediate` corría también en el setup con la suscripción vieja en memoria y la
-// recarga lo repetía (doble plan-status y doble trial-eligibility).
+// Perfil tardío (boot optimista, D-08): sin perfil no se pide la semana (no hay zona ni nivel). Cuando
+// el perfil recién llega (`prevTz === null`) se espera la hidratación del nivel antes de pedir, para
+// que la clave ya lleve el nivel final: `retryProfileLoad` hace `setProfile` (cambia la zona) y luego
+// `hydrateSelection` (cambia el nivel), y sin esta espera saldrían dos pedidos. El disparo siguiente
+// por el cambio de nivel cae en la misma clave y comparte la promesa o se saltea. Cambios posteriores
+// reales de zona o nivel -> clave nueva -> un pedido. No es inmediato: el montaje pide por su cuenta.
+let disposed = false
 watch(
-  () => userStore.subscriptionLoaded && !userStore.subscriptionLoading,
-  (ready) => {
-    if (!ready || userStore.hasActiveSubscription) return
-    void userStore.loadPlanStatus()
-    if (!isVirtual.value) void loadTrialEligibility()
+  () => [userStore.profile?.branchTimezone ?? null, userStore.selectedLevel] as const,
+  async ([tz], [prevTz]) => {
+    if (tz === null) return
+    if (prevTz === null) await userStore.hydrateSelection()
+    if (disposed) return
+    void requestWeeks()
   },
 )
 
@@ -346,8 +383,11 @@ const todayCard = computed(() => {
       : null,
     planStatus: userStore.planStatus,
     planLoading: userStore.planStateLoading,
-    // Hasta que respondan las reservas de hoy la card no afirma que falte reservar (A1).
-    bookingsLoading: !todayBookingStore.loaded,
+    // Hasta que respondan las reservas de hoy la card no afirma que falte reservar (A1). Si el perfil
+    // llegó con otra zona, los turnos cargados con la zona por defecto no valen hasta que el layout
+    // los recargue (D-08).
+    bookingsLoading:
+      !todayBookingStore.loaded || todayBookingStore.loadedTz !== todayBookingStore.tz,
     todayRoute: todayRouteName.value,
     todayCompleted: todayCompleted.value,
     todaySession: progressionStore.todaySession,
@@ -381,28 +421,37 @@ const todayCard = computed(() => {
         }
       : null,
     hasExtraPrograms: programProgressCard.value !== null && !isVirtual.value,
-    trialEligible: trialEligible.value,
+    trialEligible: userStore.trialEligible,
     libreEnabled: FREE_BLOCKS_ENABLED,
-    // Fase 203 (plan 10): entradas "todavía no sé" de la función pura. En false = comportamiento de
-    // antes; el plan 11 las cablea a las fuentes reales (perfil, semana, programa, stats, tope).
-    profileLoading: false,
-    weekLoading: false,
-    programLoading: false,
-    trialLoading: false,
-    statsLoading: false,
-    planFailed: false,
-    bookingsFailed: false,
-    programFailed: false,
-    statsFailed: false,
-    deadlinePassed: false,
+    // Fase 203: "todavía no sé" (*Loading = no llegó por primera vez) y "falló" (*Failed = falló y no hay
+    // dato previo). Una falla es "no sé", nunca "no": las banderas *Failed van a la card, que sale enseguida
+    // a neutral / a lo que se sabe (una falla no espera el tope; el tope es solo para lo que tarda).
+    // Sin perfil la card queda en esqueleto aun con el tope vencido: lo decide `resolveTodayCard` (D-08),
+    // acá no hay ningún atajo que la saque de ahí.
+    profileLoading: userStore.profile === null,
+    weekLoading: !weekLoaded.value,
+    programLoading: !userStore.memberStateLoaded,
+    trialLoading: !userStore.trialEligibilityLoaded,
+    // TODO(203-12): reemplazar por !progressionStore.statsLoaded
+    statsLoading: progressionStore.stats === null && progressionStore.error === null,
+    // Sin suscripción 204/vencida y plan-status caído no se sabe si venció ni si hay un plan programado.
+    planFailed:
+      userStore.planStatus === null && (userStore.subscriptionFailed || userStore.planStatusFailed),
+    bookingsFailed: todayBookingStore.loadFailed,
+    programFailed: userStore.programFailed,
+    // TODO(203-12): reemplazar por progressionStore.statsFailed
+    statsFailed: progressionStore.stats === null && progressionStore.error !== null,
+    deadlinePassed: deadline.passed.value,
   })
 })
 
-onMounted(async () => {
-  fetchStats()
-  fetchTodayCheckIns()
-  // D-15b: tarjetas del carrusel (fijas con copy editable + libres del
-  // admin), sin bloquear el render — mismo criterio que fetchStats de arriba.
+onMounted(() => {
+  // Fase 203 (SC-4, D-06): todo sale en el mismo tick y en paralelo, sin ningún `await` antes de los
+  // pedidos. El tope de la card arranca una sola vez, acá.
+  deadline.start()
+  void fetchStats()
+  void fetchTodayCheckIns()
+  // D-15b: tarjetas del carrusel (fijas con copy editable + libres del admin).
   void avisosStore.loadTarjetas()
   // Novedades (D-12): fail-open, en cada montaje de Mi Templo. No hay
   // pull-to-refresh en esta página, así que no hay un segundo punto de carga.
@@ -410,21 +459,13 @@ onMounted(async () => {
   // Patrocinadores (D-20): fail-open; el feed ya viene filtrado por país y vigencia.
   void sponsorsStore.load()
 
-  // Fase 199: Mi Templo carga la suscripción al montar porque el login no lo hace
-  // (boot/auth.ts solo la dispara al arrancar con sesión): sin esto, tras un login
-  // sin reinicio un socio con plan vería "Arrancá tu plan". Sin await y DESPUÉS de los
-  // fetch de arriba para no demorar el loader; la card muestra su skeleton mientras carga.
-  // Se recarga también si lo que hay en memoria NO es un plan activo (p.ej. una suscripción
-  // `expired` vieja): si el socio renovó en esta misma sesión, sin esto vería "Renová tu plan".
-  if (!userStore.hasActiveSubscription && !userStore.subscriptionLoading) {
-    void userStore.loadSubscription()
-  }
+  // Estado del socio (suscripción, plan-status, trial-eligibility, my-progress, current-program y
+  // enrollments): reusa la carga del boot/layout si está en vuelo o fresca, y refresca si está
+  // vieja (p. ej. un socio que renovó en esta sesión y todavía tenía un plan vencido en memoria).
+  void userStore.ensureMemberState({ maxAgeMs: MEMBER_STATE_MAX_AGE_MS })
 
-  // Hydrate active enrollments so the program dropdown on ProgramProgressCard
-  // (hoja "Mi programa") appears on first load.
-  await Promise.all([loadProgramProgress(), userStore.fetchCurrentProgram()])
-
-  void loadWeeks()
+  // Semana: apenas hay perfil, en paralelo con todo lo demás. Sin perfil la pide el watch de arriba.
+  if (userStore.profile) void requestWeeks()
 
   // Handle pending deep link from notification tap (per D-30)
   const pendingRoute = notificationStore.consumePendingRoute()
@@ -434,7 +475,8 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-  schedulingApi.cleanup()
+  disposed = true
+  deadline.cleanup()
 })
 </script>
 
