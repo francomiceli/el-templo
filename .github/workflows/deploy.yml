@@ -91,7 +91,13 @@ jobs:
               echo "api=${FILTER_API:-false}"
               echo "app=${FILTER_APP:-false}"
               echo "admin=${FILTER_ADMIN:-false}"
-              echo "web=${FILTER_WEB:-false}"
+              # La web toma sus datos de la API (sedes, horarios, blog): si cambia la API,
+              # se rearma también la web para que los cambios de datos lleguen solos.
+              if [ "${FILTER_WEB:-false}" = "true" ] || [ "${FILTER_API:-false}" = "true" ]; then
+                echo "web=true"
+              else
+                echo "web=false"
+              fi
             } >> "$GITHUB_OUTPUT"
           fi
           cat "$GITHUB_OUTPUT"

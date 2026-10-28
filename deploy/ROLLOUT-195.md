@@ -8,6 +8,8 @@ Checklist para Franco y el orquestador. Todo `git push` y todo SSH son gates hum
 
 Actualizado 2026-10-28: desde este cambio, en los dos workflows la web se arma **después** del deploy de API, app y admin (`build-web` depende de `deploy`) y se sube en su propio job `deploy-web`, con respaldo, smoke test y rollback propios. Así el build siempre le pide `/api/web/site-data` a la API ya desplegada y **no hace falta "solo web" después del push**. Una falla de la web sigue sin frenar ni revertir API, app y admin (D-29).
 
+Además, todo push que toque la API rearma también la web (sus datos salen de la API: sedes, horarios, blog), así que una migración de datos llega sola a la web.
+
 Lo que pasó antes del cambio: el primer push a staging (`68a9dd86f`) armó la web en paralelo con la API, recibió 404 de la API vieja y la web quedó sin publicar. Se resolvió con este cambio.
 
 1. Con OK de Franco: push a staging. En la misma corrida se despliega la API (corre la migración 0270-0274 y 0277), después se arma la web contra esa API y se publica en web-staging.
