@@ -77,6 +77,14 @@
             class="desktop-rail__badge desktop-rail__badge--count"
             aria-label="Novedad: Empezá acá"
           />
+          <q-badge
+            v-else-if="tab.planBadge && showPlanBadge"
+            floating
+            rounded
+            color="primary"
+            class="desktop-rail__badge"
+            aria-label="Novedad: plan cargado"
+          />
         </router-link>
       </nav>
 
@@ -171,6 +179,14 @@
             class="mobile-tab__badge mobile-tab__badge--count"
             aria-label="Novedad: Empezá acá"
           />
+          <q-badge
+            v-else-if="tab.planBadge && showPlanBadge"
+            floating
+            rounded
+            color="primary"
+            class="mobile-tab__badge"
+            aria-label="Novedad: plan cargado"
+          />
         </router-link>
       </div>
     </q-footer>
@@ -257,6 +273,9 @@ watch(
   (isAuth) => {
     if (isAuth) {
       void avisosStore.evaluate()
+      // Pelotita de Planes: el flag viene en plan-status, que si no se carga al arrancar recién
+      // llegaría al abrir Mi Templo sin plan activo. Cubre boot con token y login recién hecho.
+      void userStore.loadPlanStatus()
       // D-04/D-06: turno de hoy + reloj de la ventana ±20 min (compartido con Mi Templo).
       void todayBookingStore.load()
       todayBookingStore.startClock()
@@ -375,6 +394,12 @@ const showIntroBadge = computed(() => {
   return !!profile && profile.role === 'member' && !profile.introStoriesSeenAt
 })
 
+// Sketch 028: punto en la tab Planes cuando el staff cargó una membresía y el socio todavía no abrió
+// Planes. Dentro de Planes no se muestra (la página lo apaga al abrir, con el POST `seen`).
+const showPlanBadge = computed(
+  () => userStore.planStatus?.hasUnseenPlanUpdate === true && !route.path.startsWith('/planes'),
+)
+
 // SPEC "Empezá acá" A2 — tip de primer uso del QR de check-in: se muestra
 // una sola vez por socio (useTipsSeenStorage), la primera vez que el FAB se
 // vuelve visible. `qrTipChecked` evita re-consultar el storage en cada
@@ -415,6 +440,8 @@ interface MobileTab {
   badge?: boolean
   /** Pelotita roja con "1" mientras el socio no abrió "Empezá acá". */
   introBadge?: boolean
+  /** Punto mientras haya un plan cargado por el staff que el socio todavía no vio en Planes. */
+  planBadge?: boolean
   /** Prefijo de ruta con el que la tab se marca activa, si no es el propio `to`. */
   match?: string
 }
@@ -435,7 +462,7 @@ const mobileTabs = computed<MobileTab[]>(() => {
     { to: '/training', icon: 'img:/icons/entrenar.svg', label: 'Entrenar', size: '26px' },
   ]
   tabs.push({ to: '/reservas', icon: 'event_available', label: 'Reservas' })
-  tabs.push({ to: '/planes', icon: 'card_membership', label: 'Planes' })
+  tabs.push({ to: '/planes', icon: 'card_membership', label: 'Planes', planBadge: true })
   return tabs
 })
 
