@@ -2,7 +2,7 @@
  * SVG de la intro "el recorrido de hoy" (sketch 004, variante D): los cuerpos y las zonas
  * de cada bloque "encendidas". 2026-10-27 (variante A2): el cuerpo es el MISMO de la figura
  * del app (`FIGURA_BASE` = `$fig-*` de su _brand.scss): músculos sueltos con relieve de mármol
- * y las zonas encendidas en ámbar con relieve, un solo color para todos los bloques (antes,
+ * y las zonas encendidas en oro (`--gold`) con relieve, un solo color para todos los bloques (antes,
  * mármol con vetas y silueta oscura, y un color por bloque).
  *
  * Funciones PURAS que devuelven markup SVG. Ningún texto que venga del server entra acá:
@@ -28,14 +28,14 @@ export const FIGURA_BASE = {
   'muscle-edge': '#b9ae9d',
   skin: '#f3eee6',
   'skin-edge': '#b1a38e',
-  'lit-a': '#e6cd92',
-  'lit-b': '#d4a843',
-  'lit-c': '#83682a',
-  'lit-edge': '#755c25',
+  'lit-a': '#d1bdab',
+  'lit-b': '#b08d6e',
+  'lit-c': '#6d5744',
+  'lit-edge': '#614e3d',
 };
 
 /** Color de la lista de bloques y de los rótulos de zona (2026-10-27: uno solo para todos los
- *  bloques, el mismo ámbar del encendido; antes cada bloque tenía el suyo). */
+ *  bloques, el mismo oro del encendido; antes cada bloque tenía el suyo). */
 export const COLOR_RECORRIDO = FIGURA_BASE['lit-b'];
 
 export const ZONA_ES: Record<TvZonaMuscular, string> = {
@@ -166,7 +166,7 @@ export function svgBase(defs: Defs, an: Anatomia, key: FiguraKey, contorno: stri
     for (const p of g.p) {
       s += muscular
         ? path(p[0], musculo, FIGURA_BASE['muscle-edge'], 0.8)
-        : `<path d="${p[0]}" fill="${FIGURA_BASE.skin}"/>`;
+        : path(p[0], FIGURA_BASE.skin, FIGURA_BASE['skin-edge'], 0.8);
     }
   }
   return s + '</g>';

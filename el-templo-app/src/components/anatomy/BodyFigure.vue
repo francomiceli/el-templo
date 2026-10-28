@@ -50,7 +50,7 @@
 /**
  * Figura anatómica compartida (fase 197 D-01, D-03, D-04, D-07): frente y espalda.
  *
- * Intensidades: `lit` = bloque elegido (ámbar con relieve, o salvia si `tone="sage"`),
+ * Intensidades: `lit` = bloque elegido (oro con relieve, o salvia si `tone="sage"`),
  * `lit2` = zonas de los otros bloques, resto = músculo sin trabajar. Con `interactive` los
  * músculos son tocables y emiten su GRUPO (D-10); `dim` atenúa lo que no está encendido.
  * Las partes no musculares (pelo, cabeza, cuello, manos, pies...) se pintan como piel y no se tocan.
@@ -113,7 +113,7 @@ const log = createLogger('BodyFigure')
 // Mismos valores que $fig-lit-a/b/c y $fig-muscle-a/-/c de _brand.scss: el SVG necesita el color
 // como atributo. Variante A2 (2026-10-27): cada músculo es una "almohada" con luz de arriba a la
 // izquierda, como el recorrido de la TV.
-const LIT = ['#e6cd92', '#d4a843', '#83682a'] as const
+const LIT = ['#d1bdab', '#b08d6e', '#6d5744'] as const
 const MUSCLE = ['#fdfbf7', '#ece5d9', '#c7baa6'] as const
 const RELIEVE = { cx: '.42', cy: '.36', r: '.74', fx: '.34', fy: '.26' } as const
 
@@ -189,7 +189,7 @@ function muClass(slug: string, key: ViewKey): Record<string, boolean> {
   }
 }
 
-// El degradé ámbar va inline (gana a las reglas del <style>); en salvia el elegido es sólido por CSS.
+// El degradé oro va inline (gana a las reglas del <style>); en salvia el elegido es sólido por CSS.
 function muStyle(slug: string, key: ViewKey): Record<string, string> | undefined {
   if (props.tone !== 'terra' || NON_MUSCLE_SLUGS.has(slug)) return undefined
   const role = roleOf(slug, key)
@@ -326,13 +326,14 @@ watch(
   stroke-width: 0.8;
 }
 
-// Partes no musculares: piel, sin borde
+// Partes no musculares: piel, con el borde del contorno (sin él la cabeza se perdía en el fondo)
 .mu--x path {
   fill: $fig-skin;
-  stroke: none;
+  stroke: $fig-skin-edge;
+  stroke-width: 0.8;
 }
 
-// Bloque elegido: ámbar con relieve (inline --mu-fill) o salvia sólido
+// Bloque elegido: oro con relieve (inline --mu-fill) o salvia sólido
 .mu--lit path {
   fill: var(--mu-fill, $fig-lit-b);
   stroke: $fig-lit-edge;

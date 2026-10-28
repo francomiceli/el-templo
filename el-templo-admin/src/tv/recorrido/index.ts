@@ -226,11 +226,9 @@ function construirTexto(bloques: TvRecorridoBloque[]): {
         'recRutaSola',
         unido ? `${nombreRuta(b)} / ${nombreRuta(unido)}` : nombreRuta(b)
       );
-      rutaSola.style.color = tinta;
-      // En las rutas del día queda la barra de color (UAT 2026-10-13).
-      const barraRuta = div('recBarra');
-      barraRuta.style.background = color;
-      fila.append(barraRuta, rutaSola);
+      // 2026-10-27: sin barra de color (todos los bloques tienen el mismo) y con el color del
+      // título "La sesión de hoy" (CSS).
+      fila.appendChild(rutaSola);
       panelRutas.appendChild(fila);
     }
 

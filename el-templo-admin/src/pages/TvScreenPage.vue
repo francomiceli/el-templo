@@ -2816,13 +2816,6 @@ onUnmounted(() => {
   transform: scale(1.12);
   transform-origin: left center;
 }
-/* Barra de color de las rutas del día. */
-#tvScreenRoot .recBarra {
-  width: 0.55rem;
-  border-radius: 0.3rem;
-  margin-right: 1.1rem;
-  flex: none;
-}
 /* Columna del templo parada al costado de cada bloque (UAT 2026-10-13): la tira
    horizontal de la dórica (mismas piezas) rotada 90° desde su esquina superior
    izquierda; `left: 100%` la deja dentro del ancho de `.recColumna`. El largo de la
@@ -2913,9 +2906,10 @@ onUnmounted(() => {
   opacity: 1;
   transform: none;
 }
-/* Rutas del día: solo el nombre, con la letra de los ejercicios (`.ej-nombre`). La
-   barra se estira al alto de la fila (align-items por defecto). */
+/* Rutas del día: solo el nombre, con la letra de los ejercicios (`.ej-nombre`) y el
+   color del título "La sesión de hoy" (2026-10-27: sin barra de color). */
 #tvScreenRoot .recRutaSola {
+  color: var(--navy);
   font-family: var(--nunito);
   font-weight: 700;
   font-size: 2.35rem;

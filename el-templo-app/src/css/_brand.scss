@@ -30,19 +30,19 @@ $fig-muscle-c: #c7baa6; // músculo sin trabajar: sombra
 $fig-muscle-edge: #b9ae9d;
 $fig-skin: #f3eee6; // piel / contorno / partes no musculares
 $fig-skin-edge: #b1a38e;
-// Encendido: ámbar de la plani de la TV (--trans-ambar), con relieve. Los demás tonos de la familia
-// salen de mezclar #d4a843 con blanco o negro (como `mezclar()` de la TV).
-$fig-lit-a: #e6cd92; // bloque elegido: luz (42 % blanco)
-$fig-lit-b: #d4a843; // bloque elegido: medio
-$fig-lit-c: #83682a; // bloque elegido: sombra (38 % negro)
-$fig-lit-edge: #755c25; // 45 % negro
+// Encendido: oro de la plani de la TV (--gold), con relieve. Los demás tonos de la familia salen
+// de mezclar #b08d6e con blanco o negro (como `mezclar()` de la TV).
+$fig-lit-a: #d1bdab; // bloque elegido: luz (42 % blanco)
+$fig-lit-b: #b08d6e; // bloque elegido: medio
+$fig-lit-c: #6d5744; // bloque elegido: sombra (38 % negro)
+$fig-lit-edge: #614e3d; // 45 % negro
 
 // Muestra de leyenda con el mismo encendido que la figura.
 @mixin fig-lit-swatch {
   background: radial-gradient(circle at 34% 26%, $fig-lit-a, $fig-lit-b 50%, $fig-lit-c);
 }
-$fig-lit2: #ead4a1; // zonas de los otros bloques de la sesión (50 % blanco)
-$fig-lit2-edge: #aa8636; // 20 % negro
+$fig-lit2: #c8af9a; // zonas de los otros bloques de la sesión (30 % blanco)
+$fig-lit2-edge: #8d7158; // 20 % negro
 $fig-done-lit: #6f8f73; // sesión completada: bloque elegido en salvia
 $fig-done-lit-edge: #3f6a47;
 $fig-done-lit2: #b9cdb9; // sesión completada: otros bloques
@@ -52,6 +52,6 @@ $fig-tap-edge: #bba891;
 $fig-dim: #ebe3d7; // modo tocable, atenuado
 $fig-dim-edge: #d8ccbc;
 // Fase 200 (sketch 020): figura pintada por grupo de alumno. "Hace el movimiento" usa $fig-lit-b / $fig-lit-edge.
-$fig-sost: #efdeb8; // "te sostiene" (62 % blanco), borde $fig-lit2-edge
-$fig-estira: #f6ecdf; // "se estira": relleno claro con borde punteado ámbar
-$fig-estira-edge: #94762f; // 30 % negro
+$fig-sost: #d0bba8; // "te sostiene" (40 % blanco), borde $fig-lit2-edge
+$fig-estira: #f6ecdf; // "se estira": relleno claro con borde punteado oro
+$fig-estira-edge: #7b634d; // 30 % negro

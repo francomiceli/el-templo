@@ -261,10 +261,11 @@ watch(
   stroke-width: 0.8;
 }
 
-// Partes no musculares: piel, sin borde
+// Partes no musculares: piel, con el borde del contorno (como en el app)
 .mu--x path {
   fill: $fig-skin;
-  stroke: none;
+  stroke: $fig-skin-edge;
+  stroke-width: 0.8;
 }
 
 .mu--motor path {
