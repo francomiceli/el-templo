@@ -27,14 +27,14 @@ See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 
 Phase: varias en paralelo (ver estado real abajo). Milestone v6.1 (181-192.3): 181 en master; 182-192.2 en el tren `feat/v6.1-gimnasio` (SIN PUSH); 192.3 en `feat/192.3-workout-engine`, por integrar.
 Plan: —
-Status: Sin fase única en ejecución. Fuera de v6.1 la última entrega es 204 Usuarios Wellhub (master 2026-10-27); siguiente planificada: 203 Carga sin parpadeos (`/gsd-execute-phase 203`).
+Status: Sin fase única en ejecución. Fuera de v6.1 la última entrega es 203 Carga sin parpadeos (master 2026-10-28, app 1.9.2).
 Last activity: 2026-10-28 -- Rescate de docs: ROADMAP.md y STATE.md unificados con el master local (que había divergido) y recuperadas las carpetas de fases/sketches/research que nunca llegaron a origin.
 
 **Estado real al 2026-10-28** (detalle fase por fase en `ROADMAP.md`, tabla Progress):
 
 - **En master/prod:** 193 Comunicaciones (UAT del plan 17 pendiente), 194 Invitaciones, 197 Entrenar (tabs/Libre/Desafíos OCULTOS por flag, solo Semana), 199 Rediseño Mi Templo, 200 Anatomía, 201 Conquer v2 (tab OCULTA), 202 Conquer tutoriales/correcciones, 204 Usuarios Wellhub.
 - **En staging, no en master:** 195 Web SEO local + AEO + atribución (14/14, `human_needed`, staging `68a9dd86f`).
-- **Planificada, sin ejecutar:** 203 Carga sin parpadeos (17 planes, rama `feat/203-carga-sin-parpadeos`, reajustados el 2026-10-28 por "Tu plan").
+- **En master 2026-10-28:** 203 Carga sin parpadeos (app 1.9.2; 02 cancelado; UAT aprobado por uso en staging, checklist no corrido; pendiente builds de tiendas 1.9.2).
 - **Sin subir, en el tren `feat/v6.1-gimnasio`:** 182-192.2 (incl. 188.1, 192.1, 192.2); 192.3 Workout Engine ejecutada aparte, a integrar (renumerar mig 0253).
 - **Archivada:** 196 Personalizados + Conquer v1, reemplazada por 201 (tag `archive/196-personalizados`).
 - **En espera, sin planificar:** 198 AURA configurable por fuente.
