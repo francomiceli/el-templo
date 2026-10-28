@@ -1,4 +1,5 @@
 import * as Sentry from "@sentry/node";
+import { scrubBreadcrumb, scrubSentryEvent } from "./sentry-scrub";
 
 /**
  * Códigos de error de mysql2 que significan "la conexión murió bajo una query
@@ -57,17 +58,15 @@ if (process.env.SENTRY_DSN) {
       if (isTransientDbError(hint?.originalException)) {
         return null;
       }
-      // Scrub sensitive fields from request data
-      if (event.request?.data && typeof event.request.data === "object") {
-        const data = event.request.data as Record<string, unknown>;
-        const sensitiveFields = ["password", "currentPassword", "newPassword"];
-        for (const field of sensitiveFields) {
-          if (field in data) {
-            data[field] = "[REDACTED]";
-          }
-        }
-      }
-      return event;
+      // Scrub sensitive fields (passwords y credenciales de integraciones:
+      // access_token, assertion, refresh_token, client_secret, token) del
+      // request, la URL, `extra` y los breadcrumbs. Ver src/sentry-scrub.ts.
+      return scrubSentryEvent(event);
+    },
+    // El breadcrumb HTTP de una llamada saliente lleva la URL con su query
+    // string (el GET de Insights de Meta lleva el token): se limpia al crearse.
+    beforeBreadcrumb(breadcrumb) {
+      return scrubBreadcrumb(breadcrumb);
     },
   });
 }

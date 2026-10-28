@@ -282,12 +282,14 @@ describe("Migraciones 0190 + 0191 — tenants, tenant_settings y anclas", () => 
     //   - `class_label_description.<m>`  → scheduling/label-descriptions.ts (fase 180)
     //   - `whatsapp.sales_number.<pais>` → communications/sales-number.ts (fase 193)
     //   - `conquer.%`                    → conquer/settings.ts (fase 201, D-14)
+    //   - `web.<clave>`                  → web-public/brand.ts (fase 195)
     // Al sumar un namespace nuevo, agregarlo acá con su referencia.
     const KNOWN_KEY_PATTERNS = [
       "module.%.enabled",
       "class_label_description.%",
       "whatsapp.sales_number.%",
       "conquer.%",
+      "web.%",
     ];
     const notKnown = sql.join(
       KNOWN_KEY_PATTERNS.map((p) => sql`setting_key NOT LIKE ${p}`),

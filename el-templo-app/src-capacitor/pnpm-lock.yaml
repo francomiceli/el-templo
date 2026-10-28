@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@capacitor-community/in-app-review':
+        specifier: 8.0.0
+        version: 8.0.0(@capacitor/core@8.2.0)
       '@capacitor-firebase/app':
         specifier: ^8.0.0
         version: 8.2.0(@capacitor/core@8.2.0)
@@ -55,6 +58,11 @@ packages:
   '@babel/helper-validator-identifier@7.28.5':
     resolution: {integrity: sha512-qSs4ifwzKJSV39ucNjsvc6WVHs6b7S03sOh2OcHF9UHfVPqWWALUsNUVzhSBiItjRZoLHx7nIarVjqKVusUZ1Q==}
     engines: {node: '>=6.9.0'}
+
+  '@capacitor-community/in-app-review@8.0.0':
+    resolution: {integrity: sha512-AYpEkIjdv27WGS3hnlc7xAQ1BhaBvD2svgQBfHF4P2Olw1N6a7MSCOQC6O4SuxmdBdJ2fM6uFeo1jyNjKLtIPw==}
+    peerDependencies:
+      '@capacitor/core': '>=8.0.0'
 
   '@capacitor-firebase/app@8.2.0':
     resolution: {integrity: sha512-DnMNGV9zmmRppe+34h395Y/ihFvizQWIulppyxzGsaQwmcgLnny9T8abGAQFpoZaodEv5ETvae5j6luJYhF5kw==}
@@ -1743,6 +1751,10 @@ snapshots:
       picocolors: 1.1.1
 
   '@babel/helper-validator-identifier@7.28.5': {}
+
+  '@capacitor-community/in-app-review@8.0.0(@capacitor/core@8.2.0)':
+    dependencies:
+      '@capacitor/core': 8.2.0
 
   '@capacitor-firebase/app@8.2.0(@capacitor/core@8.2.0)':
     dependencies:

@@ -171,6 +171,100 @@ export interface TrialConversionReport {
   pendingLeads: TrialConversionPendingLead[];
 }
 
+// ─── Fase 195-10: Origen de altas (atribución) ──────────────────────────
+//
+// Espejo cliente de `el-templo-api/src/modules/marketing/report-service.ts`.
+// Los importes van SIEMPRE separados por moneda: nunca se suman ARS con EUR.
+
+/** Importe en una moneda (unidades enteras de la moneda, sin centavos). */
+export interface MoneyByCurrency {
+  currency: string;
+  amount: number;
+}
+
+export interface AttributionFunnelParams {
+  dateFrom: string;
+  dateTo: string;
+  branchId?: number | undefined;
+  country?: 'AR' | 'ES' | undefined;
+}
+
+export interface AttributionFunnelRow {
+  channel: string;
+  utmCampaign: string | null;
+  branchId: number | null;
+  branchName: string | null;
+  registros: number;
+  conPrueba: number;
+  pagaron: number;
+  facturacion: MoneyByCurrency[];
+  /** Solo en la fila de la sede que el nombre de la campaña codifica. */
+  gasto: MoneyByCurrency[] | null;
+  costoPorAlumnoPago: MoneyByCurrency[] | null;
+}
+
+export interface AttributionCampaign {
+  utmCampaign: string;
+  registros: number;
+  conPrueba: number;
+  pagaron: number;
+  facturacion: MoneyByCurrency[];
+  gasto: MoneyByCurrency[] | null;
+  costoPorAlumnoPago: MoneyByCurrency[] | null;
+  sedeCodificada: { branchId: number; branchName: string } | null;
+  porSede: Array<{
+    branchId: number | null;
+    branchName: string | null;
+    registros: number;
+    pagaron: number;
+  }>;
+}
+
+export interface AttributionFunnelResult {
+  range: { dateFrom: string; dateTo: string };
+  rows: AttributionFunnelRow[];
+  campaigns: AttributionCampaign[];
+  totals: {
+    registros: number;
+    conPrueba: number;
+    pagaron: number;
+    facturacion: MoneyByCurrency[];
+    gasto: MoneyByCurrency[];
+  };
+  ia: Array<{ referrerHost: string | null; registros: number; pagaron: number }>;
+  gastoSinAtribuir: Array<{ campaignName: string; currency: string; amount: number }>;
+  /** Estado de las integraciones de medición (config de la API). */
+  integrations: MeasurementIntegration[];
+}
+
+/**
+ * Espejo de `MeasurementIntegration` (el-templo-api, marketing/integrations-status):
+ * solo booleanos y nombres de secrets de GitHub, nunca valores.
+ */
+export interface MeasurementIntegration {
+  key: 'ga4' | 'meta_pixel' | 'meta_capi' | 'meta_spend' | 'search_console' | 'gbp';
+  label: string;
+  enabled: boolean;
+  /** Secrets de GitHub que faltan o no son válidos. */
+  missing: string[];
+  /** GBP: off | dry-run | apply | invalid. CAPI prendida: test | live. */
+  mode?: 'off' | 'dry-run' | 'apply' | 'invalid' | 'test' | 'live';
+}
+
+export interface SearchConsoleMetrics {
+  clicks: number;
+  impressions: number;
+  /** Fracción 0..1 (0.1234 = 12,34%). */
+  ctr: number;
+  position: number;
+}
+
+export interface SearchConsoleReport {
+  period: { periodStart: string; periodEnd: string } | null;
+  pages: Array<{ page: string } & SearchConsoleMetrics>;
+  queries: Array<{ page: string; query: string } & SearchConsoleMetrics>;
+}
+
 // -- Fase 194 (D-19 / D-18): Reportes ▸ Invitaciones --------------------------
 // Espejo de GET /admin/referrals/invitations/report y GET /admin/referrals/invitations
 // (194-20). Los montos vienen separados por moneda: nunca se suman ARS + EUR.

@@ -43,13 +43,11 @@ const formattedDate = computed(() => {
     <NuxtLink :to="`/blog/${post.slug}`" class="blog-card__image-link">
       <div class="blog-card__image-wrapper">
         <img
-          v-if="post.coverImage"
-          :src="post.coverImage"
+          :src="post.coverImage ?? '/images/photos/sesion-real.webp'"
           :alt="post.title"
           class="blog-card__image"
           loading="lazy"
         >
-        <PlaceholderBox v-else aspect-ratio="16 / 9" label="" />
       </div>
     </NuxtLink>
 

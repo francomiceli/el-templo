@@ -3,6 +3,10 @@
 .output/
 dist/
 
+# Datos de build (fase 195): los genera scripts/fetch-web-data.mjs
+data/generated/
+public/llms.txt
+
 # Node
 node_modules/
 

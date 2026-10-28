@@ -1,0 +1,688 @@
+{
+  "source": "fixture",
+  "generatedAt": "2026-01-01T00:00:00.000Z",
+  "brand": {
+    "name": "El Templo Calistenia"
+  },
+  "countries": {
+    "AR": {
+      "salesWhatsapp": "5492235820521"
+    },
+    "ES": {
+      "salesWhatsapp": "34680774331"
+    }
+  },
+  "sedes": [
+    {
+      "id": 1,
+      "code": "CONST",
+      "slug": "constitucion",
+      "publicName": "Constitución",
+      "kind": "gym",
+      "country": "AR",
+      "timezone": "America/Argentina/Buenos_Aires",
+      "address": {
+        "street": "Av. Constitución 6745",
+        "locality": "Mar del Plata",
+        "region": "Buenos Aires",
+        "postalCode": null,
+        "country": "AR"
+      },
+      "geo": {
+        "lat": -37.9566,
+        "lng": -57.571
+      },
+      "placeId": null,
+      "mapsUrl": "https://www.google.com/maps/search/?api=1&query=Av.%20Constituci%C3%B3n%206745%20Mar%20del%20Plata",
+      "phone": null,
+      "photoUrl": null,
+      "activities": [
+        {
+          "name": "Sesión Grupal",
+          "slug": "sesion-grupal",
+          "isSpecial": false
+        },
+        {
+          "name": "ROM",
+          "slug": "rom",
+          "isSpecial": false
+        },
+        {
+          "name": "Máquinas",
+          "slug": "maquinas",
+          "isSpecial": false
+        }
+      ],
+      "openingHours": [
+        {
+          "dayOfWeek": 1,
+          "opens": "08:00",
+          "closes": "21:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "opens": "08:00",
+          "closes": "21:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "opens": "08:00",
+          "closes": "21:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "opens": "08:00",
+          "closes": "21:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "opens": "08:00",
+          "closes": "21:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "opens": "09:00",
+          "closes": "13:00"
+        }
+      ],
+      "schedule": [
+        {
+          "dayOfWeek": 1,
+          "startTime": "08:00",
+          "endTime": "09:00",
+          "activity": "Sesión Grupal"
+        },
+        {
+          "dayOfWeek": 1,
+          "startTime": "19:00",
+          "endTime": "20:00",
+          "activity": "Sesión Grupal"
+        },
+        {
+          "dayOfWeek": 3,
+          "startTime": "10:00",
+          "endTime": "11:00",
+          "activity": "ROM"
+        },
+        {
+          "dayOfWeek": 6,
+          "startTime": "10:00",
+          "endTime": "11:00",
+          "activity": "Sesión Grupal"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "code": "JUJUY",
+      "slug": "jujuy",
+      "publicName": "Jujuy",
+      "kind": "gym",
+      "country": "AR",
+      "timezone": "America/Argentina/Buenos_Aires",
+      "address": {
+        "street": "Jujuy 3761",
+        "locality": "Mar del Plata",
+        "region": "Buenos Aires",
+        "postalCode": null,
+        "country": "AR"
+      },
+      "geo": {
+        "lat": -38.01171,
+        "lng": -57.56843
+      },
+      "placeId": null,
+      "mapsUrl": "https://www.google.com/maps/search/?api=1&query=Jujuy%203761%20Mar%20del%20Plata",
+      "phone": null,
+      "photoUrl": null,
+      "activities": [
+        {
+          "name": "Sesión Grupal",
+          "slug": "sesion-grupal",
+          "isSpecial": false
+        },
+        {
+          "name": "ROM",
+          "slug": "rom",
+          "isSpecial": false
+        },
+        {
+          "name": "Máquinas",
+          "slug": "maquinas",
+          "isSpecial": false
+        }
+      ],
+      "openingHours": [
+        {
+          "dayOfWeek": 1,
+          "opens": "08:00",
+          "closes": "21:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "opens": "08:00",
+          "closes": "21:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "opens": "08:00",
+          "closes": "21:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "opens": "08:00",
+          "closes": "21:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "opens": "08:00",
+          "closes": "21:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "opens": "09:00",
+          "closes": "13:00"
+        }
+      ],
+      "schedule": [
+        {
+          "dayOfWeek": 1,
+          "startTime": "08:00",
+          "endTime": "09:00",
+          "activity": "Sesión Grupal"
+        },
+        {
+          "dayOfWeek": 1,
+          "startTime": "19:00",
+          "endTime": "20:00",
+          "activity": "Sesión Grupal"
+        },
+        {
+          "dayOfWeek": 3,
+          "startTime": "10:00",
+          "endTime": "11:00",
+          "activity": "ROM"
+        },
+        {
+          "dayOfWeek": 6,
+          "startTime": "10:00",
+          "endTime": "11:00",
+          "activity": "Sesión Grupal"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "code": "MORENO",
+      "slug": "moreno",
+      "publicName": "Moreno",
+      "kind": "gym",
+      "country": "AR",
+      "timezone": "America/Argentina/Buenos_Aires",
+      "address": {
+        "street": "Moreno 3751",
+        "locality": "Mar del Plata",
+        "region": "Buenos Aires",
+        "postalCode": null,
+        "country": "AR"
+      },
+      "geo": {
+        "lat": -37.9958,
+        "lng": -57.5605
+      },
+      "placeId": null,
+      "mapsUrl": "https://www.google.com/maps/search/?api=1&query=Moreno%203751%20Mar%20del%20Plata",
+      "phone": null,
+      "photoUrl": null,
+      "activities": [
+        {
+          "name": "Yoga para calisténicos",
+          "slug": "yoga-para-calistenicos",
+          "isSpecial": true
+        },
+        {
+          "name": "Aromaterapia",
+          "slug": "aromaterapia",
+          "isSpecial": true
+        }
+      ],
+      "openingHours": [],
+      "schedule": []
+    },
+    {
+      "id": 4,
+      "code": "ALEM",
+      "slug": "juan-b-justo",
+      "publicName": "Juan B. Justo",
+      "kind": "gym",
+      "country": "AR",
+      "timezone": "America/Argentina/Buenos_Aires",
+      "address": {
+        "street": "Juan B. Justo 1018",
+        "locality": "Mar del Plata",
+        "region": "Buenos Aires",
+        "postalCode": null,
+        "country": "AR"
+      },
+      "geo": {
+        "lat": -38.0335,
+        "lng": -57.5522
+      },
+      "placeId": null,
+      "mapsUrl": "https://www.google.com/maps/search/?api=1&query=Juan%20B.%20Justo%201018%20Mar%20del%20Plata",
+      "phone": null,
+      "photoUrl": null,
+      "activities": [
+        {
+          "name": "Sesión Grupal",
+          "slug": "sesion-grupal",
+          "isSpecial": false
+        },
+        {
+          "name": "ROM",
+          "slug": "rom",
+          "isSpecial": false
+        },
+        {
+          "name": "Máquinas",
+          "slug": "maquinas",
+          "isSpecial": false
+        }
+      ],
+      "openingHours": [
+        {
+          "dayOfWeek": 1,
+          "opens": "08:00",
+          "closes": "21:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "opens": "08:00",
+          "closes": "21:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "opens": "08:00",
+          "closes": "21:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "opens": "08:00",
+          "closes": "21:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "opens": "08:00",
+          "closes": "21:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "opens": "09:00",
+          "closes": "13:00"
+        }
+      ],
+      "schedule": [
+        {
+          "dayOfWeek": 1,
+          "startTime": "08:00",
+          "endTime": "09:00",
+          "activity": "Sesión Grupal"
+        },
+        {
+          "dayOfWeek": 1,
+          "startTime": "19:00",
+          "endTime": "20:00",
+          "activity": "Sesión Grupal"
+        },
+        {
+          "dayOfWeek": 3,
+          "startTime": "10:00",
+          "endTime": "11:00",
+          "activity": "ROM"
+        },
+        {
+          "dayOfWeek": 6,
+          "startTime": "10:00",
+          "endTime": "11:00",
+          "activity": "Sesión Grupal"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "code": "ALBERTI",
+      "slug": "alberti",
+      "publicName": "Alberti",
+      "kind": "gym",
+      "country": "AR",
+      "timezone": "America/Argentina/Buenos_Aires",
+      "address": {
+        "street": "Alberti 2024",
+        "locality": "Mar del Plata",
+        "region": "Buenos Aires",
+        "postalCode": null,
+        "country": "AR"
+      },
+      "geo": {
+        "lat": -38.00191,
+        "lng": -57.546
+      },
+      "placeId": null,
+      "mapsUrl": "https://www.google.com/maps/search/?api=1&query=Alberti%202024%20Mar%20del%20Plata",
+      "phone": null,
+      "photoUrl": null,
+      "activities": [
+        {
+          "name": "Sesión Grupal",
+          "slug": "sesion-grupal",
+          "isSpecial": false
+        },
+        {
+          "name": "Máquinas",
+          "slug": "maquinas",
+          "isSpecial": false
+        }
+      ],
+      "openingHours": [
+        {
+          "dayOfWeek": 1,
+          "opens": "08:00",
+          "closes": "21:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "opens": "08:00",
+          "closes": "21:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "opens": "08:00",
+          "closes": "21:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "opens": "08:00",
+          "closes": "21:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "opens": "08:00",
+          "closes": "21:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "opens": "09:00",
+          "closes": "13:00"
+        }
+      ],
+      "schedule": [
+        {
+          "dayOfWeek": 1,
+          "startTime": "08:00",
+          "endTime": "09:00",
+          "activity": "Sesión Grupal"
+        },
+        {
+          "dayOfWeek": 1,
+          "startTime": "19:00",
+          "endTime": "20:00",
+          "activity": "Sesión Grupal"
+        },
+        {
+          "dayOfWeek": 6,
+          "startTime": "10:00",
+          "endTime": "11:00",
+          "activity": "Sesión Grupal"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "code": "MOGOTES",
+      "slug": "mario-bravo",
+      "publicName": "Mario Bravo",
+      "kind": "gym",
+      "country": "AR",
+      "timezone": "America/Argentina/Buenos_Aires",
+      "address": {
+        "street": "Mario Bravo 618 </script><b>x</b>",
+        "locality": "Mar del Plata",
+        "region": "Buenos Aires",
+        "postalCode": null,
+        "country": "AR"
+      },
+      "geo": {
+        "lat": -38.0797,
+        "lng": -57.5468
+      },
+      "placeId": null,
+      "mapsUrl": "https://www.google.com/maps/search/?api=1&query=Mario%20Bravo%20618%20Mar%20del%20Plata",
+      "phone": null,
+      "photoUrl": null,
+      "activities": [
+        {
+          "name": "Sesión Grupal",
+          "slug": "sesion-grupal",
+          "isSpecial": false
+        },
+        {
+          "name": "ROM",
+          "slug": "rom",
+          "isSpecial": false
+        },
+        {
+          "name": "Máquinas",
+          "slug": "maquinas",
+          "isSpecial": false
+        }
+      ],
+      "openingHours": [
+        {
+          "dayOfWeek": 1,
+          "opens": "08:00",
+          "closes": "21:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "opens": "08:00",
+          "closes": "21:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "opens": "08:00",
+          "closes": "21:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "opens": "08:00",
+          "closes": "21:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "opens": "08:00",
+          "closes": "21:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "opens": "09:00",
+          "closes": "13:00"
+        }
+      ],
+      "schedule": [
+        {
+          "dayOfWeek": 1,
+          "startTime": "08:00",
+          "endTime": "09:00",
+          "activity": "Sesión Grupal"
+        },
+        {
+          "dayOfWeek": 1,
+          "startTime": "19:00",
+          "endTime": "20:00",
+          "activity": "Sesión Grupal"
+        },
+        {
+          "dayOfWeek": 3,
+          "startTime": "10:00",
+          "endTime": "11:00",
+          "activity": "ROM"
+        },
+        {
+          "dayOfWeek": 6,
+          "startTime": "10:00",
+          "endTime": "11:00",
+          "activity": "Sesión Grupal"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "code": "BCN",
+      "slug": "barcelona",
+      "publicName": "Barcelona (Eixample)",
+      "kind": "gym",
+      "country": "ES",
+      "timezone": "Europe/Madrid",
+      "address": {
+        "street": "Av. Diagonal 368",
+        "locality": "Barcelona",
+        "region": "Cataluña",
+        "postalCode": null,
+        "country": "ES"
+      },
+      "geo": {
+        "lat": 41.39961,
+        "lng": 2.17094
+      },
+      "placeId": null,
+      "mapsUrl": "https://www.google.com/maps/search/?api=1&query=Av.%20Diagonal%20368%20Barcelona",
+      "phone": null,
+      "photoUrl": null,
+      "activities": [
+        {
+          "name": "Sesión Grupal",
+          "slug": "sesion-grupal",
+          "isSpecial": false
+        },
+        {
+          "name": "ROM",
+          "slug": "rom",
+          "isSpecial": false
+        },
+        {
+          "name": "Máquinas",
+          "slug": "maquinas",
+          "isSpecial": false
+        }
+      ],
+      "openingHours": [
+        {
+          "dayOfWeek": 1,
+          "opens": "08:00",
+          "closes": "21:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "opens": "08:00",
+          "closes": "21:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "opens": "08:00",
+          "closes": "21:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "opens": "08:00",
+          "closes": "21:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "opens": "08:00",
+          "closes": "21:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "opens": "09:00",
+          "closes": "13:00"
+        }
+      ],
+      "schedule": [
+        {
+          "dayOfWeek": 1,
+          "startTime": "08:00",
+          "endTime": "09:00",
+          "activity": "Sesión Grupal"
+        },
+        {
+          "dayOfWeek": 1,
+          "startTime": "19:00",
+          "endTime": "20:00",
+          "activity": "Sesión Grupal"
+        },
+        {
+          "dayOfWeek": 3,
+          "startTime": "10:00",
+          "endTime": "11:00",
+          "activity": "ROM"
+        },
+        {
+          "dayOfWeek": 6,
+          "startTime": "10:00",
+          "endTime": "11:00",
+          "activity": "Sesión Grupal"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "code": "PARK",
+      "slug": "parque-primavesi",
+      "publicName": "El Templo Park",
+      "kind": "community_space",
+      "country": "AR",
+      "timezone": "America/Argentina/Buenos_Aires",
+      "address": {
+        "street": "Parque Primavesi",
+        "locality": "Mar del Plata",
+        "region": "Buenos Aires",
+        "postalCode": null,
+        "country": "AR"
+      },
+      "geo": {
+        "lat": -38.0287,
+        "lng": -57.5424
+      },
+      "placeId": null,
+      "mapsUrl": "https://www.google.com/maps/search/?api=1&query=Parque%20Primavesi%20Mar%20del%20Plata",
+      "phone": null,
+      "photoUrl": "/images/photos/sede-park.webp",
+      "activities": [
+        {
+          "name": "Sesión grupal al aire libre",
+          "slug": "sesion-grupal-al-aire-libre",
+          "isSpecial": false
+        }
+      ],
+      "openingHours": [
+        {
+          "dayOfWeek": 6,
+          "opens": "10:00",
+          "closes": "12:00"
+        }
+      ],
+      "schedule": [
+        {
+          "dayOfWeek": 6,
+          "startTime": "10:00",
+          "endTime": "12:00",
+          "activity": "Sesión grupal al aire libre"
+        }
+      ]
+    }
+  ],
+  "blog": {
+    "posts": [],
+    "tags": []
+  }
+}

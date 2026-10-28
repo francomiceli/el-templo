@@ -1,4 +1,12 @@
 <script setup lang="ts">
+import { sedesCount } from "~/data/sedes";
+import {
+  DEFAULT_TRIAL_TEXT,
+  salesPhoneDisplay,
+  salesPhoneHref,
+  salesWhatsappUrl,
+} from "~/utils/whatsapp";
+
 // Email obfuscation — assembled at runtime to prevent scraper harvesting
 const emailUser = "info";
 const emailDomain = "eltemplo.org";
@@ -24,9 +32,16 @@ const columns: FooterColumn[] = [
       { label: "Sistema de Niveles", href: "/#niveles", disabled: false },
       { label: "Los 5 Enfoques", href: "/#enfoques", disabled: false },
       { label: "Descubrí tu Nivel", href: "/#descubri-nivel", disabled: false },
+      { label: "Disciplinas", href: "/disciplinas", disabled: false },
+      { label: "Planes", href: "/planes", disabled: false },
+      {
+        label: "Primera clase gratis",
+        href: "/primera-clase-gratis",
+        disabled: false,
+      },
       {
         label: "Reservar Sesión",
-        href: "https://wa.me/5492235820521?text=Hola%21%20Quiero%20reservar%20mi%20primera%20sesi%C3%B3n%20de%20prueba",
+        href: salesWhatsappUrl("AR", DEFAULT_TRIAL_TEXT),
         disabled: false,
       },
     ],
@@ -46,8 +61,14 @@ const columns: FooterColumn[] = [
     title: "Empresa",
     links: [
       { label: "Nuestra Filosofía", href: "/filosofia", disabled: true },
-      { label: "Ignacio Bordón", href: "/ignacio-bordon", disabled: true },
-      { label: "Sedes", href: "/#sedes", disabled: false },
+      { label: "Profes", href: "/profes", disabled: false },
+      {
+        label: "Ignacio Bordón",
+        href: "/profes/ignacio-bordon",
+        disabled: false,
+      },
+      { label: "Sedes", href: "/sedes", disabled: false },
+      { label: "Barcelona", href: "/es", disabled: false },
       { label: "Contacto", href: "/contacto", disabled: true },
     ],
   },
@@ -98,12 +119,12 @@ const columns: FooterColumn[] = [
           <a :href="emailHref" class="footer__info-link">
             {{ emailAddress }}
           </a>
-          <a href="tel:+5492235820521" class="footer__info-link">
-            +54 9 223 582-0521
+          <a :href="salesPhoneHref('AR')" class="footer__info-link">
+            {{ salesPhoneDisplay("AR") }}
           </a>
-          <span class="footer__info-address">
-            Av. Constituci&oacute;n 6745, Mar del Plata, Argentina
-          </span>
+          <NuxtLink to="/sedes" class="footer__info-address">
+            {{ sedesCount.total }} sedes en Mar del Plata y Barcelona
+          </NuxtLink>
         </div>
         <div class="footer__social">
           <a
@@ -283,6 +304,7 @@ const columns: FooterColumn[] = [
 /* Address text */
 .footer__info-address {
   display: block;
+  text-decoration: none;
   font-family: var(--font-clarity);
   font-size: 14px;
   color: var(--color-sandy-beige);

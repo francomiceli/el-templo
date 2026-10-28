@@ -1,4 +1,11 @@
 <script setup lang="ts">
+import { webData } from "~/data/sedes";
+import {
+  ORG_ID,
+  jsonLdScript,
+  organizationNode,
+} from "~/utils/schema-graph";
+
 /**
  * /academy — Olympic Academy landing page.
  *
@@ -57,33 +64,34 @@ useHead({
   link: [{ rel: "canonical", href: "https://eltemplo.org/academy" }],
 });
 
-useSchemaOrg([
-  defineWebPage({
-    "@type": "WebPage",
-    name: "Olympic Academy \u2014 Formaci\u00F3n de Entrenadores",
-    description:
-      "Certificaci\u00F3n profesional en calistenia por El Templo.",
-  }),
-  {
-    "@type": "Course",
-    name: "Olympic Academy \u2014 Trainer by El Templo",
-    description:
-      "Certificaci\u00F3n profesional de entrenador de calistenia. Programa intensivo de 1 mes con 3 niveles progresivos.",
-    provider: {
-      "@type": "Organization",
-      name: "El Templo Calistenia",
-      url: "https://eltemplo.org",
-    },
-    hasCourseInstance: [
+useHead({
+  script: [
+    jsonLdScript([
+      organizationNode(webData),
       {
-        "@type": "CourseInstance",
-        courseMode: "Blended",
-        name: "Nivel 1 \u2014 Trainer",
-        duration: "P1M",
+        "@type": "WebPage",
+        name: "Olympic Academy \u2014 Formaci\u00F3n de Entrenadores",
+        description:
+          "Certificaci\u00F3n profesional en calistenia por El Templo.",
       },
-    ],
-  },
-]);
+      {
+        "@type": "Course",
+        name: "Olympic Academy \u2014 Trainer by El Templo",
+        description:
+          "Certificaci\u00F3n profesional de entrenador de calistenia. Programa intensivo de 1 mes con 3 niveles progresivos.",
+        provider: { "@id": ORG_ID },
+        hasCourseInstance: [
+          {
+            "@type": "CourseInstance",
+            courseMode: "Blended",
+            name: "Nivel 1 \u2014 Trainer",
+            duration: "P1M",
+          },
+        ],
+      },
+    ]),
+  ],
+});
 </script>
 
 <template>

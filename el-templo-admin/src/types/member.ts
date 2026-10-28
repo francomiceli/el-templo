@@ -253,14 +253,33 @@ export interface CreateMemberInput {
 }
 
 /**
+ * "¿Cómo nos conoció?" del alta de prueba (fase 195-07, D-18). Mismos valores
+ * que `MANUAL_ORIGINS` de la API: un valor fuera de la lista es 400.
+ */
+export type TrialOrigin =
+  | 'instagram'
+  | 'meta_ads'
+  | 'google'
+  | 'web'
+  | 'ia'
+  | 'referido'
+  | 'volante_qr'
+  | 'paso_por_la_puerta'
+  | 'otro';
+
+/**
  * Soft-register payload for "sesión de prueba" (SP) lead capture.
- * Only the 4 fields the receptionist captures at the door.
+ * The 4 fields the receptionist captures at the door, plus the optional
+ * origin ("¿Cómo nos conoció?") and campaign (fase 195-07).
  */
 export interface CreateTrialMemberInput {
   firstName: string;
   lastName: string;
   phone: string;
   branchId: number;
+  origin?: TrialOrigin;
+  /** Campaña opcional (volante, flyer...). Máximo 150 caracteres. */
+  campaign?: string;
   /**
    * Fase 194 D-24 "Lo invita" (opcional): id del socio que lo invita. El server
    * valida cupo y elegibilidad ANTES de crear el lead y, si todo va bien, activa

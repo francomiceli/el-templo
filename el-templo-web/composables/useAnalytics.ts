@@ -5,8 +5,12 @@
  * Analytics scripts may not be loaded (no env var or blocked),
  * so every call must be guarded.
  *
+ * En /es (Barcelona, RGPD) no se manda ningun evento sin consentimiento
+ * (fase 195, D-22): `allowed()` lo decide con la ruta actual y `getConsent()`.
+ *
  * Following CLAUDE.md: exposes cleanup(), no onUnmounted inside.
  */
+import { analyticsMode } from "~/utils/analytics-loader";
 
 // Extend Window for GA4 and Meta Pixel globals
 declare global {
@@ -30,18 +34,27 @@ type GA4EventName =
   | string; // Allow section tracking events like viewed_method
 
 export function useAnalytics() {
+  // Se evalua al disparar el evento (no al crear el composable): la persona
+  // puede navegar o cambiar su eleccion entre medio.
+  function allowed(): boolean {
+    return (
+      !import.meta.server &&
+      analyticsMode(window.location.pathname, getConsent()) !== "deny"
+    );
+  }
+
   function trackEvent(eventName: GA4EventName): void {
-    if (import.meta.server) return;
+    if (!allowed()) return;
     window.gtag?.("event", eventName);
   }
 
   function trackLead(): void {
-    if (import.meta.server) return;
+    if (!allowed()) return;
     window.fbq?.("track", "Lead");
   }
 
   function trackPixelPageView(): void {
-    if (import.meta.server) return;
+    if (!allowed()) return;
     window.fbq?.("track", "PageView");
   }
 

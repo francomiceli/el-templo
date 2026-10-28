@@ -11,6 +11,9 @@
  * IMPORTANT: Never use "clase" — always "sesi\u00F3n" per brand spec.
  */
 
+import { sedesCount } from "~/data/sedes";
+
+
 export interface FaqItem {
   question: string;
   answer: string;
@@ -51,7 +54,7 @@ export const faqItems: FaqItem[] = [
   {
     question: "\u00BFHay diferentes horarios y sedes?",
     answer:
-      "S\u00ED. Tenemos 8 sedes (7 en Mar del Plata y 1 en Barcelona) con m\u00FAltiples horarios. Pod\u00E9s elegir la sede y el horario que mejor te quede.",
+      `S\u00ED. Tenemos ${sedesCount.total} sedes (${sedesCount.mdp} en Mar del Plata y ${sedesCount.bcn} en Barcelona) con m\u00FAltiples horarios. Pod\u00E9s elegir la sede y el horario que mejor te quede.`,
   },
   {
     question: "\u00BFQu\u00E9 es Templo Online?",

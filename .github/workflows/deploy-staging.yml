@@ -2,11 +2,25 @@ name: Deploy Staging
 
 # Deploys to staging environment on push to staging branch, or via manual trigger.
 # Pipeline: Detect changes → Build only modified projects → Deploy → Smoke test → Auto-rollback on failure.
-# Manual triggers (workflow_dispatch) bypass change detection and deploy everything.
+# Manual triggers (workflow_dispatch) bypass change detection and use the `target` input:
+#   todo     -> builds and deploys the 4 projects (api, app, admin, web)
+#   solo-web -> builds and deploys ONLY the website (eltemplo.org / web-staging), with its own
+#               backup and rollback. Used to regenerate the site with current data (sedes,
+#               horarios, blog) without touching API, app or admin (fase 195, D-11).
+# The web build never blocks the rest of the deploy (D-29): if it fails, API/app/admin still
+# ship and the website stays on its previous version (see deploy/ROLLOUT-195.md).
 on:
   push:
     branches: [staging]
   workflow_dispatch:
+    inputs:
+      target:
+        description: "Qué desplegar ('solo-web' regenera web-staging con los datos actuales: sedes, horarios, blog)"
+        type: choice
+        options:
+          - todo
+          - solo-web
+        default: todo
 
 env:
   NODE_VERSION: '22'
@@ -21,14 +35,15 @@ jobs:
     name: Detect Changes
     runs-on: ubuntu-latest
     outputs:
-      api: ${{ steps.filter.outputs.api }}
-      app: ${{ steps.filter.outputs.app }}
-      admin: ${{ steps.filter.outputs.admin }}
-      web: ${{ steps.filter.outputs.web }}
+      api: ${{ steps.resolve.outputs.api }}
+      app: ${{ steps.resolve.outputs.app }}
+      admin: ${{ steps.resolve.outputs.admin }}
+      web: ${{ steps.resolve.outputs.web }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
         id: filter
+        if: github.event_name == 'push'
         with:
           # Pin the diff base to the previous staging tip. paths-filter's
           # default for non-default branches is `merge-base(master, HEAD)`,
@@ -48,17 +63,58 @@ jobs:
             web:
               - 'el-templo-web/**'
 
+      # Central place that decides what gets built/deployed (the build-* jobs only read these outputs).
+      #   push                  -> what paths-filter detected
+      #   dispatch + todo       -> the 4 projects
+      #   dispatch + solo-web   -> only the website
+      - name: Resolve what to build
+        id: resolve
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          TARGET: ${{ inputs.target }}
+          FILTER_API: ${{ steps.filter.outputs.api }}
+          FILTER_APP: ${{ steps.filter.outputs.app }}
+          FILTER_ADMIN: ${{ steps.filter.outputs.admin }}
+          FILTER_WEB: ${{ steps.filter.outputs.web }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            if [ "$TARGET" = "solo-web" ]; then
+              {
+                echo "api=false"
+                echo "app=false"
+                echo "admin=false"
+                echo "web=true"
+              } >> "$GITHUB_OUTPUT"
+            else
+              {
+                echo "api=true"
+                echo "app=true"
+                echo "admin=true"
+                echo "web=true"
+              } >> "$GITHUB_OUTPUT"
+            fi
+          else
+            {
+              echo "api=${FILTER_API:-false}"
+              echo "app=${FILTER_APP:-false}"
+              echo "admin=${FILTER_ADMIN:-false}"
+              echo "web=${FILTER_WEB:-false}"
+            } >> "$GITHUB_OUTPUT"
+          fi
+          cat "$GITHUB_OUTPUT"
+
   # ===========================================
   # API tests
   # Repartidos en 4 partes que corren a la vez (`vitest --shard`), cada una en
   # su máquina con su propio MySQL. Corren en paralelo con `build-api`; el
   # deploy necesita que pasen las 4 (igual que antes, cuando estaban dentro de
-  # build-api). Skipped when no API files changed (unless manual trigger).
+  # build-api). Skipped when no API files changed (manual trigger: depends on the
+  # `target` input).
   # ===========================================
   test-api:
     name: API Tests (${{ matrix.shard }}/4)
     needs: detect-changes
-    if: github.event_name == 'workflow_dispatch' || needs.detect-changes.outputs.api == 'true'
+    if: needs.detect-changes.outputs.api == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -115,12 +171,12 @@ jobs:
 
   # ===========================================
   # Build API (type check + build; los tests van en test-api)
-  # Skipped when no API files changed (unless manual trigger).
+  # Skipped when no API files changed (manual trigger: depends on the `target` input).
   # ===========================================
   build-api:
     name: Build API
     needs: detect-changes
-    if: github.event_name == 'workflow_dispatch' || needs.detect-changes.outputs.api == 'true'
+    if: needs.detect-changes.outputs.api == 'true'
     runs-on: ubuntu-latest
 
     defaults:
@@ -167,12 +223,12 @@ jobs:
 
   # ===========================================
   # Build Member App (staging)
-  # Skipped when no app files changed (unless manual trigger).
+  # Skipped when no app files changed (manual trigger: depends on the `target` input).
   # ===========================================
   build-app:
     name: Build App
     needs: detect-changes
-    if: github.event_name == 'workflow_dispatch' || needs.detect-changes.outputs.app == 'true'
+    if: needs.detect-changes.outputs.app == 'true'
     runs-on: ubuntu-latest
 
     defaults:
@@ -214,16 +270,19 @@ jobs:
         with:
           name: app-dist
           path: el-templo-app/dist
+          # .well-known (assetlinks.json / apple-app-site-association) is a hidden dir: since upload-artifact v4.4
+          # hidden files are excluded by default, so deep links never reached the server. Scoped to app-dist only.
+          include-hidden-files: true
           retention-days: 1
 
   # ===========================================
   # Build Admin App (staging)
-  # Skipped when no admin files changed (unless manual trigger).
+  # Skipped when no admin files changed (manual trigger: depends on the `target` input).
   # ===========================================
   build-admin:
     name: Build Admin
     needs: detect-changes
-    if: github.event_name == 'workflow_dispatch' || needs.detect-changes.outputs.admin == 'true'
+    if: needs.detect-changes.outputs.admin == 'true'
     runs-on: ubuntu-latest
 
     defaults:
@@ -266,12 +325,12 @@ jobs:
   # ===========================================
   # Build Landing Page (Web) - SSG (staging)
   # Nuxt 3 static site generation. Output: .output/public/
-  # Skipped when no web files changed (unless manual trigger).
+  # Skipped when no web files changed (manual trigger: depends on the `target` input).
   # ===========================================
   build-web:
     name: Build Web
     needs: detect-changes
-    if: github.event_name == 'workflow_dispatch' || needs.detect-changes.outputs.web == 'true'
+    if: needs.detect-changes.outputs.web == 'true'
     runs-on: ubuntu-latest
 
     defaults:
@@ -303,6 +362,14 @@ jobs:
           NUXT_PUBLIC_API_URL: ${{ secrets.STAGING_VITE_API_URL }}
           NUXT_PUBLIC_SENTRY_DSN: ${{ secrets.STAGING_VITE_SENTRY_DSN }}
           NUXT_PUBLIC_APP_ENVIRONMENT: staging
+          # Sin NUXT_PUBLIC_GA4_ID ni NUXT_PUBLIC_META_PIXEL_ID: staging no mide (fase 195, D-04).
+
+      # Fails the build if the site was generated from the dev fixture instead of the real API
+      # (staging API included): a staging site with fixture data hides rollout problems.
+      - name: Verify SEO output (datos reales)
+        run: node scripts/verify-seo-output.mjs --require-api
+        env:
+          NUXT_PUBLIC_APP_ENVIRONMENT: staging
 
       - name: Upload Web build artifact
         uses: actions/upload-artifact@v4
@@ -315,12 +382,15 @@ jobs:
   # Deploy to Staging Server
   # Runs after builds complete. Only deploys projects that were built.
   # Uses always() because skipped builds (unchanged projects) are OK.
-  # Blocked if any build FAILED — at least one must succeed.
+  # Blocked if the api/app/admin build FAILED — at least one build must succeed.
+  # The web build may fail without blocking (D-29): the site keeps its previous version.
   # ===========================================
   deploy:
     name: Deploy to Staging
     runs-on: ubuntu-latest
     needs: [test-api, build-api, build-app, build-admin, build-web]
+    # build-web is intentionally NOT required to be success/skipped (D-29): a failing web build
+    # must not block the API/app/admin deploy.
     if: >-
       always() &&
       !cancelled() &&
@@ -328,11 +398,15 @@ jobs:
       (needs.build-api.result == 'success' || needs.build-api.result == 'skipped') &&
       (needs.build-app.result == 'success' || needs.build-app.result == 'skipped') &&
       (needs.build-admin.result == 'success' || needs.build-admin.result == 'skipped') &&
-      (needs.build-web.result == 'success' || needs.build-web.result == 'skipped') &&
       (needs.build-api.result == 'success' || needs.build-app.result == 'success' || needs.build-admin.result == 'success' || needs.build-web.result == 'success') &&
       github.ref == 'refs/heads/staging'
 
     steps:
+      - name: Warn if the web build failed
+        if: needs.build-web.result == 'failure'
+        run: |
+          echo "::warning::El build de la web falló: eltemplo.org queda en la versión anterior. Si la API recién incorpora /api/web/site-data, re-disparar con target solo-web cuando esta corrida termine (deploy/ROLLOUT-195.md)."
+
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -382,24 +456,30 @@ jobs:
       - name: Backup current staging deployment
         run: |
           ssh ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }} << 'ENDSSH'
-            if [ -d "${{ secrets.STAGING_API_DEPLOY_PATH }}" ]; then
+            BUILD_API="${{ needs.build-api.result }}"
+            BUILD_APP="${{ needs.build-app.result }}"
+            BUILD_ADMIN="${{ needs.build-admin.result }}"
+            BUILD_WEB="${{ needs.build-web.result }}"
+            if [ "$BUILD_API" = "success" ] && [ -d "${{ secrets.STAGING_API_DEPLOY_PATH }}" ]; then
               rm -rf ${{ secrets.STAGING_API_DEPLOY_PATH }}.previous
               cp -r ${{ secrets.STAGING_API_DEPLOY_PATH }} ${{ secrets.STAGING_API_DEPLOY_PATH }}.previous
             fi
-            if [ -d "${{ secrets.STAGING_APP_DEPLOY_PATH }}" ]; then
+            if [ "$BUILD_APP" = "success" ] && [ -d "${{ secrets.STAGING_APP_DEPLOY_PATH }}" ]; then
               rm -rf ${{ secrets.STAGING_APP_DEPLOY_PATH }}.previous
               cp -r ${{ secrets.STAGING_APP_DEPLOY_PATH }} ${{ secrets.STAGING_APP_DEPLOY_PATH }}.previous
             fi
-            if [ -d "${{ secrets.STAGING_ADMIN_DEPLOY_PATH }}" ]; then
+            if [ "$BUILD_ADMIN" = "success" ] && [ -d "${{ secrets.STAGING_ADMIN_DEPLOY_PATH }}" ]; then
               rm -rf ${{ secrets.STAGING_ADMIN_DEPLOY_PATH }}.previous
               cp -r ${{ secrets.STAGING_ADMIN_DEPLOY_PATH }} ${{ secrets.STAGING_ADMIN_DEPLOY_PATH }}.previous
             fi
-            if [ -d "${{ secrets.STAGING_WEB_DEPLOY_PATH }}" ]; then
+            if [ "$BUILD_WEB" = "success" ] && [ -d "${{ secrets.STAGING_WEB_DEPLOY_PATH }}" ]; then
               rm -rf ${{ secrets.STAGING_WEB_DEPLOY_PATH }}.previous
               cp -r ${{ secrets.STAGING_WEB_DEPLOY_PATH }} ${{ secrets.STAGING_WEB_DEPLOY_PATH }}.previous
             fi
           ENDSSH
 
+      # Fase 195: NUNCA agregar META_*, GBP_* ni GOOGLE_SC_* acá. Staging corre con datos reales
+      # clonados: mandaría conversiones reales a Meta y editaría fichas reales de Google.
       # .env.production is a Node/Vite convention: "env vars used when NODE_ENV=production".
       # The staging server runs NODE_ENV=production for performance/minification,
       # but APP_ENVIRONMENT=staging tags Sentry errors so they're filterable from production.
@@ -527,23 +607,30 @@ jobs:
         run: |
           echo "::warning::Rolling back staging deployment..."
           ssh ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }} << 'ENDSSH'
-            if [ -d "${{ secrets.STAGING_API_DEPLOY_PATH }}.previous" ]; then
+            BUILD_API="${{ needs.build-api.result }}"
+            BUILD_APP="${{ needs.build-app.result }}"
+            BUILD_ADMIN="${{ needs.build-admin.result }}"
+            BUILD_WEB="${{ needs.build-web.result }}"
+            if [ "$BUILD_API" = "success" ] && [ -d "${{ secrets.STAGING_API_DEPLOY_PATH }}.previous" ]; then
               rm -rf ${{ secrets.STAGING_API_DEPLOY_PATH }}
               mv ${{ secrets.STAGING_API_DEPLOY_PATH }}.previous ${{ secrets.STAGING_API_DEPLOY_PATH }}
             fi
-            if [ -d "${{ secrets.STAGING_APP_DEPLOY_PATH }}.previous" ]; then
+            if [ "$BUILD_APP" = "success" ] && [ -d "${{ secrets.STAGING_APP_DEPLOY_PATH }}.previous" ]; then
               rm -rf ${{ secrets.STAGING_APP_DEPLOY_PATH }}
               mv ${{ secrets.STAGING_APP_DEPLOY_PATH }}.previous ${{ secrets.STAGING_APP_DEPLOY_PATH }}
             fi
-            if [ -d "${{ secrets.STAGING_ADMIN_DEPLOY_PATH }}.previous" ]; then
+            if [ "$BUILD_ADMIN" = "success" ] && [ -d "${{ secrets.STAGING_ADMIN_DEPLOY_PATH }}.previous" ]; then
               rm -rf ${{ secrets.STAGING_ADMIN_DEPLOY_PATH }}
               mv ${{ secrets.STAGING_ADMIN_DEPLOY_PATH }}.previous ${{ secrets.STAGING_ADMIN_DEPLOY_PATH }}
             fi
-            if [ -d "${{ secrets.STAGING_WEB_DEPLOY_PATH }}.previous" ]; then
+            if [ "$BUILD_WEB" = "success" ] && [ -d "${{ secrets.STAGING_WEB_DEPLOY_PATH }}.previous" ]; then
               rm -rf ${{ secrets.STAGING_WEB_DEPLOY_PATH }}
               mv ${{ secrets.STAGING_WEB_DEPLOY_PATH }}.previous ${{ secrets.STAGING_WEB_DEPLOY_PATH }}
             fi
-            cd ${{ secrets.STAGING_API_DEPLOY_PATH }}
-            pnpm install --prod --frozen-lockfile
-            pm2 restart eltemplo-staging-api --update-env
+            # Only when the API was deployed in this run (otherwise it was not touched).
+            if [ "$BUILD_API" = "success" ]; then
+              cd ${{ secrets.STAGING_API_DEPLOY_PATH }}
+              pnpm install --prod --frozen-lockfile
+              pm2 restart eltemplo-staging-api --update-env
+            fi
           ENDSSH

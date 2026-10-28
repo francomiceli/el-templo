@@ -96,7 +96,7 @@ describe("tenant-tables — clasificación canónica de tablas (COL-01)", () => 
     ).toEqual([]);
   });
 
-  it("los conteos son 99 gym-owned + 4 exentas y cubren las 103 tablas del schema", () => {
+  it("los conteos son 121 gym-owned + 5 exentas y cubren las 126 tablas del schema", () => {
     // Fase 159 (SEM-05) sumó `session_week_regime` a GYM_OWNED_TABLES (era 87,
     // ver el comentario de src/db/tenant-tables.ts:32-41): 87 -> 88, 91 -> 92.
     // Fase 179 sumó `referral_partners`, `partner_referrals`,
@@ -127,12 +127,21 @@ describe("tenant-tables — clasificación canónica de tablas (COL-01)", () => 
     // 0298-0299, nacen strict en `conquer`): 114 -> 116, 119 -> 121.
     // 2026-10-27 sumó `wellhub_conversions` (fase 204, mig 0300, nace strict en
     // `wellhub`): 116 -> 117, 121 -> 122.
-    expect(GYM_OWNED_TABLES.length).toBe(117);
+    // 2026-10-07 (fase 195-07) sumó `signup_attributions` (atribución propia de
+    // altas, mig 0272, nace strict en el módulo nuevo `marketing`): +1.
+    // 2026-10-07 (fase 195-08) sumó `meta_capi_events` (outbox de CAPI) y
+    // `ad_spend_daily` (gasto diario de Meta), mig 0273, nacen strict en el módulo
+    // `marketing`: +2.
+    // 2026-10-07 (fase 195-09) sumó `search_console_stats` (estadísticas de Google
+    // Search Console, mig 0274, nace strict en el módulo `marketing`): +1.
+    // Integración de la 195 con master (2026-10-28): las 4 tablas de `marketing`
+    // sobre los conteos de master: 117 -> 121 gym-owned, 122 -> 126 tablas.
+    expect(GYM_OWNED_TABLES.length).toBe(121);
     expect(TENANT_EXEMPT_TABLES.length).toBe(5);
     // Sin duplicados dentro de cada lista.
     expect(gymOwned.size).toBe(GYM_OWNED_TABLES.length);
     expect(exempt.size).toBe(TENANT_EXEMPT_TABLES.length);
-    expect(schemaTables.size).toBe(122);
+    expect(schemaTables.size).toBe(126);
     expect(gymOwned.size + exempt.size).toBe(schemaTables.size);
   });
 
@@ -503,6 +512,16 @@ describe("TENANT_STRICT_MODULES (fase 170, D-05/D-06)", () => {
     // 2026-09-26: cadencia de mensajes en Sesiones de Prueba (brief Nacho).
     // Nace strict, sin deuda de allowlist previa.
     "trial-followups": ["trial_followups"],
+    // 2026-10-07 (fase 195-07): atribución propia de altas. Nace strict, sin
+    // deuda de allowlist previa.
+    // 2026-10-07 (fase 195-08): + outbox de CAPI y gasto diario de Meta.
+    // 2026-10-07 (fase 195-09): + estadísticas de Search Console.
+    marketing: [
+      "ad_spend_daily",
+      "meta_capi_events",
+      "search_console_stats",
+      "signup_attributions",
+    ],
     wellhub: [
       "wellhub_bookings",
       "wellhub_classes",
@@ -512,7 +531,7 @@ describe("TENANT_STRICT_MODULES (fase 170, D-05/D-06)", () => {
     ],
   };
 
-  it("declara exactamente los módulos ya adoptados, con sus tablas exactas (172-21: finance; 173-30: members; 174.1-10: subscriptions+scheduling; 175.1-07: auth+campaigns+improvement-proposals+notifications+referrals+wellhub; 2026-09-07: staff-attendance; 2026-09-24: renewals; 2026-09-26: trial-followups; 2026-10: invitations en referrals (fase 194))", () => {
+  it("declara exactamente los módulos ya adoptados, con sus tablas exactas (172-21: finance; 173-30: members; 174.1-10: subscriptions+scheduling; 175.1-07: auth+campaigns+improvement-proposals+notifications+referrals+wellhub; 2026-09-07: staff-attendance; 2026-09-24: renewals; 2026-09-26: trial-followups; 2026-10: invitations en referrals (fase 194); 2026-10-07: marketing (fase 195))", () => {
     const normalizar = (registro: Record<string, readonly string[]>) =>
       Object.fromEntries(
         Object.entries(registro).map(([modulo, tablas]) => [

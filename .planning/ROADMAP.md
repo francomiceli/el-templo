@@ -57,6 +57,7 @@ El recorrido: primero se cierra la **fase de diseño bloqueante** (las 7 definic
 - [ ] **Phase 197: Entrenar en tabs + canasta + bloque libre (fuera del milestone)** - Entrenar con 4 tabs (Semana · Libre · Desafíos · Conquer), canasta de bloques de su subnivel filtrada por figura tocable, bloque libre en el player con +5 AURA (primero del día que llega a 10')
 - [ ] **Phase 200: Anatomía funcional (fuera del milestone)** - Un solo modelo de contenido (archivos) músculo ↔ zona ↔ ruta ↔ rol que reemplaza a `muscle-zones.ts`, con la sección Anatomía del admin para profes, la Guía partida en dos (Empezá acá + Tu cuerpo) y el cuerpo tocable en Entrenar
 - [ ] **Phase 204: Usuarios Wellhub como tipo de usuario (fuera del milestone)** - Distinguir a quien usa Wellhub en admin, Horarios y métricas — visitantes nuevos, ex-alumnos y socios activos vinculados por email — y que sus reservas no toquen el plan del socio
+- [ ] **Phase 195: Web SEO local + AEO + atribución (fuera del milestone)** - eltemplo.org con datos reales desde `branches`, páginas por sede, schema correcto, medición GA4/Meta/Search Console, atribución propia + CAPI, y guía final de pasos en Meta y Google
 
 ## Phase Details
 
@@ -442,26 +443,60 @@ Plans:
 - [ ] 201-34-PLAN.md — Fuera el cielo; UAT y CONTEXT al día (D-23, D-24)
 - [ ] 201-35-PLAN.md — Barrido final y prueba visual de Franco (checkpoint)
 
+### Phase 195: Web SEO local + AEO + atribución (fuera del milestone v6.1)
+
+**Goal**: Que eltemplo.org traiga alumnos nuevos: datos de sedes siempre correctos (fuente única `branches`), páginas por sede/disciplina/profes indexables y citables por buscadores e IA, medición real (GA4, Pixel, Search Console, Bing) y atribución de punta a punta (de dónde vino cada alumno → pagó), automatizando todo lo posible del lado de Meta y Google
+**Depends on**: nada bloqueante (web Nuxt 4 SSG en producción). Migración de `branches` se numera al momento de ejecutar (194 usa 0255+).
+**Requirements**: decisiones D-01..D-23 en `.planning/phases/195-web-seo-local-aeo-atribucion/195-CONTEXT.md`; investigación y decisiones textuales en `.planning/phases/195-web-seo-local-aeo-atribucion/195-RESEARCH-SEO-AEO.md` (fuente: `.planning/research/seo-aeo-2026-10-05.md`). Todo en UNA fase (Franco 2026-10-06), incluido el fix urgente de la dirección Juan B. Justo 1018.
+**Success Criteria** (what must be TRUE):
+
+1. Ninguna dirección, sede o conteo publicado en la web contradice la tabla `branches` (JBJ 1018, sin Chapadmalal, Park como espacio de comunidad); la web se regenera con un botón "solo web" en GitHub
+2. Cada sede tiene su página con `ExerciseGym` (`@id`, geo, horarios reales, `parentOrganization`) y la home tiene un `Organization` raíz único; Barcelona vive en `/es/` con hreflang recíproco
+3. URLs inexistentes devuelven 404 real, los redirects son 301/302 reales y staging/app/admin no son indexables
+4. GA4, Meta Pixel, Search Console y Bing reciben datos de producción; robots.txt permite explícitamente los bots de búsqueda IA y llms.txt se genera desde los datos de sedes
+5. Cada alta guarda su origen (utm/promo/referrer, incluido tráfico de IA) y Reportes muestra registros → prueba → pago → facturación por campaña y sede; los eventos de conversión llegan a Meta por CAPI (con consentimiento donde aplique)
+6. Existe una guía final paso a paso de lo que Franco/equipo hace en Meta y Google, reducida al mínimo por la automatización
+
+**Plans:** 14 plans (ejecución secuencial, una wave por plan; reglas comunes en `195-EXECUTION-RULES.md`)
+
+Plans:
+
+- [x] 195-01-PLAN.md — Datos de sedes primero: migs 0270/0271 (columnas web + JBJ 1018, Park comunidad, sin Chapadmalal, WhatsApp por país) + parche de la web estática
+- [x] 195-02-PLAN.md — Endpoint público GET /api/web/site-data (sedes, horarios regulares fusionados, marca, WhatsApp) + ISO-01
+- [x] 195-03-PLAN.md — Pipeline de build web (prebuild desde la API, fixture, robots IA, llms.txt generado, sitemap sin catch, verificador SEO en CI, WhatsApp desde datos)
+- [x] 195-04-PLAN.md — Grafo JSON-LD propio (Organization + ExerciseGym por sede) + hub /sedes + páginas por sede AR/ES
+- [x] 195-05-PLAN.md — Disciplinas (incl. Aura/Yoga), profes Person (archivo de datos), primera clase gratis, planes sin precios, blog técnico
+- [x] 195-06-PLAN.md — /es Barcelona + hreflang + banner RGPD con Consent Mode v2 + captura first-touch + Smart App Banner
+- [x] 195-07-PLAN.md — Atribución propia: mig 0272 signup_attributions, clasificador de canal con IA, ganchos en register/alta de prueba, admin y app
+- [x] 195-08-PLAN.md — Meta: mig 0273, CAPI como outbox (sin ES ni iOS), gasto diario de campañas, /privacidad reescrita
+- [x] 195-09-PLAN.md — Google: mig 0274, job Search Console (JWT propio), sync de Google Business Profile detrás de flag, scripts locales
+- [x] 195-10-PLAN.md — Reportes › Origen de altas: embudo por canal/campaña/sede/moneda, costo por alumno pago, IA y Search Console
+- [x] 195-11-PLAN.md — CI/CD: botón solo-web, backup/rollback por proyecto, deploy tolerante a falla web, secrets de medición, rollout en 2 pasos
+- [x] 195-12-PLAN.md — App: .well-known al artifact, validador, reseña in-app (plugin aprobado por Franco); bump de versión descartado por Franco
+- [x] 195-13-PLAN.md — nginx — DESCARTADO por Franco (2026-10-07): sin cambios en el servidor; noindex movido al código
+- [x] 195-14-PLAN.md — Guía final para Franco (Meta, Google, bloque C, ASO) + generador de datos exactos de sedes + planilla de prompts IA
+
 ## Progress
 
 **Execution Order:** 181 → 182 → 183 → 184 → 185 → 186 → 187 → 188 → 189 → 190 → 191 → 192
 
 (182-183 pueden solaparse conceptualmente con 184-186: la capa de plataforma no depende del diseño del catálogo salvo el default de módulos de PLAT-03.)
 
-| Phase                        | Milestone | Plans Complete | Status      | Completed |
-| ---------------------------- | --------- | -------------- | ----------- | --------- |
-| 181. Diseño del módulo       | v6.1      | 0/6            | Not started | -         |
-| 182. Rol plataforma + wizard | v6.1      | 0/TBD          | Not started | -         |
-| 183. Panel de tenants        | v6.1      | 0/TBD          | Not started | -         |
-| 184. Catálogo modelo + taxos | v6.1      | 0/TBD          | Not started | -         |
-| 185. Catálogo ciclo de vida  | v6.1      | 0/TBD          | Not started | -         |
-| 186. Carga inicial catálogo  | v6.1      | 0/TBD          | Not started | -         |
-| 187. Plantillas de rutina    | v6.1      | 0/TBD          | Not started | -         |
-| 188. Asignación de rutinas   | v6.1      | 0/TBD          | Not started | -         |
-| 189. Ejecución y registro    | v6.1      | 0/TBD          | Not started | -         |
-| 190. Valoración y evolución  | v6.1      | 0/TBD          | Not started | -         |
-| 191. Panel del profesor      | v6.1      | 0/TBD          | Not started | -         |
-| 192. Onboarding tenant 2     | v6.1      | 0/TBD          | Not started | -         |
+| Phase                        | Milestone | Plans Complete | Status                  | Completed |
+| ---------------------------- | --------- | -------------- | ----------------------- | --------- |
+| 181. Diseño del módulo       | v6.1      | 0/6            | Not started             | -         |
+| 182. Rol plataforma + wizard | v6.1      | 0/TBD          | Not started             | -         |
+| 183. Panel de tenants        | v6.1      | 0/TBD          | Not started             | -         |
+| 184. Catálogo modelo + taxos | v6.1      | 0/TBD          | Not started             | -         |
+| 185. Catálogo ciclo de vida  | v6.1      | 0/TBD          | Not started             | -         |
+| 186. Carga inicial catálogo  | v6.1      | 0/TBD          | Not started             | -         |
+| 187. Plantillas de rutina    | v6.1      | 0/TBD          | Not started             | -         |
+| 188. Asignación de rutinas   | v6.1      | 0/TBD          | Not started             | -         |
+| 189. Ejecución y registro    | v6.1      | 0/TBD          | Not started             | -         |
+| 190. Valoración y evolución  | v6.1      | 0/TBD          | Not started             | -         |
+| 191. Panel del profesor      | v6.1      | 0/TBD          | Not started             | -         |
+| 192. Onboarding tenant 2     | v6.1      | 0/TBD          | Not started             | -         |
+| 195. Web SEO + atribución    | -         | 14/14          | Executed (human_needed) | -         |
 
 ## Coverage
 

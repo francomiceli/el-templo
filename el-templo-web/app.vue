@@ -1,16 +1,27 @@
 <script setup lang="ts">
 /**
- * Root app component — global head and Organization schema.
+ * Root app component — global head.
  *
- * Sets lang="es", default Twitter Card meta, and Organization
- * structured data (JSON-LD) inherited by all pages.
+ * Sets lang="es-AR" (las paginas bajo /es lo pisan con es-ES), default
+ * Twitter Card meta, el Smart App Banner de iOS, favicons y, solo en staging,
+ * `robots: noindex, nofollow`. El JSON-LD lo emite
+ * cada pagina con utils/schema-graph.ts (nunca desde aca).
  */
 
+// Staging nunca se indexa (decision de Franco 2026-10-07: sin cambios en nginx).
+// Prod no define NUXT_PUBLIC_APP_ENVIRONMENT: ahi no sale ningun meta robots.
+const isStaging = useRuntimeConfig().public.appEnvironment === "staging";
+
 useHead({
-  htmlAttrs: { lang: "es" },
+  htmlAttrs: { lang: "es-AR" },
   meta: [
+    ...(isStaging
+      ? [{ name: "robots", content: "noindex, nofollow" }]
+      : []),
     { name: "twitter:card", content: "summary_large_image" },
-    { name: "twitter:site", content: "@eltemplo" },
+    { name: "twitter:site", content: "@eltemplomdp" },
+    // Smart App Banner (solo Safari iOS): id de la app en el App Store.
+    { name: "apple-itunes-app", content: "app-id=6761773726" },
   ],
   link: [
     { rel: "icon", type: "image/x-icon", href: "/favicon.ico" },
@@ -39,27 +50,6 @@ useHead({
     },
   ],
 });
-
-useSchemaOrg([
-  defineOrganization({
-    name: "El Templo",
-    url: "https://eltemplo.org",
-    logo: "https://eltemplo.org/images/logo-eltemplo.svg",
-    description:
-      "Escuela de movimiento y calistenia. M\u00E9todo propio, 6 niveles de entrenamiento con peso corporal, 8 sedes en Argentina y Espa\u00F1a.",
-    sameAs: [
-      "https://www.instagram.com/eltemplomdp/",
-      "https://www.youtube.com/@ElTemplomdp/",
-      "https://www.facebook.com/eltemplomdp/",
-    ],
-    contactPoint: {
-      "@type": "ContactPoint",
-      telephone: "+54-9-223-582-0521",
-      contactType: "customer service",
-      availableLanguage: "Spanish",
-    },
-  }),
-]);
 </script>
 
 <template>

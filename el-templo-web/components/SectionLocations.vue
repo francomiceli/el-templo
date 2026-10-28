@@ -2,14 +2,14 @@
 /**
  * SectionLocations — "Encontr&aacute; tu Templo" sede cards section.
  *
- * 8 sede cards grouped by city (MDP 7, BCN 1) with:
+ * Sede cards grouped by city (MDP 6, BCN 1, derivados de sedesCount) with:
  * - PlaceholderBox for images (until real photos arrive)
  * - Special badges: AL AIRE LIBRE (outdoor), RETIRO (special), INTERNACIONAL (intl)
  * - Micro-CTAs: Como llegar (Maps) + Reservar sesion (WhatsApp)
  * - International fallback CTA at bottom
  * - Scroll-triggered staggered entrance animation
  */
-import { sedesByCity } from "~/data/sedes";
+import { sedesByCity, sedesCount, communitySpaces } from "~/data/sedes";
 
 const { revealed, elementRef: sectionRef, cleanup } = useScrollReveal();
 
@@ -31,11 +31,13 @@ onBeforeUnmount(() => {
       <span class="locations__tag">Sedes</span>
 
       <h2 class="locations__title">
-        Sedes de calistenia en Mar del Plata y Barcelona.
+        <NuxtLink to="/sedes" class="locations__title-link">
+          Sedes de calistenia en Mar del Plata y Barcelona.
+        </NuxtLink>
       </h2>
 
       <p class="locations__subtitle">
-        8 sedes en Mar del Plata y Barcelona. Cada una con el mismo
+        {{ sedesCount.total }} sedes en Mar del Plata y Barcelona. Cada una con el mismo
         m&eacute;todo, el mismo equipamiento Gladius, y la misma
         filosof&iacute;a.
       </p>
@@ -44,7 +46,7 @@ onBeforeUnmount(() => {
       <div class="locations__group">
         <div class="locations__group-header">
           <h3 class="locations__city">Mar del Plata</h3>
-          <span class="locations__count">7 sedes</span>
+          <span class="locations__count">{{ sedesCount.mdp }} sedes</span>
         </div>
 
         <div
@@ -89,6 +91,12 @@ onBeforeUnmount(() => {
                 >
                   C&oacute;mo llegar
                 </a>
+                <NuxtLink
+                  :to="sede.path"
+                  class="locations__action locations__action--map"
+                >
+                  Ver sede
+                </NuxtLink>
                 <a
                   :href="sede.whatsappUrl"
                   class="locations__action locations__action--book"
@@ -102,11 +110,38 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
+      <!-- COMMUNITY SPACES (Park): no es una sede, sin boton de reservar -->
+      <div
+        v-for="space in communitySpaces"
+        :key="space.id"
+        class="locations__community"
+      >
+        <div class="locations__community-body">
+          <span class="locations__community-tag">Espacio de comunidad</span>
+          <h4 class="locations__name">{{ space.name }}</h4>
+          <p class="locations__address">{{ space.address }}</p>
+          <NuxtLink
+            :to="space.path"
+            class="locations__action locations__action--map"
+          >
+            Ver espacio
+          </NuxtLink>
+          <a
+            :href="space.mapsUrl"
+            class="locations__action locations__action--map"
+            target="_blank"
+            rel="noopener"
+          >
+            C&oacute;mo llegar
+          </a>
+        </div>
+      </div>
+
       <!-- GROUP: BARCELONA -->
       <div class="locations__group">
         <div class="locations__group-header">
           <h3 class="locations__city">Barcelona</h3>
-          <span class="locations__count">1 sede</span>
+          <span class="locations__count">{{ sedesCount.bcn }} sede</span>
         </div>
 
         <div
@@ -151,6 +186,12 @@ onBeforeUnmount(() => {
                 >
                   C&oacute;mo llegar
                 </a>
+                <NuxtLink
+                  :to="sede.path"
+                  class="locations__action locations__action--map"
+                >
+                  Ver sede
+                </NuxtLink>
                 <a
                   :href="sede.whatsappUrl"
                   class="locations__action locations__action--book"
@@ -185,7 +226,7 @@ onBeforeUnmount(() => {
 /* ==========================================================================
    Locations Section — "Encontra tu Templo"
    BEM naming. Token variables only. Never pure black or white.
-   8 sede cards grouped by city with badges, CTAs, responsive grid.
+   Sede cards grouped by city with badges, CTAs, responsive grid.
    ========================================================================== */
 
 .locations {
@@ -224,6 +265,15 @@ onBeforeUnmount(() => {
   line-height: 1.2;
   text-align: center;
   margin: 0 0 var(--space-comfortable) 0;
+}
+
+.locations__title-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.locations__title-link:hover {
+  color: var(--color-terracotta);
 }
 
 .locations__subtitle {
@@ -403,6 +453,36 @@ onBeforeUnmount(() => {
   font-size: 13px;
   color: var(--color-olive-stone);
   margin: 4px 0 0 0;
+}
+
+/* ------------------------------------------------------------------
+   Community space (El Templo Park): tarjeta simple, no es una sede
+   ------------------------------------------------------------------ */
+.locations__community {
+  background: var(--color-warm-linen);
+  border: 1px dashed var(--color-warm-stone);
+  border-radius: var(--radius-card);
+  margin: 0 0 var(--space-base) 0;
+}
+
+.locations__community-body {
+  padding: 20px;
+}
+
+.locations__community-tag {
+  display: inline-block;
+  font-family: var(--font-clarity);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-terracotta);
+  margin-bottom: 6px;
+}
+
+.locations__community .locations__action {
+  display: inline-block;
+  margin-top: 10px;
+  margin-right: 16px;
 }
 
 .locations__separator {

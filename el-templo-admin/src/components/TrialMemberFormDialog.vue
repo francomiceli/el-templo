@@ -8,8 +8,8 @@
       <q-card-section>
         <div class="text-h6">Nuevo en Prueba</div>
         <div class="text-caption text-grey-7">
-          Soft register: solo nombre, apellido, teléfono y sede. Completá el resto cuando el lead se
-          convierta.
+          Soft register: nombre, apellido, teléfono y sede (y de dónde nos conoció, si lo sabés).
+          Completá el resto cuando el lead se convierta.
         </div>
       </q-card-section>
 
@@ -60,6 +60,26 @@
               :rules="[(v: number | null) => v !== null || 'Sede es requerida']"
             />
 
+            <q-select
+              v-model="form.origin"
+              :options="ORIGIN_OPTIONS"
+              label="¿Cómo nos conoció?"
+              dense
+              outlined
+              clearable
+              emit-value
+              map-options
+            />
+
+            <q-input
+              v-model="form.campaign"
+              label="Campaña (opcional)"
+              hint="Ej: volante-octubre"
+              dense
+              outlined
+              maxlength="150"
+            />
+
             <!-- Fase 194 D-24: "Lo invita" crea la invitación con accesos (mismo cupo y
                  elegibilidad que la app). Si se deja vacío es un alta de prueba común.
                  Solo para los roles del canal asistido: el servidor da 403 al coach. -->
@@ -92,7 +112,12 @@ import { useAuthStore } from 'src/stores/useAuthStore';
 import { extractError, isExpectedClientError } from 'src/utils/extract-error';
 import { formatDate } from 'src/utils/format-date';
 import { accessesCountLabel } from 'src/utils/invitation-meta';
-import type { BranchOption, CreateTrialMemberResponse, MemberProfile } from 'src/types/member';
+import type {
+  BranchOption,
+  CreateTrialMemberResponse,
+  MemberProfile,
+  TrialOrigin,
+} from 'src/types/member';
 import ReferrerSelect from './ReferrerSelect.vue';
 
 const log = createLogger('TrialMemberFormDialog');
@@ -136,8 +161,23 @@ interface TrialForm {
   lastName: string;
   phone: string;
   branchId: number | null;
+  origin: TrialOrigin | null;
+  campaign: string;
   inviterId: number | null;
 }
+
+/** "¿Cómo nos conoció?" — mismos valores que MANUAL_ORIGINS de la API. */
+const ORIGIN_OPTIONS: { label: string; value: TrialOrigin }[] = [
+  { label: 'Instagram', value: 'instagram' },
+  { label: 'Anuncio de Meta', value: 'meta_ads' },
+  { label: 'Google / Maps', value: 'google' },
+  { label: 'Página web', value: 'web' },
+  { label: 'IA: ChatGPT, Gemini, etc.', value: 'ia' },
+  { label: 'Recomendación de un alumno', value: 'referido' },
+  { label: 'Volante / QR', value: 'volante_qr' },
+  { label: 'Pasó por la puerta', value: 'paso_por_la_puerta' },
+  { label: 'Otro', value: 'otro' },
+];
 
 function emptyForm(): TrialForm {
   return {
@@ -145,6 +185,8 @@ function emptyForm(): TrialForm {
     lastName: '',
     phone: '',
     branchId: props.defaultBranchId ?? null,
+    origin: null,
+    campaign: '',
     inviterId: null,
   };
 }
@@ -210,6 +252,9 @@ async function onSubmit(): Promise<void> {
       lastName: form.value.lastName.trim(),
       phone: form.value.phone.trim(),
       branchId: form.value.branchId as number,
+      // clearable deja null: sin origen no se manda la clave.
+      ...(form.value.origin ? { origin: form.value.origin } : {}),
+      ...(form.value.campaign.trim() ? { campaign: form.value.campaign.trim() } : {}),
       ...(inviterId !== null ? { inviterId } : {}),
     });
     notifyCreated(member, inviterId !== null);

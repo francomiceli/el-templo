@@ -315,6 +315,17 @@ const TABLES_TO_CLEAN = [
   // followups es basura de test genuina (FK a bookings/users) — se limpia
   // como renewal_followups/member_notes.
   schema.trialFollowups,
+  // Atribución de altas (fase 195-07, mig 0272): FK a users/branches — basura
+  // de test genuina, se limpia antes que `users`.
+  schema.signupAttributions,
+  // Outbox de Meta CAPI (fase 195-08, mig 0273): FK a users — basura de test
+  // genuina, se limpia antes que `users`. `ad_spend_daily` no tiene FK pero se
+  // limpia igual para dejar la base limpia entre archivos.
+  schema.metaCapiEvents,
+  schema.adSpendDaily,
+  // Estadísticas de Search Console (fase 195-09, mig 0274): sin FK a users, pero
+  // se limpia igual para dejar la base limpia entre archivos.
+  schema.searchConsoleStats,
   // Core entity tables
   schema.promoPlans,
   schema.subscriptions,

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { sedesCount } from "~/data/sedes";
+
 /**
  * /gladius -- Gladius equipment showcase page.
  *
@@ -25,7 +27,7 @@ useHead({
     {
       name: "description",
       content:
-        "Barras de calistenia y paralelas dise\u00F1adas en El Templo. Probadas en 8 sedes por +1000 alumnos. Consult\u00E1 disponibilidad.",
+        `Barras de calistenia y paralelas dise\u00F1adas en El Templo. Probadas en ${sedesCount.total} sedes por +1000 alumnos. Consult\u00E1 disponibilidad.`,
     },
     {
       property: "og:title",
@@ -35,7 +37,7 @@ useHead({
     {
       property: "og:description",
       content:
-        "Barras, paralelas y equipamiento de calistenia dise\u00F1ados en El Templo. Probados en 8 sedes por +1000 alumnos.",
+        `Barras, paralelas y equipamiento de calistenia dise\u00F1ados en El Templo. Probados en ${sedesCount.total} sedes por +1000 alumnos.`,
     },
     { property: "og:url", content: "https://eltemplo.org/gladius" },
     { property: "og:type", content: "website" },

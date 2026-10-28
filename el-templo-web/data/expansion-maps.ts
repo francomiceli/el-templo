@@ -19,7 +19,7 @@ export interface CityMapConfig {
   pins: SedePin[];
 }
 
-// --- Mar del Plata (7 sedes) ---
+// --- Mar del Plata (6 sedes + Park) ---
 export const mdpMapConfig: CityMapConfig = {
   city: "Mar del Plata",
   center: [-38.02, -57.56],
@@ -28,10 +28,10 @@ export const mdpMapConfig: CityMapConfig = {
     { name: "Constitución", lat: -37.9566, lng: -57.571 },
     { name: "Jujuy", lat: -38.0117, lng: -57.5684 },
     { name: "Moreno", lat: -37.9958, lng: -57.5605 },
-    { name: "Alem", lat: -38.0296, lng: -57.5374 },
+    { name: "Juan B. Justo", lat: -38.0335, lng: -57.5522 },
+    { name: "Alberti", lat: -38.0019, lng: -57.546 },
     { name: "Mario Bravo", lat: -38.0797, lng: -57.5468 },
     { name: "Park", lat: -38.0287, lng: -57.5424 },
-    { name: "Chapadmalal", lat: -38.049, lng: -57.5938 },
   ],
 };
 

@@ -228,6 +228,9 @@ jobs:
       - name: Build (SSG)
         run: pnpm run generate
 
+      - name: Verify SEO output
+        run: node scripts/verify-seo-output.mjs
+
   # ===========================================
   # Admin App - Lint, Audit, and Build
   # Same structure as member app. Web-only (no Capacitor).

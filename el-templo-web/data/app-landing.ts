@@ -6,6 +6,9 @@
  * No component logic — typed exports only.
  */
 
+import { sedesCount } from "~/data/sedes";
+
+
 // --- Module definition ---
 export interface AppModule {
   id: string;
@@ -51,7 +54,7 @@ export const modules: AppModule[] = [
     name: "El Templo",
     tagline: "El m\u00E9todo completo. Desde donde est\u00E9s.",
     description:
-      "El m\u00F3dulo de entrenamiento. Todo el sistema que funciona en 8 sedes y 2 pa\u00EDses en formato digital. Test de nivel, Ruta del H\u00E9roe, rutinas personalizadas, seguimiento y comunidad.",
+      `El m\u00F3dulo de entrenamiento. Todo el sistema que funciona en ${sedesCount.total} sedes y 2 pa\u00EDses en formato digital. Test de nivel, Ruta del H\u00E9roe, rutinas personalizadas, seguimiento y comunidad.`,
     features: [
       "Test de Nivel",
       "Ruta del H\u00E9roe \u2014 Progresi\u00F3n guiada",
