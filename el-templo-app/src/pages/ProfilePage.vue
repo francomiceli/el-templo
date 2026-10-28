@@ -267,7 +267,7 @@ onMounted(async () => {
 .profile-wrap {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 16px; // entre bloques (Franco: menos aire alrededor de los títulos)
   max-width: 600px;
   margin: 0 auto;
   padding: 16px 16px 32px;
@@ -322,7 +322,7 @@ onMounted(async () => {
 .profile-section {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px; // título → card
 }
 
 // Título de bloque del rework; sobre la PÁGINA va en tinta (terracota no llega a AA ahí).
