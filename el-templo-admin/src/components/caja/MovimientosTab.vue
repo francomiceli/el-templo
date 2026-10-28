@@ -241,12 +241,15 @@
       <!-- Alumno column (clickable) -->
       <template #body-cell-alumno="slotProps">
         <q-td :props="slotProps">
+          <!-- Egresos/movimientos sin socio traen memberId null: sin link (antes navegaba a /alumnos/null). -->
           <span
+            v-if="slotProps.row.memberId"
             class="text-weight-medium text-primary cursor-pointer"
             @click="goToMember(slotProps.row.memberId)"
           >
             {{ slotProps.row.memberName }}
           </span>
+          <span v-else class="text-weight-medium">{{ slotProps.row.memberName }}</span>
         </q-td>
       </template>
 
