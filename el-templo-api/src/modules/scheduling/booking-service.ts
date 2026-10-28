@@ -692,8 +692,12 @@ export class BookingService {
     ctx: TenantContext,
     memberId: number,
     weekStartDate: string,
+    weeks: number = 1,
   ): Promise<MyBookingRecord[]> {
-    const weekEnd = addDays(weekStartDate, 5); // Saturday
+    // Saturday of the last requested week. Con weeks=2 el rango es continuo
+    // (lunes semana 1 -> sabado semana 2): incluye el domingo de la semana 1,
+    // superset inocuo de las dos llamadas viejas (fase 203, D-15).
+    const weekEnd = addDays(weekStartDate, 7 * (weeks - 1) + 5);
 
     const rows = await this.db
       .select({
@@ -782,11 +786,24 @@ export class BookingService {
     // Phase 160-06 (SEM-14): derivar Combos/Tecnica/General para la
     // actividad generica antes de mapear a BookingRecord (misma regla que
     // getWeeklyGrid).
-    const modeByDay = await this.loadModeByDay(weekStartDate);
+    // Fase 203 (D-15): una plani por semana pedida; cada fila usa la de SU
+    // semana (indice = semanas completas desde weekStart), no la de la primera.
+    const modeByWeekIndex = await Promise.all(
+      Array.from({ length: weeks }, (_, i) =>
+        this.loadModeByDay(addDays(weekStartDate, 7 * i)),
+      ),
+    );
+    const weekStartMs = Date.parse(`${weekStartDate}T00:00:00Z`);
 
     return rows.map((r) => {
       const dayName = DAY_OF_WEEK_MAP[r.dayOfWeek];
-      const dayMode = dayName ? modeByDay.get(dayName) : undefined;
+      const weekIndex = Math.floor(
+        (Date.parse(`${r.bookingDate}T00:00:00Z`) - weekStartMs) /
+          (7 * 24 * 60 * 60 * 1000),
+      );
+      const dayMode = dayName
+        ? modeByWeekIndex[weekIndex]?.get(dayName)
+        : undefined;
       const { branchId, branchName, branchTimezone, ...bookingRow } = r;
       return {
         ...this.mapBookingRow({
