@@ -26,6 +26,7 @@
  *   GET /api/members/subscription/coverage
  *   GET /api/members/subscription/me/especial-pass
  *   GET /api/members/subscription/me/plan-status
+ *   GET /api/members/subscription/me/plan-summary
  *   GET /api/members/subscription/me/subscription
  *   GET /api/members/subscription/plans
  *
@@ -888,6 +889,76 @@ describe("estado de plan del socio — GET /api/members/subscription/me/plan-sta
       porQueImportaElControl(RUTA, gym2.socios[0].id),
     ).toBe(true);
     expect(body.hadPlan).toBe(false);
+  });
+});
+
+describe("resumen de Planes del socio — GET /api/members/subscription/me/plan-summary", () => {
+  const RUTA = "GET /api/members/subscription/me/plan-summary";
+
+  interface ResumenBody {
+    current: { id: number; planId: number; isNew: boolean } | null;
+    next: { id: number } | null;
+    history: Array<{ id: number }>;
+    hasUnseen: boolean;
+  }
+
+  it("aislamiento: un socio del gimnasio 2 SIN historial no ve la membresia de otro socio (ni la sin ver de El Templo)", async () => {
+    // La sub de El Templo esta avisada y sin ver: si la ruta perdiera el filtro
+    // por usuario o por tenant, este socio vería `current` o `hasUnseen` ajenos.
+    await app.db
+      .update(schema.subscriptions)
+      .set({ memberNotifiedAt: new Date(), memberSeenAt: null })
+      .where(
+        and(
+          tenantWhere(schema.subscriptions, { tenantId: TENANT_TEMPLO }),
+          eq(schema.subscriptions.id, fx.templo.subscriptionId),
+        ),
+      );
+    expect(
+      await tenantDeLaFila(app, "subscriptions", fx.templo.subscriptionId),
+      "La sub ajena dejo de ser de El Templo: el caso pasaria probando nada.",
+    ).toBe(TENANT_TEMPLO);
+
+    const sinHistorial = await createTestMember(app, {
+      branchId: gym2.branchId,
+      tenantId: TENANT_DOS,
+    });
+    const res = await getMemberComo("/me/plan-summary", sinHistorial.token);
+    expect(res.statusCode, `${RUTA} fallo: ${res.body}`).toBe(200);
+    const body = JSON.parse(res.body) as ResumenBody;
+    expect(
+      body.current,
+      porQueImportaElListado(RUTA, fx.templo.subscriptionId),
+    ).toBeNull();
+    expect(
+      body.next,
+      porQueImportaElListado(RUTA, fx.templo.subscriptionId),
+    ).toBeNull();
+    expect(
+      body.history,
+      porQueImportaElListado(RUTA, fx.templo.subscriptionId),
+    ).toEqual([]);
+    expect(
+      body.hasUnseen,
+      porQueImportaElListado(RUTA, fx.templo.subscriptionId),
+    ).toBe(false);
+  });
+
+  it("control: el socio del gimnasio 2 que SI tiene la suscripcion sembrada la ve como plan actual, sin montos", async () => {
+    const res = await getMemberComo("/me/plan-summary", gym2.socios[0].token);
+    expect(res.statusCode, `${RUTA} fallo: ${res.body}`).toBe(200);
+    const body = JSON.parse(res.body) as ResumenBody;
+    expect(
+      body.current?.id,
+      porQueImportaElControl(RUTA, gym2.socios[0].id),
+    ).toBe(fx.dos.subscriptionId);
+    expect(body.current?.planId).toBe(gym2.planId);
+    expect(body.current?.isNew).toBe(false);
+    expect(body.next).toBeNull();
+    expect(body.hasUnseen).toBe(false);
+    // Sin plata: el importe sembrado del gimnasio 2 no viaja en la respuesta.
+    expect(res.body).not.toContain(String(fx.dos.pricePaid));
+    expect(res.body).not.toContain("pricePaid");
   });
 });
 
