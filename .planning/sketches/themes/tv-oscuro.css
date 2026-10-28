@@ -1,0 +1,46 @@
+/* Theme: TV oscuro — pantalla de transición del kiosco (reposo/cierre).
+   Derivado del login de la app de socios (LoginPage.vue): charcoal + ámbar/bronce,
+   cruzado con la paleta existente del TV (gold #b08d6e, cream #f2ede5, Cinzel). */
+
+@font-face {
+  font-family: 'Cinzel';
+  src: url('../../../el-templo-admin/public/tv/fonts/cinzel-regular.ttf');
+  font-weight: 400;
+}
+@font-face {
+  font-family: 'Cinzel';
+  src: url('../../../el-templo-admin/public/tv/fonts/cinzel-bold.ttf');
+  font-weight: 700;
+}
+@font-face {
+  font-family: 'NunitoSans';
+  src: url('../../../el-templo-admin/public/tv/fonts/nunito-regular.ttf');
+  font-weight: 400;
+}
+@font-face {
+  font-family: 'NunitoSans';
+  src: url('../../../el-templo-admin/public/tv/fonts/nunito-bold.ttf');
+  font-weight: 700;
+}
+
+:root {
+  /* Fondos oscuros (login app socios) */
+  --charcoal: #2e2a26;
+  --charcoal-mid: #3d3732;
+  --charcoal-deep: #211e1b;
+  --night: #1a1714;
+
+  /* Claros */
+  --cream: #f2ede5;
+  --bone: #e6ddcf;
+  --muted: #a89a87;
+
+  /* Acentos cálidos */
+  --gold: #b08d6e;   /* GOLD del TV actual */
+  --bronze: #d4b896; /* bronce del login */
+  --amber: #d4a843;  /* ámbar del login */
+  --ember: #ff9d4d;  /* brasa (solo efecto fuego) */
+
+  --font-display: 'Cinzel', Georgia, serif;
+  --font-body: 'NunitoSans', 'Segoe UI', system-ui, sans-serif;
+}

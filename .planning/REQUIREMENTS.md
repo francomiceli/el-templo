@@ -98,6 +98,15 @@
 | Renombres/navegación del doc original (Guía→Gimnasio, etc.) | Brief aparte según Nacho — no es parte de este milestone                                                           |
 | Split de repos                                              | Trigger intacto; la fase de diseño (DIS-02) puede adelantar la discusión pero ejecutarlo no entra en v6.1          |
 
+## Fuera de milestone — Comunicaciones (COM)
+
+_Fase 193, fuera de v6.1 (rama propia desde `origin/master`, shippeó sola: en master/prod). IDs formalizados en plan-phase el 2026-09-02 a partir de las 31 decisiones de `193-CONTEXT.md`._
+
+- [x] **COM-01**: Sección única **Comunicaciones** en el admin (reemplaza a Notificaciones en Configuración, dueño/admin, redirect desde `/notificaciones`) con **destino común**: en plantillas push y envío a segmento el input libre "Ruta de destino" se reemplaza por un selector de una lista curada de secciones de la app o "WhatsApp de ventas" con texto editable y default global; la API rechaza rutas fuera de la lista; el número de ventas vive en `tenant_settings` por país y la API lo resuelve por la sede del socio; la app abre WhatsApp directo desde la push (ruta interna `/contacto-ventas`, botón de respaldo) prefiriendo el número del servidor con fallback al hardcode AR/ES; apps viejas aterrizan en Mi Templo sin 404. (D-01..D-05, D-20, D-21, D-30, D-31)
+- [x] **COM-02**: **Avisos pop-up en la app**: el staff crea avisos de solo texto (título, mensaje, botón, destino, vigencia opcional, frecuencia por socio una vez / cada N días / cada apertura, alcance sede/país/segmento) con vista previa; un endpoint único "qué pop-up toca hoy" aplica prioridad fija server-side (vencimiento > aviso vigente > calificación > mejora), un solo pop-up por apertura, y los 4 diálogos de `MainLayout` se alimentan de ahí; calificación de clase, propuesta de mejora y vencimiento pasan a ser **avisos de sistema** (calificación con cadencia editable, default ventana móvil de 7 días; vencimiento con regla de disparo fija en código) sembrados por migración y por función reutilizable para tenants nuevos; eventos mostrado/cerró/clic se registran server-side por socio y se muestran como columnas de socios únicos en la lista, con "ver socios" (nombre + teléfono + link WhatsApp); el editor advierte el orden de prioridad. (D-06..D-14, D-16..D-18, D-22)
+- [x] **COM-03**: **Tarjetas de Mi Templo** editables: las 4 fijas del carrusel (mejoras, referidos, upsell, programa) pasan a avisos de sistema con ubicación `tarjeta` y copy editable (título, texto, botón, destino) manteniendo sus reglas de visibilidad en código; el staff crea tarjetas libres con destino, alcance y vigencia que se suman al carrusel después de las fijas; las tarjetas miden solo clics. (D-15, D-19)
+- [x] **COM-04**: **Avisos en TV**: entidad aparte (título + cuerpo, sedes, activo/inactivo manual, modo `manual` | `reemplaza flexibilidad inicial` | `reemplaza flexibilidad final`); con un aviso activo para la sede aparece un botón AVISO en la tira de bloques del control del profe que muestra el aviso a pantalla completa sobre el velo crema/charcoal hasta que el profe avance; en modo reemplazo el texto ocupa la cápsula o la frase de la flexibilidad; estética cápsula/frase (Cinzel, oro) compatible con el browser viejo del TV (ES2015); crear/editar/activar es del admin, el coach solo dispara; la pestaña se gatea por el módulo que hoy gatea las rutas del TV. (D-23..D-29)
+
 ## Traceability
 
 | Requirement | Phase     | Status  |
@@ -139,16 +148,21 @@
 | PROF-02     | Phase 191 | Pending |
 | PROF-03     | Phase 191 | Pending |
 | ONB-01      | Phase 192 | Pending |
+| COM-01      | Phase 193 | Done    |
+| COM-02      | Phase 193 | Done    |
+| COM-03      | Phase 193 | Done    |
+| COM-04      | Phase 193 | Done    |
 
 **Coverage:**
 
 - v1 requirements: **37 total** (el conteo previo de "34" era erróneo — verificado por REQ-ID)
 - Mapped to phases: 37 ✓
 - Unmapped: 0
+- Fuera de milestone (COM, fase 193): **4** — mapeados 4 ✓ (entregados en master)
 
 **Fases del milestone:** 181-192 (179-180 tomadas por fases en vuelo fuera del milestone). Migraciones reservan desde **0216**.
 
 ---
 
 _Requirements defined: 2026-08-27_
-_Last updated: 2026-08-27 — trazabilidad completada al crear el ROADMAP de v6.1 (12 fases, 181-192); conteo de v1 corregido 34 → 37_
+_Last updated: 2026-10-28 — rescate de docs: formalizados COM-01..COM-04 (fase 193 Comunicaciones, fuera de v6.1, ya en master) desde el master local. Antes: 2026-08-27 — trazabilidad completada al crear el ROADMAP de v6.1 (12 fases, 181-192); conteo de v1 corregido 34 → 37_

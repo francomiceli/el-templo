@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sketch 020 · Guía en dos cards + Tu cuerpo</title>
+<!-- Figura: react-native-body-highlighter v3.2.0 (MIT, Copyright (c) ELABBASSI Hicham), ver ../019-anatomia-profes-admin/anat.js -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Geologica:wght@300;400;500;600;700&family=Montserrat:wght@600;700;800&family=Cinzel:wght@600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+<link rel="stylesheet" href="app.css" />
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute"><defs><linearGradient id="litg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c47a52" /><stop offset="1" stop-color="#8a4e30" /></linearGradient></defs></svg>
+
+<div class="wrap">
+  <div class="col"><div class="col-label">★ Síntesis · B + fondo de A</div><div class="col-sub">Layout de B con los dos botones llenos. Empezá acá con el fondo oscuro y la foto de las barras de A; Tu cuerpo queda blanca con el cuerpo asomando.</div><div class="phone vS"></div></div>
+  <div class="col"><div class="col-label">A · Hermanas de los pop-ups</div><div class="col-sub">Las dos cards oscuras con el marco que fluye. Foto de las barras en Empezá acá; cuerpo encendido asomando en Tu cuerpo.</div><div class="phone vA"></div></div>
+  <div class="col"><div class="col-label">B · Claras con imagen</div><div class="col-sub">Las dos blancas: foto con velo crema arriba, cuerpo grande asomando abajo. La card de hoy oscura queda única en Mi Templo.</div><div class="phone vB"></div></div>
+  <div class="col"><div class="col-label">C · Mitades a sangre</div><div class="col-sub">Sin cards: la pantalla partida en noche (como la primera historia) y día, con la línea luminosa en el medio.</div><div class="phone vC"></div></div>
+</div>
+<p class="sketch-note">Tocá cualquiera de las dos mitades. "Empezá acá" abre las historias de hoy (sin cambios). "Tu cuerpo" abre la vista grande, que es igual en las tres: es la B2 del sketch 019 en tono alumno. El contenido es un <b>borrador</b>: a los alumnos no se les muestra nada sin la validación humana.</p>
+
+<script src="../019-anatomia-profes-admin/anat.js"></script>
+<script src="../019-anatomia-profes-admin/data.js"></script>
+<script src="../019-anatomia-profes-admin/ficha.js"></script>
+<script src="alumno.js"></script>
+<script src="alumno-ui.js"></script>
+<script>
+  const SLUGS = { front: new Set(ANAT.front.map(([s]) => s)), back: new Set(ANAT.back.map(([s]) => s)) }
+  const HUB_LIT = { chest: 'M', abs: 'M', quadriceps: 'M', 'upper-back': 'M', gluteal: 'M', deltoids: 'S', hamstring: 'Est', obliques: 'Est', calves: 'Est' }
+
+  const tabbar = () => `<div class="tabbar">${[['account_balance', 'Mi Templo'], ['menu_book', 'Guía', 1], ['sports_mma', 'Entrenar'], ['event_available', 'Reservas'], ['card_membership', 'Planes']].map(([i, l, on]) => `<span class="${on ? 'on' : ''}"><span class="material-icons">${i}</span>${l}</span>`).join('')}</div>`
+
+  function hubHTML(v) {
+    const guia = `<div class="in"><p class="kicker">Empezá acá</p><h2 class="ttl">Cómo es entrenar en El Templo</h2><p class="txt">Tu semana, las clases, los niveles. 7 historias cortas.</p><div class="grow"></div><span class="cta ${v === 'C' ? 'sec' : ''}">Ver la guía</span></div>`
+    const cuerpo = `<div class="in"><p class="kicker">Tu cuerpo</p><h2 class="ttl">Qué trabaja cada ejercicio</h2><p class="txt">Tocá un músculo: qué hace y en qué ejercicios lo usás.</p><div class="grow"></div><span class="cta ${v === 'B' || v === 'C' ? 'sec' : ''}">Explorar</span></div>`
+    if (v === 'A') return `<div class="hub"><div class="fr"><button class="c guia" data-go="story"><div class="bg"></div>${guia}</button></div>
+      <div class="fr"><button class="c cuerpo" data-go="anat"><div class="fig-side">${figure(HUB_LIT)}</div>${cuerpo}</button></div></div>`
+    if (v === 'B' || v === 'S') return `<div class="hub"><button class="c guia" data-go="story"><div class="bg"></div>${guia}</button>
+      <button class="c cuerpo" data-go="anat"><div class="fig-side">${figure(HUB_LIT)}</div>${cuerpo}</button></div>`
+    return `<div class="hub"><button class="c guia" data-go="story"><div class="bg"></div>${guia}</button>
+      <button class="c cuerpo" data-go="anat"><div class="fig-side">${figure(HUB_LIT)}</div>${cuerpo}</button></div>`
+  }
+
+  function mount(phone, v) {
+    phone.innerHTML = `<div class="appbar"><img src="logo.webp" alt="" />El Templo</div>
+      <div class="stack">
+        <div class="pg hubpg">${hubHTML(v)}</div>
+        <div class="pg over story"><div class="bars">${'<i></i>'.repeat(7)}</div><p class="kicker">Te damos la bienvenida</p><h2>Más que un gimnasio, una escuela de calistenia</h2><p>Las historias de Empezá acá, como están hoy.</p><p class="note">Sketch: este es el destino actual de la Guía, sin cambios.</p><button class="close" data-close-story>Volver a la Guía</button></div>
+        <div class="pg over anat">
+          <div class="top"><button class="back" data-back-anat><span class="material-icons">chevron_left</span>Guía</button><h1>Tu cuerpo</h1></div>
+          <div class="cuerpo-scr"><p class="hint">Tocá un músculo</p>
+            <div class="flip"><button data-view="front">Frente</button><button data-view="back">Espalda</button></div>
+            <div class="figwrap"></div>
+            <div class="deep"><p>Los que no se ven (están más adentro):</p>${MUSCULOS.filter((m) => !m.zona).map((m) => `<button class="pill" data-musc="${m.id}">${m.nombre}</button>`).join('')}</div>
+          </div>
+          <div class="bs"><div class="handle"></div><button class="x" aria-label="Cerrar"><span class="material-icons">close</span></button><div class="bs-body"></div></div>
+        </div>
+        <div class="pg over rfpg"><div class="top"><button class="back" data-back-rf><span class="material-icons">chevron_left</span><span class="lbl">Tu cuerpo</span></button></div><div class="rf"></div></div>
+      </div>${tabbar()}`
+    const $ = (s) => phone.querySelector(s)
+    const st = { view: 'front', zona: null, back: 'Tu cuerpo' }
+    const anat = $('.anat'), bs = $('.bs')
+    fitFigures($('.hubpg'))
+
+    function draw() {
+      const fw = $('.figwrap'); fw.dataset.view = st.view
+      fw.innerHTML = figure({}, { tap: true, sel: st.zona })
+      phone.querySelectorAll('.flip button').forEach((b) => b.classList.toggle('on', b.dataset.view === st.view))
+      fitFigures(fw)
+    }
+    function sheet(html) {
+      $('.bs-body').innerHTML = html; $('.bs-body').scrollTop = 0
+      bs.classList.add('open'); bs.classList.remove('full'); anat.classList.add('has-sheet'); anat.scrollTop = 0
+    }
+    function closeSheet() { bs.classList.remove('open', 'full'); anat.classList.remove('has-sheet'); st.zona = null; draw() }
+
+    phone.addEventListener('click', (e) => {
+      const t = e.target
+      const go = t.closest('[data-go]')
+      if (go) { (go.dataset.go === 'story' ? $('.story') : anat).classList.add('open'); if (go.dataset.go === 'anat') draw(); return }
+      if (t.closest('[data-close-story]')) return $('.story').classList.remove('open')
+      if (t.closest('[data-back-anat]')) { closeSheet(); anat.classList.remove('open'); return }
+      if (t.closest('[data-back-rf]')) return $('.rfpg').classList.remove('open')
+      if (t.closest('.bs .x')) return closeSheet()
+      const fb = t.closest('.flip button')
+      if (fb) { st.view = fb.dataset.view; draw(); return }
+      const gl = t.closest('[data-gr]')
+      if (gl) { const d = gl.nextElementSibling; d.hidden = !d.hidden; gl.classList.toggle('on', !d.hidden); return }
+      const rt = t.closest('[data-ruta]')
+      if (rt) {
+        $('.rf').innerHTML = rutaAlumno(rt.dataset.ruta); $('.rfpg .lbl').textContent = st.back
+        $('.rfpg').classList.add('open'); $('.rfpg').scrollTop = 0; fitFigures($('.rf')); return
+      }
+      const ms = t.closest('[data-musc]')
+      if (ms) { const m = MUSCULOS.find((x) => x.id === ms.dataset.musc); st.zona = null; draw(); sheet(`<p class="kicker">Más adentro</p><h2 class="ttl">${m.nombre}</h2>${musAlumno(m).replace(`<h3>${m.nombre}</h3>`, '')}<div class="avisale"><span class="material-icons">record_voice_over</span><span>¿Te molesta o te duele? <b>Avisale a tu profe</b> antes de seguir.</span></div>`); st.back = m.nombre; return }
+      const z = t.closest('.fig.tap .mu:not(.x)')
+      if (z) { st.zona = z.dataset.zona; st.view = z.dataset.view; draw(); sheet(zonaAlumno(st.zona)); st.back = ZONA_ES[st.zona] }
+    })
+    let y0 = null
+    $('.handle').addEventListener('pointerdown', (e) => { y0 = e.clientY; e.target.setPointerCapture(e.pointerId) })
+    $('.handle').addEventListener('pointerup', (e) => {
+      if (y0 === null) return
+      const dy = e.clientY - y0; y0 = null
+      if (dy < -30) bs.classList.add('full')
+      else if (dy > 30) { if (bs.classList.contains('full')) bs.classList.remove('full'); else closeSheet() }
+      else bs.classList.toggle('full')
+    })
+  }
+  document.querySelectorAll('.phone').forEach((p) => mount(p, p.className.match(/v([ABCS])/)[1]))
+</script>
+</body>
+</html>

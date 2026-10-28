@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sketch 008 — Registro del día</title>
+<link rel="stylesheet" href="../themes/default.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Geologica:wght@300;400;500;600&family=Montserrat:wght@600;700;800&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet" />
+<style>
+  :root {
+    --page: #f2ede5;
+    --ink: #2c2318;      /* 15.6:1 sobre blanco */
+    --ink-2: #6b6459;    /* 5.8:1 */
+    --terra: #96593a;    /* 5.6:1 — títulos de bloque (D14/D20) */
+    --line: #e5dbcd;
+    --sand: #f3ede4;
+    /* Bienestar: salvia cálida (sin azul). Texto salvia sobre blanco 6.0:1, sobre su tinte 5.4:1 */
+    --sage: #3f6a47;
+    --sage-tint: #e9f0e6;
+    --sage-line: #c9d8c4;
+    /* Estado de cada respuesta (texto/ícono sobre blanco, todos AA) */
+    --good: #3b7249;     /* 5.9:1 */
+    --mid: #7d6520;      /* 5.8:1 */
+    --low: #a8423f;      /* 6.0:1 */
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #e9e3da; font-family: 'Geologica', system-ui, sans-serif; color: var(--ink); }
+  .material-icons-round { font-size: inherit; line-height: 1; vertical-align: middle; }
+
+  #controls { position: sticky; top: 0; z-index: 50; background: #fff; border-bottom: 1px solid #ddd; padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; font: 13px system-ui; }
+  .ctl { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+  .ctl > span { color: #555; margin-right: 4px; font-weight: 600; }
+  .ctl button { border: 1px solid #ccc; background: #fafafa; border-radius: 6px; padding: 5px 9px; cursor: pointer; font: inherit; }
+  .ctl button:hover { background: #f0ebe4; }
+  .ctl button.on { background: #2c2318; color: #fff; border-color: #2c2318; }
+  #stage { display: flex; gap: 32px; justify-content: center; align-items: flex-start; padding: 24px 16px 80px; flex-wrap: wrap; }
+  .col { display: flex; flex-direction: column; align-items: center; }
+  .col-label { font: 600 13px system-ui; text-align: center; margin-bottom: 4px; }
+  .col-sub { font: 12px system-ui; color: #666; text-align: center; max-width: 360px; margin-bottom: 10px; line-height: 1.4; min-height: 50px; }
+
+  .phone { width: var(--w, 390px); border-radius: 28px; overflow: hidden; box-shadow: 0 0 0 10px #1d1a17, 0 20px 50px rgba(0,0,0,.25); background: var(--page); transition: width .2s; }
+  .content { padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+  .stub { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 12px 16px; opacity: .5; }
+  .stub b { font: 800 13px 'Montserrat', sans-serif; letter-spacing: .08em; color: var(--terra); }
+  .stub i { display: block; height: 18px; margin-top: 10px; border-radius: 6px; background: #efe7db; }
+  .stub.dark { background: #3d3732; border-color: #3d3732; height: 120px; }
+
+  /* Base común: la card de Novedades (borde + sombra cálida) */
+  .rd { background: #fff; border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 6px 18px rgba(150,89,58,.08); }
+  .rd-title { font: 800 13px 'Montserrat', sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--terra); }
+  .rd-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .steps { display: flex; gap: 4px; }
+  .steps i { width: 14px; height: 4px; border-radius: 2px; background: var(--line); }
+  .steps i.on { background: var(--sage); }
+  .linkbtn { min-height: 32px; padding: 0 2px; border: 0; background: none; color: var(--terra); font: 500 13px 'Geologica', sans-serif; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+  button { -webkit-tap-highlight-color: transparent; }
+
+  /* ════════ A · Píldora: pregunta + control segmentado en una fila ════════ */
+  .va { padding: 12px 14px 14px; }
+  .va .q { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  .va .ico { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--sage-tint); color: var(--sage); font-size: 16px; }
+  .va .q-text { font: 600 15px 'Geologica', sans-serif; }
+  .va .seg { display: flex; margin-top: 10px; padding: 3px; border-radius: 999px; background: var(--sand); gap: 3px; }
+  .va .seg button { flex: 1; height: 36px; border: 0; border-radius: 999px; background: transparent; color: var(--ink); font: 500 14px 'Geologica', sans-serif; cursor: pointer; transition: background .15s, color .15s, box-shadow .15s; white-space: nowrap; }
+  .va .seg button:hover { background: rgba(255,255,255,.7); }
+  .va .seg button.sel { background: var(--sage); color: #fff; box-shadow: 0 1px 3px rgba(44,35,24,.18); }
+  .va .seg.areas { overflow-x: auto; scrollbar-width: none; }
+  .va .seg.areas button { flex: 0 0 auto; padding: 0 14px; }
+  .va .done { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .va .chip { white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 9px 0 7px; border-radius: 999px; background: var(--sage-tint); color: var(--sage); font: 500 12.5px 'Geologica', sans-serif; }
+  .va .chip .material-icons-round { font-size: 16px; }
+  .va .chip.mid { background: #f6efdc; color: var(--mid); }
+  .va .chip.low { background: #f7e6e2; color: var(--low); }
+
+  /* ════════ B · Caritas: escala de bienestar con caras ════════ */
+  .vb { padding: 12px 14px 12px; }
+  .vb .q { display: flex; align-items: center; gap: 8px; margin-top: 8px; font: 600 15px 'Geologica', sans-serif; }
+  .vb .q .material-icons-round { font-size: 18px; color: var(--sage); }
+  .vb .faces { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+  .vb .face { display: flex; align-items: center; justify-content: center; gap: 6px; height: 44px; border: 1.5px solid var(--line); border-radius: 12px; background: #fff; color: var(--ink); font: 500 14px 'Geologica', sans-serif; cursor: pointer; transition: all .15s; }
+  .vb .face .material-icons-round { font-size: 22px; }
+  .vb .face.t-good .material-icons-round { color: var(--good); }
+  .vb .face.t-mid .material-icons-round { color: var(--mid); }
+  .vb .face.t-low .material-icons-round { color: var(--low); }
+  .vb .face:hover { background: #faf7f2; }
+  .vb .face.sel { border-color: var(--sage); background: var(--sage-tint); }
+  .vb .areas { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .vb .areas button { height: 34px; padding: 0 12px; border: 1.5px solid var(--line); border-radius: 999px; background: #fff; font: 500 13px 'Geologica', sans-serif; color: var(--ink); cursor: pointer; }
+  .vb .areas button:hover { border-color: var(--sage); }
+  .vb .done { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+  .vb .done .mini { display: flex; gap: 2px; font-size: 22px; }
+  .vb .done .mini .t-good { color: var(--good); } .vb .done .mini .t-mid { color: var(--mid); } .vb .done .mini .t-low { color: var(--low); }
+  .vb .done .txt { flex: 1; min-width: 0; font-size: 13.5px; line-height: 1.35; color: var(--ink-2); }
+  .vb .done .txt b { color: var(--ink); font-weight: 600; }
+
+  /* ════════ C · Signos: tres indicadores siempre a la vista ════════ */
+  .vc { padding: 12px 12px 12px; }
+  .vc .rd-head { padding: 0 2px; }
+  .vc .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+  .vc .tile { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; padding: 9px 10px 10px; border: 1.5px dashed var(--sage-line); border-radius: 12px; background: #fbfaf7; color: var(--ink); text-align: left; cursor: pointer; transition: all .15s; }
+  .vc .tile .k { display: flex; align-items: center; gap: 4px; font: 600 11px 'Montserrat', sans-serif; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-2); }
+  .vc .tile .k .material-icons-round { font-size: 15px; color: var(--sage); }
+  .vc .tile .v { font: 600 14.5px 'Geologica', sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .vc .tile .v.empty { color: var(--sage); font-weight: 500; font-size: 13.5px; }
+  .vc .tile.ans { border-style: solid; border-color: var(--line); background: #fff; }
+  .vc .tile .sub { font-size: 12px; color: var(--ink-2); }
+  .vc .tile.open { border-style: solid; border-color: var(--sage); background: var(--sage-tint); }
+  .vc .tile .v.t-good { color: var(--good); } .vc .tile .v.t-mid { color: var(--mid); } .vc .tile .v.t-low { color: var(--low); }
+  .vc .picker { margin-top: 8px; padding: 10px; border-radius: 12px; background: var(--sage-tint); }
+  .vc .picker .pq { font: 600 14px 'Geologica', sans-serif; margin: 0 2px 8px; }
+  .vc .picker .opts { display: flex; gap: 6px; flex-wrap: wrap; }
+  .vc .picker .opts button { flex: 1 1 auto; height: 36px; padding: 0 12px; border: 0; border-radius: 999px; background: #fff; color: var(--ink); font: 500 14px 'Geologica', sans-serif; cursor: pointer; box-shadow: 0 1px 2px rgba(44,35,24,.08); }
+  .vc .picker .opts button:hover { background: #fdfcf9; }
+  .vc .picker .opts button.sel { background: var(--sage); color: #fff; }
+</style>
+</head>
+<body>
+
+<div id="controls">
+  <div class="ctl" data-ctl="w"><span>Ancho</span>
+    <button data-v="360">360</button><button data-v="390" class="on">390</button><button data-v="412">412</button>
+  </div>
+  <div class="ctl" data-ctl="preset"><span>Arrancar en</span>
+    <button data-v="empty" class="on">Sin responder</button>
+    <button data-v="half">1 respondida</button>
+    <button data-v="area">Molestia → ¿dónde?</button>
+    <button data-v="full">Completo</button>
+    <button data-v="fullbad">Completo (día flojo)</button>
+  </div>
+</div>
+
+<div id="stage">
+  <div class="col">
+    <div class="col-label">A · Píldora</div>
+    <div class="col-sub">Ícono de la pregunta en un círculo salvia y las respuestas en un control segmentado, en una sola fila. Al terminar, tres chips de color con el estado del día.</div>
+    <div class="phone"><div class="content"><div class="stub"><b>NOVEDADES</b><i></i></div><section class="rd va" data-v="a"></section><div class="stub dark"></div></div></div>
+  </div>
+  <div class="col">
+    <div class="col-label">B · Caritas</div>
+    <div class="col-sub">Una escala de bienestar con caras: verde si estás bien, ocre en el medio y rojo tierra si no. Al terminar, las tres caras y una frase.</div>
+    <div class="phone"><div class="content"><div class="stub"><b>NOVEDADES</b><i></i></div><section class="rd vb" data-v="b"></section><div class="stub dark"></div></div></div>
+  </div>
+  <div class="col">
+    <div class="col-label">C · Signos</div>
+    <div class="col-sub">Cuerpo, sueño y energía como tres indicadores siempre a la vista, como un tablero de salud. Tocás uno y se abren sus opciones; el alto casi no cambia.</div>
+    <div class="phone"><div class="content"><div class="stub"><b>NOVEDADES</b><i></i></div><section class="rd vc" data-v="c"></section><div class="stub dark"></div></div></div>
+  </div>
+</div>
+
+<script>
+  // Mismas preguntas, opciones y orden que la app (soreness primero; el resto rota por día).
+  const Q = [
+    { type: 'soreness', short: 'Cuerpo', q: '¿Tenés alguna molestia hoy?', icon: 'accessibility_new',
+      opts: [['ninguna', 'No', 'good', 'sentiment_satisfied'], ['leve', 'Leve', 'mid', 'sentiment_neutral'], ['moderada', 'Moderada', 'low', 'sentiment_dissatisfied']] },
+    { type: 'sleep', short: 'Sueño', q: '¿Cómo dormiste hoy?', icon: 'bedtime',
+      opts: [['mal', 'Mal', 'low', 'sentiment_dissatisfied'], ['ok', 'Ok', 'mid', 'sentiment_neutral'], ['bien', 'Bien', 'good', 'sentiment_satisfied']] },
+    { type: 'energy', short: 'Energía', q: '¿Cómo te sentís hoy?', icon: 'bolt',
+      opts: [['bajo', 'Bajo', 'low', 'sentiment_dissatisfied'], ['normal', 'Normal', 'mid', 'sentiment_neutral'], ['alto', 'Bien', 'good', 'sentiment_satisfied']] },
+  ]
+  const AREAS = [['hombros', 'Hombros'], ['espalda', 'Espalda'], ['piernas', 'Piernas'], ['core', 'Core'], ['general', 'General']]
+  const SUMMARY = {
+    energy: { bajo: 'Energía: bajo', normal: 'Energía: normal', alto: 'Energía: bien' },
+    soreness: { ninguna: 'Sin molestias', leve: 'Molestia leve', moderada: 'Molestia moderada' },
+    sleep: { mal: 'Dormiste mal', ok: 'Dormiste ok', bien: 'Dormiste bien' },
+  }
+  // Valor corto para los indicadores de C
+  const SHORT = { soreness: { ninguna: 'Sin molestias', leve: 'Leve', moderada: 'Moderada' }, sleep: { mal: 'Mal', ok: 'Ok', bien: 'Bien' }, energy: { bajo: 'Baja', normal: 'Normal', alto: 'Bien' } }
+  const PRESETS = {
+    empty: {},
+    half: { soreness: { v: 'ninguna' } },
+    area: { _pending: { type: 'soreness', v: 'leve' } },
+    full: { soreness: { v: 'ninguna' }, sleep: { v: 'ok' }, energy: { v: 'alto' } },
+    fullbad: { soreness: { v: 'moderada', area: 'piernas' }, sleep: { v: 'mal' }, energy: { v: 'bajo' } },
+  }
+  const opt = (q, v) => q.opts.find((o) => o[0] === v)
+  const label = (q, a) => {
+    const base = SUMMARY[q.type][a.v]
+    if (q.type !== 'soreness' || a.v === 'ninguna' || !a.area) return base
+    return `${base} (${AREAS.find((x) => x[0] === a.area)[1].toLowerCase()})`
+  }
+  const tone = (q, a) => opt(q, a.v)[2]
+
+  // Estado independiente por variante
+  const S = {}
+  function reset(preset) {
+    for (const k of ['a', 'b', 'c']) {
+      const p = JSON.parse(JSON.stringify(PRESETS[preset]))
+      S[k] = { answers: {}, pending: null, editing: false, editIdx: 0, open: null }
+      for (const q of Q) if (p[q.type]) S[k].answers[q.type] = p[q.type]
+      if (p._pending) S[k].pending = p._pending
+      // C abre sola la primera sin responder (el socio ve la pregunta sin tocar nada)
+      if (k === 'c') { const n = Q.find((q) => !S[k].answers[q.type]); S[k].open = n ? n.type : null }
+    }
+    renderAll()
+  }
+  const nextQ = (s) => (s.editing ? Q[s.editIdx] : Q.find((q) => !s.answers[q.type])) || null
+  const count = (s) => Q.filter((q) => s.answers[q.type]).length
+  function answer(k, q, v, area) {
+    const s = S[k]
+    const o = Q.find((x) => x.type === q)
+    if (!area && q === 'soreness' && v !== 'ninguna') { s.pending = { type: q, v }; return renderAll() }
+    s.answers[q] = { v, area: area || null }
+    s.pending = null
+    if (s.editing) { s.editIdx++; if (s.editIdx >= Q.length) s.editing = false }
+    if (k === 'c') { const n = Q.find((x) => !s.answers[x.type]); s.open = n ? n.type : null }
+    renderAll()
+  }
+  function edit(k) { S[k].editing = true; S[k].editIdx = 0; renderAll() }
+  const stepsHtml = (s) => `<span class="steps" aria-label="${count(s)} de 3">${Q.map((q) => `<i class="${s.answers[q.type] ? 'on' : ''}"></i>`).join('')}</span>`
+  const areasBtns = (cls = '') => AREAS.map(([v, l]) => `<button data-area="${v}" class="${cls}">${l}</button>`).join('')
+
+  function renderA() {
+    const s = S.a, el = document.querySelector('[data-v=a]'), q = nextQ(s)
+    if (!q && !s.pending) {
+      el.innerHTML = `<div class="rd-head"><span class="rd-title">Registro del día</span><button class="linkbtn" data-edit>editar</button></div>
+        <div class="done">${Q.map((x) => { const a = s.answers[x.type]; return `<span class="chip ${tone(x, a) === 'good' ? '' : tone(x, a)}"><span class="material-icons-round">${x.icon}</span>${SHORT[x.type][a.v]}${a.area ? ' · ' + AREAS.find((z) => z[0] === a.area)[1].toLowerCase() : ''}</span>` }).join('')}</div>`
+      return
+    }
+    if (s.pending) {
+      el.innerHTML = `<div class="rd-head"><span class="rd-title">Registro del día</span>${stepsHtml(s)}</div>
+        <div class="q"><span class="ico"><span class="material-icons-round">accessibility_new</span></span><span class="q-text">¿Dónde?</span><button class="linkbtn" data-back style="margin-left:auto">volver</button></div>
+        <div class="seg areas">${areasBtns()}</div>`
+      return
+    }
+    const cur = s.answers[q.type]
+    el.innerHTML = `<div class="rd-head"><span class="rd-title">Registro del día</span>${stepsHtml(s)}</div>
+      <div class="q"><span class="ico"><span class="material-icons-round">${q.icon}</span></span><span class="q-text">${q.q}</span></div>
+      <div class="seg">${q.opts.map(([v, l]) => `<button data-q="${q.type}" data-ans="${v}" class="${cur && cur.v === v ? 'sel' : ''}">${l}</button>`).join('')}</div>`
+  }
+
+  function renderB() {
+    const s = S.b, el = document.querySelector('[data-v=b]'), q = nextQ(s)
+    if (!q && !s.pending) {
+      const bad = Q.filter((x) => tone(x, s.answers[x.type]) !== 'good').length
+      const head = bad === 0 ? 'Todo en orden hoy.' : bad === 3 ? 'Día flojo: andá con calma.' : 'Hoy tenelo en cuenta.'
+      el.innerHTML = `<div class="rd-head"><span class="rd-title">Registro del día</span><button class="linkbtn" data-edit>editar</button></div>
+        <div class="done"><span class="mini">${Q.map((x) => { const a = s.answers[x.type]; return `<span class="material-icons-round t-${tone(x, a)}" title="${label(x, a)}">${opt(x, a.v)[3]}</span>` }).join('')}</span>
+        <span class="txt"><b>${head}</b> ${Q.map((x) => label(x, s.answers[x.type])).join(' · ')}</span></div>`
+      return
+    }
+    if (s.pending) {
+      el.innerHTML = `<div class="rd-head"><span class="rd-title">Registro del día</span>${stepsHtml(s)}</div>
+        <div class="q"><span class="material-icons-round">accessibility_new</span>¿Dónde la sentís?<button class="linkbtn" data-back style="margin-left:auto">volver</button></div>
+        <div class="areas">${areasBtns()}</div>`
+      return
+    }
+    const cur = s.answers[q.type]
+    el.innerHTML = `<div class="rd-head"><span class="rd-title">Registro del día</span>${stepsHtml(s)}</div>
+      <div class="q"><span class="material-icons-round">${q.icon}</span>${q.q}</div>
+      <div class="faces">${q.opts.map(([v, l, t, ic]) => `<button class="face t-${t} ${cur && cur.v === v ? 'sel' : ''}" data-q="${q.type}" data-ans="${v}"><span class="material-icons-round">${ic}</span>${l}</button>`).join('')}</div>`
+  }
+
+  function renderC() {
+    const s = S.c, el = document.querySelector('[data-v=c]')
+    const n = count(s)
+    const side = n === 3 ? '<span style="font-size:12.5px;color:var(--good);font-weight:500">Listo por hoy</span>' : `<span style="font-size:12.5px;color:var(--ink-2)">${n} de 3</span>`
+    const tiles = Q.map((x) => {
+      const a = s.answers[x.type]
+      const area = a && x.type === 'soreness' && a.area ? `<span class="sub">${AREAS.find((z) => z[0] === a.area)[1]}</span>` : ''
+      const val = a ? `<span class="v t-${tone(x, a)}">${SHORT[x.type][a.v]}</span>${area}` : '<span class="v empty">Registrar</span>'
+      return `<button class="tile ${a ? 'ans' : ''} ${s.open === x.type ? 'open' : ''}" data-open="${x.type}" aria-expanded="${s.open === x.type}"><span class="k"><span class="material-icons-round">${x.icon}</span>${x.short}</span>${val}</button>`
+    }).join('')
+    let picker = ''
+    if (s.open) {
+      const q = Q.find((x) => x.type === s.open), cur = s.answers[q.type]
+      picker = s.pending
+        ? `<div class="picker"><div class="pq">¿Dónde?</div><div class="opts">${areasBtns()}</div></div>`
+        : `<div class="picker"><div class="pq">${q.q}</div><div class="opts">${q.opts.map(([v, l]) => `<button data-q="${q.type}" data-ans="${v}" class="${cur && cur.v === v ? 'sel' : ''}">${l}</button>`).join('')}</div></div>`
+    }
+    el.innerHTML = `<div class="rd-head"><span class="rd-title">Registro del día</span>${side}</div><div class="tiles">${tiles}</div>${picker}`
+  }
+
+  function renderAll() { renderA(); renderB(); renderC() }
+
+  document.getElementById('stage').addEventListener('click', (e) => {
+    const sec = e.target.closest('[data-v]'); if (!sec) return
+    const k = sec.dataset.v, s = S[k], b = e.target.closest('button'); if (!b) return
+    if (b.dataset.ans) return answer(k, b.dataset.q, b.dataset.ans)
+    if (b.dataset.area) return answer(k, s.pending.type, s.pending.v, b.dataset.area)
+    if ('back' in b.dataset) { s.pending = null; return renderAll() }
+    if ('edit' in b.dataset) return edit(k)
+    if (b.dataset.open) { s.pending = null; s.open = s.open === b.dataset.open ? null : b.dataset.open; return renderAll() }
+  })
+  document.querySelectorAll('.ctl').forEach((ctl) => ctl.addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return
+    ctl.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b))
+    if (ctl.dataset.ctl === 'w') document.querySelectorAll('.phone').forEach((p) => p.style.setProperty('--w', b.dataset.v + 'px'))
+    else reset(b.dataset.v)
+  }))
+  reset('empty')
+</script>
+</body>
+</html>

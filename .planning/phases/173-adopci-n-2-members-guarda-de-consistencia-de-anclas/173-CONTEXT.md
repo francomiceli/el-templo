@@ -29,7 +29,7 @@ piloto).
 | Archivos que las contienen                                  | **52** — solo 2 del módulo (`members/routes.ts` 5, `members/service.ts` 14)                                                                                      |
 | Rutas `tenant-scoped` del prefijo del módulo                | **29** (`/api/admin/members` 23 + `/api/admin/users` 5 + `/api/admin/leads` 1)                                                                                   |
 | Sitios que reescriben la sede del socio (`branchUpdatedAt`) | **12** + 4 escrituras de `user_branches`                                                                                                                         |
-| Migraciones                                                 | **1 bloque desde 0198** (unique + FK compuesta) — el resto es 100% código                                                                                        |
+| Migraciones                                                 | **1 bloque desde 0200** (unique + FK compuesta) — el resto es 100% código                                                                                        |
 
 Fuera de esta fase: migrar el resto de analytics / scheduling / notificaciones /
 campañas / referidos / wellhub / entrenamiento (fases 174-175), la cadena de
@@ -168,9 +168,10 @@ alumno`, gemelo cherry-pickeado de `e1952606`— toca `members/routes.ts` y
   producción). El merge de la fase va **a staging**; el tren a master se arma
   cuando el milestone esté listo (decisión de Franco: todas las fases restantes
   se resuelven en staging y viajan juntas).
-- **D-18:** **Migraciones reservadas desde 0198.** Staging ya tiene
-  `0197_payment_method_direct_debit.sql` (domiciliación, todavía no en master);
-  prod llega a 0196. Verificación de 0 divergencias antes del ALTER (hoy
+- **D-18:** **Migraciones reservadas desde 0200** (renumerada 2026-08-07: la reserva
+  original era desde 0198, pero staging y master ya tienen
+  `0198_aura_source_tenure_milestone.sql` (aniversarios) y
+  `0199_membership_kind.sql`). Verificación de 0 divergencias antes del ALTER (hoy
   imposible que las haya: todo es gimnasio 1). Reglas del skill
   `el-templo-db-migrations`: numeración hand-written, nunca `drizzle-kit
 migrate`, sin `;` en comentarios SQL, el SQL se commitea junto al schema.
@@ -290,7 +291,7 @@ migrate`, sin `;` en comentarios SQL, el SQL se commitea junto al schema.
 - `.claude/skills/el-templo-change-control/SKILL.md` — staging-first, worktree
   propio, `git add` explícito por ruta, pedir OK antes de pushear.
 - `.claude/skills/el-templo-db-migrations/SKILL.md` — numeración hand-written
-  desde 0198, nunca `drizzle-kit migrate`, sin `;` en comentarios SQL.
+  desde 0200, nunca `drizzle-kit migrate`, sin `;` en comentarios SQL.
 - `.claude/skills/el-templo-failure-archaeology/SKILL.md` — antes de investigar
   algo que "parece roto".
 
@@ -358,7 +359,7 @@ migrate`, sin `;` en comentarios SQL, el SQL se commitea junto al schema.
 - `el-templo-api/src/modules/members/*` — firmas con `TenantContext`, helpers en
   todo acceso, `assertTenant` en los route handlers.
 - 50 archivos ajenos — solo su query sobre tablas del módulo.
-- `el-templo-api/src/db/migrations/0198_*.sql` — unique `(tenant_id, id)` en
+- `el-templo-api/src/db/migrations/0200_*.sql` — unique `(tenant_id, id)` en
   `branches` + FK compuesta en `users` (D-05/D-18).
 - `el-templo-api/test/tenancy/` — batería iso-03 de members + su gate de
   cobertura; desmarque del ancla en `iso-03-finance-coach-load.test.ts:1326`.

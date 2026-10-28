@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sketch 019 · Anatomía para profes (admin)</title>
+<!--
+  Figura del cuerpo: geometría de react-native-body-highlighter v3.2.0
+  (https://github.com/HichamELBSI/react-native-body-highlighter), MIT License,
+  Copyright (c) ELABBASSI Hicham. Misma fuente que el-templo-admin/src/tv/recorrido/anatomia.json
+  (acá: solo hombre frente/espalda, sacada del sketch 015).
+-->
+<link rel="stylesheet" href="base.css" />
+</head>
+<body>
+<div id="variant-nav">
+  <button class="variant-tab active" data-v="a">A: Complejo → ruta → ficha</button>
+  <button class="variant-tab" data-v="b">B: Por músculo ★ (ver ronda 2)</button>
+  <button class="variant-tab" data-v="c">C: Buscador + las dos entradas</button>
+</div>
+
+<div id="stage" data-vp="desktop">
+  <div class="shell">
+    <div class="hdr"><button class="burger" aria-label="Menú">☰</button><span>El Templo Admin</span></div>
+    <div class="body">
+      <nav class="drawer">
+        <h6>Entrenamiento</h6>
+        <a href="#"><i></i>Sesiones</a>
+        <a href="#"><i></i>Programador</a>
+        <a href="#"><i></i>Ejercicios</a>
+        <a href="#"><i></i>Árbol</a>
+        <a href="#" class="on"><i></i>Anatomía <span class="new">NUEVO</span></a>
+        <h6>Gestión</h6>
+        <a href="#"><i></i>Alumnos</a>
+        <a href="#"><i></i>Horarios</a>
+        <a href="#"><i></i>TV</a>
+        <a href="#"><i></i>Planis</a>
+        <h6>Planes</h6>
+        <a href="#"><i></i>Planes</a>
+      </nav>
+      <main class="main" id="main"></main>
+    </div>
+  </div>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="sheet" id="sheet"></aside>
+<div class="tip" id="tip"></div>
+
+<div id="sketch-tools">
+  <button data-vp="phone">390</button><button data-vp="tablet">820</button><button data-vp="desktop" class="on">1280</button>
+</div>
+
+<script src="anat.js"></script>
+<script src="data.js"></script>
+<script src="ficha.js"></script>
+<script>
+  // ---------- C ----------
+  // ---------- A ----------
+  function treeHTML() {
+    return COMPLEJOS.map((p) => {
+      const tot = p.cats.reduce((s, c) => s + c.rutas.reduce((a, [, n]) => a + n, 0), 0)
+      const open = p.cats.some((c) => c.rutas.some(([rc]) => rc === state.ruta))
+      return `<details ${open ? 'open' : ''}><summary>${p.nombre}<small class="muted">${tot}</small></summary>
+        ${p.cats.map((c) => `<p class="cat">${c.nombre}</p>${c.rutas.map(([rc, n]) => `<button class="rt ${rc === state.ruta ? 'on' : ''}" data-ruta="${rc}"><span class="${FICHAS[rc] ? 'done' : ''}">${RUTA_NOMBRE[rc]}</span><small>${n}</small></button>`).join('')}`).join('')}
+      </details>`
+    }).join('')
+  }
+  function renderA() {
+    const opts = COMPLEJOS.map((p) => `<optgroup label="${p.nombre}">${p.cats.flatMap((c) => c.rutas).map(([rc]) => `<option value="${rc}" ${rc === state.ruta ? 'selected' : ''}>${RUTA_NOMBRE[rc]} (${rc})</option>`).join('')}</optgroup>`).join('')
+    return `<div class="a-grid"><nav class="tree">${treeHTML()}<p class="muted" style="font-size:11.5px;padding:8px">● ficha completa en el sketch</p></nav>
+      <div><div class="a-mobile-pick"><select id="a-sel">${opts}</select></div>${ficha(state.ruta)}</div></div>`
+  }
+
+  function renderC() {
+    const c = state.c
+    const back = `<div class="crumb"><button data-c-home>Anatomía</button> › `
+    if (c.view === 'ruta') return `${back}${RUTA_NOMBRE[c.code]}</div>${ficha(c.code)}`
+    if (c.view === 'zona') return `${back}${ZONA_ES[c.zona]}</div><div class="b-grid"><div class="card">${figure({ [c.zona]: 'M' }, { tap: true, big: true, sel: c.zona })}</div><div class="card b-panel">${zonaPanel(c.zona)}</div></div>`
+    if (c.view === 'musc') return `${back}${MUSCULOS.find((m) => m.id === c.id).nombre}</div><div class="card" style="max-width:640px">${muscPanel(c.id)}</div>`
+    const lit = {}; Object.keys(ZONA_ES).forEach((z) => (lit[z] = 'Est'))
+    return `<div class="c-hero"><p class="kicker">Anatomía para profes</p><h1>¿Qué te preguntó el alumno?</h1>
+        <p class="muted" style="margin:0">Buscá una ruta, un músculo, un ejercicio o la pregunta tal cual.</p>
+        <div class="search"><span class="mag">⌕</span><input id="q" placeholder="Ej.: dorsal, pistol, straddle, me duele la ingle…" autocomplete="off" /><div class="results" id="res"></div></div></div>
+      <div class="c-cols">
+        <div class="card faq"><h2>Preguntas que más aparecen</h2>${PREGUNTAS.map((p) => `<button data-go='${JSON.stringify({ view: 'ruta', code: p.ruta, sec: p.sec })}'>${p.q}<small>${RUTA_NOMBRE[p.ruta]} › ${{ progresa: 'Por qué progresa', siente: 'Se siente / compensa', banderas: 'Cuándo derivar' }[p.sec]}</small></button>`).join('')}
+          <p class="muted" style="font-size:12px;margin:6px 0 0">Salen del relevamiento con los profes (guía de preguntas §5).</p></div>
+        <div class="card"><h2>Recorrer por músculo</h2>${figure(lit, { tap: true })}<p class="muted" style="font-size:12px;text-align:center;margin:6px 0 0">Tocá una zona</p></div>
+        <div class="card" style="grid-column:1/-1"><h2>Recorrer por complejo</h2><div class="c-tree">${COMPLEJOS.map((p) => `<div><b>${p.nombre}</b>${p.cats.flatMap((cc) => cc.rutas).map(([rc]) => `<button data-go='${JSON.stringify({ view: 'ruta', code: rc })}'>${RUTA_NOMBRE[rc]} <small class="muted">${rc}</small>${FICHAS[rc] ? ' <span style="color:var(--terra);font-size:9px">●</span>' : ''}</button>`).join('')}</div>`).join('')}</div></div>
+      </div>`
+  }
+  function runSearch(q) {
+    const res = document.getElementById('res')
+    if (!q.trim()) { res.classList.remove('open'); return }
+    const n = norm(q)
+    const hits = IDX.filter((i) => norm(i.keys).includes(n))
+    const groups = {}
+    hits.slice(0, 24).forEach((h) => (groups[h.t] = groups[h.t] || []).push(h))
+    res.innerHTML = Object.keys(groups).length ? Object.entries(groups).map(([t, hs]) => `<h6>${t}</h6>${hs.map((h) => `<button data-go='${JSON.stringify(h.go)}'>${h.label}<small>${h.sub}</small></button>`).join('')}`).join('') : `<p class="muted" style="padding:12px 14px;margin:0;font-size:14px">Nada con “${q}”. Probá con el nombre de la ruta o del músculo.</p>`
+    res.classList.add('open')
+  }
+
+  // ---------- render + eventos ----------
+  const main = document.getElementById('main')
+  const sheet = document.getElementById('sheet'), scrim = document.getElementById('scrim')
+  function render() {
+    main.innerHTML = state.v === 'a' ? renderA() : state.v === 'b' ? renderB() : renderC()
+    fitFigures(main)
+    if (state.v === 'c' && state.c.sec) setTimeout(() => goSec(state.c.sec), 30)
+  }
+  function goSec(id) {
+    const el = document.getElementById('sec-' + id)
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash')
+  }
+  function openSheet(code) {
+    sheet.innerHTML = `<button class="close" data-close>✕ Cerrar</button>${ficha(code)}`
+    sheet.classList.add('open'); scrim.classList.add('open'); sheet.scrollTop = 0
+    fitFigures(sheet)
+  }
+  function closeSheet() { sheet.classList.remove('open'); scrim.classList.remove('open') }
+
+  document.addEventListener('click', (e) => {
+    const t = e.target
+    const tab = t.closest('.variant-tab')
+    if (tab) { document.querySelectorAll('.variant-tab').forEach((b) => b.classList.toggle('active', b === tab)); state.v = tab.dataset.v; closeSheet(); render(); window.scrollTo(0, 0); return }
+    const vp = t.closest('#sketch-tools button')
+    if (vp) { document.getElementById('stage').dataset.vp = vp.dataset.vp; document.querySelectorAll('#sketch-tools button').forEach((b) => b.classList.toggle('on', b === vp)); setTimeout(() => { fitFigures() }, 250); return }
+    if (t.closest('[data-close]') || t === scrim) return closeSheet()
+    const rt = t.closest('[data-ruta]')
+    if (rt) { state.ruta = rt.dataset.ruta; render(); return }
+    const sec = t.closest('[data-sec]')
+    if (sec) return goSec(sec.dataset.sec)
+    const op = t.closest('[data-open]')
+    if (op) return openSheet(op.dataset.open)
+    const ms = t.closest('[data-musc]')
+    if (ms) { document.getElementById('b-panel').innerHTML = muscPanel(ms.dataset.musc); document.querySelectorAll('#main .mu.sel').forEach((g) => g.classList.remove('sel')); return }
+    const go = t.closest('[data-go]')
+    if (go) { state.c = JSON.parse(go.dataset.go); render(); window.scrollTo(0, 0); return }
+    if (t.closest('[data-c-home]')) { state.c = { view: 'home' }; render(); return }
+    const z = t.closest('.fig.tap .mu:not(.x)')
+    if (z) {
+      const zona = z.dataset.zona
+      if (state.v === 'b') { state.zona = zona; render() }
+      else if (state.v === 'c') { state.c = { view: 'zona', zona }; render(); window.scrollTo(0, 0) }
+    }
+  })
+  document.addEventListener('change', (e) => { if (e.target.id === 'a-sel') { state.ruta = e.target.value; render() } })
+  document.addEventListener('input', (e) => { if (e.target.id === 'q') runSearch(e.target.value) })
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet() })
+
+  // tooltip de zona
+  const tip = document.getElementById('tip')
+  document.addEventListener('mousemove', (e) => {
+    const g = e.target.closest && e.target.closest('.mu:not(.x)')
+    if (!g) { tip.style.display = 'none'; return }
+    tip.textContent = ZONA_ES[g.dataset.zona] || g.dataset.zona
+    tip.style.display = 'block'; tip.style.left = e.clientX + 12 + 'px'; tip.style.top = e.clientY + 12 + 'px'
+  })
+
+  // #b, #c o #a-PS para abrir directo una variante (útil para capturas)
+  const h = location.hash.slice(1).split('-')
+  if (['a', 'b', 'c'].includes(h[0])) { state.v = h[0]; document.querySelectorAll('.variant-tab').forEach((b) => b.classList.toggle('active', b.dataset.v === h[0])) }
+  if (h[1]) { if (state.v === 'c') state.c = { view: 'ruta', code: h[1] }; else state.ruta = h[1] }
+  render()
+</script>
+</body>
+</html>

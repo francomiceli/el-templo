@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sketch 007 — Tu semana</title>
+<link rel="stylesheet" href="../themes/default.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Geologica:wght@300;400;500;600&family=Montserrat:wght@600;700;800&family=Cinzel:wght@600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+<style>
+  :root {
+    --page: #f2ede5;
+    --card: #ffffff;
+    --ink: #2c2318;      /* 15.6:1 sobre blanco */
+    --ink-2: #6b6459;    /* 5.8:1 sobre blanco */
+    --terra: #96593a;    /* 5.6:1 sobre blanco, blanco sobre terra 5.6:1 */
+    --terra-2: #7e4529;
+    --line: #e5dbcd;
+    --empty: #f3ede4;    /* relleno de día sin entrenar */
+    --empty-bd: #b9ab97; /* borde de día sin entrenar: 2.3:1 — decorativo, el estado lo dice el relleno */
+    --plaque: #f7f1e8;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #e9e3da; font-family: 'Geologica', system-ui, sans-serif; color: var(--ink); }
+
+  /* ── Controles del sketch ── */
+  #controls { position: sticky; top: 0; z-index: 50; background: #fff; border-bottom: 1px solid #ddd; padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; font: 13px system-ui; }
+  .ctl { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+  .ctl > span { color: #555; margin-right: 4px; font-weight: 600; }
+  .ctl button { border: 1px solid #ccc; background: #fafafa; border-radius: 6px; padding: 5px 9px; cursor: pointer; font: inherit; transition: all .15s; }
+  .ctl button:hover { background: #f0ebe4; }
+  .ctl button.on { background: #2c2318; color: #fff; border-color: #2c2318; }
+  #stage { display: flex; gap: 32px; justify-content: center; align-items: flex-start; padding: 24px 16px 80px; flex-wrap: wrap; }
+  .col { display: flex; flex-direction: column; align-items: center; }
+  .col-label { font: 600 13px system-ui; color: #2c2318; text-align: center; margin-bottom: 4px; }
+  .col-sub { font: 12px system-ui; color: #666; text-align: center; max-width: 360px; margin-bottom: 10px; line-height: 1.4; }
+
+  /* ── Teléfono: solo el tramo de Mi Templo donde vive el bloque ── */
+  .phone { width: var(--w, 390px); position: relative; overflow: hidden; border-radius: 28px; box-shadow: 0 0 0 10px #1d1a17, 0 20px 50px rgba(0,0,0,.25); background: var(--page); transition: width .2s; }
+  .content { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .stub { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 12px 16px; opacity: .55; }
+  .stub b { font: 800 13px 'Montserrat', sans-serif; letter-spacing: .08em; color: var(--terra); }
+  .stub .row { display: flex; gap: 8px; margin-top: 10px; }
+  .stub .row i { flex: 1; height: 44px; border-radius: 10px; background: #efe7db; }
+  .stub.short .row i { height: 26px; }
+
+  /* Base común: misma card que Novedades (borde + sombra cálida) y mismo título de bloque */
+  .ws { background: var(--card); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 6px 18px rgba(150,89,58,.08); overflow: hidden; }
+  .ws-title { margin: 0; font: 800 13px 'Montserrat', sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--terra); }
+  .ws-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .ws-head .side { font-size: 13px; color: var(--ink-2); white-space: nowrap; }
+  .ws-head .side strong { color: var(--ink); font-weight: 600; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* ════════ A — Tablero: días a todo el ancho + total al pie ════════ */
+  .va { padding: 14px 16px 0; }
+  .va .days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin: 14px 0 14px; }
+  .va .day { display: flex; flex-direction: column; align-items: center; gap: 6px; font: 600 11px 'Montserrat', sans-serif; color: var(--ink-2); }
+  .va .day .c { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--empty); border: 1.5px solid var(--line); transition: all .2s; }
+  .va .day .c .material-icons { font-size: 18px; color: #fff; opacity: 0; transition: opacity .2s; }
+  .va .day.on .c { background: var(--terra); border-color: var(--terra); }
+  .va .day.on .c .material-icons { opacity: 1; }
+  .va .day.today { color: var(--ink); }
+  .va .day.today .c { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--ink); }
+  .va .day.future .c { background: #fff; border-style: dashed; }
+  .va .foot { display: flex; align-items: center; gap: 12px; margin: 0 -16px; padding: 12px 16px; border-top: 1px solid var(--line); background: var(--plaque); }
+  .va .foot .big { font: 700 26px/1 'Montserrat', sans-serif; color: var(--terra); }
+  .va .foot .cap { font-size: 13px; line-height: 1.3; color: var(--ink-2); }
+
+  /* ════════ B — Dos cifras: semana | total, y la semana como barra segmentada ════════ */
+  .vb { padding: 14px 16px 16px; }
+  .vb .stats { display: grid; grid-template-columns: 1fr auto 1fr; align-items: stretch; margin: 12px 0 16px; }
+  .vb .stat { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .vb .stat .big { font: 700 34px/1 'Montserrat', sans-serif; color: var(--ink); }
+  .vb .stat.total .big { color: var(--terra); }
+  .vb .stat .cap { font-size: 13px; line-height: 1.3; color: var(--ink-2); }
+  .vb .sep { width: 1px; background: var(--line); margin: 2px 16px; }
+  .vb .bar { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+  .vb .seg { display: flex; flex-direction: column; align-items: center; gap: 6px; font: 600 11px 'Montserrat', sans-serif; color: var(--ink-2); }
+  .vb .seg i { display: block; width: 100%; height: 10px; border-radius: 999px; background: var(--empty); border: 1px solid var(--line); transition: all .2s; }
+  .vb .seg.on i { background: var(--terra); border-color: var(--terra); }
+  .vb .seg.today { color: var(--ink); }
+  .vb .seg.today i { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+  /* ════════ C — Columnata: cada día es una columna del templo + placa con el total ════════ */
+  .vc { padding: 14px 16px 0; }
+  .vc .temple { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin: 14px 0 12px; align-items: end; }
+  .vc .pillar { display: flex; flex-direction: column; align-items: center; font: 600 11px 'Montserrat', sans-serif; color: var(--ink-2); }
+  .vc .pillar .capital { width: 100%; max-width: 40px; height: 6px; border-radius: 2px 2px 1px 1px; background: var(--empty-bd); transition: background .2s; }
+  .vc .pillar .shaft { width: 66%; max-width: 26px; height: 46px; margin: 1px 0;
+    background: repeating-linear-gradient(90deg, var(--empty) 0 4px, #e8dfd2 4px 5px); border-left: 1px solid #e3d9cb; border-right: 1px solid #e3d9cb; transition: all .25s; }
+  .vc .pillar .base { width: 100%; max-width: 40px; height: 6px; border-radius: 1px 1px 2px 2px; background: var(--empty-bd); margin-bottom: 7px; transition: background .2s; }
+  .vc .pillar.on .capital, .vc .pillar.on .base { background: var(--terra-2); }
+  .vc .pillar.on .shaft { background: repeating-linear-gradient(90deg, #a5633f 0 4px, #8a4f31 4px 5px); border-color: #8a4f31; }
+  .vc .pillar.today { color: var(--ink); }
+  .vc .pillar.today .d { padding: 1px 6px; border-radius: 999px; background: var(--ink); color: #fff; }
+  .vc .plaque { display: flex; align-items: center; gap: 12px; margin: 0 -16px; padding: 12px 16px 14px; background: linear-gradient(180deg, #f7f1e8, #f1e8db); border-top: 1px solid var(--line); }
+  .vc .plaque .big { font: 700 28px/1 'Cinzel', serif; color: var(--terra); letter-spacing: .02em; }
+  .vc .plaque .cap { font-size: 13px; line-height: 1.3; color: var(--ink-2); }
+  .vc .stylobate { height: 3px; margin: 0 -2px 0; border-radius: 2px; background: #e3d9cb; }
+
+  .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; background: var(--terra); color: #fff; font: 700 13px 'Montserrat', sans-serif; }
+</style>
+</head>
+<body>
+
+<div id="controls">
+  <div class="ctl" data-ctl="w"><span>Ancho</span>
+    <button data-v="360">360</button><button data-v="390" class="on">390</button><button data-v="412">412</button>
+  </div>
+  <div class="ctl" data-ctl="week"><span>Semana</span>
+    <button data-v="lunes">Lunes, 0 sesiones</button>
+    <button data-v="mitad" class="on">Jueves, 3 sesiones</button>
+    <button data-v="llena">Domingo, 6 sesiones</button>
+  </div>
+  <div class="ctl" data-ctl="total"><span>Total</span>
+    <button data-v="1">1</button><button data-v="42" class="on">42</button><button data-v="1284">1.284</button>
+  </div>
+</div>
+
+<div id="stage">
+  <div class="col">
+    <div class="col-label">A · Tablero</div>
+    <div class="col-sub">Los 7 días ocupan todo el ancho, con tilde en los entrenados. Arriba a la derecha va la semana en texto. Abajo, una franja crema con el total.</div>
+    <div class="phone"><div class="content">
+      <div class="stub"><b>PATROCINADORES</b><div class="row"><i></i><i></i><i></i></div></div>
+      <section class="ws va" aria-label="Tu semana">
+        <div class="ws-head"><h3 class="ws-title">Tu semana</h3><span class="side"><strong class="num" data-k="week"></strong> <span data-k="weekNoun"></span></span></div>
+        <div class="days" data-days></div>
+        <div class="foot"><span class="big num" data-k="total"></span><span class="cap" data-k="totalCap"></span></div>
+      </section>
+      <div class="stub short"><div class="row"><i></i><i></i></div></div>
+    </div></div>
+  </div>
+
+  <div class="col">
+    <div class="col-label">B · Dos cifras</div>
+    <div class="col-sub">Las dos cifras con el mismo peso, separadas por un filete, y el total en terracota. La semana se muestra como una barra de 7 segmentos.</div>
+    <div class="phone"><div class="content">
+      <div class="stub"><b>PATROCINADORES</b><div class="row"><i></i><i></i><i></i></div></div>
+      <section class="ws vb" aria-label="Tu semana">
+        <h3 class="ws-title">Tu semana</h3>
+        <div class="stats">
+          <div class="stat"><span class="big num" data-k="week"></span><span class="cap"><span data-k="weekNoun"></span><br>esta semana</span></div>
+          <div class="sep"></div>
+          <div class="stat total"><span class="big num" data-k="total"></span><span class="cap" data-k="totalCap2"></span></div>
+        </div>
+        <div class="bar" data-bar></div>
+      </section>
+      <div class="stub short"><div class="row"><i></i><i></i></div></div>
+    </div></div>
+  </div>
+
+  <div class="col">
+    <div class="col-label">C · Columnata</div>
+    <div class="col-sub">Cada día es una columna del templo, que se llena de terracota cuando entrenás. El total va en una placa con el número en Cinzel, como la frase del día.</div>
+    <div class="phone"><div class="content">
+      <div class="stub"><b>PATROCINADORES</b><div class="row"><i></i><i></i><i></i></div></div>
+      <section class="ws vc" aria-label="Tu semana">
+        <div class="ws-head"><h3 class="ws-title">Tu semana</h3><span class="side"><strong class="num" data-k="week"></strong> <span data-k="weekNoun"></span></span></div>
+        <div class="temple" data-temple></div>
+        <div class="plaque"><span class="big num" data-k="total"></span><span class="cap" data-k="totalCap"></span></div>
+      </section>
+      <div class="stub short"><div class="row"><i></i><i></i></div></div>
+    </div></div>
+  </div>
+</div>
+
+<script>
+  const LETTERS = ['L', 'M', 'M', 'J', 'V', 'S', 'D']
+  const NAMES = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo']
+  const WEEKS = {
+    lunes: { today: 0, trained: [] },
+    mitad: { today: 3, trained: [0, 2, 3] },
+    llena: { today: 6, trained: [0, 1, 2, 3, 4, 5] },
+  }
+  const state = { w: '390', week: 'mitad', total: '42' }
+
+  function render() {
+    const wk = WEEKS[state.week]
+    const n = wk.trained.length
+    const total = Number(state.total)
+    const totalTxt = total.toLocaleString('es-AR')
+    const totalNoun = total === 1 ? 'sesión total' : 'sesiones totales'
+    const fill = {
+      week: String(n),
+      weekNoun: n === 1 ? 'sesión esta semana' : 'sesiones esta semana',
+      total: totalTxt,
+      totalCap: `${totalNoun} en El Templo`,
+      totalCap2: `${totalNoun}<br>en El Templo`,
+    }
+    document.querySelectorAll('.phone').forEach((p) => p.style.setProperty('--w', state.w + 'px'))
+    document.querySelectorAll('[data-k]').forEach((el) => {
+      const k = el.dataset.k
+      // En B la cifra de la semana va sola y la etiqueta en dos líneas
+      if (k === 'weekNoun' && el.closest('.vb')) el.textContent = n === 1 ? 'sesión' : 'sesiones'
+      else el.innerHTML = fill[k]
+    })
+    const cls = (i) => [wk.trained.includes(i) ? 'on' : '', i === wk.today ? 'today' : '', i > wk.today ? 'future' : ''].join(' ')
+    const label = (i) => `${NAMES[i]}: ${wk.trained.includes(i) ? 'entrenaste' : i > wk.today ? 'todavía no' : 'sin sesión'}${i === wk.today ? ' (hoy)' : ''}`
+    document.querySelectorAll('[data-days]').forEach((box) => {
+      box.innerHTML = LETTERS.map((l, i) => `<div class="day ${cls(i)}" aria-label="${label(i)}"><span>${l}</span><span class="c"><span class="material-icons">check</span></span></div>`).join('')
+    })
+    document.querySelectorAll('[data-bar]').forEach((box) => {
+      box.innerHTML = LETTERS.map((l, i) => `<div class="seg ${cls(i)}" aria-label="${label(i)}"><i></i><span>${l}</span></div>`).join('')
+    })
+    document.querySelectorAll('[data-temple]').forEach((box) => {
+      box.innerHTML = LETTERS.map((l, i) => `<div class="pillar ${cls(i)}" aria-label="${label(i)}"><span class="capital"></span><span class="shaft"></span><span class="base"></span><span class="d">${l}</span></div>`).join('')
+    })
+  }
+
+  document.querySelectorAll('.ctl').forEach((ctl) => {
+    ctl.addEventListener('click', (e) => {
+      const b = e.target.closest('button')
+      if (!b) return
+      ctl.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b))
+      state[ctl.dataset.ctl] = b.dataset.v
+      render()
+    })
+  })
+  render()
+</script>
+</body>
+</html>

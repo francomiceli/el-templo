@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Sketch 003 — Cápsulas de técnica (pre-clase)</title>
+<link rel="stylesheet" href="../themes/tv-oscuro.css">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { background: #d8cfc0; font-family: var(--font-body); overflow: hidden; }
+
+  /* Paleta clara de la pre-clase (alba): mármol crema + tinta charcoal +
+     terracotta/ámbar de la app. El cierre queda con la nocturna del sketch 002. */
+  :root {
+    --alba-tinta: #3d3732;
+    --alba-terracotta: #96593a;
+    --alba-oro: #b08d6e;
+    --alba-ambar-oscuro: #7d6520;
+    --alba-apagado: #8a7d6b;
+    --alba-borde: #c5b9a8;
+  }
+
+  #variant-nav {
+    position: fixed; top: 0; left: 0; right: 0; height: 52px; z-index: 9998;
+    background: #141210; border-bottom: 1px solid #3a352f;
+    display: flex; align-items: center; padding: 0 14px;
+    font-family: system-ui, sans-serif; font-size: 13px; color: #cfc7bb;
+  }
+  #variant-nav .sep { width: 1px; height: 24px; background: #3a352f; margin: 0 14px; }
+  #variant-nav button {
+    background: none; border: 1px solid transparent; color: #a89a87;
+    padding: 6px 12px; margin-right: 4px; border-radius: 6px; cursor: pointer;
+    font-size: 13px; transition: all .15s ease;
+  }
+  #variant-nav button:hover { color: #f2ede5; border-color: #4a443c; }
+  #variant-nav button.active { color: #f2ede5; background: #2b2722; border-color: #6b5d4a; }
+  #variant-nav .hint { margin-left: auto; font-size: 11px; color: #6b6459; }
+
+  .variant { display: none; }
+  .variant.active { display: block; }
+  .stage {
+    position: fixed; top: 52px; left: 0; right: 0; bottom: 0;
+    overflow: hidden; color: var(--alba-tinta);
+    background: #f2ebe1 url('../../../el-templo-admin/public/tv/marble.jpg') center/cover;
+  }
+  /* Lavado cálido para unificar el mármol (más claro que la clase, sin oscurecer). */
+  .stage .lavado {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background: linear-gradient(115deg, rgba(242, 235, 225, .55) 0%, rgba(233, 224, 210, .3) 100%);
+  }
+
+  .marco { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; }
+  .zonaCapsula {
+    flex: 1.45; min-width: 0; display: flex; flex-direction: column;
+    justify-content: center; padding: 0 4vw 0 6vw;
+  }
+  .zonaLateral {
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; padding: 2vw; position: relative;
+  }
+
+  /* ── Cápsula (compartida por las 3 variantes) ── */
+  .kicker {
+    font-size: 1vw; font-weight: 700; letter-spacing: .34em;
+    color: var(--alba-oro); margin-bottom: 1.4vw;
+  }
+  .ejercicio {
+    font-family: var(--font-display); font-weight: 700; font-size: 3vw;
+    line-height: 1.2; color: var(--alba-tinta); letter-spacing: .04em;
+    margin-bottom: 1.6vw;
+  }
+  .cue {
+    font-family: var(--font-body); font-weight: 700; font-size: 2vw;
+    line-height: 1.55; color: var(--alba-tinta); max-width: 92%;
+  }
+  .cue .acento { color: var(--alba-terracotta); }
+  .musculos { margin-top: 2.2vw; display: flex; align-items: center; flex-wrap: wrap; }
+  .musculos .etq {
+    font-size: .85vw; font-weight: 700; letter-spacing: .22em;
+    color: var(--alba-apagado); margin-right: 1vw;
+  }
+  .musculos .chip {
+    font-size: .95vw; font-weight: 700; letter-spacing: .12em;
+    color: var(--alba-tinta); border: 1px solid var(--alba-borde);
+    background: rgba(176, 141, 110, .1); border-radius: 999px;
+    padding: .4vw 1vw; margin-right: .7vw;
+  }
+
+  /* Efecto SUTIL: palabra a palabra, fade + subida corta, sin glow.
+     (Los cues no son poéticos: menos teatro, más rapidez de lectura.) */
+  .w { opacity: 0; display: inline-block; transform: translateY(.28em); transition: opacity .38s ease, transform .42s ease; }
+  .w.in { opacity: 1; transform: none; }
+  .ejercicio.entra, .kicker.entra { opacity: 0; transform: translateY(.3em); }
+  .ejercicio.vino, .kicker.vino { opacity: 1; transform: none; transition: opacity .55s ease, transform .55s ease; }
+  .musculos { opacity: 0; transition: opacity .6s ease; }
+  .musculos.vino { opacity: 1; }
+  .capsula-out .kicker, .capsula-out .ejercicio, .capsula-out .cue, .capsula-out .musculos {
+    opacity: 0 !important; transition: opacity .5s ease !important;
+  }
+
+  /* Reloj / fecha de pre-clase (tinta charcoal sobre claro) */
+  .reloj {
+    font-family: var(--font-display); font-weight: 700; color: var(--alba-tinta);
+    font-size: 4.6vw; line-height: 1; letter-spacing: .04em;
+    text-shadow: 0.05em 0.035em 0 rgba(219, 202, 180, 0.85);
+  }
+  .reloj .seg { color: var(--alba-oro); font-size: .55em; }
+  .fecha {
+    font-weight: 700; letter-spacing: .3em; font-size: .95vw;
+    color: var(--alba-apagado); margin-top: 1vw;
+  }
+
+  /* ── B: viñeta estatuaria — recorte con marco de arco de medio punto ── */
+  .vineta {
+    width: 17vw; height: 24vw; overflow: hidden; position: relative;
+    border-radius: 50% 50% 0 0 / 34% 34% 0 0;
+    border: 3px solid var(--alba-oro);
+    box-shadow: 0 1.2vw 3vw rgba(61, 55, 50, .28);
+    margin-bottom: 2vw;
+  }
+  .vineta img {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    object-fit: cover; opacity: 0; transform: scale(1.05);
+    transition: opacity 1s ease, transform 5s ease;
+  }
+  .vineta img.on { opacity: 1; transform: scale(1); }
+  .stage-b .reloj { font-size: 3vw; }
+
+  /* ── D: B refinada — MISMO fondo que el cierre (bars-open) con velo crema
+     bien claro; identidad como en el cierre (partenón dorado + hora + día);
+     textos +20% (pedido 2026-08-25). ── */
+  .stage-d { background: #f2ebe1 url('../../../.docs/bars-open.webp') center/cover; }
+  .stage-d .veloClaro {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background: linear-gradient(100deg,
+      rgba(242, 236, 226, .9) 0%,
+      rgba(242, 236, 226, .82) 42%,
+      rgba(240, 232, 220, .66) 68%,
+      rgba(238, 229, 214, .55) 100%);
+  }
+  /* Halo crema bajo reloj/fecha: la identidad cae sobre la zona más
+     transparente del velo (el león) y necesita apoyo local. */
+  .stage-d .reloj, .stage-d .fecha {
+    text-shadow: 0 0 .9vw rgba(242, 236, 226, .95), 0 0 2.2vw rgba(242, 236, 226, .8);
+  }
+  .stage-d .fecha { color: #6f6455; }
+  .stage-d .kicker { font-size: 1.2vw; }
+  .stage-d .ejercicio { font-size: 3.6vw; }
+  .stage-d .cue { font-size: 2.4vw; }
+  .stage-d .musculos .etq { font-size: 1vw; flex-basis: 100%; margin-bottom: 1.7vw; }
+  .stage-d .musculos .chip { font-size: 1.15vw; padding: .45vw 1.1vw; }
+  /* Escritura del cue: mismo mecanismo por letra que el cierre, en clave
+     diurna — la letra aparece cálida (ámbar) y se enfría a la tinta. */
+  .stage-d .cue .palabra { white-space: nowrap; }
+  .stage-d .cue .letra { opacity: 0; }
+  .stage-d .cue .letra.prendida { animation: escribeClaro .9s ease forwards; }
+  .stage-d .cue .palabra.acento .letra.prendida { animation-name: escribeAcento; }
+  @keyframes escribeClaro {
+    0% { opacity: 0; color: #c9a26b; text-shadow: 0 0 .3em rgba(212, 168, 67, 0); }
+    20% { opacity: 1; color: #a97c4a; text-shadow: 0 0 .26em rgba(212, 168, 67, .7); }
+    100% { opacity: 1; color: var(--alba-tinta); text-shadow: none; }
+  }
+  @keyframes escribeAcento {
+    0% { opacity: 0; color: #d8a15e; text-shadow: 0 0 .3em rgba(212, 168, 67, 0); }
+    20% { opacity: 1; color: #c07a3f; text-shadow: 0 0 .3em rgba(212, 168, 67, .8); }
+    100% { opacity: 1; color: var(--alba-terracotta); text-shadow: none; }
+  }
+  .stage-d .ejercicio .palabra { white-space: nowrap; }
+  .stage-d .ejercicio .letra { opacity: 0; }
+  .stage-d .ejercicio .letra.prendida { animation: escribeClaro .9s ease forwards; }
+  .stage-d .cue { opacity: 0; transform: translateY(.3em); }
+  .stage-d .cue.vino { opacity: 1; transform: none; transition: opacity .6s ease, transform .6s ease; }
+  .stage-d .musculos .chip { opacity: 0; transform: translateY(1.5em); }
+  .stage-d .musculos .chip.sube { opacity: 1; transform: none; transition: opacity .5s ease, transform .55s cubic-bezier(.2, .7, .25, 1); }
+  .stage-d .logoOriginal { width: 10vw; opacity: .85; margin-bottom: 6.5vw; filter: brightness(0); }
+  .stage-d .reloj { font-size: 6.6vw; }
+  .stage-d .fecha { font-size: 1.5vw; margin-top: 1.7vw; }
+
+  /* ── C: muñecos anatómicos — siluetas con músculos que se encienden ── */
+  .cuerpos { display: flex; align-items: flex-end; margin-bottom: 2vw; }
+  .cuerpos svg { height: 26vw; margin: 0 .8vw; overflow: visible; }
+  .cuerpos .silueta { fill: #e6ddcf; stroke: var(--alba-tinta); stroke-width: 2.4; }
+  .cuerpos .zona { fill: var(--alba-terracotta); opacity: 0; transition: opacity .8s ease; }
+  .cuerpos .zona.on { opacity: .78; animation: latido 2.6s ease-in-out .8s infinite; }
+  @keyframes latido { 0%, 100% { opacity: .78; } 50% { opacity: .5; } }
+  .stage-c .reloj { font-size: 3vw; }
+</style>
+</head>
+<body>
+
+<div id="variant-nav">
+  <div id="tabs" style="display:flex;">
+    <button data-v="a" class="active">A · Cápsula limpia</button>
+    <button data-v="b">B · Viñeta estatuaria</button>
+    <button data-v="c">C · Muñecos anatómicos</button>
+    <button data-v="d">D · B refinada (foto + velo claro) ★</button>
+  </div>
+  <div class="sep"></div>
+  <button id="btn-next">⟳ Cambiar cápsula</button>
+  <div class="hint">pre-clase clara · rotación mockup: 10 s</div>
+</div>
+
+<!-- A: cápsula sola, chips de músculos como único acompañamiento -->
+<div id="variant-a" class="variant active">
+  <div class="stage stage-a">
+    <div class="lavado"></div>
+    <div class="marco">
+      <div class="zonaCapsula" id="cap-a"></div>
+      <div class="zonaLateral">
+        <div class="reloj"><span class="hm">--:--</span></div>
+        <div class="fecha"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- B: viñeta estatuaria de la familia del ejercicio -->
+<div id="variant-b" class="variant">
+  <div class="stage stage-b">
+    <div class="lavado"></div>
+    <div class="marco">
+      <div class="zonaCapsula" id="cap-b"></div>
+      <div class="zonaLateral">
+        <div class="vineta"><img id="vineta-img" src="" alt=""></div>
+        <div class="reloj"><span class="hm">--:--</span></div>
+        <div class="fecha"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- D: cápsula de B + fondo del cierre con velo claro + identidad del cierre -->
+<div id="variant-d" class="variant">
+  <div class="stage stage-d">
+    <div class="veloClaro"></div>
+    <div class="marco">
+      <div class="zonaCapsula" id="cap-d"></div>
+      <div class="zonaLateral">
+        <img class="logoOriginal" src="../../../el-templo-app/icons/icon-512.webp" alt="El Templo">
+        <div class="reloj"><span class="hm">--:--</span></div>
+        <div class="fecha"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- C: muñecos con músculos activados -->
+<div id="variant-c" class="variant">
+  <div class="stage stage-c">
+    <div class="lavado"></div>
+    <div class="marco">
+      <div class="zonaCapsula" id="cap-c"></div>
+      <div class="zonaLateral">
+        <div class="cuerpos" id="cuerpos">
+          <!-- masculino: hombros más anchos -->
+          <svg viewBox="0 0 200 400">
+            <path class="silueta" d="M100 18 a20 22 0 1 0 0.1 0 Z"/>
+            <path class="silueta" d="M100 62 C 70 62 52 74 46 92 L 40 150 C 38 168 44 176 52 176 L 60 174 L 66 128 L 70 180 C 70 196 74 210 78 222 L 74 300 L 70 372 C 70 382 78 386 86 386 L 92 386 C 98 386 100 380 100 372 L 100 240 L 100 372 C 100 380 102 386 108 386 L 114 386 C 122 386 130 382 130 372 L 126 300 L 122 222 C 126 210 130 196 130 180 L 134 128 L 140 174 L 148 176 C 156 176 162 168 160 150 L 154 92 C 148 74 130 62 100 62 Z"/>
+            <ellipse class="zona" data-m="hombros" cx="62" cy="80" rx="13" ry="10"/>
+            <ellipse class="zona" data-m="hombros" cx="138" cy="80" rx="13" ry="10"/>
+            <ellipse class="zona" data-m="pecho" cx="84" cy="102" rx="15" ry="12"/>
+            <ellipse class="zona" data-m="pecho" cx="116" cy="102" rx="15" ry="12"/>
+            <ellipse class="zona" data-m="biceps" cx="52" cy="118" rx="8" ry="16"/>
+            <ellipse class="zona" data-m="biceps" cx="148" cy="118" rx="8" ry="16"/>
+            <ellipse class="zona" data-m="dorsal" cx="72" cy="136" rx="9" ry="20"/>
+            <ellipse class="zona" data-m="dorsal" cx="128" cy="136" rx="9" ry="20"/>
+            <ellipse class="zona" data-m="core" cx="100" cy="164" rx="16" ry="24"/>
+            <ellipse class="zona" data-m="triceps" cx="50" cy="126" rx="7" ry="14"/>
+            <ellipse class="zona" data-m="triceps" cx="150" cy="126" rx="7" ry="14"/>
+            <ellipse class="zona" data-m="gluteos" cx="88" cy="212" rx="11" ry="12"/>
+            <ellipse class="zona" data-m="gluteos" cx="112" cy="212" rx="11" ry="12"/>
+            <ellipse class="zona" data-m="cuadriceps" cx="84" cy="262" rx="10" ry="26"/>
+            <ellipse class="zona" data-m="cuadriceps" cx="116" cy="262" rx="10" ry="26"/>
+          </svg>
+          <!-- femenino: hombros más angostos, cadera más marcada -->
+          <svg viewBox="0 0 200 400">
+            <path class="silueta" d="M100 22 a18 20 0 1 0 0.1 0 Z"/>
+            <path class="silueta" d="M100 62 C 76 62 60 72 56 90 L 48 148 C 46 164 52 172 60 172 L 66 170 L 72 126 L 74 168 C 70 186 68 200 76 216 C 66 232 64 252 70 268 L 72 300 L 70 372 C 70 382 78 386 86 386 L 92 386 C 98 386 100 380 100 372 L 100 244 L 100 372 C 100 380 102 386 108 386 L 114 386 C 122 386 130 382 130 372 L 128 300 L 130 268 C 136 252 134 232 124 216 C 132 200 130 186 126 168 L 128 126 L 134 170 L 140 172 C 148 172 154 164 152 148 L 144 90 C 140 72 124 62 100 62 Z"/>
+            <ellipse class="zona" data-m="hombros" cx="66" cy="78" rx="11" ry="9"/>
+            <ellipse class="zona" data-m="hombros" cx="134" cy="78" rx="11" ry="9"/>
+            <ellipse class="zona" data-m="pecho" cx="86" cy="100" rx="13" ry="10"/>
+            <ellipse class="zona" data-m="pecho" cx="114" cy="100" rx="13" ry="10"/>
+            <ellipse class="zona" data-m="biceps" cx="58" cy="114" rx="7" ry="14"/>
+            <ellipse class="zona" data-m="biceps" cx="142" cy="114" rx="7" ry="14"/>
+            <ellipse class="zona" data-m="dorsal" cx="76" cy="132" rx="8" ry="18"/>
+            <ellipse class="zona" data-m="dorsal" cx="124" cy="132" rx="8" ry="18"/>
+            <ellipse class="zona" data-m="core" cx="100" cy="162" rx="14" ry="22"/>
+            <ellipse class="zona" data-m="triceps" cx="56" cy="122" rx="6" ry="12"/>
+            <ellipse class="zona" data-m="triceps" cx="144" cy="122" rx="6" ry="12"/>
+            <ellipse class="zona" data-m="gluteos" cx="86" cy="214" rx="12" ry="13"/>
+            <ellipse class="zona" data-m="gluteos" cx="114" cy="214" rx="12" ry="13"/>
+            <ellipse class="zona" data-m="cuadriceps" cx="84" cy="262" rx="10" ry="26"/>
+            <ellipse class="zona" data-m="cuadriceps" cx="116" cy="262" rx="10" ry="26"/>
+          </svg>
+        </div>
+        <div class="reloj"><span class="hm">--:--</span></div>
+        <div class="fecha"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* Cápsulas de ejemplo. `acento` marca el golpe del cue (terracotta).
+   musculos alimenta chips (A/B) y zonas de los muñecos (C).
+   img alimenta la viñeta (B): recortes de la MISMA foto del templo. */
+var CAPSULAS = [
+  {
+    ejercicio: 'DOMINADAS AL PECHO',
+    cue: [
+      { t: 'El pecho busca la barra: ' },
+      { t: 'el codo termina atrás, no abajo.', acento: true }
+    ],
+    musculos: ['DORSAL ANCHO', 'BÍCEPS', 'TRAPECIO'],
+    zonas: ['dorsal', 'biceps'],
+    img: 'crop-dominadas.webp'
+  },
+  {
+    ejercicio: 'FONDOS EN PARALELAS',
+    cue: [
+      { t: 'Hombros lejos de las orejas: ' },
+      { t: 'bajá a 90° con el pecho apenas adelante.', acento: true }
+    ],
+    musculos: ['PECTORAL', 'TRÍCEPS', 'DELTOIDE ANTERIOR'],
+    zonas: ['pecho', 'triceps', 'hombros'],
+    img: 'crop-fondos.webp'
+  },
+  {
+    ejercicio: 'REMO INVERTIDO',
+    cue: [
+      { t: 'Tirá con la espalda, no con los brazos: ' },
+      { t: 'juntá los omóplatos antes de flexionar.', acento: true }
+    ],
+    musculos: ['DORSAL', 'ROMBOIDES', 'BÍCEPS'],
+    zonas: ['dorsal', 'biceps'],
+    img: 'crop-tiron.webp'
+  },
+  {
+    ejercicio: 'PLANCHA ABDOMINAL',
+    cue: [
+      { t: 'Glúteos y abdomen apretados: ' },
+      { t: 'la cadera ni sube ni cae.', acento: true }
+    ],
+    musculos: ['CORE', 'GLÚTEOS', 'HOMBROS'],
+    zonas: ['core', 'gluteos', 'hombros'],
+    img: 'crop-fondos.webp'
+  }
+];
+
+var state = { variant: 'a', ci: 0 };
+var pend = [];
+function later(fn, ms) { pend.push(setTimeout(fn, ms)); }
+function clearPend() { pend.forEach(function (t) { clearTimeout(t); }); pend = []; }
+
+function hostId() { return 'cap-' + state.variant; }
+
+function renderCapsula() {
+  clearPend();
+  var host = document.getElementById(hostId());
+  var c = CAPSULAS[state.ci % CAPSULAS.length];
+  host.classList.remove('capsula-out');
+  host.innerHTML = '';
+
+  var kicker = document.createElement('div');
+  kicker.className = 'kicker entra';
+  kicker.textContent = 'NOTAS TÉCNICAS';
+  var ej = document.createElement('div');
+  var ejLetras = [];
+  if (state.variant === 'd') {
+    // D: el título se escribe por letra (coreografía 2026-08-26)
+    ej.className = 'ejercicio';
+    c.ejercicio.split(' ').forEach(function (w) {
+      if (!w.length) { return; }
+      var wrap = document.createElement('span');
+      wrap.className = 'palabra';
+      for (var k = 0; k < w.length; k++) {
+        var l = document.createElement('span');
+        l.className = 'letra';
+        l.textContent = w.charAt(k);
+        wrap.appendChild(l);
+        ejLetras.push(l);
+      }
+      ej.appendChild(wrap);
+      ej.appendChild(document.createTextNode(' '));
+    });
+  } else {
+    ej.className = 'ejercicio entra';
+    ej.textContent = c.ejercicio;
+  }
+  var cue = document.createElement('div');
+  cue.className = 'cue';
+  if (state.variant === 'd') {
+    // D: bloque plano (entra entero con fade+subida cuando el título terminó)
+    c.cue.forEach(function (seg) {
+      if (seg.acento) {
+        var ac = document.createElement('span');
+        ac.className = 'acento';
+        ac.textContent = seg.t;
+        cue.appendChild(ac);
+      } else {
+        cue.appendChild(document.createTextNode(seg.t));
+      }
+    });
+  } else {
+  c.cue.forEach(function (seg) {
+    seg.t.split(' ').forEach(function (w) {
+      if (!w.length) { return; }
+      var sp = document.createElement('span');
+      sp.className = 'w' + (seg.acento ? ' acento' : '');
+      sp.textContent = w;
+      cue.appendChild(sp);
+      cue.appendChild(document.createTextNode(' '));
+    });
+  });
+  }
+  var mus = document.createElement('div');
+  mus.className = 'musculos';
+  var etq = document.createElement('span');
+  etq.className = 'etq';
+  etq.textContent = 'ACTIVACIONES';
+  mus.appendChild(etq);
+  c.musculos.forEach(function (m) {
+    var ch = document.createElement('span');
+    ch.className = 'chip';
+    ch.textContent = m;
+    mus.appendChild(ch);
+  });
+  host.append(kicker, ej, cue, mus);
+
+  requestAnimationFrame(function () {
+    kicker.classList.add('vino');
+    later(function () { ej.classList.add('vino'); }, 140);
+    if (state.variant === 'd') {
+      for (var i = 0; i < ejLetras.length; i++) {
+        (function (l, i) {
+          var jitter = ((i * 37) % 5) * 12;
+          later(function () { l.classList.add('prendida'); }, 200 + i * 22 + jitter);
+        })(ejLetras[i], i);
+      }
+      var listo = 200 + ejLetras.length * 22 + 350;
+      later(function () { cue.classList.add('vino'); }, listo);
+      later(function () { mus.classList.add('vino'); }, listo + 450);
+      var chips = mus.querySelectorAll('.chip');
+      for (var c2 = 0; c2 < chips.length; c2++) {
+        (function (ch, i) { later(function () { ch.classList.add('sube'); }, listo + 550 + i * 130); })(chips[c2], c2);
+      }
+    } else {
+      var ws = cue.querySelectorAll('.w');
+      for (var i2 = 0; i2 < ws.length; i2++) {
+        (function (sp, i) { later(function () { sp.classList.add('in'); }, 380 + i * 60); })(ws[i2], i2);
+      }
+      later(function () { mus.classList.add('vino'); }, 380 + ws.length * 60 + 250);
+    }
+  });
+
+  if (state.variant === 'b') {
+    var img = document.getElementById('vineta-img');
+    img.classList.remove('on');
+    later(function () {
+      img.src = c.img;
+      img.onload = function () { img.classList.add('on'); };
+    }, 250);
+  }
+  if (state.variant === 'c') {
+    var zonas = document.querySelectorAll('#cuerpos .zona');
+    for (var j = 0; j < zonas.length; j++) {
+      var z = zonas[j];
+      if (c.zonas.indexOf(z.getAttribute('data-m')) !== -1) {
+        z.classList.add('on');
+      } else {
+        z.classList.remove('on');
+      }
+    }
+  }
+}
+
+function nextCapsula() {
+  clearPend();
+  var host = document.getElementById(hostId());
+  host.classList.add('capsula-out');
+  if (state.variant === 'b') { document.getElementById('vineta-img').classList.remove('on'); }
+  later(function () { state.ci++; renderCapsula(); }, 550);
+}
+
+var rot = setInterval(nextCapsula, 10000);
+function restartRot() { clearInterval(rot); rot = setInterval(nextCapsula, 10000); }
+
+document.getElementById('tabs').addEventListener('click', function (e) {
+  var v = e.target.getAttribute('data-v');
+  if (!v) { return; }
+  state.variant = v;
+  var tabs = document.querySelectorAll('#tabs button');
+  for (var i = 0; i < tabs.length; i++) { tabs[i].classList.remove('active'); }
+  e.target.classList.add('active');
+  var vars = document.querySelectorAll('.variant');
+  for (var j = 0; j < vars.length; j++) { vars[j].classList.remove('active'); }
+  document.getElementById('variant-' + v).classList.add('active');
+  renderCapsula();
+  restartRot();
+});
+document.getElementById('btn-next').addEventListener('click', function () { nextCapsula(); restartRot(); });
+
+var DIAS = ['DOMINGO', 'LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO'];
+function tick() {
+  var d = new Date();
+  var hm = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+  var ss = ('0' + d.getSeconds()).slice(-2);
+  var hms = document.querySelectorAll('.reloj .hm');
+  var segs = document.querySelectorAll('.reloj .seg');
+  for (var i = 0; i < hms.length; i++) { hms[i].textContent = hm; }
+  for (var j = 0; j < segs.length; j++) { segs[j].textContent = ss; }
+  var fs = document.querySelectorAll('.fecha');
+  for (var k = 0; k < fs.length; k++) { fs[k].textContent = DIAS[d.getDay()] + ' · SEMANA 27'; }
+}
+setInterval(tick, 500);
+tick();
+
+/* Deep-link: #a/#b/#c (+ -still para screenshots) */
+var hash = (location.hash || '').replace('#', '').split('-');
+if (hash[0] === 'b' || hash[0] === 'c' || hash[0] === 'd') {
+  var btn = document.querySelector('#tabs button[data-v="' + hash[0] + '"]');
+  state.variant = hash[0];
+  var tabs2 = document.querySelectorAll('#tabs button');
+  for (var i2 = 0; i2 < tabs2.length; i2++) { tabs2[i2].classList.remove('active'); }
+  btn.classList.add('active');
+  var vars2 = document.querySelectorAll('.variant');
+  for (var j2 = 0; j2 < vars2.length; j2++) { vars2[j2].classList.remove('active'); }
+  document.getElementById('variant-' + hash[0]).classList.add('active');
+}
+if (hash.indexOf('still') !== -1) {
+  var st = document.createElement('style');
+  st.textContent = '.w,.kicker,.ejercicio,.musculos,.stage-d .cue,.stage-d .musculos .chip{opacity:1 !important;transform:none !important;transition:none !important} .cue .letra,.ejercicio .letra{opacity:1 !important;animation:none !important} .vineta img{opacity:1 !important;transform:none !important;transition:none !important} .cuerpos .zona.on{animation:none !important}';
+  document.head.appendChild(st);
+}
+renderCapsula();
+</script>
+</body>
+</html>

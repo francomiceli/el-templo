@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sketch 019 · Ronda 2 · B en el celular</title>
+<!-- Figura: react-native-body-highlighter v3.2.0 (MIT, Copyright (c) ELABBASSI Hicham), ver anat.js -->
+<link rel="stylesheet" href="base.css" />
+<style>
+  body { padding-top: 0; background: #d9d2c7; }
+  .wrap { display: flex; flex-wrap: wrap; gap: 28px; justify-content: center; padding: 18px 12px 40px; }
+  .col { width: 390px; max-width: 100%; }
+  .col > h2 { font-size: 15px; margin: 0 0 4px; }
+  .col > p { font-size: 12.5px; color: var(--ink-2); margin: 0 0 10px; min-height: 34px; }
+  .phone { position: relative; width: 390px; max-width: 100%; height: 800px; border-radius: 30px; overflow: hidden; background: var(--page); box-shadow: 0 0 0 9px #2c2318, 0 20px 40px rgba(0,0,0,.25); }
+  .phone .hdr { height: 52px; }
+  .phone .hdr .burger { display: block; }
+  .scr { position: absolute; top: 52px; left: 0; right: 0; bottom: 0; overflow: auto; padding: 12px 16px 24px; container-type: inline-size; }
+  .scr h1 { font-size: 21px; margin-bottom: 2px; transition: opacity .2s; }
+  .scr .lead { font-size: 13px; color: var(--ink-2); margin: 0 0 10px; }
+  .scr.has-sheet .intro { display: none; }
+
+  /* frente / espalda */
+  .flip { display: flex; background: #e9e0d4; border-radius: 999px; padding: 3px; margin: 4px auto 6px; width: max-content; }
+  .flip button { border: 0; background: transparent; border-radius: 999px; padding: 6px 18px; font-size: 13.5px; color: var(--ink-2); }
+  .flip button.on { background: #fff; color: var(--ink); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+  .figwrap .figs figure { display: none; }
+  .figwrap[data-view='front'] .figs figure:nth-child(1), .figwrap[data-view='back'] .figs figure:nth-child(2) { display: block; }
+  .figwrap .figs figcaption { display: none; }
+  .figwrap svg.fig { max-height: 520px; transition: max-height .25s; }
+  .scr.has-sheet .figwrap svg.fig { max-height: 300px; }
+  .scr.has-sheet.with-search .figwrap svg.fig { max-height: 250px; }
+  .scr.has-sheet .deep { display: none; }
+  .deep { margin-top: 8px; }
+  .deep p { font-size: 12px; color: var(--ink-2); margin: 0 0 6px; }
+  .glos-link { display: block; background: none; border: 0; color: var(--terra); font-weight: 600; font-size: 13.5px; padding: 2px 0 10px; }
+
+  /* hoja desde abajo */
+  .bs { position: absolute; left: 0; right: 0; bottom: 0; height: 52%; background: #fff; border-radius: 18px 18px 0 0; box-shadow: 0 -8px 24px rgba(0,0,0,.14); transform: translateY(105%); transition: transform .25s, height .25s; display: flex; flex-direction: column; z-index: 10; }
+  .bs.open { transform: none; }
+  .bs.full { height: calc(100% - 52px - 8px); }
+  .bs .handle { flex: none; padding: 8px 0 4px; touch-action: none; cursor: grab; }
+  .bs .handle::before { content: ''; display: block; width: 40px; height: 5px; border-radius: 3px; background: #d6cabb; margin: 0 auto; }
+  .bs .bs-body { overflow: auto; padding: 4px 16px 24px; container-type: inline-size; }
+  .bs .x { position: absolute; top: 10px; right: 12px; border: 0; background: var(--soft); border-radius: 999px; width: 30px; height: 30px; font-size: 14px; }
+  .bs .musc h3 { font-size: 14.5px; }
+  .bs .chip.btn { padding: 5px 11px; font-size: 13px; }
+
+  /* ficha a pantalla completa */
+  .fp { position: absolute; top: 52px; left: 0; right: 0; bottom: 0; background: var(--page); z-index: 20; overflow: auto; padding: 0 16px 40px; transform: translateX(100%); transition: transform .22s; container-type: inline-size; }
+  .fp.open { transform: none; }
+  .fp .back { position: sticky; top: 0; z-index: 5; display: block; width: calc(100% + 32px); margin: 0 -16px 6px; text-align: left; background: var(--page); border: 0; border-bottom: 1px solid var(--line); padding: 11px 16px; font-size: 14px; color: var(--terra); font-weight: 600; }
+  .fp .secnav { top: 43px; }
+  .fp h1 { font-size: 22px; }
+
+  /* buscador (B3) */
+  .sr { position: relative; margin: 0 0 8px; }
+  .sr input { width: 100%; font-size: 16px; padding: 11px 14px 11px 36px; border-radius: 12px; border: 1px solid #d8cbb9; background: #fff; outline: none; }
+  .sr input:focus { border-color: var(--terra); box-shadow: 0 0 0 3px #f0dccd; }
+  .sr .mag { position: absolute; left: 13px; top: 11px; color: var(--ink-2); }
+  .sr .results { max-height: 440px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="col">
+    <h2>B2 · Solo el cuerpo ★ elegida</h2>
+    <p>Tocá una zona → hoja desde abajo con sus músculos → tocá una ruta → ficha a pantalla completa.</p>
+    <div class="phone" data-search="0"></div>
+  </div>
+  <div class="col">
+    <h2>B3 · Cuerpo + buscador arriba</h2>
+    <p>Igual que B2, más un buscador para ir directo a una ruta, un músculo o una pregunta (“pistol”, “dorsal”, “ingle”).</p>
+    <div class="phone" data-search="1"></div>
+  </div>
+</div>
+<div class="tip" id="tip"></div>
+
+<script src="anat.js"></script>
+<script src="data.js"></script>
+<script src="ficha.js"></script>
+<script>
+  const SLUGS = { front: new Set(ANAT.front.map(([s]) => s)), back: new Set(ANAT.back.map(([s]) => s)) }
+  const LIT = {}; Object.keys(ZONA_ES).forEach((z) => (LIT[z] = 'Est'))
+
+  function mountPhone(root) {
+    const withSearch = root.dataset.search === '1'
+    const st = { view: 'back', zona: null, back: null }
+    root.innerHTML = `<div class="hdr"><button class="burger" aria-label="Menú">☰</button><span>El Templo Admin</span></div>
+      <div class="scr ${withSearch ? 'with-search' : ''}">
+        <div class="intro"><p class="kicker">Anatomía</p><h1>Tocá una zona</h1><p class="lead">Ves sus músculos y en qué rutas trabajan.</p></div>
+        ${withSearch ? `<div class="sr"><span class="mag">⌕</span><input placeholder="Ruta, músculo o pregunta…" autocomplete="off" /><div class="results"></div></div>` : ''}
+        <div class="flip"><button data-view="front">Frente</button><button data-view="back">Espalda</button></div>
+        <div class="figwrap"></div>
+        <div class="deep"><p>No están en el dibujo (profundos):</p><div class="row">${MUSCULOS.filter((m) => !m.zona).map((m) => `<button class="chip btn" data-musc="${m.id}">${m.nombre}</button>`).join('')}</div></div>
+      </div>
+      <div class="bs"><div class="handle"></div><button class="x" aria-label="Cerrar">✕</button><div class="bs-body"></div></div>
+      <div class="fp"></div>`
+    const $ = (s) => root.querySelector(s)
+    const scr = $('.scr'), bs = $('.bs'), fp = $('.fp')
+
+    function drawFigure() {
+      const fw = $('.figwrap')
+      fw.dataset.view = st.view
+      fw.innerHTML = figure(st.zona ? { ...LIT, [st.zona]: 'M' } : LIT, { tap: true, sel: st.zona })
+      root.querySelectorAll('.flip button').forEach((b) => b.classList.toggle('on', b.dataset.view === st.view))
+      fitFigures(fw)
+    }
+    function openSheet(html, full = false) {
+      $('.bs-body').innerHTML = html
+      $('.bs-body').scrollTop = 0
+      bs.classList.add('open'); bs.classList.toggle('full', full)
+      scr.classList.add('has-sheet'); scr.scrollTop = 0
+    }
+    function closeSheet() {
+      bs.classList.remove('open', 'full'); scr.classList.remove('has-sheet')
+      st.zona = null; drawFigure()
+    }
+    function selectZona(zona, viewHint) {
+      st.zona = zona
+      const inView = (v) => SLUGS[v].has(zona)
+      if (viewHint) st.view = viewHint
+      else if (!inView(st.view)) st.view = st.view === 'front' ? 'back' : 'front'
+      drawFigure()
+      openSheet(zonaPanel(zona))
+      st.back = ZONA_ES[zona]
+    }
+    function openFicha(code, backLabel, sec) {
+      fp.innerHTML = `<button class="back">← ${backLabel}</button>${ficha(code)}`
+      fp.classList.add('open'); fp.scrollTop = 0
+      fitFigures(fp)
+      if (sec) setTimeout(() => {
+        const el = fp.querySelector('#sec-' + sec)
+        if (el) { fp.scrollTo({ top: el.offsetTop - 100, behavior: 'smooth' }); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash') }
+      }, 260)
+    }
+
+    root.addEventListener('click', (e) => {
+      const t = e.target
+      const fb = t.closest('.flip button')
+      if (fb) { st.view = fb.dataset.view; drawFigure(); return }
+      if (t.closest('.bs .x')) return closeSheet()
+      if (t.closest('.fp .back')) { fp.classList.remove('open'); return }
+      const sec = t.closest('.fp [data-sec]')
+      if (sec) {
+        const el = fp.querySelector('#sec-' + sec.dataset.sec)
+        fp.scrollTo({ top: el.offsetTop - 100, behavior: 'smooth' }); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash')
+        return
+      }
+      const op = t.closest('[data-open]')
+      if (op) return openFicha(op.dataset.open, st.back || 'Anatomía')
+      if (t.closest('[data-glos]')) { st.zona = null; drawFigure(); openSheet(`<p class="kicker">Glosario</p><h1 style="font-size:22px;margin-bottom:4px">Qué significa cada cosa</h1>${glosarioHTML()}`, true); return }
+      const ms = t.closest('[data-musc]')
+      if (ms) { st.zona = null; drawFigure(); openSheet(muscPanel(ms.dataset.musc)); st.back = MUSCULOS.find((m) => m.id === ms.dataset.musc).nombre; return }
+      const go = t.closest('[data-go]')
+      if (go) {
+        const g = JSON.parse(go.dataset.go)
+        $('.sr input').value = ''; $('.results').classList.remove('open')
+        if (g.view === 'ruta') openFicha(g.code, 'Anatomía', g.sec)
+        else if (g.view === 'zona') selectZona(g.zona, g.hint)
+        else if (g.view === 'musc') { openSheet(muscPanel(g.id)); st.back = MUSCULOS.find((m) => m.id === g.id).nombre }
+        return
+      }
+      const z = t.closest('.fig.tap .mu:not(.x)')
+      if (z) selectZona(z.dataset.zona, z.dataset.view)
+    })
+
+    // arrastrar la hoja: arriba = entera, abajo = media / cerrar, toque = alternar
+    let y0 = null
+    $('.handle').addEventListener('pointerdown', (e) => { y0 = e.clientY; e.target.setPointerCapture(e.pointerId) })
+    $('.handle').addEventListener('pointerup', (e) => {
+      if (y0 === null) return
+      const dy = e.clientY - y0; y0 = null
+      if (dy < -30) bs.classList.add('full')
+      else if (dy > 30) { if (bs.classList.contains('full')) bs.classList.remove('full'); else closeSheet() }
+      else bs.classList.toggle('full')
+    })
+
+    if (withSearch) {
+      const inp = $('.sr input'), res = $('.results')
+      inp.addEventListener('input', () => {
+        const q = inp.value
+        if (!q.trim()) { res.classList.remove('open'); return }
+        const n = norm(q)
+        const hits = IDX.filter((i) => norm(i.keys).includes(n)).map((h) => {
+          // al músculo con zona, ir a la vista donde se ve
+          if (h.go.view === 'zona') { const m = MUSCULOS.find((x) => x.nombre === h.label); if (m && m.zona.includes('@')) h.go.hint = m.zona.split('@')[1] }
+          return h
+        })
+        const groups = {}
+        hits.slice(0, 20).forEach((h) => (groups[h.t] = groups[h.t] || []).push(h))
+        res.innerHTML = Object.keys(groups).length ? Object.entries(groups).map(([t, hs]) => `<h6>${t}</h6>${hs.map((h) => `<button data-go='${JSON.stringify(h.go)}'>${h.label}<small>${h.sub}</small></button>`).join('')}`).join('') : `<p class="muted" style="padding:12px 14px;margin:0;font-size:14px">Nada con “${q}”.</p>`
+        res.classList.add('open')
+      })
+    }
+    drawFigure()
+  }
+
+  document.querySelectorAll('.phone').forEach(mountPhone)
+
+  const tip = document.getElementById('tip')
+  document.addEventListener('mousemove', (e) => {
+    const g = e.target.closest && e.target.closest('.mu:not(.x)')
+    if (!g) { tip.style.display = 'none'; return }
+    tip.textContent = ZONA_ES[g.dataset.zona] || g.dataset.zona
+    tip.style.display = 'block'; tip.style.left = e.clientX + 12 + 'px'; tip.style.top = e.clientY + 12 + 'px'
+  })
+</script>
+</body>
+</html>

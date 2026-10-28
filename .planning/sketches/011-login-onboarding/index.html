@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sketch 011 — Login y onboarding</title>
+<link rel="stylesheet" href="../themes/default.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Geologica:wght@300;400;500;600&family=Montserrat:wght@600;700;800&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@1,500&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+<style>
+  :root {
+    --charcoal: #2e2a26;
+    --charcoal-mid: #3d3732;
+    --cream: #f2ede5;
+    --terra: #96593a;
+    --dark: #2c2318;          /* superficie de la card de hoy */
+    --cream-ink: #f0e6d6;     /* 12.5:1 sobre #2c2318 */
+    --cream-2: #e3c9a8;       /* 9.6:1 */
+    --cream-3: #c9bba6;       /* 7.6:1 sobre #2c2318, ~6.5:1 sobre la card translúcida */
+    --btn-a: #a35f3c;
+    --btn-b: #7e4529;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #e9e3da; font-family: 'Geologica', system-ui, sans-serif; color: #2c2318; }
+
+  #controls { position: sticky; top: 0; z-index: 50; background: #fff; border-bottom: 1px solid #ddd; padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; font: 13px system-ui; }
+  .ctl { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+  .ctl > span { color: #555; margin-right: 4px; font-weight: 600; }
+  .ctl button { border: 1px solid #ccc; background: #fafafa; border-radius: 6px; padding: 5px 9px; cursor: pointer; font: inherit; }
+  .ctl button.on { background: #2c2318; color: #fff; border-color: #2c2318; }
+  #stage { display: flex; gap: 32px; justify-content: center; align-items: flex-start; padding: 24px 16px 80px; flex-wrap: wrap; }
+  .col { display: flex; flex-direction: column; align-items: center; }
+  .col-label { font: 600 13px system-ui; text-align: center; margin-bottom: 4px; }
+  .col-sub { font: 12px system-ui; color: #666; text-align: center; max-width: 360px; margin-bottom: 10px; line-height: 1.4; min-height: 66px; }
+
+  /* ── Teléfono con el fondo real del login/onboarding ── */
+  .phone { position: relative; width: var(--w, 390px); height: 820px; border-radius: 28px; overflow: hidden; box-shadow: 0 0 0 10px #1d1a17, 0 20px 50px rgba(0,0,0,.25); background: var(--charcoal); transition: width .2s; }
+  .phone .tex { position: absolute; inset: 0; background: url('bar-train2.webp') center / cover no-repeat; filter: saturate(.2) sepia(.6) contrast(1.1); opacity: .45; }
+  .phone .vig { position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 45%, transparent 20%, rgba(0,0,0,.25) 50%, rgba(0,0,0,.7) 100%); }
+  .screen { position: relative; z-index: 1; height: 100%; display: flex; flex-direction: column; justify-content: center; padding: 24px 24px; }
+
+  /* Cabecera del login (igual en todas) */
+  .logo { display: block; width: 104px; margin: 0 auto 10px; filter: drop-shadow(0 4px 18px rgba(196,110,66,.45)); }
+  .welcome { margin: 0; text-align: center; font: 700 1.35rem 'Montserrat', sans-serif; letter-spacing: .06em; color: var(--cream); }
+  .sub { margin: 6px 0 22px; text-align: center; font: italic 500 .95rem 'Cormorant Garamond', serif; color: rgba(242,237,229,.5); }
+
+  /* Campos y botones comunes */
+  .field { position: relative; margin-bottom: 14px; }
+  .field input { width: 100%; height: 56px; padding: 0 14px; border-radius: 8px; border: 1px solid rgba(242,237,229,.2); background: transparent; color: var(--cream); font: 16px 'Geologica', sans-serif; }
+  .field input::placeholder { color: rgba(242,237,229,.5); }
+  .field .eye { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--cream); font-size: 22px; }
+  .help { margin: 12px 0 0; text-align: center; font: italic 500 .8rem 'Cormorant Garamond', serif; color: rgba(242,237,229,.35); }
+  .links { display: flex; justify-content: center; gap: 10px; margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(242,237,229,.08); font-size: .8rem; color: rgba(242,237,229,.45); }
+  .links a { color: inherit; text-decoration: none; }
+  .cta { position: relative; overflow: hidden; width: 100%; min-height: 50px; border: 0; cursor: pointer; }
+
+  /* Onboarding: pregunta */
+  .dots { display: flex; justify-content: center; gap: 6px; margin-bottom: 18px; }
+  .dots i { width: 6px; height: 6px; border-radius: 3px; background: rgba(242,237,229,.25); }
+  .dots i.on { width: 18px; background: var(--cream-2); }
+  .frame { margin: 0 0 6px; text-align: center; font: italic 500 1rem 'Cormorant Garamond', serif; color: rgba(242,237,229,.5); }
+  .q { margin: 0 0 16px; text-align: center; font: 700 1.2rem/1.3 'Montserrat', sans-serif; color: var(--cream); }
+  .opts { display: flex; flex-direction: column; gap: 8px; }
+  .opt { display: flex; align-items: center; justify-content: space-between; min-height: 46px; padding: 0 14px; border-radius: 8px; border: 1px solid rgba(242,237,229,.15); background: rgba(46,42,38,.5); color: var(--cream); font: 500 15px 'Geologica', sans-serif; text-align: left; cursor: pointer; }
+  .opt .material-icons { font-size: 16px; opacity: 0; }
+  .opt.sel .material-icons { opacity: 1; }
+
+  /* ════════ Hoy ════════ */
+  .hoy .card { background: rgba(61,55,50,.85); border-top: 2px solid rgba(150,89,58,.6); border-radius: 8px; padding: 24px 20px 16px; backdrop-filter: blur(10px); }
+  .hoy .cta { border-radius: 6px; background: linear-gradient(135deg, var(--terra) 0%, #855038 100%); color: var(--cream); font: 600 .95rem 'Montserrat', sans-serif; letter-spacing: .1em; }
+  .hoy .opt.sel { border-color: rgba(150,89,58,.8); background: rgba(150,89,58,.15); }
+  .hoy .opt.sel .material-icons { color: var(--terra); }
+  .hoy .kick { display: none; }
+
+  /* ════════ A y B: marco + botón + campos + contraste de la card de hoy ════════ */
+  .fr { position: relative; border-radius: 21px; padding: 1.5px; background: linear-gradient(115deg, #4a3a2b 0%, #a35f3c 30%, #f0d2b4 45%, #a35f3c 60%, #4a3a2b 100%); background-size: 250% 250%; background-position: 0% 50%; box-shadow: 0 14px 36px rgba(0,0,0,.4); }
+  .fr .card { position: relative; overflow: hidden; border-radius: 20px; padding: 24px 20px 14px; }
+  .fr .line { position: absolute; left: 16px; right: 16px; bottom: 0; height: 2px; background: linear-gradient(90deg, transparent, #a35f3c, #e9bf9b, #a35f3c, transparent); opacity: .9; }
+  .fr .kick { margin: 0 0 14px; text-align: center; font: 700 12px 'Cinzel', serif; letter-spacing: .14em; text-transform: uppercase; color: var(--cream-2); }
+  .fr .field input { border-radius: 10px; border-color: rgba(240,230,214,.32); background: rgba(240,230,214,.05); color: var(--cream-ink); }
+  .fr .field input::placeholder { color: var(--cream-3); }
+  .fr .cta { border-radius: 10px; background: linear-gradient(135deg, var(--btn-a), var(--btn-b)); color: #fff; font: 600 15px 'Geologica', sans-serif; letter-spacing: .3px; box-shadow: 0 4px 14px rgba(126,69,41,.45), inset 0 1px 0 rgba(255,255,255,.18); }
+  .fr .cta::after { content: ''; position: absolute; top: 0; bottom: 0; left: -60%; width: 40%; background: linear-gradient(100deg, transparent, rgba(255,255,255,.28), transparent); transform: skewX(-18deg); }
+  body:not(.reduce) .fr .cta::after { animation: sheen 5s ease-in-out 1.2s infinite; }
+  @keyframes sheen { 0%, 70% { left: -60%; } 100% { left: 130%; } }
+  /* contraste corregido (≥ 4.5:1) */
+  .fr .help { color: var(--cream-3); }
+  .fr .links { color: var(--cream-3); border-top-color: rgba(240,230,214,.14); }
+  .fr .links a { text-decoration: underline; text-underline-offset: 3px; }
+  .fr .opt { border-radius: 10px; border-color: rgba(240,230,214,.22); }
+  .fr .opt.sel { border-color: transparent; background: linear-gradient(135deg, var(--btn-a), var(--btn-b)); color: #fff; box-shadow: 0 4px 14px rgba(126,69,41,.35); }
+  .fr .opt.sel .material-icons { color: #fff; }
+  .A .frame, .B .frame, .A .sub, .B .sub { color: var(--cream-3); }
+
+  /* A (decisión de Franco): "Bienvenido al Templo" en Cinzel como el título chico, sin kicker en la card */
+  .screen.A .welcome { font: 700 1.22rem 'Cinzel', serif; letter-spacing: .08em; white-space: nowrap; color: var(--cream-ink); }
+
+  /* A: translúcida (se ve la estatua) */
+  .A .card { background: rgba(44,35,24,.78); backdrop-filter: blur(10px); }
+  /* B: sólida como la card de hoy */
+  .B .card { background: var(--dark); }
+</style>
+</head>
+<body>
+
+<div id="controls">
+  <div class="ctl" data-ctl="scr"><span>Pantalla</span>
+    <button data-v="login" class="on">Login</button><button data-v="q">Pregunta de onboarding</button>
+  </div>
+  <div class="ctl" data-ctl="w"><span>Ancho</span>
+    <button data-v="360">360</button><button data-v="390" class="on">390</button><button data-v="412">412</button>
+  </div>
+  <div class="ctl" data-ctl="motion"><span>Movimiento</span>
+    <button data-v="on" class="on">Normal</button><button data-v="reduce">Reducir</button>
+  </div>
+</div>
+
+<div id="stage">
+  <div class="col">
+    <div class="col-label">Hoy</div>
+    <div class="col-sub">Como está: card translúcida con filete terracota arriba, botón terracota plano, textos chicos con poco contraste; en el onboarding la opción elegida es un tinte terracota del 15 %.</div>
+    <div class="phone"><div class="tex"></div><div class="vig"></div><div class="screen hoy" data-v="hoy"></div></div>
+  </div>
+  <div class="col">
+    <div class="col-label">A · Translúcida + lenguaje de la card</div>
+    <div class="col-sub">Se mantiene la transparencia (se ve la estatua) y se suman el borde degradé quieto, el título chico en Cinzel, los campos de los pop-ups, el botón con destello, la opción elegida en terracota y el contraste corregido.</div>
+    <div class="phone"><div class="tex"></div><div class="vig"></div><div class="screen A" data-v="A"></div></div>
+  </div>
+  <div class="col">
+    <div class="col-label">B · Sólida como la card de hoy</div>
+    <div class="col-sub">Lo mismo que A pero con la card sólida (#2c2318), igual a la card de hoy y a los pop-ups: tapa la estatua detrás del formulario.</div>
+    <div class="phone"><div class="tex"></div><div class="vig"></div><div class="screen B" data-v="B"></div></div>
+  </div>
+</div>
+
+<script>
+  const OPTIONS = ['Ya entreno en El Templo', 'Nunca entrené en serio', 'Gimnasio con pesas', 'Running, natación o ciclismo', 'Yoga o pilates', 'Calistenia', 'Entrenaba pero dejé']
+  const state = { scr: 'login', sel: 2 }
+  function wrap(v, inner) {
+    if (v === 'hoy') return `<div class="card">${inner}</div>`
+    return `<div class="fr"><div class="card"><span class="line" aria-hidden="true"></span>${inner}</div></div>`
+  }
+  function login(v) {
+    return `<img class="logo" src="logo.webp" alt="El Templo" />
+      <h1 class="welcome">Bienvenido al Templo</h1>
+      <p class="sub">Tu cuerpo es tu templo.</p>
+      ${wrap(v, `${v === 'B' ? '<p class="kick">Entrá a tu templo</p>' : ''}
+        <div class="field"><input placeholder="Email" /></div>
+        <div class="field"><input placeholder="Contraseña" type="password" /><span class="material-icons eye">visibility</span></div>
+        <button class="cta">${v === 'hoy' ? 'Entrar' : 'Entrar'}</button>
+        <p class="help">Tu progreso empieza hoy.</p>
+        <div class="links"><a href="#">Crear cuenta</a><span>·</span><a href="#">Olvidé mi contraseña</a></div>`)}`
+  }
+  function question(v) {
+    return `<div class="dots"><i></i><i class="on"></i><i></i><i></i><i></i></div>
+      ${wrap(v, `${v === 'B' ? '<p class="kick">Paso 2 de 5</p>' : ''}
+        <p class="frame">Nada es al azar. Todo es metodología.</p>
+        <h3 class="q">¿Cuál es tu historia con el entrenamiento?</h3>
+        <div class="opts">${OPTIONS.map((o, i) => `<button class="opt ${i === state.sel ? 'sel' : ''}" data-opt="${i}">${o}<span class="material-icons">check_circle</span></button>`).join('')}</div>`)}`
+  }
+  function render() {
+    document.querySelectorAll('.screen').forEach((s) => { s.innerHTML = state.scr === 'login' ? login(s.dataset.v) : question(s.dataset.v) })
+  }
+  document.getElementById('stage').addEventListener('click', (e) => {
+    const o = e.target.closest('[data-opt]'); if (!o) return
+    state.sel = Number(o.dataset.opt); render()
+  })
+  document.querySelectorAll('.ctl').forEach((ctl) => ctl.addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return
+    ctl.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b))
+    if (ctl.dataset.ctl === 'scr') { state.scr = b.dataset.v; render() }
+    if (ctl.dataset.ctl === 'w') document.querySelectorAll('.phone').forEach((p) => p.style.setProperty('--w', b.dataset.v + 'px'))
+    if (ctl.dataset.ctl === 'motion') document.body.classList.toggle('reduce', b.dataset.v === 'reduce')
+  }))
+  render()
+</script>
+</body>
+</html>

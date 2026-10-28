@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Sketch 002 — Transición TV: aparición de frases</title>
+<link rel="stylesheet" href="../themes/tv-oscuro.css">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    background: var(--night);
+    font-family: var(--font-body);
+    overflow: hidden;
+  }
+
+  /* ── Barra de control del sketch (no es parte del diseño) ─────────────── */
+  #variant-nav {
+    position: fixed; top: 0; left: 0; right: 0; height: 52px; z-index: 9998;
+    background: #141210; border-bottom: 1px solid #3a352f;
+    display: flex; align-items: center; padding: 0 14px;
+    font-family: system-ui, sans-serif; font-size: 13px; color: #cfc7bb;
+  }
+  #variant-nav .grp { display: flex; align-items: center; }
+  #variant-nav .sep { width: 1px; height: 24px; background: #3a352f; margin: 0 14px; }
+  #variant-nav button {
+    background: none; border: 1px solid transparent; color: #a89a87;
+    padding: 6px 12px; margin-right: 4px; border-radius: 6px; cursor: pointer;
+    font-size: 13px; transition: all .15s ease;
+  }
+  #variant-nav button:hover { color: #f2ede5; border-color: #4a443c; }
+  #variant-nav button.active { color: #f2ede5; background: #2b2722; border-color: #6b5d4a; }
+  #variant-nav .hint { margin-left: auto; font-size: 11px; color: #6b6459; }
+
+  /* ── Escenario base ────────────────────────────────────────────────────── */
+  .variant { display: none; }
+  .variant.active { display: block; }
+  .stage {
+    position: fixed; top: 52px; left: 0; right: 0; bottom: 0;
+    overflow: hidden; color: var(--cream);
+  }
+
+  .reloj {
+    font-family: var(--font-display); font-weight: 700; color: var(--cream);
+    letter-spacing: .04em; line-height: 1;
+  }
+  .reloj .seg { color: var(--gold); font-size: .55em; }
+  .fecha {
+    font-family: var(--font-body); color: var(--muted);
+    letter-spacing: .35em; font-size: 1vw; margin-top: 1vw;
+  }
+  .autor {
+    font-family: var(--font-body); color: var(--muted); font-size: 1.15vw;
+    letter-spacing: .3em; margin-top: 2.2vw;
+    opacity: 0; transform: translateY(.6em);
+    transition: opacity .9s ease, transform .9s ease;
+  }
+  .autor.in { opacity: 1; transform: none; }
+
+  .logoDark {
+    /* logo.png es navy+dorado sobre claro → a monocromo hueso para fondo oscuro */
+    filter: brightness(0) invert(1) sepia(.35) saturate(1.2) brightness(.96);
+    opacity: 0; transform: scale(.955);
+    transition: opacity 1.6s ease .25s, transform 1.6s ease .25s;
+  }
+  .stage.shown .logoDark { opacity: .9; transform: none; }
+
+  .titulo-cierre {
+    font-family: var(--font-display); font-weight: 700; color: var(--bone);
+    opacity: 0; letter-spacing: .55em;
+    transition: opacity 1.1s ease, letter-spacing 1.4s cubic-bezier(.2,.7,.2,1);
+    display: none; white-space: nowrap;
+  }
+  body.mode-cierre .titulo-cierre { display: block; }
+  body.mode-cierre .titulo-cierre.tin { opacity: 1; letter-spacing: .18em; }
+
+  .qhost { font-family: var(--font-display); font-weight: 700; }
+  .qhost, .autor { transition-property: opacity, transform, letter-spacing; }
+  .qout { opacity: 0 !important; transform: translateY(-14px) !important; transition: all .8s ease !important; }
+
+  .g { color: var(--bronze); }
+
+  /* ═══ VARIANTE A — LA PLUMA (escritura palabra a palabra) ═══════════════ */
+  .stage-a {
+    background: var(--charcoal-deep) url('../../../el-templo-admin/public/tv/marble.jpg') center/cover;
+  }
+  .stage-a .velo-oscuro {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(26, 23, 20, .9);
+  }
+  .layoutA { position: relative; display: flex; height: 100%; }
+  .layoutA .quoteZone {
+    flex: 1.45; display: flex; flex-direction: column; justify-content: center;
+    padding: 0 4vw 0 6vw;
+  }
+  .layoutA .qhost { font-size: 3.1vw; line-height: 1.45; }
+  .layoutA .identity {
+    flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center;
+    border-left: 1px solid rgba(176, 141, 110, .28);
+    text-align: center; padding: 2vw;
+  }
+  .stage-a .logoDark { width: 16vw; margin-bottom: 2.5vw; }
+  body.mode-pre .stage-a .reloj { font-size: 6.4vw; }
+  body.mode-cierre .stage-a .reloj { font-size: 3.4vw; }
+  .stage-a .titulo-cierre { font-size: 2.1vw; margin-bottom: 2vw; }
+
+  .w {
+    opacity: 0; display: inline-block; transform: translateY(.45em);
+    transition: opacity .55s ease, transform .6s cubic-bezier(.2,.7,.25,1);
+  }
+  .w.in { opacity: 1; transform: none; }
+  .g.shimmer {
+    background: linear-gradient(100deg, var(--bronze) 25%, #f6e7cd 50%, var(--bronze) 75%);
+    background-size: 250% 100%;
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    animation: sweep 1.9s ease forwards;
+  }
+  @keyframes sweep {
+    from { background-position: 125% 0; }
+    to   { background-position: -25% 0; }
+  }
+
+  /* ═══ VARIANTE B — LA BRASA (letras que se encienden) ═══════════════════ */
+  .stage-b { background: var(--night); }
+  .stage-b .emberGlow {
+    position: absolute; left: -10%; bottom: -25%; width: 80%; height: 90%;
+    background: radial-gradient(ellipse at 30% 80%, rgba(212, 168, 67, .14) 0%, rgba(212, 168, 67, 0) 60%);
+    animation: breathe 6s ease-in-out infinite;
+  }
+  @keyframes breathe {
+    0%, 100% { opacity: .55; transform: scale(1); }
+    50%      { opacity: 1;   transform: scale(1.06); }
+  }
+  .layoutB { position: relative; height: 100%; }
+  .layoutB .identity {
+    position: absolute; top: 2.4vw; right: 3vw; text-align: right;
+  }
+  .stage-b .logoDark { width: 9vw; display: block; margin: 0 0 1.2vw auto; }
+  .stage-b .reloj { font-size: 2.6vw; }
+  body.mode-pre .stage-b .reloj { font-size: 3.4vw; }
+  .layoutB .quoteZone {
+    position: absolute; left: 6vw; right: 30vw; bottom: 9vw;
+  }
+  .layoutB .qhost { font-size: 3.4vw; line-height: 1.5; }
+  .stage-b .titulo-cierre { font-size: 1.7vw; margin-bottom: 2.4vw; color: var(--bronze); }
+  .stage-b .fecha { position: absolute; left: 6vw; top: 3vw; margin: 0; }
+
+  .bw { display: inline-block; white-space: nowrap; }
+  .l { opacity: 0; display: inline-block; }
+  .l.lit { animation: igniteCream 1.15s ease forwards; }
+  .l.g.lit { animation: igniteGold 1.15s ease forwards; }
+  @keyframes igniteCream {
+    0%   { opacity: 0; color: #fff3d6; text-shadow: 0 0 4px rgba(255,196,107,0); }
+    18%  { opacity: 1; color: #ffd9a0; text-shadow: 0 0 16px rgba(255,157,77,.95), 0 0 38px rgba(255,110,30,.55); }
+    100% { opacity: 1; color: var(--cream); text-shadow: 0 2px 14px rgba(0,0,0,.55); }
+  }
+  @keyframes igniteGold {
+    0%   { opacity: 0; color: #fff3d6; text-shadow: 0 0 4px rgba(255,196,107,0); }
+    18%  { opacity: 1; color: #ffe2ae; text-shadow: 0 0 18px rgba(255,170,60,1), 0 0 44px rgba(255,120,20,.6); }
+    100% { opacity: 1; color: var(--bronze); text-shadow: 0 2px 14px rgba(0,0,0,.55); }
+  }
+  .qhostB.qout { letter-spacing: .06em !important; }
+  .spark {
+    position: absolute; bottom: -2vh; width: 3px; height: 3px; border-radius: 50%;
+    background: var(--ember); opacity: 0;
+    animation: riseSpark 9s linear infinite;
+  }
+  @keyframes riseSpark {
+    0%   { transform: translateY(0) translateX(0); opacity: 0; }
+    8%   { opacity: .75; }
+    60%  { opacity: .35; }
+    100% { transform: translateY(-78vh) translateX(3vw); opacity: 0; }
+  }
+
+  /* ═══ VARIANTE D — SÍNTESIS (layout A + brasa de B + foto bars-open) ════ */
+  .stage-d {
+    /* versión HQ 3072×2048 dejada por Franco en .docs/ (la de app/public era 1536×1024) */
+    background: var(--night) url('../../../.docs/bars-open.webp') center/cover;
+  }
+  .stage-d .velo-foto {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    /* más oscuro detrás del texto (izq), deja respirar el relieve (der) */
+    background: linear-gradient(100deg,
+      rgba(20, 18, 16, .87) 0%,
+      rgba(20, 18, 16, .78) 42%,
+      rgba(26, 23, 20, .55) 68%,
+      rgba(33, 30, 27, .4) 100%);
+  }
+  /* con el velo más claro, sombra estática de legibilidad (se pinta una vez) */
+  .stage-d .layoutA .qhost, .stage-d .autor {
+    text-shadow: 0 2px 16px rgba(0, 0, 0, .6);
+  }
+  .stage-d .emberGlow {
+    position: absolute; left: -12%; bottom: -28%; width: 75%; height: 85%;
+    background: radial-gradient(ellipse at 28% 82%, rgba(212, 168, 67, .12) 0%, rgba(212, 168, 67, 0) 60%);
+    animation: breathe 6s ease-in-out infinite;
+  }
+  /* Textos +20% (pedido 2026-08-25, aplica a cierre y pre-clase). */
+  .stage-d .layoutA .qhost { font-size: 3.85vw; line-height: 1.5; }
+  .stage-d .autor { font-size: 1.4vw; }
+  .stage-d .fecha { font-size: 1.5vw; margin-top: 1.7vw; }
+  .stage-d .layoutA .identity { border-left: none; }
+  .stage-d .logoIcon {
+    /* icon-512 en blanco (pedido de Franco): filtro estático, se rasteriza una vez */
+    filter: brightness(0) invert(1); width: 10vw; margin-bottom: 6.5vw;
+  }
+  body.mode-pre .stage-d .reloj { font-size: 7.2vw; }
+  body.mode-cierre .stage-d .reloj { font-size: 4.6vw; }
+  .stage-d .titulo-cierre { font-size: 2.4vw; margin-bottom: 5vw; color: var(--bronze); }
+  .stage-d .spark { animation-name: riseSparkSoft; }
+  @keyframes riseSparkSoft {
+    0%   { transform: translateY(0) translateX(0); opacity: 0; }
+    8%   { opacity: .4; }
+    60%  { opacity: .18; }
+    100% { transform: translateY(-78vh) translateX(3vw); opacity: 0; }
+  }
+
+  /* Modo estático para screenshots/QA: sufijo -still en el hash */
+  body.still .l, body.still .w { opacity: 1 !important; animation: none !important; transform: none !important; transition: none !important; }
+  body.still .l { color: var(--cream); text-shadow: 0 2px 14px rgba(0, 0, 0, .55); }
+  body.still .l.g { color: var(--bronze); }
+  body.still .autor { opacity: 1 !important; transform: none !important; transition: none !important; }
+
+  /* ═══ VARIANTE C — EL VELO (crossfade cinematográfico sobre foto) ═══════ */
+  .stage-c { background: var(--night); }
+  .bgC {
+    position: absolute; top: -4%; left: -4%; right: -4%; bottom: -4%;
+    background: url('../../../el-templo-app/public/bar-train2.webp') center/cover;
+    animation: kenburns 38s ease-in-out infinite alternate;
+  }
+  @keyframes kenburns {
+    from { transform: scale(1) translateX(0); }
+    to   { transform: scale(1.08) translateX(-1.4%); }
+  }
+  .vigC {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background: radial-gradient(ellipse at 62% 42%, rgba(26,23,20,.42) 0%, rgba(26,23,20,.88) 68%, rgba(20,18,16,.97) 100%);
+  }
+  .layoutC { position: relative; height: 100%; }
+  .layoutC .quoteZone {
+    position: absolute; left: 7vw; top: 0; bottom: 0; width: 52vw;
+    display: flex; flex-direction: column; justify-content: center;
+  }
+  .layC {
+    position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-42%);
+    opacity: 0; transition: opacity 1.4s ease, transform 1.4s ease;
+  }
+  .layC .vq {
+    font-family: var(--font-display); font-weight: 700;
+    font-size: 3vw; line-height: 1.5;
+    text-shadow: 0 2px 26px rgba(0, 0, 0, .65);
+  }
+  .layC.on { opacity: 1; transform: translateY(-50%); }
+  .layC.off { opacity: 0; transform: translateY(-58%); }
+  .goldline {
+    position: absolute; left: -2.6vw; top: 4%; bottom: 10%; width: 2px;
+    background: linear-gradient(to bottom, var(--amber), rgba(212, 168, 67, 0));
+    transform: scaleY(0); transform-origin: top;
+    transition: transform 1.2s ease .35s;
+  }
+  .layC.on .goldline { transform: scaleY(1); }
+  .layoutC .identity {
+    position: absolute; right: 3vw; bottom: 2.6vw; text-align: right;
+  }
+  .stage-c .logoDark { width: 8.5vw; display: block; margin: 0 0 1vw auto; }
+  .stage-c .reloj { font-size: 2.4vw; }
+  body.mode-pre .stage-c .reloj { font-size: 3.2vw; }
+  .stage-c .fecha { font-size: .85vw; letter-spacing: .3em; }
+  .stage-c .titulo-cierre { font-size: 1.5vw; margin-bottom: 2vw; color: var(--bronze); }
+</style>
+</head>
+<body class="mode-pre">
+
+<div id="variant-nav">
+  <div class="grp" id="tabs">
+    <button data-v="a" class="active">A · La Pluma (escritura)</button>
+    <button data-v="b">B · La Brasa (fuego)</button>
+    <button data-v="c">C · El Velo (crossfade)</button>
+    <button data-v="d">D · Síntesis (A×B + foto) ★</button>
+  </div>
+  <div class="sep"></div>
+  <div class="grp" id="modes">
+    <button data-m="pre" class="active">Pre-clase</button>
+    <button data-m="cierre">Sesión completa</button>
+  </div>
+  <div class="sep"></div>
+  <div class="grp">
+    <button id="btn-next">⟳ Cambiar frase</button>
+  </div>
+  <div class="hint">rotación mockup: 12 s · real: 60 s · Chromium 53 safe (opacity/transform)</div>
+</div>
+
+<!-- ═══ A — LA PLUMA ═══ -->
+<div id="variant-a" class="variant active">
+  <div class="stage stage-a">
+    <div class="velo-oscuro"></div>
+    <div class="layoutA">
+      <div class="quoteZone">
+        <div class="qhost" id="qa"></div>
+        <div class="autor" id="qa-autor"></div>
+      </div>
+      <div class="identity">
+        <img class="logoDark" src="../../../el-templo-admin/public/tv/logo.png" alt="El Templo">
+        <div class="titulo-cierre">SESIÓN COMPLETA</div>
+        <div class="reloj"><span class="hm">--:--</span></div>
+        <div class="fecha"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ B — LA BRASA ═══ -->
+<div id="variant-b" class="variant">
+  <div class="stage stage-b">
+    <div class="emberGlow"></div>
+    <div class="spark" style="left:12%; animation-delay:0s;"></div>
+    <div class="spark" style="left:28%; animation-delay:2.5s; animation-duration:11s;"></div>
+    <div class="spark" style="left:45%; animation-delay:5s; animation-duration:8s;"></div>
+    <div class="spark" style="left:63%; animation-delay:1.2s; animation-duration:10s;"></div>
+    <div class="spark" style="left:80%; animation-delay:3.8s; animation-duration:12s;"></div>
+    <div class="layoutB">
+      <div class="fecha"></div>
+      <div class="identity">
+        <img class="logoDark" src="../../../el-templo-admin/public/tv/logo.png" alt="El Templo">
+        <div class="reloj"><span class="hm">--:--</span></div>
+      </div>
+      <div class="quoteZone">
+        <div class="titulo-cierre">SESIÓN COMPLETA</div>
+        <div class="qhost qhostB" id="qb"></div>
+        <div class="autor" id="qb-autor"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ D — SÍNTESIS: layout A + brasa B + bars-open.webp ═══ -->
+<div id="variant-d" class="variant">
+  <div class="stage stage-d">
+    <div class="velo-foto"></div>
+    <div class="emberGlow"></div>
+    <div class="spark" style="left:10%; animation-delay:0s;"></div>
+    <div class="spark" style="left:26%; animation-delay:3s; animation-duration:11s;"></div>
+    <div class="spark" style="left:41%; animation-delay:6s; animation-duration:9s;"></div>
+    <div class="layoutA">
+      <div class="quoteZone">
+        <div class="qhost" id="qd"></div>
+        <div class="autor" id="qd-autor"></div>
+      </div>
+      <div class="identity">
+        <img class="logoDark logoIcon" src="../../../el-templo-app/icons/icon-512.webp" alt="El Templo">
+        <div class="titulo-cierre">SESIÓN COMPLETA</div>
+        <div class="reloj"><span class="hm">--:--</span></div>
+        <div class="fecha"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ C — EL VELO ═══ -->
+<div id="variant-c" class="variant">
+  <div class="stage stage-c">
+    <div class="bgC"></div>
+    <div class="vigC"></div>
+    <div class="layoutC">
+      <div class="quoteZone">
+        <div class="layC" id="qc0">
+          <div class="goldline"></div>
+          <div class="titulo-cierre">SESIÓN COMPLETA</div>
+          <div class="vq"></div>
+          <div class="autor"></div>
+        </div>
+        <div class="layC" id="qc1">
+          <div class="goldline"></div>
+          <div class="titulo-cierre">SESIÓN COMPLETA</div>
+          <div class="vq"></div>
+          <div class="autor"></div>
+        </div>
+      </div>
+      <div class="identity">
+        <img class="logoDark" src="../../../el-templo-admin/public/tv/logo.png" alt="El Templo">
+        <div class="reloj"><span class="hm">--:--</span></div>
+        <div class="fecha"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Modelo real post-2026-08-24 (master): segments[{text, gold?}] + author.
+// La de Pessoa prueba el doble remate dorado.
+var QUOTES = [
+  {
+    segments: [
+      { text: '“LA FORTUNA FAVORECE A ' },
+      { text: 'LOS AUDACES.”', gold: true }
+    ],
+    author: 'VIRGILIO'
+  },
+  {
+    segments: [
+      { text: '“LOS VIAJES SON LOS VIAJEROS. ', gold: true },
+      { text: 'LO QUE VEMOS NO ES LO QUE VEMOS, ' },
+      { text: 'SINO LO QUE SOMOS.”', gold: true }
+    ],
+    author: 'FERNANDO PESSOA'
+  },
+  {
+    segments: [
+      { text: '“QUIEN MUEVE UNA MONTAÑA ' },
+      { text: 'COMIENZA MOVIENDO PEQUEÑAS PIEDRAS.”', gold: true }
+    ],
+    author: 'CONFUCIO'
+  },
+  {
+    segments: [
+      { text: '“HASTA QUE LO INCONSCIENTE SE HAGA CONSCIENTE, ' },
+      { text: 'DIRIGIRÁ TU VIDA Y LO LLAMARÁS DESTINO.”', gold: true }
+    ],
+    author: 'CARL JUNG'
+  }
+];
+
+var state = { variant: 'a', qi: 0 };
+var rotTimer = null;
+var pendingTimeouts = [];
+
+function later(fn, ms) { pendingTimeouts.push(setTimeout(fn, ms)); }
+function clearPending() {
+  pendingTimeouts.forEach(function (t) { clearTimeout(t); });
+  pendingTimeouts = [];
+}
+
+/* ── A: escritura palabra a palabra ── */
+function renderPluma(q) {
+  var host = document.getElementById('qa');
+  var autor = document.getElementById('qa-autor');
+  host.classList.remove('qout'); autor.classList.remove('qout', 'in');
+  host.innerHTML = '';
+  var words = [];
+  q.segments.forEach(function (seg) {
+    seg.text.split(' ').forEach(function (wtxt) {
+      if (wtxt.length) { words.push({ t: wtxt, gold: !!seg.gold }); }
+    });
+  });
+  words.forEach(function (w) {
+    var sp = document.createElement('span');
+    sp.className = 'w' + (w.gold ? ' g' : '');
+    sp.textContent = w.t;
+    host.appendChild(sp);
+    host.appendChild(document.createTextNode(' '));
+  });
+  var spans = host.querySelectorAll('.w');
+  for (var i = 0; i < spans.length; i++) {
+    (function (sp, i) { later(function () { sp.classList.add('in'); }, 120 + i * 95); })(spans[i], i);
+  }
+  var total = 120 + spans.length * 95 + 450;
+  later(function () {
+    autor.textContent = q.author;
+    autor.classList.add('in');
+    var golds = host.querySelectorAll('.g');
+    for (var j = 0; j < golds.length; j++) { golds[j].classList.add('shimmer'); }
+  }, total);
+}
+function exitPluma(cb) {
+  document.getElementById('qa').classList.add('qout');
+  document.getElementById('qa-autor').classList.add('qout');
+  later(cb, 850);
+}
+
+/* ── B/D: letras que se encienden ── */
+function renderBrasa(q, hostId, autorId) {
+  var host = document.getElementById(hostId || 'qb');
+  var autor = document.getElementById(autorId || 'qb-autor');
+  host.classList.remove('qout'); autor.classList.remove('qout', 'in');
+  host.style.letterSpacing = '';
+  host.innerHTML = '';
+  var letters = [];
+  q.segments.forEach(function (seg) {
+    seg.text.split(' ').forEach(function (wtxt) {
+      if (!wtxt.length) { return; }
+      var bw = document.createElement('span');
+      bw.className = 'bw';
+      for (var k = 0; k < wtxt.length; k++) {
+        var l = document.createElement('span');
+        l.className = 'l' + (seg.gold ? ' g' : '');
+        l.textContent = wtxt.charAt(k);
+        bw.appendChild(l);
+        letters.push(l);
+      }
+      host.appendChild(bw);
+      host.appendChild(document.createTextNode(' '));
+    });
+  });
+  letters.forEach(function (l, i) {
+    var jitter = ((i * 37) % 5) * 14;
+    later(function () { l.classList.add('lit'); }, 150 + i * 22 + jitter);
+  });
+  later(function () {
+    autor.textContent = q.author;
+    autor.classList.add('in');
+  }, 150 + letters.length * 22 + 700);
+}
+function exitBrasa(cb, hostId, autorId) {
+  document.getElementById(hostId || 'qb').classList.add('qout');
+  document.getElementById(autorId || 'qb-autor').classList.add('qout');
+  later(cb, 950);
+}
+
+/* ── C: crossfade con capas alternadas ── */
+var cLayer = 0;
+function renderVelo(q) {
+  var layers = [document.getElementById('qc0'), document.getElementById('qc1')];
+  var next = layers[1 - cLayer];
+  var prev = layers[cLayer];
+  var vq = next.querySelector('.vq');
+  var autor = next.querySelector('.autor');
+  vq.innerHTML = '';
+  q.segments.forEach(function (seg) {
+    var sp = document.createElement('span');
+    if (seg.gold) { sp.className = 'g'; }
+    sp.textContent = seg.text;
+    vq.appendChild(sp);
+  });
+  autor.textContent = q.author;
+  next.classList.remove('off');
+  // reflow para que la transición de entrada arranque desde el estado base
+  void next.offsetWidth;
+  next.classList.add('on');
+  later(function () { autor.classList.add('in'); }, 1100);
+  prev.classList.remove('on');
+  prev.classList.add('off');
+  later(function () { prev.querySelector('.autor').classList.remove('in'); }, 1400);
+  cLayer = 1 - cLayer;
+}
+
+/* ── Orquestación ── */
+function renderActive() {
+  clearPending();
+  var q = QUOTES[state.qi % QUOTES.length];
+  if (state.variant === 'a') { renderPluma(q); }
+  if (state.variant === 'b') { renderBrasa(q); }
+  if (state.variant === 'c') { renderVelo(q); }
+  if (state.variant === 'd') { renderBrasa(q, 'qd', 'qd-autor'); }
+  refreshTitulos();
+}
+function nextQuote() {
+  clearPending();
+  state.qi++;
+  var q = QUOTES[state.qi % QUOTES.length];
+  if (state.variant === 'a') { exitPluma(function () { renderPluma(q); }); }
+  if (state.variant === 'b') { exitBrasa(function () { renderBrasa(q); }); }
+  if (state.variant === 'c') { renderVelo(q); } // crossfade: sin exit previo
+  if (state.variant === 'd') {
+    // salida estilo A: fade hacia arriba limpio (sin letter-spacing de B)
+    exitBrasa(function () { renderBrasa(q, 'qd', 'qd-autor'); }, 'qd', 'qd-autor');
+  }
+  refreshTitulos(true);
+}
+function restartRotation() {
+  if (rotTimer) { clearInterval(rotTimer); }
+  rotTimer = setInterval(nextQuote, 12000);
+}
+
+function refreshTitulos(skip) {
+  if (skip) { return; }
+  var stages = document.querySelectorAll('.variant.active .titulo-cierre');
+  for (var i = 0; i < stages.length; i++) {
+    stages[i].classList.remove('tin');
+    void stages[i].offsetWidth;
+    stages[i].classList.add('tin');
+  }
+}
+
+/* Tabs de variante */
+function selectVariant(v, btn) {
+  state.variant = v;
+  var tabs = document.querySelectorAll('#tabs button');
+  for (var i = 0; i < tabs.length; i++) { tabs[i].classList.remove('active'); }
+  btn.classList.add('active');
+  var vars = document.querySelectorAll('.variant');
+  for (var j = 0; j < vars.length; j++) { vars[j].classList.remove('active'); }
+  document.getElementById('variant-' + v).classList.add('active');
+  var stage = document.querySelector('#variant-' + v + ' .stage');
+  stage.classList.remove('shown');
+  void stage.offsetWidth;
+  stage.classList.add('shown');
+  if (v === 'c') {
+    // resetear capas para que la entrada se vea limpia
+    document.getElementById('qc0').className = 'layC';
+    document.getElementById('qc1').className = 'layC';
+    cLayer = 0;
+  }
+  renderActive();
+  restartRotation();
+}
+document.getElementById('tabs').addEventListener('click', function (e) {
+  var v = e.target.getAttribute('data-v');
+  if (v) { selectVariant(v, e.target); }
+});
+
+/* Modo pre-clase / sesión completa */
+function setMode(m, btn) {
+  var btns = document.querySelectorAll('#modes button');
+  for (var i = 0; i < btns.length; i++) { btns[i].classList.remove('active'); }
+  btn.classList.add('active');
+  document.body.classList.remove('mode-pre', 'mode-cierre');
+  document.body.classList.add('mode-' + m);
+  refreshTitulos();
+}
+document.getElementById('modes').addEventListener('click', function (e) {
+  var m = e.target.getAttribute('data-m');
+  if (m) { setMode(m, e.target); }
+});
+
+document.getElementById('btn-next').addEventListener('click', function () {
+  nextQuote();
+  restartRotation();
+});
+
+/* Reloj + fecha */
+var DIAS = ['DOMINGO', 'LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO'];
+function tick() {
+  var d = new Date();
+  var hm = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+  var ss = ('0' + d.getSeconds()).slice(-2);
+  var hms = document.querySelectorAll('.reloj .hm');
+  var segs = document.querySelectorAll('.reloj .seg');
+  for (var i = 0; i < hms.length; i++) { hms[i].textContent = hm; }
+  for (var j = 0; j < segs.length; j++) { segs[j].textContent = ss; }
+  var fechas = document.querySelectorAll('.fecha');
+  for (var k = 0; k < fechas.length; k++) { fechas[k].textContent = DIAS[d.getDay()] + ' · SEMANA 27'; }
+}
+setInterval(tick, 500);
+tick();
+
+/* Arranque — soporta deep-link: #b, #c, #a-cierre, #c-cierre, etc. */
+var hash = (location.hash || '').replace('#', '').split('-');
+if (hash.indexOf('still') !== -1) { document.body.classList.add('still'); }
+var v0 = (hash[0] === 'b' || hash[0] === 'c' || hash[0] === 'd') ? hash[0] : 'a';
+var m0 = hash[1] === 'cierre' ? 'cierre' : 'pre';
+if (m0 === 'cierre') {
+  setMode('cierre', document.querySelector('#modes button[data-m="cierre"]'));
+}
+selectVariant(v0, document.querySelector('#tabs button[data-v="' + v0 + '"]'));
+</script>
+</body>
+</html>
