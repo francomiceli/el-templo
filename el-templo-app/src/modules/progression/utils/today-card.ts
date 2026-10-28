@@ -9,24 +9,47 @@
  * Precedencia de gates (de arriba hacia abajo, gana el primero que aplica). Fuente: UAT
  * D3/D4/D5/D11 y confirmaciones C1/C2 de Franco (la card nunca le dice al socio que frene):
  *
+ * Fase 203 (D-05..D-08, D-18): dos reglas mandan sobre todo lo de abajo.
+ *  - "Una falla es 'no sé', nunca 'no'": las banderas `*Failed` sin dato previo sacan a la card
+ *    del esqueleto AL INSTANTE (un pedido que falló no va a llegar más tarde) mostrando `neutral`
+ *    o solo lo que se sabe. Nunca "Arrancá tu plan", "Reservá tu clase", "Sesión libre" ni
+ *    "completada" por una falla. Una falla con dato previo conservado (turno, programa) no
+ *    bloquea: se muestra el dato.
+ *  - El tope (`deadlinePassed`, D-07) es SOLO para lo que tarda (banderas `*Loading`): vencido,
+ *    la card usa lo que sabe y vuelve sola al modelo completo cuando llega el dato.
+ *
+ * Precedencia de gates (de arriba hacia abajo, gana el primero que aplica). Fuente: UAT
+ * D3/D4/D5/D11 y confirmaciones C1/C2 de Franco (la card nunca le dice al socio que frene):
+ *
+ * -1. `profileLoading` → `cargando` SIEMPRE, con o sin tope: D-08 manda sobre D-07/D-18 para el
+ *     perfil. Sin perfil no se conoce la zona de la sede (`todayStr`) ni si es presencial o
+ *     virtual; `neutral` solo se alcanza con perfil.
  *  0. `hasPlan` = suscripción active/paused O `planStatus.hasActivePlan` (respaldo: si la
  *     suscripción no vino pero el plan-status dice que hay plan, NUNCA es "sin plan").
  *     `hasScheduled` = suscripción `scheduled` O `planStatus.hasScheduledPlan` (D4: un plan
  *     programado se trata igual que uno activo). `canTrain = hasPlan || hasScheduled`.
- *     Sin `canTrain` y `planLoading` → `cargando` (ningún gate de "sin plan" se decide
- *     mientras algo carga).
+ *     Sin `canTrain`: `planFailed` → `neutral` al instante (no se sabe si hay plan, si venció
+ *     ni si hay uno programado); `planLoading` → `cargando` hasta el tope y `neutral` después
+ *     (ningún gate de "sin plan" se decide mientras algo carga ni sin saber).
  *  1. Sin `canTrain` (y nada cargando): sede virtual → `online-libre` (con "Ver planes");
- *     `planStatus.hadPlan` → `sin-plan-vencio`; si no (incluye `planStatus` null por error
- *     de red, fail-open) → `sin-plan-nunca`.
- *  2. Sesión de hoy completada → `completada`.
+ *     `planStatus.hadPlan` → `sin-plan-vencio`; si no (incluye `planStatus` null sin falla)
+ *     → `sin-plan-nunca`. Virtual espera la semana (`weekLoading`, el título usa la rutina) y
+ *     "nunca tuvo plan" espera la prueba gratis (`trialLoading`) hasta el tope; vencido el
+ *     tope, `sin-plan-nunca` sale sin la secundaria "Clase de prueba gratis".
+ * 1.5. Con plan: `cargando` mientras falte la semana, el programa, las stats o (presencial,
+ *     sin turno en memoria y sin sesión hecha) las reservas, hasta el tope. SOLO cuentan las
+ *     banderas `*Loading`, nunca las `*Failed`.
+ *  2. Sesión de hoy completada → `completada` (solo con stats resueltas y sin falla).
  *  3. Virtual: con programa → `online-programa` SIEMPRE (domingo y días sin sesión
  *     incluidos, D3); sin programa → `online-libre` con "Entrenar" y sin "Ver planes".
+ *     Programa desconocido (cargando tras el tope, o falla sin programa) → `neutral`.
  *  4. Presencial:
  *     - D5: una clase de hoy con la ventana cerrada (`windowState === 'after'`) y sin
  *       asistencia se trata como si no existiera;
  *     a. clase de hoy vigente → `presencial-turno`;
  *     b. reservas todavía cargando (`bookingsLoading`) → `cargando` (no se afirma que
- *        falta reservar por una carrera);
+ *        falta reservar por una carrera; vencido el tope → `neutral`); reservas que
+ *        fallaron (`bookingsFailed`) sin turno vigente → `neutral` al instante;
  *     c. lista de espera de hoy → `presencial-sin-turno` (variante lista de espera);
  *     d. próxima clase reservada (`nextBooking`) → `presencial-proxima` (C1);
  *     e. si no → `presencial-sin-turno` con "Reservá tu clase" (C2, cualquier día).
@@ -65,6 +88,8 @@ export type TodayCardKind =
   | 'online-libre'
   | 'sin-plan-nunca'
   | 'sin-plan-vencio'
+  /** Fase 203 (D-18): no se sabe lo suficiente para afirmar un estado (falla o tope vencido). */
+  | 'neutral'
 
 /** Texto en tramos: permite resaltar ("Tu clase: **19:00**") sin HTML. */
 export type TodayCardText = { text: string; strong?: boolean }[]
@@ -140,6 +165,39 @@ export interface TodayCardInput {
   trialEligible: boolean
   /** FREE_BLOCKS_ENABLED: apagado, nunca se pone el link a Libre (queda el `secondary` del gate) */
   libreEnabled: boolean
+  /**
+   * Fase 203 (D-08): sesión sin perfil (el boot no lo trajo). Sin perfil no se sabe si el socio
+   * es presencial o virtual ni la zona de la sede (`todayStr`). Deja la card en esqueleto AUN con
+   * el tope vencido: lo resuelve el reintento del perfil.
+   */
+  profileLoading: boolean
+  /** `/sessions/weekly` no respondió todavía (tras un error cuenta como respondido). */
+  weekLoading: boolean
+  /** my-progress + inscripciones no resolvieron por primera vez (`!userStore.memberStateLoaded`). */
+  programLoading: boolean
+  /** trial-eligibility no resolvió. Solo importa sin plan y no virtual. */
+  trialLoading: boolean
+  /** `/progression/stats` no resolvió por primera vez. */
+  statsLoading: boolean
+  /**
+   * La suscripción o el plan-status fallaron por red y `planStatus` es null: no se sabe si hay
+   * plan, si venció ni si hay uno programado.
+   */
+  planFailed: boolean
+  /**
+   * La última carga de my-bookings falló. `booking` trae el último dato bueno si lo había: solo
+   * cuenta como "no sé" cuando no hay turno vigente.
+   */
+  bookingsFailed: boolean
+  /**
+   * Falló my-progress o current-program/enrollments. `program` trae el último dato bueno si lo
+   * había: solo cuenta como "no sé" cuando `program` es null.
+   */
+  programFailed: boolean
+  /** Las stats fallaron y no hay stats previas: no se sabe si hoy está completada. */
+  statsFailed: boolean
+  /** Venció el tope de carga (D-07): lo que sigue cargando deja de bloquear la card. */
+  deadlinePassed: boolean
 }
 
 // ── Helpers de fecha (siempre sobre el string de la sede, nunca la zona del teléfono) ──
@@ -278,6 +336,18 @@ function sinPlanNunca(input: TodayCardInput): TodayCardModel {
     meta: [{ text: 'Elegí cómo querés entrenar: en tu sede o online.' }],
     primary: PLANES,
     secondary: input.trialEligible ? { label: 'Clase de prueba gratis', to: '/reservas' } : null,
+  })
+}
+
+/**
+ * Fase 203 (D-18): estado neutral. Mismo marco que el resto, sin pill, solo la fecha de la sede y
+ * "Entrenar". Se alcanza únicamente con perfil (G-1 corta antes), así que `todayStr` ya está en la
+ * zona real de la sede y la fecha siempre se conoce.
+ */
+function neutral(input: TodayCardInput): TodayCardModel {
+  return emptyModel('neutral', 'Hoy', 'Tu entrenamiento', {
+    meta: [{ text: formatLongDate(input.todayStr) }],
+    primary: { label: 'Entrenar', to: '/training' },
   })
 }
 
@@ -460,30 +530,52 @@ export function resolveTodayCard(input: TodayCardInput): TodayCardModel {
 }
 
 function resolveBaseCard(input: TodayCardInput): TodayCardModel {
+  // -1. Sin perfil no hay zona de la sede ni presencial/virtual: esqueleto aun con el tope (D-08).
+  if (input.profileLoading) return emptyModel('cargando', '', '')
+
   const hasPlan = hasCurrentPlan(input)
   const hasScheduled =
     input.subscription?.status === 'scheduled' || input.planStatus?.hasScheduledPlan === true
   const canTrain = hasPlan || hasScheduled
 
-  // 0. Nada de "sin plan" mientras algo carga.
+  // 0. Nada de "sin plan" mientras algo carga ni sin saber: una falla sale enseguida (neutral),
+  // lo que tarda espera hasta el tope.
+  if (!canTrain && input.planFailed) return neutral(input)
   if (!canTrain && input.planLoading) {
-    return emptyModel('cargando', '', '')
+    return input.deadlinePassed ? neutral(input) : emptyModel('cargando', '', '')
   }
 
   // 1. Sin plan (ni programado).
   if (!canTrain) {
-    if (input.isVirtual) return onlineLibre(input, false)
+    if (input.isVirtual) {
+      if (input.weekLoading && !input.deadlinePassed) return emptyModel('cargando', '', '')
+      return onlineLibre(input, false)
+    }
     if (input.planStatus?.hadPlan === true) return sinPlanVencio(input)
+    // "Clase de prueba gratis" depende de la elegibilidad: se espera hasta el tope y, vencido,
+    // sale sin esa secundaria (omitir no es afirmar).
+    if (input.trialLoading) {
+      if (!input.deadlinePassed) return emptyModel('cargando', '', '')
+      return sinPlanNunca({ ...input, trialEligible: false })
+    }
     return sinPlanNunca(input)
   }
 
-  // 2. Sesión de hoy completada.
-  if (input.todayCompleted) return completada(input)
+  // 1.5. Con plan: se espera lo que todavía puede llegar (solo `*Loading`, nunca `*Failed`).
+  // Con un turno en memoria o la sesión ya hecha no se espera por las reservas.
+  const waitingBookings =
+    !input.isVirtual && input.bookingsLoading && input.booking === null && !input.todayCompleted
+  const waiting = input.weekLoading || input.statsLoading || input.programLoading || waitingBookings
+  if (waiting && !input.deadlinePassed) return emptyModel('cargando', '', '')
 
-  // 3. Virtual: siempre se puede entrenar.
+  // 2. Sesión de hoy completada. Sin stats resueltas no se afirma.
+  if (!input.statsLoading && !input.statsFailed && input.todayCompleted) return completada(input)
+
+  // 3. Virtual: siempre se puede entrenar. Sin saber el programa no se dice "Sesión libre".
   if (input.isVirtual) {
-    if (!input.program) return onlineLibre(input, true)
-    return onlinePrograma(input, input.program)
+    if (input.program) return onlinePrograma(input, input.program)
+    if (input.programLoading || input.programFailed) return neutral(input)
+    return onlineLibre(input, true)
   }
 
   // 4. Presencial. D5: una clase de hoy ya pasada y sin asistencia es como si no existiera.
@@ -491,8 +583,12 @@ function resolveBaseCard(input: TodayCardInput): TodayCardModel {
     input.booking !== null && input.windowState === 'after' && input.attendanceMarkedAt === null
   const activeBooking = missedToday ? null : input.booking
   if (activeBooking) return presencialTurno(input, activeBooking)
-  // Sin saber si hay clase hoy no se decide "reservá" (A1 del plan 20).
-  if (input.bookingsLoading) return emptyModel('cargando', '', '')
+  // Sin saber si hay clase hoy no se decide "reservá" (A1 del plan 20): ni cargando (tras el
+  // tope, neutral) ni con la carga fallida (neutral enseguida).
+  if (input.bookingsLoading) {
+    return input.deadlinePassed ? neutral(input) : emptyModel('cargando', '', '')
+  }
+  if (input.bookingsFailed) return neutral(input)
   if (input.waitlistTime) return presencialSinTurno(input)
   if (input.nextBooking) return presencialProxima(input, input.nextBooking)
   return presencialSinTurno(input)

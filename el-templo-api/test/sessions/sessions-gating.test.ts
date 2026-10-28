@@ -416,6 +416,83 @@ describe("Sessions gating (Phase 104 R7 + R8)", () => {
   });
 
   // ============================================================
+  // R8 (fase 203, D-09) — la app dejo de mandar `view`: estos casos fijan el
+  // default del server para lo que antes decidia el cliente.
+  // ============================================================
+
+  it("R8 case 8 (fase 203): solo online con una inscripcion activa y SIN puntero, sin view → 200 y view='program'", async () => {
+    const member = await createTestMember(app);
+    const onlinePlan = await insertPlan(app, {
+      name: "Online Sin Puntero",
+      planCategory: "online_regular",
+    });
+    await insertActiveSubscription(app, member.id, onlinePlan);
+    const program = await insertProgram(app, {
+      name: "Core Sin Puntero",
+      goalPlanType: "core",
+    });
+    await insertEnrollment(app, member.id, program);
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/api/sessions/weekly?weekStart=${WEEK_START_MONDAY}`,
+      headers: { authorization: `Bearer ${member.token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.view).toBe("program");
+  });
+
+  it("R8 case 9 (fase 203): paquete de clases (grupo presencial) sin puntero, sin view → 200 y view='templo'", async () => {
+    const member = await createTestMember(app);
+    const paquete = await insertPlan(app, {
+      name: "Paquete Default",
+      planCategory: "paquete",
+      planTier: "other",
+      durationDays: 14,
+    });
+    await insertActiveSubscription(app, member.id, paquete);
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/api/sessions/weekly?weekStart=${WEEK_START_MONDAY}`,
+      headers: { authorization: `Bearer ${member.token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.view).toBe("templo");
+  });
+
+  it("R8 case 10 (fase 203): presencial con puntero a inscripcion cancelada, sin view → 200 y view='templo' (el default no da 403 como view=program)", async () => {
+    const member = await createTestMember(app);
+    const presencial = await insertPlan(app, {
+      name: "Presencial Puntero Vencido",
+      planCategory: "presencial",
+    });
+    await insertActiveSubscription(app, member.id, presencial);
+    const program = await insertProgram(app, { goalPlanType: "core" });
+    const enrollmentId = await insertEnrollment(
+      app,
+      member.id,
+      program,
+      "cancelled",
+    );
+    await setCurrentProgramEnrollment(app, member.id, enrollmentId);
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/api/sessions/weekly?weekStart=${WEEK_START_MONDAY}`,
+      headers: { authorization: `Bearer ${member.token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.view).toBe("templo");
+  });
+
+  // ============================================================
   // Daily-handler smoke
   // ============================================================
 

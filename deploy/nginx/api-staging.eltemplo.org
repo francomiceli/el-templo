@@ -1,10 +1,10 @@
+# Config viva de /etc/nginx/sites-enabled/api-staging.eltemplo.org traída el 2026-10-28 (fase 203, D-12)
+# Fuente de verdad: el server. Este archivo es su espejo; nginx no se despliega por pipeline.
 # Staging API Reverse Proxy (port 4001)
 # Location: /etc/nginx/sites-available/api-staging.eltemplo.org
 # SSL will be added by certbot --nginx
 
 server {
-    listen 80;
-    listen [::]:80;
     server_name api-staging.eltemplo.org;
 
     # Proxy ALL requests to Fastify (routes are /api/*, /health)
@@ -29,9 +29,37 @@ server {
 
         # Don't buffer responses
         proxy_buffering off;
+
+        # Retry on upstream restart window (pm2 reload, deploy). Only GET/HEAD by default.
+        proxy_next_upstream error timeout http_502 http_503 http_504;
+        proxy_next_upstream_tries 3;
+        proxy_next_upstream_timeout 10s;
     }
 
     # Security headers
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-Content-Type-Options "nosniff" always;
+
+    listen [::]:443 ssl; # managed by Certbot
+    listen 443 ssl; # managed by Certbot
+    ssl_certificate /etc/letsencrypt/live/api-staging.eltemplo.org/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/api-staging.eltemplo.org/privkey.pem; # managed by Certbot
+    include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
+
+}
+
+
+server {
+    if ($host = api-staging.eltemplo.org) {
+        return 301 https://$host$request_uri;
+    } # managed by Certbot
+
+
+    listen 80;
+    listen [::]:80;
+    server_name api-staging.eltemplo.org;
+    return 404; # managed by Certbot
+
+
 }

@@ -50,11 +50,38 @@ export const useProgressionStore = defineStore('progression', () => {
   const checkInLoading = ref(false)
   const checkInError = ref<string | null>(null)
 
-  /** Loading state for async operations */
+  /**
+   * Loading state for async operations. Se vuelve a prender en CADA visita
+   * (`fetchStats` lo sube siempre): sirve para el spinner de la página, NO para
+   * decidir el esqueleto de una card. Para eso está `statsLoaded`.
+   */
   const loading = ref(false)
+
+  /**
+   * Fase 203 (D-02/D-07): `/progression/stats` respondió al menos una vez
+   * (2xx o error). No vuelve a false en un refresco (patrón `planStateLoading`:
+   * "cargó una vez"), así la card no vuelve al esqueleto al re-entrar.
+   */
+  const statsLoaded = ref(false)
+
+  /** Resultado de la última respuesta de stats: true = 2xx, false = falló, null = nunca respondió. */
+  const statsOk = ref<boolean | null>(null)
+
+  /** Check-in de hoy respondió al menos una vez (2xx o error). Mismo criterio que `statsLoaded`. */
+  const checkInSettled = ref(false)
+
+  /** Resultado de la última respuesta de check-ins: true = 2xx, false = falló, null = nunca respondió. */
+  const checkInOk = ref<boolean | null>(null)
 
   /** Last error message from operations */
   const error = ref<string | null>(null)
+
+  /**
+   * Generación de la sesión (fase 203, cierre): sube en `reset()` (logout). Los composables de
+   * `/progression/stats` y `/check-ins/today` la capturan al empezar y no escriben nada si cambió:
+   * una respuesta tardía del socio anterior nunca marca "respondió" para el nuevo. No es reactiva.
+   */
+  let generation = 0
 
   // Computed
   /**
@@ -64,6 +91,13 @@ export const useProgressionStore = defineStore('progression', () => {
     if (!evaluation.value) return false
     return evaluation.value.eligible && !evaluation.value.pendingRequest
   })
+
+  /**
+   * Stats falló y no hay stats previas: no se sabe si hoy está completada ni
+   * el total. Es "no sé", nunca "no" (fase 203 D-07/D-16). Un refresco fallido
+   * con stats previas NO es `statsFailed`: se conservan los datos buenos.
+   */
+  const statsFailed = computed(() => statsOk.value === false && stats.value === null)
 
   // Actions
   /**
@@ -93,6 +127,15 @@ export const useProgressionStore = defineStore('progression', () => {
         requestedAt: new Date().toISOString(),
       }
     }
+  }
+
+  /**
+   * Marca que `/progression/stats` respondió (fase 203). Llamar SIEMPRE:
+   * `true` tras un 2xx, `false` tras un error (fail-open). No toca `stats`.
+   */
+  function markStatsSettled(ok: boolean) {
+    statsLoaded.value = true
+    statsOk.value = ok
   }
 
   /**
@@ -140,6 +183,8 @@ export const useProgressionStore = defineStore('progression', () => {
   function setCheckInState(data: TodayCheckInState) {
     checkInState.value = data
     checkInError.value = null
+    checkInSettled.value = true
+    checkInOk.value = true
   }
 
   function setCheckInLoading(state: boolean) {
@@ -148,6 +193,11 @@ export const useProgressionStore = defineStore('progression', () => {
 
   function setCheckInError(msg: string | null) {
     checkInError.value = msg
+    // Solo un error real cuenta como "respondió mal"; limpiar el mensaje (null) no es una respuesta.
+    if (msg !== null) {
+      checkInSettled.value = true
+      checkInOk.value = false
+    }
   }
 
   function setCheckInAnswer(questionType: CheckInQuestionType, answer: CheckInAnswerValue) {
@@ -159,7 +209,13 @@ export const useProgressionStore = defineStore('progression', () => {
     }
   }
 
+  /** Generación vigente; `isCurrentGeneration(g)` compara contra la capturada al empezar. */
+  function currentGeneration(): number {
+    return generation
+  }
+
   function reset() {
+    generation++
     level.value = null
     stats.value = null
     rpeTrend.value = null
@@ -173,6 +229,10 @@ export const useProgressionStore = defineStore('progression', () => {
     checkInError.value = null
     loading.value = false
     error.value = null
+    statsLoaded.value = false
+    statsOk.value = null
+    checkInSettled.value = false
+    checkInOk.value = null
   }
 
   return {
@@ -187,9 +247,16 @@ export const useProgressionStore = defineStore('progression', () => {
     weeklySummaryError,
     loading,
     error,
+    statsLoaded,
+    statsOk,
+    checkInSettled,
+    checkInOk,
     // Computed
     evaluationEligible,
+    statsFailed,
     // Actions
+    currentGeneration,
+    markStatsSettled,
     setProgressionData,
     setEvaluationPending,
     setWeeklySummary,

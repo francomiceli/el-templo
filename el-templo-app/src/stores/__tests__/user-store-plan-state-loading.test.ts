@@ -30,7 +30,7 @@ function mockApi(routes: { subscription?: Promise<unknown> | unknown; planStatus
       return (await routes.subscription) ?? { status: 204, data: null }
     }
     if (url.endsWith('/me/plan-status')) {
-      return { status: 200, data: routes.planStatus ?? { hasActivePlan: false } }
+      return { status: 200, data: (await routes.planStatus) ?? { hasActivePlan: false } }
     }
     return { status: 204, data: null }
   })
@@ -43,15 +43,27 @@ describe('useUserStore.planStateLoading (REVIEW-app WR-03)', () => {
   })
 
   it('es true hasta que la suscripción y el plan-status respondieron por primera vez', async () => {
-    mockApi({ subscription: { status: 200, data: EXPIRED_SUB } })
+    // D-15: loadSubscription() pide la suscripción y el plan-status EN PARALELO.
+    const planStatus = deferred<unknown>()
+    mockApi({ subscription: { status: 200, data: EXPIRED_SUB }, planStatus: planStatus.promise })
     const store = useUserStore()
     expect(store.planStateLoading).toBe(true)
 
-    await store.loadSubscription()
+    const load = store.loadSubscription()
+    await new Promise((resolve) => setTimeout(resolve, 0))
     // La suscripción ya vino sin plan activo, pero falta plan-status: no se decide "sin plan".
+    expect(store.subscriptionLoaded).toBe(true)
     expect(store.planStateLoading).toBe(true)
 
-    await store.loadPlanStatus()
+    planStatus.resolve({ hasActivePlan: false })
+    await load
+    expect(store.planStateLoading).toBe(false)
+  })
+
+  it('tras await loadSubscription() el plan-status ya vino en paralelo', async () => {
+    mockApi({ subscription: { status: 200, data: EXPIRED_SUB } })
+    const store = useUserStore()
+    await store.loadSubscription()
     expect(store.planStateLoading).toBe(false)
   })
 

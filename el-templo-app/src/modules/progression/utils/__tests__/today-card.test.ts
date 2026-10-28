@@ -49,6 +49,17 @@ function baseInput(over: Partial<TodayCardInput> = {}): TodayCardInput {
     hasExtraPrograms: false,
     trialEligible: false,
     libreEnabled: true,
+    // Fase 203: por defecto todo resuelto y sin fallas (los casos anteriores no cambian).
+    profileLoading: false,
+    weekLoading: false,
+    programLoading: false,
+    trialLoading: false,
+    statsLoading: false,
+    planFailed: false,
+    bookingsFailed: false,
+    programFailed: false,
+    statsFailed: false,
+    deadlinePassed: false,
     ...over,
   }
 }
@@ -899,6 +910,395 @@ describe('resolveTodayCard — programas extra', () => {
     const m = resolveTodayCard(baseInput({ bookingsLoading: true, hasExtraPrograms: true }))
     expect(m.kind).toBe('cargando')
     expect(m.secondary).toBeNull()
+  })
+})
+
+describe('resolveTodayCard — carga y tope (fase 203)', () => {
+  const SIN_PLAN_COPY = ['Arrancá tu plan', 'Renová', 'Ver planes', 'Clase de prueba gratis']
+
+  function sinTextosDeSinPlan(m: TodayCardModel): void {
+    const copy = allCopy(m)
+    for (const text of SIN_PLAN_COPY) expect(copy).not.toContain(text)
+  }
+
+  describe('sin tope (deadlinePassed: false)', () => {
+    it('profileLoading → cargando aunque haya plan activo', () => {
+      const m = resolveTodayCard(baseInput({ profileLoading: true, deadlinePassed: false }))
+      expect(m.kind).toBe('cargando')
+    })
+
+    it('sin plan resuelto y planLoading → cargando', () => {
+      const m = resolveTodayCard(
+        baseInput({ subscription: null, planStatus: null, planLoading: true }),
+      )
+      expect(m.kind).toBe('cargando')
+    })
+
+    it('planFailed (suscripción falló, plan-status null) sin plan → neutral AL INSTANTE', () => {
+      const m = resolveTodayCard(
+        baseInput({
+          subscription: null,
+          planStatus: null,
+          planFailed: true,
+          trialEligible: true,
+          deadlinePassed: false,
+        }),
+      )
+      expect(m.kind).toBe('neutral')
+      sinTextosDeSinPlan(m)
+    })
+
+    it('suscripción 204 (sin falla) + plan-status caído (planFailed) → neutral, no "Arrancá tu plan" ni "Renová"', () => {
+      const m = resolveTodayCard(
+        baseInput({ subscription: null, planStatus: null, planFailed: true }),
+      )
+      expect(m.kind).toBe('neutral')
+      const copy = allCopy(m)
+      expect(copy).not.toContain('Arrancá tu plan')
+      expect(copy).not.toContain('Renová')
+    })
+
+    it('planFailed en un socio virtual → neutral (no online-libre con "Ver planes")', () => {
+      const m = resolveTodayCard(
+        baseInput({ isVirtual: true, subscription: null, planStatus: null, planFailed: true }),
+      )
+      expect(m.kind).toBe('neutral')
+      expect(allCopy(m)).not.toContain('Ver planes')
+    })
+
+    it('planFailed con plan conocido (por plan-status) no bloquea la card', () => {
+      const m = resolveTodayCard(
+        baseInput({
+          subscription: null,
+          planStatus: planStatus({ hasActivePlan: true }),
+          planFailed: true,
+        }),
+      )
+      expect(m.kind).toBe('presencial-sin-turno')
+    })
+
+    it.each<Partial<TodayCardInput>>([
+      { weekLoading: true },
+      { programLoading: true },
+      { statsLoading: true },
+    ])('con plan y %o → cargando', (over) => {
+      const m = resolveTodayCard(baseInput(over))
+      expect(m.kind).toBe('cargando')
+    })
+
+    it('presencial con plan, bookingsLoading, sin turno y sin sesión hecha → cargando', () => {
+      const m = resolveTodayCard(baseInput({ bookingsLoading: true }))
+      expect(m.kind).toBe('cargando')
+    })
+
+    it('presencial con plan, bookingsLoading y un turno en memoria → presencial-turno (la clase gana)', () => {
+      const m = resolveTodayCard(baseInput({ bookingsLoading: true, booking: BOOKING }))
+      expect(m.kind).toBe('presencial-turno')
+    })
+
+    it('presencial con plan, bookingsLoading y todayCompleted → completada (la sesión hecha no depende de los turnos)', () => {
+      const m = resolveTodayCard(baseInput({ bookingsLoading: true, todayCompleted: true }))
+      expect(m.kind).toBe('completada')
+    })
+
+    it('statsFailed sin stats previas: no espera y nunca afirma completada aunque todayCompleted venga true', () => {
+      const sinTurno = resolveTodayCard(baseInput({ statsFailed: true, todayCompleted: true }))
+      expect(sinTurno.kind).not.toBe('cargando')
+      expect(sinTurno.kind).not.toBe('completada')
+      const conTurno = resolveTodayCard(
+        baseInput({ statsFailed: true, todayCompleted: true, booking: BOOKING }),
+      )
+      expect(conTurno.kind).toBe('presencial-turno')
+    })
+
+    it('presencial con plan, bookingsFailed y sin turno → neutral AL INSTANTE, sin "Reservá"', () => {
+      const m = resolveTodayCard(baseInput({ bookingsFailed: true, deadlinePassed: false }))
+      expect(m.kind).toBe('neutral')
+      expect(allCopy(m)).not.toContain('Reservá')
+    })
+
+    it('presencial con plan, bookingsFailed y con turno (dato previo conservado) → presencial-turno', () => {
+      const m = resolveTodayCard(baseInput({ bookingsFailed: true, booking: BOOKING }))
+      expect(m.kind).toBe('presencial-turno')
+    })
+
+    it('virtual con plan, programFailed y sin programa → neutral AL INSTANTE, sin "Sesión libre"', () => {
+      const m = resolveTodayCard(
+        baseInput({ isVirtual: true, program: null, todayRoute: null, programFailed: true }),
+      )
+      expect(m.kind).toBe('neutral')
+      expect(allCopy(m)).not.toContain('Sesión libre')
+    })
+
+    it('virtual con plan, programFailed y con programa (dato previo conservado) → online-programa', () => {
+      const m = resolveTodayCard(
+        baseInput({ isVirtual: true, program: PROGRAM, programFailed: true }),
+      )
+      expect(m.kind).toBe('online-programa')
+    })
+
+    it('una falla no corta la espera de lo que todavía puede llegar: cargando y, al resolverse, neutral', () => {
+      const esperando = resolveTodayCard(baseInput({ bookingsFailed: true, weekLoading: true }))
+      expect(esperando.kind).toBe('cargando')
+      const resuelto = resolveTodayCard(baseInput({ bookingsFailed: true, weekLoading: false }))
+      expect(resuelto.kind).toBe('neutral')
+    })
+
+    it('presencial con plan y programFailed → no espera ni cambia la card (omitir no es afirmar)', () => {
+      const m = resolveTodayCard(baseInput({ programFailed: true }))
+      expect(m.kind).toBe('presencial-sin-turno')
+    })
+
+    it('sin plan, no virtual, trialLoading (nunca tuvo plan) → cargando', () => {
+      const m = resolveTodayCard(
+        baseInput({ subscription: null, planStatus: planStatus(), trialLoading: true }),
+      )
+      expect(m.kind).toBe('cargando')
+    })
+
+    it('sin plan que venció, trialLoading → no espera (su secundaria no depende de la prueba gratis)', () => {
+      const m = resolveTodayCard(
+        baseInput({
+          subscription: null,
+          planStatus: planStatus({ hadPlan: true }),
+          trialLoading: true,
+        }),
+      )
+      expect(m.kind).toBe('sin-plan-vencio')
+    })
+
+    it('sin plan, virtual, weekLoading → cargando (el título de online-libre usa la rutina)', () => {
+      const m = resolveTodayCard(
+        baseInput({
+          isVirtual: true,
+          subscription: null,
+          planStatus: planStatus(),
+          weekLoading: true,
+        }),
+      )
+      expect(m.kind).toBe('cargando')
+    })
+
+    it('sin plan, no virtual, weekLoading → no espera (el sin-plan no usa la rutina)', () => {
+      const m = resolveTodayCard(
+        baseInput({ subscription: null, planStatus: planStatus(), weekLoading: true }),
+      )
+      expect(m.kind).toBe('sin-plan-nunca')
+    })
+
+    it('con todo resuelto y sin fallas el resultado es el de siempre', () => {
+      expect(resolveTodayCard(baseInput()).kind).toBe('presencial-sin-turno')
+      expect(resolveTodayCard(baseInput({ booking: BOOKING })).kind).toBe('presencial-turno')
+      expect(resolveTodayCard(baseInput({ isVirtual: true, program: PROGRAM })).kind).toBe(
+        'online-programa',
+      )
+      expect(resolveTodayCard(baseInput({ isVirtual: true })).kind).toBe('online-libre')
+    })
+  })
+
+  describe('con tope vencido (deadlinePassed: true)', () => {
+    it('sin perfil y con el tope vencido → cargando, NO neutral (D-08 manda sobre D-07/D-18)', () => {
+      const m = resolveTodayCard(baseInput({ profileLoading: true, deadlinePassed: true }))
+      expect(m.kind).toBe('cargando')
+      expect(m.kind).not.toBe('neutral')
+    })
+
+    it('sin perfil, sin plan y con el tope vencido → igual cargando', () => {
+      const m = resolveTodayCard(
+        baseInput({
+          subscription: null,
+          planStatus: null,
+          planLoading: true,
+          profileLoading: true,
+          deadlinePassed: true,
+        }),
+      )
+      expect(m.kind).toBe('cargando')
+    })
+
+    it('sin plan resuelto y planLoading → neutral con el modelo exacto de D-18', () => {
+      const m = resolveTodayCard(
+        baseInput({
+          subscription: null,
+          planStatus: null,
+          planLoading: true,
+          deadlinePassed: true,
+        }),
+      )
+      expect(m).toEqual({
+        kind: 'neutral',
+        kicker: 'Hoy',
+        title: 'Tu entrenamiento',
+        meta: [{ text: formatLongDate('2026-10-15') }],
+        pill: null,
+        progress: null,
+        primary: { label: 'Entrenar', to: '/training' },
+        secondary: null,
+      })
+      sinTextosDeSinPlan(m)
+    })
+
+    it('el neutral muestra la fecha de la sede ("15 de octubre")', () => {
+      const m = resolveTodayCard(
+        baseInput({ subscription: null, planLoading: true, deadlinePassed: true }),
+      )
+      expect(flat(m.meta)).toBe('15 de octubre')
+    })
+
+    it('virtual con plan y programLoading → neutral (no afirma "Sesión libre")', () => {
+      const m = resolveTodayCard(
+        baseInput({
+          isVirtual: true,
+          program: null,
+          todayRoute: null,
+          programLoading: true,
+          deadlinePassed: true,
+        }),
+      )
+      expect(m.kind).toBe('neutral')
+      expect(allCopy(m)).not.toContain('Sesión libre')
+    })
+
+    it('presencial con plan y bookingsLoading sin turno → neutral (no afirma "Reservá tu clase")', () => {
+      const m = resolveTodayCard(baseInput({ bookingsLoading: true, deadlinePassed: true }))
+      expect(m.kind).toBe('neutral')
+      expect(allCopy(m)).not.toContain('Reservá')
+    })
+
+    it('presencial con plan, weekLoading y turno → presencial-turno con la actividad como título', () => {
+      const m = resolveTodayCard(
+        baseInput({ weekLoading: true, todayRoute: null, booking: BOOKING, deadlinePassed: true }),
+      )
+      expect(m.kind).toBe('presencial-turno')
+      expect(m.title).toBe('Calistenia')
+    })
+
+    it('sin plan no virtual y trialLoading → sin-plan-nunca sin la secundaria de prueba gratis', () => {
+      const m = resolveTodayCard(
+        baseInput({
+          subscription: null,
+          planStatus: planStatus(),
+          trialLoading: true,
+          trialEligible: true,
+          deadlinePassed: true,
+        }),
+      )
+      expect(m.kind).toBe('sin-plan-nunca')
+      expect(m.secondary).toBeNull()
+    })
+
+    it('sin plan virtual y weekLoading → online-libre con lo que se sabe', () => {
+      const m = resolveTodayCard(
+        baseInput({
+          isVirtual: true,
+          subscription: null,
+          planStatus: planStatus(),
+          weekLoading: true,
+          deadlinePassed: true,
+        }),
+      )
+      expect(m.kind).toBe('online-libre')
+    })
+
+    it('statsLoading con plan → nunca completada aunque todayCompleted venga true, y sigue con los demás gates', () => {
+      const sinTurno = resolveTodayCard(
+        baseInput({ statsLoading: true, todayCompleted: true, deadlinePassed: true }),
+      )
+      expect(sinTurno.kind).not.toBe('completada')
+      const conTurno = resolveTodayCard(
+        baseInput({
+          statsLoading: true,
+          todayCompleted: true,
+          booking: BOOKING,
+          deadlinePassed: true,
+        }),
+      )
+      expect(conTurno.kind).toBe('presencial-turno')
+    })
+
+    it('las fallas siguen saliendo neutral con el tope vencido', () => {
+      expect(resolveTodayCard(baseInput({ bookingsFailed: true, deadlinePassed: true })).kind).toBe(
+        'neutral',
+      )
+      expect(
+        resolveTodayCard(
+          baseInput({
+            subscription: null,
+            planStatus: null,
+            planFailed: true,
+            deadlinePassed: true,
+          }),
+        ).kind,
+      ).toBe('neutral')
+      expect(
+        resolveTodayCard(baseInput({ isVirtual: true, programFailed: true, deadlinePassed: true }))
+          .kind,
+      ).toBe('neutral')
+    })
+
+    it('vuelve sola al modelo completo cuando llega el dato', () => {
+      const conTope = baseInput({ bookingsLoading: true, deadlinePassed: true })
+      expect(resolveTodayCard(conTope).kind).toBe('neutral')
+      const llego = { ...conTope, bookingsLoading: false, booking: BOOKING }
+      expect(resolveTodayCard(llego).kind).toBe('presencial-turno')
+      const sinTurno = { ...conTope, bookingsLoading: false }
+      expect(resolveTodayCard(sinTurno).kind).toBe('presencial-sin-turno')
+    })
+
+    it('neutral no recibe el link a Libre ni "Tus programas"', () => {
+      const m = resolveTodayCard(
+        baseInput({
+          bookingsLoading: true,
+          deadlinePassed: true,
+          libreEnabled: true,
+          hasExtraPrograms: true,
+        }),
+      )
+      expect(m.kind).toBe('neutral')
+      expect(m.secondary).toBeNull()
+      expect(allCopy(m)).not.toContain('Libre')
+      expect(allCopy(m)).not.toContain('Tus programas')
+    })
+  })
+
+  describe('invariantes del estado neutral', () => {
+    it('pill y meta nunca conviven y el modelo conserva las mismas claves', () => {
+      const m = resolveTodayCard(baseInput({ bookingsFailed: true }))
+      expect(m.kind).toBe('neutral')
+      expect(m.pill).toBeNull()
+      expect(m.meta).not.toBeNull()
+      expect(Object.keys(m).sort()).toEqual(
+        ['kind', 'kicker', 'title', 'meta', 'pill', 'progress', 'primary', 'secondary'].sort(),
+      )
+    })
+
+    it('ninguna combinación de fallas y tope afirma "sin plan", "Reservá tu clase" ni "Sesión libre" sin dato', () => {
+      for (const deadlinePassed of [false, true]) {
+        for (const isVirtual of [false, true]) {
+          const sinPlan = resolveTodayCard(
+            baseInput({
+              isVirtual,
+              subscription: null,
+              planStatus: null,
+              planFailed: true,
+              deadlinePassed,
+            }),
+          )
+          const where = JSON.stringify({ deadlinePassed, isVirtual })
+          for (const text of SIN_PLAN_COPY) expect(allCopy(sinPlan), where).not.toContain(text)
+        }
+        const reservas = resolveTodayCard(baseInput({ bookingsFailed: true, deadlinePassed }))
+        expect(allCopy(reservas)).not.toContain('Reservá')
+        const programa = resolveTodayCard(
+          baseInput({ isVirtual: true, programFailed: true, todayRoute: null, deadlinePassed }),
+        )
+        expect(allCopy(programa)).not.toContain('Sesión libre')
+        const stats = resolveTodayCard(
+          baseInput({ statsFailed: true, todayCompleted: true, deadlinePassed }),
+        )
+        expect(stats.kind).not.toBe('completada')
+      }
+    })
   })
 })
 

@@ -1,7 +1,9 @@
 <template>
   <!-- Estado `cargando` (L38): mismo marco (borde, radio y padding) y MISMAS filas que la card final
        (kicker, título de 2 líneas, línea de estado, botón) para que el slot de hoy no salte cuando
-       se resuelve el gate. Sin textos ni acciones. -->
+       se resuelve el gate. Sin textos ni acciones.
+       'neutral' (fase 203, D-18) no tiene rama propia: se pinta con el modelo genérico de abajo,
+       mismo marco y alto que el resto, sin pill. -->
   <div v-if="model.kind === 'cargando'" class="today-card today-card--loading">
     <section class="today-card__surface" aria-busy="true" aria-label="Cargando tu día">
       <q-skeleton dark animation="none" class="today-card__sk today-card__sk--kicker" />

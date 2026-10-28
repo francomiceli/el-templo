@@ -34,13 +34,13 @@ const UPCOMING_STATUSES: ReadonlyArray<MyBookingRecord['status']> = ['reservado'
  * Turno de hoy del socio (fase 199, D-04/D-06).
  *
  * Es un store y no un composable porque lo comparten `MainLayout` (botón QR
- * flotante) y Mi Templo (card de hoy): una sola consulta a `my-bookings` (esta
- * semana y la siguiente, así un fin de semana sin turnos igual encuentra el del
- * lunes). "Hoy" y la hora de la clase se calculan SIEMPRE en la zona de la sede
+ * flotante) y Mi Templo (card de hoy): una sola consulta a `my-bookings` con
+ * `weeks=2` (esta semana y la siguiente en un único pedido, fase 203 D-15; así
+ * un fin de semana sin turnos igual encuentra el del lunes). "Hoy" y la hora de la clase se calculan SIEMPRE en la zona de la sede
  * (nunca con la hora local del teléfono).
  *
- * - `load()` es fail-open: ante error loguea; la primera carga queda vacía (o con
- *   la semana que sí respondió) y un refresco conserva las reservas anteriores.
+ * - `load()` es fail-open: ante error loguea y marca `loadFailed`; la primera
+ *   carga queda vacía y un refresco conserva las reservas anteriores.
  * - El reloj se arranca/para desde `MainLayout` (`startClock`/`stopClock`,
  *   equivalente al `cleanup()` de los composables); `reset()` lo para.
  * - La asistencia ya marcada se evalúa POR CATEGORÍA, igual que el server (una
@@ -50,6 +50,14 @@ const UPCOMING_STATUSES: ReadonlyArray<MyBookingRecord['status']> = ['reservado'
 export const useTodayBookingStore = defineStore('todayBooking', () => {
   const bookings = ref<MyBookingRecord[]>([])
   const loaded = ref(false)
+  /**
+   * La última carga falló: `bookings` tiene el último dato bueno o está vacío si
+   * nunca hubo uno. La card de hoy lo trata como "no sé", nunca como "no tenés
+   * turno" (fase 203, D-07).
+   */
+  const loadFailed = ref(false)
+  /** Zona horaria con la que se calculó el lunes de la última carga (null = sin cargar); permite recargar cuando llega el perfil real (fase 203, D-08). */
+  const loadedTz = ref<string | null>(null)
   const now = ref(new Date())
   /** Entradas `${fecha de la sede}|${activityKindKey}` ya marcadas en esta sesión. */
   const attendanceMarkedKeys = ref<string[]>([])
@@ -76,29 +84,30 @@ export const useTodayBookingStore = defineStore('todayBooking', () => {
   async function load(): Promise<void> {
     const mine = ++generation
     now.value = new Date()
-    const [thisMonday, nextMonday] = weekStartsFor(todayStr.value)
-    const results = await Promise.allSettled([
-      fetchMyBookings(thisMonday),
-      fetchMyBookings(nextMonday),
-    ])
-    if (mine !== generation) return
-    const failed = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected')
-    if (failed.length === 0) {
-      bookings.value = results.flatMap((r) => (r.status === 'fulfilled' ? r.value.bookings : []))
-    } else {
-      const reason: unknown = failed[0]!.reason
+    const usedTz = tz.value
+    const [thisMonday] = weekStartsFor(todayStr.value)
+    try {
+      // Fase 203 (D-15): UN pedido para esta semana y la siguiente.
+      const res = await fetchMyBookings(thisMonday, undefined, { weeks: 2 })
+      if (mine !== generation) return
+      bookings.value = res.bookings
+      loadFailed.value = false
+    } catch (err: unknown) {
+      if (mine !== generation) return
+      loadFailed.value = true
       log.warn('Failed to load my-bookings', {
-        error: reason instanceof Error ? reason.message : String(reason),
+        error: err instanceof Error ? err.message : String(err),
         keptPrevious: loaded.value,
       })
       // Un refresco fallido NO borra lo ya cargado (si no, un error de red al
       // volver de Reservas apaga el botón QR y la card de hoy). Solo la primera
-      // carga queda con lo que haya llegado (la semana que sí respondió) o vacía.
+      // carga queda vacía.
       if (!loaded.value) {
-        bookings.value = results.flatMap((r) => (r.status === 'fulfilled' ? r.value.bookings : []))
+        bookings.value = []
       }
     }
     loaded.value = true
+    loadedTz.value = usedTz
   }
 
   /** Base común de la card de hoy, la lista de espera y la asistencia: reservas de hoy (en la zona de la sede). */
@@ -224,6 +233,8 @@ export const useTodayBookingStore = defineStore('todayBooking', () => {
     generation++
     bookings.value = []
     loaded.value = false
+    loadedTz.value = null
+    loadFailed.value = false
     attendanceMarkedKeys.value = []
     stopClock()
   }
@@ -231,6 +242,8 @@ export const useTodayBookingStore = defineStore('todayBooking', () => {
   return {
     bookings,
     loaded,
+    loadFailed,
+    loadedTz,
     now,
     tz,
     todayStr,

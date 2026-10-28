@@ -4,10 +4,19 @@
        texto con opacidad. -->
   <q-page class="profile-page">
     <div class="profile-wrap">
-      <header class="profile-head">
+      <!-- D-08: sin perfil no se dibuja "Atleta", ni su inicial, ni una sede vacía: esqueleto del
+           mismo tamaño (sin tope, lo resuelve retryProfileLoad). -->
+      <header v-if="userStore.profile === null" class="profile-head" aria-busy="true">
+        <q-skeleton type="circle" size="64px" animation="none" class="profile-head__avatar-sk" />
+        <div class="profile-head__info">
+          <q-skeleton type="text" animation="none" width="180px" height="28px" />
+          <q-skeleton type="text" animation="none" width="220px" height="20px" />
+        </div>
+      </header>
+      <header v-else class="profile-head">
         <div class="profile-head__avatar" aria-hidden="true">{{ initials }}</div>
         <div class="profile-head__info">
-          <h1 class="profile-head__name">{{ userStore.fullName || 'Atleta' }}</h1>
+          <h1 class="profile-head__name">{{ userStore.fullName }}</h1>
           <p class="profile-head__email">{{ userStore.profile?.email }}</p>
         </div>
       </header>
@@ -19,7 +28,14 @@
             <q-icon name="location_on" size="22px" class="profile-row__icon" aria-hidden="true" />
             <div class="profile-row__text">
               <span class="profile-row__label">Sede</span>
-              <span class="profile-row__value">{{ userStore.branchDisplayName }}</span>
+              <q-skeleton
+                v-if="userStore.profile === null"
+                type="text"
+                animation="none"
+                width="120px"
+                height="22px"
+              />
+              <span v-else class="profile-row__value">{{ userStore.branchDisplayName }}</span>
             </div>
           </div>
           <!-- Plan: solo el nombre y un link; fechas y días viven en Planes (sketch 028) -->
@@ -32,20 +48,34 @@
             />
             <div class="profile-row__text">
               <span class="profile-row__label">Tu plan</span>
-              <TemploLoader v-if="userStore.subscriptionLoading" size="sm" />
+              <!-- D-09: "Sin plan activo" solo con la suscripción llegada y sin falla de red. Mientras
+                   no llega, esqueleto; si falló, "No pudimos cargar tu plan" (una falla es "no sé"). -->
+              <q-skeleton
+                v-if="subscriptionView === 'skeleton'"
+                type="text"
+                animation="none"
+                width="120px"
+                height="22px"
+              />
+              <span v-else-if="subscriptionView === 'content'" class="profile-row__value">{{
+                userStore.subscription?.planName
+              }}</span>
               <span
-                v-else
-                class="profile-row__value"
-                :class="{ 'profile-row__value--muted': !userStore.hasActiveSubscription }"
-                >{{
-                  userStore.hasActiveSubscription && userStore.subscription
-                    ? userStore.subscription.planName
-                    : 'Sin plan activo'
-                }}</span
+                v-else-if="subscriptionView === 'none'"
+                class="profile-row__value profile-row__value--muted"
+                >Sin plan activo</span
+              >
+              <span v-else class="profile-row__value profile-row__value--muted"
+                >No pudimos cargar tu plan</span
               >
             </div>
             <span class="profile-row__go">Ver en Planes</span>
-            <q-icon name="chevron_right" size="22px" class="profile-row__chevron" aria-hidden="true" />
+            <q-icon
+              name="chevron_right"
+              size="22px"
+              class="profile-row__chevron"
+              aria-hidden="true"
+            />
           </router-link>
         </div>
       </section>
@@ -58,17 +88,32 @@
           <router-link to="/change-password" class="profile-row profile-row--link">
             <q-icon name="lock" size="22px" class="profile-row__icon" aria-hidden="true" />
             <span class="profile-row__value profile-row__value--grow">Cambiar contraseña</span>
-            <q-icon name="chevron_right" size="22px" class="profile-row__chevron" aria-hidden="true" />
+            <q-icon
+              name="chevron_right"
+              size="22px"
+              class="profile-row__chevron"
+              aria-hidden="true"
+            />
           </router-link>
           <router-link to="/mis-invitados" class="profile-row profile-row--link">
             <q-icon name="card_giftcard" size="22px" class="profile-row__icon" aria-hidden="true" />
             <span class="profile-row__value profile-row__value--grow">Mis invitados</span>
-            <q-icon name="chevron_right" size="22px" class="profile-row__chevron" aria-hidden="true" />
+            <q-icon
+              name="chevron_right"
+              size="22px"
+              class="profile-row__chevron"
+              aria-hidden="true"
+            />
           </router-link>
           <router-link to="/proponer-mejora" class="profile-row profile-row--link">
             <q-icon name="lightbulb" size="22px" class="profile-row__icon" aria-hidden="true" />
             <span class="profile-row__value profile-row__value--grow">Proponer una mejora</span>
-            <q-icon name="chevron_right" size="22px" class="profile-row__chevron" aria-hidden="true" />
+            <q-icon
+              name="chevron_right"
+              size="22px"
+              class="profile-row__chevron"
+              aria-hidden="true"
+            />
           </router-link>
         </div>
       </section>
@@ -103,7 +148,12 @@
         >
           <q-icon name="delete_outline" size="22px" class="profile-row__icon" aria-hidden="true" />
           <span class="profile-row__value profile-row__value--grow">Eliminar cuenta</span>
-          <q-icon name="chevron_right" size="22px" class="profile-row__chevron" aria-hidden="true" />
+          <q-icon
+            name="chevron_right"
+            size="22px"
+            class="profile-row__chevron"
+            aria-hidden="true"
+          />
         </button>
       </div>
     </div>
@@ -143,13 +193,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, reactive } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount, reactive } from 'vue'
 import { useRouter } from 'vue-router'
-import { useUserStore } from 'stores/useUserStore'
+import { useUserStore, MEMBER_STATE_MAX_AGE_MS } from 'stores/useUserStore'
 import { useAuthStore } from 'stores/useAuthStore'
 import { api } from 'src/boot/axios'
 import { createLogger } from 'src/utils/logger'
 import { extractError } from 'src/utils/extract-error'
+import { useLoadDeadline } from 'src/composables/useLoadDeadline'
+import { resolveProfileSubscriptionView } from 'src/utils/profile-subscription-view'
 import TemploLoader from 'src/components/TemploLoader.vue'
 import PremiumDialogCard from 'src/components/PremiumDialogCard.vue'
 
@@ -157,10 +209,24 @@ const log = createLogger('ProfilePage')
 const router = useRouter()
 const userStore = useUserStore()
 const authStore = useAuthStore()
+const deadline = useLoadDeadline()
 
-/** Iniciales del avatar (nombre y apellido); "A" de Atleta si no hay nombre. */
+/**
+ * Qué dice la fila "Tu plan" (D-09): "todavía no sé" y "no pudimos cargarlo" nunca se dibujan
+ * como "Sin plan activo".
+ */
+const subscriptionView = computed(() =>
+  resolveProfileSubscriptionView({
+    subscriptionLoaded: userStore.subscriptionLoaded,
+    subscriptionFailed: userStore.subscriptionFailed,
+    hasActivePlan: userStore.hasActiveSubscription,
+    deadlinePassed: deadline.passed.value,
+  }),
+)
+
+/** Iniciales del avatar (nombre y apellido). Solo se dibuja con el perfil cargado (D-08). */
 const initials = computed(() => {
-  const parts = (userStore.fullName || 'Atleta').trim().split(/\s+/)
+  const parts = userStore.fullName.trim().split(/\s+/)
   const first = parts[0]?.[0] ?? ''
   const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : ''
   return (first + last).toUpperCase()
@@ -254,12 +320,15 @@ async function confirmDeleteAccount() {
   }
 }
 
-onMounted(async () => {
-  if (!userStore.subscription && !userStore.subscriptionLoading) {
-    await userStore.loadSubscription()
-  }
-  loadPreferences()
+onMounted(() => {
+  deadline.start()
+  // En el mismo tick y en paralelo (ninguna espera a la otra): el estado del socio se comparte con el arranque
+  // (dentro de la frescura no pide nada) y las preferencias no esperan a la suscripción.
+  void userStore.ensureMemberState({ maxAgeMs: MEMBER_STATE_MAX_AGE_MS })
+  void loadPreferences()
 })
+
+onBeforeUnmount(() => deadline.cleanup())
 </script>
 
 <style scoped lang="scss">
@@ -300,6 +369,10 @@ onMounted(async () => {
     font-weight: 700;
     letter-spacing: 0.02em;
     color: #fff;
+  }
+
+  &__avatar-sk {
+    flex: none;
   }
 
   &__info {

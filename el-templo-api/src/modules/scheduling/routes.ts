@@ -1519,13 +1519,14 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
 
   // GET /my-bookings — get own bookings for a week
   fastify.get<{
-    Querystring: { weekStart: string };
+    Querystring: { weekStart: string; weeks?: number };
   }>("/my-bookings", { schema: myBookingsSchema }, async (request) => {
     const ctx = assertTenant(request.scope, "scheduling.myBookings");
     const bookings = await bookingService.getMyBookings(
       ctx,
       request.user.userId,
       request.query.weekStart,
+      request.query.weeks ?? 1,
     );
     return { bookings };
   });

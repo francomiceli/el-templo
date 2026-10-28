@@ -24,6 +24,7 @@ describe('resolveSemanaCta (D-03)', () => {
       label: 'Empezar',
       variant: 'primary',
       action: 'start',
+      pending: false,
       startsTraining: true,
       showDoneChip: false,
       showLibreLink: false,
@@ -121,6 +122,61 @@ describe('resolveSemanaCta (D-03)', () => {
   })
 })
 
+describe('resolveSemanaCta — progreso local sin leer (C-10)', () => {
+  it('hoy con plani y hasProgress null: el botón reserva su lugar sin acción (pending)', () => {
+    const r = resolveSemanaCta(input({ hasProgress: null }))
+    expect(r.showButton).toBe(true)
+    expect(r.pending).toBe(true)
+    expect(r.action).toBeNull()
+    expect(r.label).toBe('Empezar')
+    expect(r.variant).toBe('primary')
+    expect(r.startsTraining).toBe(false)
+  })
+
+  it('hoy con hasProgress false: Empezar, no pending', () => {
+    const r = resolveSemanaCta(input({ hasProgress: false }))
+    expect(r.pending).toBe(false)
+    expect(r.label).toBe('Empezar')
+    expect(r.action).toBe('start')
+    expect(r.startsTraining).toBe(true)
+  })
+
+  it('hoy con hasProgress true: Continuar, no pending', () => {
+    const r = resolveSemanaCta(input({ hasProgress: true }))
+    expect(r.pending).toBe(false)
+    expect(r.label).toBe('Continuar')
+    expect(r.action).toBe('start')
+    expect(r.startsTraining).toBe(true)
+  })
+
+  it('el resto de los estados nunca queda pending, con cualquier valor de hasProgress', () => {
+    const cases: Partial<SemanaCtaInput>[] = [
+      { date: '2026-10-14' }, // pasado
+      { date: '2026-10-14', completed: true },
+      { date: '2026-10-17' }, // futuro
+      { date: '2026-10-18', today: '2026-10-18', isSunday: true }, // hoy domingo
+      { date: '2026-10-18', hasSession: false, isSunday: true },
+      { hasSession: false },
+      { hasSession: false, libreEnabled: false },
+      { completed: true },
+    ]
+    for (const c of cases) {
+      for (const hasProgress of [null, false, true]) {
+        const r = resolveSemanaCta(input({ ...c, hasProgress }))
+        expect(r.pending).toBe(false)
+      }
+    }
+  })
+
+  it('el resto de los estados no cambia según hasProgress', () => {
+    const base = resolveSemanaCta(input({ completed: true, hasProgress: false }))
+    expect(resolveSemanaCta(input({ completed: true, hasProgress: null }))).toEqual(base)
+    expect(resolveSemanaCta(input({ completed: true, hasProgress: true }))).toEqual(base)
+    const future = resolveSemanaCta(input({ date: '2026-10-17', hasProgress: false }))
+    expect(resolveSemanaCta(input({ date: '2026-10-17', hasProgress: null }))).toEqual(future)
+  })
+})
+
 describe('resolveSemanaCta — Libre apagado (FREE_BLOCKS_ENABLED en false)', () => {
   it('domingo sin plani: "Día de descanso", deshabilitado, sin acción ni hint', () => {
     const r = resolveSemanaCta(
@@ -131,6 +187,7 @@ describe('resolveSemanaCta — Libre apagado (FREE_BLOCKS_ENABLED en false)', ()
       label: 'Día de descanso',
       variant: 'unavailable',
       action: null,
+      pending: false,
       startsTraining: false,
       showDoneChip: false,
       showLibreLink: false,
@@ -157,6 +214,7 @@ describe('resolveSemanaCta — Libre apagado (FREE_BLOCKS_ENABLED en false)', ()
     const cases: Partial<SemanaCtaInput>[] = [
       {},
       { hasProgress: true },
+      { hasProgress: null },
       { completed: true },
       { date: '2026-10-14' },
       { date: '2026-10-14', completed: true },

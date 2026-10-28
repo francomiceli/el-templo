@@ -58,10 +58,16 @@ type NovedadEventType = 'seen' | 'clicked'
  *   esperar al server. Si el POST falla, se saca del `Set` para reintentar la
  *   próxima vez que la novedad esté en pantalla.
  * - `reset()` al desloguear (MainLayout, junto a `useAvisosStore.reset()`).
+ * - Fase 203 (D-02/D-07): `loaded` = la fuente respondió al menos una vez (2xx
+ *   o error fail-open) y NO vuelve a false en un refresco; `lastLoadOk` distingue
+ *   "vacío" (true) de "falló" (false) para no escribir el flag D-02 tras un error.
+ *   Ambos respetan `generation`: una respuesta vieja no los toca.
  */
 export const useNovedadesStore = defineStore('novedades', () => {
   const novedades = ref<Novedad[]>([])
   const loading = ref(false)
+  const loaded = ref(false)
+  const lastLoadOk = ref<boolean | null>(null)
   /** Keys (`novedad:<id>`) ya vistas en esta sesión (dedupe de `markSeen`). */
   const reportedSeen = new Set<string>()
   /**
@@ -78,14 +84,19 @@ export const useNovedadesStore = defineStore('novedades', () => {
       const { data } = await api.get<NovedadesResponse>('/communications/me/novedades')
       if (mine !== generation) return
       novedades.value = Array.isArray(data?.novedades) ? data.novedades.map(normalize) : []
+      lastLoadOk.value = true
     } catch (err: unknown) {
       if (mine !== generation) return
       novedades.value = []
+      lastLoadOk.value = false
       log.warn('Failed to load novedades', {
         error: err instanceof Error ? err.message : String(err),
       })
     } finally {
-      if (mine === generation) loading.value = false
+      if (mine === generation) {
+        loading.value = false
+        loaded.value = true
+      }
     }
   }
 
@@ -129,8 +140,10 @@ export const useNovedadesStore = defineStore('novedades', () => {
     generation++
     novedades.value = []
     loading.value = false
+    loaded.value = false
+    lastLoadOk.value = null
     reportedSeen.clear()
   }
 
-  return { novedades, loading, load, markSeen, markClicked, reset }
+  return { novedades, loading, loaded, lastLoadOk, load, markSeen, markClicked, reset }
 })

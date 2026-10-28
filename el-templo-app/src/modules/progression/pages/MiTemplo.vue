@@ -1,23 +1,12 @@
 <template>
   <q-page class="mi-templo">
-    <!-- Loading State -->
-    <div v-if="progressionStore.loading" class="mi-templo__loading">
-      <TemploLoader size="lg" />
-      <p class="mi-templo__loading-text">Cargando tu progreso...</p>
-    </div>
-
-    <!-- Error State -->
-    <div v-else-if="progressionStore.error" class="mi-templo__error">
-      <q-icon name="error_outline" class="mi-templo__error-icon" />
-      <p class="mi-templo__error-text">{{ progressionStore.error }}</p>
-      <q-btn color="primary" unelevated no-caps @click="fetchStats"> Reintentar </q-btn>
-    </div>
-
-    <!-- Content State. Orden fijo de la pila (D-02):
+    <!-- Fase 203 (C-6, D-16): la página nunca se reemplaza entera por un loader ni por una pantalla
+         de error. Cada card reserva su lugar (esqueleto) o degrada sola; un fallo de stats solo se
+         avisa con el toast de `fetchStats`.
+         Orden fijo de la pila (fase 199, D-02):
          card de hoy → Novedades → Registro del día → Patrocinadores → Tus sesiones
          (con la evaluación si aplica) → Para vos → Frase del día. El saludo vive en el layout. -->
     <div
-      v-else
       class="mi-templo__content"
       :class="{ 'mi-templo__content--fab': todayBookingStore.fabVisible }"
     >
@@ -29,13 +18,26 @@
       <TodayCard :model="todayCard" @open-program="programSheetOpen = true" />
 
       <!-- Novedades (D-08): mismo diseño del sketch 004, debajo de la card de hoy.
-           Sin novedades no renderiza nada (L50) y es fail-open (D-12). -->
-      <NovedadesCard />
+           Sin novedades no renderiza nada (L50) y es fail-open (D-12). Fase 203 (D-02): reserva el
+           lugar con esqueleto solo si la última vez tuvo novedades. -->
+      <CardSkeleton
+        v-if="slots.novedades === 'skeleton'"
+        :height="NOVEDADES_SKELETON_PX"
+        :radius="16"
+        label="Cargando novedades"
+      />
+      <NovedadesCard v-else-if="slots.novedades === 'content'" />
 
       <!-- Registro del día (D-07): una pregunta por vez, colapsa a una línea. Se oculta
            para quien nunca tuvo plan (sin-plan-nunca), como el sketch. -->
+      <CardSkeleton
+        v-if="slots.checkIn === 'skeleton'"
+        :height="CHECKIN_SKELETON_PX"
+        :radius="16"
+        label="Cargando el registro del día"
+      />
       <CheckInPanel
-        v-if="orderedCheckIns.length > 0 && todayCard.kind !== 'sin-plan-nunca'"
+        v-else-if="slots.checkIn === 'content'"
         :questions="orderedCheckIns"
         :answers="progressionStore.checkInState?.answers ?? emptyAnswers"
         :save="handleCheckInSubmit"
@@ -43,18 +45,40 @@
 
       <!-- Patrocinadores (D-20/D-23): carrusel de marcas por país, a sangre y sin título.
            Sin marcas no renderiza nada (L50). El tap abre la hoja de detalle (abajo). -->
-      <SponsorsCarousel @open="openSponsor" />
+      <CardSkeleton
+        v-if="slots.sponsors === 'skeleton'"
+        :height="SPONSORS_SKELETON_PX"
+        :radius="16"
+        label="Cargando beneficios"
+      />
+      <SponsorsCarousel v-else-if="slots.sponsors === 'content'" @open="openSponsor" />
 
       <!-- Tus sesiones (D-09, sketch 007 A): sesiones de la semana + días L–D + total al pie, sin RPE. La evaluación de nivel (solo si es
            accionable o está pendiente) pertenece a este bloque. -->
+      <CardSkeleton
+        v-if="slots.weekStrip === 'skeleton'"
+        :height="WEEKSTRIP_SKELETON_PX"
+        :radius="16"
+        label="Cargando tus sesiones"
+      />
+      <!-- Total: solo el que informó el server. Sin stats (pendientes o fallidas) va null y la
+           fila queda reservada pero oculta: nunca se afirma "0 sesiones" (D-07/D-16). Un refresco
+           fallido conserva las stats previas, que siguen siendo el último dato bueno. -->
       <WeekStrip
-        v-if="todayCard.kind !== 'sin-plan-nunca'"
+        v-else-if="slots.weekStrip === 'content'"
         :week-start="weekStartsFor(todayStr)[0]"
         :today-str="todayStr"
         :completed-dates="completedDates"
-        :total-sessions="progressionStore.stats?.totalSessions ?? 0"
+        :total-sessions="progressionStore.stats?.totalSessions ?? null"
+      />
+      <CardSkeleton
+        v-if="slots.evaluation === 'skeleton'"
+        :height="EVALUATION_SKELETON_PX"
+        :radius="16"
+        label="Cargando la evaluación"
       />
       <GeneralContent
+        v-else-if="slots.evaluation === 'content'"
         :evaluation="progressionStore.evaluation"
         @request-evaluation="handleRequestEvaluation"
       />
@@ -74,7 +98,21 @@
            Orden: Invitaciones, Presencial (solo online), Planes personalizados (si no hay
            card de programa) y avisos libres del admin (D-15b). "Sugerencias" vive en Perfil (D-11). -->
       <section class="for-you" aria-label="Para vos">
-        <div class="for-you__rail">
+        <!-- Fase 203 (D-01/C-11): hasta que llegan las tarjetas del admin, el estado del socio y el
+             perfil el riel muestra esqueletos (sin texto de respaldo que después cambie por el del
+             admin ni cards que aparezcan de golpe). Con el tope vencido sale lo que haya. -->
+        <div v-if="slots.paraVos === 'skeleton'" class="for-you__rail" aria-busy="true">
+          <CardSkeleton
+            v-for="n in 2"
+            :key="n"
+            class="for-you__skeleton"
+            inline
+            :height="FOR_YOU_SKELETON_PX"
+            :radius="16"
+            label="Cargando"
+          />
+        </div>
+        <div v-else class="for-you__rail">
           <ReferralCtaCard />
           <UpsellBadge v-if="showUpsellBadge" />
           <ProgramCtaCard v-if="showProgramCta" :segment="userStore.segment" />
@@ -122,7 +160,7 @@
  * Patrocinadores, Tus sesiones (con evaluación si aplica), Para vos y la frase del día.
  */
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
-import TemploLoader from 'src/components/TemploLoader.vue'
+import CardSkeleton from 'src/components/CardSkeleton.vue'
 import DailyQuote from '../components/DailyQuote.vue'
 import { useProgressionStore } from '../stores/progressionStore'
 import { useProgressionApi } from '../composables/useProgressionApi'
@@ -130,7 +168,7 @@ import { useCheckInApi } from '../composables/useCheckInApi'
 import CheckInPanel from '../components/CheckInPanel.vue'
 import WeekStrip from '../components/WeekStrip.vue'
 import { CHECK_IN_QUESTIONS, type CheckInQuestionConfig, type CheckInQuestionType } from '../types'
-import { useUserStore } from 'src/stores/useUserStore'
+import { useUserStore, MEMBER_STATE_MAX_AGE_MS } from 'src/stores/useUserStore'
 import { FREE_BLOCKS_ENABLED, MEMBER_TREE_ENABLED } from 'src/config/featureFlags'
 import { useWeekData } from 'src/modules/training/composables/useWeekData'
 import { getRouteName } from 'src/modules/training/utils/routeNames'
@@ -139,11 +177,10 @@ import type { Session } from 'src/modules/training/types/session'
 import TodayCard from '../components/TodayCard.vue'
 import ProgramSheet from '../components/ProgramSheet.vue'
 import { pickNextRoute, resolveTodayCard } from '../utils/today-card'
+import { MI_TEMPLO_CARD_KEYS, resolveMiTemploSlots } from '../utils/mi-templo-slots'
 import type { CheckInAnswers } from '../utils/check-in-summary'
 import GeneralContent from '../components/GeneralContent.vue'
 import ProgramCtaCard from 'src/modules/programs/components/ProgramCtaCard.vue'
-import { useProgramsApi } from 'src/modules/programs/composables/useProgramsApi'
-import type { MemberEnrollmentProgress } from 'src/modules/programs/types'
 import PermissionBanner from '../components/PermissionBanner.vue'
 import NovedadesCard from '../components/NovedadesCard.vue'
 import SponsorsCarousel from '../components/SponsorsCarousel.vue'
@@ -153,17 +190,31 @@ import ReferralCtaCard from '../components/ReferralCtaCard.vue'
 import UpsellBadge from '../components/UpsellBadge.vue'
 import AvisoCard from '../components/AvisoCard.vue'
 import { useAvisosStore } from 'src/stores/useAvisosStore'
+import { useCardHadContentStore } from 'src/stores/useCardHadContentStore'
 import { useNovedadesStore } from 'src/stores/useNovedadesStore'
 import { useSponsorsStore, type Sponsor } from 'src/stores/useSponsorsStore'
 import { useNotificationStore } from 'src/stores/useNotificationStore'
 import { useTodayBookingStore } from 'src/stores/useTodayBookingStore'
-import { useSchedulingApi } from 'src/composables/useSchedulingApi'
+import { useLoadDeadline } from 'src/composables/useLoadDeadline'
 import { addDaysStr, formatHHMM, weekStartsFor } from 'src/utils/check-in-window'
 import { dowInTz, todayInTz } from 'src/utils/tz'
 import { useRouter } from 'vue-router'
-import { createLogger } from 'src/utils/logger'
 
-const log = createLogger('MiTemplo')
+// Fase 203 (D-01/D-02): altos de los esqueletos = alto de la card final, medido de sus estilos, para
+// que al llegar el dato no salte el layout. Si cambia el diseño de una card, se actualiza acá.
+/** NovedadesCard: borde 2 + encabezado (padding 12+2, línea de 16) + stage fijo 62 + barra de progreso 3. */
+const NOVEDADES_SKELETON_PX = 97
+/** CheckInPanel en su primer estado del día (pregunta + control): borde 2 + padding 12+14 + título 24 + pregunta 8+26 + control 10+44. */
+const CHECKIN_SKELETON_PX = 140
+/** SponsorsCarousel: el `min-height` de `.sp-card`. */
+const SPONSORS_SKELETON_PX = 156
+/** WeekStrip: borde 2 + padding 14 + encabezado ~21 + días 12+30+14 + franja del total ~51. */
+const WEEKSTRIP_SKELETON_PX = 144
+/** EvaluationRequest "Listo para evaluación": padding 32 + título ~18 + botón 12+48. */
+const EVALUATION_SKELETON_PX = 110
+/** Card del riel "Para vos" (ForYouCard con cuerpo de 2 líneas): borde 2 + padding 28 + kicker ~12 + título 6+20 + cuerpo ~36 + botón 2+44. */
+const FOR_YOU_SKELETON_PX = 150
+
 const notificationStore = useNotificationStore()
 const router = useRouter()
 const progressionStore = useProgressionStore()
@@ -171,15 +222,25 @@ const userStore = useUserStore()
 const avisosStore = useAvisosStore()
 const novedadesStore = useNovedadesStore()
 const sponsorsStore = useSponsorsStore()
+const cardFlags = useCardHadContentStore()
 const { fetchStats, requestEvaluation } = useProgressionApi()
 const { fetchTodayCheckIns, submitCheckIn } = useCheckInApi()
 const todayBookingStore = useTodayBookingStore()
-const schedulingApi = useSchedulingApi()
-const { sessions: weekSessions, completedDates, fetchWeekSessions } = useWeekData()
-const { getMyProgress } = useProgramsApi()
-const programProgress = ref<MemberEnrollmentProgress | null>(null)
+// Fase 203 (D-07): tope de carga de la página. Se arma UNA vez al montar (en `onMounted`), nunca
+// dentro de un `watch`: cada `start()` vuelve `passed` a false.
+const deadline = useLoadDeadline()
+const {
+  sessions: weekSessions,
+  completedDates,
+  loaded: weekLoaded,
+  hasData: weekHasData,
+  error: weekError,
+  fetchWeekSessions,
+} = useWeekData()
+// Fase 203 (D-06): my-progress, current-program, enrollments, plan-status y trial-eligibility viven
+// en el store (`ensureMemberState`); la página no los pide por su cuenta.
+const programProgress = computed(() => userStore.myProgress)
 const programSheetOpen = ref(false)
-const trialEligible = ref(false)
 // Marca tocada en el carrusel de patrocinadores: abre la hoja de detalle (plan 19).
 const selectedSponsor = ref<Sponsor | null>(null)
 const sheetOpen = computed({
@@ -283,47 +344,87 @@ async function loadWeeks(): Promise<void> {
   await fetchWeekSessions(currentWeekDates())
 }
 
-async function loadProgramProgress(): Promise<void> {
-  try {
-    programProgress.value = await getMyProgress()
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Unknown error'
-    log.warn('Failed to load program progress', { error: message })
+/**
+ * Clave del pedido de `/sessions/weekly`: los mismos datos que arman sus parámetros
+ * (zona de la sede, nivel elegido y lunes de la semana).
+ */
+function weeksKey(): string {
+  return `${userStore.profile?.branchTimezone ?? ''}|${userStore.selectedLevel ?? ''}|${currentWeekDates()[0]}`
+}
+
+// Estado de cierre de `requestWeeks` (no es reactivo a propósito: nada lo lee desde el template).
+let weeksInFlight: { key: string; promise: Promise<void> } | null = null
+let weeksLoadedKey: string | null = null
+
+/**
+ * Pide la semana para `key`. Con un pedido en vuelo de la MISMA clave devuelve esa promesa. Con uno
+ * en vuelo de OTRA clave espera a que termine antes de salir: `fetchWeekSessions` escribe lo último
+ * que llega, y si el pedido viejo terminara después del nuevo pisaría la semana con parámetros
+ * viejos. `weeksLoadedKey` solo se fija si la carga no falló (un error se puede reintentar).
+ */
+function startOrShareWeeks(key: string): Promise<void> {
+  if (weeksInFlight?.key === key) return weeksInFlight.promise
+  const previous = weeksInFlight?.promise
+  const run = previous ? previous.catch(() => undefined).then(() => loadWeeks()) : loadWeeks()
+  const promise: Promise<void> = run
+    .then(() => {
+      if (weekError.value === null) weeksLoadedKey = key
+    })
+    .finally(() => {
+      if (weeksInFlight?.promise === promise) weeksInFlight = null
+    })
+  weeksInFlight = { key, promise }
+  return promise
+}
+
+/**
+ * Único punto que pide `/sessions/weekly` (fase 203, SC-4): un mismo juego de parámetros
+ * (zona, nivel, semana) nunca se pide dos veces, salvo con `force`, que garantiza un pedido que
+ * sale DESPUÉS de la llamada. Con un pedido en vuelo `force` no lo comparte (pudo salir antes del
+ * cambio en el server): espera a que termine y encadena UNA recarga; dos `force` simultáneos
+ * comparten la encadenada. Misma semántica que `ensureMemberState({ force: true })`.
+ */
+function requestWeeks(opts: { force?: boolean } = {}): Promise<void> {
+  const key = weeksKey()
+  if (opts.force) {
+    if (weeksInFlight) {
+      return weeksInFlight.promise.catch(() => undefined).then(() => startOrShareWeeks(weeksKey()))
+    }
+    return startOrShareWeeks(key)
   }
+  if (weeksLoadedKey === key && !weeksInFlight) return Promise.resolve()
+  return startOrShareWeeks(key)
 }
 
 async function onProgramChanged(): Promise<void> {
-  // Bundle members switching programs from the home card. Re-fetch progress
-  // (the my-progress endpoint follows the server-side current-program pointer)
-  // and the week sessions so today's route + day cards reflect the new program.
-  await Promise.all([loadProgramProgress(), loadWeeks()])
+  // Bundle members switching programs from the home card. Re-fetch the member state
+  // (my-progress follows the server-side current-program pointer) and the week sessions
+  // so today's route + day cards reflect the new program. `force` espera la carga en vuelo
+  // y encadena una carga completa, en ambos casos.
+  await Promise.all([userStore.ensureMemberState({ force: true }), requestWeeks({ force: true })])
 }
 
-async function loadTrialEligibility(): Promise<void> {
-  try {
-    const eligibility = await schedulingApi.getTrialEligibility()
-    trialEligible.value = eligibility.eligible && !eligibility.alreadyBooked
-  } catch (err: unknown) {
-    // Fail-open: sin dato no se ofrece la clase de prueba, la card sigue con su gate por defecto.
-    trialEligible.value = false
-    log.warn('Failed to load trial eligibility', {
-      error: err instanceof Error ? err.message : String(err),
-    })
-  }
-}
-
-// Plan-status y prueba gratis SOLO cuando la suscripción terminó de cargar sin plan activo
-// (si todavía carga, esperamos: nunca decidimos "sin plan" por una carrera). L37.
-// Sin `immediate` (REVIEW-app WR-03): `onMounted` recarga la suscripción siempre que no haya
-// plan activo, así que la transición loading -> loaded de esa recarga dispara esto UNA vez por
-// visita. Con `immediate` corría también en el setup con la suscripción vieja en memoria y la
-// recarga lo repetía (doble plan-status y doble trial-eligibility).
+// Perfil tardío (boot optimista, D-08): sin perfil no se pide la semana (no hay zona ni nivel). Se
+// dispara por PRESENCIA de perfil, no por la zona: `branchTimezone` es opcional en `UserProfile` y un
+// perfil sin zona igual debe pedir la semana. Cuando el perfil recién llega (`!hadProfile`) se espera
+// la hidratación del nivel antes de pedir, para que la clave ya lleve el nivel final:
+// `retryProfileLoad` hace `setProfile` (cambia la zona) y luego `hydrateSelection` (cambia el nivel),
+// y sin esta espera saldrían dos pedidos. El disparo siguiente por el cambio de nivel cae en la misma
+// clave y comparte la promesa o se saltea. Cambios posteriores reales de zona o nivel -> clave nueva
+// -> un pedido. No es inmediato: el montaje pide por su cuenta.
+let disposed = false
 watch(
-  () => userStore.subscriptionLoaded && !userStore.subscriptionLoading,
-  (ready) => {
-    if (!ready || userStore.hasActiveSubscription) return
-    void userStore.loadPlanStatus()
-    if (!isVirtual.value) void loadTrialEligibility()
+  () =>
+    [
+      userStore.profile !== null,
+      userStore.profile?.branchTimezone ?? null,
+      userStore.selectedLevel,
+    ] as const,
+  async ([hasProfile], [hadProfile]) => {
+    if (!hasProfile) return
+    if (!hadProfile) await userStore.hydrateSelection()
+    if (disposed) return
+    void requestWeeks()
   },
 )
 
@@ -346,8 +447,11 @@ const todayCard = computed(() => {
       : null,
     planStatus: userStore.planStatus,
     planLoading: userStore.planStateLoading,
-    // Hasta que respondan las reservas de hoy la card no afirma que falte reservar (A1).
-    bookingsLoading: !todayBookingStore.loaded,
+    // Hasta que respondan las reservas de hoy la card no afirma que falte reservar (A1). Si el perfil
+    // llegó con otra zona, los turnos cargados con la zona por defecto no valen hasta que el layout
+    // los recargue (D-08).
+    bookingsLoading:
+      !todayBookingStore.loaded || todayBookingStore.loadedTz !== todayBookingStore.tz,
     todayRoute: todayRouteName.value,
     todayCompleted: todayCompleted.value,
     todaySession: progressionStore.todaySession,
@@ -381,16 +485,87 @@ const todayCard = computed(() => {
         }
       : null,
     hasExtraPrograms: programProgressCard.value !== null && !isVirtual.value,
-    trialEligible: trialEligible.value,
+    trialEligible: userStore.trialEligible,
     libreEnabled: FREE_BLOCKS_ENABLED,
+    // Fase 203: "todavía no sé" (*Loading = no llegó por primera vez) y "falló" (*Failed = falló y no hay
+    // dato previo). Una falla es "no sé", nunca "no": las banderas *Failed van a la card, que sale enseguida
+    // a neutral / a lo que se sabe (una falla no espera el tope; el tope es solo para lo que tarda).
+    // Sin perfil la card queda en esqueleto aun con el tope vencido: lo decide `resolveTodayCard` (D-08),
+    // acá no hay ningún atajo que la saque de ahí.
+    profileLoading: userStore.profile === null,
+    weekLoading: !weekLoaded.value,
+    programLoading: !userStore.memberStateLoaded,
+    trialLoading: !userStore.trialEligibilityLoaded,
+    statsLoading: !progressionStore.statsLoaded,
+    // Sin suscripción 204/vencida y plan-status caído no se sabe si venció ni si hay un plan programado.
+    planFailed:
+      userStore.planStatus === null && (userStore.subscriptionFailed || userStore.planStatusFailed),
+    bookingsFailed: todayBookingStore.loadFailed,
+    programFailed: userStore.programFailed,
+    // Stats falló y no hay previas: "no sé", nunca "no completada" (D-07).
+    statsFailed: progressionStore.statsFailed,
+    deadlinePassed: deadline.passed.value,
   })
 })
 
-onMounted(async () => {
-  fetchStats()
-  fetchTodayCheckIns()
-  // D-15b: tarjetas del carrusel (fijas con copy editable + libres del
-  // admin), sin bloquear el render — mismo criterio que fetchStats de arriba.
+// Fase 203 (D-01/D-02/D-07): qué se dibuja en el lugar de cada card (esqueleto, contenido u oculto) y
+// qué flags "tuvo contenido" hay que guardar. La regla vive en una función pura; acá solo se arma el
+// input con booleanos y conteos (D-03: nunca contenido).
+const slots = computed(() => {
+  const evaluation = progressionStore.evaluation
+  return resolveMiTemploSlots({
+    deadlinePassed: deadline.passed.value,
+    todayKind: todayCard.value.kind,
+    novedades: {
+      loaded: novedadesStore.loaded,
+      ok: novedadesStore.lastLoadOk,
+      count: novedadesStore.novedades.length,
+    },
+    sponsors: {
+      loaded: sponsorsStore.loaded,
+      ok: sponsorsStore.lastLoadOk,
+      count: sponsorsStore.sponsors.length,
+    },
+    checkIn: {
+      settled: progressionStore.checkInSettled,
+      ok: progressionStore.checkInOk,
+      questions: orderedCheckIns.value.length,
+    },
+    week: { loaded: weekLoaded.value, ok: weekError.value === null, hasData: weekHasData.value },
+    stats: {
+      loaded: progressionStore.statsLoaded,
+      ok: progressionStore.statsOk,
+      evaluationVisible: evaluation !== null && (evaluation.eligible || evaluation.pendingRequest),
+    },
+    paraVos: {
+      tarjetasSettled: avisosStore.tarjetasSettled,
+      memberStateLoaded: userStore.memberStateLoaded,
+      hasProfile: userStore.profile !== null,
+    },
+    hadContent: cardFlags.map,
+  })
+})
+
+// Pitfall 6: `records` solo trae las cards cuya fuente respondió bien (nunca tras un error); `record()`
+// ignora los valores que no cambian, así que este watch no entra en bucle con `cardFlags.map`.
+watch(
+  () => slots.value.records,
+  (records) => {
+    for (const card of MI_TEMPLO_CARD_KEYS) {
+      const has = records[card]
+      if (has !== undefined) cardFlags.record(card, has)
+    }
+  },
+  { immediate: true },
+)
+
+onMounted(() => {
+  // Fase 203 (SC-4, D-06): todo sale en el mismo tick y en paralelo, sin ningún `await` antes de los
+  // pedidos. El tope de la card arranca una sola vez, acá.
+  deadline.start()
+  void fetchStats()
+  void fetchTodayCheckIns()
+  // D-15b: tarjetas del carrusel (fijas con copy editable + libres del admin).
   void avisosStore.loadTarjetas()
   // Novedades (D-12): fail-open, en cada montaje de Mi Templo. No hay
   // pull-to-refresh en esta página, así que no hay un segundo punto de carga.
@@ -398,21 +573,13 @@ onMounted(async () => {
   // Patrocinadores (D-20): fail-open; el feed ya viene filtrado por país y vigencia.
   void sponsorsStore.load()
 
-  // Fase 199: Mi Templo carga la suscripción al montar porque el login no lo hace
-  // (boot/auth.ts solo la dispara al arrancar con sesión): sin esto, tras un login
-  // sin reinicio un socio con plan vería "Arrancá tu plan". Sin await y DESPUÉS de los
-  // fetch de arriba para no demorar el loader; la card muestra su skeleton mientras carga.
-  // Se recarga también si lo que hay en memoria NO es un plan activo (p.ej. una suscripción
-  // `expired` vieja): si el socio renovó en esta misma sesión, sin esto vería "Renová tu plan".
-  if (!userStore.hasActiveSubscription && !userStore.subscriptionLoading) {
-    void userStore.loadSubscription()
-  }
+  // Estado del socio (suscripción, plan-status, trial-eligibility, my-progress, current-program y
+  // enrollments): reusa la carga del boot/layout si está en vuelo o fresca, y refresca si está
+  // vieja (p. ej. un socio que renovó en esta sesión y todavía tenía un plan vencido en memoria).
+  void userStore.ensureMemberState({ maxAgeMs: MEMBER_STATE_MAX_AGE_MS })
 
-  // Hydrate active enrollments so the program dropdown on ProgramProgressCard
-  // (hoja "Mi programa") appears on first load.
-  await Promise.all([loadProgramProgress(), userStore.fetchCurrentProgram()])
-
-  void loadWeeks()
+  // Semana: apenas hay perfil, en paralelo con todo lo demás. Sin perfil la pide el watch de arriba.
+  if (userStore.profile) void requestWeeks()
 
   // Handle pending deep link from notification tap (per D-30)
   const pendingRoute = notificationStore.consumePendingRoute()
@@ -422,7 +589,8 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-  schedulingApi.cleanup()
+  disposed = true
+  deadline.cleanup()
 })
 </script>
 
@@ -432,35 +600,6 @@ onUnmounted(() => {
 .mi-templo {
   padding: 16px;
   background-color: transparent; // D-16: la foto de fondo se ve detrás
-
-  &__loading,
-  &__error {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 60vh;
-    text-align: center;
-    padding: 24px;
-  }
-
-  &__loading-text {
-    margin: 16px 0 0;
-    font-size: 14px;
-    color: #6b6459; // D-15: texto sólido
-  }
-
-  &__error-icon {
-    font-size: 64px;
-    color: $negative;
-    margin-bottom: 16px;
-  }
-
-  &__error-text {
-    font-size: 14px;
-    color: #2c2318; // D-15: texto sólido
-    margin-bottom: 16px;
-  }
 
   &__content {
     display: flex;
@@ -553,6 +692,13 @@ onUnmounted(() => {
       flex: 0 0 calc(100% - 2 * 16px - 24px);
       scroll-snap-align: start;
     }
+  }
+
+  // Esqueleto del riel (fase 203): mismo ancho que una card real. Gana por especificidad al
+  // `flex: 0 0 auto` de CardSkeleton inline, que no sabe de este ancho.
+  &__rail > &__skeleton {
+    flex: 0 0 calc(100% - 2 * 16px - 24px);
+    scroll-snap-align: start;
   }
 }
 </style>

@@ -1058,6 +1058,7 @@ import BranchPickerDialog from 'src/components/BranchPickerDialog.vue'
 import ActivityInfoSheet from 'src/components/ActivityInfoSheet.vue'
 import TurnoHeader from 'src/components/TurnoHeader.vue'
 import { splitDaySections } from 'src/utils/turno-sections'
+import { needsExplicitGridLoad } from 'src/utils/reservas-initial-load'
 import {
   availabilityLevel as availabilityLevelFor,
   availabilityText as availabilityTextFor,
@@ -2259,6 +2260,15 @@ async function loadTrialEligibility() {
   }
 }
 
+/**
+ * Fase 203: la carga completa de `userStore.loadSubscription()` acaba de traer
+ * trial-eligibility, así que se reusa en lugar de pedirla otra vez. Para socios de
+ * sede virtual el store no la pide, y ahí se sigue llamando a `loadTrialEligibility()`.
+ */
+function applyStoreTrialEligibility(): void {
+  trialEligibility.value = userStore.trialEligibility
+}
+
 async function loadGrid() {
   try {
     const branchId =
@@ -2295,6 +2305,9 @@ async function loadGrid() {
   }
 }
 
+// Único que pide la grilla al cambiar la sede (fase 203, R-1): quien asigna
+// `selectedBranchId` solo llama a `loadGrid()` a mano si el valor no cambió
+// (ver `needsExplicitGridLoad`), para no pedir /weekly dos veces.
 watch(selectedBranchId, () => loadGrid())
 
 // Trial mode: reloading the grid for the chosen physical sede (D-06). Reset the
@@ -2309,8 +2322,10 @@ watch(trialBranchId, () => {
 })
 
 onMounted(async () => {
+  let trialFromStore = false
   if (!userStore.subscription && !userStore.subscriptionLoading) {
     await userStore.loadSubscription()
+    trialFromStore = userStore.trialEligibilityLoaded && userStore.profile?.branchIsVirtual !== true
   }
 
   // Phase 162 (APP-02/D-06): cargar el plan especial antes de decidir el empty-state.
@@ -2322,7 +2337,10 @@ onMounted(async () => {
   // same point in the lifecycle (Phase 179 plan): they gate mutually
   // exclusive states (D-18, backend-guaranteed) that together decide which
   // of the ReservasPage states renders.
-  await Promise.all([loadTrialEligibility(), loadPartnerBenefit()])
+  await Promise.all([
+    trialFromStore ? Promise.resolve(applyStoreTrialEligibility()) : loadTrialEligibility(),
+    loadPartnerBenefit(),
+  ])
 
   if (trialEligible.value) {
     // Trial mode: load the physical-branch options for the sede selector (D-06).
@@ -2365,6 +2383,7 @@ onMounted(async () => {
     return
   }
 
+  const prevBranch = selectedBranchId.value
   if (isMultiBranch.value) {
     try {
       branches.value = await getBranches()
@@ -2373,7 +2392,8 @@ onMounted(async () => {
       // fall through
     }
   }
-  loadGrid()
+  // Si la sede cambió, el watch de selectedBranchId ya pide la grilla (una vez).
+  if (needsExplicitGridLoad(prevBranch, selectedBranchId.value)) loadGrid()
 })
 
 onBeforeUnmount(() => cleanup())

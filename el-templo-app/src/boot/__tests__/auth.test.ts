@@ -68,10 +68,19 @@ const userStoreMock = {
   markProfileStale: vi.fn(),
   hydrateSelection: vi.fn(async () => {}),
   loadSubscription: vi.fn(async () => {}),
+  ensureMemberState: vi.fn(async () => {}),
 }
 
 vi.mock('stores/useUserStore', () => ({
   useUserStore: () => userStoreMock,
+}))
+
+// Fase 203 (D-02): flags "tuvo contenido" por socio. Mock plano: sin Pinia activo el store real
+// tiraría "getActivePinia was called with no active Pinia" en todos los casos con sesión.
+const cardFlagsMock = { hydrate: vi.fn(async (_userId: number) => {}) }
+
+vi.mock('stores/useCardHadContentStore', () => ({
+  useCardHadContentStore: () => cardFlagsMock,
 }))
 
 // --- axios.ts (runRefresh discriminado + api.get + isSessionRejectedStatus) -
@@ -142,6 +151,7 @@ describe('boot/auth.ts — runAuthBoot (App 1.7.9, causa raíz de deslogueos)', 
     expect(runRefresh).not.toHaveBeenCalled()
     expect(apiGet).not.toHaveBeenCalled()
     expect(authStoreMock.clearAuth).not.toHaveBeenCalled()
+    expect(cardFlagsMock.hydrate).not.toHaveBeenCalled()
   })
 
   describe('token expirado + refreshToken (dispara runRefresh)', () => {
@@ -157,6 +167,7 @@ describe('boot/auth.ts — runAuthBoot (App 1.7.9, causa raíz de deslogueos)', 
       expect(clearTokens).toHaveBeenCalledTimes(1)
       expect(authStoreMock.clearAuth).toHaveBeenCalledTimes(1)
       expect(apiGet).not.toHaveBeenCalled() // ni se intenta /auth/me: ya no hay sesión
+      expect(cardFlagsMock.hydrate).not.toHaveBeenCalled()
     })
 
     it('refresh con error de red → NO desloguea, arranca logueado de forma optimista', async () => {
@@ -172,6 +183,9 @@ describe('boot/auth.ts — runAuthBoot (App 1.7.9, causa raíz de deslogueos)', 
         expect.objectContaining({ id: 7, email: 'socio@test.com', role: 'member' }),
       )
       expect(userStoreMock.markProfileStale).toHaveBeenCalledTimes(1)
+      // Fase 203 (D-02): los flags del socio se hidratan también en el boot optimista.
+      expect(cardFlagsMock.hydrate).toHaveBeenCalledTimes(1)
+      expect(cardFlagsMock.hydrate).toHaveBeenCalledWith(7)
       // No se llega a intentar /auth/me con un token que sabemos expirado.
       expect(apiGet).not.toHaveBeenCalled()
     })
@@ -203,6 +217,7 @@ describe('boot/auth.ts — runAuthBoot (App 1.7.9, causa raíz de deslogueos)', 
 
       expect(clearTokens).toHaveBeenCalledTimes(1)
       expect(authStoreMock.clearAuth).toHaveBeenCalledTimes(1)
+      expect(cardFlagsMock.hydrate).not.toHaveBeenCalled()
     })
 
     it('/auth/me con error de red → NO desloguea, se mantiene logueado optimistamente', async () => {
@@ -217,9 +232,11 @@ describe('boot/auth.ts — runAuthBoot (App 1.7.9, causa raíz de deslogueos)', 
         expect.objectContaining({ id: 7, email: 'socio@test.com', role: 'member' }),
       )
       expect(userStoreMock.markProfileStale).toHaveBeenCalledTimes(1)
+      expect(cardFlagsMock.hydrate).toHaveBeenCalledTimes(1)
+      expect(cardFlagsMock.hydrate).toHaveBeenCalledWith(7)
     })
 
-    it('/auth/me OK → setProfile + hydrateSelection + loadSubscription', async () => {
+    it('/auth/me OK → setProfile + hydrateSelection + ensureMemberState', async () => {
       apiGet.mockResolvedValueOnce({
         data: { id: 7, email: 'socio@test.com', role: 'member' },
       })
@@ -229,8 +246,45 @@ describe('boot/auth.ts — runAuthBoot (App 1.7.9, causa raíz de deslogueos)', 
       expect(authStoreMock.clearAuth).not.toHaveBeenCalled()
       expect(userStoreMock.setProfile).toHaveBeenCalledTimes(1)
       expect(userStoreMock.hydrateSelection).toHaveBeenCalledTimes(1)
-      expect(userStoreMock.loadSubscription).toHaveBeenCalledTimes(1)
+      expect(userStoreMock.ensureMemberState).toHaveBeenCalledTimes(1)
+      expect(userStoreMock.loadSubscription).not.toHaveBeenCalled()
       expect(userStoreMock.markProfileStale).not.toHaveBeenCalled()
+      expect(cardFlagsMock.hydrate).toHaveBeenCalledTimes(1)
+      expect(cardFlagsMock.hydrate).toHaveBeenCalledWith(7)
+    })
+
+    it('/auth/me OK → ensureMemberState sale ANTES de las lecturas locales y estas corren en paralelo', async () => {
+      apiGet.mockResolvedValueOnce({
+        data: { id: 7, email: 'socio@test.com', role: 'member' },
+      })
+      let releaseSelection!: () => void
+      let releaseFlags!: () => void
+      userStoreMock.hydrateSelection.mockImplementationOnce(
+        () => new Promise<void>((res) => (releaseSelection = res)),
+      )
+      cardFlagsMock.hydrate.mockImplementationOnce(
+        () => new Promise<void>((res) => (releaseFlags = res)),
+      )
+
+      let bootDone = false
+      const boot = runAuthBoot().then(() => {
+        bootDone = true
+      })
+      await vi.waitFor(() => expect(cardFlagsMock.hydrate).toHaveBeenCalledTimes(1))
+
+      // Las dos lecturas están en vuelo a la vez y el pedido de red ya salió.
+      expect(userStoreMock.hydrateSelection).toHaveBeenCalledTimes(1)
+      expect(userStoreMock.ensureMemberState).toHaveBeenCalledTimes(1)
+      expect(bootDone).toBe(false)
+
+      // El boot espera a AMBAS lecturas (el primer frame necesita nivel y flags).
+      releaseSelection()
+      await Promise.resolve()
+      await Promise.resolve()
+      expect(bootDone).toBe(false)
+      releaseFlags()
+      await boot
+      expect(bootDone).toBe(true)
     })
   })
 

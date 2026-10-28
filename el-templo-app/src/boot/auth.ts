@@ -3,6 +3,7 @@ import { AxiosError } from 'axios'
 import { useAuthStore } from 'stores/useAuthStore'
 import type { AuthUser } from 'stores/useAuthStore'
 import { useUserStore } from 'stores/useUserStore'
+import { useCardHadContentStore } from 'stores/useCardHadContentStore'
 import { api, runRefresh, isSessionRejectedStatus } from './axios'
 import { useTokenStorage } from 'src/composables/useTokenStorage'
 import { createLogger } from 'src/utils/logger'
@@ -164,6 +165,8 @@ export async function runAuthBoot(): Promise<void> {
         authStore.token = accessToken
         authStore.setAuth(accessToken, optimisticUser)
         userStore.markProfileStale()
+        // Fase 203 (D-02): flags "tuvo contenido" del socio, lectura local, antes del primer frame.
+        await useCardHadContentStore().hydrate(optimisticUser.id)
       }
       // Sin claims decodificables no hay nada seguro que mostrar — se deja
       // como estaba (sin sesión), en vez de arriesgar un estado a medias.
@@ -185,14 +188,24 @@ export async function runAuthBoot(): Promise<void> {
       role: response.data.role,
     })
     userStore.setProfile(response.data)
-    // Phase 99: load persisted level selection for this user before boot
-    // resolves — Quasar awaits this function, so the first MainLayout render
-    // and the first session fetch see the hydrated selectedLevel.
-    await userStore.hydrateSelection()
-    // Hydrate subscription at boot so anything that depends on
+    // Hydrate the member state at boot so anything that depends on
     // hasActiveSubscription (e.g. the check-in QR FAB on /mi-templo) works
     // on first render, without requiring a visit to /reservas first.
-    void userStore.loadSubscription()
+    // Fase 203 (D-06/D-15): suscripción, plan-status, trial-eligibility, my-progress,
+    // current-program y enrollments salen todos en paralelo, con promesa compartida:
+    // las pantallas que llaman a ensureMemberState() un instante después no repiten pedidos.
+    // Se dispara ANTES de las lecturas locales (cierre 203): solo necesita el perfil (ya está con
+    // `setProfile`) y la red no tiene por qué esperar dos lecturas de Preferences.
+    void userStore.ensureMemberState()
+    // Phase 99: load persisted level selection for this user before boot resolves — Quasar awaits
+    // this function, so the first MainLayout render and the first session fetch see the hydrated
+    // selectedLevel. Fase 203 (D-02): flags "tuvo contenido" del socio (también lectura local de
+    // Preferences): el primer frame ya sabe qué cards reservan lugar. Las dos lecturas van en
+    // paralelo y el boot espera a ambas.
+    await Promise.all([
+      userStore.hydrateSelection(),
+      useCardHadContentStore().hydrate(response.data.id),
+    ])
   } catch (err: unknown) {
     const status = err instanceof AxiosError ? err.response?.status : undefined
     if (isSessionRejectedStatus(status)) {
@@ -211,6 +224,7 @@ export async function runAuthBoot(): Promise<void> {
       const optimisticUser = decodeAuthUser(accessToken)
       if (optimisticUser) {
         authStore.setAuth(accessToken, optimisticUser)
+        await useCardHadContentStore().hydrate(optimisticUser.id)
       }
       userStore.markProfileStale()
     }

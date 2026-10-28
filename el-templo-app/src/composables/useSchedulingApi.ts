@@ -27,15 +27,19 @@ export interface MyBookingsResponse {
 /**
  * `GET /members/scheduling/my-bookings` (rango lunes..sábado de `weekStart`).
  * Función pura de módulo, sin estado: la URL vive SOLO acá y la reusan el
- * composable y `useTodayBookingStore` (que pide dos semanas en paralelo y por
- * eso no puede usar el `abortController` de un solo slot del composable).
+ * composable y `useTodayBookingStore` (que no puede usar el `abortController`
+ * de un solo slot del composable).
+ *
+ * `opts.weeks = 2` (fase 203, D-15) pide la semana y la siguiente en UN pedido;
+ * sin `weeks` el pedido es idéntico al de siempre (una semana).
  */
 export async function fetchMyBookings(
   weekStart: string,
   signal?: AbortSignal,
+  opts: { weeks?: 1 | 2 } = {},
 ): Promise<MyBookingsResponse> {
   const response = await api.get<MyBookingsResponse>('/members/scheduling/my-bookings', {
-    params: { weekStart },
+    params: opts.weeks ? { weekStart, weeks: opts.weeks } : { weekStart },
     signal,
   })
   return response.data

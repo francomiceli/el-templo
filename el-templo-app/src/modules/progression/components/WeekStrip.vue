@@ -25,9 +25,15 @@
         <span class="week-strip__dot" aria-hidden="true">{{ dot.letter }}</span>
       </li>
     </ul>
-    <div class="week-strip__total">
+    <!-- Fase 203 (D-07/D-16): sin total conocido (stats pendientes o fallidas) la fila sigue
+         ocupando su alto pero invisible: no se afirma "0 sesiones" y la card no cambia de tamaño. -->
+    <div
+      class="week-strip__total"
+      :style="totalUnknown ? { visibility: 'hidden' } : undefined"
+      :aria-hidden="totalUnknown"
+    >
       <span class="week-strip__total-num">{{ totalText }}</span>
-      <span>{{ sessionsTotalCaption(totalSessions) }}</span>
+      <span>{{ sessionsTotalCaption(totalSessions ?? 0) }}</span>
     </div>
   </section>
 </template>
@@ -45,14 +51,19 @@ const props = defineProps<{
   weekStart: string
   todayStr: string
   completedDates: string[]
-  totalSessions: number
+  /** null = todavía no se sabe (o stats fallidas): la fila del total queda reservada pero oculta. */
+  totalSessions: number | null
 }>()
 
 const dots = computed(() => weekDots(props.weekStart, props.todayStr, props.completedDates))
 const sessionsCount = computed(() => sessionsThisWeek(props.weekStart, props.completedDates))
 const weekNoun = computed(() => (sessionsCount.value === 1 ? 'sesión' : 'sesiones'))
-/** "1.284": separador de miles como en el resto de la app. */
-const totalText = computed(() => props.totalSessions.toLocaleString('es-AR'))
+const totalUnknown = computed(() => props.totalSessions === null)
+/**
+ * "1.284": separador de miles como en el resto de la app. Sin total conocido sale un "0" de
+ * relleno (la fila va oculta): un texto vacío achicaría la fila (el número fija su alto).
+ */
+const totalText = computed(() => (props.totalSessions ?? 0).toLocaleString('es-AR'))
 </script>
 
 <style scoped lang="scss">

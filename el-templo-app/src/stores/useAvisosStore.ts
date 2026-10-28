@@ -74,6 +74,13 @@ export const useAvisosStore = defineStore('avisos', () => {
   // (una sola llamada por apertura, marcado ANTES del primer await).
   const tarjetas = ref<PromptAviso[]>([])
   const tarjetasLoaded = ref(false)
+  // Fase 203 (D-02/D-07): `tarjetasLoaded` es "pedido" (se prende ANTES del
+  // await). `tarjetasSettled` es "respondió" (2xx o error fail-open) y
+  // `tarjetasOk` distingue vacío (true) de falló (false). Ambos se bajan en
+  // `reset()` y una respuesta de antes de un `reset()` no los toca.
+  const tarjetasSettled = ref(false)
+  const tarjetasOk = ref<boolean | null>(null)
+  let tarjetasGeneration = 0
 
   const isPlanExpiry = computed(() => prompt.value?.kind === 'plan_expiry')
   const isAviso = computed(() => prompt.value?.kind === 'aviso')
@@ -127,15 +134,24 @@ export const useAvisosStore = defineStore('avisos', () => {
   async function loadTarjetas(): Promise<void> {
     if (tarjetasLoaded.value) return
     tarjetasLoaded.value = true
+    const mine = tarjetasGeneration
+    let ok = false
     try {
       const { data } = await api.get<TarjetasResponse>('/communications/me/tarjetas')
+      // Tras un reset() (logout) la respuesta del socio anterior no escribe nada: ni tarjetas, ni flags.
+      if (mine !== tarjetasGeneration) return
       tarjetas.value = data.tarjetas
+      ok = true
     } catch (err: unknown) {
-      tarjetas.value = []
       log.error('Failed to load tarjetas', {
         error: err instanceof Error ? err.message : String(err),
       })
+      if (mine !== tarjetasGeneration) return
+      tarjetas.value = []
     }
+    if (mine !== tarjetasGeneration) return
+    tarjetasOk.value = ok
+    tarjetasSettled.value = true
   }
 
   async function reportEvent(avisoId: number, type: AvisoEventType): Promise<void> {
@@ -165,6 +181,9 @@ export const useAvisosStore = defineStore('avisos', () => {
     loading.value = false
     tarjetas.value = []
     tarjetasLoaded.value = false
+    tarjetasGeneration++
+    tarjetasSettled.value = false
+    tarjetasOk.value = null
   }
 
   return {
@@ -173,6 +192,8 @@ export const useAvisosStore = defineStore('avisos', () => {
     loading,
     tarjetas,
     tarjetasLoaded,
+    tarjetasSettled,
+    tarjetasOk,
     isPlanExpiry,
     isAviso,
     isRating,
