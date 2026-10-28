@@ -12,8 +12,12 @@ export interface SemanaCtaInput {
   hasSession: boolean
   isSunday: boolean
   completed: boolean
-  /** Hay progreso guardado de la sesión de ese día (para "Continuar") */
-  hasProgress: boolean
+  /**
+   * Hay progreso guardado de la sesión de ese día (para "Continuar").
+   * null = todavía no se leyó el progreso local: el botón de hoy reserva su lugar sin texto
+   * (fase 203 C-10).
+   */
+  hasProgress: boolean | null
   /** FREE_BLOCKS_ENABLED: apagado, ningún estado lleva a Libre ni la menciona */
   libreEnabled: boolean
 }
@@ -24,6 +28,11 @@ export interface SemanaCta {
   label: string
   variant: 'primary' | 'secondary' | 'unavailable'
   action: 'start' | 'summary' | 'libre' | null
+  /**
+   * true = el botón reserva su lugar sin texto visible ni acción hasta saber si es "Empezar" o
+   * "Continuar" (fase 203 C-10). El `label` viene solo para reservar el espacio: no se ve.
+   */
+  pending: boolean
   /** true si el botón arranca a entrenar (lleva al 3-2-1): el botón lleva el ícono de play */
   startsTraining: boolean
   /** Chip salvia "Hecha" debajo del título */
@@ -47,6 +56,7 @@ export function resolveSemanaCta(i: SemanaCtaInput): SemanaCta {
       label: '',
       variant: 'unavailable',
       action: null,
+      pending: false,
       startsTraining: false,
       showDoneChip: i.hasSession && i.completed,
       showLibreLink: false,
@@ -61,6 +71,7 @@ export function resolveSemanaCta(i: SemanaCtaInput): SemanaCta {
       label: '',
       variant: 'unavailable',
       action: null,
+      pending: false,
       startsTraining: false,
       showDoneChip: false,
       showLibreLink: false,
@@ -75,6 +86,7 @@ export function resolveSemanaCta(i: SemanaCtaInput): SemanaCta {
       label: i.isSunday ? 'Día de descanso' : 'Todavía sin plani',
       variant: 'unavailable',
       action: null,
+      pending: false,
       startsTraining: false,
       showDoneChip: false,
       showLibreLink: false,
@@ -89,6 +101,7 @@ export function resolveSemanaCta(i: SemanaCtaInput): SemanaCta {
       label: 'Elegir un bloque libre',
       variant: 'primary',
       action: 'libre',
+      pending: false,
       startsTraining: false,
       showDoneChip: false,
       showLibreLink: false,
@@ -103,6 +116,7 @@ export function resolveSemanaCta(i: SemanaCtaInput): SemanaCta {
       label: 'Ver resumen',
       variant: 'secondary',
       action: 'summary',
+      pending: false,
       startsTraining: false,
       showDoneChip: true,
       showLibreLink: i.libreEnabled && i.date === i.today,
@@ -117,6 +131,23 @@ export function resolveSemanaCta(i: SemanaCtaInput): SemanaCta {
       label: availableLabel(i.date),
       variant: 'unavailable',
       action: null,
+      pending: false,
+      startsTraining: false,
+      showDoneChip: false,
+      showLibreLink: false,
+      hint: null,
+    }
+  }
+
+  // Hoy sin haber leído el progreso local: el botón reserva su lugar sin texto ni acción, así no
+  // pinta "Empezar" para después cambiar a "Continuar" (C-10). El label queda en 'Empezar' solo para reservar el alto y el ancho.
+  if (i.hasProgress === null) {
+    return {
+      showButton: true,
+      label: 'Empezar',
+      variant: 'primary',
+      action: null,
+      pending: true,
       startsTraining: false,
       showDoneChip: false,
       showLibreLink: false,
@@ -130,6 +161,7 @@ export function resolveSemanaCta(i: SemanaCtaInput): SemanaCta {
     label: i.hasProgress ? 'Continuar' : 'Empezar',
     variant: 'primary',
     action: 'start',
+    pending: false,
     startsTraining: true,
     showDoneChip: false,
     showLibreLink: false,
