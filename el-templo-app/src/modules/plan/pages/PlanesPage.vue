@@ -4,31 +4,27 @@
        el fondo `.app-bg` del layout. -->
   <q-page class="planes-page">
     <div class="planes-wrap">
-      <!-- Tu plan: carga / error con reintento / contenido -->
-      <div v-if="summaryLoading && !summary" class="planes-loading">
-        <TemploLoader size="lg" />
-      </div>
+      <!-- Fase 203 (D-04): la página aparece completa de una vez. Mientras falta algo, cada
+           sección conserva su lugar con un esqueleto (mismo orden, nunca se reordena); antes de
+           que llegue todo, las tres están en esqueleto. Ver `resolvePlanesView`. -->
 
-      <div v-else-if="summaryError" class="planes-error" role="alert">
-        <p class="planes-error__text">No pudimos cargar tu plan.</p>
-        <button type="button" class="planes-error__retry" @click="loadSummary">Reintentar</button>
-      </div>
-
-      <template v-else-if="timeline && summary">
+      <!-- Tu plan: esqueleto / error con reintento / contenido -->
+      <template v-if="view.tuPlan === 'show' && timeline && summary && today">
         <TuPlanCard :model="timeline" @cta="openPlanWhatsApp" />
         <PlanHistoryCard :items="summary.history" :today="today" />
       </template>
 
-      <!-- Catálogo -->
-      <div v-if="catalogLoading" class="planes-loading planes-loading--catalog">
-        <TemploLoader size="md" />
+      <div v-else-if="view.tuPlan === 'error'" class="planes-error" role="alert">
+        <p class="planes-error__text">No pudimos cargar tu plan.</p>
+        <button type="button" class="planes-error__retry" @click="loadSummary(true)">
+          Reintentar
+        </button>
       </div>
 
-      <div v-else-if="plans.length === 0 && experiencias.length === 0" class="planes-empty">
-        No hay planes disponibles
-      </div>
+      <CardSkeleton v-else dark :height="200" label="Cargando planes" />
 
-      <section v-if="experiencias.length > 0" class="planes-section">
+      <!-- Planes por objetivos -->
+      <section v-if="view.objetivos === 'show'" class="planes-section">
         <h3 class="planes-title">Planes por objetivos</h3>
         <p class="planes-sub">Planes diseñados a tu medida para potenciar tu entrenamiento.</p>
         <article v-for="exp in experiencias" :key="exp.id" class="pc">
@@ -46,19 +42,28 @@
             }}</span>
           </div>
           <div class="pc__foot">
-            <span v-if="enrolledProgramId === exp.id" class="pc-pill pc-pill--ok">
-              <q-icon name="check" size="14px" aria-hidden="true" />
-              Ya estás inscripto
-            </span>
-            <button v-else type="button" class="pc__cta" @click="openExperienciaWhatsApp(exp)">
-              <q-icon name="img:/icons/whatsapp.svg" size="18px" aria-hidden="true" />
-              Más info
-            </button>
+            <!-- Sin my-progress (falló o no llegó) no se afirma ni "inscripto" ni "no inscripto". -->
+            <template v-if="view.enrollment === 'known'">
+              <span v-if="enrolledProgramId === exp.id" class="pc-pill pc-pill--ok">
+                <q-icon name="check" size="14px" aria-hidden="true" />
+                Ya estás inscripto
+              </span>
+              <button v-else type="button" class="pc__cta" @click="openExperienciaWhatsApp(exp)">
+                <q-icon name="img:/icons/whatsapp.svg" size="18px" aria-hidden="true" />
+                Más info
+              </button>
+            </template>
           </div>
         </article>
       </section>
 
-      <section v-if="plans.length > 0" class="planes-section">
+      <section v-else-if="view.objetivos === 'skeleton'" class="planes-section">
+        <q-skeleton type="text" animation="none" width="170px" class="planes-title-sk" />
+        <CardSkeleton :height="120" label="Cargando planes" />
+      </section>
+
+      <!-- Planes regulares -->
+      <section v-if="view.regulares === 'content'" class="planes-section">
         <h3 class="planes-title">Planes regulares</h3>
         <article v-for="plan in allRegularPlans" :key="plan.id" class="pc">
           <div class="pc__head">
@@ -90,13 +95,31 @@
           </div>
         </article>
       </section>
+
+      <section v-else-if="view.regulares === 'skeleton'" class="planes-section">
+        <q-skeleton type="text" animation="none" width="150px" class="planes-title-sk" />
+        <CardSkeleton :height="96" label="Cargando planes" />
+        <CardSkeleton :height="96" label="Cargando planes" />
+      </section>
+
+      <!-- Vacío de verdad: el server respondió 2xx sin planes y no hay objetivos que mostrar. -->
+      <div v-else-if="view.regulares === 'empty' && view.objetivos === 'hide'" class="planes-empty">
+        No hay planes disponibles
+      </div>
+
+      <!-- Un pedido caído nunca se dibuja como "No hay planes". -->
+      <div v-else-if="view.regulares === 'error'" class="planes-error" role="alert">
+        <p class="planes-error__text">No pudimos cargar los planes.</p>
+        <button type="button" class="planes-error__retry" @click="retryPlans">Reintentar</button>
+      </div>
     </div>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import TemploLoader from 'src/components/TemploLoader.vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import CardSkeleton from 'src/components/CardSkeleton.vue'
+import { useLoadDeadline } from 'src/composables/useLoadDeadline'
 import { api } from 'src/boot/axios'
 import { useUserStore } from 'src/stores/useUserStore'
 import { createLogger } from 'src/utils/logger'
@@ -109,6 +132,7 @@ import TuPlanCard from '../components/TuPlanCard.vue'
 import PlanHistoryCard from '../components/PlanHistoryCard.vue'
 import { fetchPlanSummary, markPlanSummarySeen } from '../api'
 import { buildPlanTimeline } from '../utils/plan-timeline'
+import { resolvePlanesView } from '../utils/planes-view'
 import type { PlanSummary } from '../types'
 
 const log = createLogger('PlanesPage')
@@ -136,21 +160,56 @@ const PLAN_TIER_LABELS: Record<string, string> = {
 
 const userStore = useUserStore()
 const plans = ref<MemberPlan[]>([])
-const catalogLoading = ref(false)
 
-const { getCatalog, getMyProgress } = useProgramsApi()
+// Fase 203 (D-04): ninguna fuente arranca "resuelta". El primer frame es esqueleto, no el vacío.
+// `*Settled` = ya respondió (bien o mal); `*Failed` = la última carga falló.
+const plansSettled = ref(false)
+const plansFailed = ref(false)
+const plansRetrying = ref(false)
+const catalogSettled = ref(false)
+
+const { getCatalog } = useProgramsApi()
 const experiencias = ref<MemberProgramCatalogItem[]>([])
-const enrolledProgramId = ref<number | null>(null)
+// "Ya estás inscripto" sale del store (una sola carga compartida con el boot), sin pedido propio.
+const enrolledProgramId = computed<number | null>(() => userStore.myProgress?.programId ?? null)
 
 // ── Tu plan ──
 const summary = ref<PlanSummary | null>(null)
-const summaryLoading = ref(false)
+const summarySettled = ref(false)
+const summaryRetrying = ref(false)
+// La última carga falló; `summary` conserva su valor anterior si lo había.
 const summaryError = ref(false)
-// "Hoy" en la sede (no en el teléfono): se recalcula en cada carga.
-const today = ref(todayInTz(DEFAULT_BRANCH_TZ))
+// "Hoy" en la sede (no en el teléfono), reactivo al perfil. D-08: sin perfil no hay zona real,
+// así que NUNCA se usa la zona por defecto como si fuera dato: null y Tu plan queda en esqueleto.
+// Un perfil cargado sin `branchTimezone` sí usa la zona por defecto de la sede (eso es dato).
+const today = computed<string | null>(() =>
+  userStore.profile ? todayInTz(userStore.profile.branchTimezone ?? DEFAULT_BRANCH_TZ) : null,
+)
 
 const timeline = computed(() =>
-  summary.value ? buildPlanTimeline(summary.value, today.value) : null,
+  summary.value && today.value ? buildPlanTimeline(summary.value, today.value) : null,
+)
+
+// Tope de carga (D-07): una sola vez al montar (nunca dentro de un watch: reiniciaría `passed`).
+const deadline = useLoadDeadline()
+
+const view = computed(() =>
+  resolvePlanesView({
+    summarySettled: summarySettled.value,
+    summaryFailed: summaryError.value && summary.value === null,
+    summaryRetrying: summaryRetrying.value,
+    profileReady: userStore.profile !== null,
+    plansSettled: plansSettled.value,
+    plansFailed: plansFailed.value && plans.value.length === 0,
+    plansRetrying: plansRetrying.value,
+    plansCount: plans.value.length,
+    catalogSettled: catalogSettled.value,
+    catalogCount: experiencias.value.length,
+    myProgressSettled: userStore.myProgressLoaded,
+    myProgressFailed: userStore.myProgressFailed,
+    hasEnrollment: enrolledProgramId.value !== null,
+    deadlinePassed: deadline.passed.value,
+  }),
 )
 
 const allRegularPlans = computed(() => plans.value.filter((p) => !p.linkedProgramId))
@@ -224,13 +283,15 @@ async function markSeen(): Promise<void> {
   }
 }
 
-/** Siempre pide el resumen al server (aunque haya datos en memoria): es lo que el socio espera ver. */
-async function loadSummary(): Promise<void> {
-  summaryLoading.value = true
+/**
+ * Siempre pide el resumen al server (aunque haya datos en memoria): es lo que el socio espera ver.
+ * `retry` = el socio tocó "Reintentar": Tu plan vuelve al esqueleto mientras dura el pedido.
+ */
+async function loadSummary(retry = false): Promise<void> {
+  if (retry) summaryRetrying.value = true
   summaryError.value = false
   try {
     const data = await fetchPlanSummary()
-    today.value = todayInTz(userStore.profile?.branchTimezone ?? DEFAULT_BRANCH_TZ)
     summary.value = data
     if (data.hasUnseen) {
       void markSeen()
@@ -244,44 +305,59 @@ async function loadSummary(): Promise<void> {
       error: err instanceof Error ? err.message : String(err),
     })
   } finally {
-    summaryLoading.value = false
+    summarySettled.value = true
+    summaryRetrying.value = false
   }
 }
 
-async function loadCatalog(): Promise<void> {
-  catalogLoading.value = true
+/** `retry` = el socio tocó "Reintentar": los regulares vuelven al esqueleto mientras dura el pedido. */
+async function loadPlans(retry = false): Promise<void> {
+  if (retry) plansRetrying.value = true
   try {
     const response = await api.get<{ plans: MemberPlan[] }>('/members/subscription/plans')
     plans.value = response.data.plans
+    plansFailed.value = false
   } catch (err: unknown) {
+    plansFailed.value = true
     const message = err instanceof Error ? err.message : 'Unknown error'
     log.error('Failed to load plans', { error: message })
   } finally {
-    catalogLoading.value = false
+    plansSettled.value = true
+    plansRetrying.value = false
   }
+}
 
-  // Fetch Planes Por Objetivos catalog
+function retryPlans(): void {
+  void loadPlans(true)
+}
+
+/** Planes por objetivos: si falla, la sección se oculta (no hay nada que reintentar ni afirmar). */
+async function loadCatalog(): Promise<void> {
   try {
     experiencias.value = await getCatalog()
   } catch (err: unknown) {
+    experiencias.value = []
     const message = err instanceof Error ? err.message : 'Unknown error'
     log.error('Failed to load experiencias', { error: message })
-  }
-
-  // Check enrollment status for "Ya estás inscripto" per D-47
-  try {
-    const progress = await getMyProgress()
-    if (progress) {
-      enrolledProgramId.value = progress.programId
-    }
-  } catch {
-    /* ignore -- non-critical for catalog display */
+  } finally {
+    catalogSettled.value = true
   }
 }
 
 onMounted(() => {
-  void loadSummary()
-  void loadCatalog()
+  deadline.start()
+  // D-04: todo en el mismo tick, sin `await` antes. `ensureMemberState` solo aporta my-progress
+  // (para "Ya estás inscripto") y comparte la promesa del boot: no es un pedido propio.
+  void Promise.allSettled([
+    loadSummary(),
+    loadPlans(),
+    loadCatalog(),
+    userStore.ensureMemberState(),
+  ])
+})
+
+onBeforeUnmount(() => {
+  deadline.cleanup()
 })
 </script>
 
@@ -298,17 +374,6 @@ onMounted(() => {
   flex-direction: column;
   gap: 16px;
   padding: 16px 16px 28px;
-}
-
-.planes-loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 40vh;
-
-  &--catalog {
-    min-height: 96px;
-  }
 }
 
 .planes-empty {
@@ -354,6 +419,11 @@ onMounted(() => {
   font-size: 14px;
   line-height: 1.4;
   color: $pd-ink;
+}
+
+// Esqueleto del título de bloque: mismo alto de línea que `.planes-title`.
+.planes-title-sk {
+  height: 16px;
 }
 
 // ── Cards del catálogo ──
