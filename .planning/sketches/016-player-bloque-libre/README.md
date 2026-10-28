@@ -42,3 +42,7 @@ En la sesión completa también se corrigen estos contrastes (D7).
 ## Fuente
 
 El relevamiento de `origin/master` lo hizo un subagente: `DayPlayer.vue`, `BlockProgressionView.vue`, `components/player/*`. Copys y estilos de "Hoy" reproducidos del código. La cita y los ejercicios son de ejemplo.
+
+> **Actualización 2026-10-20 (D13):** se eliminó la regla de los 10 minutos. Si el formato no declara minutos, el reloj corre libre y el bloque cuenta al terminar sus ejercicios. Quedan sin efecto la barrita dorada hasta 10' (pantalla 2) y "Te faltan 3:00" (pantalla 3, HSPU + "A los 7'"). El resto del sketch sigue vigente.
+
+> **Actualización 2026-10-20 (D15, reemplaza la nota anterior):** el bloque cuenta y se guarda al terminar sus ejercicios, sin mínimo. Los +5 AURA piden 10' de reloj en todos los formatos, y solo los cobra el primer bloque del día que llega a 10'. Vuelve la barrita dorada hasta 10' (solo si todavía hay AURA para cobrar). "Te faltan 3:00 / Salir sin guardar" pasa a ser parte del resumen: "Para sumar AURA hacen falta 10 minutos" + "Seguir entrenando", y si sale, el bloque queda guardado sin AURA.

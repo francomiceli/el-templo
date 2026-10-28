@@ -1,0 +1,64 @@
+:root { --page: #f2ece2; --ink: #2c2318; --muted: #6b6459; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--ink); font-family: 'Geologica', sans-serif; }
+.top { max-width: 1100px; margin: 0 auto; padding: 24px 16px 8px; }
+.top h1 { font-family: 'Montserrat', sans-serif; font-size: 24px; margin: 0 0 8px; }
+.top p { margin: 0 0 8px; font-size: 14px; color: var(--muted); line-height: 1.5; max-width: 900px; }
+main { max-width: 1100px; margin: 0 auto; padding: 0 16px 48px; }
+.state { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: #7e4529; margin: 28px 0 8px; }
+.row { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+.col { width: 328px; }
+.lbl { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.h { font-size: 12px; color: var(--muted); margin-top: 6px; font-variant-numeric: tabular-nums; }
+
+/* Card: copia del CSS de TodayCard.vue */
+.card { position: relative; border-radius: 21px; padding: 1.5px;
+  background: linear-gradient(115deg,#4a3a2b 0%,#a35f3c 30%,#f0d2b4 45%,#a35f3c 60%,#4a3a2b 100%);
+  background-size: 250% 250%; box-shadow: 0 10px 24px rgba(44,35,24,.22); }
+.surf { position: relative; isolation: isolate; overflow: hidden; background: #2c2318; color: #f0e6d6;
+  border-radius: 20px; padding: 20px 16px 16px; }
+.mark { position: absolute; z-index: 1; right: -120px; top: -40px; width: 330px; height: 330px;
+  background: url('../../../el-templo-app/public/logo.webp') center/contain no-repeat; opacity: .12;
+  filter: sepia(.6) saturate(1.6) brightness(1.4); pointer-events: none; }
+.halo { position: absolute; z-index: 0; right: -30px; top: 10px; width: 220px; height: 220px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(163,95,60,.38), transparent 65%); opacity: .75; }
+.line { position: absolute; z-index: 1; left: 16px; right: 16px; bottom: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, #a35f3c, #e9bf9b, #a35f3c, transparent); opacity: .9; }
+.line.prog { height: 4px; left: 0; right: 0; background: #4a3f33; opacity: 1; }
+.line.prog i { display: block; height: 100%; background: #e3c9a8; }
+.content { position: relative; z-index: 2; }
+.k { margin: 0; font-family: 'Cinzel', serif; font-weight: 700; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: #e3c9a8; }
+.t { margin: 6px 0 4px; max-width: 78%; font-family: 'Montserrat', sans-serif; font-weight: 700; font-size: 28px;
+  line-height: 1.15; letter-spacing: -.01em; color: #f0e6d6; white-space: pre-line; }
+.m { margin: 0; font-size: 15px; color: #f0e6d6; }
+.bar { height: 6px; border-radius: 3px; margin-top: 12px; overflow: hidden; background: #4a3f33; }
+.bar i { display: block; height: 100%; background: #e3c9a8; }
+.chip { display: inline-flex; gap: 6px; margin-top: 10px; padding: 5px 10px; border-radius: 999px; font-size: 13px;
+  font-weight: 500; background: rgba(240,230,214,.12); color: #f0e6d6; }
+.chip.ok { background: #2f4a35; color: #d9efdc; }
+.acts { display: flex; align-items: center; gap: 14px; margin-top: 18px; }
+.acts.wrap { flex-wrap: wrap; }
+.btn { display: inline-flex; align-items: center; height: 48px; padding: 0 20px; border: 0; border-radius: 10px;
+  background: linear-gradient(135deg,#a35f3c,#7e4529); color: #fff; font-family: 'Geologica', sans-serif;
+  font-weight: 600; font-size: 15px; letter-spacing: .3px; white-space: nowrap;
+  box-shadow: 0 4px 14px rgba(126,69,41,.45), inset 0 1px 0 rgba(255,255,255,.18); }
+.lnk { min-height: 44px; padding: 12px 0; border: 0; background: none; color: #f0e6d6; font-family: 'Geologica', sans-serif;
+  font-weight: 500; font-size: 14px; text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; }
+.lnk.libre { color: #e3c9a8; font-weight: 600; font-size: 13px; }
+.hook { margin: 16px 0 0; padding-top: 12px; border-top: 1px solid #4a3f33; font-size: 14px; color: #f0e6d6; }
+.load .surf { min-height: 177px; }
+.sk { background: #3a2f22; border-radius: 6px; color: transparent; }
+
+/* Propuesta B: alto fijo, filas fijas */
+.chip svg, .pill svg { flex: none; }
+.fix .surf { display: flex; flex-direction: column; height: 226px; }
+.fix .content { flex: 1; display: flex; flex-direction: column; }
+.t.fix { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  min-height: calc(28px * 1.15 * 2); margin-bottom: 6px; }
+.status { height: 28px; display: flex; align-items: center; min-width: 0; font-size: 15px; }
+.status .mt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pill { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; height: 28px; padding: 0 10px;
+  border-radius: 999px; font-size: 13px; font-weight: 500; background: rgba(240,230,214,.12); color: #f0e6d6; }
+.pill.ok { background: #2f4a35; color: #d9efdc; }
+.pill .pt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.acts.fix { margin-top: auto; padding-top: 12px; flex-wrap: nowrap; overflow: hidden; }

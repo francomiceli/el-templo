@@ -1,0 +1,19 @@
+/* Hoja de zona ganadora (024 b · C, vuelta 2). Compartida por 023 y 024. */
+.zg-k { font: 800 11.5px 'Montserrat', sans-serif; letter-spacing: .1em; }
+.zt { margin: 4px 0 0; font: 700 21px/1.2 'Montserrat', sans-serif; }
+.zg { margin-top: 12px; }
+.zg-pills { display: flex; gap: 6px; overflow-x: auto; margin: 0 -18px; padding: 0 18px; scrollbar-width: none; }
+.zg-pills::-webkit-scrollbar { display: none; }
+.zg-pill { flex: none; position: relative; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--edge); background: #fff; color: var(--ink-2); font: 600 13.5px 'Geologica', sans-serif; }
+.zg-pill small { font: 700 9.5px 'Montserrat', sans-serif; letter-spacing: .06em; text-transform: uppercase; color: var(--terra); opacity: .85; }
+.zg-pill.in { border-style: dashed; }
+/* la elegida se funde con el globo: mismo fondo arena */
+.zg-pill.on { background: var(--sand); border-color: var(--sand); color: var(--ink); }
+.zg-globo { --x: 40px; position: relative; margin-top: 9px; background: var(--sand); border-radius: 14px; padding: 11px 13px 12px; }
+.zg-globo::before { content: ''; position: absolute; top: -8px; left: calc(var(--x) - 9px); border: 9px solid transparent; border-top: 0; border-bottom-color: var(--sand); }
+.zg-globo--solo { margin-top: 10px; }
+.zg-globo--solo::before { display: none; }
+.zg-gn { margin: 0 0 3px; font: 700 14.5px 'Montserrat', sans-serif; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.zg-gq { margin: 0; font-size: 15px; line-height: 1.45; }
+.zg-tag { font: 700 10px 'Montserrat', sans-serif; letter-spacing: .06em; text-transform: uppercase; color: var(--terra); border: 1px dashed var(--terra); border-radius: 999px; padding: 2px 7px; }
+.zg-ej { margin-top: 12px; }

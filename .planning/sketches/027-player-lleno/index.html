@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>027 · Player que no se sienta vacío</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Geologica:wght@400;500;600;700&family=Montserrat:wght@600;700;800;900&family=Cinzel:wght@700;800;900&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --ink: #2c2318; --ink-2: #5f584d; --tv-ink: #3d3732; --tv-gold: #b08d6e; --bronze: #7a5c42;
+    --sand: #dbcab4; --cream: #f2ebe1; --plate-text: #f7e6cd; --terra: #96593a; --line: #e5dbcd;
+    --pos: #3b7249; --cream-2: #e3c9a8; --gold-hi: #e8cd96;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #e9e2d7; font-family: 'Geologica', system-ui, sans-serif; color: var(--ink); }
+  header.top { max-width: 2200px; margin: 0 auto; padding: 26px 20px 4px; }
+  header.top h1 { margin: 0; font: 800 22px 'Montserrat', sans-serif; }
+  header.top p { margin: 6px 0 0; color: var(--ink-2); font-size: 14px; max-width: 1080px; line-height: 1.45; }
+  .tools { max-width: 2200px; margin: 12px auto 0; padding: 0 20px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .tools button { border: 1px solid #cdbfac; background: #fff; border-radius: 999px; padding: 6px 12px; font: 600 12.5px 'Geologica'; color: var(--ink); cursor: pointer; transition: all .15s ease; }
+  .tools button:hover { border-color: var(--tv-ink); }
+  .tools button[aria-pressed='true'] { background: var(--tv-ink); color: #fff; border-color: var(--tv-ink); }
+  .row { max-width: 2200px; margin: 18px auto 40px; padding: 0 20px; display: flex; gap: 28px; flex-wrap: wrap; }
+  .cap { width: 390px; }
+  .cap h3 { margin: 0 0 4px; font: 800 14px 'Montserrat', sans-serif; }
+  .cap p { margin: 0 0 10px; font-size: 12.5px; color: var(--ink-2); line-height: 1.4; min-height: 70px; }
+
+  /* ── Teléfono ── */
+  .phone { width: 390px; height: 820px; border-radius: 34px; overflow: hidden; background: #fff; box-shadow: 0 18px 40px rgba(44,35,24,.22), 0 0 0 9px #1c1814; position: relative; display: flex; flex-direction: column; }
+  .status { height: 30px; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; font: 600 12.5px 'Montserrat'; background: #1c1814; color: #fff; }
+
+  .story { position: relative; height: 340px; flex: none; background: #2e2a26 url(../026-player-fade-video/bars-open.webp) center 30% / cover; overflow: hidden; }
+  .story.novideo { background: linear-gradient(135deg, #1e1b18 0%, #2e2a26 50%, #3d3732 100%); }
+  .segs { position: absolute; top: 6px; left: 10px; right: 10px; display: flex; gap: 4px; z-index: 10; }
+  .segs i { flex: 1; height: 3px; border-radius: 2px; background: rgba(255,255,255,.35); }
+  .segs i.on { background: #fff; }
+  .hgrad { position: absolute; top: 0; left: 0; right: 0; height: 84px; background: linear-gradient(to bottom, rgba(0,0,0,.6), transparent); }
+  .hdr { position: absolute; top: 16px; left: 4px; right: 4px; display: flex; align-items: center; justify-content: space-between; color: #fff; z-index: 8; }
+  .hdr .l, .hdr .r { display: flex; align-items: center; min-width: 0; }
+  .icb { width: 44px; height: 44px; border: 0; background: transparent; color: #fff; font-size: 22px; flex: none; cursor: pointer; }
+  .hdr .rol { font: 800 13px 'Montserrat'; letter-spacing: .14em; text-transform: uppercase; color: var(--cream-2); }
+  .hdr .ruta { font: 700 16px 'Montserrat'; color: #fff; max-width: 170px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: right; }
+  .tapL, .tapR { position: absolute; top: 0; bottom: 0; z-index: 5; cursor: pointer; }
+  .tapL { left: 0; width: 30%; } .tapR { right: 0; width: 70%; }
+
+  /* Pie ganador del 026: insignia + nombre a la izquierda, cantidad grande en Cinzel a la derecha */
+  .bfade { position: absolute; left: 0; right: 0; bottom: 0; height: 140px; background: linear-gradient(to bottom, transparent 0%, rgba(12,10,8,.55) 45%, rgba(12,10,8,.92) 100%); pointer-events: none; z-index: 3; }
+  .bcap { position: absolute; left: 16px; right: 16px; bottom: 14px; z-index: 4; pointer-events: none; color: #fff; display: flex; align-items: flex-end; gap: 12px; }
+  .bcap .txt { flex: 1; min-width: 0; }
+  .bcap .k { margin-bottom: 5px; }
+  .bcap .nm { font: 800 22px/1.15 'Montserrat'; text-shadow: 0 2px 10px rgba(0,0,0,.5); overflow-wrap: anywhere; }
+  .bcap .big { flex: none; font: 800 54px/0.9 'Cinzel', serif; font-variant-numeric: tabular-nums; text-shadow: 0 2px 14px rgba(0,0,0,.55); }
+  .bdg { display: inline-block; min-width: 38px; text-align: center; padding: 2px 4px; border-radius: 5px; font: 800 11.5px 'Montserrat'; line-height: 1.05; }
+  .bdg.CON { background: var(--tv-ink); color: var(--cream); box-shadow: 0 0 0 1px rgba(255,255,255,.25); }
+  .bdg.EXC { background: var(--bronze); color: var(--cream); }
+  .bdg.ISO { background: var(--sand); color: var(--tv-ink); }
+  .bdg.MOV { background: transparent; color: var(--cream); border: 1.5px solid var(--tv-gold); font-size: 9.5px; }
+
+  /* Hoja blanca */
+  .sheet { flex: 1; min-height: 0; overflow-y: auto; background: #fff; position: relative; display: flex; flex-direction: column; }
+  .fmtrow { margin: 0 16px; padding: 10px 0 9px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 12px; }
+  .fmtrow .f { flex: 1; min-width: 0; }
+  .fl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; }
+  .fn { font: 700 13px 'Cinzel', serif; letter-spacing: .07em; text-transform: uppercase; color: var(--tv-ink); }
+  .fd { font: 700 11px 'Geologica'; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); }
+  .desc { padding-top: 3px; font-size: 11px; color: var(--ink-2); line-height: 1.3; }
+  .clock { flex: none; font: 700 30px/1 'Cinzel', serif; font-variant-numeric: tabular-nums; color: var(--tv-ink); letter-spacing: .02em; }
+  .cta { margin-top: auto; padding: 14px 16px 18px; }
+  .cta button { width: 100%; border: 0; border-radius: 12px; padding: 14px; background: var(--terra); color: #fff; font: 600 15px 'Geologica'; cursor: pointer; transition: all .15s ease; }
+  .cta button:hover { filter: brightness(1.08); }
+  .next { margin: 0 16px; display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-2); }
+  .next b { font: 800 9.5px 'Montserrat'; letter-spacing: .16em; color: var(--terra); }
+  .next .nn { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--tv-ink); font-weight: 600; }
+  .next .nd { font: 800 15px 'Cinzel', serif; color: var(--tv-ink); }
+
+  /* ── A · Escenario: el video ocupa todo ── */
+  .vA .story { flex: 1; height: auto; }
+  .vA .bfade { height: 330px; background: linear-gradient(to bottom, transparent 0%, rgba(12,10,8,.6) 40%, rgba(12,10,8,.95) 100%); }
+  .vA .bcap { bottom: 150px; }
+  .vA .glass { position: absolute; top: 66px; left: 12px; right: 12px; z-index: 7; display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 14px; background: rgba(28,24,20,.42); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,.14); color: #fff; cursor: pointer; transition: all .2s ease; }
+  .vA .glass .f { flex: 1; min-width: 0; }
+  .vA .glass .fn { color: #fff; }
+  .vA .glass .fd { color: var(--cream-2); }
+  .vA .glass .desc { color: var(--cream); display: none; }
+  .vA .glass.open .desc { display: block; }
+  .vA .glass .fl { white-space: normal; }
+  .vA .glass .clock { color: #fff; font-size: 26px; }
+  .vA .glass .i { flex: none; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--cream-2); color: var(--cream-2); font: 800 11px/15px 'Montserrat'; text-align: center; }
+  .vA .dock { position: absolute; left: 16px; right: 16px; bottom: 18px; z-index: 7; }
+  .vA .dock .next { margin: 0 0 12px; color: var(--cream-2); padding-top: 12px; border-top: 1px solid rgba(255,255,255,.16); }
+  .vA .dock .next .nn, .vA .dock .next .nd { color: #fff; }
+  .vA .dock .next b { color: var(--gold-hi); }
+  .vA .dock button { width: 100%; border: 0; border-radius: 14px; padding: 15px; background: var(--terra); color: #fff; font: 600 15px 'Geologica'; box-shadow: 0 8px 22px rgba(0,0,0,.35); cursor: pointer; }
+  .vA .ghost { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; pointer-events: none; }
+  .vA .story.novideo .ghost { display: flex; }
+  .vA .ghost span { font: 900 120px/0.85 'Cinzel', serif; color: transparent; -webkit-text-stroke: 1.2px rgba(232,205,150,.16); writing-mode: vertical-rl; transform: rotate(180deg); letter-spacing: .06em; }
+  .vA .ghost img { position: absolute; top: 34%; width: 120px; opacity: .1; filter: grayscale(1) brightness(2); }
+
+  /* ── B · El reloj manda ── */
+  .vB .story { height: 300px; }
+  .vB .fmtline { margin: 12px 16px 0; display: flex; align-items: baseline; gap: 6px; }
+  .vB .fmtline .i { margin-left: auto; font: 600 12px 'Geologica'; color: var(--terra); cursor: pointer; }
+  .vB .fmtline + .desc { margin: 0 16px; display: none; }
+  .vB .fmtline.open + .desc { display: block; }
+  .ringwrap { position: relative; width: 236px; height: 236px; margin: 14px auto 4px; }
+  .ringwrap svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .ringwrap .trk { fill: none; stroke: #efe7db; stroke-width: 14; }
+  .ringwrap .arc { fill: none; stroke: var(--terra); stroke-width: 14; stroke-linecap: round; transition: stroke-dashoffset .9s linear; }
+  .ringwrap .tick { fill: #e3d7c6; }
+  .ringwrap .tick.done { fill: var(--tv-gold); }
+  .ringwrap .tick.cur { fill: var(--terra); }
+  .ringwrap .mid { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .ringwrap .q { font: 800 9.5px 'Montserrat'; letter-spacing: .18em; color: var(--ink-2); }
+  .ringwrap .s { font: 800 62px/1 'Cinzel', serif; font-variant-numeric: tabular-nums; color: var(--tv-ink); }
+  .ringwrap .m { margin-top: 4px; font: 800 11px 'Montserrat'; letter-spacing: .12em; color: var(--terra); }
+  .ringwrap.go .arc { stroke: var(--pos); }
+  .ringwrap.go .s { color: var(--pos); }
+  .vB .hint { text-align: center; margin: 2px 24px 10px; font-size: 11.5px; color: var(--ink-2); }
+
+  /* ── C · Columnata del bloque ── */
+  .temple { margin: 14px 16px 8px; position: relative; }
+  .ped { height: 34px; margin: 0 -4px; clip-path: polygon(50% 0, 100% 100%, 0 100%); background: linear-gradient(#efe4d2, #e2d2bb); opacity: .25; transition: all .5s ease; display: flex; align-items: flex-end; justify-content: center; }
+  .ped span { font: 800 9px 'Cinzel'; letter-spacing: .18em; color: var(--tv-ink); margin-bottom: 4px; }
+  .arch { height: 9px; margin: 0 -4px; background: #e2d2bb; opacity: .25; transition: all .5s ease; }
+  .temple.full .ped, .temple.full .arch { opacity: 1; background: linear-gradient(var(--gold-hi), var(--tv-gold)); box-shadow: 0 0 18px rgba(232,205,150,.7); }
+  .cols { display: flex; justify-content: space-between; align-items: flex-end; gap: 8px; }
+  .col { flex: 1; display: flex; flex-direction: column; align-items: center; cursor: pointer; transition: transform .2s ease; }
+  .col:hover { transform: translateY(-2px); }
+  .col .capi { width: 100%; height: 12px; border-radius: 3px 3px 0 0; background: #e7dccb; display: flex; align-items: center; justify-content: center; font: 800 8.5px 'Cinzel'; color: var(--ink-2); }
+  .col .shaft { width: 76%; height: 92px; background: repeating-linear-gradient(90deg, #f4ede2 0 5px, #e5d9c7 5px 7px); border-left: 1px solid #ddcfba; border-right: 1px solid #ddcfba; position: relative; overflow: hidden; }
+  .col .shaft::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: repeating-linear-gradient(90deg, var(--gold-hi) 0 5px, var(--tv-gold) 5px 7px); transition: height .6s ease; }
+  .col .base { width: 100%; height: 8px; background: #e7dccb; border-radius: 0 0 3px 3px; }
+  .col .qq { margin-top: 6px; font: 800 15px 'Cinzel', serif; color: var(--tv-ink); }
+  .col .kk { margin-top: 3px; transform: scale(.85); }
+  .col .bdg.MOV { color: var(--ink-2); }
+  .col.done .shaft::after { height: 100%; }
+  .col.done .capi, .col.done .base { background: var(--tv-gold); color: #fff; }
+  .col.now .shaft { box-shadow: 0 0 0 2px var(--terra), 0 0 16px rgba(150,89,58,.35); }
+  .col.now .capi, .col.now .base { background: var(--terra); color: #fff; }
+  .col.now .qq { color: var(--terra); }
+  .vC .tcap { text-align: center; font: 700 11px 'Geologica'; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); margin: 4px 0 8px; }
+  .vC .temple.full + .tcap { color: var(--tv-gold); }
+
+  /* ── D · Tu cuerpo en vivo ── */
+  .bodyrow { margin: 12px 16px 0; display: flex; gap: 12px; align-items: center; }
+  .figs { flex: none; display: flex; gap: 2px; }
+  .figs svg { width: 74px; height: 178px; }
+  .figs .ol { fill: #f1ebe2; stroke: #d9ccb9; stroke-width: 2; }
+  .figs .mu path { fill: #e6ddd0; stroke: #fff; stroke-width: 1.2; transition: fill .3s ease; }
+  .figs .mu.M path { fill: var(--terra); }
+  .figs .mu.S path { fill: var(--tv-gold); }
+  .bodytxt { flex: 1; min-width: 0; }
+  .bodytxt .h { font: 800 9.5px 'Montserrat'; letter-spacing: .16em; color: var(--ink-2); margin-bottom: 6px; }
+  .roleln { display: flex; gap: 7px; align-items: baseline; margin-bottom: 7px; font-size: 13px; line-height: 1.3; color: var(--tv-ink); }
+  .roleln i { flex: none; width: 9px; height: 9px; border-radius: 2px; transform: translateY(1px); }
+  .roleln small { display: block; font-size: 10.5px; color: var(--ink-2); }
+  .tip { margin: 12px 16px 0; padding: 10px 12px; border-left: 3px solid var(--tv-gold); background: #faf6f0; border-radius: 0 10px 10px 0; font-size: 12.5px; line-height: 1.4; color: var(--tv-ink); }
+  .tip b { display: block; font: 800 9.5px 'Montserrat'; letter-spacing: .16em; color: var(--bronze); margin-bottom: 3px; }
+
+  .note { max-width: 2200px; margin: -18px auto 40px; padding: 0 20px; font-size: 13px; color: var(--ink-2); line-height: 1.5; }
+  .note b { color: var(--ink); }
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>027 · Player que no se sienta vacío</h1>
+  <p>Base: lo que tenés en local (ganador del 026: el ejercicio de ahora sobre el fade del video, sin lista). Cuatro ideas para llenar la pantalla con algo que sirva mientras entrenás. Tocá el video (izquierda = atrás, derecha = adelante), las columnas de la C o "Completar ejercicio". El botón "Sin video" muestra cómo queda cada una sin video.</p>
+</header>
+<div class="tools">
+  <button type="button" id="tVideo" aria-pressed="false">Sin video</button>
+  <button type="button" id="tDone">Completar ejercicio de ahora</button>
+  <button type="button" id="tAll">Completar todo el bloque</button>
+  <button type="button" id="tReset">Reiniciar</button>
+</div>
+
+<div class="row" id="row"></div>
+
+<p class="note">
+  <b>Lo que tienen en común:</b> el header (NUCLEUS / Dominadas), la barra de segmentos, las zonas de toque y el pie con el ejercicio de ahora quedan como en local, con video y sin video. Cambia lo que va alrededor. <b>Datos que ya existen:</b> el formato y su definición (todas), los minutos del EMOM (B), la lista del bloque y cuáles están completos (C) y los músculos de cada ejercicio por rol de la Guía (D). Las indicaciones del profe son las notas de la prescripción (hoy la pastilla "Indicaciones").
+</p>
+
+<script src="../019-anatomia-profes-admin/anat.js"></script>
+<script>
+  const EX = [
+    { k: 'CON', n: 'Dominada estricta', d: '8', M: ['upper-back', 'biceps'], S: ['forearm', 'abs'], Mtxt: 'Dorsal ancho · Bíceps', Stxt: 'Antebrazo · Abdomen', tip: 'Arrancá colgado con los brazos estirados y subí hasta pasar el mentón, sin balanceo.' },
+    { k: 'EXC', n: 'Dominada negativa en 5 segundos', d: '5', M: ['upper-back', 'biceps'], S: ['forearm', 'deltoids'], Mtxt: 'Dorsal ancho · Bíceps', Stxt: 'Antebrazo · Hombros', tip: 'Subí como puedas (salto o banco) y bajá contando cinco, hasta estirar los brazos.' },
+    { k: 'ISO', n: 'Colgado activo', d: '30″', M: ['trapezius', 'upper-back'], S: ['forearm', 'hands'], Mtxt: 'Trapecio · Dorsal ancho', Stxt: 'Antebrazo · Agarre', tip: 'Hombros lejos de las orejas: colgate y "empujá" la barra hacia abajo sin doblar los codos.' },
+    { k: 'CON', n: 'Remo invertido', d: '10', M: ['upper-back', 'biceps'], S: ['lower-back', 'gluteal'], Mtxt: 'Dorsal ancho · Bíceps', Stxt: 'Lumbares · Glúteos', tip: 'Cuerpo en tabla, del talón a la cabeza. Llevá el pecho a la barra.' },
+    { k: 'MOV', n: 'Movilidad de hombros', d: '40″', mob: true, M: ['deltoids'], S: ['chest'], Mtxt: 'Hombros', Stxt: 'Pecho', tip: 'Círculos amplios y lentos, sin dolor. Es tu descanso activo.' },
+  ]
+  const FMT = { n: 'EMOM', d: '12 min · cada 60s', desc: 'Al empezar cada minuto hacés las reps; lo que sobra del minuto es tu descanso.', min: 12 }
+  const VARS = [
+    { id: 'hoy', t: 'Hoy · lo que tenés en local', p: 'Fade con el ejercicio de ahora; abajo formato + reloj y "Completar". Sin la lista, la hoja blanca queda con mucho aire.' },
+    { id: 'A', t: 'A · Escenario: el video es todo', p: 'Como Stories/Reels: el video ocupa toda la pantalla. El formato y el reloj flotan en una pastilla de vidrio (tocala para la definición), abajo "Sigue" y "Completar". Sin video: el nombre de la ruta tallado gigante de fondo.' },
+    { id: 'B', t: 'B · El reloj manda', p: 'La hoja se vuelve el reloj del formato: en EMOM un aro que se cierra cada minuto, con los 12 minutos alrededor. Se lee con el teléfono en el piso. En AMRAP sería la cuenta regresiva + rondas; en Tabata, trabajo/pausa.' },
+    { id: 'C', t: 'C · Columnata del bloque', p: 'Vuelve la lista, pero como templo: una columna por ejercicio (tocala para ir), se llena de oro al completarla y cuando están todas aparece el frontón. Recupera saltar y ver qué hiciste, sin cards.' },
+    { id: 'D', t: 'D · Tu cuerpo en vivo', p: 'Engancha la Guía: qué músculos trabaja el ejercicio de ahora (el que hace el movimiento y el que lo sostiene) y la indicación del profe. Cambia con cada ejercicio.' },
+  ]
+  const st = { cur: 0, done: new Set(), novideo: false, sec: 277, glass: false, bdesc: false }
+  const fmtTime = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
+  const ROMAN = ['I', 'II', 'III', 'IV', 'V']
+
+  const capHtml = (e) => `<div class="bfade"></div><div class="bcap"><div class="txt"><div class="k"><span class="bdg ${e.k}">${e.k}</span></div><div class="nm">${e.n}</div></div><div class="big">${e.d}</div></div>`
+  const fmtRow = () => `<div class="fmtrow"><div class="f"><div class="fl"><span class="fn">${FMT.n}</span> <span class="fd">· ${FMT.d}</span></div><div class="desc">${FMT.desc}</div></div><div class="clock">${fmtTime(st.sec)}</div></div>`
+  const nextIdx = () => { for (let i = st.cur + 1; i < EX.length; i++) if (!st.done.has(i)) return i; return -1 }
+  const nextHtml = () => { const i = nextIdx(); return i < 0 ? `<div class="next"><b>SIGUE</b><span class="nn">Cerrar el bloque</span></div>` : `<div class="next"><b>SIGUE</b><span class="nn">${EX[i].n}</span><span class="nd">${EX[i].d}</span></div>` }
+  const ctaLabel = () => (st.done.has(st.cur) ? 'Completado' : 'Completar ejercicio')
+
+  function ring() {
+    const minute = Math.floor(st.sec / 60) % FMT.min
+    const inMin = st.sec % 60
+    const R = 100, C = 2 * Math.PI * R
+    const ticks = Array.from({ length: FMT.min }, (_, i) => {
+      const a = (i / FMT.min) * 2 * Math.PI
+      const cls = i < minute ? 'done' : i === minute ? 'cur' : ''
+      return `<circle class="tick ${cls}" cx="${118 + 114 * Math.cos(a)}" cy="${118 + 114 * Math.sin(a)}" r="3.6"/>`
+    }).join('')
+    const go = inMin < 3
+    return `<div class="ringwrap ${go ? 'go' : ''}"><svg viewBox="0 0 236 236"><circle class="trk" cx="118" cy="118" r="${R}"/><circle class="arc" cx="118" cy="118" r="${R}" stroke-dasharray="${C}" stroke-dashoffset="${C * (inMin / 60)}"/>${ticks}</svg>
+      <div class="mid"><div class="q">${go ? '¡ARRANCÁ!' : 'QUEDAN'}</div><div class="s">${go ? 'YA' : '0:' + String(60 - inMin).padStart(2, '0')}</div><div class="m">MINUTO ${minute + 1} DE ${FMT.min}</div></div></div>`
+  }
+
+  function figHtml(e) {
+    if (!window.ANAT) return ''
+    const one = (view, ol) => `<svg class="fig" viewBox="0 0 10 10"><g><path class="ol" d="${ol}"/>${ANAT[view].filter(([s]) => s !== 'head' && s !== 'hair').map(([slug, ps]) => `<g class="mu ${e.M.includes(slug) ? 'M' : e.S.includes(slug) ? 'S' : ''}">${ps.map((d) => `<path d="${d}"/>`).join('')}</g>`).join('')}</g></svg>`
+    return `<div class="figs">${one('front', ANAT.outline[0])}${one('back', ANAT.outline[1])}</div>`
+  }
+
+  function sheet(v, e) {
+    if (v === 'hoy') return `<div class="sheet">${fmtRow()}<div class="cta"><button>${ctaLabel()}</button></div></div>`
+    if (v === 'B') return `<div class="sheet"><div class="fmtline ${st.bdesc ? 'open' : ''}"><span class="fn">${FMT.n}</span><span class="fd">· ${FMT.d}</span><span class="i" data-bdesc>¿Cómo es?</span></div><div class="desc">${FMT.desc}</div>${ring()}${nextHtml()}<div class="cta"><button>${ctaLabel()}</button></div></div>`
+    if (v === 'C') {
+      const all = st.done.size === EX.length
+      const cols = EX.map((x, i) => `<div class="col ${st.done.has(i) ? 'done' : i === st.cur ? 'now' : ''}" data-i="${i}"><div class="capi">${ROMAN[i]}</div><div class="shaft"></div><div class="base"></div><div class="qq">${st.done.has(i) ? '✓' : x.d}</div><span class="bdg ${x.k} kk">${x.k}</span></div>`).join('')
+      return `<div class="sheet">${fmtRow()}<div class="temple ${all ? 'full' : ''}"><div class="ped"><span>NUCLEUS</span></div><div class="arch"></div><div class="cols">${cols}</div></div><div class="tcap">${all ? 'Templo en pie · bloque completo' : `${st.done.size} de ${EX.length} columnas en pie`}</div><div class="cta"><button>${ctaLabel()}</button></div></div>`
+    }
+    if (v === 'D') return `<div class="sheet">${fmtRow()}<div class="bodyrow">${figHtml(e)}<div class="bodytxt"><div class="h">QUÉ TRABAJÁS AHORA</div><div class="roleln"><i style="background:var(--terra)"></i><span>${e.Mtxt}<small>Hacen el movimiento</small></span></div><div class="roleln"><i style="background:var(--tv-gold)"></i><span>${e.Stxt}<small>Lo sostienen</small></span></div></div></div><div class="tip"><b>INDICACIÓN DEL PROFE</b>${e.tip}</div><div class="cta"><button>${ctaLabel()}</button></div></div>`
+    return ''
+  }
+
+  function phone(v) {
+    const e = EX[st.cur]
+    const segs = EX.map((_, i) => `<i class="${i <= st.cur ? 'on' : ''}"></i>`).join('')
+    const hdr = `<div class="l"><button class="icb">←</button><span class="rol">Nucleus</span></div><div class="r"><span class="ruta">Dominadas</span><button class="icb">⋮</button></div>`
+    const extraA = v === 'A'
+      ? `<div class="ghost"><span>DOMINADAS</span></div>
+         <div class="glass ${st.glass ? 'open' : ''}" data-glass><div class="f"><div class="fl"><span class="fn">${FMT.n}</span> <span class="fd">· ${FMT.d}</span></div><div class="desc">${FMT.desc}</div></div><span class="i">i</span><div class="clock">${fmtTime(st.sec)}</div></div>
+         <div class="dock">${nextHtml()}<button data-cta>${ctaLabel()}</button></div>`
+      : ''
+    const story = `<div class="story ${st.novideo ? 'novideo' : ''}"><div class="segs">${segs}</div><div class="hgrad"></div><div class="hdr">${hdr}</div>${capHtml(e)}${extraA}<div class="tapL" data-nav="-1"></div><div class="tapR" data-nav="1"></div></div>`
+    return `<div class="phone v${v}"><div class="status"><span>9:41</span><span>●●● 5G ▮</span></div>${story}${v === 'A' ? '' : sheet(v, e)}</div>`
+  }
+
+  function render() {
+    document.getElementById('row').innerHTML = VARS.map((x) => `<div class="cap"><h3>${x.t}</h3><p>${x.p}</p>${phone(x.id)}</div>`).join('')
+  }
+  const complete = () => { st.done.add(st.cur); const n = nextIdx(); if (n >= 0) st.cur = n }
+  document.getElementById('row').addEventListener('click', (ev) => {
+    const t = ev.target
+    if (t.closest('[data-glass]')) st.glass = !st.glass
+    else if (t.closest('[data-bdesc]')) st.bdesc = !st.bdesc
+    else if (t.closest('[data-cta]') || t.closest('.cta button')) complete()
+    else if (t.closest('.col')) st.cur = Number(t.closest('.col').dataset.i)
+    else if (t.closest('[data-nav]')) st.cur = Math.min(EX.length - 1, Math.max(0, st.cur + Number(t.closest('[data-nav]').dataset.nav)))
+    else return
+    render()
+  })
+  document.getElementById('tVideo').addEventListener('click', (ev) => { st.novideo = !st.novideo; ev.currentTarget.setAttribute('aria-pressed', String(st.novideo)); render() })
+  document.getElementById('tDone').addEventListener('click', () => { complete(); render() })
+  document.getElementById('tAll').addEventListener('click', () => { EX.forEach((_, i) => st.done.add(i)); render() })
+  document.getElementById('tReset').addEventListener('click', () => { st.cur = 0; st.done.clear(); render() })
+  setInterval(() => {
+    st.sec++
+    document.querySelectorAll('.clock').forEach((n) => { n.textContent = fmtTime(st.sec) })
+    document.querySelectorAll('.vB .ringwrap').forEach((n) => { n.outerHTML = ring() })
+  }, 1000)
+  if (location.hash === '#novideo') { st.novideo = true; document.getElementById('tVideo').setAttribute('aria-pressed', 'true') }
+  render()
+  // La figura trae coordenadas grandes: ajustar el viewBox a su contenido (como fitFigures del 019)
+  const fit = () => document.querySelectorAll('svg.fig').forEach((svg) => { const bb = svg.firstElementChild.getBBox(); if (bb.width) svg.setAttribute('viewBox', `${bb.x - 2} ${bb.y - 2} ${bb.width + 4} ${bb.height + 4}`) })
+  new MutationObserver(fit).observe(document.getElementById('row'), { childList: true })
+  fit()
+</script>
+</body>
+</html>

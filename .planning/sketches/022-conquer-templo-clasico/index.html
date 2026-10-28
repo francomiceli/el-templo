@@ -1,0 +1,799 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sketch 022 · Conquer templo clásico</title>
+<!--
+  Sin CDN: las fuentes salen de los paquetes @fontsource que ya usa el app (node_modules del checkout
+  principal). Si no están, caen a las fuentes de sistema de los fallbacks.
+-->
+<style>
+  @font-face { font-family: 'Geologica'; font-weight: 400; font-display: swap; src: local('Geologica'), url('../../../el-templo-app/node_modules/@fontsource/geologica/files/geologica-latin-400-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'Geologica'; font-weight: 500; font-display: swap; src: local('Geologica Medium'), url('../../../el-templo-app/node_modules/@fontsource/geologica/files/geologica-latin-500-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'Geologica'; font-weight: 600; font-display: swap; src: local('Geologica SemiBold'), url('../../../el-templo-app/node_modules/@fontsource/geologica/files/geologica-latin-600-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'Montserrat'; font-weight: 600; font-display: swap; src: local('Montserrat SemiBold'), url('../../../el-templo-app/node_modules/@fontsource/montserrat/files/montserrat-latin-600-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'Montserrat'; font-weight: 700; font-display: swap; src: local('Montserrat Bold'), url('../../../el-templo-app/node_modules/@fontsource/montserrat/files/montserrat-latin-700-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'Montserrat'; font-weight: 800; font-display: swap; src: local('Montserrat ExtraBold'), url('../../../el-templo-app/node_modules/@fontsource/montserrat/files/montserrat-latin-800-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'Cinzel'; font-weight: 700; font-display: swap; src: local('Cinzel Bold'), url('../../../el-templo-app/node_modules/@fontsource/cinzel/files/cinzel-latin-700-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'Cormorant Garamond'; font-weight: 600; font-display: swap; src: local('Cormorant Garamond SemiBold'), url('../../../el-templo-app/node_modules/@fontsource/cormorant-garamond/files/cormorant-garamond-latin-600-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'Cormorant Garamond'; font-weight: 700; font-display: swap; src: local('Cormorant Garamond Bold'), url('../../../el-templo-app/node_modules/@fontsource/cormorant-garamond/files/cormorant-garamond-latin-700-normal.woff2') format('woff2'); }
+
+  :root {
+    /* El Templo (tokens del rework, _brand.scss / _premium-card.scss) */
+    --page: #f2ede5;
+    --card: #ffffff;
+    --slab: #fbf8f3;        /* $pd-light-surface */
+    --ink: #2c2318;         /* 15.4:1 sobre blanco */
+    --ink-2: #5f584d;       /* $pd-ink-2: 7.0 blanco, 6.0 página */
+    --line: #e5dbcd;        /* borde decorativo */
+    --edge: #8c806f;        /* borde de control sobre la página, 3:1 */
+    --sand: #f3ede4;
+    --sage: #3f6a47; --sage-tint: #e9f0e6;   /* 5.4:1 */
+    --terra-a: #a35f3c; --terra-b: #7e4529;
+    /* Conquer (prototipo de Nacho) — SOLO terminaciones */
+    --night: #131d44;       /* 16.3 blanco, 14.0 página */
+    --night-2: #1f2b5c;
+    --gold: #cfae6b;        /* decorativo sobre claro (2.1); texto solo sobre azul noche (7.7) */
+    --gold-hi: #f6e2a4;     /* texto sobre azul noche, 12.7 */
+    --cq-cream: #fdf3d3;    /* texto sobre azul noche, 14.7 / tinte sobre claro */
+    --gold-ink: #7a5a1c;    /* dorado como TEXTO sobre claro: 6.4 blanco, 5.5 página */
+    --gold-edge: #a08548;   /* borde dorado de control: 3.5 blanco, 3.0 página (WCAG 1.4.11) */
+    --night-mute: #c3c9df;  /* secundario sobre azul noche, 9.9 */
+    --f-body: 'Geologica', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --f-head: 'Montserrat', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --f-cinzel: 'Cinzel', 'Trajan Pro', 'Times New Roman', serif;
+    --f-corm: 'Cormorant Garamond', 'Cormorant', Garamond, Georgia, serif;
+    --meander: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='12'%3E%3Cpath d='M0 10.5H20M16.5 10.5V1.5H4.5V7H11.5' fill='none' stroke='%23cfae6b' stroke-width='1.3'/%3E%3C/svg%3E");
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #e9e3da; color: var(--ink); font-family: var(--f-body); }
+  button, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+
+  /* ── Controles del sketch ─────────────────────────── */
+  #controls { position: sticky; top: 0; z-index: 50; background: #fff; border-bottom: 1px solid #ddd; padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; font: 13px system-ui, sans-serif; }
+  .ctl { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+  .ctl > span { color: #555; margin-right: 4px; font-weight: 600; }
+  .ctl button { border: 1px solid #ccc; background: #fafafa; border-radius: 6px; padding: 6px 10px; font: inherit; }
+  .ctl button.on { background: #131d44; color: #fff; border-color: #131d44; }
+  #vdesc { flex-basis: 100%; margin: 0; color: #444; line-height: 1.4; }
+  #stage { display: flex; gap: 34px; justify-content: center; align-items: flex-start; padding: 24px 12px 40px; flex-wrap: wrap; }
+  .col { display: flex; flex-direction: column; align-items: center; width: calc(var(--w, 390px) + 20px); max-width: 100%; }
+  .col-label { font: 600 13px system-ui, sans-serif; text-align: center; margin-bottom: 4px; }
+  .col-sub { font: 12px system-ui, sans-serif; color: #555; text-align: center; max-width: 360px; margin-bottom: 12px; line-height: 1.4; min-height: 50px; }
+  .sketch-note { max-width: 900px; margin: 0 auto 60px; padding: 0 16px; font: 13px/1.5 system-ui, sans-serif; color: #555; }
+
+  /* ── Teléfono + chrome del app (igual a los sketches 015/021) ── */
+  .phone { position: relative; width: var(--w, 390px); max-width: 100%; height: 844px; border-radius: 28px; overflow: hidden; box-shadow: 0 0 0 10px #1d1a17, 0 20px 50px rgba(0,0,0,.25); background: var(--page); display: flex; flex-direction: column; isolation: isolate; }
+  .phone::before { content: ''; position: absolute; inset: 0; z-index: -1; background: url(../015-entrenar-hoy/bars-open.webp) center / cover; opacity: .08; }
+  .phone.flash { animation: flash 1.2s ease; }
+  @keyframes flash { 0%, 100% { box-shadow: 0 0 0 10px #1d1a17, 0 20px 50px rgba(0,0,0,.25); } 30% { box-shadow: 0 0 0 10px #1d1a17, 0 0 0 16px #cfae6b; } }
+  .appbar { flex: none; height: 56px; display: flex; align-items: center; gap: 10px; padding: 0 14px; background: linear-gradient(135deg, #96593a, #7d5d42); color: #fff; font: 800 18px var(--f-head); letter-spacing: .02em; }
+  .appbar img { width: 30px; height: 30px; border-radius: 7px; background: #f2ede5; object-fit: contain; }
+  .scroll { position: relative; flex: 1; overflow-y: auto; scrollbar-width: none; }
+  .scroll::-webkit-scrollbar { display: none; }
+  .tabbar { flex: none; height: 56px; display: flex; justify-content: space-around; align-items: center; background: linear-gradient(135deg, #7d5d42, #96593a); color: #f2ede5; font-size: 10px; }
+  .tabbar span { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .tabbar svg { width: 23px; height: 23px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .tabbar .on { color: #fff; font-weight: 700; }
+  .tabbar .on .ic { position: relative; z-index: 0; display: flex; }
+  .tabbar .on .ic::before { content: ''; position: absolute; z-index: -1; left: 50%; top: 50%; width: 58px; height: 30px; border-radius: 999px; background: rgba(255,255,255,.2); transform: translate(-50%, -50%); }
+  .wrap { display: flex; flex-direction: column; gap: 16px; padding: 16px 16px 24px; }
+  .toast { position: absolute; left: 16px; right: 16px; bottom: 70px; z-index: 40; display: none; align-items: center; gap: 10px; padding: 12px 16px; border-radius: 999px; background: var(--night); color: var(--cq-cream); font-size: 14px; box-shadow: 0 8px 22px rgba(19,29,68,.3); }
+  .toast.show { display: flex; }
+  .toast i { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); }
+
+  /* Puertas de Entrenar (197): Conquer elegida en azul noche con línea dorada */
+  .doors { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; padding: 12px 16px 0; }
+  .door { position: relative; min-height: 44px; border: 1px solid var(--line); border-radius: 14px; background: #fff; color: var(--ink); font: 700 11px var(--f-head); letter-spacing: .06em; text-transform: uppercase; overflow: hidden; }
+  .door.on { background: var(--night); border-color: var(--night); color: var(--cq-cream); }
+  .door.on::after { content: ''; position: absolute; left: 10px; right: 10px; bottom: 0; height: 2px; background: linear-gradient(90deg, transparent, #a08548, #f6e2a4, #a08548, transparent); }
+
+  /* ── Piezas comunes de Conquer ─────────────────────── */
+  .kicker { margin: 0; font: 700 12px var(--f-cinzel); letter-spacing: .14em; text-transform: uppercase; color: var(--gold-ink); }
+  .stitle { margin: 0; font: 800 13px var(--f-head); letter-spacing: .08em; text-transform: uppercase; color: var(--night); }
+  .card { position: relative; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; box-shadow: 0 6px 18px rgba(19,29,68,.05); }
+  .card.flush { padding: 4px 16px; }
+  .muted { color: var(--ink-2); }
+  .num { font-family: var(--numf); font-weight: 700; font-variant-numeric: tabular-nums lining-nums; color: var(--night); }
+
+  .cta { position: relative; overflow: hidden; width: 100%; min-height: 52px; border: 0; border-radius: 12px; background: var(--night); color: var(--cq-cream); font: 600 15px var(--f-body); box-shadow: inset 0 0 0 1px rgba(246,226,164,.5), 0 8px 18px rgba(19,29,68,.22); }
+  .cta::after { content: ''; position: absolute; top: 0; bottom: 0; width: 40%; left: -60%; background: linear-gradient(100deg, transparent, rgba(246,226,164,.32), transparent); animation: shine 5s ease-in-out infinite; }
+  @keyframes shine { 0%, 70% { left: -60%; } 100% { left: 130%; } }
+  .cta-sub { margin: 6px 0 0; text-align: center; font-size: 13px; color: var(--ink-2); }
+  .sec { min-height: 44px; padding: 0 16px; border-radius: 12px; border: 1.5px solid var(--night); background: #fff; color: var(--night); font: 600 15px var(--f-body); }
+  .linkbtn { min-height: 44px; border: 0; background: none; padding: 0; color: var(--night); font: 600 14px var(--f-body); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--gold-edge); }
+
+  .chip { display: inline-flex; align-items: center; gap: 4px; flex: none; height: 28px; padding: 0 10px; border-radius: 999px; font: 600 12.5px var(--f-body); white-space: nowrap; }
+  .chip.rango { background: var(--sand); color: var(--ink-2); }
+  .chip.techo { background: var(--night); color: var(--gold-hi); }
+  .chip.bajo { background: #fff; color: var(--gold-ink); box-shadow: inset 0 0 0 1.5px var(--gold-edge); }
+  .chip.sin { background: transparent; color: var(--ink-2); box-shadow: inset 0 0 0 1px var(--edge); }
+  .chip.subir { background: var(--sage-tint); color: var(--sage); }
+  .chip.hecha { background: var(--sage-tint); color: var(--sage); }
+
+  .greek { flex: none; width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: #fff; box-shadow: inset 0 0 0 1.5px var(--gold-edge); font: 700 16px var(--f-cinzel); color: var(--night); }
+
+  .ctr { display: flex; align-items: center; gap: 4px; flex: none; }
+  .ctr button { width: 44px; height: 44px; border-radius: 12px; border: 1.5px solid var(--gold-edge); background: #fff; color: var(--night); font: 600 22px/1 var(--f-body); }
+  .ctr button:disabled { color: var(--ink-2); border-color: var(--line); cursor: default; }
+  .ctr .val { min-width: 68px; text-align: center; font-size: 24px; line-height: 1; }
+  .ctr .val small { font: 500 12px var(--f-body); color: var(--ink-2); margin-left: 2px; }
+
+  select.sel { width: 100%; min-width: 0; min-height: 44px; padding: 0 30px 0 12px; border-radius: 10px; border: 1.5px solid var(--gold-edge); background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23131d44' stroke-width='1.8'/%3E%3C/svg%3E") no-repeat right 12px center; color: var(--ink); font: 500 14px var(--f-body); appearance: none; -webkit-appearance: none; }
+
+  .temple { flex: none; display: block; }
+  .temple .ped, .temple .base { fill: var(--gold); }
+  .temple .c { fill: #fff; stroke: var(--gold-edge); stroke-width: 1.2; }
+  .temple .c.on { fill: var(--night); stroke: var(--night); }
+
+  .bull { flex: none; display: block; color: var(--night); --paper: #fff; }
+
+  .rowlink { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 0; border: 0; background: none; text-align: left; color: var(--ink); font: 500 15px var(--f-body); }
+  .rowlink + .rowlink { border-top: 1px solid var(--line); }
+  .rowlink .chev { margin-left: auto; color: var(--night); font-size: 20px; }
+  .q { flex: none; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--night); color: var(--gold-hi); font: 700 15px var(--f-cinzel); }
+
+  /* ── Inicio ─────────────────────────────────────────── */
+  .hero { display: flex; flex-direction: column; gap: 14px; overflow: hidden; }
+  .hero .lvl { display: flex; align-items: center; gap: 14px; }
+  .hero .lvl-name { margin: 0; font: 700 30px/1 var(--f-cinzel); letter-spacing: .06em; color: var(--night); }
+  .hero .lvl-sub { margin: 4px 0 0; font-size: 14px; color: var(--ink-2); }
+  .path { display: grid; grid-template-columns: minmax(0,1fr) 22px minmax(0,1fr) 22px minmax(0,1fr); align-items: center; gap: 2px; }
+  .path .lv { display: flex; flex-direction: column; align-items: center; gap: 3px; font: 600 11px var(--f-head); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-2); }
+  .path .lv .bull { color: var(--gold-edge); }
+  .path .lv.on { color: var(--night); font-weight: 800; }
+  .path .lv.on .bull { color: var(--night); }
+  .path .ln { height: 1.5px; background: var(--gold); }
+  .path-more { align-self: center; }
+
+  .week { display: flex; flex-direction: column; }
+  .wrow { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 0 2px; border: 0; background: none; width: 100%; text-align: left; position: relative; }
+  .wrow + .wrow { border-top: 1px solid var(--line); }
+  .wrow .d { width: 40px; font: 700 13px var(--f-cinzel); letter-spacing: .08em; color: var(--night); }
+  .wrow .p { flex: 1; min-width: 0; font: 500 15px var(--f-body); color: var(--ink); }
+  .wrow .s { font-size: 13px; color: var(--ink-2); }
+  .wrow.next::before { content: ''; position: absolute; left: -16px; top: 8px; bottom: 8px; width: 3px; border-radius: 0 3px 3px 0; background: var(--gold); }
+
+  .mark { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px; }
+  .mark + .mark { border-top: 1px solid var(--line); }
+  .mark .n { font: 500 15px var(--f-body); }
+  .mark .m { font-size: 13px; color: var(--ink-2); }
+  .mark .num { font-size: 24px; white-space: nowrap; }
+
+  /* ── Hoy ────────────────────────────────────────────── */
+  .pghead { display: flex; align-items: center; gap: 6px; margin: 0 0 -4px -10px; }
+  .back { width: 44px; height: 44px; border: 0; background: none; color: var(--night); font-size: 28px; line-height: 1; }
+  .pghead h1 { margin: 0; font: 700 22px/1.1 var(--f-cinzel); letter-spacing: .06em; color: var(--night); }
+  .pghead p { margin: 2px 0 0; font-size: 13px; color: var(--ink-2); }
+  .days { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 6px; }
+  .day { min-height: 56px; padding: 6px 0; border-radius: 14px; border: 1px solid var(--edge); background: #fff; text-align: center; color: var(--ink-2); font: 600 10.5px var(--f-body); }
+  .day b { display: block; font: 700 15px var(--f-head); color: var(--ink); margin-bottom: 2px; }
+  .day.done span { color: var(--sage); }
+  .day.on { background: var(--night); border-color: var(--night); color: var(--gold-hi); box-shadow: 0 4px 12px rgba(19,29,68,.25); }
+  .day.on b { color: var(--cq-cream); }
+
+  .exhead { display: flex; align-items: center; gap: 12px; }
+  .exhead .t { flex: 1; min-width: 0; }
+  .exhead h3 { margin: 0; font: 700 17px var(--f-head); color: var(--night); }
+  .exhead p { margin: 2px 0 0; font-size: 13px; color: var(--ink-2); }
+  .combo-seq { margin: 10px 0 0; font-size: 14px; line-height: 1.5; color: var(--ink); }
+  .combo-seq b { color: var(--night); font-weight: 600; }
+  .combo-seq .ar { color: var(--gold-ink); font-weight: 700; padding: 0 2px; }
+  .line { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 12px; margin-top: 12px; border-top: 1px solid var(--line); }
+  .line .lb b { display: block; font: 600 15px var(--f-body); }
+  .line .lb span { display: block; font-size: 13px; color: var(--ink-2); }
+  .line select.sel { width: 150px; }
+
+  .step { padding: 14px 0; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; }
+  .step .sh { display: flex; align-items: center; gap: 10px; }
+  .step .sh .t { flex: 1; min-width: 0; }
+  .step .sh .t b { display: block; font: 600 15px var(--f-body); color: var(--ink); }
+  .step .sh .t span { display: block; font-size: 13px; color: var(--ink-2); }
+  .step .sels { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 8px; }
+  .step .sels.one { grid-template-columns: 1fr; }
+  .step .cnt { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .step .cnt .h { font-size: 13px; line-height: 1.35; color: var(--ink-2); }
+  .exnote { margin: 0; padding-top: 12px; border-top: 1px solid var(--line); font-size: 13.5px; color: var(--ink-2); }
+  .exnote b { color: var(--night); font-weight: 600; }
+
+  /* ── Progreso ───────────────────────────────────────── */
+  .kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .kpi { padding: 14px 16px; border-radius: 16px; background: #fff; border: 1px solid var(--line); }
+  .kpi .num { display: block; font-size: 32px; line-height: 1.05; }
+  .kpi span { display: block; margin-top: 4px; font-size: 13px; color: var(--ink-2); }
+  .kpi small { display: block; margin-top: 2px; font-size: 12px; color: var(--ink-2); }
+  .subir-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; }
+  .subir-row + .subir-row { border-top: 1px solid var(--line); }
+  .subir-row .t { flex: 1; min-width: 0; font-size: 14.5px; }
+  .subir-row .t b { font-weight: 600; }
+  .subir-row .t span { display: block; margin-top: 2px; font-size: 13px; color: var(--ink-2); }
+  .btn-subir { flex: none; min-height: 44px; padding: 0 18px; border: 0; border-radius: 12px; background: var(--sage); color: #fff; font: 600 15px var(--f-body); }
+  .dayh { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+  .dayh h2 { margin: 0; font: 700 17px var(--f-cinzel); letter-spacing: .1em; color: var(--night); }
+  .dayh span { font-size: 13px; color: var(--ink-2); }
+  .pe { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .pe h3 { margin: 0 0 6px; font: 700 15px var(--f-head); color: var(--ink); }
+  .pe-row { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+  .pe-row .greek { width: 28px; height: 28px; font-size: 13px; }
+  .pe-row .t { flex: 1; min-width: 0; font-size: 14px; }
+  .pe-row .t span { display: block; font-size: 13px; color: var(--ink-2); }
+  .pe-row .t .num { font-size: 15px; }
+  .spark { display: block; width: 100%; height: 46px; margin-top: 6px; }
+  .spark polyline { fill: none; stroke: var(--night); stroke-width: 2; }
+  .spark circle { fill: var(--gold); stroke: var(--night); stroke-width: 1.2; }
+  .spark-l { font-size: 12px; color: var(--ink-2); }
+
+  /* ── Guía ───────────────────────────────────────────── */
+  .guide { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--page); }
+  .guide::before { content: ''; position: absolute; inset: 0; z-index: -1; background: url(../015-entrenar-hoy/bars-open.webp) center / cover; opacity: .08; }
+  .g-top { flex: none; display: flex; align-items: center; gap: 12px; padding: 14px 8px 0 16px; }
+  .g-bars { flex: 1; display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
+  .g-bars i { height: 4px; border-radius: 4px; background: var(--line); }
+  .g-bars i.on { background: var(--night); }
+  .g-skip { min-width: 64px; min-height: 44px; border: 0; background: none; color: var(--night); font: 600 14px var(--f-body); }
+  .g-skip[hidden] { visibility: hidden; display: block; }
+  .g-body { flex: 1; overflow-y: auto; padding: 10px 20px 16px; display: flex; flex-direction: column; gap: 14px; scrollbar-width: none; }
+  .g-body h2 { margin: 0; font: 700 26px/1.15 var(--f-head); color: var(--night); text-wrap: balance; }
+  .g-body p.lead { margin: 0; font-size: 16px; line-height: 1.45; color: var(--ink); }
+  .g-body p.foot { margin: 0; font-size: 14px; line-height: 1.45; color: var(--ink-2); }
+  .g-body p.foot b, .g-body p.lead b { color: var(--night); font-weight: 600; }
+  .g-nav { flex: none; display: grid; grid-template-columns: 1fr 1.6fr; gap: 10px; padding: 12px 20px 22px; }
+  .g-nav .sec[disabled] { visibility: hidden; }
+  .ill { border-radius: 16px; background: #fff; border: 1px solid var(--line); padding: 16px; }
+
+  /* 1 · escalones */
+  .stairs { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 6px; align-items: end; }
+  .st { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 4px; padding: 10px 4px 8px; border-radius: 10px 10px 4px 4px; background: var(--cq-cream); box-shadow: inset 0 0 0 1px var(--gold-edge); text-align: center; }
+  .st b { font: 700 24px/1 var(--f-cinzel); color: var(--night); }
+  .st span { font: 600 12px/1.2 var(--f-body); color: var(--ink); }
+  .st small { font-size: 11.5px; line-height: 1.2; color: var(--ink-2); }
+  .st.s1 { height: 150px; } .st.s2 { height: 128px; } .st.s3 { height: 106px; }
+  .st.s4 { height: 150px; background: var(--night); box-shadow: none; }
+  .st.s4 b { color: var(--gold-hi); } .st.s4 span { color: var(--cq-cream); } .st.s4 small { color: var(--night-mute); }
+  .flowline { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 13px; color: var(--ink-2); }
+  .flowline::before, .flowline::after { content: ''; flex: 1; height: 1.5px; background: var(--gold); }
+
+  /* 2 · peor de 3 */
+  .worst { display: flex; flex-direction: column; gap: 12px; }
+  .worst .srs { display: grid; grid-template-columns: auto repeat(3, minmax(0,1fr)); gap: 6px; align-items: center; }
+  .worst .srs i { font-style: normal; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 0; border-radius: 10px; background: var(--sand); font-size: 12px; color: var(--ink-2); }
+  .worst .srs i .num { font-size: 22px; }
+  .worst .srs i.min { background: #fff; box-shadow: inset 0 0 0 2px var(--night); color: var(--night); font-weight: 600; }
+  .worst .res { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .worst .res .lb { font: 600 15px var(--f-body); }
+  .worst .res .lb span { display: block; font: 400 13px var(--f-body); color: var(--ink-2); }
+
+  /* 3 · fallo */
+  .fail { display: flex; flex-direction: column; }
+  .fail .lvbar { display: flex; align-items: center; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+  .fail .lvbar b { display: block; font: 700 16px var(--f-head); color: var(--night); }
+  .fail .lvbar span { font-size: 14px; color: var(--ink); }
+  .fail .fr { padding: 12px 0 0; }
+  .fail .fr + .fr { margin-top: 12px; border-top: 1px solid var(--line); }
+  .fail .fr b { display: block; font: 600 15px var(--f-body); color: var(--ink); }
+  .fail .fr span { display: block; margin-top: 2px; font-size: 14px; line-height: 1.4; color: var(--ink-2); }
+  .fail .fr em { font-style: normal; color: var(--night); font-weight: 600; }
+
+  /* 4 · combo */
+  .chain { display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr) auto minmax(0,1fr); gap: 4px; align-items: center; }
+  .chain .ck { padding: 10px 4px; border-radius: 12px; background: var(--cq-cream); box-shadow: inset 0 0 0 1px var(--gold-edge); text-align: center; }
+  .chain .ck b { display: block; font: 700 14px var(--f-head); color: var(--night); }
+  .chain .ck span { display: block; font-size: 11.5px; color: var(--ink-2); }
+  .chain .ar { font: 700 16px var(--f-body); color: var(--gold-ink); }
+  .kv { display: flex; justify-content: space-between; gap: 10px; min-height: 40px; align-items: center; font-size: 14px; border-top: 1px solid var(--line); margin-top: 10px; padding-top: 10px; }
+  .kv b { color: var(--night); font-weight: 600; }
+  .kv + .kv { margin-top: 0; }
+  .sat { margin-top: 12px; padding: 12px; border-radius: 12px; background: var(--night); color: var(--cq-cream); font-size: 14px; line-height: 1.45; }
+  .sat b { color: var(--gold-hi); font-weight: 600; }
+
+  /* 5 · subir */
+  .tl { display: flex; flex-direction: column; gap: 0; }
+  .tl .tli { display: flex; gap: 12px; align-items: flex-start; padding: 8px 0; position: relative; }
+  .tl .tli::before { content: ''; position: absolute; left: 13px; top: 36px; bottom: -8px; width: 1.5px; background: var(--gold); }
+  .tl .tli:last-child::before { display: none; }
+  .tl .dot { flex: none; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: #fff; box-shadow: inset 0 0 0 1.5px var(--gold-edge); font: 700 13px var(--f-head); color: var(--night); }
+  .tl .tx { flex: 1; min-width: 0; font-size: 14px; line-height: 1.4; color: var(--ink); }
+  .tl .tx .chip, .tl .tx .btn-subir { margin-top: 6px; }
+  .tl .tx span.n { display: block; color: var(--ink-2); font-size: 13px; }
+
+  /* 6 · molestia */
+  .scale { display: grid; grid-template-columns: repeat(11, minmax(0,1fr)); gap: 3px; }
+  .scale i { font-style: normal; height: 34px; display: flex; align-items: center; justify-content: center; border-radius: 8px; background: var(--sand); font: 600 13px var(--f-body); color: var(--ink-2); }
+  .scale i.hi { background: #fff; box-shadow: inset 0 0 0 1.5px var(--gold-edge); color: var(--gold-ink); }
+  .scale-l { display: flex; justify-content: space-between; gap: 8px; margin-top: 6px; font-size: 12.5px; color: var(--ink-2); }
+  .scale-l b { color: var(--gold-ink); font-weight: 600; }
+
+  /* ═════════════════ VARIANTE A · Filete dorado ═════════════════
+     Claro como el app; cada card de Conquer lleva un filete dorado arriba (el pd-line del app, en oro). */
+  .vA { --numf: var(--f-head); }
+  .vA .card::before { content: ''; position: absolute; left: 16px; right: 16px; top: -1px; height: 2px; background: linear-gradient(90deg, transparent, #a08548, #f6e2a4, #a08548, transparent); }
+  .vA .hero { align-items: stretch; text-align: center; }
+  .vA .hero .ped { display: block; margin: 0 auto -6px; width: 168px; height: 30px; }
+  .vA .hero .ped path { fill: none; stroke: var(--gold); stroke-width: 1.5; }
+  .vA .hero .lvl { flex-direction: column; gap: 6px; }
+  .vA .stitle { display: flex; align-items: center; gap: 10px; }
+  .vA .stitle::after { content: ''; flex: 1; height: 12px; background: var(--meander) repeat-x left center; -webkit-mask-image: linear-gradient(90deg, #000 40%, transparent); mask-image: linear-gradient(90deg, #000 40%, transparent); }
+
+  /* ═════════════════ VARIANTE B · Pórtico nocturno ═════════════════
+     El lenguaje de la card de hoy (superficie oscura + línea luminosa + destello), en azul noche y oro.
+     Una sola superficie oscura por pantalla; el resto, claro como el app. Números en Cormorant. */
+  .vB { --numf: var(--f-corm); }
+  .vB .num { font-weight: 700; }
+  .vB .ctr .val { font-size: 30px; }
+  .vB .kpi .num { font-size: 40px; }
+  .vB .mark .num { font-size: 28px; }
+  .vB .greek { background: var(--night); box-shadow: 0 0 0 2px #fff, 0 0 0 3px var(--gold); font: 700 20px var(--f-corm); color: var(--gold-hi); }
+  .vB .dk { background: var(--night); border-color: var(--night); color: var(--cq-cream); }
+  .vB .dk::after { content: ''; position: absolute; left: 16px; right: 16px; bottom: 0; height: 2px; background: linear-gradient(90deg, transparent, #a08548, #f6e2a4, #a08548, transparent); }
+  .vB .hero { border-radius: 20px; padding: 18px 16px 18px; box-shadow: 0 14px 30px rgba(19,29,68,.28); }
+  .vB .hero .cols { position: absolute; right: -18px; top: -14px; width: 170px; height: 170px; opacity: .3; pointer-events: none; }
+  .vB .hero .cols path, .vB .hero .cols rect { fill: none; stroke: var(--gold); stroke-width: 2; }
+  .vB .hero .halo { position: absolute; right: -40px; top: -40px; width: 220px; height: 220px; border-radius: 50%; background: radial-gradient(circle, rgba(207,174,107,.22), transparent 65%); pointer-events: none; }
+  .vB .hero > *:not(.cols):not(.halo) { position: relative; }
+  .vB .hero .kicker { color: var(--gold); }
+  .vB .hero .lvl-name { font: 700 44px/0.9 var(--f-corm); letter-spacing: .02em; color: var(--gold-hi); }
+  .vB .hero .lvl-sub { color: var(--night-mute); }
+  .vB .hero .bull { color: var(--gold-hi); --paper: var(--night); }
+  .vB .hero .path .lv { color: var(--night-mute); }
+  .vB .hero .path .lv .bull { color: var(--gold); --paper: var(--night); }
+  .vB .hero .path .lv.on { color: var(--gold-hi); }
+  .vB .hero .path .lv.on .bull { color: var(--gold-hi); }
+  .vB .hero .linkbtn { color: var(--cq-cream); text-decoration-color: var(--gold); }
+  .vB .hero .cta { background: var(--cq-cream); color: var(--night); box-shadow: 0 6px 16px rgba(0,0,0,.25); }
+  .vB .hero .cta::after { background: linear-gradient(100deg, transparent, rgba(255,255,255,.7), transparent); }
+  .vB .exhead.dk { position: relative; margin: -16px -16px 0; padding: 14px 16px; border-radius: 16px 16px 0 0; }
+  .vB .exhead.dk h3 { color: var(--cq-cream); font-family: var(--f-cinzel); letter-spacing: .04em; }
+  .vB .exhead.dk p { color: var(--night-mute); }
+  .vB .exhead.dk .temple .c { fill: transparent; stroke: var(--gold); }
+  .vB .exhead.dk .temple .c.on { fill: var(--gold-hi); stroke: var(--gold-hi); }
+  .vB .exhead.dk .kicker { color: var(--gold); }
+  .vB .combo-seq { font-family: var(--f-corm); font-size: 17px; font-style: italic; }
+  .vB .combo-seq b { font-style: normal; font-family: var(--f-body); font-size: 14px; }
+  .vB .kpi.dk { position: relative; overflow: hidden; }
+  .vB .kpi.dk .num { color: var(--gold-hi); }
+  .vB .kpi.dk span, .vB .kpi.dk small { color: var(--night-mute); }
+  .vB .exnote { font-family: var(--f-corm); font-style: italic; font-size: 17px; }
+  /* Guía B: pantalla oscura (hermana de los pop-ups, en azul noche) */
+  .vB .guide { background: var(--night); }
+  .vB .guide::before { opacity: .05; }
+  .vB .guide .g-bars i { background: #3a4677; }
+  .vB .guide .g-bars i.on { background: var(--gold-hi); }
+  .vB .guide .g-skip { color: var(--cq-cream); }
+  .vB .guide .kicker { color: var(--gold); }
+  .vB .guide h2 { font: 700 34px/1.05 var(--f-corm); color: var(--gold-hi); }
+  .vB .guide p.lead { color: var(--cq-cream); }
+  .vB .guide p.foot { color: var(--night-mute); }
+  .vB .guide p.foot b, .vB .guide p.lead b { color: var(--gold-hi); }
+  .vB .guide .cta { background: var(--cq-cream); color: var(--night); }
+  .vB .guide .cta::after { background: linear-gradient(100deg, transparent, rgba(255,255,255,.7), transparent); }
+  .vB .guide .sec { background: transparent; color: var(--cq-cream); border-color: var(--night-mute); }
+  .vB .guide .ill { background: var(--card); }
+
+  /* ═════════════════ VARIANTE C · Estela ═════════════════
+     Piedra tallada: losas claras con doble marco dorado, títulos inscriptos en Cinzel con meandro,
+     letras griegas grandes en una columna con filete, números en Cinzel. Sin superficies oscuras. */
+  .vC { --numf: var(--f-cinzel); --card: var(--slab); }
+  .vC .card { border: 1px solid var(--gold-edge); box-shadow: inset 0 0 0 3px var(--slab), inset 0 0 0 4px #e6d5ae, 0 6px 18px rgba(19,29,68,.05); padding: 18px; }
+  .vC .card.flush { padding: 6px 18px; }
+  .vC .stitle { display: flex; align-items: center; gap: 12px; justify-content: center; font: 700 13px var(--f-cinzel); letter-spacing: .2em; }
+  .vC .stitle::before, .vC .stitle::after { content: ''; flex: 1; height: 12px; background: var(--meander) repeat-x center; }
+  .vC .stitle::before { -webkit-mask-image: linear-gradient(90deg, transparent, #000 60%); mask-image: linear-gradient(90deg, transparent, #000 60%); }
+  .vC .stitle::after { -webkit-mask-image: linear-gradient(90deg, #000 40%, transparent); mask-image: linear-gradient(90deg, #000 40%, transparent); }
+  .vC .hero { text-align: center; padding-top: 0; }
+  .vC .hero .pediment { position: relative; margin: 0 -18px; height: 92px; }
+  .vC .hero .pediment svg.fr { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .vC .hero .pediment svg.fr path { fill: var(--cq-cream); stroke: var(--gold-edge); stroke-width: 1.5; }
+  .vC .hero .pediment svg.fr .in { fill: none; stroke: #e6d5ae; stroke-width: 1; }
+  .vC .hero .pediment .bull { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); --paper: var(--cq-cream); }
+  .vC .hero .frieze { height: 12px; margin: -14px -18px 0; background: var(--meander) repeat-x center; border-top: 1px solid var(--gold-edge); border-bottom: 1px solid var(--gold-edge); padding: 8px 0; box-sizing: content-box; background-origin: content-box; }
+  .vC .hero .lvl { flex-direction: column; gap: 4px; }
+  .vC .hero .lvl-name { font-size: 34px; letter-spacing: .22em; padding-left: .22em; }
+  .vC .cta { border-radius: 12px; outline: 1px solid var(--gold-edge); outline-offset: 3px; margin: 4px 0; }
+  .vC .greek { width: 40px; height: auto; border-radius: 0; background: none; box-shadow: none; font-size: 26px; align-self: stretch; border-right: 1.5px solid var(--gold); padding-right: 8px; justify-content: flex-start; text-shadow: 1px 1px 0 #e6d5ae; }
+  .vC .step { padding-left: 0; }
+  .vC .step .sh { align-items: stretch; }
+  .vC .pe-row .greek { width: 30px; font-size: 17px; height: 30px; align-self: center; }
+  .vC .exhead h3 { font: 700 16px var(--f-cinzel); letter-spacing: .06em; }
+  .vC .dayh h2 { letter-spacing: .2em; }
+  .vC .kpi { background: var(--slab); border: 1px solid var(--gold-edge); box-shadow: inset 0 0 0 3px var(--slab), inset 0 0 0 4px #e6d5ae; text-align: center; }
+  .vC .ctr button { border-radius: 50%; border-color: var(--night); }
+  .vC .ctr .val { font-size: 22px; }
+  .vC .chip { border-radius: 8px; }
+  .vC .wrow.next::before { display: none; }
+  .vC .wrow.next .d::before { content: '◆ '; color: var(--gold-edge); font-size: 10px; vertical-align: 2px; }
+  .vC .guide .g-head { margin: 0 -20px; }
+  .vC .guide .g-head svg { display: block; width: 100%; height: 54px; }
+  .vC .guide .g-head svg path { fill: var(--cq-cream); stroke: var(--gold-edge); stroke-width: 1.5; }
+  .vC .guide .g-head .frieze { height: 12px; background: var(--meander) repeat-x center; border-top: 1px solid var(--gold-edge); border-bottom: 1px solid var(--gold-edge); padding: 6px 0; box-sizing: content-box; background-origin: content-box; }
+  .vC .guide h2 { font: 700 24px/1.2 var(--f-cinzel); letter-spacing: .04em; text-align: center; }
+  .vC .guide .kicker { text-align: center; }
+  .vC .guide .ill { background: var(--slab); border: 1px solid var(--gold-edge); box-shadow: inset 0 0 0 3px var(--slab), inset 0 0 0 4px #e6d5ae; }
+  .vC .st { border-radius: 2px; }
+  .vC .st.s4 { background: var(--cq-cream); box-shadow: inset 0 0 0 1.5px var(--night); }
+  .vC .st.s4 b { color: var(--night); } .vC .st.s4 span { color: var(--ink); } .vC .st.s4 small { color: var(--ink-2); }
+  .vC .sat { background: var(--cq-cream); color: var(--ink); box-shadow: inset 0 0 0 1px var(--gold-edge); }
+  .vC .sat b { color: var(--night); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cta::after { animation: none; display: none; }
+    .phone.flash { animation: none; }
+  }
+</style>
+</head>
+<body>
+<div id="controls">
+  <div class="ctl" id="vctl"><span>Variante</span>
+    <button data-v="A" class="on">A · Filete dorado</button>
+    <button data-v="B">B · Pórtico nocturno</button>
+    <button data-v="C">C · Estela</button>
+  </div>
+  <div class="ctl" id="wctl"><span>Ancho</span>
+    <button data-w="390" class="on">390</button>
+    <button data-w="360">360</button>
+  </div>
+  <p id="vdesc"></p>
+</div>
+
+<div id="stage">
+  <div class="col"><div class="col-label">Inicio (tab Conquer de Entrenar)</div><div class="col-sub">Nivel, semana del bloque, botón de hoy arriba (primer viewport). "¿Cómo funciona?" fijo: abre la guía.</div><div class="phone" data-screen="inicio"></div></div>
+  <div class="col"><div class="col-label">Hoy · Jueves (Toro)</div><div class="col-sub">Combo de apertura + 3 ejercicios con Α Β Γ Ω, contadores −/+ y Guardar. Probá los contadores: el templo se llena con los escalones cargados.</div><div class="phone" data-screen="hoy"></div></div>
+  <div class="col"><div class="col-label">Progreso</div><div class="col-sub">Sesiones, acierto, "Hoy toca subir" y los escalones con su estado (chip SUBIR). Tocá Subir.</div><div class="phone" data-screen="progreso"></div></div>
+  <div class="col"><div class="col-label">Guía "¿Cómo funciona?" (6 pantallas)</div><div class="col-sub">Se muestra una vez después del control del día 0. Después queda en Inicio › ¿Cómo funciona?</div><div class="phone" data-screen="guia"></div></div>
+</div>
+<p class="sketch-note">Alumno <b>Toro</b>, semana 5 del bloque, plantilla de 4 días + sábado. Jueves = Vertical con las progresiones iniciales de Toro del catálogo (§3). Textos del modo del catálogo §9. Los colores de Conquer van solo en terminaciones (azul noche en botón y elegidos, oro en filetes, bordes y meandro, letras griegas y números); la página, las cards y el chrome son los del app. Todo texto en color sólido; el oro claro solo es texto sobre azul noche; sobre claro el dorado de texto es <code>#7a5a1c</code> (6,4:1) y el borde dorado de control <code>#a08548</code> (3,5:1 sobre blanco). Sin nubes, sin cielo, sin sol. El bloqueado, Sábado, Evolución y la hoja de Guardar no están en este sketch: heredan lo que gane.</p>
+
+<script>
+(function () {
+  'use strict'
+  const DESC = {
+    A: 'A · Filete dorado: el app tal cual (página crema, cards blancas) con un filete dorado arriba de cada card, frontón en línea sobre el nivel, títulos de bloque en azul noche con meandro. Números en Montserrat. La más cercana al app.',
+    B: 'B · Pórtico nocturno: el lenguaje de la card de hoy (superficie oscura, línea luminosa, destello) pero en azul noche y oro, en UNA pieza por pantalla (nivel, cabecera de cada ejercicio, contadores de Progreso) y la guía entera. Números y nivel en Cormorant (la letra de Nacho). La que más se siente Conquer.',
+    C: 'C · Estela: piedra tallada, sin superficies oscuras. Losas con doble marco dorado, frontón y friso con meandro en el nivel, títulos inscriptos en Cinzel entre meandros, letras griegas grandes en una columna con filete. Números en Cinzel. La más "templo clásico".',
+  }
+  const st = { v: 'A', w: 390, guide: 0, vals: {}, pain: 0, opening: 4, subidos: {} }
+
+  // ── Íconos ─────────────────────────────────────────
+  const TAB_ICONS = {
+    templo: '<path d="M3 9 12 4l9 5M4 9.5h16M6 10.5v7M10 10.5v7M14 10.5v7M18 10.5v7M3 20h18"/>',
+    guia: '<path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5zM5 19.5A1.5 1.5 0 0 0 6.5 21H19"/>',
+    entrenar: '<path d="M6.5 7v10M3.5 9.5v5M17.5 7v10M20.5 9.5v5M6.5 12h11"/>',
+    reservas: '<rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4M9 15l2 2 4-4"/>',
+    planes: '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18M7 14.5h4"/>',
+  }
+  function chrome(inner, toast) {
+    const tabs = [['templo', 'Mi Templo'], ['guia', 'Guía'], ['entrenar', 'Entrenar', 1], ['reservas', 'Reservas'], ['planes', 'Planes']]
+    return `<div class="appbar"><img src="../015-entrenar-hoy/logo.webp" alt="" />EL TEMPLO</div>
+      <div class="scroll">${inner}</div>
+      <div class="toast" role="status"><i aria-hidden="true"></i><span>${toast || ''}</span></div>
+      <nav class="tabbar">${tabs.map(([k, l, on]) => `<span class="${on ? 'on' : ''}"><span class="ic"><svg viewBox="0 0 24 24" aria-hidden="true">${TAB_ICONS[k]}</svg></span>${l}</span>`).join('')}</nav>`
+  }
+  // Cabeza del toro que crece (CqLevelIcon del app / prototipo de Nacho)
+  const HORNS = { ternero: 'M23 21l1.5-7 3.5 6zM41 21l-1.5-7-3.5 6z', novillo: 'M23 21Q14 19 13 9q5 7 14 9zM41 21q9-2 10-12-5 7-14 9z', toro: 'M23 21Q6 21 5 3q7 13 23 14zM41 21q17 0 18-18-7 13-23 14z' }
+  const SCALE = { ternero: 0.82, novillo: 0.92, toro: 1.02 }
+  function bull(level, size, label) {
+    return `<svg class="bull" width="${size}" height="${size}" viewBox="0 0 64 64" ${label ? `role="img" aria-label="${label}"` : 'aria-hidden="true"'}><g transform="translate(32 36) scale(${SCALE[level]}) translate(-32 -36)" fill="currentColor">
+      <path d="${HORNS[level]}"/><path d="M20 25L7 25q3 8 14 6zM44 25l13 0q-3 8-14 6z"/><path d="M19 23Q32 15 45 23L43 40Q41 53 32 55 23 53 21 40z"/>
+      <ellipse cx="32" cy="46" rx="8.5" ry="6.5" style="fill:var(--paper)"/><circle cx="28.6" cy="46.5" r="1.5"/><circle cx="35.4" cy="46.5" r="1.5"/>
+      <circle cx="26" cy="33" r="1.8" style="fill:var(--paper)"/><circle cx="38" cy="33" r="1.8" style="fill:var(--paper)"/></g></svg>`
+  }
+  // Templo de 3 columnas: se llena con los escalones cargados (templeFilled del app)
+  function temple(n) {
+    return `<svg class="temple" width="40" height="36" viewBox="0 0 40 36" role="img" aria-label="${n} de 3 escalones cargados">
+      <path class="ped" d="M2 11 20 2l18 9z"/>${[0, 1, 2].map((i) => `<rect class="c ${i < n ? 'on' : ''}" x="${5 + i * 11.5}" y="13.5" width="7" height="16" rx="1"/>`).join('')}<rect class="base" x="1" y="31" width="38" height="3" rx="1"/></svg>`
+  }
+  const GREEK = { e1: 'Α', e2: 'Β', e3: 'Γ', hold: 'Ω' }
+  const CHIP = { rango: 'En rango', techo: 'Techo 1 de 2', bajo: 'Bajo el piso', sin: 'Sin datos', subir: '↑ Subir de progresión' }
+  const chip = (e) => `<span class="chip ${e}">${CHIP[e]}</span>`
+  const ctr = (id, v, unit, label, max) => `<div class="ctr" data-ctr="${id}" data-max="${max}">
+      <button type="button" aria-label="menos" ${v <= 0 ? 'disabled' : ''}>−</button>
+      <div class="val num" role="status" aria-label="${label}: ${v}${unit ? ' ' + unit : ''}">${v}${unit ? `<small>${unit}</small>` : ''}</div>
+      <button type="button" aria-label="más" ${v >= max ? 'disabled' : ''}>+</button></div>`
+
+  // ── Datos (catálogo de Nacho) ─────────────────────
+  const LEVELS = [['ternero', 'Ternero'], ['novillo', 'Novillo'], ['toro', 'Toro']]
+  const WEEK = [
+    ['Lun', 'Plancha', 'done'], ['Mar', 'Front', 'done'], ['Jue', 'Vertical', 'next'], ['Vie', 'Dominadas', 'pend'], ['Sáb', 'Combos', 'pend'],
+  ]
+  const PALANCA = ['lean', 'tuck', 'adv tuck', 'super adv tuck', 'straddle', 'half lay', 'full']
+  const HOY = {
+    opening: { press: '90° press', push: 'HSPU', hold: 'Hold de plancha', rung: 'tuck', target: 4 },
+    finisher: 'Fondos o push-ups, 15–20 reps',
+    exercises: [
+      { id: 'hspu', name: 'HSPU', meta: 'Reps · brazos flexionados', rungs: ['paralelas profundas', 'wide en piso', 'pike elevado', 'pike'], steps: [
+        { k: 'e1', rung: 'paralelas profundas', mode: 'Completa', obj: 5, e: 'rango' },
+        { k: 'e2', rung: 'paralelas profundas', mode: 'Negativa', obj: 8, e: 'techo' },
+        { k: 'e3', rung: 'wide en piso', mode: 'Completa', obj: 3, e: 'bajo' },
+        { k: 'hold', rung: 'pike', obj: 0 },
+      ] },
+      { id: 'p90', name: '90° press', meta: 'Reps · brazos flexionados', rungs: ['full', 'pike elevado', 'tuck'], steps: [
+        { k: 'e1', rung: 'full', mode: 'Completa', obj: 4, e: 'rango' },
+        { k: 'e2', rung: 'full', mode: 'Negativa', obj: 6, e: 'rango' },
+        { k: 'e3', rung: 'pike elevado', mode: 'Completa', obj: 7, e: 'rango' },
+        { k: 'hold', rung: 'tuck', obj: 0 },
+      ] },
+      { id: 'ppu', name: 'Planche push-up', meta: 'Reps · brazos flexionados', rungs: ['tuck', 'pseudo'], steps: [
+        { k: 'e1', rung: 'tuck', mode: 'Completa', obj: 5, e: 'rango' },
+        { k: 'e2', rung: 'tuck', mode: 'Negativa', obj: 7, e: 'rango' },
+        { k: 'e3', rung: 'pseudo', mode: 'Completa', obj: 8, e: 'techo' },
+        { k: 'hold', rung: 'pseudo', obj: 0 },
+      ] },
+    ],
+  }
+  HOY.exercises.forEach((ex) => ex.steps.forEach((s) => { st.vals[ex.id + s.k] = s.obj }))
+
+  const PROG = {
+    subir: [
+      { key: 'flh-e2', name: 'Front lever hold', step: 'Escalón 2', from: 'straddle', to: 'half lay', piso: '4 s' },
+      { key: 'combo-plancha', name: 'Combo Plancha', step: 'apertura', from: 'tuck', to: 'adv tuck', piso: null },
+    ],
+    days: [
+      { name: 'Lunes · Plancha', n: 4, ex: [
+        { name: 'Planche hold', rows: [['e1', 'full', '6 s', '8 s', 'rango'], ['e2', 'straddle', '10 s', '12 s', 'rango'], ['e3', 'adv tuck', '12 s', '12 s', 'techo']], curve: [4, 5, 5, 6] },
+        { name: 'Planche press', rows: [['e1', 'tuck', '4 reps', '5 reps', 'rango'], ['e2', 'tuck neg.', '6 reps', '7 reps', 'rango'], ['e3', 'lean', '2 reps', '3 reps', 'bajo']], curve: [3, 3, 4, 4] },
+      ] },
+      { name: 'Martes · Front', n: 4, ex: [
+        { name: 'Front lever hold', rows: [['e1', 'full', '5 s', '7 s', 'rango'], ['e2', 'straddle', '12 s', 'half lay', 'subir', 'flh-e2'], ['e3', 'adv tuck', '9 s', '11 s', 'rango']], curve: [3, 4, 4, 5] },
+      ] },
+    ],
+  }
+
+  // ── Inicio ─────────────────────────────────────────
+  function heroHTML(v) {
+    const path = `<div class="path" aria-label="El camino de niveles: estás en Toro">${LEVELS.map(([k, l], i) => `${i ? '<span class="ln" aria-hidden="true"></span>' : ''}<span class="lv ${k === 'toro' ? 'on' : ''}">${bull(k, k === 'toro' ? 38 : 30)}${l}</span>`).join('')}</div>`
+    const cta = `<button class="cta" data-go="hoy">Entrenar hoy: Vertical</button>`
+    const more = `<button class="linkbtn path-more">El camino de Milón ›</button>`
+    if (v === 'B') {
+      return `<section class="card hero dk" aria-label="Tu nivel">
+        <div class="halo" aria-hidden="true"></div>
+        <svg class="cols" viewBox="0 0 120 120" aria-hidden="true"><path d="M8 34 60 8l52 26z"/><rect x="10" y="38" width="100" height="8"/><path d="M20 50v58M40 50v58M60 50v58M80 50v58M100 50v58M6 112h108"/></svg>
+        <p class="kicker">Conquer · Semana 5 del bloque</p>
+        <div class="lvl">${bull('toro', 56)}<div><p class="lvl-name">Toro</p><p class="lvl-sub">Tu nivel · los tres escalones al fallo</p></div></div>
+        ${path}${more}${cta}</section>`
+    }
+    if (v === 'C') {
+      return `<section class="card hero" aria-label="Tu nivel">
+        <div class="pediment" aria-hidden="true"><svg class="fr" viewBox="0 0 360 92" preserveAspectRatio="none"><path d="M0 92 180 6 360 92z"/><path class="in" d="M28 86 180 14 332 86z"/></svg>${bull('toro', 54)}</div>
+        <div class="frieze" aria-hidden="true"></div>
+        <div class="lvl"><p class="kicker">Conquer · Semana 5 del bloque</p><p class="lvl-name">TORO</p><p class="lvl-sub">Tu nivel · los tres escalones al fallo</p></div>
+        ${path}${more}${cta}</section>`
+    }
+    return `<section class="card hero" aria-label="Tu nivel">
+      <svg class="ped" viewBox="0 0 168 30" aria-hidden="true"><path d="M2 28 84 3l82 25zM14 25 84 8l70 17"/></svg>
+      <div class="lvl">${bull('toro', 60)}<p class="kicker">Conquer · Semana 5 del bloque</p><p class="lvl-name">Toro</p><p class="lvl-sub" style="margin:0">Tu nivel · los tres escalones al fallo</p></div>
+      ${path}${more}${cta}</section>`
+  }
+  function inicio(v) {
+    const week = WEEK.map(([d, p, s]) => `<button class="wrow ${s}" data-go="hoy"><span class="d">${d}</span><span class="p">${p}</span>${s === 'done' ? '<span class="chip hecha">✓ Hecha</span>' : s === 'next' ? '<span class="chip techo">Te toca</span>' : '<span class="s">Pendiente</span>'}</button>`).join('')
+    const marks = [['Planche hold', 'Lunes · 19/10', '9 s'], ['Front lever hold', 'Martes · 20/10', '7 s']]
+    return `<div class="doors" role="tablist"><button class="door" role="tab">Semana</button><button class="door on" role="tab" aria-selected="true">Conquer</button></div>
+      <div class="wrap">
+        ${heroHTML(v)}
+        <h2 class="stitle">Tu semana</h2>
+        <div class="card flush week">${week}</div>
+        <h2 class="stitle">Última marca</h2>
+        <div class="card flush">${marks.map(([n, m, val]) => `<div class="mark"><div><div class="n">${n}</div><div class="m">${m}</div></div><b class="num">${val}</b></div>`).join('')}</div>
+        <div class="card flush">
+          <button class="rowlink" data-go="guia"><span class="q" aria-hidden="true">?</span>¿Cómo funciona?<span class="chev" aria-hidden="true">›</span></button>
+          <button class="rowlink" data-go="progreso">Progreso<span class="chev" aria-hidden="true">›</span></button>
+          <button class="rowlink">Evolución<span class="chev" aria-hidden="true">›</span></button>
+        </div>
+      </div>`
+  }
+
+  // ── Hoy ────────────────────────────────────────────
+  function exCard(ex, i, v) {
+    const vals = ex.steps.filter((s) => s.k !== 'hold').map((s) => st.vals[ex.id + s.k])
+    const filled = vals.filter((x) => x > 0).length
+    const steps = ex.steps.map((s, j) => {
+      const isHold = s.k === 'hold'
+      const unit = isHold ? 's' : 'reps'
+      const val = st.vals[ex.id + s.k]
+      return `<div class="step">
+        <div class="sh"><span class="greek" aria-hidden="true">${GREEK[s.k]}</span>
+          <div class="t"><b>${isHold ? 'Hold final' : 'Escalón ' + (j + 1)}</b><span>${isHold ? 'al fallo' : 'objetivo ' + s.obj + ' reps'}</span></div>
+          ${isHold ? '' : chip(s.e)}</div>
+        <div class="sels ${isHold ? 'one' : ''}">
+          <select class="sel" aria-label="Progresión">${ex.rungs.map((r) => `<option ${r === s.rung ? 'selected' : ''}>${r}</option>`).join('')}</select>
+          ${isHold ? '' : `<select class="sel" aria-label="Modo"><option ${s.mode === 'Completa' ? 'selected' : ''}>Completa</option><option ${s.mode === 'Negativa' ? 'selected' : ''}>Negativa</option></select>`}
+        </div>
+        <div class="cnt"><span class="h">Al fallo · fallo muscular</span>${ctr(ex.id + s.k, val, unit, isHold ? 'Hold final' : 'Escalón ' + (j + 1), isHold ? 90 : 30)}</div>
+      </div>`
+    }).join('')
+    return `<section class="card" data-ex="${ex.id}">
+      <div class="exhead ${v === 'B' ? 'dk' : ''}"><div class="t"><h3>${i + 1} · ${ex.name}</h3><p>${ex.meta}</p></div>${temple(filled)}</div>
+      ${steps}
+      <p class="exnote">Anotá <b>la peor de tus 3 series</b>.</p></section>`
+  }
+  function hoy(v) {
+    const o = HOY.opening
+    const days = WEEK.map(([d, , s]) => `<button class="day ${s === 'done' ? 'done' : ''} ${s === 'next' ? 'on' : ''}" aria-pressed="${s === 'next'}"><b>${d}</b><span>${s === 'done' ? 'Hecho' : s === 'next' ? 'Te toca' : '&nbsp;'}</span></button>`).join('')
+    return `<div class="wrap">
+      <div class="pghead"><button class="back" aria-label="Volver al inicio de Conquer" data-go="inicio">‹</button><div><h1>Hoy</h1><p>Jueves 22/10 · Vertical</p></div></div>
+      <div class="days" role="group" aria-label="Día de la semana">${days}</div>
+      <section class="card">
+        <div class="exhead ${v === 'B' ? 'dk' : ''}"><div class="t"><p class="kicker">Combo de apertura</p><h3>Al fallo, en fresco</h3></div></div>
+        <p class="combo-seq">Press <b>${o.press}</b> (sube y baja) <span class="ar">→</span> Push <b>${o.push}</b> <span class="ar">→</span> Hold <b>${o.hold}</b></p>
+        <div class="line"><div class="lb"><b>Progresión de arranque</b></div><select class="sel" aria-label="Progresión de arranque">${PALANCA.map((r) => `<option ${r === o.rung ? 'selected' : ''}>${r}</option>`).join('')}</select></div>
+        <div class="line"><div class="lb"><b>Series completadas</b><span>objetivo ${o.target}</span></div>${ctr('opening', st.opening, '', 'Series completadas', 13)}</div>
+      </section>
+      ${HOY.exercises.map((ex, i) => exCard(ex, i, v)).join('')}
+      <section class="card">
+        <div class="lb"><b style="display:block;font:600 15px var(--f-body)">Finisher</b><span class="muted" style="font-size:13.5px">${HOY.finisher} · 3 series, lejos del fallo (te tienen que quedar 4 o 5 reps).</span></div>
+        <div class="line"><div class="lb"><b>Molestia articular</b><span>0 a 10 · codo, hombro</span></div>${ctr('pain', st.pain, '', 'Molestia articular', 10)}</div>
+      </section>
+      <div><button class="cta" data-save>Guardar sesión</button><p class="cta-sub">22/10 · Vertical</p></div>
+    </div>`
+  }
+
+  // ── Progreso ───────────────────────────────────────
+  function spark(vals) {
+    const max = Math.max(...vals) + 1, min = Math.min(...vals) - 1, w = 300, h = 40
+    const pts = vals.map((x, i) => [8 + (i * (w - 16)) / (vals.length - 1), h - 4 - ((x - min) / (max - min)) * (h - 8)])
+    return `<svg class="spark" viewBox="0 0 ${w} ${h + 6}" preserveAspectRatio="none" role="img" aria-label="Curva del escalón 1: ${vals.join(', ')}"><polyline points="${pts.map((p) => p.join(',')).join(' ')}"/>${pts.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="3.5"/>`).join('')}</svg>`
+  }
+  function progreso(v) {
+    const pend = PROG.subir.filter((s) => !st.subidos[s.key])
+    const subir = pend.length ? `<section class="card">
+        <div class="exhead ${v === 'B' ? 'dk' : ''}"><div class="t"><p class="kicker">Hoy toca subir</p><h3>${pend.length === 1 ? 'Un escalón listo' : pend.length + ' listos para subir'}</h3></div></div>
+        <div style="margin-top:6px">${pend.map((s) => `<div class="subir-row"><div class="t"><b>${s.name}</b> · ${s.step}<span>${s.from} → ${s.to}</span></div><button class="btn-subir" data-subir="${s.key}">Subir</button></div>`).join('')}</div>
+      </section>` : ''
+    const days = PROG.days.map((d) => `<section class="card"><div class="dayh"><h2>${d.name.toUpperCase()}</h2><span>${d.n} sesiones</span></div>
+      ${d.ex.map((ex) => `<div class="pe"><h3>${ex.name}</h3>
+        ${ex.rows.map(([k, rung, last, next, e, key]) => {
+          const up = key && st.subidos[key]
+          return `<div class="pe-row"><span class="greek" aria-hidden="true">${GREEK[k]}</span><div class="t">E${k.slice(1)} · ${up ? 'half lay' : rung}<span>${up ? '— → <b class="num">4 s</b>' : `${last} → <b class="num">${e === 'subir' ? 'subir' : next}</b>`}</span></div>${chip(up ? 'sin' : e)}</div>`
+        }).join('')}
+        ${spark(ex.curve)}<div class="spark-l">Escalón 1, últimas ${ex.curve.length} sesiones</div></div>`).join('')}</section>`).join('')
+    return `<div class="wrap">
+      <div class="pghead"><button class="back" aria-label="Volver al inicio de Conquer" data-go="inicio">‹</button><div><h1>Progreso</h1><p>Semana 5 del bloque</p></div></div>
+      <div class="kpis"><div class="kpi ${v === 'B' ? 'dk' : ''}"><b class="num">17</b><span>sesiones</span></div><div class="kpi ${v === 'B' ? 'dk' : ''}"><b class="num">82%</b><span>acierto del modelo</span><small>Δ +0,4 en promedio</small></div></div>
+      ${subir}
+      ${days}
+    </div>`
+  }
+
+  // ── Guía ───────────────────────────────────────────
+  const GUIDE = [
+    { t: 'La serie Conquer', lead: 'Tres escalones <b>seguidos, sin descanso</b>, y un hold final. Cada escalón es un poco más fácil que el anterior.',
+      ill: `<div class="ill"><div class="stairs" aria-hidden="true">
+          <div class="st s1"><b>Α</b><span>Escalón 1</span><small>el más difícil</small></div>
+          <div class="st s2"><b>Β</b><span>Escalón 2</span><small>un poco más fácil</small></div>
+          <div class="st s3"><b>Γ</b><span>Escalón 3</span><small>más fácil</small></div>
+          <div class="st s4"><b>Ω</b><span>Hold final</span><small>quieto, al fallo</small></div></div>
+          <div class="flowline">sin descanso</div></div>`,
+      foot: 'Eso es <b>una serie</b>. Hacés 3 series de cada ejercicio y descansás entre una serie y otra.' },
+    { t: 'Anotás un número por escalón', lead: 'El de tu <b>peor serie</b> de las 3. La app ya lo trae cargado con tu objetivo: si lo cumpliste, no toques nada.',
+      ill: `<div class="ill worst"><div class="srs"><span class="greek" aria-hidden="true">Α</span><i>Serie 1<b class="num">7</b></i><i>Serie 2<b class="num">6</b></i><i class="min">Serie 3<b class="num">5</b></i></div>
+          <div class="res"><div class="lb">Escalón 1<span>anotás la peor</span></div>${ctr('g-demo', 5, 'reps', 'Ejemplo', 30)}</div></div>`,
+      foot: 'En el hold final anotás <b>los segundos</b>. Si el ejercicio es por lado, anotás <b>el lado más flojo</b>. Cargar el día lleva menos de un minuto.' },
+    { t: 'Hasta dónde apretar', lead: 'Depende de tu nivel y del ejercicio. Debajo de cada contador te lo recordamos.',
+      ill: `<div class="ill fail"><div class="lvbar">${bull('toro', 40)}<div><b>Sos Toro</b><span>Los tres escalones y el hold, al fallo.</span></div></div>
+          <div class="fr"><b>Brazos rectos</b><span>Plancha, front lever. <em>Fallo técnico:</em> cortás cuando se rompe la línea del cuerpo.</span></div>
+          <div class="fr"><b>Brazos flexionados</b><span>HSPU, dominadas, muscle-up. <em>Fallo muscular:</em> cuando no podés más.</span></div></div>`,
+      foot: 'Ternero deja 1 rep en cada escalón. Novillo llega al fallo solo en el escalón 3.' },
+    { t: 'Apertura y sábado', lead: 'Como Toro, cada día <b>arranca con un combo</b>, en fresco y al fallo.',
+      ill: `<div class="ill"><div class="chain" aria-label="Press, después push, después hold">
+          <div class="ck"><b>Press</b><span>sube y baja</span></div><span class="ar" aria-hidden="true">→</span>
+          <div class="ck"><b>Push</b><span>empuje o tirón</span></div><span class="ar" aria-hidden="true">→</span>
+          <div class="ck"><b>Hold</b><span>quieto</span></div></div>
+          <div class="kv"><span>Anotás con qué progresión arrancaste</span><b>tuck</b></div>
+          <div class="kv"><span>y cuántas series completaste</span><b class="num">4</b></div>
+          <div class="sat"><b>Sábado:</b> combo push y combo pull. 3 series máximas y 10 drops: si no sale, bajás la progresión y seguís.</div></div>`,
+      foot: 'Ternero y Novillo no tienen combos: esta pantalla no les aparece.' },
+    { t: 'Cuándo aparece Subir', lead: 'Si llegás al <b>techo dos sesiones seguidas</b> (8 reps o 12 s), ese escalón te pide subir.',
+      ill: `<div class="ill tl">
+          <div class="tli"><span class="dot">1</span><div class="tx">Primera vez en el techo<br>${chip('techo')}</div></div>
+          <div class="tli"><span class="dot">2</span><div class="tx">Segunda vez seguida<br>${chip('subir')}</div></div>
+          <div class="tli"><span class="dot">3</span><div class="tx">Tocás Subir, en Hoy o en Progreso<br><button class="btn-subir" tabindex="-1">Subir</button><span class="n">Pasás a la progresión más difícil y ese escalón arranca de nuevo en 3 reps o 4 s.</span></div></div></div>`,
+      foot: 'No hace falta esperar a tu coach. Si suben dos escalones del mismo ejercicio, primero el escalón 1.' },
+    { t: 'Si algo te molesta', lead: 'Antes de guardar, marcá de <b>0 a 10</b> cuánto te molestó una articulación (codo, hombro). 0 es nada.',
+      ill: `<div class="ill"><div class="scale" aria-hidden="true">${Array.from({ length: 11 }, (_, i) => `<i class="${i >= 4 ? 'hi' : ''}">${i}</i>`).join('')}</div>
+          <div class="scale-l"><span>0 a 3: seguís igual</span><b>4 o más: tu coach lo ve</b></div>
+          <div class="line"><div class="lb"><b>Molestia articular</b><span>0 a 10 · codo, hombro</span></div>${ctr('g-pain', 0, '', 'Ejemplo de molestia', 10)}</div></div>`,
+      foot: 'Con 4 o más, tu coach te ajusta la carga. Marcá lo que sentiste, aunque sea poco.' },
+  ]
+  function guia(v) {
+    const g = GUIDE[st.guide], last = st.guide === GUIDE.length - 1
+    const head = v === 'C' ? `<div class="g-head" aria-hidden="true"><svg viewBox="0 0 360 54" preserveAspectRatio="none"><path d="M0 54 180 4 360 54z"/></svg><div class="frieze"></div></div>` : ''
+    return `<div class="guide" role="dialog" aria-label="Cómo funciona Conquer">
+      <div class="g-top"><div class="g-bars" aria-hidden="true">${GUIDE.map((_, i) => `<i class="${i <= st.guide ? 'on' : ''}"></i>`).join('')}</div><button class="g-skip" ${last ? 'hidden' : ''} data-gskip>Saltar</button></div>
+      <div class="g-body">${head}
+        <p class="kicker">¿Cómo funciona? · ${st.guide + 1} de ${GUIDE.length}</p>
+        <h2>${g.t}</h2>
+        <p class="lead">${g.lead}</p>
+        ${g.ill}
+        <p class="foot">${g.foot}</p>
+        ${last ? '<p class="foot">La volvés a ver cuando quieras en Inicio › <b>¿Cómo funciona?</b></p>' : ''}
+      </div>
+      <div class="g-nav"><button class="sec" data-gprev ${st.guide === 0 ? 'disabled' : ''}>Atrás</button><button class="cta" data-gnext>${last ? 'Listo, a entrenar' : 'Siguiente'}</button></div>
+    </div>`
+  }
+
+  // ── Montaje ────────────────────────────────────────
+  const RENDER = { inicio: (v) => chrome(inicio(v)), hoy: (v) => chrome(hoy(v), 'Sesión guardada'), progreso: (v) => chrome(progreso(v), ''), guia }
+  const phones = [...document.querySelectorAll('.phone')]
+  function paint(screen, keepScroll) {
+    const ph = phones.find((p) => p.dataset.screen === screen)
+    const sc = ph.querySelector('.scroll')
+    const top = keepScroll && sc ? sc.scrollTop : 0
+    ph.className = 'phone v' + st.v
+    ph.innerHTML = RENDER[screen](st.v)
+    const sc2 = ph.querySelector('.scroll')
+    if (sc2) sc2.scrollTop = top
+  }
+  function paintAll() {
+    document.getElementById('vdesc').textContent = DESC[st.v]
+    document.documentElement.style.setProperty('--w', st.w + 'px')
+    phones.forEach((p) => paint(p.dataset.screen))
+  }
+  function focusPhone(screen) {
+    const ph = phones.find((p) => p.dataset.screen === screen)
+    ph.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
+    ph.classList.remove('flash'); void ph.offsetWidth; ph.classList.add('flash')
+  }
+  function toast(ph, text) {
+    const t = ph.querySelector('.toast'); if (!t) return
+    t.querySelector('span').textContent = text
+    t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2600)
+  }
+
+  document.getElementById('vctl').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return
+    st.v = b.dataset.v
+    document.querySelectorAll('#vctl button').forEach((x) => x.classList.toggle('on', x === b))
+    paintAll()
+  })
+  document.getElementById('wctl').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return
+    st.w = Number(b.dataset.w)
+    document.querySelectorAll('#wctl button').forEach((x) => x.classList.toggle('on', x === b))
+    paintAll()
+  })
+  document.getElementById('stage').addEventListener('click', (e) => {
+    const ph = e.target.closest('.phone'); if (!ph) return
+    const screen = ph.dataset.screen
+    const go = e.target.closest('[data-go]')
+    if (go) {
+      if (go.dataset.go === 'guia') { st.guide = 0; paint('guia') }
+      focusPhone(go.dataset.go)
+      return
+    }
+    const c = e.target.closest('.ctr button')
+    if (c) {
+      const box = c.closest('.ctr'), id = box.dataset.ctr, max = Number(box.dataset.max)
+      const d = c.getAttribute('aria-label') === 'más' ? 1 : -1
+      if (id === 'opening') st.opening = Math.min(max, Math.max(0, st.opening + d))
+      else if (id === 'pain') st.pain = Math.min(max, Math.max(0, st.pain + d))
+      else if (id.startsWith('g-')) {
+        const val = box.querySelector('.val'), n = Math.min(max, Math.max(0, parseInt(val.textContent, 10) + d))
+        const unit = val.querySelector('small')
+        val.innerHTML = n + (unit ? `<small>${unit.textContent}</small>` : '')
+        return
+      } else st.vals[id] = Math.min(max, Math.max(0, st.vals[id] + d))
+      paint(screen, true)
+      return
+    }
+    if (e.target.closest('[data-save]')) { toast(ph, 'Sesión guardada · 22/10 · Vertical'); return }
+    const sb = e.target.closest('[data-subir]')
+    if (sb) {
+      const s = PROG.subir.find((x) => x.key === sb.dataset.subir)
+      st.subidos[s.key] = true
+      paint('progreso', true)
+      toast(ph, s.piso ? `Subiste a ${s.to}. Ese escalón arranca en ${s.piso}.` : `Subiste a ${s.to}.`)
+      return
+    }
+    if (e.target.closest('[data-gnext]')) {
+      if (st.guide < GUIDE.length - 1) { st.guide++; paint('guia') } else { st.guide = 0; paint('guia'); focusPhone('inicio') }
+      return
+    }
+    if (e.target.closest('[data-gprev]')) { st.guide = Math.max(0, st.guide - 1); paint('guia'); return }
+    if (e.target.closest('[data-gskip]')) { st.guide = 0; paint('guia'); focusPhone('inicio') }
+  })
+
+  paintAll()
+})()
+</script>
+</body>
+</html>
