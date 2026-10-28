@@ -233,6 +233,22 @@ export interface AttributionFunnelResult {
   };
   ia: Array<{ referrerHost: string | null; registros: number; pagaron: number }>;
   gastoSinAtribuir: Array<{ campaignName: string; currency: string; amount: number }>;
+  /** Estado de las integraciones de medición (config de la API). */
+  integrations: MeasurementIntegration[];
+}
+
+/**
+ * Espejo de `MeasurementIntegration` (el-templo-api, marketing/integrations-status):
+ * solo booleanos y nombres de secrets de GitHub, nunca valores.
+ */
+export interface MeasurementIntegration {
+  key: 'ga4' | 'meta_pixel' | 'meta_capi' | 'meta_spend' | 'search_console' | 'gbp';
+  label: string;
+  enabled: boolean;
+  /** Secrets de GitHub que faltan o no son válidos. */
+  missing: string[];
+  /** GBP: off | dry-run | apply | invalid. CAPI prendida: test | live. */
+  mode?: 'off' | 'dry-run' | 'apply' | 'invalid' | 'test' | 'live';
 }
 
 export interface SearchConsoleMetrics {

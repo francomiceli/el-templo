@@ -1,6 +1,11 @@
 <template>
   <div>
     <!-- ================================================================== -->
+    <!-- Integraciones de medición apagadas (no se muestra si están todas) -->
+    <!-- ================================================================== -->
+    <IntegracionesApagadasCard :integrations="result?.integrations ?? []" />
+
+    <!-- ================================================================== -->
     <!-- Encabezado -->
     <!-- ================================================================== -->
     <div class="text-caption text-grey-7 q-mb-sm">
@@ -358,6 +363,7 @@ import {
   h,
   type PropType,
 } from 'vue';
+import IntegracionesApagadasCard from './IntegracionesApagadasCard.vue';
 import { useReportsApi } from 'src/composables/useReportsApi';
 import { createLogger } from 'src/utils/logger';
 import { extractError } from 'src/utils/extract-error';
