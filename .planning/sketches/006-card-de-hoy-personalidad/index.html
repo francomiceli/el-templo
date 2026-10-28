@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sketch 006 — Card de hoy con personalidad</title>
+<link rel="stylesheet" href="../themes/default.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Geologica:wght@300;400;500;600&family=Montserrat:wght@600;700;800&family=Cinzel:wght@600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+<style>
+  :root {
+    --page: #f2ede5;
+    --card: #ffffff;
+    --ink: #2c2318;
+    --ink-2: #6b6459;
+    --terra: #96593a;
+    --cream-ink: #f0e6d6;   /* texto sobre la card oscura: 12.5:1 */
+    --cream-2: #e3c9a8;     /* kicker sobre oscuro: 9.6:1 */
+    --dark: #2c2318;        /* fondo de la card */
+    --dark-2: #3a2e22;      /* relieves */
+    --line: #e5dbcd;
+    /* Botón: forma del CTA premium viejo (degradé 135°, radio 10, texto blanco 600)
+       pasado a terracota. Blanco sobre #a35f3c = 4.9:1, sobre #7e4529 = 7.4:1 (AA). */
+    --btn-a: #a35f3c;
+    --btn-b: #7e4529;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #e9e3da; font-family: 'Geologica', system-ui, sans-serif; color: var(--ink); }
+
+  /* ── Controles del sketch ── */
+  #controls { position: sticky; top: 0; z-index: 50; background: #fff; border-bottom: 1px solid #ddd; padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; font: 13px system-ui; }
+  .ctl { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+  .ctl > span { color: #555; margin-right: 4px; font-weight: 600; }
+  .ctl button { border: 1px solid #ccc; background: #fafafa; border-radius: 6px; padding: 5px 9px; cursor: pointer; font: inherit; transition: all .15s; }
+  .ctl button:hover { background: #f0ebe4; }
+  .ctl button.on { background: #2c2318; color: #fff; border-color: #2c2318; }
+  #stage { display: flex; gap: 32px; justify-content: center; align-items: flex-start; padding: 24px 16px 80px; flex-wrap: wrap; }
+  .col { display: flex; flex-direction: column; align-items: center; }
+  .col-label { font: 600 13px system-ui; color: #2c2318; text-align: center; margin-bottom: 4px; }
+  .col-sub { font: 12px system-ui; color: #666; text-align: center; max-width: 360px; margin-bottom: 10px; line-height: 1.4; }
+
+  /* ── Teléfono (solo la parte de arriba de Mi Templo) ── */
+  .phone { width: 390px; height: 600px; position: relative; overflow: hidden; border-radius: 28px; box-shadow: 0 0 0 10px #1d1a17, 0 20px 50px rgba(0,0,0,.25); background: var(--page); }
+  .phone::before { content: ''; position: absolute; inset: 0; background: url('bars-open.webp') center/cover; opacity: .08; z-index: 0; }
+  .appbar { position: relative; z-index: 1; background: linear-gradient(135deg, #96593a, #7d5d42); color: #fff; padding: 14px 16px 16px; }
+  .appbar .brand { display: flex; align-items: center; gap: 10px; font: 800 20px 'Montserrat', sans-serif; letter-spacing: .02em; }
+  .appbar .brand img { width: 34px; height: 34px; background: #f2ede5; border-radius: 8px; padding: 3px; }
+  .appbar h2 { margin: 12px 0 2px; font: 700 24px 'Montserrat', sans-serif; }
+  .appbar p { margin: 0; font-size: 14px; }
+  .content { position: relative; z-index: 1; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .nov { background: #fff; border-radius: 20px; padding: 14px 16px; box-shadow: 0 2px 8px rgba(44,35,24,.06); }
+  .nov b { font: 700 13px 'Montserrat', sans-serif; letter-spacing: .1em; color: var(--terra); }
+  .nov p { margin: 8px 0 0; font-weight: 500; font-size: 15px; color: var(--ink); }
+
+  /* ── Base común de la card de hoy (A' actual) ── */
+  .tc { position: relative; border-radius: 20px; background: var(--dark); color: var(--cream-ink); padding: 20px 16px 16px; overflow: hidden; isolation: isolate; box-shadow: 0 10px 24px rgba(44,35,24,.22); }
+  .tc > .txt { position: relative; z-index: 2; }
+  .tc .kicker { margin: 0; font: 700 11px 'Montserrat', sans-serif; letter-spacing: .1em; text-transform: uppercase; color: var(--cream-2); }
+  .tc .title { margin: 6px 0 4px; font: 700 28px/1.15 'Montserrat', sans-serif; letter-spacing: -.01em; color: var(--cream-ink); max-width: 78%; }
+  .tc .meta { margin: 0; font-size: 15px; color: var(--cream-ink); }
+  .tc .meta strong { font-weight: 600; }
+  .tc .chip { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; padding: 5px 10px; border-radius: 999px; font-size: 13px; font-weight: 500; background: #2f4a35; color: #d9efdc; }
+  .tc .chip .material-icons { font-size: 16px; }
+  .tc .actions { display: flex; align-items: center; gap: 16px; margin-top: 18px; flex-wrap: wrap; }
+  .tc .link { min-height: 44px; padding: 12px 0; border: 0; background: none; color: var(--cream-ink); font: 500 14px 'Geologica', sans-serif; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+
+  /* Botón: CTA premium viejo, en terracota */
+  .cta { position: relative; overflow: hidden; display: inline-flex; align-items: center; gap: 8px; min-height: 46px; padding: 0 20px; border: 0; border-radius: 10px; background: linear-gradient(135deg, var(--btn-a), var(--btn-b)); color: #fff; font: 600 15px 'Geologica', sans-serif; letter-spacing: .3px; cursor: pointer; box-shadow: 0 4px 14px rgba(126,69,41,.45), inset 0 1px 0 rgba(255,255,255,.18); transition: transform .1s, filter .15s, box-shadow .15s; }
+  .cta:hover { filter: brightness(1.07); box-shadow: 0 6px 18px rgba(126,69,41,.55), inset 0 1px 0 rgba(255,255,255,.22); }
+  .cta:active { transform: scale(.97); }
+  .cta .material-icons { font-size: 18px; }
+  /* destello que cruza el botón cada tanto (sheen) */
+  .cta::after { content: ''; position: absolute; top: 0; bottom: 0; left: -60%; width: 40%; background: linear-gradient(100deg, transparent, rgba(255,255,255,.28), transparent); transform: skewX(-18deg); animation: sheen 5s ease-in-out 1.2s infinite; }
+  @keyframes sheen { 0%, 70% { left: -60%; } 100% { left: 130%; } }
+  .cta.pressed { filter: brightness(.92); }
+
+  /* ════════ Variante A — Brasa: los brillos de la tarjeta premium vieja, en terracota ════════ */
+  .va.tc-wrap { position: relative; border-radius: 21px; padding: 1.5px; background: linear-gradient(115deg, #4a3a2b 0%, #a35f3c 30%, #f0d2b4 45%, #a35f3c 60%, #4a3a2b 100%); background-size: 250% 250%; animation: border-flow 7s linear infinite; }
+  @keyframes border-flow { 0% { background-position: 0% 50%; } 100% { background-position: 250% 50%; } }
+  .va .tc { border-radius: 20px; }
+  .va .glow { position: absolute; z-index: 1; width: 260px; height: 260px; right: -80px; top: -110px; background: radial-gradient(circle, rgba(196,110,66,.55) 0%, rgba(196,110,66,.18) 40%, transparent 70%); animation: breathe 6s ease-in-out infinite; pointer-events: none; }
+  @keyframes breathe { 0%, 100% { opacity: .75; transform: scale(1); } 50% { opacity: 1; transform: scale(1.08); } }
+  .va .spark { position: absolute; z-index: 1; width: 4px; height: 4px; border-radius: 50%; background: #f6dcc0; box-shadow: 0 0 8px 2px rgba(246,220,192,.7); animation: twinkle 3.2s ease-in-out infinite; pointer-events: none; }
+  .va .spark:nth-of-type(2) { top: 26px; right: 54px; }
+  .va .spark:nth-of-type(3) { top: 70px; right: 22px; width: 3px; height: 3px; animation-delay: 1.1s; }
+  .va .spark:nth-of-type(4) { top: 46px; right: 104px; width: 2px; height: 2px; animation-delay: 2.1s; }
+  @keyframes twinkle { 0%, 100% { opacity: 0; transform: scale(.4); } 45% { opacity: 1; transform: scale(1); } }
+  .va .bottom-line { position: absolute; z-index: 1; left: 16px; right: 16px; bottom: 0; height: 2px; background: linear-gradient(90deg, transparent, #c46e42, #f0d2b4, #c46e42, transparent); opacity: .85; pointer-events: none; }
+
+  /* ════════ Variante B — Columnata: relieve de columnas + luz que pasa entre ellas ════════ */
+  .vb .tc { background: linear-gradient(160deg, #33291d 0%, #2c2318 55%, #261e14 100%); }
+  .vb .cols { position: absolute; z-index: 1; right: -6px; bottom: 0; width: 56%; height: 100%; pointer-events: none;
+    -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 45%); mask-image: linear-gradient(90deg, transparent 0%, #000 45%); }
+  .vb .cols svg { position: absolute; right: 0; bottom: 0; width: 100%; height: 100%; }
+  .vb .ray { position: absolute; z-index: 1; top: -20%; bottom: -20%; width: 90px; left: 40%; background: linear-gradient(90deg, transparent, rgba(227,160,110,.22), transparent); transform: skewX(-14deg); animation: ray 9s ease-in-out infinite; pointer-events: none; mix-blend-mode: screen; }
+  @keyframes ray { 0% { left: 30%; opacity: 0; } 20% { opacity: 1; } 80% { opacity: 1; } 100% { left: 105%; opacity: 0; } }
+  .vb .floor { position: absolute; z-index: 1; left: 0; right: 0; bottom: 0; height: 3px; background: linear-gradient(90deg, transparent 10%, #a35f3c 60%, #c98a62 100%); opacity: .8; }
+
+  /* ════════ Variante C — Frontón: la silueta del logo + frontón arriba ════════ */
+  .vc .tc { padding-top: 30px; }
+  .vc .pediment { position: absolute; z-index: 1; top: 0; left: 0; right: 0; height: 22px; pointer-events: none; }
+  .vc .pediment svg { width: 100%; height: 100%; display: block; }
+  .vc .mark { position: absolute; z-index: 1; right: -38px; bottom: -26px; width: 210px; height: 210px; background: url('logo.webp') center/contain no-repeat; opacity: .13; filter: sepia(.6) saturate(1.6) brightness(1.4); pointer-events: none; }
+  .vc .halo { position: absolute; z-index: 0; right: -40px; bottom: -40px; width: 240px; height: 240px; background: radial-gradient(circle, rgba(163,95,60,.45), transparent 65%); animation: breathe 7s ease-in-out infinite; pointer-events: none; }
+  .vc .spark { position: absolute; z-index: 1; width: 3px; height: 3px; border-radius: 50%; background: #f6dcc0; box-shadow: 0 0 8px 2px rgba(246,220,192,.6); animation: twinkle 3.6s ease-in-out infinite; pointer-events: none; }
+  .vc .spark.s1 { right: 118px; bottom: 120px; }
+  .vc .spark.s2 { right: 48px; bottom: 132px; animation-delay: 1.6s; }
+  .vc .kicker { font-family: 'Cinzel', serif; font-size: 12px; letter-spacing: .14em; }
+
+  /* ── Reducir movimiento: todo quieto (real + toggle del sketch) ── */
+  body.rm *, body.rm *::before, body.rm *::after { animation: none !important; }
+  body.rm .va .spark, body.rm .vc .spark { opacity: .8; transform: none; }
+  body.rm .vb .ray { display: none; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; }
+    .va .spark, .vc .spark { opacity: .8; }
+    .vb .ray { display: none; }
+  }
+
+  #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px); background: #2c2318; color: #fff; padding: 10px 16px; border-radius: 10px; font: 14px system-ui; opacity: 0; transition: all .25s; pointer-events: none; z-index: 99; }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<div id="controls">
+  <div class="ctl" id="states"><span>Estado:</span></div>
+  <div class="ctl"><span>Movimiento:</span><button id="rm-toggle">Reducir movimiento</button></div>
+</div>
+
+<div id="stage">
+  <div class="col">
+    <div class="col-label">A · Brasa</div>
+    <div class="col-sub">Los brillos de la tarjeta premium vieja (borde que fluye, resplandor, chispas, línea de abajo), en terracota.</div>
+    <div class="phone" data-variant="a"></div>
+  </div>
+  <div class="col">
+    <div class="col-label">B · Columnata</div>
+    <div class="col-sub">Relieve de columnas a la derecha, en tono sobre tono, con una luz que pasa entre ellas. Sin chispas.</div>
+    <div class="phone" data-variant="b"></div>
+  </div>
+  <div class="col">
+    <div class="col-label">C · Frontón</div>
+    <div class="col-sub">Frontón arriba, silueta del logo de El Templo detrás con un halo, kicker en Cinzel como la frase del día.</div>
+    <div class="phone" data-variant="c"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+  const STATES = {
+    hoy:        { label: 'Clase hoy',          kicker: 'Hoy · Jueves 15',       title: 'Muscle Up',          meta: 'Tu clase: <strong>19:00</strong> · Alem', cta: 'Ver la sesión', icon: 'play_arrow', link: 'Cambiar clase' },
+    proxima:    { label: 'Próxima clase',      kicker: 'Tu próxima clase',      title: 'Lunes 20 · 19:00',   meta: 'Alem',                                    cta: 'Ver mis clases', icon: 'event', link: 'Reservar otra' },
+    reservar:   { label: 'Reservá tu clase',   kicker: 'Hoy · Jueves 15',       title: 'Reservá tu clase',   meta: 'Elegí horario y sede',                    cta: 'Reservar', icon: 'add', link: null },
+    asistencia: { label: 'Asistencia',         kicker: 'Hoy · Jueves 15',       title: 'Muscle Up',          meta: 'Tu clase: <strong>19:00</strong> · Alem', cta: 'Ver la sesión', icon: 'play_arrow', link: null, chip: 'Asistencia registrada 18:52' },
+    online:     { label: 'Online',             kicker: 'Hoy · Jueves 15',       title: 'Entrenar',           meta: 'Sesión libre · 45 min',                   cta: 'Empezar', icon: 'play_arrow', link: 'Mi programa' },
+    sinplan:    { label: 'Sin plan',           kicker: 'Bienvenido a El Templo', title: 'Arrancá tu plan',   meta: 'Elegí el plan que va con vos',            cta: 'Ver planes', icon: 'arrow_forward', link: null },
+    vencido:    { label: 'Venció',             kicker: 'Te extrañamos, Andre',  title: 'Renová tu plan',     meta: 'Tu Pase Libre venció el 30 de septiembre', cta: 'Renovar', icon: 'arrow_forward', link: 'Ver planes' },
+  };
+
+  // Columnas en relieve (variante B): 5 fustes con estrías, capitel, entablamento y escalones.
+  function columnsSvg() {
+    const cols = [];
+    const w = 22, gap = 18, x0 = 28;
+    for (let i = 0; i < 5; i++) {
+      const x = x0 + i * (w + gap);
+      let flutes = '';
+      for (let f = 1; f < 4; f++) flutes += `<line x1="${x + f * w / 4}" y1="62" x2="${x + f * w / 4}" y2="206" stroke="#2c2318" stroke-width="1.2" opacity=".55"/>`;
+      cols.push(`<rect x="${x - 3}" y="54" width="${w + 6}" height="8" rx="1.5" fill="#43362a"/><rect x="${x}" y="62" width="${w}" height="144" fill="#3d3125"/>${flutes}<rect x="${x - 3}" y="206" width="${w + 6}" height="6" fill="#43362a"/>`);
+    }
+    return `<svg viewBox="0 0 230 240" preserveAspectRatio="xMaxYMax meet" aria-hidden="true">
+      <polygon points="14,40 120,6 226,40" fill="none" stroke="#4a3b2d" stroke-width="3"/>
+      <rect x="14" y="40" width="212" height="14" fill="#43362a"/>
+      ${cols.join('')}
+      <rect x="10" y="212" width="220" height="8" fill="#43362a"/><rect x="2" y="220" width="236" height="8" fill="#4a3b2d"/>
+    </svg>`;
+  }
+  function pedimentSvg() {
+    return `<svg viewBox="0 0 358 22" preserveAspectRatio="none" aria-hidden="true">
+      <polyline points="0,21 179,3 358,21" fill="none" stroke="#a35f3c" stroke-width="1.5" vector-effect="non-scaling-stroke"/>
+      <line x1="0" y1="21" x2="358" y2="21" stroke="#4a3b2d" stroke-width="1" vector-effect="non-scaling-stroke"/>
+    </svg>`;
+  }
+
+  function cardHtml(v, s) {
+    const txt = `
+      <div class="txt">
+        <p class="kicker">${s.kicker}</p>
+        <h3 class="title">${s.title}</h3>
+        <p class="meta">${s.meta}</p>
+        ${s.chip ? `<span class="chip"><span class="material-icons">check_circle</span>${s.chip}</span>` : ''}
+        <div class="actions">
+          <button class="cta"><span class="material-icons">${s.icon}</span>${s.cta}</button>
+          ${s.link ? `<button class="link">${s.link}</button>` : ''}
+        </div>
+      </div>`;
+    if (v === 'a') return `<div class="va tc-wrap"><div class="tc"><div class="glow"></div><span class="spark"></span><span class="spark"></span><span class="spark"></span><div class="bottom-line"></div>${txt}</div></div>`;
+    if (v === 'b') return `<div class="vb"><div class="tc"><div class="cols">${columnsSvg()}</div><div class="ray"></div><div class="floor"></div>${txt}</div></div>`;
+    return `<div class="vc"><div class="tc"><div class="pediment">${pedimentSvg()}</div><div class="halo"></div><div class="mark"></div><span class="spark s1"></span><span class="spark s2"></span>${txt}</div></div>`;
+  }
+
+  function render(stateKey) {
+    const s = STATES[stateKey];
+    document.querySelectorAll('.phone').forEach(ph => {
+      const v = ph.dataset.variant;
+      ph.innerHTML = `
+        <div class="appbar">
+          <div class="brand"><img src="logo.webp" alt="">EL TEMPLO</div>
+          <h2>Hola, Andre!</h2>
+          <p>Hoy es Jueves, 15 de octubre</p>
+        </div>
+        <div class="content">
+          ${cardHtml(v, s)}
+          <div class="nov"><b>NOVEDADES</b><p>Desde el lunes 20 sumamos clase de 7 en Alem</p></div>
+        </div>`;
+    });
+    document.querySelectorAll('#states button').forEach(b => b.classList.toggle('on', b.dataset.k === stateKey));
+  }
+
+  const statesEl = document.getElementById('states');
+  Object.entries(STATES).forEach(([k, s]) => {
+    const b = document.createElement('button');
+    b.textContent = s.label; b.dataset.k = k;
+    b.onclick = () => render(k);
+    statesEl.appendChild(b);
+  });
+
+  document.getElementById('rm-toggle').onclick = (e) => {
+    document.body.classList.toggle('rm');
+    e.target.classList.toggle('on');
+  };
+
+  const toast = document.getElementById('toast');
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.phone .cta, .phone .link');
+    if (!btn) return;
+    btn.classList.add('pressed'); setTimeout(() => btn.classList.remove('pressed'), 180);
+    toast.textContent = `→ ${btn.textContent.replace(/^(play_arrow|event|add|arrow_forward)/, '').trim()}`;
+    toast.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(() => toast.classList.remove('show'), 1400);
+  });
+
+  render('hoy');
+</script>
+</body>
+</html>

@@ -1,0 +1,262 @@
+/* Copia de los estilos de .planning/sketches/015-entrenar-hoy/ronda3.html (Entrenar de la fase 197) */
+
+
+  :root {
+    --page: #f2ede5;
+    --ink: #2c2318;       /* 15.4:1 sobre blanco */
+    --ink-2: #6b6459;     /* 5.9 sobre blanco, 5.0 sobre crema */
+    --ink-3: #5a5347;
+    --terra: #96593a;     /* 5.6 sobre blanco */
+    --line: #e5dbcd;
+    --edge: #8c806f;      /* borde de control tocable sobre la página, 3:1 */
+    --sand: #f3ede4;
+    --sage: #3f6a47; --sage-tint: #e9f0e6;
+    --dark: #2c2318; --cream-ink: #f0e6d6; --cream-2: #e3c9a8;
+    --btn-a: #a35f3c; --btn-b: #7e4529;
+    /* figura */
+    --mus: #e2d7c8; --mus-edge: #c9bba8; --skin: #ece4d8; --skin-edge: #b9a993;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #e9e3da; font-family: 'Geologica', system-ui, sans-serif; color: var(--ink); }
+  .material-icons { font-size: inherit; line-height: 1; vertical-align: middle; }
+  button { font: inherit; }
+
+  #controls { position: sticky; top: 0; z-index: 50; background: #fff; border-bottom: 1px solid #ddd; padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; font: 13px system-ui; }
+  .ctl { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+  .ctl > span { color: #555; margin-right: 4px; font-weight: 600; }
+  .ctl button { border: 1px solid #ccc; background: #fafafa; border-radius: 6px; padding: 5px 9px; cursor: pointer; font: inherit; }
+  .ctl button.on { background: #2c2318; color: #fff; border-color: #2c2318; }
+  #stage { display: flex; gap: 32px; justify-content: center; align-items: flex-start; padding: 24px 16px 80px; flex-wrap: wrap; }
+  .col { display: flex; flex-direction: column; align-items: center; }
+  .col-label { font: 600 13px system-ui; text-align: center; margin-bottom: 4px; }
+  .col-sub { font: 12px system-ui; color: #666; text-align: center; max-width: 360px; margin-bottom: 10px; line-height: 1.4; min-height: 84px; }
+
+  .phone { position: relative; width: var(--w, 390px); height: 844px; border-radius: 28px; overflow: hidden; box-shadow: 0 0 0 10px #1d1a17, 0 20px 50px rgba(0,0,0,.25); background: var(--page); transition: width .2s; display: flex; flex-direction: column; isolation: isolate; }
+  .phone::before { content: ''; position: absolute; inset: 0; z-index: -1; background: url(bars-open.webp) center / cover; opacity: .08; }
+  .phone.shot { background: var(--page); }
+  .phone.shot img { width: 100%; display: block; }
+  .appbar { flex: none; height: 56px; display: flex; align-items: center; gap: 10px; padding: 0 14px; background: linear-gradient(135deg, #96593a, #7d5d42); color: #fff; font: 800 18px 'Montserrat', sans-serif; letter-spacing: .02em; }
+  .appbar i { width: 30px; height: 30px; border-radius: 7px; background: #f2ede5; }
+  .scroll { flex: 1; overflow-y: auto; scrollbar-width: none; }
+  .scroll::-webkit-scrollbar { display: none; }
+  .tabbar { flex: none; height: 56px; display: flex; justify-content: space-around; align-items: center; background: linear-gradient(135deg, #7d5d42, #96593a); color: #f2ede5; font-size: 10px; }
+  .tabbar span { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .tabbar .material-icons { font-size: 24px; }
+  .tabbar .on { color: #fff; font-weight: 700; }
+  .tabbar .on .material-icons { position: relative; z-index: 0; }
+  .tabbar .on .material-icons::before { content: ''; position: absolute; z-index: -1; left: 50%; top: 50%; width: 58px; height: 30px; border-radius: 999px; background: rgba(255,255,255,.2); transform: translate(-50%, -50%); }
+
+  /* ════════ Piezas comunes ════════ */
+  .wrap { padding: 16px 16px 24px; display: flex; flex-direction: column; gap: 16px; }
+  .kicker { margin: 0; font: 700 12px 'Cinzel', serif; letter-spacing: .14em; text-transform: uppercase; color: var(--terra); }
+  .blk-title { margin: 0; font: 800 13px 'Montserrat', sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--terra); }
+  .cta { position: relative; overflow: hidden; width: 100%; min-height: 48px; border: 0; border-radius: 12px; background: linear-gradient(135deg, var(--btn-a), var(--btn-b)); color: #fff; font: 600 15px 'Geologica', sans-serif; cursor: pointer; box-shadow: 0 6px 16px rgba(126,69,41,.28); }
+  .cta::after { content: ''; position: absolute; top: 0; bottom: 0; width: 40%; left: -60%; background: linear-gradient(100deg, transparent, rgba(255,255,255,.35), transparent); animation: shine 5s ease-in-out infinite; }
+  @keyframes shine { 0%, 70% { left: -60%; } 100% { left: 130%; } }
+  .cta.sec { background: #fff; color: var(--terra); border: 1.5px solid var(--terra); box-shadow: none; }
+  .cta.sec::after, .cta:disabled::after { display: none; }
+  .cta:disabled { background: #e7dfd3; color: var(--ink-2); box-shadow: none; cursor: default; }
+  .chip-done { display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 10px; border-radius: 999px; background: var(--sage-tint); color: var(--sage); font: 600 13px 'Geologica', sans-serif; }
+
+  /* Tira de 7 días (fichas de Reservas 013 A) */
+  .days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+  .day { min-height: 56px; padding: 7px 0 6px; border-radius: 14px; border: 1px solid var(--line); background: #fff; text-align: center; font: 600 11px 'Montserrat', sans-serif; color: var(--ink-2); cursor: pointer; }
+  .day b { display: block; margin-top: 1px; font: 700 17px 'Montserrat', sans-serif; color: var(--ink); }
+  .day .dot { display: block; width: 5px; height: 5px; margin: 3px auto 0; border-radius: 50%; }
+  .day.done .dot { background: var(--sage); }
+  .day.today:not(.on) { border-color: var(--ink); }
+  .day.rest { background: transparent; border-style: dashed; border-color: var(--edge); }
+  .day.on { border-color: transparent; background: linear-gradient(135deg, var(--btn-a), var(--btn-b)); color: #fff; box-shadow: 0 4px 12px rgba(126,69,41,.3); }
+  .day.on b { color: #fff; }
+  .day.on.done .dot { background: #fff; }
+
+  /* Canasta asomando (igual en las 3) */
+  .basket { display: flex; flex-direction: column; gap: 10px; }
+  .basket .sub { margin: -4px 0 0; font-size: 13.5px; color: var(--ink-2); }
+  .zones { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 0 16px; }
+  .zones::-webkit-scrollbar { display: none; }
+  .zone { flex: none; height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--edge); background: #fff; color: var(--ink); font: 500 14px 'Geologica', sans-serif; }
+  .zone.on { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .bcard { display: flex; align-items: center; gap: 12px; padding: 12px 12px 12px 16px; border-radius: 16px; background: #fff; border: 1px solid var(--line); box-shadow: 0 6px 18px rgba(150,89,58,.06); }
+  .bcard .t { display: block; font: 700 15px 'Montserrat', sans-serif; }
+  .bcard .m { display: block; margin-top: 2px; font-size: 13px; color: var(--ink-2); }
+  .bcard .go { margin-left: auto; flex: none; height: 36px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--terra); color: #fff; font: 600 14px 'Geologica', sans-serif; }
+  .more { align-self: flex-start; min-height: 44px; border: 0; background: none; color: var(--terra); font: 600 14px 'Geologica', sans-serif; text-decoration: underline; text-underline-offset: 3px; padding: 0; }
+  .soon { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 16px; border: 1px dashed var(--edge); }
+  .soon b { display: block; font: 700 15px 'Montserrat', sans-serif; }
+  .soon span.m { display: block; font-size: 13px; color: var(--ink-2); }
+  .soon .material-icons { font-size: 26px; color: var(--terra); }
+
+  /* Figura */
+  .figs { display: flex; justify-content: center; gap: 4px; }
+  .figs figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .figs figcaption { font: 600 10px 'Montserrat', sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); }
+  .figs svg { height: var(--fh, 210px); width: auto; overflow: visible; }
+  .figs .ol { fill: var(--skin); stroke: var(--skin-edge); stroke-width: 1.2; }
+  .figs .mu path { fill: var(--mus); stroke: var(--mus-edge); stroke-width: .6; transition: fill .35s; }
+  .figs .mu.x path { fill: var(--skin); stroke: none; }
+  .figs .mu.lit path { fill: url(#litg); stroke: #7e4529; }
+  .figs.done .mu.lit path { fill: #6f8f73; stroke: var(--sage); }
+
+  
+  /* ════════ Ronda 2 ════════ */
+  .scroll { position: relative; }
+  .tabs-wrap { position: sticky; top: 0; z-index: 5; padding: 12px 16px 10px; background: rgba(242,237,229,.96); }
+  .tabs-wrap.sh { box-shadow: 0 6px 14px rgba(44,35,24,.08); }
+  .tab-btn { position: relative; border: 0; background: none; cursor: pointer; color: var(--ink); }
+  .soon-dot { position: absolute; width: 6px; height: 6px; border-radius: 50%; background: #b4892f; }
+
+  /* T1 · Segmentado con pulgar que se desliza */
+  .t1 .seg { position: relative; display: grid; grid-template-columns: repeat(4, 1fr); padding: 4px; border-radius: 999px; background: #fff; border: 1px solid var(--line); box-shadow: 0 4px 14px rgba(150,89,58,.08); }
+  .t1 .thumb { position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc((100% - 8px) / 4); border-radius: 999px; background: linear-gradient(135deg, var(--btn-a), var(--btn-b)); box-shadow: 0 3px 10px rgba(126,69,41,.35); transition: transform .38s cubic-bezier(.3,.8,.25,1); }
+  .t1 .tab-btn { z-index: 1; min-height: 40px; font: 600 13.5px 'Geologica', sans-serif; transition: color .25s; }
+  .t1 .tab-btn.on { color: #fff; }
+  .t1 .soon-dot { top: 9px; right: 10px; }
+  .t1 .tab-btn.on .soon-dot { background: #f0d2b4; }
+
+  /* T2 · Puertas (fichas con ícono, la elegida en oscuro) */
+  .t2 .doors { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .t2 .tab-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 66px; padding: 8px 2px; border-radius: 14px; background: #fff; border: 1px solid var(--line); overflow: hidden; }
+  .t2 .tab-btn .material-icons { font-size: 22px; color: var(--terra); }
+  .t2 .tab-btn span.l { font: 700 11px 'Montserrat', sans-serif; letter-spacing: .04em; text-transform: uppercase; line-height: 1.15; text-align: center; }
+  .t2 .tab-btn.on { background: var(--dark); border-color: var(--dark); color: var(--cream-ink); box-shadow: 0 8px 18px rgba(44,35,24,.22); }
+  .t2 .tab-btn.on .material-icons { color: var(--cream-2); }
+  .t2 .tab-btn.on::after { content: ''; position: absolute; left: 10px; right: 10px; bottom: 0; height: 2px; background: linear-gradient(90deg, transparent, #a35f3c, #e9bf9b, #a35f3c, transparent); }
+  .t2 .soon-dot { top: 8px; right: 8px; }
+
+  /* Ronda 3: puertas sin íconos, más bajas */
+  .t2 .tab-btn { min-height: 44px; padding: 0 2px; }
+  .t2 .tab-btn span.l { font-size: 11.5px; letter-spacing: .06em; }
+  .t2 .soon-dot { top: 6px; right: 6px; }
+  .split { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+  .split .stage { --fh: 220px; padding: 0; }
+  .split .figs { gap: 0; }
+  .split .stage::before { width: 200px; height: 220px; }
+  .stack { display: flex; flex-direction: column; gap: 6px; }
+  .bchip { min-height: 44px; padding: 5px 10px; border-radius: 12px; border: 1px solid var(--edge); background: #fff; color: var(--ink); text-align: left; cursor: pointer; }
+  .bchip b { display: block; font: 800 10px 'Montserrat', sans-serif; letter-spacing: .07em; text-transform: uppercase; color: var(--terra); }
+  .bchip span { display: block; font: 500 13px/1.2 'Geologica', sans-serif; }
+  .bchip.on { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .bchip.on b { color: var(--cream-2); }
+  .route { position: relative; display: flex; flex-direction: column; }
+  .route::before { content: ''; position: absolute; left: 6px; top: 14px; bottom: 14px; width: 2px; background: var(--line); }
+  .stop { position: relative; display: block; min-height: 44px; padding: 3px 0 3px 22px; border: 0; background: none; color: var(--ink); text-align: left; cursor: pointer; }
+  .stop::before { content: ''; position: absolute; left: 1px; top: 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--page); border: 2px solid var(--terra); }
+  .stop b { display: block; font: 800 10px 'Montserrat', sans-serif; letter-spacing: .07em; text-transform: uppercase; color: var(--terra); }
+  .stop span { display: block; font: 600 13px/1.2 'Geologica', sans-serif; }
+  .stop small { display: block; font-size: 11.5px; color: var(--ink-2); }
+  .stop.on::before { background: var(--terra); box-shadow: 0 0 0 4px rgba(150,89,58,.18); }
+  .stop.on span { color: var(--terra); }
+  .route.picking .stop:not(.on) { opacity: .62; }
+
+  /* Título y botón en la misma fila, mitad y mitad */
+  .head2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: center; }
+  .head2 h1 { margin: 2px 0 0; font: 700 24px/1.1 'Montserrat', sans-serif; }
+  .head2 .chip-done { margin-top: 6px; }
+  .head2 .cta { min-height: 56px; padding: 6px 10px; font-size: 16px; line-height: 1.2; border-radius: 14px; }
+
+  /* Lista de ejercicios del bloque elegido */
+  .expanel { border-radius: 16px; background: #fff; border: 1px solid var(--line); box-shadow: 0 6px 18px rgba(150,89,58,.06); overflow: hidden; animation: exin .28s ease-out; }
+  @keyframes exin { from { opacity: 0; transform: translateY(-6px); } }
+  .exhead { display: flex; align-items: flex-start; gap: 8px; padding: 12px 8px 10px 16px; border-bottom: 1px solid var(--line); }
+  .exhead b { display: block; font: 800 10.5px 'Montserrat', sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--terra); }
+  .exhead .t { display: block; font: 700 16px 'Montserrat', sans-serif; }
+  .exhead .m { display: block; margin-top: 2px; font-size: 13px; color: var(--ink-2); }
+  .exx { margin-left: auto; flex: none; width: 44px; height: 44px; margin-top: -8px; border: 0; border-radius: 50%; background: none; color: var(--ink-2); font-size: 22px; display: grid; place-items: center; cursor: pointer; }
+  .exlist { margin: 0; padding: 4px 0; list-style: none; }
+  .exlist li { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 6px 16px; }
+  .exlist li + li { border-top: 1px solid #f0e9df; }
+  .exlist .vid { flex: none; width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; background: linear-gradient(135deg, #e8ddcf, #d9c9b5); color: var(--terra); font-size: 22px; }
+  .exlist .n { flex: 1; font: 500 14px/1.25 'Geologica', sans-serif; }
+  .exlist .d { flex: none; font: 600 13px 'Geologica', sans-serif; color: var(--ink-2); }
+
+  /* T3 · Editorial: Cinzel con subrayado que se desliza + deslizar entre tabs */
+  .t3 .row { position: relative; display: flex; justify-content: space-between; border-bottom: 1px solid var(--line); }
+  .t3 .tab-btn { min-height: 44px; padding: 0 2px; font: 700 13px 'Cinzel', serif; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-2); }
+  .t3 .tab-btn.on { color: var(--ink); }
+  .t3 .ul { position: absolute; bottom: -1px; height: 3px; border-radius: 3px; background: linear-gradient(90deg, var(--btn-a), var(--btn-b)); transition: left .35s cubic-bezier(.3,.8,.25,1), width .35s; }
+  .t3 .soon-dot { top: 10px; right: -6px; }
+  .pager { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; align-items: flex-start; }
+  .pager::-webkit-scrollbar { display: none; }
+  .pager > .wrap { flex: 0 0 100%; min-width: 0; scroll-snap-align: start; }
+
+  /* Semana */
+  .wk { display: flex; align-items: center; justify-content: space-between; margin-bottom: -6px; }
+  .wk > span { font: 600 13px 'Geologica', sans-serif; color: var(--ink-2); }
+  .wk button { width: 36px; height: 36px; border: 0; border-radius: 50%; background: none; color: var(--ink); font-size: 22px; display: grid; place-items: center; }
+  .hero { display: flex; flex-direction: column; gap: 12px; }
+  .hero .head { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
+  .hero h1 { margin: 2px 0 0; font: 700 28px/1.1 'Montserrat', sans-serif; }
+  .stage { position: relative; padding: 4px 0; }
+  .stage::before { content: ''; position: absolute; left: 50%; top: 52%; width: 300px; height: 190px; transform: translate(-50%, -50%); border-radius: 50%; background: radial-gradient(closest-side, rgba(163,95,60,.16), transparent); z-index: -1; }
+  .pills { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 0 16px; }
+  .pills::-webkit-scrollbar { display: none; }
+  .pill { flex: none; min-height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--edge); background: #fff; color: var(--ink); font: 500 13px 'Geologica', sans-serif; cursor: pointer; }
+  .pill b { font: 800 11px 'Montserrat', sans-serif; letter-spacing: .06em; text-transform: uppercase; color: var(--terra); margin-right: 4px; }
+  .pill.on { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .pill.on b { color: var(--cream-2); }
+  .hint { margin: -4px 0 0; font-size: 12.5px; color: var(--ink-2); }
+  .link { align-self: center; min-height: 44px; border: 0; background: none; color: var(--terra); font: 600 14px 'Geologica', sans-serif; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+
+  /* Libre */
+  .lib-head h2 { margin: 0; font: 700 24px/1.15 'Montserrat', sans-serif; }
+  .lib-head p { margin: 4px 0 0; font-size: 13.5px; color: var(--ink-2); }
+  .aura { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 999px; background: #f6efdc; color: #7d6520; font: 600 13px 'Geologica', sans-serif; }
+  .tip { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 14px; background: var(--sage-tint); }
+  .tip .material-icons { color: var(--sage); font-size: 20px; }
+  .tip p { margin: 0 0 8px; font-size: 13.5px; color: var(--ink); }
+  .tip .zs { display: flex; gap: 6px; flex-wrap: wrap; }
+  .tip .zs button { height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--sage); background: #fff; color: var(--sage); font: 600 13px 'Geologica', sans-serif; cursor: pointer; }
+  .tip .zs button.on { background: var(--sage); color: #fff; }
+  .figs.tap { --fh: 210px; }
+  .figs.tap .mu:not(.lit):not(.dim):not(.x) path { fill: #d8c9b5; stroke: #bba891; }
+  .figs.tap .mu:not(.x) { cursor: pointer; }
+  .figs.tap .mu.dim path { fill: #ebe3d7; stroke: #d8ccbc; }
+  .count { margin: 0; font: 600 12px 'Montserrat', sans-serif; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
+  .bcard .rl { display: block; font: 800 10.5px 'Montserrat', sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--terra); }
+  .bcard .rep { display: inline-flex; align-items: center; gap: 3px; margin-top: 4px; font-size: 12px; color: var(--ink-2); }
+  .bcard .rep .material-icons { font-size: 14px; }
+  .empty { padding: 18px 16px; border-radius: 16px; border: 1px dashed var(--edge); text-align: center; font-size: 14px; color: var(--ink-2); }
+
+  /* Próximamente */
+  .soonpane { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; padding: 48px 8px; }
+  .soonpane .ic { width: 88px; height: 88px; border-radius: 50%; display: grid; place-items: center; background: #fff; border: 1px solid var(--line); box-shadow: 0 10px 24px rgba(150,89,58,.1); color: var(--terra); font-size: 40px; }
+  .soonpane h2 { margin: 6px 0 0; font: 700 22px 'Montserrat', sans-serif; }
+  .soonpane .k { font: 700 12px 'Cinzel', serif; letter-spacing: .14em; text-transform: uppercase; color: var(--terra); }
+  .soonpane p { margin: 0; max-width: 280px; font-size: 14px; color: var(--ink-2); line-height: 1.45; }
+
+  /* ════════ Ronda 3b: jerarquía (análisis de tamaños 2026-10-20) ════════
+     Escala única: 28 título · 17 números · 16 acción · 13 texto · 11 rótulos en mayúsculas */
+  /* 1. Semana: sin la fila de 36 px; rótulo chico + flechas con hitbox 44 que no suman alto */
+  .weekbox { display: flex; flex-direction: column; gap: 4px; }
+  .wk2 { display: flex; align-items: center; justify-content: space-between; height: 24px; }
+  .wk2 > span { font: 700 11px 'Montserrat', sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+  .wk2 .arr { display: flex; margin-right: -12px; }
+  .wk2 .arr button { width: 44px; height: 44px; margin: -10px 0; border: 0; background: none; color: var(--ink); font-size: 22px; display: grid; place-items: center; cursor: pointer; }
+  /* 2. Día elegido: borde terracota, sin relleno (el único terracota lleno es Empezar) */
+  .day.on { background: #fff; border-color: var(--terra); box-shadow: inset 0 0 0 1px var(--terra); color: var(--terra); }
+  .day.on b { color: var(--terra); }
+  .day.on.done .dot { background: var(--sage); }
+  /* 3. Tab elegida: oscura pero sin sombra (alto 44 = hitbox mínimo) */
+  .t2 .tab-btn.on { box-shadow: none; }
+  .t2 .tab-btn span.l { font-size: 11px; }
+  /* Nucleus por defecto: zonas de los otros bloques en terracota media, sin leyenda.
+     #d39a78: 1,7:1 contra el músculo sin trabajar y 1,9:1 contra el terracota fuerte (punto medio). */
+  .figs .mu.lit2 path { fill: #d39a78; stroke: #b57b59; }
+  .figs.done .mu.lit2 path { fill: #b9cdb9; stroke: #8fae92; }
+
+  /* 5. Escala */
+  .kicker { font-size: 11px; color: #7e4529; } /* 6. contraste: #7e4529 sobre crema ≈ 7:1 */
+  .hint { font-size: 13px; }
+  .figs figcaption { font-size: 11px; }
+  .bchip b, .stop b, .exhead b, .bcard .rl, .count, .pill b { font-size: 11px; }
+  .stop small { font-size: 11px; }
+  .exlist .n { font-size: 13px; }
+  .bcard .t { font-size: 16px; }
+  .bcard .m, .basket .sub, .lib-head p, .tip p, .soonpane p { font-size: 13px; }
+  .zone, .tip .zs button, .go, .bcard .go { font-size: 13px; }
+  .lib-head h2, .soonpane h2 { font-size: 28px; }
+  .soonpane .k { font-size: 11px; }
+  /* 8. Nombres de bloque en una línea (el nombre completo está en la lista de ejercicios) */
+  .bchip span, .stop span, .stop small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bchip, .stop { min-width: 0; }

@@ -9,14 +9,17 @@
 - ✅ **v5.0 → v5.4 Métricas, Entrenamiento, Contable, Reforma del Admin** — Phases 120-156
 - ✅ **v5.5 → v5.8 Referidos, Actividades con Aura, Sesiones de Prueba** — Phases 157-165 (archivo: `milestones/v5.8-ROADMAP.md`)
 - ✅ **v6.0 Tenancy — El Templo pasa a ser tenant #1** — Phases 166-178 (SHIPPED 2026-08-26 — archivo completo en `milestones/v6.0-ROADMAP.md`)
-- 🚧 **Fases en vuelo fuera de milestone** — 179 (referidos partners/marcas) y 180 (freemium etapa 2): en master `9ecc1c2e`, migs 0210+0215, cierran fuera de v6.1. **No se renumeran ni se tocan desde este roadmap.**
-- 🚧 **v6.1 Módulo Gimnasio** — Phases 181-192 (planned)
+- ✅ **Fases en vuelo fuera de milestone** — 179 (referidos partners/marcas) y 180 (freemium etapa 2): en master `9ecc1c2e`, migs 0210+0215, cerradas fuera de v6.1. **No se renumeran ni se tocan desde este roadmap.**
+- 🚧 **v6.1 Módulo Gimnasio** — Phases 181-192.3: 181 (diseño) en master; 182-192.2 ejecutadas en el tren `feat/v6.1-gimnasio` **SIN PUSH** (UAT pendiente); 192.3 Workout Engine ejecutada en rama aparte, por integrar al tren
+- ✅ **Fuera de milestone, en master/prod (2026-10-28)** — 193 Comunicaciones, 194 Invitaciones, 197 Entrenar (tabs/Libre/Desafíos ocultos por flag), 199 Rediseño Mi Templo, 200 Anatomía, 201 Conquer v2 (tab oculta), 202 Conquer tutoriales, 204 Usuarios Wellhub
+- 🚧 **Fuera de milestone, no en master** — 195 Web SEO + AEO + atribución (en staging `68a9dd86f`); 203 Carga sin parpadeos (planificada 17 planes, sin ejecutar, `feat/203-carga-sin-parpadeos`)
+- 📦 **Archivada / en espera** — 196 Personalizados + Conquer v1 (archivada, reemplazada por 201; tag `archive/196-personalizados`); 198 AURA configurable por fuente (en espera, sin planificar)
 
-> El detalle de las fases 1-178 vive en los archivos de milestone (`milestones/v6.0-ROADMAP.md`, `milestones/v5.8-ROADMAP.md`) y en `MILESTONES.md`. Este documento arranca en la fase 181.
+> El detalle de las fases 1-178 vive en los archivos de milestone (`milestones/v6.0-ROADMAP.md`, `milestones/v5.8-ROADMAP.md`) y en `MILESTONES.md`. Este documento arranca en la fase 181 e incluye las fases 193-204, que corren fuera del milestone v6.1.
 
 ---
 
-# 🚧 v6.1 Módulo Gimnasio (Phases 181-192)
+# 🚧 v6.1 Módulo Gimnasio (Phases 181-192.3) + fases fuera de milestone (193-204)
 
 ## Overview
 
@@ -40,24 +43,36 @@ El recorrido: primero se cierra la **fase de diseño bloqueante** (las 7 definic
 - Integer phases (181, 182, …): trabajo planificado del milestone
 - Decimal phases (181.1, …): inserciones urgentes (marcadas INSERTED)
 - 179-180 están tomadas por fases en vuelo fuera del milestone — este roadmap arranca en 181
+- 193-204 son fases fuera del milestone v6.1 (shippean solas desde `origin/master`); sus secciones están intercaladas por número
 
 - [x] **Phase 181: Diseño del módulo Gimnasio (bloqueante)** - Responder las 7 definiciones del brief + la superficie member-facing antes de escribir código de producto
-- [ ] **Phase 182: Plataforma — rol super-owner + wizard de alta de tenant** - Crear un gimnasio nuevo con aprovisionamiento completo en un flujo
-- [ ] **Phase 183: Plataforma — panel de tenants** - Ver métricas por tenant y gobernar su estado (suspender/archivar)
-- [ ] **Phase 184: Catálogo de ejercicios — modelo global/local + taxonomías** - Tablas nuevas, catálogo global de la plataforma y ejercicios propios por gimnasio, taxonomías cerradas validadas
-- [ ] **Phase 185: Catálogo — ciclo de vida y buscador** - Copia local automática, promoción local→global, desactivación sin romper historial, búsqueda por nombre/alias/taxonomías
-- [ ] **Phase 186: Carga inicial del catálogo** - 40-80 ejercicios publicados, generados con agentes y revisados por humano, con protocolo de migración
-- [ ] **Phase 187: Plantillas de rutina** - Plantillas globales y del gimnasio, estructura día→ejercicio con superseries/circuitos, creación desde cero por el profe
-- [ ] **Phase 188: Asignación de rutinas al alumno** - Clonar y asignar como copia inmutable, una activa por vez, historial, modificaciones fechadas, autogestión configurable
-- [ ] **Phase 189: Ejecución y registro de la sesión** - El corazón: fricción mínima, estados de sesión, registro por serie de lo efectivamente realizado
-- [ ] **Phase 190: Valoración, evolución y edición con recálculo** - Fácil/Adecuado/Difícil + molestia, récord de peso, vez anterior, sesiones del mes, y edición dentro de plazo que recalcula
-- [ ] **Phase 191: Panel del profesor** - Lista de alumnos con señales servidas sin buscarlas y ficha con planificado vs realizado
-- [ ] **Phase 192: Onboarding del tenant 2 (cierre del milestone)** - Un gimnasio real dado de alta con el wizard y operando en producción
-- [ ] **Phase 194: Invitaciones (fuera del milestone)** - Referidos → Invitaciones: 3 accesos gratis en prueba, cupo 2/mes, ventana 90 días, descuento por conversión con flag por plan, leads con origen Invitación
-- [ ] **Phase 197: Entrenar en tabs + canasta + bloque libre (fuera del milestone)** - Entrenar con 4 tabs (Semana · Libre · Desafíos · Conquer), canasta de bloques de su subnivel filtrada por figura tocable, bloque libre en el player con +5 AURA (primero del día que llega a 10')
-- [ ] **Phase 200: Anatomía funcional (fuera del milestone)** - Un solo modelo de contenido (archivos) músculo ↔ zona ↔ ruta ↔ rol que reemplaza a `muscle-zones.ts`, con la sección Anatomía del admin para profes, la Guía partida en dos (Empezá acá + Tu cuerpo) y el cuerpo tocable en Entrenar
-- [ ] **Phase 204: Usuarios Wellhub como tipo de usuario (fuera del milestone)** - Distinguir a quien usa Wellhub en admin, Horarios y métricas — visitantes nuevos, ex-alumnos y socios activos vinculados por email — y que sus reservas no toquen el plan del socio
-- [ ] **Phase 195: Web SEO local + AEO + atribución (fuera del milestone)** - eltemplo.org con datos reales desde `branches`, páginas por sede, schema correcto, medición GA4/Meta/Search Console, atribución propia + CAPI, y guía final de pasos en Meta y Google
+- [ ] **Phase 182: Plataforma — rol super-owner + wizard de alta de tenant** - Crear un gimnasio nuevo con aprovisionamiento completo en un flujo — **[en el tren]**
+- [ ] **Phase 183: Plataforma — panel de tenants** - Ver métricas por tenant y gobernar su estado (suspender/archivar) — **[en el tren]**
+- [ ] **Phase 184: Catálogo de ejercicios — modelo global/local + taxonomías** - Tablas nuevas, catálogo global de la plataforma y ejercicios propios por gimnasio, taxonomías cerradas validadas — **[en el tren]**
+- [ ] **Phase 185: Catálogo — ciclo de vida y buscador** - Copia local automática, promoción local→global, desactivación sin romper historial, búsqueda por nombre/alias/taxonomías — **[en el tren]**
+- [ ] **Phase 186: Carga inicial del catálogo** - 40-80 ejercicios publicados, generados con agentes y revisados por humano, con protocolo de migración — **[en el tren]**
+- [ ] **Phase 187: Plantillas de rutina** - Plantillas globales y del gimnasio, estructura día→ejercicio con superseries/circuitos, creación desde cero por el profe — **[en el tren]**
+- [ ] **Phase 188: Asignación de rutinas al alumno** - Clonar y asignar como copia inmutable, una activa por vez, historial, modificaciones fechadas, autogestión configurable — **[en el tren]**
+- [ ] **Phase 188.1: Chasis de Kaia y pantalla Mi rutina (INSERTED)** - Nace la quinta app del monorepo (Kaia, DIS-02) con su chasis de plataforma, y el alumno ve su rutina consumiendo el contrato de la fase 188 sin cambios de API — **[en el tren]**
+- [ ] **Phase 189: Ejecución y registro de la sesión** - El corazón: fricción mínima, estados de sesión, registro por serie de lo efectivamente realizado — **[en el tren]**
+- [ ] **Phase 190: Valoración, evolución y edición con recálculo** - Fácil/Adecuado/Difícil + molestia, récord de peso, vez anterior, sesiones del mes, y edición dentro de plazo que recalcula — **[en el tren]**
+- [ ] **Phase 191: Panel del profesor** - Lista de alumnos con señales servidas sin buscarlas y ficha con planificado vs realizado — **[en el tren]**
+- [ ] **Phase 192: Onboarding del tenant 2 (cierre del milestone)** - Un gimnasio real dado de alta con el wizard y operando en producción — **[en el tren, UAT 192-13 en curso]**
+- [ ] **Phase 192.1: Asistencia (check-in) para gimnasios** (INSERTED) — código 11/11 ejecutado 2026-09-27, 🔴 UAT `192.1-UAT.md` pendiente - El alumno marca su llegada escaneando el QR de la sede desde Kaia; el gimnasio ve quién vino. Antes del push a staging (192-14) — **[en el tren]**
+- [ ] **Phase 192.2: Clases con horario para gimnasios** (INSERTED) — 19/19 planes ejecutados, UAT pendiente (`192.2-UAT.md`) — módulo `clases` elegible al crear el gimnasio + reservas desde Kaia + menú del gimnasio cliente ordenado. Antes del push a staging (192-14) — **[en el tren]**
+- [ ] **Phase 192.3: Workout Engine** (INSERTED) — origen del dato, cumplimiento, precarga, métricas del alumno y feedback de rutina (revisión `.docs/saas-mejoras.md`). Antes del primer gimnasio real — **[rama `feat/192.3-workout-engine`, por integrar al tren]**
+- [x] **Phase 193: Comunicaciones (fuera del milestone)** - Una sección única "Comunicaciones" en el admin desde la que el staff gobierna todo lo que El Templo le dice al socio y al profe: notificaciones push con **destino** elegido de una lista (sección de la app o WhatsApp de ventas con texto), **avisos pop-up** en la app con vigencia, frecuencia por socio… — **[EN MASTER]**
+- [x] **Phase 194: Invitaciones (fuera del milestone)** - Referidos → Invitaciones: 3 accesos gratis en prueba, cupo 2/mes, ventana 90 días, descuento por conversión con flag por plan, leads con origen Invitación — **[EN MASTER]**
+- [ ] **Phase 195: Web SEO local + AEO + atribución (fuera del milestone)** - eltemplo.org con datos reales desde `branches`, páginas por sede, schema correcto, medición GA4/Meta/Search Console, atribución propia + CAPI, y guía final de pasos en Meta y Google — **[EN STAGING (`68a9dd86f`), no en master]**
+- [ ] **Phase 196: Personalizados Online (fuera del milestone)** - Plan individual copiado de una plantilla y ajustado por alumno, solicitud con intake editable, cobro por suscripción online_coach, ficha con hitos, estados/banderas y tablero en el admin — **[ARCHIVADA, reemplazada por 201 (tag `archive/196-personalizados`)]**
+- [x] **Phase 197: Entrenar en tabs + canasta + bloque libre (fuera del milestone)** - Entrenar con 4 tabs (Semana · Libre · Desafíos · Conquer), canasta de bloques de su subnivel filtrada por figura tocable, bloque libre en el player con +5 AURA (primero del día que llega a 10') — **[EN MASTER (tabs/Libre/Desafíos ocultos por flag)]**
+- [ ] **Phase 198: AURA configurable por fuente (fuera del milestone)** - Apartado en Configuración general del admin para definir cuánta AURA da cada fuente (asistencia, bloque extra, rachas…) — **[EN ESPERA, sin planificar]**
+- [x] **Phase 199: Rediseño de Mi Templo + patrocinadores (fuera del milestone)** - Jerarquía nueva (card de hoy oscura con turno real, QR solo en la ventana del turno), contraste WCAG 100 %, fondo detrás en toda la app, y carrusel de patrocinadores de plataforma cargados desde Partners — **[EN MASTER]**
+- [x] **Phase 200: Anatomía funcional (fuera del milestone)** - Un solo modelo de contenido (archivos) músculo ↔ zona ↔ ruta ↔ rol que reemplaza a `muscle-zones.ts`, con la sección Anatomía del admin para profes, la Guía partida en dos (Empezá acá + Tu cuerpo) y el cuerpo tocable en Entrenar — **[EN MASTER]**
+- [x] **Phase 201: Conquer v2 de cero, simple (fuera del milestone)** - Modo Conquer simple según la síntesis de Nacho del 2026-10-21. El coach activa al alumno eligiendo nivel y días. El alumno carga un número por escalón y la app calcula objetivos y cuándo subir. El coach trabaja por excepción con alertas. — **[EN MASTER (tab oculta)]**
+- [x] **Phase 202: Conquer — tutoriales y correcciones con video (fuera del milestone)** - Pedidos del profe probando la 201 en staging. Tutoriales: un video por ejercicio y por combo que sube el coach y el alumno ve con "Ver cómo se hace". Correcciones: el alumno manda un video de 30 s como máximo, el coach responde con texto y/o video y puede borrar el del alumno… — **[EN MASTER]**
+- [ ] **Phase 203: Carga sin parpadeos (fuera del milestone)** - Las pantallas de la app no muestran contenido equivocado mientras llegan los datos: regla única de carga (esperar / reservar lugar / ocultar), pedidos en paralelo, sin pedidos repetidos al arranque y HTTP/2 en la API — **[PLANIFICADA, sin ejecutar (`feat/203-carga-sin-parpadeos`)]**
+- [x] **Phase 204: Usuarios Wellhub como tipo de usuario (fuera del milestone)** - Distinguir a quien usa Wellhub en admin, Horarios y métricas — visitantes nuevos, ex-alumnos y socios activos vinculados por email — y que sus reservas no toquen el plan del socio — **[EN MASTER]**
 
 ## Phase Details
 
@@ -244,6 +259,72 @@ Plans:
 **Plans**: TBD
 **UI hint**: yes
 
+### Phase 188.1: Chasis de Kaia y pantalla Mi rutina (INSERTED)
+
+**Estado (2026-10-28)**: Ejecutada 15/15 en el tren `feat/v6.1-gimnasio` (SIN PUSH). Pendiente: UAT, `workbox-build` y secrets `KAIA_*`.
+
+**Goal**: Nace la quinta app del monorepo (Kaia, DIS-02) con su chasis de plataforma, y el alumno ve su rutina consumiendo el contrato de la fase 188 sin cambios de API
+**Depends on**: Phase 188 (contrato `/api/members/gym/*`) y Phase 182 (dominio de plataforma, CORS)
+**Requirements**: RUT-07 (superficie del alumno: invitación / autoasignación), DIS-02 (materialización)
+**Success Criteria** (what must be TRUE):
+
+1. Existe la app Kaia como scaffold de Quasar (spa + pwa + capacitor) en el monorepo, sin clonar `el-templo-app`, con logger, token storage, Sentry y branding por tenant en runtime (DIS-02 (c)-(d), (i))
+2. Un alumno de un gimnasio entra por el subdominio de su gimnasio (H-3 / D-06) y ve "Mi rutina": rutina activa con días, ejercicios y marcas de modificación con fecha, o la invitación a hablar con un profe si no tiene ninguna
+3. Con autogestión prendida, el alumno elige una plantilla publicada de su gimnasio y se la autoasigna desde la app; con autogestión apagada la opción no existe
+4. El alumno consulta el historial de rutinas anteriores en solo lectura
+5. La 188.1 no toca `el-templo-app`; los gates de CI del monorepo siguen verdes con la app nueva incluida en el pipeline. **ENMENDADO por `188.1-CONTEXT.md` (usuario, 2026-09-10):** la 188.1 SÍ toca `el-templo-api`, acotado a DOS rutas nuevas (login scoped al tenant y branding público) más el contacto del gimnasio en `tenant_settings` — nada más
+
+**Plans**: 15 plans (10 olas; ejecución SECUENCIAL en el worktree compartido `et-182`)
+
+Plans:
+**Ola 1**
+
+- [x] 188.1-01-PLAN.md — API: extracción del emisor de tokens + `POST /api/members/auth/login` scoped al tenant
+- [x] 188.1-05-PLAN.md — Kaia: esqueleto de `kaia-app/`, toolchain, paleta sin hex y manifest PWA *(incluye checkpoint humano por `workbox-build`)*
+
+**Ola 2** *(bloqueada por la Ola 1)*
+
+- [x] 188.1-02-PLAN.md — API: `GET /api/public/tenant/branding` + namespace `contact.*` + excepción acotada del hook pre-login
+- [x] 188.1-06-PLAN.md — Kaia: infraestructura copiada (axios con `X-Tenant-Slug`, token storage, logger, Sentry, tz) + tests
+
+**Ola 3** *(bloqueada por la Ola 2)*
+
+- [x] 188.1-03-PLAN.md — API: contacto en el wizard de alta + `GET/PATCH /api/admin/gym/settings` con contacto y slug
+- [x] 188.1-07-PLAN.md — Kaia: proyecto nativo `org.eltemplo.kaia` (Android/iOS) + assets placeholder + `cap sync`
+- [x] 188.1-08-PLAN.md — Kaia: branding en runtime (`boot/tenant`, store de tenant, `setCssVar`, slug por hostname)
+
+**Ola 4** *(bloqueada por la Ola 3)*
+
+- [x] 188.1-04-PLAN.md — Admin: campos de contacto en el wizard + tarjeta de código de gimnasio y contacto en Ajustes
+- [x] 188.1-09-PLAN.md — Kaia: store de auth, boot de sesión y guard puro del router + rutas
+
+**Ola 5** *(bloqueada por la Ola 4)*
+
+- [x] 188.1-10-PLAN.md — Kaia: shell, picker de gimnasio, login, cambio de contraseña forzado y los 4 estados especiales
+
+**Ola 6** *(bloqueada por la Ola 5)*
+
+- [x] 188.1-11-PLAN.md — Kaia: pelotitas de día, cards de ejercicio, bloques de agrupación y `RoutineView`
+
+**Ola 7** *(bloqueada por la Ola 6)*
+
+- [x] 188.1-12-PLAN.md — Kaia: pantalla Mi rutina con banner descartable, chips, aviso de inicio futuro y empty state con WhatsApp
+
+**Ola 8** *(bloqueada por la Ola 7)*
+
+- [x] 188.1-13-PLAN.md — Kaia: autoasignación de plantillas, historial y detalle en solo lectura
+
+**Ola 9** *(bloqueada por la Ola 8)*
+
+- [x] 188.1-14-PLAN.md — CI/deploy de la quinta app, 4 workflows nativos, runbook del vhost y `CLAUDE.md` de 3 a 5 apps
+
+**Ola 10** *(bloqueada por la Ola 9)*
+
+- [ ] 188.1-15-PLAN.md — Verificación integral + `188.1-UAT.md` + checkpoint humano (no auto-aprobable)
+
+**UI hint**: yes
+**Nota**: insertada el 2026-09-07 al discutir la 188 — la 189/190/192 necesitan esta superficie y el roadmap no le había dado fase propia. Planificada el 2026-09-10 sobre `188.1-CONTEXT.md` (D-00..D-27), `188.1-DECISION-SCAFFOLD-HIBRIDO.md`, `188.1-PATTERNS.md` y `188.1-UI-SPEC.md`.
+
 ### Phase 189: Ejecución y registro de la sesión
 
 **Goal**: El alumno registra lo que realmente hizo con la menor fricción posible — el corazón del módulo
@@ -307,7 +388,182 @@ Plans:
 
 **Plans**: TBD
 
+### Phase 192.1: Asistencia (check-in) para gimnasios (INSERTED)
+
+**Estado (2026-10-28)**: Código 11/11 en el tren `feat/v6.1-gimnasio` (mig 0250, SIN PUSH). Pendiente: UAT `192.1-UAT.md`.
+
+**Goal**: Un gimnasio cliente registra la asistencia de sus alumnos: el alumno marca su llegada escaneando el QR de la sede desde Kaia (o el staff la marca por él) y el gimnasio ve quién vino, sin ningún efecto propio del Templo
+**Depends on**: Phase 188.1 (chasis de Kaia, login por tenant), Phase 191 (ficha de gimnasio del alumno) y 192-13-GAP (menú del admin por tenant)
+**Requirements**: CHK-01, CHK-02, CHK-03, CHK-04, CHK-05
+**Success Criteria** (what must be TRUE):
+
+1. Un alumno de un gimnasio cliente escanea el QR de su sede desde Kaia (web y nativo) y su llegada queda registrada una sola vez por día; el QR de otro gimnasio es rechazado
+2. Sin turno reservado; si no tiene plan vigente (o superó su tope) la llegada se registra igual, el alumno ve "acercate a recepción" y el staff la ve marcada
+3. El staff marca manualmente la llegada de un alumno desde el admin
+4. El dueño descarga desde el admin el QR de asistencia de cada sede, listo para imprimir
+5. Gimnasio → Asistencia muestra las llegadas del día por sede (buscador, alertas "sin plan vigente") y la ficha de gimnasio del alumno muestra su historial de asistencias
+6. Una llegada en un gimnasio cliente no genera Aura, sesiones SPOM ni ningún efecto del Templo; El Templo sigue exactamente igual
+
+**Plans**: 11 plans (worktree propio `et-192-1-asistencia`, rama `feat/192.1-asistencia-gimnasios` desde `feat/v6.1-gimnasio`; se integra antes de 192-14). Ejecución secuencial, una ola por plan. Migración única 0250.
+
+Plans:
+
+- [x] 192.1-01-PLAN.md — API: migración 0250 sobre `attendance` + lecturas con estado de plan + gates de Aura/SPOM por módulo (D-09) + regresión del Templo
+- [x] 192.1-02-PLAN.md — API: rama gimnasio del check-in sin turno (una por día en tz de la sede, avisos D-04, idempotente, QR de otro gimnasio)
+- [x] 192.1-03-PLAN.md — API: 4 rutas del módulo Gimnasio (lista del día, marcado manual, token del QR, "hoy" del alumno) + manifiesto
+- [x] 192.1-04-PLAN.md — API: batería ISO-03 (49 → 53) + verificador HTTP de aislamiento + lint de tenant
+- [x] 192.1-05-PLAN.md — Kaia: capa de datos de asistencia (API, store, mapeo de estados, regla D-05) + tests
+- [x] 192.1-06-PLAN.md — Kaia: FAB + pantalla de escaneo + ruta gateada + permisos de cámara nativos
+- [x] 192.1-07-PLAN.md — Kaia: indicador "Llegada registrada hoy" + sugerencia D-05 en Mi rutina
+- [x] 192.1-08-PLAN.md — Admin: tipos, API, formato, chip de alerta y fila de llegada
+- [x] 192.1-09-PLAN.md — Admin: pantalla Asistencia + marcado manual + descarga del QR de sede + nav/ruta
+- [x] 192.1-10-PLAN.md — Admin: tab Asistencias en la ficha de gimnasio del alumno
+- [x] 192.1-11-PLAN.md — Cierre: guion de UAT (`192.1-UAT.md`) + verificación integral de gates
+
+**Nota**: insertada el 2026-09-27 durante el UAT 192-13 — Franco decidió que el gimnasio real arranque con asistencia desde el día 1. Discuss en `192.1-CONTEXT.md`.
+
+### Phase 192.2: Clases con horario para gimnasios (INSERTED)
+
+**Estado (2026-10-28)**: 19/19 planes ejecutados, ff al tren `3deb49a24` (migs 0251/0252, SIN PUSH). Pendiente: UAT `192.2-UAT.md`.
+
+**Goal**: Al crear un gimnasio se elige si da clases con horario (módulo `clases`); si las da, sus alumnos ven la grilla y reservan desde Kaia, y el menú del admin de un gimnasio cliente queda ordenado según lo que realmente usa
+**Depends on**: Phase 192.1 (asistencia con QR), 192-13-GAP (menú del admin por tenant)
+**Requirements**: CLA-01, CLA-02, CLA-03, CLA-04, CLA-05, CLA-06, CLA-07, CLA-08
+**Success Criteria** (what must be TRUE):
+
+1. Al crear un gimnasio en el wizard se elige si da clases; se puede cambiar después desde plataforma; si da clases, la sede física es obligatoria
+2. Un gimnasio sin clases no ve Horarios (menú oculto, API 404); uno con clases arma su grilla en el admin
+3. El alumno de un gimnasio con clases ve la grilla de su sede en Kaia, reserva, cancela, entra en lista de espera y ve sus reservas, con las reglas de anticipación/cancelación que configuró el dueño
+4. El QR marca la clase reservada (±20 min) sin doble descuento; sin reserva cuenta como llegada libre
+5. El menú del admin de un gimnasio cliente queda ordenado (Mi jornada, Seguimiento, Asistencia en Gestión, Planes sin sección duplicada) y el del Templo queda idéntico
+6. Un gimnasio no ve datos ni superficies del Templo en horarios/reservas; El Templo sigue exactamente igual (reservas, cancelación, check-in con reserva, no-show)
+7. Un gimnasio híbrido muestra sus horarios libres (actividades "sin reserva") en la grilla de Kaia como información, sin poder reservarlos; la llegada con QR en ese horario cuenta como llegada libre
+**Plans:** 19/19 plans ejecutados (secuenciales, worktree compartido) — UAT pendiente
+
+Plans:
+- [x] 192.2-01-PLAN.md — módulo `clases` + migración 0251 (ON para El Templo) + base de dev `eltemplo_192_2`
+- [x] 192.2-02-PLAN.md — gate de horarios/reservas por `clases` + inventario de consumidores + manifiesto/ISO
+- [x] 192.2-03-PLAN.md — fuga de etiqueta derivada cerrada (sessions por tenant) + sin push del Templo para gimnasios
+- [x] 192.2-04-PLAN.md — reglas de reserva por gimnasio (anticipación / límite de cancelación) en el core
+- [x] 192.2-05-PLAN.md — horarios libres: `activities.requires_booking` (migración 0252) + rechazo de reservas
+- [x] 192.2-06-PLAN.md — QR/marcado manual marcan la clase reservada sin doble descuento
+- [x] 192.2-07-PLAN.md — no-show sin doble descuento + semana en tz de sede + clase en lecturas de asistencia
+- [x] 192.2-08-PLAN.md — alta de gimnasio con `clases` (sede física obligatoria)
+- [x] 192.2-09-PLAN.md — interruptor de `clases` en plataforma (impacto + cancelación de reservas futuras)
+- [x] 192.2-10-PLAN.md — admin: menú ordenado del gimnasio cliente + Horarios gateado
+- [x] 192.2-11-PLAN.md — admin: Horarios sin superficies del Templo + estado vacío
+- [x] 192.2-12-PLAN.md — admin: horarios libres + sin turno fijo sin clases
+- [x] 192.2-13-PLAN.md — admin: card "Reservas de clases" + chip de clase en Asistencia
+- [x] 192.2-14-PLAN.md — admin plataforma: wizard "¿Da clases?" + interruptor con diálogo
+- [x] 192.2-15-PLAN.md — Kaia: capa de datos de Clases (tipos, utilidades, API, store)
+- [x] 192.2-16-PLAN.md — Kaia: pestaña Clases (Horarios, reservar, lista de espera)
+- [x] 192.2-17-PLAN.md — Kaia: Mis reservas + cancelar / salir de la lista
+- [x] 192.2-18-PLAN.md — Kaia: escaneo con clase marcada
+- [x] 192.2-19-PLAN.md — verificación integral + 192.2-UAT.md
+
+### Phase 192.3: Workout Engine — origen del dato, cumplimiento, precarga, métricas y feedback de rutina (INSERTED)
+
+**Estado (2026-10-28)**: Ejecutada 19/19 en `feat/192.3-workout-engine` (`6bbf7bcd2`), NO integrada al tren: falta integrar (renumerar la migración 0253) y UAT.
+
+**Goal**: Pulir el corazón de Kaia con las decisiones de la revisión `.docs/saas-mejoras.md` (2026-09-30): cada serie sabe si fue tipeada o confirmada, la sesión dice si se cumplió lo prescripto, la precarga usa la última vez cuando el profe no cargó peso, el alumno ve racha/cumplimiento/progresión y el profe recibe si al alumno le gusta la rutina
+**Depends on**: Phase 189 (sesión y series), 190 (valoración/evolución), 191 (panel del profesor)
+**Requirements**: WKE-01, WKE-02, WKE-03, WKE-04, WKE-05, WKE-06
+**Success Criteria** (what must be TRUE):
+
+1. Cada serie guarda su origen (`registrado` o `confirmado`); los récords cuentan ambos y el dato queda disponible para rankings futuros
+2. Al terminar, si quedan ejercicios sin nada cargado, Kaia pregunta una sola vez "¿Hiciste el resto como estaba?"; Sí completa esas series como `confirmado`
+3. Cada sesión cerrada tiene cumplimiento calculado (completa / con cambios / incompleta), visible en el resumen del alumno y en el panel del profe
+4. La precarga de peso usa el del profe si existe; si no, la última vez del alumno en ese ejercicio
+5. El alumno ve su racha semanal, su cumplimiento del mes y un gráfico de progresión por ejercicio
+6. En la 4ª sesión con una rutina y al terminarla, Kaia pregunta "¿Te está gustando esta rutina?" y la respuesta llega al profe como señal
+7. El Templo no cambia en nada; todo gateado por el módulo gimnasio y aislado por tenant
+
+**Plans:** 0 plans
+
+Plans:
+
+- [x] 19 planes ejecutados en la rama `feat/192.3-workout-engine` (detalle en sus SUMMARY); por integrar al tren
+
+### Phase 193: Comunicaciones (FUERA de v6.1 — se crea y shippea sola)
+
+**Estado (2026-10-28)**: EN MASTER/PROD (fase fuera de v6.1, shippeó sola; app 1.8.0). 16/17 planes: 193-17 con tasks 1-2 hechas (bump + verificación) y el UAT humano final pendiente.
+
+**Goal**: Una sección única "Comunicaciones" en el admin desde la que el staff gobierna todo lo que El Templo le dice al socio y al profe: notificaciones push con **destino** elegido de una lista (sección de la app o WhatsApp de ventas con texto), **avisos pop-up** en la app con vigencia, frecuencia por socio, alcance y métricas (y la calificación de clase baja a una vez por semana para dejarles lugar), **tarjetas de Mi Templo** con contenido editable, y **avisos en TV** que el profe activa desde el control o que reemplazan la flexibilidad inicial/final.
+**Depends on**: ninguna fase de v6.1. Rama `feat/193-comunicaciones` desde `origin/master` fresco, staging-first, sin esperar al tren 182-186.
+**Requirements**: COM-01, COM-02, COM-03, COM-04
+**Success Criteria** (what must be TRUE):
+
+1. En Notificaciones push (plantillas y envío a segmento) el campo de texto libre "Ruta de destino" desaparece: se elige de una lista curada de secciones de la app o "WhatsApp de ventas" con mensaje editable, y la app resuelve el número AR/ES por sede del socio al tocar la push
+2. El staff crea un aviso pop-up (título, mensaje, botón, destino, vigencia, frecuencia por socio, alcance por sede/país/segmento) y el socio lo ve en la app respetando "un solo pop-up automático por apertura", con contadores de mostrado/cerrado/clic visibles en el admin
+3. La calificación de clase se pide como máximo una vez por semana por socio (regla server-side), y el resto de los días toca el aviso vigente
+4. Las tarjetas fijas de Mi Templo (mejoras, referidos, upsell, programa) se editan desde el admin sin deploy, y el staff puede crear tarjetas nuevas con destino que aparecen en el carrusel
+5. Un aviso de TV activo aparece como botón nuevo en la tira de bloques del control del profe y, según su modo, reemplaza la pantalla de flexibilidad inicial o final por la sede elegida
+6. Versiones viejas de la app no rompen al recibir una push con destino WhatsApp (fallback a Mi Templo)
+
+**Reglas duras de la fase:**
+
+- **Migraciones: numera desde 0216** (tope de prod = 0215). Al pushear el tren v6.1 (182-186, hoy sin push) se renumeran sus 0216/0217 locales después del tope que deje la 193. Sin `;` en comentarios SQL.
+- Toca las 3 apps: api (modelo de avisos + destino + regla semanal de rating + estado TV), admin (sección Comunicaciones + control/pantalla TV), app (ruta interna `/contacto-ventas`, pop-up genérico, tarjeta editable) → **bump minor de la app + builds de tiendas**.
+- Reusa lo existente, no duplica: `notification_templates.route`, `buildWhatsAppUrl` (AR/ES por país), los 4 diálogos globales de `MainLayout.vue`, `tv_class_state` + poll de 750 ms, velos crema/charcoal de transición.
+- Ruta nueva → manifiesto de rutas fail-closed + gates de tenancy (`tenantWhere`), como toda ruta desde v6.0.
+
+**Plans**: 17 planes en 11 waves (planificado 2026-09-02). Ejecución SECUENCIAL con `gsd-executor` sonnet en el worktree `~/projects/et-193`. Migraciones: 0216 (tablas), 0217 (seed de avisos de sistema), 0218 (destino en push).
+
+Plans:
+
+**Wave 1**
+
+- [x] 193-01-PLAN.md — Destinos curados (API + espejos admin/app) y número de ventas en `tenant_settings` (wave 1)
+
+**Wave 2** _(blocked on Wave 1 completion)_
+
+- [x] 193-02-PLAN.md — Schema `avisos`/`aviso_events`/`tv_avisos` + migración 0216 + registros de tenancy (wave 2)
+
+**Wave 3** _(blocked on Wave 2 completion)_
+
+- [x] 193-03-PLAN.md — Avisos de sistema: catálogo, seed reutilizable y migración de datos 0217 (wave 3)
+
+**Wave 4** _(blocked on Wave 3 completion)_
+
+- [x] 193-04-PLAN.md — API de avisos: service, rutas admin, métricas, ver socios, manifiesto e ISO (wave 4)
+
+**Wave 5** _(blocked on Wave 4 completion)_
+
+- [x] 193-05-PLAN.md — Endpoint único "qué pop-up toca hoy", eventos por socio, tarjetas y config (wave 5)
+
+**Wave 6** _(blocked on Wave 5 completion)_
+
+- [x] 193-06-PLAN.md — Push con destino común: migración 0218, validación y payload FCM compatible (wave 6)
+- [x] 193-07-PLAN.md — API de avisos de TV, gateada por `templo-training` (wave 6)
+
+**Wave 7** _(blocked on Wave 6 completion)_
+
+- [x] 193-08-PLAN.md — Admin: sección Comunicaciones (menú, ruta, redirect) + pestaña Push con selector (wave 7)
+- [x] 193-09-PLAN.md — App: `/contacto-ventas`, tap de push con destino y número del servidor (wave 7)
+- [x] 193-10-PLAN.md — TV: `screen: 'aviso'` en el estado + botón AVISO en el control (wave 7)
+
+**Wave 8** _(blocked on Wave 7 completion)_
+
+- [x] 193-11-PLAN.md — Admin: pestaña Avisos en la app (editor, preview, métricas, ver socios) (wave 8)
+- [x] 193-12-PLAN.md — App: un solo pop-up por apertura desde el endpoint único (wave 8)
+- [x] 193-13-PLAN.md — TV: render de la placa + modo reemplazo de flexibilidad (wave 8)
+
+**Wave 9** _(blocked on Wave 8 completion)_
+
+- [x] 193-14-PLAN.md — Admin: pestaña Tarjetas de Mi Templo + Ajustes (número de ventas) (wave 9)
+- [x] 193-15-PLAN.md — App: carrusel con copy del servidor + tarjetas libres (wave 9)
+
+**Wave 10** _(blocked on Wave 9 completion)_
+
+- [x] 193-16-PLAN.md — Admin: pestaña Avisos en TV (CRUD + preview de placa) (wave 10)
+
+**Wave 11** _(blocked on Wave 10 completion)_
+
+- [ ] 193-17-PLAN.md — Bump minor de la app (1.8.0) + UAT humano final (wave 11, checkpoint) — **tasks 1-2 hechas (bump 1.8.0 + verificación), task 3 = UAT humano PENDIENTE**
+
 ### Phase 194: Invitaciones (fuera del milestone v6.1)
+
+**Estado (2026-10-28)**: EN MASTER/PROD (2026-10-07, migs 0255-0259, app 1.8.2) + fixes de UX 2026-10-13. Los checkboxes de planes de abajo no se mantuvieron al día: ver los SUMMARY de `.planning/phases/194-invitaciones/`. Pendiente: UAT AR+ES.
 
 **Goal**: El socio invita a alguien a entrenar; el invitado activa, queda en prueba con 3 accesos gratis en 10 días hábiles, entra al pipeline de leads, y si compra se activa el descuento por invitación con reglas anti-abuso
 **Depends on**: Fases 157/158/173 (núcleo de referidos, ya en producción)
@@ -356,7 +612,77 @@ Plans:
 - [ ] 194-29-PLAN.md — Pre-flight de release: numeración, gates y builds de los 3 paquetes, checklist
 - [ ] 194-30-PLAN.md — Checkpoints humanos: feriados ES (D-29), backup + validación, UAT AR+ES, SEPA con Leandro
 
+### Phase 195: Web SEO local + AEO + atribución (fuera del milestone v6.1)
+
+**Estado (2026-10-28)**: 14/14 planes ejecutados, `human_needed`. EN STAGING (`68a9dd86f`), NO en master. Pendiente: OK de push "solo web" a master y pasos manuales de Google/Meta (193-14 guía final).
+
+**Goal**: Que eltemplo.org traiga alumnos nuevos: datos de sedes siempre correctos (fuente única `branches`), páginas por sede/disciplina/profes indexables y citables por buscadores e IA, medición real (GA4, Pixel, Search Console, Bing) y atribución de punta a punta (de dónde vino cada alumno → pagó), automatizando todo lo posible del lado de Meta y Google
+**Depends on**: nada bloqueante (web Nuxt 4 SSG en producción). Migración de `branches` se numera al momento de ejecutar (194 usa 0255+).
+**Requirements**: decisiones D-01..D-23 en `.planning/phases/195-web-seo-local-aeo-atribucion/195-CONTEXT.md`; investigación y decisiones textuales en `.planning/phases/195-web-seo-local-aeo-atribucion/195-RESEARCH-SEO-AEO.md` (fuente: `.planning/research/seo-aeo-2026-10-05.md`). Todo en UNA fase (Franco 2026-10-06), incluido el fix urgente de la dirección Juan B. Justo 1018.
+**Success Criteria** (what must be TRUE):
+
+1. Ninguna dirección, sede o conteo publicado en la web contradice la tabla `branches` (JBJ 1018, sin Chapadmalal, Park como espacio de comunidad); la web se regenera con un botón "solo web" en GitHub
+2. Cada sede tiene su página con `ExerciseGym` (`@id`, geo, horarios reales, `parentOrganization`) y la home tiene un `Organization` raíz único; Barcelona vive en `/es/` con hreflang recíproco
+3. URLs inexistentes devuelven 404 real, los redirects son 301/302 reales y staging/app/admin no son indexables
+4. GA4, Meta Pixel, Search Console y Bing reciben datos de producción; robots.txt permite explícitamente los bots de búsqueda IA y llms.txt se genera desde los datos de sedes
+5. Cada alta guarda su origen (utm/promo/referrer, incluido tráfico de IA) y Reportes muestra registros → prueba → pago → facturación por campaña y sede; los eventos de conversión llegan a Meta por CAPI (con consentimiento donde aplique)
+6. Existe una guía final paso a paso de lo que Franco/equipo hace en Meta y Google, reducida al mínimo por la automatización
+
+**Plans:** 14 plans (ejecución secuencial, una wave por plan; reglas comunes en `195-EXECUTION-RULES.md`)
+
+Plans:
+
+- [x] 195-01-PLAN.md — Datos de sedes primero: migs 0270/0271 (columnas web + JBJ 1018, Park comunidad, sin Chapadmalal, WhatsApp por país) + parche de la web estática
+- [x] 195-02-PLAN.md — Endpoint público GET /api/web/site-data (sedes, horarios regulares fusionados, marca, WhatsApp) + ISO-01
+- [x] 195-03-PLAN.md — Pipeline de build web (prebuild desde la API, fixture, robots IA, llms.txt generado, sitemap sin catch, verificador SEO en CI, WhatsApp desde datos)
+- [x] 195-04-PLAN.md — Grafo JSON-LD propio (Organization + ExerciseGym por sede) + hub /sedes + páginas por sede AR/ES
+- [x] 195-05-PLAN.md — Disciplinas (incl. Aura/Yoga), profes Person (archivo de datos), primera clase gratis, planes sin precios, blog técnico
+- [x] 195-06-PLAN.md — /es Barcelona + hreflang + banner RGPD con Consent Mode v2 + captura first-touch + Smart App Banner
+- [x] 195-07-PLAN.md — Atribución propia: mig 0272 signup_attributions, clasificador de canal con IA, ganchos en register/alta de prueba, admin y app
+- [x] 195-08-PLAN.md — Meta: mig 0273, CAPI como outbox (sin ES ni iOS), gasto diario de campañas, /privacidad reescrita
+- [x] 195-09-PLAN.md — Google: mig 0274, job Search Console (JWT propio), sync de Google Business Profile detrás de flag, scripts locales
+- [x] 195-10-PLAN.md — Reportes › Origen de altas: embudo por canal/campaña/sede/moneda, costo por alumno pago, IA y Search Console
+- [x] 195-11-PLAN.md — CI/CD: botón solo-web, backup/rollback por proyecto, deploy tolerante a falla web, secrets de medición, rollout en 2 pasos
+- [x] 195-12-PLAN.md — App: .well-known al artifact, validador, reseña in-app (plugin aprobado por Franco); bump de versión descartado por Franco
+- [x] 195-13-PLAN.md — nginx — DESCARTADO por Franco (2026-10-07): sin cambios en el servidor; noindex movido al código
+- [x] 195-14-PLAN.md — Guía final para Franco (Meta, Google, bloque C, ASO) + generador de datos exactos de sedes + planilla de prompts IA
+
+### Phase 196: Personalizados Online (fuera del milestone v6.1)
+
+**Estado (2026-10-28)**: ARCHIVADA, reemplazada por la 201 (Conquer v2 de cero). Rama guardada como cantera: tag `archive/196-personalizados`. No se ejecuta; texto conservado como referencia (Personalizados Online + Conquer v1).
+
+**Goal**: Un usuario de la app pide "Entrená con Nacho" con un intake; el staff cobra, arma su plan copiando la plantilla sugerida y lo ajusta a mano; el alumno ve y entrena "Tu plan con Nacho" (solo él), y el admin sigue cada personalizado con hitos, estados y banderas
+**Depends on**: Programas/goal plans y editor de sesiones (en producción), fase 193 (aviso `card_program`)
+**Requirements**: brief `.planning/phases/196-personalizados-online/196-BRIEF-PERSONALIZADOS.md`; decisiones D-01..D-27 + addendum D-28..D-36 en `196-CONTEXT.md` (todas locked); criterios de éxito 1-5 (abajo)
+**Success Criteria** (what must be TRUE):
+
+1. Desde la tarjeta de Mi Templo, un socio presencial o El Templo Online completa el intake (preguntas editables desde el admin sin deploy) y ve el estado de su solicitud
+2. El staff marca el pago (suscripción `online_coach`, cobro en caja), arma el plan desde la plantilla sugerida (copia independiente) y lo edita con el editor de sesiones; editar la plantilla no toca planes entregados y viceversa
+3. "Entregar plan" arranca el ciclo ese día; el alumno ve solo su plan, con semanas relativas a la entrega, progreso y videos; un plan privado no aparece en ningún catálogo ni bundle
+4. El tablero muestra estados derivados (§4.4) y banderas (demorado, en riesgo, contacto pendiente, lesión) calculados con parámetros configurables; la ficha registra hitos y ciclos y nunca borra historial
+5. Los permisos respetan la matriz: owner/admin todo, gestión/recepción estado+pago, coach solo sus personalizados sin pagos
+
+**Plans**: 13 plans (ejecución secuencial en un solo worktree `et-196-personalizados`; ola = número de plan). Reglas del ejecutor en `196-EXECUTOR-RULES.md`. Migraciones 0262-0264.
+
+Plans:
+
+- [ ] 196-01-PLAN.md — Esquema (0262), seeds de intake (0263) y planes online_coach inactivos (0264), gates de tenancy, fábricas de test
+- [ ] 196-02-PLAN.md — Privacidad del programa privado (D-02, helper único + 14 puntos de exposición) + parseDayId con PZ
+- [ ] 196-03-PLAN.md — Suscripción online_coach: D-08, descuentos excluidos (D-29), cobro con chargeDate y sub scheduled, enrollment atado a la cadena de subs
+- [ ] 196-04-PLAN.md — Clonado del plan personal desde la plantilla (semanas relativas, extensión, días y semanas)
+- [ ] 196-05-PLAN.md — Resolución para el alumno (/weekly, /daily, IDOR de /sessions/:id, progreso y "Tu plan con {responsable}")
+- [ ] 196-06-PLAN.md — Aislamiento de filas PZ en la plani compartida + gate del editor por dueño del plan + sets de permisos
+- [ ] 196-07-PLAN.md — Parámetros, motor puro de estados/banderas, tablero/ficha por rol e hitos
+- [ ] 196-08-PLAN.md — Responsables, ABM del intake y endpoints del socio (snapshot, sugerencia, lesión, dedupe)
+- [ ] 196-09-PLAN.md — Acciones: marcar pago (crédito del Online), descartar, armar, entregar, estructura, extensión al renovar
+- [ ] 196-10-PLAN.md — Admin: página Personalizados (tablero) + ficha + diálogos de acción
+- [ ] 196-11-PLAN.md — Admin: editor del plan (SessionEditPage modo PZ + semanas/días), configuración, ajustes en Planes/venta/programas
+- [ ] 196-12-PLAN.md — App: AppSectionKey `personalizado`, flujo intake → confirmación, tarjeta con estados, "Tu plan con {responsable}"
+- [ ] 196-13-PLAN.md — E2E de la fase, pre-flight, guía de UAT + checklist de deploy, checkpoint humano
+
 ### Phase 197: Entrenar en tabs + canasta de bloques + bloque libre (fuera del milestone v6.1)
+
+**Estado (2026-10-28)**: EN MASTER/PROD (`9964701ba`, 2026-10-21, migs 0285/0286). Tabs, Libre y Desafíos OCULTOS por flag: en prod solo se ve Semana. Pendiente: 197-23 (UAT guiado en teléfono).
 
 **Goal**: Entrenar se ordena en 4 tabs y el socio puede elegir y hacer un bloque de trabajo suelto de las planis aprobadas de su subnivel, buscándolo por zona del cuerpo, en el player, sumando 5 AURA con el primer bloque del día que llega a 10 minutos
 **Depends on**: intro TV "recorrido" en master (`tv/muscle-zones.ts`, `25f941f4d`). Independiente de la 196 (D-01: Conquer queda "Próximamente")
@@ -398,7 +724,73 @@ Plans:
 - [x] 197-22-PLAN.md — Verificación visual medida (capturas 360/390/412, contraste, viewport, desborde) — checkpoint de build
 - [ ] 197-23-PLAN.md — UAT guiado de Franco en staging (checkpoint)
 
+### Phase 198: AURA configurable por fuente (fuera del milestone v6.1)
+
+**Estado (2026-10-28)**: EN ESPERA, sin planificar (falta discuss-phase y `198-CONTEXT.md`).
+
+**Goal**: El owner define desde el admin cuánta AURA da cada fuente, sin deploy
+**Depends on**: Phase 197 (fuente nueva "bloque extra")
+**Requirements**: pedido de Franco 2026-10-13 ("tenemos mucho que progresar"); hoy `aura_config` es una tabla global sin tenant y sin UI (`settings/routes.ts` ~287). A formalizar en `198-CONTEXT.md` con discuss-phase (incluye decidir si pasa a ser por gimnasio)
+**Success Criteria** (what must be TRUE):
+
+1. En Configuración general hay un apartado AURA que lista cada fuente (asistencia, sesión completa, bloque extra, rachas, etc.) con su valor actual
+2. El owner cambia un valor y las nuevas acreditaciones usan el valor nuevo; lo ya acreditado no cambia
+3. Los cambios quedan auditados (quién, cuándo, valor anterior y nuevo) y solo roles autorizados pueden editarlos
+
+**Plans**: TBD (discuss-phase pendiente)
+
+### Phase 199: Rediseño de Mi Templo + patrocinadores (FUERA de v6.1 — se shippea con Novedades)
+
+**Estado (2026-10-28)**: EN MASTER/PROD (`e2520b47a`, 2026-10-16, migs 0275+0279, app 1.8.3). Planes 01-20 ejecutados; el 21 es el checkpoint de UAT (`199-UAT.md`, `status: partial`). La carpeta tiene 31 PLAN: del 22 en adelante se agregaron durante la ejecución/UAT.
+
+**Goal**: Mi Templo deja de apilar ~12 cards con el mismo peso: en 3 segundos el socio sabe qué le toca hoy y tiene a un toque la acción de este momento. Todos los textos pasan contraste WCAG 2.2 sobre el fondo real, la foto de fondo deja de velar las cards en toda la app, y se suma un carrusel de patrocinadores (de la plataforma) que se carga desde el admin de Partners.
+**Depends on**: Novedades (`feat/novedades-mi-templo`, en staging, sin master). Rama `feat/199-mi-templo-rediseno` desde `feat/novedades-mi-templo` (`de257ec70`), worktree `~/projects/et-199-mi-templo`. Sube a staging junto con Novedades y van juntas a master.
+**Requirements**: D-01..D-26 (decisiones de `199-CONTEXT.md`)
+**Success Criteria** (what must be TRUE):
+
+1. 100 % de los textos de Mi Templo pasan WCAG 2.2 (4.5:1 texto, 3:1 grande/UI) medidos sobre el fondo real, en las 7 variantes de captura
+2. La card de hoy entra en el primer viewport de 390×844 en todas las variantes; sin overflow horizontal a 360/390/412
+3. El botón QR flotante solo aparece en la ventana ±20 min del turno reservado (misma ventana que el server), extendido con "Marcar asistencia", y desaparece al marcar
+4. La card de hoy muestra la ruta del día y el turno real del socio (o "Reservá"); sin plan muestra "Arrancá tu plan" o "Renová tu plan" según si tuvo plan antes
+5. La foto de fondo se pinta detrás de las cards en toda la app (capturas antes/después de Mi Templo, Entrenar, Reservas, Planes, Guía y Perfil)
+6. El staff de El Templo crea, ordena, activa y programa patrocinadores desde Partners con vista previa; el socio los ve en Mi Templo filtrados por país, abre el detalle y canjea con código o carnet (canje solo con plan activo); vistas/taps/canjes medidos por marca
+7. vue-tsc sin errores nuevos (baseline app 18 / admin 21), API tsc 0, lint:tenant limpio, tests nuevos de integración verdes en CI
+
+**Reglas duras de la fase:**
+
+- **Sin bump de versión** (Novedades ya trae 1.8.3).
+- **Migraciones desde 0279** (la 196, sin pushear, llega a 0278; la que shippee segunda renumera). Sin `;` en comentarios SQL.
+- Tabla de patrocinadores = **de plataforma** (no gym-owned); tabla de métricas = gym-owned (5 conteos de tenancy). Rutas nuevas → 3 gates de tenancy.
+- `@fontsource/nunito-sans` aprobada por Franco (única dependencia nueva).
+- Tests locales: NO correr vitest local (CI); typecheck y lint sí, tras cada plan.
+
+**Plans**: 21 plans, secuenciales (worktree compartido, una wave por plan)
+
+- [x] 199-01-PLAN.md — DB: migración 0279 + schema sponsor_brands (plataforma) / sponsor_views (gym-owned) + gates de tenancy 103/5/108 (wave 1)
+- [x] 199-02-PLAN.md — API: contratos (guard solo El Templo, contraste WCAG, límite en system_settings) + SponsorsService (wave 2)
+- [x] 199-03-PLAN.md — API: rutas admin/socio de patrocinadores + logo en R2 + manifiesto (463 -> 472) (wave 3)
+- [x] 199-04-PLAN.md — API: tests de integración de patrocinadores (roles, límite, canje con plan, eventos, aislamiento) (wave 4)
+- [x] 199-05-PLAN.md — API: GET /me/plan-status (nunca tuvo vs venció) + test + ISO-03 (71 -> 72) + manifiesto (473) (wave 5)
+- [x] 199-06-PLAN.md — API: my-bookings con sede/zona/asistencia + branchTimezone en /auth/me + tests (wave 6)
+- [x] 199-07-PLAN.md — API+App: avisos pop-up como primera novedad (una sola fuente, D-13) (wave 7)
+- [x] 199-08-PLAN.md — Admin: cliente de patrocinadores, contraste y subida de imagen genérica (wave 8)
+- [x] 199-09-PLAN.md — Admin: editor de patrocinadores con contraste en vivo y vista previa de card y hoja (wave 9)
+- [x] 199-10-PLAN.md — Admin: pestaña Patrocinadores en Partners (orden, límite, métricas) + atajo desde el partner (wave 10)
+- [x] 199-11-PLAN.md — App: Nunito Sans + Cinzel, foto de fondo detrás en toda la app, saludo/tab bar sólidos (wave 11)
+- [x] 199-12-PLAN.md — App: turno de hoy (store) + FAB QR solo en la ventana ±20 min, extendido (wave 12)
+- [x] 199-13-PLAN.md — App: frases activas del TV + frase del día clara palabra por palabra (wave 13)
+- [x] 199-14-PLAN.md — App: lógica pura de la card de hoy por gate + estado de plan (wave 14)
+- [x] 199-15-PLAN.md — App: TodayCard A' cableada en Mi Templo con zona de la sede (wave 15)
+- [x] 199-16-PLAN.md — App: registro del día compacto + Tu semana sin RPE + evaluación con gate (wave 16)
+- [x] 199-17-PLAN.md — App: Para vos claro sin dots + Proponer una mejora en Perfil (wave 17)
+- [x] 199-18-PLAN.md — App: store y carrusel de patrocinadores (wave 18)
+- [x] 199-19-PLAN.md — App: hoja de beneficio + carnet en vivo (canje solo con plan) (wave 19)
+- [x] 199-20-PLAN.md — App: pila final de D-02 + borrado de cards reemplazadas (wave 20)
+- [ ] 199-21-PLAN.md — Capturas después + contraste/fold + UAT humano (checkpoint) (wave 21)
+
 ### Phase 201: Conquer v2 (de cero, simple)
+
+**Estado (2026-10-28)**: EN MASTER/PROD vía `release/conquer-master` (`15097c9b1`, 2026-10-27, migs 0290-0294), con la tab de Conquer OCULTA (`ENTRENAR_TABS_ENABLED=false`). Reemplaza a la 196 (archivada). Los checkboxes de planes no se mantuvieron al día: 34 SUMMARY en `.planning/phases/201-conquer/`. Pendiente: UAT del profe (`201-UAT.md`).
 
 **Goal**: Modo Conquer simple según la síntesis de Nacho del 2026-10-21. El coach activa al alumno eligiendo nivel y días. El alumno carga un número por escalón y la app calcula objetivos y cuándo subir. El coach trabaja por excepción con alertas.
 **Depends on**: Phase 197 (tabs de Entrenar, en staging); de cero, la rama 196 queda guardada como cantera
@@ -443,60 +835,42 @@ Plans:
 - [ ] 201-34-PLAN.md — Fuera el cielo; UAT y CONTEXT al día (D-23, D-24)
 - [ ] 201-35-PLAN.md — Barrido final y prueba visual de Franco (checkpoint)
 
-### Phase 195: Web SEO local + AEO + atribución (fuera del milestone v6.1)
-
-**Goal**: Que eltemplo.org traiga alumnos nuevos: datos de sedes siempre correctos (fuente única `branches`), páginas por sede/disciplina/profes indexables y citables por buscadores e IA, medición real (GA4, Pixel, Search Console, Bing) y atribución de punta a punta (de dónde vino cada alumno → pagó), automatizando todo lo posible del lado de Meta y Google
-**Depends on**: nada bloqueante (web Nuxt 4 SSG en producción). Migración de `branches` se numera al momento de ejecutar (194 usa 0255+).
-**Requirements**: decisiones D-01..D-23 en `.planning/phases/195-web-seo-local-aeo-atribucion/195-CONTEXT.md`; investigación y decisiones textuales en `.planning/phases/195-web-seo-local-aeo-atribucion/195-RESEARCH-SEO-AEO.md` (fuente: `.planning/research/seo-aeo-2026-10-05.md`). Todo en UNA fase (Franco 2026-10-06), incluido el fix urgente de la dirección Juan B. Justo 1018.
-**Success Criteria** (what must be TRUE):
-
-1. Ninguna dirección, sede o conteo publicado en la web contradice la tabla `branches` (JBJ 1018, sin Chapadmalal, Park como espacio de comunidad); la web se regenera con un botón "solo web" en GitHub
-2. Cada sede tiene su página con `ExerciseGym` (`@id`, geo, horarios reales, `parentOrganization`) y la home tiene un `Organization` raíz único; Barcelona vive en `/es/` con hreflang recíproco
-3. URLs inexistentes devuelven 404 real, los redirects son 301/302 reales y staging/app/admin no son indexables
-4. GA4, Meta Pixel, Search Console y Bing reciben datos de producción; robots.txt permite explícitamente los bots de búsqueda IA y llms.txt se genera desde los datos de sedes
-5. Cada alta guarda su origen (utm/promo/referrer, incluido tráfico de IA) y Reportes muestra registros → prueba → pago → facturación por campaña y sede; los eventos de conversión llegan a Meta por CAPI (con consentimiento donde aplique)
-6. Existe una guía final paso a paso de lo que Franco/equipo hace en Meta y Google, reducida al mínimo por la automatización
-
-**Plans:** 14 plans (ejecución secuencial, una wave por plan; reglas comunes en `195-EXECUTION-RULES.md`)
-
-Plans:
-
-- [x] 195-01-PLAN.md — Datos de sedes primero: migs 0270/0271 (columnas web + JBJ 1018, Park comunidad, sin Chapadmalal, WhatsApp por país) + parche de la web estática
-- [x] 195-02-PLAN.md — Endpoint público GET /api/web/site-data (sedes, horarios regulares fusionados, marca, WhatsApp) + ISO-01
-- [x] 195-03-PLAN.md — Pipeline de build web (prebuild desde la API, fixture, robots IA, llms.txt generado, sitemap sin catch, verificador SEO en CI, WhatsApp desde datos)
-- [x] 195-04-PLAN.md — Grafo JSON-LD propio (Organization + ExerciseGym por sede) + hub /sedes + páginas por sede AR/ES
-- [x] 195-05-PLAN.md — Disciplinas (incl. Aura/Yoga), profes Person (archivo de datos), primera clase gratis, planes sin precios, blog técnico
-- [x] 195-06-PLAN.md — /es Barcelona + hreflang + banner RGPD con Consent Mode v2 + captura first-touch + Smart App Banner
-- [x] 195-07-PLAN.md — Atribución propia: mig 0272 signup_attributions, clasificador de canal con IA, ganchos en register/alta de prueba, admin y app
-- [x] 195-08-PLAN.md — Meta: mig 0273, CAPI como outbox (sin ES ni iOS), gasto diario de campañas, /privacidad reescrita
-- [x] 195-09-PLAN.md — Google: mig 0274, job Search Console (JWT propio), sync de Google Business Profile detrás de flag, scripts locales
-- [x] 195-10-PLAN.md — Reportes › Origen de altas: embudo por canal/campaña/sede/moneda, costo por alumno pago, IA y Search Console
-- [x] 195-11-PLAN.md — CI/CD: botón solo-web, backup/rollback por proyecto, deploy tolerante a falla web, secrets de medición, rollout en 2 pasos
-- [x] 195-12-PLAN.md — App: .well-known al artifact, validador, reseña in-app (plugin aprobado por Franco); bump de versión descartado por Franco
-- [x] 195-13-PLAN.md — nginx — DESCARTADO por Franco (2026-10-07): sin cambios en el servidor; noindex movido al código
-- [x] 195-14-PLAN.md — Guía final para Franco (Meta, Google, bloque C, ASO) + generador de datos exactos de sedes + planilla de prompts IA
-
 ## Progress
 
-**Execution Order:** 181 → 182 → 183 → 184 → 185 → 186 → 187 → 188 → 189 → 190 → 191 → 192
+**Execution Order (milestone v6.1):** 181 → 182 → 183 → 184 → 185 → 186 → 187 → 188 → 188.1 → 189 → 190 → 191 → 192 → 192.1 → 192.2 → 192.3. Las fases fuera del milestone (193-204) se ejecutaron en paralelo y shippean por su cuenta (staging-first). Estado real al 2026-10-28 en la tabla de abajo.
 
 (182-183 pueden solaparse conceptualmente con 184-186: la capa de plataforma no depende del diseño del catálogo salvo el default de módulos de PLAT-03.)
 
-| Phase                        | Milestone | Plans Complete | Status                  | Completed |
-| ---------------------------- | --------- | -------------- | ----------------------- | --------- |
-| 181. Diseño del módulo       | v6.1      | 0/6            | Not started             | -         |
-| 182. Rol plataforma + wizard | v6.1      | 0/TBD          | Not started             | -         |
-| 183. Panel de tenants        | v6.1      | 0/TBD          | Not started             | -         |
-| 184. Catálogo modelo + taxos | v6.1      | 0/TBD          | Not started             | -         |
-| 185. Catálogo ciclo de vida  | v6.1      | 0/TBD          | Not started             | -         |
-| 186. Carga inicial catálogo  | v6.1      | 0/TBD          | Not started             | -         |
-| 187. Plantillas de rutina    | v6.1      | 0/TBD          | Not started             | -         |
-| 188. Asignación de rutinas   | v6.1      | 0/TBD          | Not started             | -         |
-| 189. Ejecución y registro    | v6.1      | 0/TBD          | Not started             | -         |
-| 190. Valoración y evolución  | v6.1      | 0/TBD          | Not started             | -         |
-| 191. Panel del profesor      | v6.1      | 0/TBD          | Not started             | -         |
-| 192. Onboarding tenant 2     | v6.1      | 0/TBD          | Not started             | -         |
-| 195. Web SEO + atribución    | -         | 14/14          | Executed (human_needed) | -         |
+| Phase | Milestone | Plans Complete | Status | Completed |
+| ----- | --------- | -------------- | ------ | --------- |
+| 181. Diseño del módulo | v6.1 | 6/6 | Complete (en master) | - |
+| 182. Rol plataforma + wizard | v6.1 | ejecutada | En el tren, SIN PUSH | - |
+| 183. Panel de tenants | v6.1 | ejecutada | En el tren, SIN PUSH | - |
+| 184. Catálogo modelo + taxos | v6.1 | ejecutada | En el tren, UAT pendiente | - |
+| 185. Catálogo ciclo de vida | v6.1 | ejecutada | En el tren, UAT pendiente | - |
+| 186. Carga inicial catálogo | v6.1 | ejecutada | En el tren, SIN PUSH | - |
+| 187. Plantillas de rutina | v6.1 | ejecutada | En el tren, UAT pendiente | - |
+| 188. Asignación de rutinas | v6.1 | ejecutada | En el tren, UAT pendiente | - |
+| 188.1 Chasis de Kaia | v6.1 | 15/15 | En el tren, UAT pendiente | - |
+| 189. Ejecución y registro | v6.1 | 15/15 | En el tren, UAT 1-7 pendiente | - |
+| 190. Valoración y evolución | v6.1 | 12/12 | En el tren, UAT pendiente | - |
+| 191. Panel del profesor | v6.1 | 14/14 | En el tren, UAT pendiente | - |
+| 192. Onboarding tenant 2 | v6.1 | en curso | En el tren, UAT guiado 192-13 en curso | - |
+| 192.1 Asistencia gimnasios | v6.1 | 11/11 | En el tren, UAT pendiente | - |
+| 192.2 Clases gimnasios | v6.1 | 19/19 | En el tren, UAT pendiente | - |
+| 192.3 Workout Engine | v6.1 | 19/19 | Rama aparte, por integrar al tren | - |
+| 193. Comunicaciones | fuera | 16/17 | EN MASTER (UAT pendiente) | - |
+| 194. Invitaciones | fuera | completa | EN MASTER (UAT pendiente) | 2026-10-07 |
+| 195. Web SEO + atribución | fuera | 14/14 | EN STAGING, no en master (human_needed) | - |
+| 196. Personalizados Online | fuera | 47 planes (13 en esta lista) | ARCHIVADA (reemplazada por 201) | - |
+| 197. Entrenar en tabs + Libre | fuera | 22/23 | EN MASTER (tabs/Libre/Desafíos ocultos) | 2026-10-21 |
+| 198. AURA configurable | fuera | 0/TBD | En espera, sin planificar | - |
+| 199. Rediseño Mi Templo | fuera | 20/21 | EN MASTER (UAT parcial) | 2026-10-16 |
+| 200. Anatomía funcional | fuera | 23/23 | EN MASTER | 2026-10-22 |
+| 201. Conquer v2 | fuera | 34/35 | EN MASTER (tab oculta) | 2026-10-27 |
+| 202. Conquer tutoriales | fuera | 15/15 | EN MASTER | 2026-10-27 |
+| 203. Carga sin parpadeos | fuera | 0/17 | Planificada, sin ejecutar | - |
+| 204. Usuarios Wellhub | fuera | 16/16 | EN MASTER | 2026-10-27 |
 
 ## Coverage
 
@@ -522,6 +896,8 @@ _Roadmap v6.1 creado 2026-08-27. Fases 181-192. Migraciones reservan desde 0216.
 
 ### Phase 202: Conquer — tutoriales y correcciones con video
 
+**Estado (2026-10-28)**: EN MASTER/PROD junto con la 201 (migs 0298/0299; bucket privado `el-templo-privado`). 15/15 SUMMARY. Pendiente: UAT y build de tiendas cuando se defina el Player.
+
 **Goal**: Pedidos del profe probando la 201 en staging. Tutoriales: un video por ejercicio y por combo que sube el coach y el alumno ve con "Ver cómo se hace". Correcciones: el alumno manda un video de 30 s como máximo, el coach responde con texto y/o video y puede borrar el del alumno. Videos de alumnos en el bucket R2 privado con vencimiento a los 60 días.
 **Depends on**: Phase 201 (Conquer v2, en staging)
 **Requirements**: D-25..D-29 de `.planning/phases/201-conquer/201-CONTEXT.md`; decisiones DA-37..DA-52 en `202-01-PLAN.md`. Retomar desde `202-HANDOFF.md`.
@@ -546,6 +922,8 @@ Plans:
 - [ ] 202-15-PLAN.md — Barrido final y UAT (infra R2, casos D-25..D-29)
 
 ### Phase 200: Anatomía funcional — profes, Guía y Entrenar (fuera del milestone v6.1)
+
+**Estado (2026-10-28)**: EN MASTER/PROD (`df84f9392`, 2026-10-22, migs 0287/0288), 23/23. Guía y Tu cuerpo PRENDIDOS en prod por decisión de Franco. Pendiente: builds de tienda 1.8.5, UAT, kinesiólogo.
 
 **Goal**: Profes y socios entienden qué trabaja cada ejercicio: un modelo de contenido único (músculo, zona del dibujo, ruta, rol, ficha) alimenta la sección Anatomía del admin, la vista Tu cuerpo de la Guía y el cuerpo tocable de Entrenar, y reemplaza a `muscle-zones.ts` como fuente de zonas
 **Depends on**: fase 197 (pantalla Semana con chips + figura, `BodyFigure.vue`, zonas por bloque). Base `origin/staging` `99152a195`; sale con o después del tren de la 197
@@ -586,7 +964,97 @@ Plans:
 - [x] 200-22-PLAN.md — Fichas BRIDGE, SIDE PCK, PIKE, AF
 - [x] 200-23-PLAN.md — Cierre: coherencia estricta, barrido, UAT y firma de validación
 
+### Phase 203: Carga sin parpadeos (fuera del milestone v6.1)
+
+**Estado (2026-10-28)**: PLANIFICADA, SIN EJECUTAR. Rama `feat/203-carga-sin-parpadeos`, 17 planes reajustados el 2026-10-28 por "Tu plan" (ver Addendum del CONTEXT). Siguiente paso: `/gsd-execute-phase 203` (01-03 con Franco: SSH + línea base).
+
+**Goal**: Ninguna pantalla de la app muestra un texto, card o estado equivocado mientras llegan sus datos ("todavía no sé" nunca se dibuja como "no"), las cards no empujan el contenido al aparecer, y el arranque hace menos pedidos y los hace sin cola
+**Depends on**: nada. Base `origin/master` `ab4342b27` (app 1.8.6); rebaseada el 2026-10-28 sobre `1735ef656` y planes reajustados por "Tu plan" (ver Addendum del CONTEXT). (La 202 es Conquer tutoriales, en `feat/201-conquer`.) Sale staging → master como bugfix (patch, bump fuera de la fase)
+**Requirements**: `203-HALLAZGOS.md` (métricas del server 2026-10-23, inventario de pedidos BEFORE `f6a4c9ae7` vs NOW `ab4342b27`, 10 candidatos de parpadeo)
+**Success Criteria** (what must be TRUE):
+
+1. Planes: nunca muestra "No hay planes disponibles" ni los planes regulares solos antes de "Por Objetivos"; la página aparece completa y sus pedidos van en paralelo
+2. Mi Templo: la card de hoy, el estado de socio virtual, las acciones secundarias y las cards de Novedades/patrocinadores/check-in/semana no muestran un estado intermedio equivocado ni empujan el contenido al llegar
+3. Entrenar, Perfil y Reservas siguen la misma regla; Entrenar no queda con `/sessions/weekly` pedido con parámetros decididos antes de tiempo
+4. El arranque no pide dos veces my-progress, current-program ni enrollments; el total de pedidos al abrir la app con plan activo baja respecto de los 19 actuales (18 + el plan-status de la pelotita de Planes)
+5. La API sirve HTTP/2 (`deploy/nginx/api.eltemplo.org` + aplicado en el server con OK de Franco) y la app funciona igual en iOS y Android con CapacitorHttp
+6. UAT en teléfono con red limitada: ninguna de las pantallas del inventario parpadea
+
+**Plans:** 17 plans (17 olas secuenciales — worktree compartido; 01-03 infra con checkpoints de Franco, después la app)
+
+Plans:
+
+**Wave 1**
+
+- [ ] 203-01-PLAN.md — Script de verificación h2/h1.1 + config viva de nginx al repo + diff http2 explícito y access_log permanente sin la TV
+
+**Wave 2** _(blocked on Wave 1 completion)_
+
+- [ ] 203-02-PLAN.md — Aplicar nginx en staging y prod con OK de Franco, script verde en los dos, playbook apunta al log nuevo
+
+**Wave 3** _(blocked on Wave 2 completion)_
+
+- [ ] 203-03-PLAN.md — Checkpoint de 1-2 días: línea base del access_log (203-BASELINE.md)
+
+**Wave 4** _(blocked on Wave 3 completion)_
+
+- [ ] 203-04-PLAN.md — useUserStore dueño único del estado del socio: todo en paralelo (D-15), promesa compartida, banderas loaded/failed
+
+**Wave 5** _(blocked on Wave 4 completion)_
+
+- [ ] 203-05-PLAN.md — my-bookings ×2 → 1 (parámetro weeks retrocompatible en la API + test) y loadedTz
+
+**Wave 6** _(blocked on Wave 5 completion)_
+
+- [ ] 203-06-PLAN.md — Reservas multi-sede pide /weekly una sola vez (R-1)
+
+**Wave 7** _(blocked on Wave 6 completion)_
+
+- [ ] 203-07-PLAN.md — Helpers: tope D-07, regla de slot, flag 'tuvo contenido' (D-02) precargado, CardSkeleton
+
+**Wave 8** _(blocked on Wave 7 completion)_
+
+- [ ] 203-08-PLAN.md — Planes (con "Tu plan") aparece completa: resumen, planes y catálogo en paralelo, my-progress del store, un esqueleto por sección y sin 'No hay planes' antes de tiempo (D-04)
+
+**Wave 9** _(blocked on Wave 8 completion)_
+
+- [ ] 203-09-PLAN.md — /sessions/weekly sin view (el server decide) + loaded + tests de API del default
+
+**Wave 10** _(blocked on Wave 9 completion)_
+
+- [ ] 203-10-PLAN.md — Card de hoy: entradas de carga, tope y estado neutral (D-05/D-07/D-18)
+
+**Wave 11** _(blocked on Wave 10 completion)_
+
+- [ ] 203-11-PLAN.md — Mi Templo en paralelo y sin duplicados + saludo/turnos esperan el perfil real (D-08)
+
+**Wave 12** _(blocked on Wave 11 completion)_
+
+- [ ] 203-12-PLAN.md — Stores de Mi Templo con loaded/lastLoadOk, statsLoaded; toast de stats intacto (D-16)
+
+**Wave 13** _(blocked on Wave 12 completion)_
+
+- [ ] 203-13-PLAN.md — Mi Templo reserva el lugar de sus cards, sin loader ni error de página (D-02/D-16)
+
+**Wave 14** _(blocked on Wave 13 completion)_
+
+- [ ] 203-14-PLAN.md — Entrenar (TrainingIndex) y Perfil no deciden 'sin plan' antes de tiempo
+
+**Wave 15** _(blocked on Wave 14 completion)_
+
+- [ ] 203-15-PLAN.md — CTA de Entrenar sin 'Empezar → Continuar' (C-10)
+
+**Wave 16** _(blocked on Wave 15 completion)_
+
+- [ ] 203-16-PLAN.md — Latencia artificial y contador de pedidos solo en dev (VITE_DEV_LATENCY_MS)
+
+**Wave 17** _(blocked on Wave 16 completion)_
+
+- [ ] 203-17-PLAN.md — Checklist 203-UAT.md + UAT de Franco con red limitada
+
 ### Phase 204: Usuarios Wellhub como tipo de usuario (fuera del milestone v6.1)
+
+**Estado (2026-10-28)**: EN MASTER/PROD (`e74a06874`, 2026-10-27, mig 0300 va a prod ANTES que 0290-0299 de Conquer), 16/16. Pendiente: UAT en prod con Wellhub real y revisar D-22..D-28.
 
 **Goal**: El staff distingue a quien viene por Wellhub (visitante nuevo, ex-alumno o socio activo vinculado por email) en el admin y en Horarios, las métricas separan la actividad Wellhub de la de socios, y una reserva o visita Wellhub nunca afecta el plan de un socio
 **Depends on**: integración Wellhub en prod (piloto Moreno, gym 856836, master `66939bec8` 2026-10-27). Base `origin/master` `3bf682d95`
@@ -619,3 +1087,7 @@ Plans:
 - [x] 204-14-PLAN.md — Admin: card Wellhub en la ficha, Asociar al templo, Enviar acceso a la app
 - [x] 204-15-PLAN.md — Admin: diálogo Unir con alumno existente (D-21)
 - [x] 204-16-PLAN.md — Admin: pestaña Reportes › Wellhub + filtro Wellhub del log de accesos
+
+---
+
+_Unificado el 2026-10-28 (rescate de docs del master local): sobre el ROADMAP de origin/master se sumaron las fases 188.1, 192.1-192.3, 193, 195, 196 (archivada), 198 y 199, 203, con su estado real. Textos de fase tomados de master local (193, 199), `origin/staging` (195), `feat/203-carga-sin-parpadeos` (203), `archive/196-personalizados` (196, 198) y el tren `feat/v6.1-gimnasio` / `feat/192.3-workout-engine` (188.1, 192.x)._

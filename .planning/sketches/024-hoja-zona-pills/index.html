@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sketch 024 · Hoja de zona</title>
+<!-- Figura: react-native-body-highlighter v3.2.0 (MIT, Copyright (c) ELABBASSI Hicham), ver ../019-anatomia-profes-admin/anat.js -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Geologica:wght@300;400;500;600;700&family=Montserrat:wght@600;700;800&family=Cinzel:wght@600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+<link rel="stylesheet" href="../020-guia-anatomia-app/app.css" />
+<link rel="stylesheet" href="zona.css" />
+<style>
+  h2.sec { max-width: 1300px; margin: 34px auto 4px; padding: 0 16px; font: 700 20px 'Montserrat', sans-serif; }
+  p.sec-sub { max-width: 1300px; margin: 0 auto; padding: 0 16px; font: 13px/1.45 system-ui; color: #5a5347; }
+  .toggle { max-width: 1300px; margin: 10px auto 0; padding: 0 16px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .toggle button { border: 1px solid #b9a993; background: #fff; border-radius: 999px; padding: 6px 14px; font: 600 13px system-ui; }
+  .toggle button.on { background: #2c2318; color: #f0e6d6; border-color: #2c2318; }
+  .toggle .nom-lbl, .toggle .t-lbl { font: 600 13px system-ui; color: #5a5347; margin-right: 2px; }
+  .nombres { position: sticky; top: 0; z-index: 50; max-width: none; margin: 0; padding: 10px 16px; background: rgba(227,221,211,.96); border-bottom: 1px solid #cfc5b6; justify-content: center; }
+
+  /* fondo: Entrenar (Semana) con la hoja abierta */
+  .ent { padding: 12px 14px; }
+  .ent .k { margin: 0; font: 700 11px 'Cinzel', serif; letter-spacing: .14em; text-transform: uppercase; color: var(--terra); }
+  .ent h3 { margin: 2px 0 10px; font: 700 22px 'Montserrat', sans-serif; }
+  .ent .row { display: grid; grid-template-columns: 1fr 120px; gap: 8px; align-items: start; }
+  .chips { display: flex; flex-direction: column; gap: 6px; }
+  .bchip { border-radius: 12px; background: #fff; border: 1px solid var(--line); padding: 7px 10px; position: relative; transition: opacity .2s; }
+  .bchip b { display: block; font: 800 10.5px 'Montserrat', sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--terra); }
+  .bchip span { font: 600 13.5px 'Montserrat', sans-serif; }
+  .bchip.hit { box-shadow: 0 0 0 2px var(--terra); }
+  .bchip.hit::after { content: ''; position: absolute; top: 8px; right: 9px; width: 7px; height: 7px; border-radius: 50%; background: var(--terra); }
+  .bchip.off { opacity: .4; }
+  .ent .figs { --fh: 190px; }
+  .ent .figs figcaption { display: none; }
+  .ent .figs figure:nth-child(2) { display: none; }
+  .ent .figs.back figure:nth-child(1) { display: none; }
+  .ent .figs.back figure:nth-child(2) { display: block; }
+  /* fondo: la sección del cuerpo */
+  .tc .figs { --fh: 210px; padding-top: 8px; }
+
+  .bs { height: 72%; }
+  .bs.open { transform: none; }
+  .bs-body { padding-bottom: 30px; }
+
+  /* (a) Antes: la card oscura de hoy */
+  .hoy { margin: 8px 0 6px; border-radius: 14px; background: var(--dark); color: var(--cream-ink); padding: 12px 14px; position: relative; overflow: hidden; }
+  .hoy::after { content: ''; position: absolute; left: 14px; right: 14px; bottom: 0; height: 2px; background: linear-gradient(90deg, transparent, #a35f3c, #e9bf9b, #a35f3c, transparent); }
+  .hoy .hk { margin: 0 0 6px; font: 700 11px 'Cinzel', serif; letter-spacing: .14em; text-transform: uppercase; color: var(--cream-2); }
+  .hoy .hb + .hb { border-top: 1px solid rgba(240,230,214,.14); margin-top: 8px; padding-top: 8px; }
+  .hoy .hb-top { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .hoy .hb-top b { font: 800 10.5px 'Montserrat', sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--cream-2); }
+  .hoy .hb-top span { font: 700 15px 'Montserrat', sans-serif; }
+  .hoy .hm { margin: 4px 0 0; font-size: 13.5px; line-height: 1.4; }
+  .hoy .hm em { font-style: normal; color: var(--cream-3); }
+  .hoy .hx { margin: 4px 0 0; font-size: 12.5px; color: var(--cream-3); }
+  .hoy.none { background: var(--sand); color: var(--ink-2); font-size: 14px; }
+  .hoy.none::after { display: none; }
+  .hoy.none .hk { color: var(--terra); }
+
+  /* (a) Ganador: lista de bloques con punto, sin pill y sin toque */
+  .hoyw { margin: 6px 0 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+  .hoyw .hk { margin: 0 0 8px; font: 800 11.5px 'Montserrat', sans-serif; letter-spacing: .1em; text-transform: uppercase; color: var(--terra); }
+  .hoyw .bl { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0; padding: 0; list-style: none; }
+  .hoyw .bl li { display: inline-flex; align-items: center; gap: 7px; font: 600 15px 'Montserrat', sans-serif; color: var(--ink); }
+  .hoyw .bl li small { font: 500 14px 'Geologica', sans-serif; color: var(--ink-2); }
+  .dot { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+  .dot.fuerte { background: linear-gradient(135deg, #c47a52, #8a4e30); }
+  .dot.sostiene { background: var(--sost); }
+  .dot.estira { background: #f6ecdf; border: 1.5px dashed var(--terra); }
+  .hoyw .leyenda { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 9px; font-size: 12px; color: var(--ink-2); }
+  .hoyw .leyenda span { display: inline-flex; align-items: center; gap: 5px; }
+  .hoyw .none { font-size: 14px; color: var(--ink-2); margin: 0; }
+  .ver-grande { display: flex; align-items: center; gap: 4px; margin-top: 12px; border: 0; background: none; color: var(--terra); font: 600 14px 'Geologica', sans-serif; padding: 6px 0; }
+  .ver-grande .material-icons { font-size: 18px; }
+  .toast { position: absolute; left: 50%; bottom: 70px; transform: translateX(-50%); background: var(--dark); color: var(--cream-ink); font-size: 13px; padding: 9px 14px; border-radius: 999px; z-index: 40; display: none; white-space: nowrap; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute"><defs><linearGradient id="litg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c47a52" /><stop offset="1" stop-color="#8a4e30" /></linearGradient></defs></svg>
+
+<div class="toggle nombres" id="nombres"></div>
+
+<h2 class="sec">a · "Hoy en tu clase" · ganador B, sin pills</h2>
+<p class="sec-sub">Elegido: B, pero solo el bloque con su punto (qué hace la zona en ese bloque), como texto: <b>no es un botón</b>. Lo que se toca son los ejercicios de abajo. Debajo va la hoja de la zona ganadora de (b). Probá cómo nombrar cada bloque.</p>
+<div class="toggle" data-grupo="a"><button class="on" data-zona="upper-back">Espalda alta</button><button data-zona="deltoids">Hombros</button><button data-zona="abs">Abdomen</button><button data-zona="chest">Pecho</button><button data-zona="calves">Pantorrillas (hoy no se trabaja)</button></div>
+<div class="toggle" data-grupo="nb"><span class="t-lbl">Cómo se nombra el bloque:</span><button class="on" data-nb="rol">Nucleus</button><button data-nb="nombre">Dominadas</button><button data-nb="ambos">Nucleus · Dominadas</button></div>
+<div class="wrap">
+  <div class="col"><div class="col-label">Antes · como está hoy</div><div class="col-sub">Card oscura con todo el detalle de cada bloque.</div><div class="phone" data-sec="a" data-v="antes"></div></div>
+  <div class="col"><div class="col-label">★ Ganador · B sin pills</div><div class="col-sub">Una línea por bloque: punto + nombre. Leyenda solo con los puntos que aparecen.</div><div class="phone" data-sec="a" data-v="G"></div></div>
+</div>
+
+<h2 class="sec">b · La zona · ganador C con un músculo elegido</h2>
+<p class="sec-sub">Elegido: C. Ahora siempre hay un músculo elegido (el principal de la zona). Su "qué hace" sale en un globo pegado a la pill que tocaste, y abajo quedan <b>sus</b> ejercicios con sus grupos. Los que no se ven entran en la zona que tienen encima, con borde punteado y "adentro". Con un solo músculo no hay pills.</p>
+<div class="toggle" data-grupo="b"><button class="on" data-zona="upper-back">Espalda alta (3)</button><button data-zona="deltoids">Hombros (2 + manguito)</button><button data-zona="chest">Pecho (1 + serrato)</button><button data-zona="abs">Abdomen (1 + iliopsoas)</button><button data-zona="lower-back">Zona lumbar (2)</button><button data-zona="biceps">Bíceps (1)</button></div>
+<div class="wrap">
+  <div class="col"><div class="col-label">Antes · como está hoy</div><div class="col-sub">"N músculos en esta zona" y los músculos en fila.</div><div class="phone" data-sec="b" data-v="antes"></div></div>
+  <div class="col"><div class="col-label">★ Ganador · C con uno elegido</div><div class="col-sub">Tocá otra pill: el globo se mueve con ella y cambian los ejercicios.</div><div class="phone" data-sec="b" data-v="G"></div></div>
+</div>
+
+<p class="sketch-note">Textos de <code>../023-guia-sobre-blanco/copy.js</code>: "<span class="rol-now"></span>", la definición nueva de "Te sostiene" (tocá la <b>i</b>) y las 17 definiciones revisadas. La hoja ganadora sale de <code>zona.js</code> (la usa también el 023). El bloque de entrada en calor es <b>Pyros</b>. Contenido de músculos y ejercicios: el borrador de la investigación (sketch 019).</p>
+
+<script src="../019-anatomia-profes-admin/anat.js"></script>
+<script src="../019-anatomia-profes-admin/data.js"></script>
+<script src="../019-anatomia-profes-admin/ficha.js"></script>
+<script src="../020-guia-anatomia-app/alumno.js"></script>
+<script src="../020-guia-anatomia-app/alumno-ui.js"></script>
+<script src="../023-guia-sobre-blanco/copy.js"></script>
+<script src="zona.js"></script>
+<script>
+  document.querySelector('.rol-now').textContent = ROL_FUERTE
+  const HOY = { kicker: 'Hoy · Jueves 15', title: 'Tirón y core', blocks: [
+    { r: 'Pyros', d: 'Entrada en calor', ruta: null, ex: ['BEAR CRAWL', 'SCAP PULL UP', 'CAT COW'] },
+    { r: 'Nucleus', d: 'Dominadas', ruta: 'OAP', ex: ['PULL UP', 'CHIN UP', 'DEAD HANG'] },
+    { r: 'Deuteros', d: 'Front lever', ruta: 'FL', ex: ['TUCK FL HOLD', 'FL RAISE TUCK', 'HOLLOW BODY'] },
+    { r: 'Epikos', d: 'Core', ruta: 'TTB', ex: ['HOLLOW ROCK', 'V UP', 'SIDE PLANK'] },
+  ] }
+  const GRUPOS = ['fuerte', 'sostiene', 'estira']
+  const GRUPO = (r) => (r === 'M' || r === 'S' ? 'fuerte' : r === 'Est' ? 'sostiene' : r === 'Al' ? 'estira' : null)
+  const TXT = { fuerte: ROL_FUERTE, sostiene: ROL_SOSTIENE, estira: ROL_ESTIRA }
+  const ST = { a: 'upper-back', b: 'upper-back', nb: 'rol' }
+
+  // por bloque (unión de rutas del bloque), igual que zone-hits.ts del API; incluye los de adentro
+  function hoyEnZona(zona) {
+    const ms = musculosDeZona(zona)
+    return HOY.blocks.map((b, i) => {
+      if (!b.ruta) return null
+      const porGrupo = {}
+      ms.forEach((m) => ['M', 'S', 'Est', 'Al'].forEach((r) => { const g = GRUPO(r); if ((m[r] || []).includes(b.ruta)) (porGrupo[g] = porGrupo[g] || new Set()).add(m.nombre) }))
+      if (!Object.keys(porGrupo).length) return null
+      return { b, i, porGrupo, top: GRUPOS.find((g) => porGrupo[g]) }
+    }).filter(Boolean)
+  }
+
+  const nombreBloque = (b) => (ST.nb === 'rol' ? b.r : ST.nb === 'nombre' ? b.d : `${b.r} <small>· ${b.d}</small>`)
+
+  function hoyHTML(zona, v) {
+    const hits = hoyEnZona(zona)
+    if (v === 'antes') {
+      if (!hits.length) return `<div class="hoy none"><p class="hk">Hoy en tu clase</p>Hoy tu clase no trabaja esta zona.</div>`
+      return `<div class="hoy"><p class="hk">Hoy en tu clase</p>${hits.map(({ b, porGrupo }) => `<div class="hb"><div class="hb-top"><b>${b.r}</b><span>${b.d}</span></div>
+        ${GRUPOS.filter((g) => porGrupo[g]).map((g) => `<p class="hm"><em>${g === 'fuerte' ? 'Trabaja fuerte' : TXT[g]}:</em> ${[...porGrupo[g]].join(', ')}</p>`).join('')}
+        <p class="hx">${b.ex.join(' · ')}</p></div>`).join('')}</div>`
+    }
+    if (!hits.length) return `<div class="hoyw"><p class="hk">Hoy en tu clase</p><p class="none">Hoy tu clase no trabaja esta zona.</p></div>`
+    const usados = GRUPOS.filter((g) => hits.some((h) => h.top === g))
+    return `<div class="hoyw"><p class="hk">Hoy en tu clase</p><ul class="bl">${hits.map((h) => `<li><span class="dot ${h.top}" aria-hidden="true"></span><span>${nombreBloque(h.b)}</span><span class="sr" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">: ${TXT[h.top]}</span></li>`).join('')}</ul>
+      <div class="leyenda" aria-hidden="true">${usados.map((g) => `<span><span class="dot ${g}"></span>${TXT[g]}</span>`).join('')}</div></div>`
+  }
+
+  // ---------- teléfonos ----------
+  const tabbar = (on) => `<div class="tabbar">${[['account_balance', 'Mi Templo'], ['menu_book', 'Guía'], ['sports_mma', 'Entrenar'], ['event_available', 'Reservas'], ['card_membership', 'Planes']].map(([i, l]) => `<span class="${l === on ? 'on' : ''}"><span class="material-icons">${i}</span>${l}</span>`).join('')}</div>`
+  const appbar = `<div class="appbar"><img src="../020-guia-anatomia-app/logo.webp" alt="" />El Templo</div>`
+  const BACK_ZONAS = ['upper-back', 'lower-back', 'gluteal', 'hamstring', 'calves', 'trapezius']
+  const local = new WeakMap()
+
+  function render(phone) {
+    const { sec, v } = phone.dataset
+    const zona = ST[sec]
+    const s = local.get(phone) || { sel: 0 }
+    const view = BACK_ZONAS.includes(zona) ? 'back' : 'front'
+    const verEn = `<button class="ver-grande">Ver en ${NOMBRE_CUERPO} <span class="material-icons">chevron_right</span></button>`
+    let bg, body
+    if (sec === 'a') {
+      const hits = new Set(hoyEnZona(zona).map((h) => h.i))
+      bg = `<div class="ent"><p class="k">${HOY.kicker}</p><h3>${HOY.title}</h3><div class="row"><div class="chips">${HOY.blocks.map((b, i) => `<div class="bchip ${hits.has(i) ? 'hit' : 'off'}"><b>${b.r}</b><span>${b.d}</span></div>`).join('')}</div>
+        <div>${figure({}, { sel: zona }).replace('class="figs', `class="figs ${view}`)}</div></div></div>`
+      body = v === 'antes'
+        ? hoyHTML(zona, v) + zonaAlumno(zona).replace(/<div class="avisale">[\s\S]*$/, '').replaceAll('Hace el movimiento en', 'Trabaja fuerte en') + verEn.replace(NOMBRE_CUERPO, 'Tu cuerpo') + ZG_AVISALE
+        : hoyHTML(zona, v) + zonaGanadorHTML(zona, s.sel, verEn)
+    } else {
+      const titulo = v === 'antes' ? 'Tu cuerpo' : NOMBRE_CUERPO
+      bg = `<div class="top"><button class="back"><span class="material-icons">chevron_left</span>Guía</button><h1>${titulo}</h1></div><div class="tc">${figure({}, { sel: zona })}</div>`
+      body = v === 'antes' ? zonaAlumno(zona).replaceAll('Hace el movimiento en', 'Trabaja fuerte en') : zonaGanadorHTML(zona, s.sel)
+    }
+    phone.innerHTML = `${appbar}<div class="stack"><div class="pg">${bg}</div><div class="bs open"><div class="handle"></div><button class="x" aria-label="Cerrar"><span class="material-icons">close</span></button><div class="bs-body">${body}</div></div><div class="toast"></div></div>${tabbar(sec === 'a' ? 'Entrenar' : 'Guía')}`
+    fitFigures(phone)
+    alinearGlobo(phone)
+  }
+  const renderAll = () => document.querySelectorAll('.phone').forEach(render)
+  selectorNombre(document.getElementById('nombres'), renderAll)
+  renderAll()
+
+  function toast(phone, txt) { const t = phone.querySelector('.toast'); t.textContent = txt; t.style.display = 'block'; clearTimeout(t._h); t._h = setTimeout(() => (t.style.display = 'none'), 1800) }
+  document.addEventListener('click', (e) => {
+    const t = e.target
+    const zb = t.closest('.toggle [data-zona]')
+    if (zb) {
+      const g = zb.parentElement.dataset.grupo; ST[g] = zb.dataset.zona
+      zb.parentElement.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b === zb))
+      document.querySelectorAll(`.phone[data-sec="${g}"]`).forEach((p) => { local.delete(p); render(p) }); return
+    }
+    const nb = t.closest('[data-nb]')
+    if (nb) {
+      ST.nb = nb.dataset.nb
+      nb.parentElement.querySelectorAll('[data-nb]').forEach((b) => b.classList.toggle('on', b === nb))
+      document.querySelectorAll('.phone[data-sec="a"]').forEach(render); return
+    }
+    const phone = t.closest('.phone'); if (!phone) return
+    const s = local.get(phone) || { sel: 0 }
+    const gl = t.closest('[data-gr]')
+    if (gl) { const d = gl.nextElementSibling; d.hidden = !d.hidden; gl.classList.toggle('on', !d.hidden); return }
+    const zm = t.closest('[data-zmus]')
+    if (zm) {
+      s.sel = +zm.dataset.zmus; local.set(phone, s)
+      const body = phone.querySelector('.bs-body'); const sc = body.scrollTop
+      const row = phone.querySelector('.zg-pills'); const rs = row ? row.scrollLeft : 0
+      render(phone)
+      phone.querySelector('.bs-body').scrollTop = sc
+      const row2 = phone.querySelector('.zg-pills'); if (row2) { row2.scrollLeft = rs; alinearGlobo(phone) }
+      return
+    }
+    if (t.closest('.ver-grande')) return toast(phone, `Abre ${NOMBRE_CUERPO} en esta zona`)
+    const rt = t.closest('[data-ruta]'); if (rt) return toast(phone, `Abre la ficha de ${RUTA_NOMBRE[rt.dataset.ruta]}`)
+  })
+</script>
+</body>
+</html>

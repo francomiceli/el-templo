@@ -1,0 +1,606 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sketch 005 — Mi Templo: jerarquía</title>
+<link rel="stylesheet" href="../themes/default.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Geologica:wght@300;400;500;600&family=Montserrat:wght@600;700;800&family=Cormorant+Garamond:ital,wght@1,500;1,600&family=Cinzel:wght@700&family=Nunito+Sans:wght@700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+<style>
+  /* ── Tokens de la Fase 2 (decisiones M y S en .docs/mi-templo-rediseno-fase2.md) ── */
+  :root {
+    --page: #f2ede5;          /* crema de página, foto DETRÁS */
+    --card: #ffffff;          /* cards opacas */
+    --ink: #2c2318;           /* texto principal: 15.4 sobre blanco */
+    --ink-2: #6b6459;         /* texto secundario ($info): 5.9 sobre blanco */
+    --terra: #96593a;         /* títulos / acento / botón: 5.6 sobre blanco */
+    --terra-dk: #7a4830;
+    --clay: #7d5d42;
+    --cream-ink: #f0e6d6;     /* texto sobre oscuro: 12.5 sobre --ink */
+    --line: #e5dbcd;
+    --ok: #3b7249;
+    --m: 16px;                /* margen lateral de página */
+    --p: 16px;                /* padding interno de card */
+    --tab-h: 56px;
+    --head-h: 50px;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #e9e3da; font-family: 'Geologica', system-ui, sans-serif; color: var(--ink); }
+
+  /* ── Controles del sketch (fuera del teléfono) ── */
+  #controls { position: sticky; top: 0; z-index: 50; background: #fff; border-bottom: 1px solid #ddd; padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; font: 13px system-ui; }
+  .ctl { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+  .ctl > span { color: #555; margin-right: 4px; font-weight: 600; }
+  .ctl button { border: 1px solid #ccc; background: #fafafa; border-radius: 6px; padding: 5px 9px; cursor: pointer; font: inherit; transition: all .15s; }
+  .ctl button:hover { background: #f0ebe4; }
+  .ctl button.on { background: #2c2318; color: #fff; border-color: #2c2318; }
+  #stage { display: flex; gap: 32px; justify-content: center; align-items: flex-start; padding: 24px 16px 80px; flex-wrap: wrap; }
+  .col-label { font: 600 12px system-ui; color: #555; text-align: center; margin-bottom: 8px; letter-spacing: .02em; }
+  #notes { max-width: 340px; font: 13px/1.5 system-ui; color: #333; background: #fff; border-radius: 10px; padding: 14px 16px; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+  #notes h3 { margin: 0 0 6px; font-size: 14px; }
+  #notes ul { margin: 6px 0 0; padding-left: 18px; }
+
+  /* ── Teléfono 390×844 ── */
+  .phone { width: 390px; height: 844px; position: relative; overflow: hidden; border-radius: 28px; box-shadow: 0 0 0 10px #1d1a17, 0 20px 50px rgba(0,0,0,.25); background: var(--page); }
+  .phone.long { height: auto; overflow: visible; }
+  .phone.long .scroll { height: auto; overflow: visible; }
+  .phone.squint .screen { filter: blur(6px) saturate(.8); }
+  .screen { height: 100%; position: relative; }
+  .bgphoto { position: absolute; inset: 0; background: url('../../../el-templo-app/public/bars-open.webp') left center / cover no-repeat; filter: saturate(.3) sepia(.4) contrast(1.05); opacity: .10; z-index: 0; }
+  .appbar { position: absolute; top: 0; left: 0; right: 0; height: var(--head-h); z-index: 5; background: linear-gradient(135deg, #96593a, #7d5d42); display: flex; align-items: center; padding: 0 14px; gap: 10px; color: #fff; }
+  .appbar .logo { width: 30px; height: 30px; border-radius: 6px; background: #f5f0e8; }
+  .appbar .brand { font: 800 20px 'Montserrat'; letter-spacing: -.02em; }
+  .appbar .ico { margin-left: auto; display: flex; gap: 18px; font-size: 18px; }
+  .scroll { position: absolute; top: var(--head-h); bottom: 0; left: 0; right: 0; overflow-y: auto; z-index: 1; scrollbar-width: none; }
+  .scroll::-webkit-scrollbar { display: none; }
+  .phone.long .appbar, .phone.long .tabbar { position: absolute; }
+  .phone.long .scroll { position: relative; top: 0; padding-top: var(--head-h); }
+
+  .greet { background: linear-gradient(135deg, #96593a, #7d5d42); color: #fff; padding: 8px var(--m) 14px; display: flex; align-items: flex-end; }
+  .greet h1 { margin: 0; font: 600 22px 'Montserrat'; }
+  .greet p { margin: 2px 0 0; font-size: 13px; color: #fff; }  /* sólido, no al 70 % */
+  .greet .lvl { margin-left: auto; text-align: center; color: #fff; }
+  .greet .lvl b { display: block; font: 600 28px 'Montserrat'; line-height: 1; }
+  .greet .lvl small { font: 600 10px 'Montserrat'; letter-spacing: .18em; }
+
+  .stack { display: flex; flex-direction: column; gap: 16px; padding: 16px var(--m) var(--tab-h); position: relative; }
+  .stack.fab-on { padding-bottom: calc(var(--tab-h) + 88px); }  /* reserva para el QR solo cuando aparece */
+  .stack > .quote:last-child { margin-bottom: -16px; }
+  .card { background: var(--card); border-radius: 16px; padding: var(--p); box-shadow: 0 1px 2px rgba(44,35,24,.06); }
+  .sec-title { font: 800 13px 'Montserrat'; letter-spacing: .08em; text-transform: uppercase; color: var(--ink); margin: 0 0 8px; display: flex; align-items: center; gap: 8px; }
+  .sec-title .aux { margin-left: auto; font: 500 12px 'Geologica'; letter-spacing: 0; text-transform: none; color: var(--ink-2); }
+
+  /* ── Card de HOY ── */
+  .hoy { border-radius: 20px; padding: 20px var(--p) var(--p); position: relative; }
+  .hoy .kick { font: 700 11px 'Montserrat'; letter-spacing: .1em; text-transform: uppercase; }
+  .hoy h2 { margin: 6px 0 4px; font: 700 28px/1.15 'Montserrat'; letter-spacing: -.01em; }
+  .hoy .meta { font-size: 15px; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
+  .hoy .meta .sep { opacity: 1; }
+  .hoy .chip { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; padding: 5px 10px; border-radius: 999px; margin-top: 10px; }
+  .hoy .acts { display: flex; align-items: center; gap: 14px; margin-top: 18px; flex-wrap: wrap; }
+  .btn { border: 0; border-radius: 12px; padding: 0 20px; height: 48px; font: 600 15px 'Geologica'; cursor: pointer; transition: transform .1s, filter .15s; display: inline-flex; align-items: center; gap: 8px; }
+  .btn:hover { filter: brightness(1.06); }
+  .btn:active { transform: scale(.97); }
+  .link { background: none; border: 0; font: 500 14px 'Geologica'; cursor: pointer; padding: 12px 0; text-decoration: underline; text-underline-offset: 3px; }
+  .hoy .bar { height: 6px; border-radius: 3px; margin-top: 12px; overflow: hidden; }
+  .hoy .bar i { display: block; height: 100%; border-radius: 3px; }
+  .hoy .hook { margin-top: 16px; padding-top: 12px; font-size: 14px; }
+
+  /* A' — oscura SIN vocabulario de promo: sin borde dorado, sin pastilla, botón crema */
+  .v-dark .hoy { background: var(--ink); color: var(--cream-ink); box-shadow: 0 10px 24px rgba(44,35,24,.22); }
+  .v-dark .hoy .kick { color: #e3c9a8; }                   /* 9.6 sobre --ink */
+  .v-dark .hoy .meta { color: var(--cream-ink); }
+  .v-dark .hoy .btn.pri { background: var(--cream-ink); color: var(--ink); }
+  .v-dark .hoy .link { color: var(--cream-ink); }
+  .v-dark .hoy .chip { background: rgba(240,230,214,.12); color: var(--cream-ink); }
+  .v-dark .hoy .chip.ok { background: #2f4a35; color: #d9efdc; }
+  .v-dark .hoy .bar { background: #4a3f33; } .v-dark .hoy .bar i { background: #e3c9a8; }
+  .v-dark .hoy .hook { border-top: 1px solid #4a3f33; color: var(--cream-ink); }
+
+  /* C — todas blancas: la de hoy se distingue por tamaño, sombra y borde de acento */
+  .v-light .hoy { background: var(--card); border-top: 5px solid var(--terra); box-shadow: 0 10px 26px rgba(150,89,58,.16); }
+  .v-light .hoy .kick { color: var(--terra); }
+  .v-light .hoy h2 { color: var(--ink); }
+  .v-light .hoy .meta { color: var(--ink); }
+  .v-light .hoy .btn.pri { background: var(--terra); color: #fff; }
+  .v-light .hoy .link { color: var(--terra); }
+  .v-light .hoy .chip { background: #f4ece3; color: var(--ink); }
+  .v-light .hoy .chip.ok { background: #e3f0e5; color: #24502f; }
+  .v-light .hoy .bar { background: #efe6db; } .v-light .hoy .bar i { background: var(--terra); }
+  .v-light .hoy .hook { border-top: 1px solid var(--line); color: var(--ink); }
+
+  /* ── Registro del día compacto ── */
+  .reg .q { font: 600 16px 'Geologica'; margin: 2px 0 12px; }
+  .reg .opts { display: flex; gap: 8px; }
+  .reg .opts button { flex: 1; height: 44px; border-radius: 12px; border: 1.5px solid var(--terra); background: #fff; color: var(--terra); font: 600 15px 'Geologica'; cursor: pointer; transition: all .15s; }
+  .reg .opts button:hover { background: #f8f1ea; }
+  .reg .done { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--ink); }
+  .reg .done .tick { width: 24px; height: 24px; border-radius: 50%; background: var(--ok); color: #fff; display: grid; place-items: center; font-size: 14px; flex: none; }
+  .reg .done .link { color: var(--terra); margin-left: auto; padding: 0; }
+
+  /* ── Novedades (look del sketch 004, solo se muda de lugar) ── */
+  .nov { padding: 12px var(--p) 14px; border: 1px solid var(--line); }
+  .nov .pill { background: var(--terra); color: #fff; font: 600 11px 'Geologica'; padding: 3px 9px; border-radius: 999px; letter-spacing: 0; text-transform: none; }
+  .nov .dots { margin-left: auto; display: flex; gap: 5px; }
+  .nov .dots i { width: 6px; height: 6px; border-radius: 3px; background: #e2d6c6; transition: all .2s; }
+  .nov .dots i.on { width: 16px; background: var(--terra); }
+  .nov .stage { border-left: 3px solid var(--terra); padding-left: 12px; min-height: 58px; }
+  .nov .txt { font: 600 15px/1.35 'Geologica'; color: var(--ink); }
+  .nov .m { margin-top: 4px; font-size: 12px; color: var(--ink-2); display: flex; gap: 10px; }
+  .nov .m b { color: var(--terra); font: 700 11px 'Montserrat'; letter-spacing: .06em; }
+
+  /* ── Tu semana ── */
+  .sem .row { display: flex; align-items: center; gap: 14px; }
+  .sem .big { font: 700 32px 'Montserrat'; color: var(--ink); line-height: 1; }
+  .sem .lab { white-space: nowrap; font-size: 13px; color: var(--ink-2); line-height: 1.3; }
+  .sem .days { margin-left: auto; display: flex; gap: 5px; }
+  .sem .d { width: 22px; text-align: center; font: 600 10px 'Montserrat'; color: var(--ink-2); }
+  .sem .d i { display: block; width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid #d9cfc1; margin-bottom: 3px; }
+  .sem .d.y i { background: var(--terra); border-color: var(--terra); }
+  .sem .d.t i { border-color: var(--ink); border-width: 2px; }
+  .sem .tot { margin-top: 10px; font-size: 13px; color: var(--ink-2); }
+
+  /* ── Carrusel compacto claro ── */
+  .car { margin: 0 calc(-1 * var(--m)); }
+  .car .rail { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 0 var(--m) 2px; scroll-padding-inline: var(--m); scrollbar-width: none; }
+  .car .rail::-webkit-scrollbar { display: none; }
+  .promo { flex: 0 0 calc(100% - 2 * var(--m) - 24px); scroll-snap-align: start; background: var(--card); border-radius: 16px; padding: 14px var(--p); border: 1px solid var(--line); min-height: 128px; display: flex; flex-direction: column; }
+  .promo .k { font: 700 10px 'Montserrat'; letter-spacing: .1em; text-transform: uppercase; color: var(--terra); }
+  .promo h4 { margin: 4px 0 2px; font: 700 16px/1.25 'Montserrat'; color: var(--ink); }
+  .promo p { margin: 0; font-size: 13px; line-height: 1.4; color: var(--ink-2); flex: 1; }
+  .promo .go { align-self: flex-start; margin-top: 8px; background: none; border: 0; padding: 6px 0; font: 600 14px 'Geologica'; color: var(--terra); cursor: pointer; }
+  .promo .go:hover { text-decoration: underline; }
+
+  /* ── Patrocinadores (brief el-templo-50, adaptado: texto sólido, sin opacidad en textos) ── */
+  .spon { margin: 0 calc(-1 * var(--m)); }
+  .spon .track { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 2px var(--m) 8px; scroll-padding-inline: var(--m); scrollbar-width: none; overscroll-behavior-x: contain; }
+  .spon .track::-webkit-scrollbar { display: none; }
+  .sp { flex: 0 0 82%; scroll-snap-align: start; position: relative; overflow: hidden; border-radius: 16px; min-height: 156px; padding: 16px; background: var(--b-bg); color: var(--b-fg); display: flex; flex-direction: column; cursor: pointer; transition: transform .3s ease; transform: scale(.94); }
+  .sp.on { transform: scale(1); }
+  .sp .wm { position: absolute; right: -18px; bottom: -26px; font-size: 140px; color: var(--b-fg); opacity: .13; pointer-events: none; }  /* decorativa, no es texto */
+  .sp .top { display: flex; align-items: center; gap: 10px; position: relative; }
+  .sp .logo { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: var(--b-fg); color: var(--b-bg); flex: none; font: 800 15px 'Montserrat'; }
+  .sp .logo .mi { font-size: 24px; }
+  .sp .name { font: 800 17px/1.15 'Montserrat'; }
+  .sp .cat { display: block; font: 500 12px/1.3 'Geologica'; }
+  .sp .deal { margin-top: auto; padding-top: 14px; display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; position: relative; }
+  .sp .deal > div { flex: 1 1 auto; min-width: 96px; }
+  .sp .deal b { display: block; font: 800 30px/1 'Montserrat'; letter-spacing: -.02em; white-space: nowrap; }
+  .sp .deal .dt { display: block; margin-top: 3px; font: 500 12px/1.3 'Geologica'; }
+  .sp .how { flex: none; display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; border-radius: 99px; background: var(--b-fg); color: var(--b-bg); font: 700 11px 'Montserrat'; white-space: nowrap; }
+  .sp .how .mi { font-size: 14px; }
+  .spon .dots { display: flex; justify-content: center; gap: 6px; margin-top: 2px; }
+  .spon .dot { width: 7px; height: 7px; border-radius: 4px; background: #d9cfc1; border: 0; padding: 0; cursor: pointer; position: relative; overflow: hidden; transition: width .2s; }
+  .spon .dot.on { width: 24px; background: #e2d6c6; }
+  .spon .dot.on::after { content: ''; position: absolute; inset: 0; background: var(--terra); transform-origin: left; transform: scaleX(0); animation: spfill var(--spd, 2s) linear forwards; }
+  .spon.paused .dot.on::after { animation-play-state: paused; }
+  @keyframes spfill { to { transform: scaleX(1); } }
+  @media (prefers-reduced-motion: reduce) { .sp { transition: none; } .spon .dot.on::after { animation: none; transform: scaleX(1); } }
+
+  /* Hoja de detalle del beneficio */
+  .spsheet .head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+  .spsheet .head .logo { width: 48px; height: 48px; border-radius: 12px; display: grid; place-items: center; background: var(--b-bg); color: var(--b-fg); font: 800 16px 'Montserrat'; flex: none; }
+  .spsheet .head .logo .mi { font-size: 26px; }
+  .spsheet .head b { display: block; font: 800 17px 'Montserrat'; color: var(--ink); }
+  .spsheet .head small { font-size: 13px; color: var(--ink-2); }
+  .spsheet .big { font: 800 32px/1 'Montserrat'; color: var(--ink); }
+  .spsheet .det { margin: 4px 0 10px; font-size: 15px; color: var(--ink); }
+  .spsheet .cond { font-size: 13px; line-height: 1.45; color: var(--ink-2); margin: 0 0 16px; }
+  .spsheet .code { display: flex; align-items: center; gap: 10px; border: 1.5px dashed var(--terra); border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; }
+  .spsheet .code b { font: 700 22px 'Courier New', monospace; letter-spacing: .08em; color: var(--ink); flex: 1; }
+  .spsheet .code button { height: 40px; }
+  .spsheet .lock { font-size: 14px; color: var(--ink); background: #f4ece3; border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; display: flex; gap: 8px; align-items: center; }
+  .spsheet .btn { width: 100%; justify-content: center; background: var(--terra); color: #fff; }
+  .spsheet .link { color: var(--terra); display: block; margin: 4px auto 0; }
+
+  /* Carnet de socio */
+  .carnet { position: absolute; inset: 0; z-index: 22; background: var(--ink); color: var(--cream-ink); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px 24px; text-align: center; animation: fabIn .25s ease; }
+  .carnet .lg { font: 800 22px 'Montserrat'; letter-spacing: -.01em; margin-bottom: 28px; }
+  .carnet .nm { font: 700 26px 'Montserrat'; }
+  .carnet .sd { font-size: 15px; margin-top: 4px; }
+  .carnet .ok { margin: 22px 0 14px; display: inline-flex; align-items: center; gap: 8px; background: #2f4a35; color: #d9efdc; font: 700 18px 'Geologica'; padding: 10px 18px; border-radius: 999px; }
+  .carnet .dt { font-size: 15px; }
+  .carnet .clk { font: 700 34px 'Montserrat'; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .carnet .hint { font-size: 14px; margin-top: 22px; color: #e3c9a8; }
+  .carnet .btn { margin-top: 26px; background: var(--cream-ink); color: var(--ink); }
+
+  /* ── Frase del día ── */
+  /* Frase como la pantalla de cierre del TV (#pantallaCierre): foto + velo oscuro, glow ámbar,
+     Cinzel 700 crema con remate en bronce, autor Nunito Sans espaciado, entrada palabra por palabra. */
+  .quote { position: relative; overflow: hidden; margin: 8px calc(-1 * var(--m)) 0; padding: 36px 24px 34px; text-align: left; background: #1a1714; }
+  .quote .foto { position: absolute; inset: 0; background:
+      linear-gradient(100deg, rgba(20,18,16,.9) 0%, rgba(20,18,16,.84) 50%, rgba(26,23,20,.76) 100%),  /* más parejo que el TV: en el celu la frase ocupa todo el ancho */
+      url('../../../el-templo-app/public/bars-open.webp') center / cover no-repeat; }
+  .quote .glow { position: absolute; left: -12%; bottom: -28%; width: 90%; height: 85%; background: radial-gradient(ellipse at 28% 82%, rgba(212,168,67,.14) 0%, rgba(212,168,67,0) 60%); }
+  .quote .txt { position: relative; font: 700 21px/1.5 'Cinzel', Georgia, serif; color: #f2ede5; text-shadow: 0 .06em .5em rgba(0,0,0,.6); }
+  .quote .w { display: inline-block; white-space: pre; opacity: 0; transform: translateY(.14em); }
+  .quote .w.oro { color: #d4b896; }
+  .quote.on .w { animation: palabraEntra .55s ease forwards; }
+  @keyframes palabraEntra { to { opacity: 1; transform: none; } }
+  .quote .a { position: relative; margin-top: 18px; font: 700 11px 'Nunito Sans', system-ui; letter-spacing: .3em; text-transform: uppercase; color: #a89a87; opacity: 0; transition: opacity .9s ease; }
+  .quote.on .a { opacity: 1; }
+  /* Versión clara = pantalla diurna del TV (.pantalla--dia): misma foto con velo CREMA, tinta #3d3732,
+     acento terracota (el bronce no contrasta sobre crema), etiquetas #6f6455, sin glow.
+     Velo más denso que el TV (.92→.86) porque en el celu la frase cubre todo el ancho. */
+  /* Pedido 10-15: la clara NO lleva banda propia — va sobre el mismo fondo de Mi Templo
+     (crema + foto detrás), sin velo ni glow. Solo hereda la tipografía del TV. */
+  .quote.clara { background: transparent; margin: 8px 0 0; padding: 20px 8px 28px; }
+  .quote.clara .foto, .quote.clara .glow { display: none; }
+  .quote.clara .txt { color: #3d3732; text-shadow: none; }
+  .quote.clara .w.oro { color: #96593a; }
+  .quote.clara .a { color: #5c5347; }  /* #6f6455 del TV daba 4.2 sobre este fondo */
+  @media (prefers-reduced-motion: reduce) { .quote .w { opacity: 1; transform: none; animation: none !important; } .quote .a { opacity: 1; } }
+
+  /* ── Aviso en línea (propuesta 2 del pop-up) ── */
+  .aviso { border: 1.5px solid var(--terra); }
+  .aviso h4 { margin: 0 0 4px; font: 700 15px 'Montserrat'; color: var(--ink); }
+  .aviso p { margin: 0; font-size: 14px; line-height: 1.4; color: var(--ink); }
+  .aviso .link { color: var(--terra); padding: 10px 0 0; }
+
+  /* ── Tab bar ── */
+  .tabbar { position: absolute; left: 0; right: 0; bottom: 0; height: var(--tab-h); z-index: 6; background: linear-gradient(135deg, #7d5d42, #96593a); display: flex; }
+  .tabbar div { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: #f2ede5; font: 500 11px 'Geologica'; }  /* crema sólido: 4.75 */
+  .tabbar div.on { color: #fff; font-weight: 700; }
+  .tabbar div .mi { font-size: 24px; }
+  .mi { font-family: 'Material Icons'; font-weight: normal; font-style: normal; line-height: 1; letter-spacing: normal; text-transform: none; white-space: nowrap; -webkit-font-feature-settings: 'liga'; font-feature-settings: 'liga'; display: inline-block; vertical-align: middle; }
+
+  /* ── FAB QR extendido (solo en la ventana ±20 min) ── */
+  .fab { position: absolute; right: 16px; bottom: calc(var(--tab-h) + 16px); z-index: 7; height: 56px; border-radius: 28px; padding: 0 22px 0 18px; border: 0; background: var(--terra); color: #fff; font: 600 16px 'Geologica'; display: flex; align-items: center; gap: 10px; box-shadow: 0 8px 20px rgba(150,89,58,.45); cursor: pointer; animation: fabIn .35s ease; }
+  .fab .qr { width: 22px; height: 22px; border: 2.5px solid #fff; border-radius: 4px; position: relative; }
+  .fab .qr::after { content: ''; position: absolute; inset: 4px; background: #fff; border-radius: 1px; }
+  @keyframes fabIn { from { transform: translateY(20px) scale(.9); opacity: 0; } to { transform: none; opacity: 1; } }
+  .fab.pulse { animation: fabIn .35s ease, pulse 2s ease-in-out .4s infinite; }
+  @keyframes pulse { 50% { box-shadow: 0 8px 20px rgba(150,89,58,.45), 0 0 0 10px rgba(150,89,58,.15); } }
+
+  /* ── Pop-ups ── */
+  .overlay { position: absolute; inset: 0; z-index: 20; background: rgba(20,16,12,.55); display: grid; place-items: center; padding: 24px; }
+  .modal { background: #2e2a26; color: #fff; border-radius: 18px; padding: 28px 22px 18px; text-align: center; }
+  .modal h3 { margin: 0 0 12px; font: 700 20px/1.3 'Montserrat'; }
+  .modal p { margin: 0 0 20px; font-size: 15px; line-height: 1.45; }
+  .modal .btn { width: 100%; justify-content: center; background: #a15f3d; color: #f2ede5; }
+  .modal .link { color: #ddd; }
+  .sheet-wrap { position: absolute; inset: 0; z-index: 20; pointer-events: none; }
+  .sheet { pointer-events: auto; position: absolute; left: 0; right: 0; bottom: 0; background: #fff; border-radius: 20px 20px 0 0; padding: 10px 20px 22px; box-shadow: 0 -10px 30px rgba(0,0,0,.18); transform: translateY(100%); transition: transform .35s ease; }
+  .sheet.up { transform: none; }
+  .sheet .grab { width: 40px; height: 4px; border-radius: 2px; background: #d9cfc1; margin: 0 auto 14px; }
+  .sheet h3 { margin: 0 0 6px; font: 700 18px/1.3 'Montserrat'; color: var(--ink); }
+  .sheet p { margin: 0 0 16px; font-size: 15px; line-height: 1.45; color: var(--ink); }
+  .sheet .btn { width: 100%; justify-content: center; background: var(--terra); color: #fff; }
+
+  /* ── Línea del primer viewport (vista "página completa") ── */
+  .fold { position: absolute; left: -14px; right: -14px; top: 788px; border-top: 2px dashed #d11; z-index: 30; pointer-events: none; }
+  .fold span { position: absolute; right: 0; top: -18px; font: 600 10px system-ui; color: #d11; background: #fff; padding: 1px 4px; border-radius: 3px; }
+
+  /* ── Zona del pulgar (mano derecha, aprox.) ── */
+  .thumb { position: absolute; inset: 0; z-index: 25; pointer-events: none; background:
+      radial-gradient(ellipse 120% 55% at 85% 100%, rgba(59,114,73,.30) 0 55%, rgba(205,160,40,.22) 55% 80%, rgba(180,60,60,.18) 80%); }
+
+  .antes img { display: block; width: 390px; height: 844px; }
+  #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #2c2318; color: #fff; padding: 9px 14px; border-radius: 8px; font: 13px system-ui; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 99; }
+</style>
+</head>
+<body>
+
+<div id="controls">
+  <div class="ctl" data-k="v"><span>Variante</span>
+    <button data-val="dark">A' Hoy oscura ★</button><button data-val="light">C Todas blancas</button><button data-val="antes">Antes (hoy)</button></div>
+  <div class="ctl" data-k="socio"><span>Socio</span>
+    <button data-val="turno">Presencial con turno</button><button data-val="sinturno">Presencial sin turno</button><button data-val="descanso">Día de descanso</button><button data-val="nunca">Sin plan · nunca tuvo</button><button data-val="vencio">Sin plan · venció</button><button data-val="online">Online con programa</button></div>
+  <div class="ctl" data-k="hora"><span>Momento</span>
+    <button data-val="fuera">Fuera de la ventana</button><button data-val="ventana">En la ventana del turno (±20 min)</button><button data-val="marco">Ya marcó asistencia</button></div>
+  <div class="ctl" data-k="popup"><span>Pop-up de entrada</span>
+    <button data-val="no">Ninguno</button><button data-val="actual">Modal (decidido) + novedad</button><button data-val="hoja">Hoja a los 3 s (descartada)</button><button data-val="linea">Aviso en línea (descartada)</button></div>
+  <div class="ctl" data-k="spd"><span>Patrocinadores</span>
+    <button data-val="2">Avanza cada 2 s</button><button data-val="4">Cada 4 s</button></div>
+  <div class="ctl" data-k="orden"><span>Orden</span>
+    <button data-val="b">Hoy · Novedades · Registro · Patrocinadores · Semana · Para vos</button><button data-val="a">Hoy · Registro · Novedades · Semana · Patrocinadores · Para vos</button></div>
+  <div class="ctl" data-k="frase"><span>Frase</span>
+    <button data-val="clara">Clara (TV diurna)</button><button data-val="oscura">Oscura (TV cierre)</button></div>
+  <div class="ctl" data-k="vista"><span>Vista</span>
+    <button data-val="pantalla">Pantalla 390×844</button><button data-val="larga">Página completa</button></div>
+  <div class="ctl" data-k="tools"><span>Pruebas</span>
+    <button data-toggle="squint">Squint test</button><button data-toggle="thumb">Zona del pulgar</button><button data-toggle="compare">Comparar con antes</button></div>
+</div>
+
+<div id="stage"></div>
+<div id="toast"></div>
+
+<script>
+/* Contenido real: rutas de la semana, sede Alem (Juan B. Justo 1018), copy actual de las
+   tarjetas (staging), preguntas reales del registro del día, frases ACTIVAS del TV (QUOTES). */
+const S = { v: 'dark', socio: 'turno', hora: 'fuera', popup: 'no', vista: 'pantalla', spd: '2', orden: 'b', frase: 'clara', squint: false, thumb: false, compare: false };
+let spIdx = 0, spOpen = null, carnet = false; // patrocinadores
+let popupVisto = false; // cerrar el pop-up no borra su novedad
+const REG = [
+  { q: '¿Tenés alguna molestia?', o: [['No','ninguna'],['Leve','leve'],['Moderada','moderada']] },
+  { q: '¿Cómo te sentís hoy?', o: [['Bajo','bajo'],['Normal','normal'],['Alto','alto']] },
+  { q: '¿Cómo dormiste?', o: [['Mal','mal'],['Ok','ok'],['Bien','bien']] },
+];
+let reg = []; // respuestas
+const NOV = [
+  { t: 'Desde el lunes 20 sumamos turno de 7 h en Alem', sede: 'Alem', when: 'ayer', nuevo: true },
+  { t: 'Sábado 25: clase abierta de handstand, traé a alguien', sede: null, when: 'hace 3 días', nuevo: false },
+];
+let novIdx = 0;
+const QUOTE = { a: '“QUIEN MUEVE UNA MONTAÑA ', b: 'COMIENZA MOVIENDO PEQUEÑAS PIEDRAS.”', who: 'Confucio' };
+const PROMOS = {
+  inv: { k: 'Invitaciones', h: 'Vos decidís cuánto bajás tu cuota', p: 'Cada persona que invites y se sume baja tu cuota.', go: 'Invitar' },
+  pp: { k: 'Planes personalizados', h: 'Entrená con un plan diseñado para vos', p: 'Programas enfocados en tus objetivos, con seguimiento.', go: 'Ver planes' },
+  pres: { k: 'Presencial', h: 'Llevalo al siguiente nivel', p: 'Visitá nuestras sedes y entrená con nuestros entrenadores.', go: 'Más info' },
+  aviso: { k: 'Aviso', h: 'Nueva sede Alem: Juan B. Justo 1018', p: 'Un espacio más amplio para seguir entrenando juntos.', go: 'Cómo llegar' },
+};
+
+/* Patrocinadores DE EJEMPLO (marcas del mockup de la sesión el-templo-50). Límite default: 6 activas por país. */
+const SPONSORS = [
+  { k: 'nutri', bg: '#4c6b3c', fg: '#f2ede5', ico: 'eco', name: 'Verde Nutrición', cat: 'Nutrición deportiva', deal: '20% OFF', det: 'en tu primera consulta', how: 'carnet', cond: 'Válido para la primera consulta presencial o virtual. No acumulable con otras promociones. Hasta el 31/12.' },
+  { k: 'suple', bg: '#8a5a12', fg: '#f6e8cf', ico: 'bolt', name: 'Suple Lab', cat: 'Proteínas y creatina', deal: '15% OFF', det: 'local y tienda online', how: 'code', code: 'TEMPLO15', cond: 'Usá el código en la tienda online o mostralo en el local. Un uso por compra.' },
+  { k: 'kine', bg: '#3d3732', fg: '#f2ede5', mono: 'KA', name: 'Kine Activa', cat: 'Kinesiología deportiva', deal: '2x1', det: 'en sesiones, lunes a viernes', how: 'carnet', cond: 'Sesiones de lunes a viernes, con turno previo. Presentá tu carnet en recepción.' },
+  { k: 'cafe', bg: '#5a3d2b', fg: '#e9c99a', ico: 'coffee', name: 'Café Molienda', cat: 'Frente a la sede', deal: '10% OFF', det: 'desayuno post entreno', how: 'carnet', cond: 'De 7 a 12 h. Presentá tu carnet antes de pagar.' },
+  { k: 'ropa', bg: '#a8423f', fg: '#fbeee9', mono: 'RF', name: 'Ropa Fuerte', cat: 'Indumentaria de entrenamiento', deal: '25% OFF', det: 'en toda la tienda', how: 'code', code: 'FUERTE25', cond: 'Solo en la tienda online. No incluye productos en liquidación.' },
+  { k: 'agua', bg: '#3b7249', fg: '#eef5ef', ico: 'water_drop', name: 'Agua Viva', cat: 'Agua e isotónicas a domicilio', deal: 'Envío gratis', det: 'en pedidos semanales', how: 'code', code: 'AGUATEMPLO', cond: 'Para suscripciones semanales en CABA y GBA.' },
+];
+const spLogo = (b) => b.mono ? b.mono : `<span class="mi">${b.ico}</span>`;
+
+function toast(m) { const t = document.getElementById('toast'); t.textContent = m; t.style.opacity = 1; clearTimeout(toast.h); toast.h = setTimeout(() => t.style.opacity = 0, 1600); }
+function esc(s) { return s; }
+const presencial = () => ['turno', 'sinturno', 'descanso'].includes(S.socio);
+const sinPlan = () => ['nunca', 'vencio'].includes(S.socio);
+const fabVisible = () => S.socio === 'turno' && S.hora === 'ventana';
+
+function liviana() {
+  if (reg[1] === 'bajo') return 'Sesión liviana sugerida';
+  if (reg[0] === 'moderada') return 'Considerá movilidad hoy';
+  if (reg[2] === 'mal') return 'Escuchá tu cuerpo hoy';
+  return null;
+}
+
+function hoyCard() {
+  const msg = liviana();
+  const msgChip = msg ? `<div class="chip"><span class="mi" style="font-size:16px">self_improvement</span> ${msg}</div>` : '';
+  switch (S.socio) {
+    case 'turno': {
+      let estado = `<div class="meta"><span>Tu turno: <b>19:00</b></span><span class="sep">·</span><span>Alem</span></div>`;
+      let acts = `<button class="btn pri" onclick="toast('→ /training (sesión de hoy)')">Ver la sesión</button><button class="link" onclick="toast('→ /reservas')">Cambiar turno</button>`;
+      if (S.hora === 'ventana') estado += `<div class="chip"><span class="mi" style="font-size:16px">schedule</span> Tu clase empieza en 12 min</div>`;
+      if (S.hora === 'marco') estado += `<div class="chip ok"><span class="mi" style="font-size:16px">check_circle</span> Asistencia registrada 18:52</div>`;
+      return card('Hoy · jueves 15', 'Muscle Up', estado + msgChip, acts);
+    }
+    case 'sinturno':
+      return card('Hoy · jueves 15', 'Muscle Up', `<div class="meta">No tenés turno hoy</div>${msgChip}`,
+        `<button class="btn pri" onclick="toast('→ /reservas')">Reservá tu turno</button><button class="link" onclick="toast('→ /training')">Ver la sesión</button>`);
+    case 'descanso':
+      return card('Hoy · domingo 18', 'Hoy descansás', `<div class="meta">Mañana: <b>Back Lever</b> · tu turno 19:00 · Alem</div>`,
+        `<button class="btn pri" onclick="toast('→ sesión de mañana')">Ver la de mañana</button><button class="link" onclick="toast('→ /reservas')">Mis turnos</button>`);
+    case 'nunca':
+      return card('Empezá hoy', 'Arrancá tu plan', `<div class="meta">Elegí cómo querés entrenar: en tu sede o online.</div>`,
+        `<button class="btn pri" onclick="toast('→ /planes')">Ver planes</button><button class="link" onclick="toast('→ reserva de clase de prueba')">Clase de prueba gratis</button>`,
+        `<div class="hook">Hoy en Alem se entrena <b>Muscle Up</b></div>`);
+    case 'vencio':
+      return card('Te extrañamos, Andre', 'Renová tu plan', `<div class="meta">Tu Pase Libre venció el 30 de septiembre.</div>`,
+        `<button class="btn pri" onclick="toast('→ renovar Pase Libre')">Renovar</button><button class="link" onclick="toast('→ /planes')">Ver otros planes</button>`,
+        `<div class="hook">Hoy en Alem se entrena <b>Muscle Up</b></div>`);
+    case 'online':
+      return card('Hoy · Calistenia Online', 'Muscle Up', `<div class="meta">Semana 3 de 12 · 1 de 3 sesiones esta semana</div><div class="bar"><i style="width:33%"></i></div>${msgChip}`,
+        `<button class="btn pri" onclick="toast('→ /training (arrancar sesión)')">Entrenar</button><button class="link" onclick="toast('→ mi programa')">Mi programa</button>`);
+  }
+}
+function card(kick, title, body, acts, extra = '') {
+  return `<section class="hoy"><div class="kick">${kick}</div><h2>${title}</h2>${body}<div class="acts">${acts}</div>${extra}</section>`;
+}
+
+function regCard() {
+  if (S.socio === 'nunca') return '';
+  if (reg.length >= 3) {
+    const lab = { ninguna: 'Sin molestias', leve: 'Molestia leve', moderada: 'Molestia moderada', bajo: 'Energía baja', normal: 'Energía normal', alto: 'Energía alta', mal: 'Dormiste mal', ok: 'Dormiste ok', bien: 'Dormiste bien' };
+    return `<section class="card reg"><div class="done"><span class="tick mi">check</span><span><b>Registro del día</b> · ${reg.map((r) => lab[r]).join(' · ')}</span><button class="link" onclick="reg=[];render()">editar</button></div></section>`;
+  }
+  const i = reg.length, R = REG[i];
+  return `<section class="card reg"><div class="sec-title">Registro del día<span class="aux">${i + 1} de 3</span></div>
+    <div class="q">${R.q}</div><div class="opts">${R.o.map(([l, v]) => `<button onclick="reg.push('${v}');render()">${l}</button>`).join('')}</div></section>`;
+}
+
+const POPUP_NOV = { t: 'Alem se muda a un espacio más grande: Juan B. Justo 1018', sede: 'Alem', when: 'hoy', nuevo: true, popup: true };
+const novList = () => (S.popup !== 'no' ? [POPUP_NOV, ...NOV] : NOV).slice(0, 3); // máx 3 (sketch 004)
+function novCard() {
+  const L = novList(); if (novIdx >= L.length) novIdx = 0;
+  const n = L[novIdx];
+  return `<section class="card nov"><div class="sec-title" style="margin-bottom:10px">Novedades <span class="pill">${L.filter((x) => x.nuevo).length} nueva${L.filter((x) => x.nuevo).length > 1 ? 's' : ''}</span>
+    <span class="dots">${L.map((_, i) => `<i class="${i === novIdx ? 'on' : ''}"></i>`).join('')}</span></div>
+    <div class="stage" onclick="toast(${n.popup ? "'→ abre el mismo aviso del pop-up'" : "'→ destino de la novedad'"})"><div class="txt">${n.t}</div>
+    <div class="m">${n.nuevo ? '<b>NUEVO</b>' : ''}${n.sede ? `<span><span class="mi" style="font-size:14px">location_on</span> ${n.sede}</span>` : ''}<span>${n.when}</span></div></div></section>`;
+}
+
+function semCard() {
+  if (S.socio === 'nunca') return '';
+  const venc = S.socio === 'vencio';
+  const done = venc ? [] : S.socio === 'descanso' ? [0, 1, 3, 5] : [0, 1];
+  const today = S.socio === 'descanso' ? 6 : 3;
+  const d = ['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((l, i) => `<div class="d ${done.includes(i) ? 'y' : ''} ${i === today ? 't' : ''}"><i></i>${l}</div>`).join('');
+  return `<section class="card sem"><div class="sec-title">Tu semana</div><div class="row"><div class="big">${done.length}</div>
+    <div class="lab">sesiones<br>esta semana</div><div class="days">${d}</div></div><div class="tot">${venc ? '42 sesiones en El Templo' : '42 sesiones en total'}</div></section>`;
+}
+
+function carousel() {
+  const keys = S.socio === 'online' ? ['inv', 'pres', 'aviso'] : sinPlan() ? ['pp', 'aviso'] : ['inv', 'pp', 'aviso'];
+  return `<section class="car"><div class="sec-title" style="padding:0 var(--m)">Para vos</div><div class="rail">${keys.map((k) => {
+    const p = PROMOS[k];
+    return `<div class="promo"><div class="k">${p.k}</div><h4>${p.h}</h4><p>${p.p}</p><button class="go" onclick="toast('→ ${p.go}')">${p.go} →</button></div>`;
+  }).join('')}</div></section>`;
+}
+
+function sponsors() {
+  return `<section class="spon" style="--spd:${S.spd}s" aria-label="Patrocinadores"><div class="track">${SPONSORS.map((b, i) => `
+    <article class="sp ${i === spIdx ? 'on' : ''}" data-i="${i}" style="--b-bg:${b.bg};--b-fg:${b.fg}" onclick="openSp(${i})">
+      ${b.mono ? '' : `<span class="mi wm">${b.ico}</span>`}
+      <div class="top"><span class="logo">${spLogo(b)}</span><div><div class="name">${b.name}</div><span class="cat">${b.cat}</span></div></div>
+      <div class="deal"><div><b>${b.deal}</b><span class="dt">${b.det}</span></div>
+        <span class="how"><span class="mi">${b.how === 'code' ? 'sell' : 'card_membership'}</span>${b.how === 'code' ? b.code : 'Mostrá tu carnet'}</span></div>
+    </article>`).join('')}</div>
+    <div class="dots">${SPONSORS.map((_, i) => `<button class="dot ${i === spIdx ? 'on' : ''}" aria-label="Marca ${i + 1}" onclick="goSp(${i}, true)"></button>`).join('')}</div></section>`;
+}
+
+function spSheet() {
+  const b = SPONSORS[spOpen];
+  const plan = !sinPlan();
+  let canje;
+  if (!plan) canje = `<div class="lock"><span class="mi">lock</span>Este beneficio es para socios con plan activo.</div>
+      <button class="btn" onclick="toast('→ /planes (mismo destino que Arrancá/Renová)')">Activá tu plan para usarlo</button>`;
+  else if (b.how === 'code') canje = `<div class="code"><b>${b.code}</b><button class="btn" style="width:auto;padding:0 16px" onclick="toast('Código copiado')">Copiar</button></div>`;
+  else canje = `<button class="btn" onclick="carnet=true;render()"><span class="mi">card_membership</span>Mostrá tu carnet</button>`;
+  return `<div class="overlay" style="background:rgba(20,16,12,.45);place-items:end stretch;padding:0" onclick="if(event.target===this){spOpen=null;render()}">
+    <div class="sheet up spsheet" style="position:relative;--b-bg:${b.bg};--b-fg:${b.fg}"><div class="grab"></div>
+      <div class="head"><span class="logo">${spLogo(b)}</span><div><b>${b.name}</b><small>${b.cat}</small></div></div>
+      <div class="big">${b.deal}</div><div class="det">${b.det}</div><p class="cond">${b.cond}</p>
+      ${canje}<button class="link" onclick="spOpen=null;render()">Cerrar</button></div></div>`;
+}
+
+function carnetView() {
+  return `<div class="carnet"><div class="lg">EL TEMPLO</div><div class="nm">Andre Centurion</div><div class="sd">Sede Alem · Pase Libre</div>
+    <div class="ok"><span class="mi">verified</span>Socio activo</div><div class="dt">Jueves 15 de octubre</div><div class="clk" id="clk"></div>
+    <div class="hint">Mostrale esta pantalla al comercio. La hora en vivo evita capturas viejas.</div>
+    <button class="btn" onclick="carnet=false;render()">Listo</button></div>`;
+}
+
+let spTimer = null, spResume = null, spPaused = false, clkTimer = null;
+function openSp(i) { spOpen = i; render(); }
+function goSp(i, manual) {
+  const track = document.querySelector('.spon .track'); if (!track) return;
+  spIdx = (i + SPONSORS.length) % SPONSORS.length;
+  const card = track.children[spIdx];
+  track.scrollTo({ left: card.offsetLeft - track.offsetLeft - 16, behavior: 'smooth' });
+  paintSp();
+  if (manual) pauseSp();
+}
+function paintSp() {
+  const sec = document.querySelector('.spon'); if (!sec) return;
+  sec.querySelectorAll('.sp').forEach((c, i) => c.classList.toggle('on', i === spIdx));
+  const dots = sec.querySelector('.dots');
+  dots.innerHTML = SPONSORS.map((_, i) => `<button class="dot ${i === spIdx ? 'on' : ''}" aria-label="Marca ${i + 1}" onclick="goSp(${i}, true)"></button>`).join('');
+}
+function pauseSp() {
+  spPaused = true; const sec = document.querySelector('.spon'); if (sec) sec.classList.add('paused');
+  clearTimeout(spResume);
+  spResume = setTimeout(() => { spPaused = false; const s2 = document.querySelector('.spon'); if (s2) s2.classList.remove('paused'); paintSp(); }, 3000);
+}
+function startSp() {
+  clearInterval(spTimer); clearInterval(clkTimer);
+  if (carnet) {
+    const tick = () => { const c = document.getElementById('clk'); if (c) c.textContent = new Date().toLocaleTimeString('es-AR', { hour12: false }); };
+    tick(); clkTimer = setInterval(tick, 1000);
+  }
+  const track = document.querySelector('.spon .track'); if (!track) return;
+  track.addEventListener('pointerdown', pauseSp);
+  let raf;
+  track.addEventListener('scroll', () => {
+    cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(() => {
+      const w = track.children[0].offsetWidth + 10;
+      const i = Math.round(track.scrollLeft / w);
+      if (i !== spIdx && i >= 0 && i < SPONSORS.length) { spIdx = i; paintSp(); }
+    });
+  });
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches || S.squint) return;
+  spTimer = setInterval(() => { if (!spPaused && spOpen === null && !carnet) goSp(spIdx + 1, false); }, Number(S.spd) * 1000);
+}
+
+function quoteBlock() {
+  let n = 0;
+  const words = (t, oro) => t.split(/(?<=\s)/).map((w) => `<span class="w ${oro ? 'oro' : ''}" style="animation-delay:${(n++ * 0.09).toFixed(2)}s">${w}</span>`).join('');
+  return `<section class="quote ${S.frase === 'clara' ? 'clara' : ''}"><div class="foto"></div><div class="glow"></div>
+    <div class="txt">${words(QUOTE.a, false)}${words(QUOTE.b, true)}</div><div class="a" style="transition-delay:${(n * 0.09 + 0.3).toFixed(2)}s">${QUOTE.who}</div></section>`;
+}
+function watchQuote() {
+  const q = document.querySelector('.phone .quote'); if (!q) return;
+  if (S.vista === 'larga') { q.classList.add('on'); return; }
+  const root = q.closest('.scroll');
+  const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { q.classList.add('on'); io.disconnect(); } }), { root, threshold: .4 });
+  io.observe(q);
+}
+
+function aviso() {
+  return `<section class="card aviso"><h4>Alem se muda a un espacio más grande</h4><p>Desde ahora nos encontrás en Juan B. Justo 1018. ¡Te esperamos!</p><button class="link" onclick="popupVisto=true;render()">Entendido</button></section>`;
+}
+
+function phone(variant) {
+  if (variant === 'antes') {
+    const f = S.socio === 'online' ? 'online' : sinPlan() ? 'sin-plan' : S.socio === 'descanso' ? 'descanso' : 'presencial';
+    return `<div class="phone antes"><img src="antes/${f}.jpg" alt="Mi Templo hoy (staging)"></div>`;
+  }
+  const B = { reg: regCard(), nov: novCard(), sem: semCard(), spon: sponsors(), car: carousel() };
+  const order = S.orden === 'b' ? ['nov', 'reg', 'spon', 'sem', 'car'] : ['reg', 'nov', 'sem', 'spon', 'car'];
+  const blocks = [
+    hoyCard(),
+    S.popup === 'linea' && !popupVisto ? aviso() : '',
+    ...order.map((k) => B[k]),
+    quoteBlock(),
+  ].join('');
+  const long = S.vista === 'larga';
+  return `<div class="phone v-${variant} ${long ? 'long' : ''} ${S.squint ? 'squint' : ''}"><div class="screen">
+    <div class="bgphoto"></div>
+    <div class="appbar"><div class="logo"></div><div class="brand">EL TEMPLO</div><div class="ico"><span class="mi">person</span><span class="mi">logout</span></div></div>
+    <div class="scroll"><div class="greet"><div><h1>Hola, Andre!</h1><p>Hoy es ${S.socio === 'descanso' ? 'domingo, 18' : 'jueves, 15'} de octubre</p></div><div class="lvl"><b>α</b><small>ALFA</small></div></div>
+      <div class="stack ${fabVisible() ? 'fab-on' : ''}">${blocks}</div></div>
+    <div class="tabbar">${[['account_balance', 'Mi Templo', 1], ['menu_book', 'Guía'], ['sports_gymnastics', 'Entrenar'], ['event_available', 'Reservas'], ['card_membership', 'Planes']].map(([i, l, on]) => `<div class="${on ? 'on' : ''}"><span class="mi">${i}</span>${l}</div>`).join('')}</div>
+    ${fabVisible() ? `<button class="fab pulse" onclick="toast('→ escáner QR /check-in')"><span class="qr"></span>Marcar asistencia</button>` : ''}
+    ${S.popup === 'actual' && !popupVisto ? `<div class="overlay"><div class="modal"><h3>Alem se muda a un espacio más grande!</h3><p>A partir de ahora nos encontrás en Juan B. Justo 1018, un espacio más amplio para seguir entrenando juntos. ¡Te esperamos!</p><button class="btn" onclick="popupVisto=true;render()">Entendido</button><button class="link" onclick="popupVisto=true;render()">Descartar</button></div></div>` : ''}
+    ${S.popup === 'hoja' && !popupVisto ? `<div class="sheet-wrap"><div class="sheet" id="sheet"><div class="grab"></div><h3>Alem se muda a un espacio más grande</h3><p>Desde ahora nos encontrás en Juan B. Justo 1018. ¡Te esperamos!</p><button class="btn" onclick="popupVisto=true;render()">Entendido</button></div></div>` : ''}
+    ${spOpen !== null ? spSheet() : ''}
+    ${carnet ? carnetView() : ''}
+    ${S.thumb ? '<div class="thumb"></div>' : ''}
+  </div>${long ? '<div class="fold"><span>fin del primer viewport</span></div>' : ''}</div>`;
+}
+
+const NOTES = {
+  dark: `<h3>A' — Hoy oscura, sin estilo de promo</h3>La única mancha oscura de la pantalla es la acción del día. Sin borde dorado, sin pastilla de categoría y con botón crema, para no leerse como las promos de hoy. Las promos pasan a ser claras.`,
+  light: `<h3>C — Todas blancas</h3>Ninguna superficie oscura. La card de hoy se distingue por tamaño (título de 28 px), sombra cálida y el filete terracota arriba. Más sobria; el riesgo es que no pase el squint test.`,
+  antes: `<h3>Antes (staging hoy)</h3>Captura real del primer viewport a 390×844 para la misma situación.`,
+};
+
+function render() {
+  const st = document.getElementById('stage');
+  const cols = [];
+  if (S.compare && S.v !== 'antes') cols.push(['Antes (hoy)', phone('antes')]);
+  cols.push([S.v === 'dark' ? "A' Hoy oscura" : S.v === 'light' ? 'C Todas blancas' : 'Antes (hoy)', phone(S.v)]);
+  st.innerHTML = cols.map(([l, h]) => `<div><div class="col-label">${l}</div>${h}</div>`).join('') +
+    `<div id="notes">${NOTES[S.v]}<ul>
+      <li>Margen 16 · padding 16 · sin cajas anidadas (decisión M).</li>
+      <li>Texto siempre sólido: principal #2c2318, secundario #6b6459, acento #96593a (decisión S).</li>
+      <li>Botón QR: solo con turno y en la ventana ±20 min; extendido con leyenda.</li>
+      <li>Registro del día: respondé las 3 para verlo colapsar; "Bajo" en energía agrega el aviso en la card de hoy.</li>
+      <li>Squint test: ¿qué se ve primero con la vista borrosa?</li>
+      <li>Patrocinadores (marcas de ejemplo): debajo de Tu semana; tocá una card para ver el detalle. Con "Sin plan" el canje pide activar el plan. Tocar pausa 3 s.</li></ul></div>`;
+  startSp();
+  watchQuote();
+  if (S.popup === 'hoja') setTimeout(() => { const s = document.getElementById('sheet'); if (s) s.classList.add('up'); }, 3000);
+}
+
+function sync() {
+  document.querySelectorAll('.ctl[data-k]').forEach((c) => {
+    const k = c.dataset.k;
+    c.querySelectorAll('button').forEach((b) => {
+      if (b.dataset.val) b.classList.toggle('on', S[k] === b.dataset.val);
+      if (b.dataset.toggle) b.classList.toggle('on', !!S[b.dataset.toggle]);
+    });
+  });
+}
+document.getElementById('controls').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  const k = b.closest('.ctl').dataset.k;
+  if (b.dataset.toggle) S[b.dataset.toggle] = !S[b.dataset.toggle];
+  else S[k] = b.dataset.val;
+  if (k === 'socio' && S.socio !== 'turno' && S.hora !== 'fuera') S.hora = 'fuera';
+  if (k === 'popup') { novIdx = 0; popupVisto = false; }
+  sync(); render();
+});
+setInterval(() => { novIdx = (novIdx + 1) % novList().length; if (!S.squint) { const n = document.querySelector('.nov'); if (n) n.outerHTML = novCard(); } }, 4500);
+sync(); render();
+</script>
+
+<!-- Toolbar del sketch -->
+<div id="sketch-tools" style="position:fixed;bottom:12px;right:12px;z-index:9999;font:12px system-ui;background:rgba(0,0,0,.7);color:#fff;padding:8px 12px;border-radius:8px;opacity:.4;transition:opacity .2s" onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='.4'">
+  Sketch 005 · tema <select onchange="document.querySelector('link[href*=themes]').href='../themes/'+this.value+'.css'"><option value="default">default</option></select>
+</div>
+</body>
+</html>

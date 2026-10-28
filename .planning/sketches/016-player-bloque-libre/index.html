@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sketch 016 — Player: modo bloque libre</title>
+<link rel="stylesheet" href="../themes/default.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Geologica:wght@300;400;500;600;700&family=Montserrat:wght@500;600;700;800&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@1,500&family=Roboto+Mono:wght@500&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+<style>
+  :root {
+    --page: #f2ede5; --ink: #2c2318; --ink-2: #6b6459; --ink-3: #5a5347; --terra: #96593a; --line: #e5dbcd;
+    --sage: #3f6a47; --sage-tint: #e9f0e6; --dark: #2c2318; --cream-ink: #f0e6d6; --cream-2: #e3c9a8; --cream-3: #c9bba6;
+    --btn-a: #a35f3c; --btn-b: #7e4529; --gold: #d4b46a; --gold-ink: #7d6520; --gold-tint: #f6efdc;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #e9e3da; font-family: 'Geologica', system-ui, sans-serif; color: var(--ink); }
+  .material-icons { font-size: inherit; line-height: 1; vertical-align: middle; }
+  button { font: inherit; }
+  #controls { position: sticky; top: 0; z-index: 50; background: #fff; border-bottom: 1px solid #ddd; padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; font: 13px system-ui; }
+  .ctl { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+  .ctl > span { color: #555; margin-right: 4px; font-weight: 600; }
+  .ctl button { border: 1px solid #ccc; background: #fafafa; border-radius: 6px; padding: 5px 9px; cursor: pointer; }
+  .ctl button.on { background: #2c2318; color: #fff; border-color: #2c2318; }
+  #stage { display: flex; gap: 32px; justify-content: center; align-items: flex-start; padding: 24px 16px 80px; flex-wrap: wrap; }
+  .col { display: flex; flex-direction: column; align-items: center; }
+  .col-label { font: 600 13px system-ui; text-align: center; margin-bottom: 4px; }
+  .col-sub { font: 12px system-ui; color: #555; max-width: 380px; margin-bottom: 10px; line-height: 1.45; min-height: 120px; }
+  .col-sub ul { margin: 4px 0 0; padding-left: 16px; }
+  .col-sub .bad { color: #a8423f; font-weight: 600; }
+  .col-sub .ok { color: #3f6a47; font-weight: 600; }
+  .phone { position: relative; width: var(--w, 390px); height: 844px; border-radius: 28px; overflow: hidden; box-shadow: 0 0 0 10px #1d1a17, 0 20px 50px rgba(0,0,0,.25); background: var(--page); display: flex; flex-direction: column; isolation: isolate; transition: width .2s; }
+  .scroll { flex: 1; overflow-y: auto; scrollbar-width: none; position: relative; }
+  .scroll::-webkit-scrollbar { display: none; }
+  .appbar { flex: none; height: 56px; display: flex; align-items: center; gap: 10px; padding: 0 14px; background: linear-gradient(135deg, #96593a, #7d5d42); color: #fff; font: 800 18px 'Montserrat', sans-serif; }
+  .appbar i { width: 30px; height: 30px; border-radius: 7px; background: #f2ede5; }
+  .tabbar { flex: none; height: 56px; display: flex; justify-content: space-around; align-items: center; background: linear-gradient(135deg, #7d5d42, #96593a); color: #f2ede5; font-size: 10px; }
+  .tabbar span { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .tabbar .material-icons { font-size: 24px; }
+  .tabbar .on { color: #fff; font-weight: 700; }
+
+  /* ═════ Fondo de "pantalla de player" detrás de los overlays ═════ */
+  .behind { position: absolute; inset: 0; background: linear-gradient(#2e2a26 0 45%, var(--page) 45%); }
+
+  /* ═════ HOY ═════ */
+  .h-ov { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; background: rgba(46,42,38,.85); backdrop-filter: blur(20px); }
+  .h-card { width: 100%; max-width: 360px; border-radius: 20px; background: rgba(61,55,50,.95); padding: 40px 32px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 16px; color: #fff; }
+  .h-card .ic { font-size: 64px; color: #b89b5e; }
+  .h-card .lab { font: 500 16px 'Montserrat', sans-serif; letter-spacing: 2px; text-transform: uppercase; }
+  .h-card h1 { margin: 0; font: 800 28px 'Montserrat', sans-serif; }
+  .h-quote { font: italic 500 16px 'Cormorant Garamond', serif; color: rgba(255,255,255,.7); line-height: 1.4; }
+  .h-quote b { color: #b89b5e; font-weight: 500; }
+  .h-quote small { display: block; margin-top: 6px; font: 13px 'Geologica', sans-serif; color: rgba(255,255,255,.5); }
+  .h-btn { width: 100%; min-height: 48px; border: 0; border-radius: 4px; background: #96593a; color: #fff; font: 500 15px 'Geologica', sans-serif; letter-spacing: .06em; text-transform: uppercase; }
+  .h-story { position: relative; height: 380px; background: #2e2a26; color: #fff; flex: none; }
+  .h-seg { position: absolute; top: 8px; left: 12px; right: 12px; display: flex; gap: 3px; z-index: 2; }
+  .h-seg i { flex: 1; height: 4px; border-radius: 2px; background: rgba(255,255,255,.75); }
+  .h-seg i.on { background: #e8c84a; box-shadow: 0 0 6px #e8c84a; }
+  .h-head { position: absolute; top: 0; left: 0; right: 0; height: 80px; padding: 18px 8px 0; display: flex; align-items: flex-start; gap: 6px; background: linear-gradient(rgba(0,0,0,.6), transparent); z-index: 1; }
+  .h-head .bk { font-size: 24px; padding: 4px; }
+  .h-head .nm b { display: block; font: 700 16px 'Montserrat', sans-serif; }
+  .h-head .nm small { font-size: 12px; color: rgba(255,255,255,.7); }
+  .h-head .tm { margin-left: auto; font: 500 16px 'Roboto Mono', monospace; padding-top: 4px; }
+  .h-head .mv { font-size: 24px; padding: 2px 4px; }
+  .h-hero { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; background: linear-gradient(135deg, #1e1b18, #2e2a26, #3d3732); }
+  .h-hero b { font: 600 28px 'Montserrat', sans-serif; text-align: center; padding: 0 20px; }
+  .h-badge { padding: 2px 6px; border-radius: 4px; background: #96593a; font: 600 11px 'Geologica', sans-serif; }
+  .h-done { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 24px; background: #2e2a26; text-align: center; }
+  .h-done .material-icons { font-size: 48px; color: #21ba45; }
+  .h-done b { font: 700 24px 'Montserrat', sans-serif; }
+  .h-done p { margin: 0 0 8px; font-size: 15px; color: rgba(255,255,255,.7); }
+  .h-done .p { min-height: 40px; padding: 0 20px; border: 0; border-radius: 8px; background: #96593a; color: #fff; font-weight: 500; text-transform: uppercase; }
+  .h-done .f { min-height: 36px; border: 0; background: none; color: #fff; font-size: 13px; text-transform: uppercase; }
+  .h-content { padding: 12px 16px 24px; }
+  .h-fmt { font: 700 11px 'Geologica', sans-serif; text-transform: uppercase; color: #7d5d42; }
+  .h-fmt span { color: rgba(0,0,0,.5); }
+  .h-fdesc { margin-top: 2px; font-size: 11px; color: rgba(0,0,0,.45); }
+  .h-act { display: flex; align-items: center; gap: 10px; margin: 12px 0 6px; }
+  .h-act b { flex: 1; font: 700 16.8px 'Geologica', sans-serif; color: #3d3732; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .h-act button { min-height: 36px; padding: 0 14px; border: 0; border-radius: 8px; background: #96593a; color: #fff; font-weight: 500; text-transform: uppercase; font-size: 13px; }
+  .h-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid rgba(125,93,66,.12); }
+  .h-row.on { background: rgba(125,93,66,.1); margin: 0 -16px; padding: 8px 16px; }
+  .h-row .n { font: 500 14px 'Geologica', sans-serif; color: #3d3732; }
+  .h-row .d { font: 700 12px 'Geologica', sans-serif; color: rgba(0,0,0,.55); }
+  .h-row .bd { padding: 1px 4px; border-radius: 3px; background: #96593a; color: #fff; font-size: 9px; margin-right: 4px; }
+  .h-row .ind { margin-left: auto; padding: 3px 8px; border-radius: 10px; border: 1px solid #96593a; color: #96593a; font-size: 11px; }
+  .h-prev { margin-top: 14px; font: 700 11px 'Geologica', sans-serif; text-transform: uppercase; color: rgba(0,0,0,.4); }
+  .h-sum { position: relative; padding: 16px; }
+  .h-sum .hd { display: flex; align-items: center; gap: 10px; }
+  .h-sum .hd .material-icons { font-size: 36px; color: #3b7249; }
+  .h-sum .hd b { display: block; font: 600 14px 'Montserrat', sans-serif; text-transform: uppercase; color: rgba(150,89,58,.6); }
+  .h-sum .hd small { font-size: 14px; color: #616161; }
+  .h-blk { margin-top: 12px; padding: 12px 14px; border-radius: 8px; background: rgba(255,255,255,.6); }
+  .h-blk b { font: 700 14px 'Montserrat', sans-serif; letter-spacing: .08em; color: #2c2318; }
+  .h-blk small { display: block; font-size: 12px; color: #757575; }
+  .h-stats { display: flex; margin-top: 14px; padding: 14px; border-radius: 16px; border: 1px solid rgba(184,155,94,.3); background: linear-gradient(rgba(245,240,232,.8), rgba(232,224,212,.6)); }
+  .h-stats div { flex: 1; text-align: center; }
+  .h-stats div + div { border-left: 1px solid rgba(0,0,0,.1); }
+  .h-stats b { display: block; font: 400 34px 'Geologica', sans-serif; color: #96593a; }
+  .h-stats div + div b { color: #7d5d42; }
+  .h-stats small { font-size: 12px; color: #616161; }
+  .h-rpe { margin-top: 14px; padding: 12px; border-radius: 12px; background: rgba(125,93,66,.05); }
+  .h-rpe b { font: 600 14px 'Montserrat', sans-serif; color: #96593a; }
+  .h-rpe .bar { height: 4px; margin: 18px 4px 8px; border-radius: 2px; background: #d8cfc4; position: relative; }
+  .h-rpe .bar::after { content: ''; position: absolute; left: 50%; top: -6px; width: 16px; height: 16px; border-radius: 50%; background: #96593a; }
+  .h-rpe small { font-size: 11px; color: #757575; display: flex; justify-content: space-between; }
+  .h-notes { margin-top: 12px; height: 64px; border-radius: 4px; border: 1px solid #bdbdbd; padding: 8px; font-size: 14px; color: #757575; }
+  .h-end { display: block; width: 100%; max-width: 300px; height: 52px; margin: 16px auto 4px; border: 0; border-radius: 26px; background: linear-gradient(135deg, #a35f3c, #7e4529); color: #fff; font: 600 16px 'Montserrat', sans-serif; letter-spacing: .08em; text-transform: uppercase; }
+  .h-rep { display: block; margin: 0 auto; min-height: 36px; border: 0; background: none; color: #616161; font-size: 13px; text-transform: uppercase; }
+  .h-cel .ic { font-size: 80px; color: #b89b5e; animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 50% { transform: scale(1.08); opacity: .85; } }
+
+  /* ═════ BLOQUE LIBRE (tokens del rework) ═════ */
+  .n-ov { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; background: rgba(30,24,18,.82); backdrop-filter: blur(16px); }
+  .n-frame { width: 100%; max-width: 360px; border-radius: 21px; padding: 1.5px; background: linear-gradient(115deg, #4a3a2b 0%, #a35f3c 30%, #f0d2b4 45%, #a35f3c 60%, #4a3a2b 100%); box-shadow: 0 16px 40px rgba(0,0,0,.35); }
+  .n-card { position: relative; overflow: hidden; border-radius: 20px; background: var(--dark); padding: 32px 24px 24px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; color: var(--cream-ink); }
+  .n-card::after { content: ''; position: absolute; left: 20px; right: 20px; bottom: 0; height: 2px; background: linear-gradient(90deg, transparent, #a35f3c, #e9bf9b, #a35f3c, transparent); }
+  .n-kick { font: 700 11px 'Cinzel', serif; letter-spacing: .14em; text-transform: uppercase; color: var(--cream-2); }
+  .n-card h1 { margin: 0; font: 700 28px/1.15 'Montserrat', sans-serif; color: var(--cream-ink); }
+  .n-meta { font-size: 13px; color: var(--cream-3); }
+  .n-quote { font: italic 500 17px/1.4 'Cormorant Garamond', serif; color: var(--cream-2); }
+  .n-quote b { color: var(--gold); font-weight: 500; }
+  .n-quote small { display: block; margin-top: 6px; font: 13px 'Geologica', sans-serif; font-style: normal; color: var(--cream-3); }
+  .n-aura { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 999px; background: rgba(212,180,106,.14); color: var(--gold); font: 600 13px 'Geologica', sans-serif; }
+  .n-aura.off { background: rgba(240,230,214,.08); color: var(--cream-3); }
+  .n-cta { position: relative; overflow: hidden; width: 100%; min-height: 48px; margin-top: 4px; border: 0; border-radius: 12px; background: linear-gradient(135deg, var(--btn-a), var(--btn-b)); color: #fff; font: 600 15px 'Geologica', sans-serif; cursor: pointer; }
+  .n-cta::after { content: ''; position: absolute; top: 0; bottom: 0; width: 40%; left: -60%; background: linear-gradient(100deg, transparent, rgba(255,255,255,.35), transparent); animation: shine 5s ease-in-out infinite; }
+  @keyframes shine { 0%, 70% { left: -60%; } 100% { left: 130%; } }
+  .n-ghost { min-height: 44px; border: 0; background: none; color: var(--cream-2); font: 600 14px 'Geologica', sans-serif; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+  .n-ghost.l { color: var(--terra); }
+  .n-big { font: 800 44px 'Montserrat', sans-serif; color: var(--gold); text-shadow: 0 0 28px rgba(212,180,106,.35); line-height: 1; }
+  .n-big small { display: block; margin-top: 4px; font: 700 12px 'Montserrat', sans-serif; letter-spacing: .14em; color: var(--gold); text-shadow: none; }
+  .n-story { position: relative; height: 380px; background: #2e2a26; color: #fff; flex: none; }
+  .n-head { position: absolute; top: 0; left: 0; right: 0; height: 88px; padding: 18px 8px 0; display: flex; align-items: flex-start; gap: 6px; background: linear-gradient(rgba(0,0,0,.6), transparent); z-index: 1; }
+  .n-head .bk { width: 44px; height: 44px; display: grid; place-items: center; font-size: 24px; margin-top: -8px; }
+  .n-head .nm b { display: block; font: 800 11px 'Montserrat', sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--cream-2); }
+  .n-head .nm span { display: block; font: 700 16px 'Montserrat', sans-serif; color: #fff; }
+  .n-head .tm { margin-left: auto; text-align: right; padding-top: 2px; }
+  .n-head .tm b { font: 500 16px 'Roboto Mono', monospace; }
+  .n-min { display: block; margin-top: 4px; width: 92px; height: 4px; border-radius: 2px; background: rgba(240,230,214,.25); overflow: hidden; }
+  .n-min i { display: block; height: 100%; background: var(--gold); }
+  .n-head .tm small { display: block; margin-top: 3px; font-size: 11px; color: var(--cream-2); }
+  .n-done { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 24px; background: #2e2a26; text-align: center; color: var(--cream-ink); }
+  .n-done .material-icons { font-size: 48px; color: #8fc79a; }
+  .n-done .material-icons.wait { color: var(--gold); }
+  .n-done b { font: 700 24px 'Montserrat', sans-serif; }
+  .n-done p { margin: 0 0 8px; font-size: 15px; color: var(--cream-2); max-width: 280px; }
+  .n-done .n-cta { width: auto; padding: 0 24px; }
+  .n-content { padding: 14px 16px 24px; }
+  .n-fmt { font: 800 11px 'Montserrat', sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--terra); }
+  .n-fmt span { color: var(--ink-2); font-weight: 700; }
+  .n-fdesc { margin-top: 2px; font-size: 13px; color: var(--ink-2); }
+  .n-act { display: flex; align-items: center; gap: 10px; margin: 14px 0 6px; }
+  .n-act b { flex: 1; font: 700 16px 'Montserrat', sans-serif; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .n-act button { min-height: 44px; padding: 0 16px; border: 0; border-radius: 999px; background: var(--terra); color: #fff; font: 600 14px 'Geologica', sans-serif; }
+  .n-row { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+  .n-row.on { background: #fff; margin: 0 -16px; padding: 6px 16px; }
+  .n-row .n { font: 500 14px 'Geologica', sans-serif; color: var(--ink); }
+  .n-row .d { display: block; margin-top: 2px; font: 600 13px 'Geologica', sans-serif; color: var(--ink-2); }
+  .n-row .bd { padding: 1px 5px; border-radius: 4px; background: var(--sand, #f3ede4); color: var(--terra); font-size: 11px; font-weight: 700; margin-right: 4px; }
+  .n-row .ind { margin-left: auto; min-height: 32px; padding: 0 10px; border-radius: 999px; border: 1px solid #8c806f; background: #fff; color: var(--ink); font-size: 13px; }
+  .n-row .chk { margin-left: auto; color: var(--sage); font-size: 20px; }
+  .n-sum { padding: 16px 16px 24px; display: flex; flex-direction: column; gap: 14px; }
+  .n-sum .hd small { display: block; font: 700 11px 'Cinzel', serif; letter-spacing: .14em; text-transform: uppercase; color: #7e4529; }
+  .n-sum .hd h2 { margin: 4px 0 0; font: 700 28px 'Montserrat', sans-serif; }
+  .n-sum .hd p { margin: 2px 0 0; font-size: 13px; color: var(--ink-2); }
+  .n-blk { border-radius: 16px; background: #fff; border: 1px solid var(--line); overflow: hidden; }
+  .n-blk .t { padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  .n-blk .t b { display: block; font: 800 11px 'Montserrat', sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--terra); }
+  .n-blk .t span { display: block; font: 700 16px 'Montserrat', sans-serif; }
+  .n-blk .t small { font-size: 13px; color: var(--ink-2); }
+  .n-blk ul { margin: 0; padding: 4px 16px; list-style: none; }
+  .n-blk li { display: flex; align-items: center; gap: 10px; min-height: 40px; font-size: 13px; }
+  .n-blk li + li { border-top: 1px solid #f0e9df; }
+  .n-blk li .material-icons { color: var(--sage); font-size: 18px; }
+  .n-blk li em { margin-left: auto; font-style: normal; color: var(--ink-2); font-weight: 600; }
+  .n-stats { display: grid; grid-template-columns: 1fr 1fr; border-radius: 16px; background: #fff; border: 1px solid var(--line); }
+  .n-stats div { padding: 12px 8px; text-align: center; }
+  .n-stats div + div { border-left: 1px solid var(--line); }
+  .n-stats b { display: block; font: 700 17px 'Montserrat', sans-serif; }
+  .n-stats small { font: 700 11px 'Montserrat', sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); }
+  .n-auraL { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-radius: 16px; background: var(--gold-tint); color: var(--gold-ink); font: 600 14px 'Geologica', sans-serif; }
+  .n-auraL .material-icons { font-size: 22px; }
+  .n-sum .n-cta { margin-top: 0; }
+  .reduce *, .reduce *::before, .reduce *::after { animation: none !important; transition: none !important; }
+</style>
+</head>
+<body>
+
+<div id="controls">
+  <div class="ctl" data-ctl="sc"><span>Pantalla</span>
+    <button data-v="splash" class="on">1 · Inicio</button><button data-v="play">2 · En curso</button><button data-v="done">3 · Bloque completo</button><button data-v="cel">4 · Celebración</button><button data-v="sum">5 · Resumen</button>
+  </div>
+  <div class="ctl" data-ctl="bl"><span>Bloque</span>
+    <button data-v="fl" class="on">Front lever (AMRAP: el formato dicta el tiempo)</button><button data-v="hs">HSPU (Series: mínimo 10')</button>
+  </div>
+  <div class="ctl" data-ctl="au"><span>AURA</span>
+    <button data-v="1" class="on">1.er bloque libre del día</button><button data-v="2">2.º del día</button>
+  </div>
+  <div class="ctl" data-ctl="tm"><span>Al terminar</span>
+    <button data-v="ok" class="on">Llegó al mínimo</button><button data-v="short">A los 7' (HSPU)</button>
+  </div>
+  <div class="ctl" data-ctl="w"><span>Ancho</span>
+    <button data-v="360">360</button><button data-v="390" class="on">390</button><button data-v="412">412</button>
+  </div>
+  <div class="ctl" data-ctl="rm"><span>Movimiento</span>
+    <button data-v="on" class="on">Normal</button><button data-v="off">Reducir</button>
+  </div>
+</div>
+
+<div id="stage">
+  <div class="col">
+    <div class="col-label">Hoy · sesión completa</div>
+    <div class="col-sub" id="sub-h"></div>
+    <div class="phone" id="ph-h"></div>
+  </div>
+  <div class="col">
+    <div class="col-label">Bloque libre · mismo player, tokens del rework ★ Elegida</div>
+    <div class="col-sub" id="sub-n"></div>
+    <div class="phone" id="ph-n"></div>
+  </div>
+</div>
+
+<script>
+  const BL = {
+    fl: { r: 'Deuteros', t: 'Front lever', f: 'AMRAP', params: '3 rondas · 8 min', meta: 'AMRAP 3 × 8\' · 4 ejercicios', dict: true, ex: [['TUCK FL HOLD', 'ISO', '15 s'], ['FL RAISE TUCK', 'CON', '6 reps'], ['HOLLOW BODY', 'ISO', '30 s'], ['ARCH HOLD', 'ISO', '20 s']], min: 8 },
+    hs: { r: 'Deuteros', t: 'Handstand push up', f: 'Series', params: '5 × 5 · descanso 90 s', meta: 'Series 5 × 5 · 3 ejercicios', dict: false, ex: [['HSPU WALL', 'CON', '5 reps'], ['PIKE PUSH UP', 'CON', '8 reps'], ['HS HOLD WALL', 'ISO', '30 s']], min: 12 },
+  }
+  const st = { sc: 'splash', bl: 'fl', au: '1', tm: 'ok' }
+  const B = () => BL[st.bl]
+  const short = () => st.tm === 'short' && !B().dict
+  const tabbar = () => `<div class="tabbar">${[['account_balance', 'Mi Templo'], ['menu_book', 'Guía'], ['sports_mma', 'Entrenar', 1], ['event_available', 'Reservas'], ['card_membership', 'Planes']].map(([i, l, on]) => `<span class="${on ? 'on' : ''}"><span class="material-icons">${i}</span>${l}</span>`).join('')}</div>`
+
+  // ───────────── HOY ─────────────
+  function hoy() {
+    const b = B()
+    const story = (inner) => `<div class="h-story"><div class="h-seg">${b.ex.map((_, i) => `<i class="${i === 0 ? 'on' : ''}"></i>`).join('')}</div>
+      <div class="h-head"><span class="material-icons bk">arrow_back</span><span class="nm"><b>Deuteros</b><small>${b.t}</small></span><span class="tm">07:12</span><span class="material-icons mv">more_vert</span></div>${inner}</div>`
+    const content = `<div class="h-content"><div class="h-fmt">Formato: ${b.f} <span>· ${b.params}</span></div><div class="h-fdesc">Completá la mayor cantidad de rondas posible.</div>
+      <div class="h-act"><b>${b.ex[0][0]}</b><button>Completar</button></div>
+      ${b.ex.map(([n, c, d], i) => `<div class="h-row ${i === 0 ? 'on' : ''}"><span><span class="n">${n}</span><br><span class="d"><span class="bd">${c}</span>${d.toUpperCase()}</span></span>${i === 1 ? '<span class="ind">Indicaciones</span>' : ''}</div>`).join('')}
+      <div class="h-prev">Ver bloques anteriores</div></div>`
+    if (st.sc === 'splash') return `<div class="behind"></div><div class="h-ov"><div class="h-card"><span class="material-icons ic">local_fire_department</span><span class="lab">Viernes - Nivel Sigma</span><h1>Vamos a entrenar!</h1><div class="h-quote">"La disciplina es el puente entre <b>metas y logros</b>."<small>— Jim Rohn</small></div><button class="h-btn">Comenzar</button></div></div>`
+    if (st.sc === 'play') return `<div class="scroll">${story(`<div class="h-hero"><b>${b.ex[0][0]}</b><span class="h-badge">${b.ex[0][1]}</span></div>`)}${content}</div>`
+    if (st.sc === 'done') return `<div class="scroll">${story(`<div class="h-done"><span class="material-icons">check_circle</span><b>Bloque completo</b><p>Listo para pasar al siguiente?</p><button class="p">Siguiente bloque</button><button class="f"><span class="material-icons" style="font-size:16px">undo</span> Volver al ultimo ejercicio</button></div>`)}${content}</div>`
+    if (st.sc === 'cel') return `<div class="behind"></div><div class="h-ov h-cel"><div class="h-card"><span class="material-icons ic">local_fire_department</span><h1>Sesión Completada!</h1><div class="h-quote" style="font-size:18px">"El dolor que sentís hoy es la <b>fuerza</b> que sentirás mañana."<small>— Anónimo</small></div><button class="h-btn">Ver Resumen</button></div></div>`
+    return `<div class="appbar"><i></i>EL TEMPLO</div><div class="scroll"><div class="h-sum">
+      <div class="hd"><span class="material-icons">check_circle</span><span><b>Resumen de sesión</b><small>viernes, 16 de octubre</small></span></div>
+      ${['INITIUM', 'NUCLEUS', 'DEUTEROS', 'EPIKOS'].map((r) => `<div class="h-blk"><b>${r}</b><small>4 ejercicios · INT 70%</small></div>`).join('')}
+      <div class="h-stats"><div><b>4</b><small>esta semana</small></div><div><b>212</b><small>dias totales</small></div></div>
+      <div class="h-rpe"><b>Esfuerzo Percibido (RPE)</b><div class="bar"></div><small><span>Facil</span><span>Moderado</span><span>Duro</span><span>Maximo</span></small></div>
+      <div class="h-notes">Notas (opcional)</div>
+      <button class="h-end">✓ Terminar Sesión</button><button class="h-rep">↻ Repetir Sesión</button>
+    </div></div>${tabbar()}`
+  }
+
+  // ───────────── BLOQUE LIBRE ─────────────
+  function libre() {
+    const b = B()
+    const first = st.au === '1'
+    const aura = first ? `<span class="n-aura"><span class="material-icons" style="font-size:16px">auto_awesome</span>+5 AURA al completarlo</span>` : `<span class="n-aura off">Ya sumaste tu AURA de hoy</span>`
+    const timer = b.dict ? `<b>07:12</b>` : `<b>${short() ? '07:00' : '10:24'}</b><span class="n-min"><i style="width:${short() ? 70 : 100}%"></i></span><small>${short() ? 'mínimo 10:00' : 'cuenta ✓'}</small>`
+    const story = (inner) => `<div class="n-story"><div class="h-seg">${b.ex.map((_, i) => `<i class="${i === 0 ? 'on' : ''}"></i>`).join('')}</div>
+      <div class="n-head"><span class="material-icons bk">arrow_back</span><span class="nm"><b>Bloque libre · ${b.r}</b><span>${b.t}</span></span><span class="tm">${timer}</span><span class="material-icons" style="font-size:24px;padding:2px 4px">more_vert</span></div>${inner}</div>`
+    const content = `<div class="n-content"><div class="n-fmt">${b.f} <span>· ${b.params}</span></div><div class="n-fdesc">${b.dict ? 'Completá la mayor cantidad de rondas posible.' : 'Para que cuente, sumá al menos 10 minutos de trabajo.'}</div>
+      <div class="n-act"><b>${b.ex[0][0]}</b><button>Completar</button></div>
+      ${b.ex.map(([n, c, d], i) => `<div class="n-row ${i === 0 ? 'on' : ''}"><span><span class="n">${n}</span><span class="d"><span class="bd">${c}</span>${d}</span></span>${i === 1 ? '<button class="ind">Indicaciones</button>' : ''}</div>`).join('')}</div>`
+    if (st.sc === 'splash') return `<div class="behind"></div><div class="n-ov"><div class="n-frame"><div class="n-card"><span class="n-kick">Bloque libre · Nivel Sigma</span><h1>${b.t}</h1><span class="n-meta">${b.meta}${b.dict ? '' : ' · mínimo 10\''}</span>${aura}<div class="n-quote">"La disciplina es el puente entre <b>metas y logros</b>."<small>— Jim Rohn</small></div><button class="n-cta">Empezar</button></div></div></div>`
+    if (st.sc === 'play') return `<div class="scroll">${story(`<div class="h-hero"><b>${b.ex[0][0]}</b><span class="h-badge">${b.ex[0][1]}</span></div>`)}${content}</div>`
+    if (st.sc === 'done') {
+      const inner = short()
+        ? `<div class="n-done"><span class="material-icons wait">timer</span><b>Te faltan 3:00</b><p>Para que el bloque cuente, sumá al menos 10 minutos de trabajo. Si salís ahora, no se guarda.</p><button class="n-cta">Seguir entrenando</button><button class="n-ghost">Salir sin guardar</button></div>`
+        : `<div class="n-done"><span class="material-icons">check_circle</span><b>Bloque completo</b><p>Hacé una elongación antes de terminar.</p><button class="n-cta">Ver resumen</button><button class="n-ghost">Volver al último ejercicio</button></div>`
+      return `<div class="scroll">${story(inner)}${content}</div>`
+    }
+    if (st.sc === 'cel') return `<div class="behind"></div><div class="n-ov"><div class="n-frame"><div class="n-card"><span class="n-kick">Bloque libre</span><h1>¡Bloque completado!</h1>${first ? `<div class="n-big">+5<small>AURA</small></div><span class="n-meta">Tu primer bloque libre de hoy</span>` : `<span class="n-meta">Sumaste otro bloque a tu día.</span>`}<div class="n-quote">"El dolor que sentís hoy es la <b>fuerza</b> que sentirás mañana."<small>— Anónimo</small></div><button class="n-cta">Ver resumen</button></div></div></div>`
+    return `<div class="appbar"><i></i>EL TEMPLO</div><div class="scroll"><div class="n-sum">
+      <div class="hd"><small>Bloque libre · viernes 16</small><h2>¡Listo!</h2><p>Esto es lo que hiciste.</p></div>
+      <div class="n-blk"><div class="t"><b>${b.r}</b><span>${b.t}</span><small>${b.meta}</small></div><ul>${b.ex.map(([n, , d]) => `<li><span class="material-icons">check_circle</span>${n}<em>${d}</em></li>`).join('')}</ul></div>
+      <div class="n-stats"><div><b>${b.dict ? b.min : 10}'</b><small>de trabajo</small></div><div><b>${b.ex.length}</b><small>ejercicios</small></div></div>
+      ${first ? '<div class="n-auraL"><span class="material-icons">auto_awesome</span>Sumaste 5 AURA</div>' : ''}
+      <button class="n-cta">Listo</button><button class="n-ghost l" style="align-self:center">Elegir otro bloque</button>
+    </div></div>${tabbar()}`
+  }
+
+  const SUBS = {
+    splash: [
+      'Overlay oscuro con la cita. "Vamos a entrenar!" sin ¡ y botón Quasar en mayúsculas.',
+      ['<span class="bad">Autor de la cita: blanco al 50% = 4,2:1</span> (pide 4,5)'],
+      'Hermana de los pop-ups (sketch 010 A): marco con degradé, línea luminosa, botón "Empezar" con destello. Kicker "Bloque libre · Nivel", título = nombre del bloque, formato y "+5 AURA al completarlo" en dorado (o "Ya sumaste tu AURA de hoy" en el 2.º).',
+      ['<span class="ok">Cita en crema sólido 9,7:1 · autor 8,2:1</span>'],
+    ],
+    play: [
+      'Story con video arriba (45% del alto) y lista abajo. Timer de sesión. "Ver bloques anteriores" al pie.',
+      ['<span class="bad">Parámetros del formato: negro 50% = 3,9:1</span>', '<span class="bad">Descripción del formato: negro 45% = 3,3:1</span>', '<span class="bad">"Ver bloques anteriores": negro 40% = 2,8:1</span>', 'Dosis: negro 55% = 4,6:1 (justo)'],
+      'Misma estructura. El encabezado dice "Bloque libre · Deuteros" + nombre. Si el formato no dicta el tiempo (Series), bajo el timer hay una barrita dorada hasta los 10\'. Sin "Ver bloques anteriores". Flecha atrás con hitbox 44.',
+      ['<span class="ok">Textos en sólido: #6b6459 = 5,0:1 sobre crema</span>', 'Escala 28/17/16/13/11 de la ronda 3b'],
+    ],
+    done: [
+      'Mensaje en la zona del video: "Bloque completo · Listo para pasar al siguiente?" + "Siguiente bloque".',
+      ['<span class="bad">Subtítulo blanco 70%</span> (pasa, pero es texto con opacidad)'],
+      'Un solo bloque: "Bloque completo" + "Ver resumen". Con Series y menos de 10\' (probá "A los 7\'" + HSPU): "Te faltan 3:00", "Seguir entrenando" o "Salir sin guardar" (D4: no se guarda nada).',
+      ['<span class="ok">Subtítulo en crema sólido</span>'],
+    ],
+    cel: [
+      'Llama dorada que late, "Sesión Completada!" y cita. Sin AURA ni racha.',
+      ['<span class="bad">Autor de la cita: 4,2:1</span>'],
+      '"¡Bloque completado!" con +5 AURA grande en dorado y "Tu primer bloque libre de hoy". En el 2.º del día: "Sumaste otro bloque a tu día", sin AURA (D5).',
+      ['<span class="ok">Dorado #d4b46a sobre oscuro = 7,7:1</span>'],
+    ],
+    sum: [
+      'Resumen de sesión: bloques, esta semana / días totales, RPE, notas, "Terminar Sesión" y "Repetir Sesión".',
+      ['<span class="bad">Título "Resumen de sesión": terracota 60% = 2,4:1</span>', '<span class="bad">Mensaje del RPE: terracota 80% = 3,3:1</span>'],
+      'Sin RPE ni notas (no toca la evaluación) y sin "Repetir". El bloque con sus ejercicios tildados, minutos de trabajo y ejercicios, "Sumaste 5 AURA" (solo el 1.º del día), "Listo" (vuelve a Libre) y "Elegir otro bloque".',
+      ['<span class="ok">Ocre sobre tinte dorado = 4,9:1</span>'],
+    ],
+  }
+  function render() {
+    document.getElementById('ph-h').innerHTML = hoy()
+    document.getElementById('ph-n').innerHTML = libre()
+    const [hTxt, hList, nTxt, nList] = SUBS[st.sc]
+    document.getElementById('sub-h').innerHTML = `${hTxt}<ul>${hList.map((x) => `<li>${x}</li>`).join('')}</ul>`
+    document.getElementById('sub-n').innerHTML = `${nTxt}<ul>${nList.map((x) => `<li>${x}</li>`).join('')}</ul>`
+  }
+  document.querySelectorAll('.ctl').forEach((ctl) => ctl.addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return
+    ctl.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b))
+    const v = b.dataset.v, k = ctl.dataset.ctl
+    if (k === 'w') { document.querySelectorAll('.phone').forEach((p) => p.style.setProperty('--w', v + 'px')); return }
+    if (k === 'rm') { document.body.classList.toggle('reduce', v === 'off'); return }
+    st[k] = v; render()
+  }))
+  render()
+</script>
+</body>
+</html>

@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sketch 023 · Guía sobre blanco</title>
+<!-- Figura: react-native-body-highlighter v3.2.0 (MIT, Copyright (c) ELABBASSI Hicham), ver ../019-anatomia-profes-admin/anat.js -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Geologica:wght@300;400;500;600;700&family=Montserrat:wght@600;700;800&family=Cinzel:wght@600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+<link rel="stylesheet" href="../020-guia-anatomia-app/app.css" />
+<link rel="stylesheet" href="../024-hoja-zona-pills/zona.css" />
+<style>
+  h2.sec { max-width: 1300px; margin: 34px auto 4px; padding: 0 16px; font: 700 20px 'Montserrat', sans-serif; }
+  p.sec-sub { max-width: 1300px; margin: 0 auto; padding: 0 16px; font: 13px/1.45 system-ui; color: #5a5347; }
+  .toggle { max-width: 1300px; margin: 10px auto 0; padding: 0 16px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .toggle button { border: 1px solid #b9a993; background: #fff; border-radius: 999px; padding: 6px 14px; font: 600 13px system-ui; }
+  .toggle button.on { background: #2c2318; color: #f0e6d6; border-color: #2c2318; }
+  .toggle .nom-lbl { font: 600 13px system-ui; color: #5a5347; margin-right: 2px; }
+  .nombres { position: sticky; top: 0; z-index: 50; max-width: none; margin: 0; padding: 10px 16px; background: rgba(227,221,211,.96); border-bottom: 1px solid #cfc5b6; justify-content: center; }
+  .phone .pg { position: absolute; inset: 0; overflow: auto; }
+  .blanco .top { background: #fff; }
+
+  /* superficies blancas (Después) */
+  .card { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; box-shadow: 0 4px 14px rgba(150, 89, 58, .06); }
+  .card + .card { margin-top: 12px; }
+
+  /* Tu cuerpo · Después (sin la card de "los que no se ven": entran en la hoja de su zona) */
+  .blanco .cuerpo-scr { padding: 12px 14px 20px; }
+  .blanco .cuerpo-scr .card.fig-card { padding: 10px 10px 14px; }
+  .blanco .figwrap { --fh: 540px; }
+  .blanco .flip { background: var(--sand); }
+  .blanco .hint small { display: block; margin-top: 2px; font-size: 12.5px; }
+  .blanco.has-sheet .figwrap { --fh: 290px; }
+  .blanco.has-sheet .hint { display: none; }
+  .deep { margin-top: 10px; text-align: center; }
+
+  /* Ficha · Antes (como hoy: todo sobre crema) */
+  .rf .figs { --fh: 230px; }
+  /* Ficha · A: una card por sección */
+  .rfA { padding: 6px 14px 30px; }
+  .rfA .card h4 { margin: 0 0 6px; font: 800 12.5px 'Montserrat', sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--terra); }
+  .rfA p { margin: 0; font-size: 15px; line-height: 1.5; }
+  /* kicker del patrón en bold legible (como pd-role-label de la app), no Cinzel */
+  .rfA .kicker { font: 800 12px 'Montserrat', sans-serif; letter-spacing: .1em; }
+  .rfA .ttl { font-size: 24px; }
+  .rfA .que { margin-top: 6px; color: var(--ink-2); }
+  .rfA .figs { --fh: 230px; margin-top: 4px; }
+  .leg { display: flex; justify-content: center; gap: 14px; font-size: 12.5px; color: var(--ink-2); margin-top: 6px; }
+  .leg span::before { content: ''; display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; background: var(--c); }
+  .rfA ul { margin: 0; padding-left: 18px; font-size: 15px; line-height: 1.5; }
+  .rfA .two { display: grid; gap: 12px; }
+  .rfA .err div { padding: 9px 0; border-top: 1px solid var(--line); font-size: 14px; line-height: 1.4; }
+  .rfA .err div:first-child { border-top: 0; padding-top: 0; }
+  .rfA .err b { display: block; }
+  .pronto { padding: 14px; border-radius: 14px; border: 1px dashed var(--edge); color: var(--ink-2); font-size: 14px; text-align: center; background: #fff; }
+  .rfA .avisale { background: #f6efe6; }
+
+  /* Historias tema día */
+  .sto { position: absolute; inset: 0; display: flex; flex-direction: column; color: #3d3732; background-size: cover; background-position: center; }
+  .sto .bars { display: flex; gap: 4px; padding: 10px 14px 0; }
+  .sto .bars i { flex: 1; height: 3px; border-radius: 2px; background: rgba(61,55,50,.22); }
+  .sto .bars i.on { background: #3d3732; }
+  .sto .content { flex: 1; display: flex; flex-direction: column; padding: 14px 24px 22px; }
+  .sto .k { margin: 0 0 10px; font: 700 12px 'Geologica', sans-serif; letter-spacing: .28em; text-transform: uppercase; color: #8a4e30; }
+  .sto h3 { margin: 0 0 18px; font: 700 28px/1.2 'Cinzel', serif; letter-spacing: .02em; }
+  .sto .row { margin: 0 0 14px; font-size: 15.5px; line-height: 1.45; }
+  .sto .row b { color: #8a4e30; font: 700 15.5px 'Montserrat', sans-serif; }
+  .sto .foot { font-size: 13px; line-height: 1.4; margin-top: auto; }
+  .sto.antes { background-image: linear-gradient(180deg, rgba(242,236,226,0.9) 0%, rgba(242,236,226,0.84) 42%, rgba(240,232,220,0.8) 68%, rgba(238,229,214,0.72) 100%), url(../020-guia-anatomia-app/bars-open.webp); }
+  .sto.antes .content { justify-content: center; }
+  .sto.antes h3 { text-shadow: 0 1px 2px rgba(255,255,255,.7), 0 0 .8rem rgba(242,236,226,.9); }
+  .sto.despues { background-image: linear-gradient(180deg, rgba(242,236,226,0.25) 0%, rgba(242,236,226,0.45) 100%), url(../020-guia-anatomia-app/bars-open.webp); }
+  /* panel centrado en la pantalla (vertical y horizontal) */
+  .sto.despues .content { justify-content: center; align-items: center; padding: 14px 20px 34px; }
+  .sto.despues .panel { width: 100%; max-width: 340px; background: #fff; border-radius: 20px; padding: 22px 20px 16px; box-shadow: 0 12px 30px rgba(44,35,24,.18); }
+  .sto.despues .row:last-of-type { margin-bottom: 10px; }
+  .sto.despues .foot { margin-top: 6px; padding-top: 10px; border-top: 1px solid var(--line); color: #5f584d; }
+  .sto .tap { position: absolute; right: 18px; bottom: 16px; font-size: 12px; color: #5f584d; }
+  .sto.despues .tap { left: 0; right: 0; bottom: 12px; text-align: center; color: #3d3732; text-shadow: 0 1px 2px rgba(255,255,255,.8); }
+
+  .phone .bs .bs-body { padding-bottom: 30px; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute"><defs><linearGradient id="litg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c47a52" /><stop offset="1" stop-color="#8a4e30" /></linearGradient></defs></svg>
+
+<div class="toggle nombres" id="nombres"></div>
+
+<h2 class="sec">0 · El nombre de la sección</h2>
+<p class="sec-sub">Franco quiere otro nombre que "Tu cuerpo". Elegí uno arriba: cambia la card de la Guía, el título de la pantalla, el "‹ volver" de la ficha y el "Ver en … ›" del sketch 024 (se recuerda entre los dos).</p>
+<div class="wrap">
+  <div class="col"><div class="col-label">Guía · inicio</div><div class="col-sub">La card blanca lleva el nombre como kicker.</div><div class="phone vS" data-scr="hub"></div></div>
+</div>
+
+<h2 class="sec">1 · La pantalla del cuerpo</h2>
+<p class="sec-sub">Después aprobado. Cambio de esta vuelta: <b>sin la card "Los que no se ven"</b>. Serrato, manguito e iliopsoas aparecen dentro de la hoja de la zona que tienen encima, como un músculo más con la marca "adentro" (Hombros → manguito, Pecho → serrato, Abdomen → iliopsoas). Tocá una zona.</p>
+<div class="wrap">
+  <div class="col"><div class="col-label">Antes · como está hoy</div><div class="col-sub">Textos chicos en gris sobre crema y la card de los de adentro.</div><div class="phone" data-scr="cuerpo" data-mode="antes"></div></div>
+  <div class="col"><div class="col-label">★ Después · sin "los que no se ven"</div><div class="col-sub">La figura gana alto. Tocá una zona para abrir su hoja.</div><div class="phone" data-scr="cuerpo" data-mode="despues"></div></div>
+  <div class="col"><div class="col-label">★ Después · hoja de Hombros</div><div class="col-sub">El manguito rotador entra como tercer músculo, punteado y con "adentro".</div><div class="phone" data-scr="cuerpo" data-mode="hombros"></div></div>
+</div>
+
+<h2 class="sec">2 · Ficha del ejercicio · ganador A</h2>
+<p class="sec-sub">Elegido: A, una card por sección. Ajuste: el kicker del patrón ("PUSH", "PULL") pasa de Cinzel a <b>Montserrat 800</b> con tracking, como el rol de los bloques en Entrenar. El "‹ volver" usa el nombre elegido arriba.</p>
+<div class="toggle"><button class="on" data-ficha="OAPU">Push Ups</button><button data-ficha="FL">Front Lever (Pull)</button><button data-ficha="PL">Planche (sin contenido: "Pronto")</button></div>
+<div class="wrap">
+  <div class="col"><div class="col-label">Antes · como está hoy</div><div class="col-sub">Todo sobre crema; kicker en Cinzel.</div><div class="phone" data-scr="ficha" data-mode="antes"></div></div>
+  <div class="col"><div class="col-label">★ A · Una card por sección</div><div class="col-sub">Kicker en bold legible.</div><div class="phone" data-scr="ficha" data-mode="A"></div></div>
+</div>
+
+<h2 class="sec">3 · Historias de día (Empezá acá)</h2>
+<p class="sec-sub">Aprobado con un ajuste: el panel blanco queda <b>centrado</b> en la pantalla (vertical y horizontal), no abajo.</p>
+<div class="wrap">
+  <div class="col"><div class="col-label">Antes · velo crema</div><div class="col-sub">"Cada clase · 1 hora, 4 bloques".</div><div class="phone" data-scr="story" data-mode="antes"></div></div>
+  <div class="col"><div class="col-label">★ Después · panel blanco centrado</div><div class="col-sub">La foto respira alrededor; el texto va en blanco, en el medio.</div><div class="phone" data-scr="story" data-mode="despues"></div></div>
+</div>
+
+<p class="sketch-note">Textos de <code>copy.js</code>: "<span class="rol-now"></span>", la definición nueva de "Te sostiene", las 17 definiciones revisadas y el nombre de la sección. La hoja de zona es la ganadora del 024 (<code>../024-hoja-zona-pills/zona.js</code>).</p>
+
+<script src="../019-anatomia-profes-admin/anat.js"></script>
+<script src="../019-anatomia-profes-admin/data.js"></script>
+<script src="../019-anatomia-profes-admin/ficha.js"></script>
+<script src="../020-guia-anatomia-app/alumno.js"></script>
+<script src="../020-guia-anatomia-app/alumno-ui.js"></script>
+<script src="copy.js"></script>
+<script src="../024-hoja-zona-pills/zona.js"></script>
+<script>
+  document.querySelector('.rol-now').textContent = ROL_FUERTE
+  const HUB_LIT = { chest: 'M', abs: 'M', quadriceps: 'M', 'upper-back': 'M', gluteal: 'M', deltoids: 'S', hamstring: 'Est', obliques: 'Est', calves: 'Est' }
+  const tabbar = () => `<div class="tabbar">${[['account_balance', 'Mi Templo'], ['menu_book', 'Guía', 1], ['sports_mma', 'Entrenar'], ['event_available', 'Reservas'], ['card_membership', 'Planes']].map(([i, l, on]) => `<span class="${on ? 'on' : ''}"><span class="material-icons">${i}</span>${l}</span>`).join('')}</div>`
+  const appbar = `<div class="appbar"><img src="../020-guia-anatomia-app/logo.webp" alt="" />El Templo</div>`
+  const avisale = `<div class="avisale"><span class="material-icons">record_voice_over</span><span>Si algo te duele, <b>avisale a tu profe</b>.</span></div>`
+  const sheetHTML = (body) => `<div class="bs open"><div class="handle"></div><button class="x" aria-label="Cerrar"><span class="material-icons">close</span></button><div class="bs-body">${body}</div></div>`
+
+  // ---------- 0 · Guía inicio ----------
+  function hubHTML() {
+    const guia = `<div class="in"><p class="kicker">Empezá acá</p><h2 class="ttl">Cómo es entrenar en El Templo</h2><p class="txt">Tu semana, las clases, los niveles. 7 historias cortas.</p><div class="grow"></div><span class="cta">Ver la guía</span></div>`
+    const cuerpo = `<div class="in"><p class="kicker">${NOMBRE_CUERPO}</p><h2 class="ttl">Qué trabaja cada ejercicio</h2><p class="txt">Tocá un músculo: qué hace y en qué ejercicios lo usás.</p><div class="grow"></div><span class="cta">Explorar</span></div>`
+    return `<div class="hub"><button class="c guia"><div class="bg"></div>${guia}</button><button class="c cuerpo"><div class="fig-side">${figure(HUB_LIT)}</div>${cuerpo}</button></div>`
+  }
+
+  // ---------- 1 · La pantalla del cuerpo ----------
+  const BACK_ZONAS = ['upper-back', 'lower-back', 'gluteal', 'hamstring', 'calves', 'trapezius']
+  const ST = new WeakMap()
+  function cuerpoHTML(mode, st) {
+    const flip = `<div class="flip"><button data-view="front" class="${st.view === 'front' ? 'on' : ''}">Frente</button><button data-view="back" class="${st.view === 'back' ? 'on' : ''}">Espalda</button></div>`
+    if (mode === 'antes') {
+      const deep = `<p>Los que no se ven (están más adentro):</p>${MUSCULOS.filter((m) => !m.zona).map((m) => `<button class="pill">${m.nombre}</button>`).join('')}`
+      return `<div class="top"><button class="back"><span class="material-icons">chevron_left</span>Guía</button><h1>Tu cuerpo</h1></div><div class="cuerpo-scr"><p class="hint">Tocá un músculo</p>${flip}<div class="figwrap" data-view="${st.view}">${figure({}, { tap: true })}</div><div class="deep">${deep}</div></div>`
+    }
+    const head = `<div class="top"><button class="back"><span class="material-icons">chevron_left</span>Guía</button><h1>${NOMBRE_CUERPO}</h1></div>`
+    return `<div class="blanco ${st.zona ? 'has-sheet' : ''}">${head}<div class="cuerpo-scr"><div class="card fig-card"><p class="hint">Tocá un músculo</p>${flip}<div class="figwrap" data-view="${st.view}">${figure({}, { tap: true, sel: st.zona })}</div></div></div></div>`
+  }
+
+  // ---------- 2 · Ficha ----------
+  function fichaData(code) {
+    const z = {}
+    Object.entries(zonasDeRuta(code)).forEach(([k, r]) => { if (ALUMNO_ROL[r]) z[k] = ALUMNO_ROL[r] })
+    const mr = musculosDeRuta(code)
+    const nombres = (roles) => [...new Set(roles.flatMap((r) => (mr[r] || []).map((m) => m.nombre)))]
+    return { a: RUTA_ALUMNO[code], p: complejoDe(code).p, z, fuerte: nombres(['M', 'S']), sost: nombres(['Est']) }
+  }
+  function fichaHTML(code, mode) {
+    const { a, p, z, fuerte, sost } = fichaData(code)
+    const top = `<div class="top"><button class="back"><span class="material-icons">chevron_left</span>${mode === 'antes' ? 'Tu cuerpo' : NOMBRE_CUERPO}</button></div>`
+    const rolF = mode === 'antes' ? 'Trabaja fuerte' : ROL_FUERTE
+    const leg = `<div class="leg"><span style="--c:#a8603d">${rolF}</span>${sost.length ? `<span style="--c:var(--sost)">${ROL_SOSTIENE}</span>` : ''}</div>`
+    const head = `<p class="kicker">${p.nombre}</p><h2 class="ttl">${RUTA_NOMBRE[code]}</h2>${a ? `<p class="que">${a.que}</p>` : ''}`
+    const sec = {
+      fuerte: `<h4>${rolF}</h4><p>${fuerte.join(' · ') || '—'}</p>`,
+      sost: sost.length ? `<h4>${ROL_SOSTIENE}</h4><p>${sost.join(' · ')}</p>` : '',
+      siente: a ? `<h4>Dónde lo tenés que sentir</h4><p>${a.siente}</p>` : '',
+      tips: a ? `<h4>Tips</h4><ul>${a.tips.map((t) => `<li>${t}</li>`).join('')}</ul>` : '',
+      err: a ? `<h4>Errores comunes</h4><div class="err">${a.errores.map(([t, d]) => `<div><b>${t}</b>${d}</div>`).join('')}</div>` : '',
+    }
+    const pronto = `<div class="pronto">Pronto: dónde se siente, tips y errores comunes.</div>`
+    if (mode === 'antes') {
+      return `${top}<div class="rf">${head.replace('class="que"', 'style="margin-top:6px;color:var(--ink-2)"')}${figure(z)}${leg}
+        ${sec.fuerte}${sec.sost}${a ? `${sec.siente}${sec.tips}${sec.err}` : `<div class="pronto" style="margin-top:16px;background:none">Pronto: dónde se siente, tips y errores comunes.</div>`}${avisale}</div>`
+    }
+    const cards = [head, `${figure(z)}${leg}<div class="two" style="margin-top:12px"><div>${sec.fuerte}</div>${sec.sost ? `<div>${sec.sost}</div>` : ''}</div>`]
+    if (a) cards.push(sec.siente, sec.tips, sec.err)
+    return `${top}<div class="rfA">${cards.map((c) => `<div class="card">${c}</div>`).join('')}${a ? '' : `<div style="margin-top:12px">${pronto}</div>`}${avisale}</div>`
+  }
+
+  // ---------- 3 · Historia de día ----------
+  const BLOQUES = [['Pyros', 'movilidad, activación y entrada en calor.'], ['Nucleus', 'el corazón de la sesión: el movimiento principal del día.'], ['Deuteros', 'técnica y control. Elegís entre dos opciones.'], ['Athlos / Epikos', 'el desafío final. Retos, trabajo en equipo y juegos de fuerza para terminar la clase.']]
+  function storyHTML(mode) {
+    const bars = `<div class="bars">${[0, 1, 2, 3, 4, 5, 6].map((i) => `<i class="${i <= 2 ? 'on' : ''}"></i>`).join('')}</div>`
+    const body = `<p class="k">Cada clase</p><h3>1 hora, 4 bloques</h3>${BLOQUES.map(([b, d]) => `<p class="row"><b>${b}</b> — ${d}</p>`).join('')}<p class="foot">En Entrenar, tocá ⓘ en cada bloque para ver para qué sirve.</p>`
+    return `<div class="sto ${mode}">${bars}<div class="content">${mode === 'antes' ? body : `<div class="panel">${body}</div>`}</div><span class="tap">Tocá para seguir</span></div>`
+  }
+
+  let fichaCode = 'OAPU'
+  function render(phone) {
+    const { scr, mode } = phone.dataset
+    if (!ST.has(phone)) ST.set(phone, mode === 'hombros' ? { view: 'front', zona: 'deltoids', sel: 2 } : { view: 'front', zona: null, sel: 0 })
+    const st = ST.get(phone)
+    let inner, extra = ''
+    if (scr === 'hub') inner = `<div class="hubpg" style="height:100%">${hubHTML()}</div>`
+    else if (scr === 'cuerpo') {
+      inner = cuerpoHTML(mode, st)
+      if (mode !== 'antes' && st.zona) extra = sheetHTML(zonaGanadorHTML(st.zona, st.sel))
+    } else if (scr === 'ficha') inner = fichaHTML(fichaCode, mode)
+    else inner = storyHTML(mode)
+    phone.innerHTML = `${scr === 'story' ? '' : appbar}<div class="stack"><div class="pg">${inner}</div>${extra}</div>${scr === 'story' ? '' : tabbar()}`
+    fitFigures(phone)
+    alinearGlobo(phone)
+  }
+  const renderAll = () => document.querySelectorAll('.phone').forEach(render)
+  selectorNombre(document.getElementById('nombres'), renderAll)
+  renderAll()
+
+  document.addEventListener('click', (e) => {
+    const t = e.target
+    const fc = t.closest('[data-ficha]')
+    if (fc) {
+      fichaCode = fc.dataset.ficha
+      document.querySelectorAll('[data-ficha]').forEach((b) => b.classList.toggle('on', b === fc))
+      document.querySelectorAll('.phone[data-scr="ficha"]').forEach(render); return
+    }
+    const phone = t.closest('.phone'); if (!phone || phone.dataset.scr !== 'cuerpo') return
+    const st = ST.get(phone)
+    const fb = t.closest('.flip button')
+    if (fb) { st.view = fb.dataset.view; return render(phone) }
+    if (phone.dataset.mode === 'antes') return
+    if (t.closest('.bs .x')) { st.zona = null; return render(phone) }
+    const gl = t.closest('[data-gr]')
+    if (gl) { const d = gl.nextElementSibling; d.hidden = !d.hidden; gl.classList.toggle('on', !d.hidden); return }
+    const zm = t.closest('[data-zmus]')
+    if (zm) {
+      const row = phone.querySelector('.zg-pills'); const rs = row ? row.scrollLeft : 0
+      st.sel = +zm.dataset.zmus; render(phone)
+      const row2 = phone.querySelector('.zg-pills'); if (row2) { row2.scrollLeft = rs; alinearGlobo(phone) }
+      return
+    }
+    const z = t.closest('.fig.tap .mu:not(.x)')
+    if (z) { st.zona = z.dataset.zona; st.view = z.dataset.view || (BACK_ZONAS.includes(st.zona) ? 'back' : 'front'); st.sel = 0; render(phone) }
+  })
+</script>
+</body>
+</html>

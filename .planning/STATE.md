@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v6.1
 milestone_name: Módulo Gimnasio
 status: executing
-stopped_at: Phase 182 context gathered
-last_updated: "2026-08-28T19:33:29.186Z"
-last_activity: 2026-08-28 -- Phase 182 planning complete
+stopped_at: Rescate de docs del master local (2026-10-28) — ver Current Position
+last_updated: "2026-10-28T12:00:00.000Z"
+last_activity: 2026-10-28 -- ROADMAP/STATE unificados (rescate de docs del master local divergido)
 progress:
   total_phases: 12
   completed_phases: 1
@@ -25,10 +25,20 @@ See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 
 ## Current Position
 
-Phase: 181 — Diseño del módulo Gimnasio (bloqueante) — Not started
+Phase: varias en paralelo (ver estado real abajo). Milestone v6.1 (181-192.3): 181 en master; 182-192.2 en el tren `feat/v6.1-gimnasio` (SIN PUSH); 192.3 en `feat/192.3-workout-engine`, por integrar.
 Plan: —
-Status: Ready to execute
-Last activity: 2026-08-28 -- Phase 182 planning complete
+Status: Sin fase única en ejecución. Fuera de v6.1 la última entrega es 204 Usuarios Wellhub (master 2026-10-27); siguiente planificada: 203 Carga sin parpadeos (`/gsd-execute-phase 203`).
+Last activity: 2026-10-28 -- Rescate de docs: ROADMAP.md y STATE.md unificados con el master local (que había divergido) y recuperadas las carpetas de fases/sketches/research que nunca llegaron a origin.
+
+**Estado real al 2026-10-28** (detalle fase por fase en `ROADMAP.md`, tabla Progress):
+
+- **En master/prod:** 193 Comunicaciones (UAT del plan 17 pendiente), 194 Invitaciones, 197 Entrenar (tabs/Libre/Desafíos OCULTOS por flag, solo Semana), 199 Rediseño Mi Templo, 200 Anatomía, 201 Conquer v2 (tab OCULTA), 202 Conquer tutoriales/correcciones, 204 Usuarios Wellhub.
+- **En staging, no en master:** 195 Web SEO local + AEO + atribución (14/14, `human_needed`, staging `68a9dd86f`).
+- **Planificada, sin ejecutar:** 203 Carga sin parpadeos (17 planes, rama `feat/203-carga-sin-parpadeos`, reajustados el 2026-10-28 por "Tu plan").
+- **Sin subir, en el tren `feat/v6.1-gimnasio`:** 182-192.2 (incl. 188.1, 192.1, 192.2); 192.3 Workout Engine ejecutada aparte, a integrar (renumerar mig 0253).
+- **Archivada:** 196 Personalizados + Conquer v1, reemplazada por 201 (tag `archive/196-personalizados`).
+- **En espera, sin planificar:** 198 AURA configurable por fuente.
+
 
 **Milestone v6.1 — Módulo Gimnasio.** Fases **181-192** (179-180 tomadas por fases en vuelo fuera del milestone; no se renumeran). Migraciones reservan desde **0216** (prod en 0215 tras el tren 179+180). Orden: 181 diseño bloqueante → 182/183 plataforma super-owner (wizard + panel) → 184/185/186 catálogo (modelo+taxonomías → ciclo de vida+buscador → carga inicial) → 187/188 plantillas y asignación → 189 ejecución y registro (el corazón) → 190 valoración/evolución/recálculo → 191 panel del profe → **192 onboarding del tenant 2 = cierre del milestone**. Regla dura transversal: **módulo duro A1** (tablas y rutas propias, cero imports desde/hacia el SPOM, `exercises` intacta), gateado por `module.gimnasio.enabled`, todo parámetro en `tenant_settings`, staging-first estricto.
 
@@ -420,6 +430,7 @@ _Updated after each plan completion_
 
 - Phase 204 added (2026-10-27, fuera del milestone, standalone api+admin): Usuarios Wellhub como tipo de usuario. Disparador: piloto Wellhub en Moreno en prod, el primer usuario real (Palladino) era ex-alumno vinculado por email y quedó invisible como Wellhub. Numerada 204 porque 201/202 (Conquer) y 203 (carga) viven en sus ramas.
 - Phase 204 ejecutada 2026-10-27: discuss (D-01..D-21) → research (D-22..D-28 sin Franco, opción recomendada) → 16 planes → 16/16 ejecutados (sonnet, secuencial) → verificación por lectura: human_needed (6/6 criterios, 0 bloqueantes). SIN CORRER tests/typecheck (sin node_modules, política CI). Mig 0300. Rama `feat/204-usuarios-wellhub` SIN PUSH. Pendiente: CI en staging + vue-tsc admin + UAT (`204-VERIFICATION.md`).
+- Phase 193 added (FUERA de v6.1; rama `feat/193-comunicaciones` desde `origin/master` fresco, staging-first, NO espera al tren 182-186; migraciones desde 0216 y v6.1 renumera sus 0216/0217 locales al pushear): **Comunicaciones** — sección única del admin con 4 pestañas. **Decisiones cerradas con Franco 2026-09-02:** nombre "Comunicaciones" (no "Avisos", que queda para pop-ups y TV); una sola fase aunque quede grande (los avisos de TV no justifican fase propia). Piezas: (1) push: reemplazar el input libre `route` por un **selector de destino** común (sección de la app de lista curada | WhatsApp de ventas con texto; la app resuelve AR/ES por sede vía `buildWhatsAppUrl` y una ruta interna nueva tipo `/contacto-ventas?text=`; hoy `router.push(route)` en `boot/push-notifications.ts:59` no sabe abrir URLs externas); (2) **avisos pop-up** en la app: entidad nueva (título, mensaje, imagen opcional, botón, destino, vigencia, frecuencia por socio, alcance sede/país/segmento, métricas mostrado/cerrado/clic) + endpoint "qué pop-up toca hoy" que arbitra con los 4 diálogos globales de `MainLayout.vue` (permiso push, mejoras, rating, vencimiento) respetando "uno por apertura"; **la calificación de clase pasa a máximo una por semana por socio, server-side** (hoy: una por clase en ventana 48h, `ratings/service.ts`); (3) **tarjetas de Mi Templo** editables: `ImprovementCtaCard` está hardcodeada; misma entidad que los pop-ups con `placement` pop-up|tarjeta, sin vigencia/frecuencia; (4) **avisos en TV**: entidad aparte (texto, sedes, activo, modo reemplaza-flex-inicial | reemplaza-flex-final | manual) → botón nuevo en la tira de bloques de `TvControlPage` y render en el velo crema/charcoal de `TvScreenPage` vía `tv_class_state` + poll 750 ms (cápsulas/frases hoy son estáticas en `tv/capsulas.ts` y `pdf/quotes.ts`). Abiertas para discuss-phase: prioridad entre pop-ups que compiten el mismo día, imagen sí/no, alcance por segmentos de comportamiento como las push, fallback en versiones viejas de la app, si referidos/programas también se vuelven editables. Toca las 3 apps → bump minor app + builds de tiendas. (COM-01..04)
 - Phase 180 added (Campañas etapa 2 de la fase 119; ejecutar POST-tren v6.0 en master — toca member app, bump minor + builds de tiendas; standalone respecto de la 179): magic links por sede (token one-use 30d que loguea al destinatario, revisar D-21; CTA primario a la sede del freemium + tabla de sedes + WhatsApp terciario; motivación: JWT 7d → freemium deslogueados → el login mata el funnel click→reservó) + selector de audiencias (bajas, prueba-no-convertida, alerta/ausente de la 136, referidos) + ReservasPage informativa para nuevos (dirección+"Cómo llegar", card "¿Primera vez?", confirmación post-reserva enriquecida con calendario anti no-show, descripciones por actividad con columna `description` + admin + bottom sheet; TODAS las clases aptas para todos los niveles → mensaje global sin chips). Scope aprobado por Nacho 2026-08-20; detalle en memoria project_phase_119_freemium_trial_campaign. (CAMPANAS-E2)
 - Phase 179 added (standalone api/app/admin, NO depende del tren v6.0; **NO tocar `referrals` ni `computeReferralDiscountPercent`**): Referidos de partners/marcas — co-marketing con comercios locales. **Decisiones cerradas con el usuario 2026-08-22:** (1) entidad `referral_partners` separada de `users` (name, `code` varchar16 UNIQUE con vanity codes, `benefit_type`+`benefit_value`, `commission_type`+`commission_value`, `branch_id` opcional, active, contacto); (2) tabla espejo `partner_referrals` (partner_id, referred_id UNIQUE, status pending|qualified|revoked) con exclusividad cruzada contra `referrals` (un socio = un origen, 409); (3) beneficio del referido **configurable por partner**: descuento % primera(s) cuota(s) O pase/semana gratis (integra trials v5.8 / aura); (4) comisión **monto fijo one-time** por membresía confirmada (mismo trigger `qualifyFirstPayment`, primer pago > 0) → `partner_commissions` (subscription_id UNIQUE idempotente, status pending|settled|void) — el sistema NO mueve plata, registra deuda y liquidación manual en admin; (5) flujo QR: tarjeta física → URL registro `?ref=CODE` (la app ya lee `route.query.ref` en RegisterPage.vue), `resolveReferralCode` pasa a resolver en dos espacios (users + partners), generador de QR calcado de `tools/generate-branch-qrs.ts`; (6) admin v1: CRUD partners + conversiones por partner + pantalla de liquidación. Mapa completo del sistema actual y sus 8 acoples a `users` en el BRIEF del phase dir. Migración: numerar next-after-master y verificar colisión con trenes pendientes (0208 tomado por analytics). (PARTNER-REF)
 - Phase 178 added (standalone TV/sessions, NO depende del tren v6.0; base = worktree `et-bloque-alt` / `feat/tv-bloque-alternativo` desde `origin/master` @ `32db2f16`): Bloque alternativo en técnica/combos + dos deuteros en pantalla del TV + baja de la rotación automática. **Decisiones cerradas con Nacho 2026-08-19** (plan seed: `~/.claude/plans/atomic-painting-beaver.md`): (1) rol nuevo `COMBOS_II_ALT`/`TECNICA_II_ALT` **generado desde el arranque** como 5º bloque (estructura fija técnica/combos pasa de 4 a 5 bloques; INITIUM→II_I→II_II→II_ALT→STRETCHING), reusa mismo route/formato forzado que II_II con hash que incluye el rol → ejercicios distintos; reusa el editor entero (una card por bloque). Etiqueta "COMBOS II ALT"/"TÉCNICA II ALT". (2) Alt en TV = **toggle de vista** sobre el 2º bloque (mostrar principal/alternativo) que **comparte cronómetro** — mismo mecanismo `displayRole` efímero que la rotación; nuevo `show_alternative` boolean en `tv_class_state` + botón en `TvControlPage`. (3) Deuteros regular = **2×2 = 4 listas** (2 deuteros × 2 niveles del par); `buildColumns` deja de colapsar vía `visualGroupOf`, `.stage` pasa a grid + rediseño de escala. (4) **Se saca la rotación automática** (acoplada con el 2×2, shippean juntas) + **drop de columnas** `deuteros_auto_rotate`/`deuteros_pinned_at` en la misma migración. Toca api (generador combos/tecnica, validadores block/session incl. conteo 4→5, tv/service+roster+types+schemas, migración 0206±), admin (3 diccionarios de labels + PDF `session-data-transformer` + `TvScreen/TvControl` + `render.ts` + `edit-service.blockMap`), app (labels). Migración: numerar next-after-master (0205 tope) y **verificar colisión** con trenes pendientes. Gobernanza: staging muy atrás del tren TV/159/160 → back-merge master→staging pendiente; push suelto `et-kinesis-label` a coordinar. (TV-BLOQUE-ALT)
@@ -996,6 +1007,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - [Phase ?]: watch([resolvedPaquetePlan, paqueteMode]) dispara selectPlan(plan) completo (no solo asigna selectedPlan) para reutilizar reset de assignForm y change-preview en mode='change' (D-11)
 - [Phase 177]: 177-05: matriz de paquete insertada por el propio test (no lookup de fila seeded por migracion) porque cleanAllTestData borra subscription_plans en cada beforeEach y los workers de vitest son compartidos entre archivos (isolate:false)
 - [Phase 177]: 177-05: enforce del tope semanal confirmado por lectura de codigo (booking-service.ts:294-311) y test end-to-end -- isBonus solo exime en planes bookingMode=fixed, paquete es flexible
+- [Phase ?]: Filtro Gimnasio del panel de plataforma se alimenta de GET /platform/tenants (todos los tenants), no solo de los presentes en la pagina actual
+- [Phase 185]: Columna Gimnasio del panel de plataforma reusa EjercicioScopeBadge (scope=global) para el badge Global en vez de un chip inline nuevo
 
 ### Pending Todos
 
@@ -1028,9 +1041,9 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-08-28T17:12:31.221Z
-Stopped at: Phase 182 context gathered
-Resume file: .planning/phases/182-plataforma-rol-super-owner-wizard-de-alta-de-tenant/182-CONTEXT.md
+Last session: 2026-10-28
+Stopped at: Rescate de docs del master local (ROADMAP/STATE unificados)
+Resume file: .planning/ROADMAP.md (tabla Progress = estado real por fase)
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
 

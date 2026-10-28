@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sketch 012 — Diálogos de trámite</title>
+<link rel="stylesheet" href="../themes/default.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Geologica:wght@300;400;500;600&family=Montserrat:wght@600;700;800&family=Cinzel:wght@600;700&family=Roboto:wght@400;500&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+<style>
+  :root {
+    --page: #f2ede5;
+    --ink: #2c2318;        /* 15.6:1 sobre blanco */
+    --ink-2: #6b6459;      /* 5.8:1 */
+    --terra: #96593a;
+    --line: #e5dbcd;
+    --dark: #2c2318;
+    --cream-ink: #f0e6d6;
+    --cream-2: #e3c9a8;
+    --cream-3: #c9bba6;
+    --btn-a: #a35f3c;
+    --btn-b: #7e4529;
+    --red-a: #b34a4a;      /* blanco 5.2:1 */
+    --red-b: #8f3434;      /* blanco 7.9:1 */
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #e9e3da; font-family: 'Geologica', system-ui, sans-serif; color: var(--ink); }
+
+  #controls { position: sticky; top: 0; z-index: 50; background: #fff; border-bottom: 1px solid #ddd; padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; font: 13px system-ui; }
+  .ctl { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+  .ctl > span { color: #555; margin-right: 4px; font-weight: 600; }
+  .ctl button { border: 1px solid #ccc; background: #fafafa; border-radius: 6px; padding: 5px 9px; cursor: pointer; font: inherit; }
+  .ctl button.on { background: #2c2318; color: #fff; border-color: #2c2318; }
+  #stage { display: flex; gap: 32px; justify-content: center; align-items: flex-start; padding: 24px 16px 80px; flex-wrap: wrap; }
+  .col { display: flex; flex-direction: column; align-items: center; }
+  .col-label { font: 600 13px system-ui; text-align: center; margin-bottom: 4px; }
+  .col-sub { font: 12px system-ui; color: #666; text-align: center; max-width: 360px; margin-bottom: 10px; line-height: 1.4; min-height: 66px; }
+
+  /* Teléfono: Reservas de fondo, atenuado */
+  .phone { position: relative; width: var(--w, 390px); height: 700px; border-radius: 28px; overflow: hidden; box-shadow: 0 0 0 10px #1d1a17, 0 20px 50px rgba(0,0,0,.25); background: var(--page); transition: width .2s; }
+  .bg { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .bg .appbar { height: 64px; margin: -16px -16px 6px; background: linear-gradient(135deg, #96593a, #7d5d42); }
+  .bg i { display: block; height: 64px; border-radius: 12px; background: #fff; border: 1px solid var(--line); }
+  .scrim { position: absolute; inset: 0; background: rgba(0,0,0,.45); display: grid; place-items: center; padding: 20px; }
+  .dialog { width: 100%; max-width: 340px; }
+
+  /* ── Contenido común ── */
+  .ttl { margin: 0; }
+  .msg { margin: 10px 0 0; line-height: 1.45; }
+  .fld { width: 100%; height: 52px; margin-top: 14px; padding: 0 12px; font: 15px 'Geologica', sans-serif; }
+  .sedes { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+  .sede { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; text-align: left; cursor: pointer; font: inherit; }
+  .sede b { display: block; font-weight: 600; }
+  .sede small { display: block; margin-top: 2px; }
+  .sede .go { flex: none; font-size: 13px; text-decoration: underline; text-underline-offset: 3px; }
+
+  /* ════════ Hoy: q-card genérico de Quasar ════════ */
+  .hoy .card { background: #fff; border-radius: 4px; box-shadow: 0 3px 5px -1px rgba(0,0,0,.2), 0 5px 8px rgba(0,0,0,.14), 0 1px 14px rgba(0,0,0,.12); padding: 16px 16px 8px; font-family: 'Roboto', sans-serif; }
+  .hoy .ttl { font: 500 1.25rem/2rem 'Roboto', sans-serif; letter-spacing: .0125em; color: rgba(0,0,0,.87); }
+  .hoy .ttl.neg { color: #c10015; }
+  .hoy .msg { margin-top: 4px; font-size: 14px; color: rgba(0,0,0,.87); }
+  .hoy .fld { border: 0; border-bottom: 1px solid rgba(0,0,0,.24); border-radius: 0; padding: 0; }
+  .hoy .acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+  .hoy .acts button { min-height: 36px; padding: 0 12px; border: 0; background: none; font: 500 14px 'Roboto', sans-serif; text-transform: uppercase; letter-spacing: .0892em; cursor: pointer; border-radius: 3px; }
+  .hoy .acts .sec { color: #9e9e9e; }
+  .hoy .acts .pri { color: var(--terra); }
+  .hoy .acts .pri.neg { color: #c10015; }
+  .hoy .acts .pri.warn { color: #f2c037; }
+  .hoy .kick { display: none; }
+  .hoy .sede { border: 1px solid rgba(0,0,0,.12); border-radius: 4px; background: #fff; }
+  .hoy .sede small { color: rgba(0,0,0,.54); }
+  .hoy .sede .go { color: var(--terra); }
+
+  /* ════════ A y B: marco + botón de la card de hoy ════════ */
+  .fr { position: relative; border-radius: 21px; padding: 1.5px; background: linear-gradient(115deg, #4a3a2b 0%, #a35f3c 30%, #f0d2b4 45%, #a35f3c 60%, #4a3a2b 100%); background-size: 250% 250%; background-position: 0% 50%; box-shadow: 0 14px 36px rgba(0,0,0,.3); }
+  .fr .card { position: relative; overflow: hidden; border-radius: 20px; padding: 20px 18px 10px; }
+  .fr .ttl { font: 700 20px/1.25 'Montserrat', sans-serif; letter-spacing: -.01em; }
+  .fr .msg { font-size: 15px; }
+  .fr .fld { border-radius: 10px; }
+  .fr .acts { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-top: 18px; }
+  .fr .pri { position: relative; overflow: hidden; width: 100%; min-height: 48px; border: 0; border-radius: 10px; background: linear-gradient(135deg, var(--btn-a), var(--btn-b)); color: #fff; font: 600 15px 'Geologica', sans-serif; letter-spacing: .3px; cursor: pointer; box-shadow: 0 4px 14px rgba(126,69,41,.35), inset 0 1px 0 rgba(255,255,255,.18); }
+  .fr .pri.neg { background: linear-gradient(135deg, var(--red-a), var(--red-b)); box-shadow: 0 4px 14px rgba(143,52,52,.35), inset 0 1px 0 rgba(255,255,255,.18); }
+  .fr .pri::after { content: ''; position: absolute; top: 0; bottom: 0; left: -60%; width: 40%; background: linear-gradient(100deg, transparent, rgba(255,255,255,.28), transparent); transform: skewX(-18deg); }
+  .fr .pri.neg::after { display: none; } /* lo destructivo no brilla */
+  body:not(.reduce) .fr .pri::after { animation: sheen 5s ease-in-out 1.2s infinite; }
+  @keyframes sheen { 0%, 70% { left: -60%; } 100% { left: 130%; } }
+  .fr .sec { min-height: 44px; border: 0; background: none; font: 500 14px 'Geologica', sans-serif; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+  .fr .kick { margin: 0 0 6px; font: 700 12px 'Cinzel', serif; letter-spacing: .14em; text-transform: uppercase; }
+
+  /* A · Clara: superficie crema, texto tinta */
+  .A .card { background: #fbf8f3; }
+  .A .kick { color: var(--terra); }
+  .A .ttl { color: var(--ink); }
+  .A .ttl.neg { color: #a8423f; }
+  .A .msg { color: var(--ink); }
+  .A .fld { border: 1px solid #d9cfc1; background: #fff; color: var(--ink); }
+  .A .sec { color: var(--ink-2); }
+  .A .sede { border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+  .A .sede small { color: var(--ink-2); }
+  .A .sede .go { color: var(--terra); }
+
+  /* B · Oscura: igual que los pop-ups (sketch 010 A) */
+  .B .card { background: var(--dark); }
+  .B .kick { color: var(--cream-2); }
+  .B .ttl { color: var(--cream-ink); }
+  .B .ttl.neg { color: #f0b4a8; }
+  .B .msg { color: var(--cream-ink); }
+  .B .fld { border: 1px solid rgba(240,230,214,.32); background: rgba(240,230,214,.05); color: var(--cream-ink); }
+  .B .fld::placeholder { color: var(--cream-3); }
+  .B .sec { color: var(--cream-ink); }
+  .B .sede { border: 1px solid rgba(240,230,214,.22); border-radius: 12px; background: rgba(240,230,214,.04); color: var(--cream-ink); }
+  .B .sede small { color: var(--cream-3); }
+  .B .sede .go { color: var(--cream-2); }
+</style>
+</head>
+<body>
+
+<div id="controls">
+  <div class="ctl" data-ctl="dlg"><span>Diálogo</span>
+    <button data-v="reservar" class="on">Reservar</button>
+    <button data-v="cambiar">Cambiar horario</button>
+    <button data-v="espera">Lista de espera</button>
+    <button data-v="cancelar">Cancelar reserva</button>
+    <button data-v="eliminar">Eliminar cuenta</button>
+    <button data-v="sede">Elegir sede</button>
+  </div>
+  <div class="ctl" data-ctl="w"><span>Ancho</span>
+    <button data-v="360">360</button><button data-v="390" class="on">390</button><button data-v="412">412</button>
+  </div>
+  <div class="ctl" data-ctl="motion"><span>Movimiento</span>
+    <button data-v="on" class="on">Normal</button><button data-v="reduce">Reducir</button>
+  </div>
+</div>
+
+<div id="stage">
+  <div class="col">
+    <div class="col-label">Hoy · Quasar genérico</div>
+    <div class="col-sub">Card blanca de Quasar: título en Roboto, botones planos en mayúsculas a la derecha ("CANCELAR" gris, la acción en color). Textos tal cual están (sin "¿").</div>
+    <div class="phone"><div class="bg"><div class="appbar"></div><i></i><i></i><i></i><i></i><i></i></div><div class="scrim"><div class="dialog hoy" data-v="hoy"></div></div></div>
+  </div>
+  <div class="col">
+    <div class="col-label">A · Hermana clara</div>
+    <div class="col-sub">Card crema con el borde degradé fino, título Montserrat, botón terracota con destello a lo ancho y "Volver" como link. Lo destructivo (cancelar reserva, eliminar cuenta) en rojo y sin destello.</div>
+    <div class="phone"><div class="bg"><div class="appbar"></div><i></i><i></i><i></i><i></i><i></i></div><div class="scrim"><div class="dialog" data-v="A"></div></div></div>
+  </div>
+  <div class="col">
+    <div class="col-label">B · Hermana oscura</div>
+    <div class="col-sub">Igual que los pop-ups nuevos (sketch 010 A): superficie oscura, texto crema. Para comparar: ¿los trámites se sienten demasiado "ceremonia"?</div>
+    <div class="phone"><div class="bg"><div class="appbar"></div><i></i><i></i><i></i><i></i><i></i></div><div class="scrim"><div class="dialog" data-v="B"></div></div></div>
+  </div>
+</div>
+
+<script>
+  // Textos reales (ReservasPage, ProfilePage, BranchPickerDialog). `fix` = con "¿" (propuesta).
+  const DLGS = {
+    reservar: { title: 'Reservar', msg: 'Reservar Funcional jueves 16/10 19:00?', fix: '¿Reservar Funcional el jueves 16/10 a las 19:00?', pri: 'Confirmar', sec: 'Cancelar' },
+    cambiar: { title: 'Cambiar horario', msg: 'Ya tenés una reserva el jueves 16/10 a las 18:00. Querés cambiarla por las 19:00?', fix: 'Ya tenés una reserva el jueves 16/10 a las 18:00. ¿Querés cambiarla por la de las 19:00?', pri: 'Cambiar', sec: 'Cancelar' },
+    espera: { title: 'Horario completo', msg: 'Este horario está completo. Querés anotarte en la lista de espera?', fix: 'Este horario está completo. ¿Querés anotarte en la lista de espera?', pri: 'Lista de espera', hoyCls: 'warn', sec: 'Cancelar' },
+    cancelar: { title: 'Cancelar reserva', msg: 'Cancelar reserva de jueves 19:00?', fix: '¿Cancelar tu reserva del jueves a las 19:00?', pri: 'Cancelar reserva', neg: true, sec: 'Volver' },
+    eliminar: { title: 'Eliminar cuenta', titleNeg: true, msg: 'Esta accion es <strong>permanente</strong>. Se eliminaran todos tus datos personales y tu historial de entrenamiento.', fix: 'Esta acción es <strong>permanente</strong>. Se eliminarán todos tus datos personales y tu historial de entrenamiento.', field: 'Confirmá tu contraseña', hoyField: 'Confirma tu contraseña', pri: 'Eliminar cuenta', neg: true, sec: 'Cancelar' },
+    sede: { title: '¿En qué sede querés entrenar?', sedes: [['El Templo Alem', 'Juan B. Justo 1018'], ['El Templo Mario Bravo', 'Mario Bravo 1050'], ['El Templo Alberti', 'Alberti 23']], sec: 'Ahora no' },
+  }
+  const state = { dlg: 'reservar' }
+  function card(v) {
+    const d = DLGS[state.dlg]
+    const hoy = v === 'hoy'
+    const msg = hoy ? d.msg : d.fix
+    const sedes = d.sedes ? `<div class="sedes">${d.sedes.map(([n, a]) => `<button class="sede"><span><b>${n}</b><small>${a}</small></span><span class="go">Cómo llegar</span></button>`).join('')}</div>` : ''
+    const field = d.field ? `<input class="fld" type="password" placeholder="${hoy ? d.hoyField : d.field}" />` : ''
+    const acts = hoy
+      ? `<div class="acts"><button class="sec">${d.sec}</button>${d.pri ? `<button class="pri ${d.neg ? 'neg' : ''} ${d.hoyCls || ''}">${d.pri}</button>` : ''}</div>`
+      : `<div class="acts">${d.pri ? `<button class="pri ${d.neg ? 'neg' : ''}">${d.pri}</button>` : ''}<button class="sec">${d.sec}</button></div>`
+    const inner = `<h3 class="ttl ${d.titleNeg ? 'neg' : ''}">${d.title}</h3>${msg ? `<p class="msg">${msg}</p>` : ''}${field}${sedes}${acts}`
+    return hoy ? `<div class="card">${inner}</div>` : `<div class="fr"><div class="card">${inner}</div></div>`
+  }
+  function render() { document.querySelectorAll('.dialog').forEach((d) => { d.className = 'dialog ' + (d.dataset.v === 'hoy' ? 'hoy' : d.dataset.v); d.innerHTML = card(d.dataset.v) }) }
+  document.querySelectorAll('.ctl').forEach((ctl) => ctl.addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return
+    ctl.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b))
+    if (ctl.dataset.ctl === 'dlg') { state.dlg = b.dataset.v; render() }
+    if (ctl.dataset.ctl === 'w') document.querySelectorAll('.phone').forEach((p) => p.style.setProperty('--w', b.dataset.v + 'px'))
+    if (ctl.dataset.ctl === 'motion') document.body.classList.toggle('reduce', b.dataset.v === 'reduce')
+  }))
+  render()
+</script>
+</body>
+</html>

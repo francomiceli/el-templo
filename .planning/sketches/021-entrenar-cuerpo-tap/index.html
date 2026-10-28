@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sketch 021 · Entrenar: tocar el cuerpo</title>
+<!-- Figura: react-native-body-highlighter v3.2.0 (MIT, Copyright (c) ELABBASSI Hicham), ver ../019-anatomia-profes-admin/anat.js -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Geologica:wght@300;400;500;600;700&family=Montserrat:wght@600;700;800&family=Cinzel:wght@600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+<link rel="stylesheet" href="entrenar.css" />
+<link rel="stylesheet" href="../020-guia-anatomia-app/app.css" />
+<style>
+  /* app.css del 020 también define .stack: acá es la columna de chips de la 197 */
+  .hero .stack { flex: none; position: static; overflow: visible; display: flex; flex-direction: column; gap: 6px; }
+  .wrap { display: flex; flex-direction: column; gap: 16px; padding: 16px 16px 24px; }
+  .phone .scroll { flex: 1; overflow-y: auto; scrollbar-width: none; }
+  .appbar i { width: 30px; height: 30px; border-radius: 7px; background: #f2ede5; }
+  .split .stage { --fh: 230px; }
+  .stage .fig .mu.r-L2 path { fill: #e9cdb3; stroke: #c9a27f; }
+  .stage .tap-hint { display: flex; justify-content: center; align-items: center; gap: 3px; margin-top: 4px; font-size: 12px; color: var(--ink-2); }
+  .phone.has-sheet .tap-hint { visibility: hidden; }
+  .stage .tap-hint .material-icons { font-size: 15px; color: var(--terra); }
+  .hero .bchip { transition: opacity .2s, box-shadow .2s; }
+
+  /* hoja: va arriba de la barra de abajo */
+  .bs { bottom: 56px; height: 47%; z-index: 25; }
+  .bs.full { height: calc(100% - 56px - 56px - 10px); }
+  .phone.has-sheet .wrap { padding-bottom: 420px; }
+  .phone.has-sheet .scroll::after { content: ''; position: absolute; inset: 56px 0 56px; background: rgba(44,35,24,.08); pointer-events: none; }
+
+  /* "Hoy en tu clase" arriba de la hoja */
+  .hoy { margin: 10px 0 6px; border-radius: 14px; background: var(--dark); color: var(--cream-ink); padding: 12px 14px; position: relative; overflow: hidden; }
+  .hoy::after { content: ''; position: absolute; left: 14px; right: 14px; bottom: 0; height: 2px; background: linear-gradient(90deg, transparent, #a35f3c, #e9bf9b, #a35f3c, transparent); }
+  .hoy .hk { margin: 0 0 6px; font: 700 11px 'Cinzel', serif; letter-spacing: .14em; text-transform: uppercase; color: var(--cream-2); }
+  .hoy .hb + .hb { border-top: 1px solid rgba(240,230,214,.14); margin-top: 8px; padding-top: 8px; }
+  .hoy .hb-top { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .hoy .hb-top b { font: 800 10.5px 'Montserrat', sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--cream-2); }
+  .hoy .hb-top span { font: 700 15px 'Montserrat', sans-serif; }
+  .hoy .hm { margin: 4px 0 0; font-size: 13.5px; line-height: 1.4; color: var(--cream-ink); }
+  .hoy .hm em { font-style: normal; color: var(--cream-3); }
+  .hoy .hx { margin: 4px 0 0; font-size: 12.5px; color: var(--cream-3); }
+  .hoy.none { background: var(--sand); color: var(--ink-2); font-size: 14px; }
+  .hoy.none::after { display: none; }
+  .hoy.none .hk { color: var(--terra); }
+  .ver-grande { display: flex; align-items: center; gap: 4px; margin-top: 14px; border: 0; background: none; color: var(--terra); font: 600 14px 'Geologica', sans-serif; padding: 6px 0; }
+  .toast { position: absolute; left: 50%; bottom: 70px; transform: translateX(-50%); background: var(--dark); color: var(--cream-ink); font-size: 13px; padding: 9px 14px; border-radius: 999px; z-index: 40; display: none; white-space: nowrap; }
+
+  /* A2: chips que trabajan la zona tocada */
+  .A2.has-sheet .hero .bchip:not(.hit) { opacity: .4; }
+  .A2 .hero .bchip.hit { box-shadow: 0 0 0 2px var(--terra); position: relative; }
+  .A2 .hero .bchip.hit::after { content: ''; position: absolute; top: 7px; right: 8px; width: 7px; height: 7px; border-radius: 50%; background: var(--terra); }
+  .A2 .hero .bchip.on.hit::after { background: var(--cream-2); }
+
+  .wrapall { display: flex; flex-wrap: wrap; gap: 34px; justify-content: center; padding: 18px 12px 40px; }
+  .colx { width: 390px; max-width: 100%; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute"><defs><linearGradient id="litg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c47a52" /><stop offset="1" stop-color="#8a4e30" /></linearGradient></defs></svg>
+<div class="wrapall">
+  <div class="colx"><div class="col-label">A1 · Solo la hoja</div><div class="col-sub">Tocá una zona del cuerpo: sube la hoja de Tu cuerpo con "Hoy en tu clase" arriba.</div><div class="phone A1"></div></div>
+  <div class="colx"><div class="col-label">A2 · Hoja + chips ★ elegida</div><div class="col-sub">Igual, y además los chips de los bloques que trabajan esa zona quedan marcados (el resto se apaga).</div><div class="phone A2"></div></div>
+</div>
+<p class="sketch-note">Jueves de "Tirón y core" (plani armada a mano, estilo del 015). Las zonas encendidas ya salen del modelo nuevo de anatomía, no de <code>muscle-zones.ts</code>. Tocar un chip sigue cambiando el bloque como en la 197. Sin barra de tabs: la 197 las oculta con <code>ENTRENAR_TABS_ENABLED</code> (queda solo Semana).</p>
+
+<script src="../019-anatomia-profes-admin/anat.js"></script>
+<script src="../019-anatomia-profes-admin/data.js"></script>
+<script src="../019-anatomia-profes-admin/ficha.js"></script>
+<script src="../020-guia-anatomia-app/alumno.js"></script>
+<script src="../020-guia-anatomia-app/alumno-ui.js"></script>
+<script>
+  // Sesión de hoy: cada bloque con la ruta principal (de ahí salen las zonas, con el modelo nuevo)
+  const HOY = { kicker: 'Hoy · Jueves 15', title: 'Tirón y core', blocks: [
+    { r: 'Initium', d: 'Entrada en calor', f: 'Flow', ruta: null, ex: [['BEAR CRAWL', '30 s'], ['SCAP PULL UP', '10 reps'], ['CAT COW', '10 reps']] },
+    { r: 'Nucleus', d: 'Dominadas', f: "EMOM 10'", ruta: 'OAP', ex: [['PULL UP', '6 reps'], ['CHIN UP', '6 reps'], ['DEAD HANG', '20 s']] },
+    { r: 'Deuteros', d: 'Front lever', f: "AMRAP 3 × 8'", ruta: 'FL', ex: [['TUCK FL HOLD', '15 s'], ['FL RAISE TUCK', '6 reps'], ['HOLLOW BODY', '30 s'], ['ARCH HOLD', '20 s']] },
+    { r: 'Epikos', d: 'Core', f: 'Tabata', ruta: 'TTB', ex: [['HOLLOW ROCK', '20 s'], ['V UP', '20 s'], ['SIDE PLANK', '20 s']] },
+  ] }
+  const GRUPO = (r) => (r === 'M' || r === 'S' ? 'fuerte' : r === 'Est' ? 'sostiene' : r === 'Al' ? 'estira' : null)
+  const GRUPO_TXT = { fuerte: 'Trabaja fuerte', sostiene: 'Te sostiene', estira: 'Se estira' }
+
+  // zonas de un bloque, en clave alumno (M/S → fuerte, Est → sostiene)
+  function zonasBloque(b) {
+    const z = {}
+    if (!b.ruta) return z
+    Object.entries(zonasDeRuta(b.ruta)).forEach(([k, r]) => { if (ALUMNO_ROL[r]) z[k] = ALUMNO_ROL[r] })
+    return z
+  }
+  // qué hace hoy cada bloque con los músculos de esta zona
+  function hoyEnZona(zona) {
+    const ms = MUSCULOS.filter((m) => m.zona && m.zona.split('@')[0] === zona)
+    return HOY.blocks.map((b, i) => {
+      if (!b.ruta) return null
+      const porGrupo = {}
+      ms.forEach((m) => ROLE_ORDER.forEach((r) => { const g = GRUPO(r); if (g && (m[r] || []).includes(b.ruta)) (porGrupo[g] = porGrupo[g] || new Set()).add(m.nombre) }))
+      return Object.keys(porGrupo).length ? { b, i, porGrupo } : null
+    }).filter(Boolean)
+  }
+  function hoyHTML(zona) {
+    const hits = hoyEnZona(zona)
+    if (!hits.length) return `<div class="hoy none"><p class="hk">Hoy en tu clase</p>Hoy tu clase no trabaja esta zona.</div>`
+    return `<div class="hoy"><p class="hk">Hoy en tu clase</p>${hits.map(({ b, porGrupo }) => `<div class="hb"><div class="hb-top"><b>${b.r}</b><span>${b.d}</span></div>
+      ${['fuerte', 'sostiene', 'estira'].filter((g) => porGrupo[g]).map((g) => `<p class="hm"><em>${GRUPO_TXT[g]}:</em> ${[...porGrupo[g]].join(', ')}</p>`).join('')}
+      <p class="hx">${b.ex.slice(0, 3).map(([n]) => n).join(' · ')}</p></div>`).join('')}</div>`
+  }
+
+  function mount(phone) {
+    const st = { pick: 2, zona: null }
+    phone.innerHTML = `<div class="appbar"><i></i>EL TEMPLO</div><div class="scroll"></div>
+      <div class="bs"><div class="handle"></div><button class="x" aria-label="Cerrar"><span class="material-icons">close</span></button><div class="bs-body"></div></div>
+      <div class="toast">Abre Guía › Tu cuerpo en esta zona</div>
+      <div class="tabbar">${[['account_balance', 'Mi Templo'], ['menu_book', 'Guía'], ['sports_mma', 'Entrenar', 1], ['event_available', 'Reservas'], ['card_membership', 'Planes']].map(([i, l, on]) => `<span class="${on ? 'on' : ''}"><span class="material-icons">${i}</span>${l}</span>`).join('')}</div>`
+    const $ = (s) => phone.querySelector(s)
+    const bs = $('.bs')
+
+    // Cuerpo + chips según el modo: sin zona = el bloque elegido; con zona tocada = solo esa zona
+    function bodyRoles() {
+      if (st.zona) return { [st.zona]: 'M' }
+      const roles = {}
+      HOY.blocks.forEach((x, i) => { if (i !== st.pick) Object.keys(zonasBloque(x)).forEach((k) => (roles[k] = 'L2')) })
+      return Object.assign(roles, zonasBloque(HOY.blocks[st.pick]))
+    }
+    const chipsHTML = () => {
+      const hits = st.zona ? new Set(hoyEnZona(st.zona).map((h) => h.i)) : new Set()
+      return HOY.blocks.map((x, i) => `<button class="bchip ${!st.zona && i === st.pick ? 'on' : ''} ${hits.has(i) ? 'hit' : ''}" data-pick="${i}"><b>${x.r}</b><span>${x.d}</span></button>`).join('')
+    }
+    const stageHTML = () => `${figure(bodyRoles(), { tap: true, sel: st.zona })}<span class="tap-hint"><span class="material-icons">touch_app</span>Tocá un músculo</span>`
+    // Repinta solo el cuerpo y los chips (la lista de ejercicios no se toca)
+    function paintBody() {
+      $('.stack').innerHTML = chipsHTML()
+      $('.stage').innerHTML = stageHTML()
+      fitFigures($('.stage'))
+    }
+    function render() {
+      const b = HOY.blocks[st.pick]
+      $('.scroll').innerHTML = `<div class="wrap">
+          <div class="weekbox"><div class="wk2"><span>12 al 18 de octubre</span></div>
+            <div class="days">${['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((d, i) => `<div class="day ${i === 3 ? 'on today' : ''} ${i < 3 ? 'done' : ''} ${i === 6 ? 'rest' : ''}">${d}<b>${12 + i}</b><i class="dot"></i></div>`).join('')}</div></div>
+          <section class="hero">
+            <div class="head2"><div><p class="kicker">${HOY.kicker}</p><h1>${HOY.title}</h1></div><button class="cta">Empezar</button></div>
+            <div class="split"><div class="stack">${chipsHTML()}</div><div class="stage">${stageHTML()}</div></div>
+            <div class="expanel"><div class="exhead"><span><b>${b.r}</b><span class="t">${b.d}</span><span class="m">${b.f} · ${b.ex.length} ejercicios</span></span></div>
+              <ol class="exlist">${b.ex.map(([n, d]) => `<li><span class="vid" aria-hidden="true"><span class="material-icons">play_arrow</span></span><span class="n">${n}</span><span class="d">${d}</span></li>`).join('')}</ol></div>
+          </section>
+        </div>`
+      fitFigures($('.scroll'))
+    }
+    function openZona(zona) {
+      st.zona = zona
+      $('.bs-body').innerHTML = hoyHTML(zona) + zonaAlumno(zona).replace(/<div class="avisale">/, `<button class="ver-grande" data-grande>Ver en Tu cuerpo <span class="material-icons" style="font-size:18px">chevron_right</span></button><div class="avisale">`)
+      $('.bs-body').scrollTop = 0
+      bs.classList.add('open'); bs.classList.remove('full'); phone.classList.add('has-sheet')
+      paintBody()
+      // subir el cuerpo y los chips para que queden arriba de la hoja
+      const sc = $('.scroll')
+      sc.scrollTop = $('.split').getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop - 10
+    }
+    function closeSheet() { bs.classList.remove('open', 'full'); phone.classList.remove('has-sheet'); st.zona = null; paintBody() }
+
+    phone.addEventListener('click', (e) => {
+      const t = e.target
+      if (t.closest('.bs .x')) return closeSheet()
+      const pk = t.closest('[data-pick]')
+      if (pk) { st.pick = +pk.dataset.pick; if (st.zona) { bs.classList.remove('open', 'full'); phone.classList.remove('has-sheet'); st.zona = null } render(); return }
+      const gl = t.closest('[data-gr]')
+      if (gl) { const d = gl.nextElementSibling; d.hidden = !d.hidden; gl.classList.toggle('on', !d.hidden); return }
+      if (t.closest('[data-grande]') || t.closest('[data-ruta]')) {
+        const toast = $('.toast'); toast.textContent = t.closest('[data-ruta]') ? `Abre la ficha de ${RUTA_NOMBRE[t.closest('[data-ruta]').dataset.ruta]} (como en el 020)` : 'Abre Guía › Tu cuerpo en esta zona'
+        toast.style.display = 'block'; clearTimeout(toast._t); toast._t = setTimeout(() => (toast.style.display = 'none'), 1800); return
+      }
+      const z = t.closest('.fig.tap .mu:not(.x)')
+      if (z) openZona(z.dataset.zona)
+    })
+    let y0 = null
+    $('.handle').addEventListener('pointerdown', (e) => { y0 = e.clientY; e.target.setPointerCapture(e.pointerId) })
+    $('.handle').addEventListener('pointerup', (e) => {
+      if (y0 === null) return
+      const dy = e.clientY - y0; y0 = null
+      if (dy < -30) bs.classList.add('full')
+      else if (dy > 30) { if (bs.classList.contains('full')) bs.classList.remove('full'); else closeSheet() }
+      else bs.classList.toggle('full')
+    })
+    render()
+  }
+  document.querySelectorAll('.phone').forEach(mount)
+</script>
+</body>
+</html>
