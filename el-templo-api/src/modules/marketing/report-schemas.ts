@@ -132,6 +132,20 @@ export const attributionReportSchema = {
             },
           },
         },
+        // Card "Integraciones apagadas": solo booleanos y nombres de secrets.
+        integrations: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              key: { type: "string" },
+              label: { type: "string" },
+              enabled: { type: "boolean" },
+              missing: { type: "array", items: { type: "string" } },
+              mode: { type: "string" },
+            },
+          },
+        },
       },
     },
     400: errorSchema,

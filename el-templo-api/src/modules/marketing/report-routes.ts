@@ -1,6 +1,7 @@
 // Módulo: marketing — rutas de los reportes de atribución (fase 195, plan 10).
 //
 //   GET /api/admin/reports/attribution                → embudo por canal/campaña/sede
+//                                                        + estado de las integraciones
 //   GET /api/admin/reports/attribution/search-console → último período de Search Console
 //
 // Solo owner/admin (`ADMIN_ROLES`): el embudo trae facturación y gasto
@@ -17,6 +18,7 @@ import {
   requireBranchAccess,
 } from "../shared/branch-access";
 import { AttributionReportService } from "./report-service";
+import { getMeasurementIntegrations } from "./integrations-status";
 import {
   attributionReportSchema,
   searchConsoleReportSchema,
@@ -62,7 +64,7 @@ export const attributionReportRoutes: FastifyPluginAsync = async (fastify) => {
             message: "dateFrom no puede ser posterior a dateTo",
           });
         }
-        return await service.getFunnel(ctx, {
+        const funnel = await service.getFunnel(ctx, {
           dateFrom,
           dateTo,
           branchId,
@@ -72,6 +74,9 @@ export const attributionReportRoutes: FastifyPluginAsync = async (fastify) => {
             ? country
             : (request.scope.country ?? undefined),
         });
+        // Estado de las integraciones de medición (config de la API, igual
+        // para todos los gimnasios): solo booleanos y nombres de secrets.
+        return { ...funnel, integrations: getMeasurementIntegrations() };
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get attribution report");
       }

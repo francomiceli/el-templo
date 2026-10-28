@@ -1,4 +1,13 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import type { FastifyInstance } from "fastify";
 import { and, eq, sql } from "drizzle-orm";
 import {
@@ -17,6 +26,7 @@ import {
   type AttributionFunnel,
   type SearchConsoleReport,
 } from "../../src/modules/marketing/report-service";
+import type { MeasurementIntegration } from "../../src/modules/marketing/integrations-status";
 import {
   TENANT_DOS,
   TENANT_TEMPLO,
@@ -1179,5 +1189,263 @@ describe("Reportes de atribución — Search Console", () => {
     expect(body.pages).toEqual([
       { page: PAGE_A, clicks: 0, impressions: 0, ctr: 0, position: 8 },
     ]);
+  });
+});
+
+/**
+ * Card "Integraciones apagadas" (integración 195 + master, pedido de Franco):
+ * el embudo trae el estado de las 6 integraciones de medición, calculado del
+ * entorno de la API. Solo booleanos y nombres de secrets, nunca valores.
+ */
+describe("Reportes de atribución — integraciones de medición", () => {
+  let app: FastifyInstance;
+  let ownerToken: string;
+
+  /** Todas las variables que miran las integraciones. */
+  const ALL_VARS = [
+    "WEB_GA4_ID",
+    "WEB_META_PIXEL_ID",
+    "META_ACCESS_TOKEN",
+    "META_PIXEL_ID",
+    "META_CAPI_START_AT",
+    "META_AD_ACCOUNT_IDS",
+    "META_CAPI_TEST_EVENT_CODE",
+    "GOOGLE_SC_SERVICE_ACCOUNT_BASE64",
+    "GBP_SYNC_MODE",
+    "GBP_OAUTH_CLIENT_ID",
+    "GBP_OAUTH_CLIENT_SECRET",
+    "GBP_REFRESH_TOKEN",
+  ] as const;
+
+  const SA_BASE64 = Buffer.from(
+    JSON.stringify({
+      client_email: "lector@el-templo.iam.gserviceaccount.com",
+      private_key:
+        "-----BEGIN PRIVATE KEY-----\\nSECRETO195\\n-----END PRIVATE KEY-----\\n",
+    }),
+  ).toString("base64");
+
+  /** Valores llenos y válidos: con esto las 6 quedan prendidas. */
+  const FULL_ENV: Record<(typeof ALL_VARS)[number], string> = {
+    WEB_GA4_ID: "G-SECRETO195",
+    WEB_META_PIXEL_ID: "111222333195",
+    META_ACCESS_TOKEN: "token-secreto-195",
+    META_PIXEL_ID: "111222333195",
+    META_CAPI_START_AT: "2026-10-20T15:00:00-03:00",
+    META_AD_ACCOUNT_IDS: "act_444555666195",
+    META_CAPI_TEST_EVENT_CODE: "",
+    GOOGLE_SC_SERVICE_ACCOUNT_BASE64: SA_BASE64,
+    GBP_SYNC_MODE: "apply",
+    GBP_OAUTH_CLIENT_ID: "cliente-195",
+    GBP_OAUTH_CLIENT_SECRET: "secreto-oauth-195",
+    GBP_REFRESH_TOKEN: "refresh-secreto-195",
+  };
+
+  /** Pisa TODAS las variables (vacío = ausente, como un secret sin crear). */
+  function setEnv(
+    env: Partial<Record<(typeof ALL_VARS)[number], string>>,
+  ): void {
+    for (const name of ALL_VARS) vi.stubEnv(name, env[name] ?? "");
+  }
+
+  async function fetchIntegrations(): Promise<{
+    status: number;
+    integrations: MeasurementIntegration[];
+    raw: string;
+  }> {
+    const res = await app.inject({
+      method: "GET",
+      url: `${URL_FUNNEL}?${RANGE}`,
+      headers: { authorization: `Bearer ${ownerToken}` },
+    });
+    const body = JSON.parse(res.body) as AttributionFunnel & {
+      integrations: MeasurementIntegration[];
+    };
+    return {
+      status: res.statusCode,
+      integrations: body.integrations,
+      raw: res.body,
+    };
+  }
+
+  function byKey(
+    list: MeasurementIntegration[],
+    key: MeasurementIntegration["key"],
+  ): MeasurementIntegration | undefined {
+    return list.find((i) => i.key === key);
+  }
+
+  beforeAll(async () => {
+    app = await createTestApp();
+    ownerToken = await getAuthToken(app, "admin@test.com", "adminpass123");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  afterAll(async () => {
+    vi.unstubAllEnvs();
+    await app.close();
+  });
+
+  it("con el entorno vacío las 6 están apagadas y cada una dice qué secret falta", async () => {
+    setEnv({});
+    const { status, integrations } = await fetchIntegrations();
+    expect(status).toBe(200);
+    expect(integrations).toEqual([
+      {
+        key: "ga4",
+        label: "Google Analytics 4",
+        enabled: false,
+        missing: ["WEB_GA4_ID"],
+      },
+      {
+        key: "meta_pixel",
+        label: "Pixel de Meta (web)",
+        enabled: false,
+        missing: ["WEB_META_PIXEL_ID"],
+      },
+      {
+        key: "meta_capi",
+        label: "Conversiones de Meta (CAPI)",
+        enabled: false,
+        missing: ["META_ACCESS_TOKEN", "META_PIXEL_ID", "META_CAPI_START_AT"],
+      },
+      {
+        key: "meta_spend",
+        label: "Gasto de Meta",
+        enabled: false,
+        missing: ["META_ACCESS_TOKEN", "META_AD_ACCOUNT_IDS"],
+      },
+      {
+        key: "search_console",
+        label: "Search Console",
+        enabled: false,
+        missing: ["GOOGLE_SC_SERVICE_ACCOUNT_BASE64"],
+      },
+      {
+        key: "gbp",
+        label: "Fichas de Google (Business Profile)",
+        enabled: false,
+        missing: [
+          "GBP_SYNC_MODE",
+          "GBP_OAUTH_CLIENT_ID",
+          "GBP_OAUTH_CLIENT_SECRET",
+          "GBP_REFRESH_TOKEN",
+        ],
+        mode: "off",
+      },
+    ]);
+  });
+
+  it("con el entorno lleno las 6 están prendidas, sin faltantes, y no viaja ningún valor", async () => {
+    setEnv(FULL_ENV);
+    const { status, integrations, raw } = await fetchIntegrations();
+    expect(status).toBe(200);
+    expect(integrations.map((i) => [i.key, i.enabled, i.missing])).toEqual([
+      ["ga4", true, []],
+      ["meta_pixel", true, []],
+      ["meta_capi", true, []],
+      ["meta_spend", true, []],
+      ["search_console", true, []],
+      ["gbp", true, []],
+    ]);
+    expect(byKey(integrations, "meta_capi")?.mode).toBe("live");
+    expect(byKey(integrations, "gbp")?.mode).toBe("apply");
+    // Ni los IDs públicos ni los secretos aparecen en la respuesta.
+    // (GBP_SYNC_MODE no es secreto: su valor ES el modo que se informa.)
+    for (const [name, value] of Object.entries(FULL_ENV)) {
+      if (name === "GBP_SYNC_MODE" || value.length === 0) continue;
+      expect(raw).not.toContain(value);
+    }
+    expect(raw).not.toContain("SECRETO195");
+  });
+
+  it("GBP en dry-run está prendido pero informa el modo", async () => {
+    setEnv({ ...FULL_ENV, GBP_SYNC_MODE: "dry-run" });
+    const gbp = byKey((await fetchIntegrations()).integrations, "gbp");
+    expect(gbp).toEqual({
+      key: "gbp",
+      label: "Fichas de Google (Business Profile)",
+      enabled: true,
+      missing: [],
+      mode: "dry-run",
+    });
+  });
+
+  it("GBP con un modo inválido queda apagado y pide revisar GBP_SYNC_MODE", async () => {
+    setEnv({ ...FULL_ENV, GBP_SYNC_MODE: "si" });
+    const gbp = byKey((await fetchIntegrations()).integrations, "gbp");
+    expect(gbp?.enabled).toBe(false);
+    expect(gbp?.missing).toEqual(["GBP_SYNC_MODE"]);
+    expect(gbp?.mode).toBe("invalid");
+  });
+
+  it("GBP en apply sin credenciales lista solo las que faltan", async () => {
+    setEnv({ ...FULL_ENV, GBP_OAUTH_CLIENT_SECRET: "", GBP_REFRESH_TOKEN: "" });
+    const gbp = byKey((await fetchIntegrations()).integrations, "gbp");
+    expect(gbp?.enabled).toBe(false);
+    expect(gbp?.missing).toEqual([
+      "GBP_OAUTH_CLIENT_SECRET",
+      "GBP_REFRESH_TOKEN",
+    ]);
+    expect(gbp?.mode).toBe("apply");
+  });
+
+  it("CAPI con código de prueba está prendida en modo test", async () => {
+    setEnv({ ...FULL_ENV, META_CAPI_TEST_EVENT_CODE: "TEST195" });
+    const { integrations, raw } = await fetchIntegrations();
+    expect(byKey(integrations, "meta_capi")).toMatchObject({
+      enabled: true,
+      missing: [],
+      mode: "test",
+    });
+    expect(raw).not.toContain("TEST195");
+  });
+
+  it("CAPI sin fecha de activación queda apagada aunque el gasto esté prendido", async () => {
+    setEnv({ ...FULL_ENV, META_CAPI_START_AT: "" });
+    const { integrations } = await fetchIntegrations();
+    const capi = byKey(integrations, "meta_capi");
+    expect(capi?.enabled).toBe(false);
+    expect(capi?.missing).toEqual(["META_CAPI_START_AT"]);
+    expect(capi?.mode).toBeUndefined();
+    expect(byKey(integrations, "meta_spend")?.enabled).toBe(true);
+  });
+
+  it("valores presentes pero inválidos cuentan como faltantes", async () => {
+    setEnv({
+      ...FULL_ENV,
+      META_PIXEL_ID: "no-es-numero",
+      META_CAPI_START_AT: "no-es-fecha",
+      META_AD_ACCOUNT_IDS: "act_abc, xyz",
+      GOOGLE_SC_SERVICE_ACCOUNT_BASE64: "no-es-base64-json",
+    });
+    const { integrations } = await fetchIntegrations();
+    expect(byKey(integrations, "meta_capi")?.missing).toEqual([
+      "META_PIXEL_ID",
+      "META_CAPI_START_AT",
+    ]);
+    expect(byKey(integrations, "meta_spend")?.missing).toEqual([
+      "META_AD_ACCOUNT_IDS",
+    ]);
+    expect(byKey(integrations, "search_console")).toMatchObject({
+      enabled: false,
+      missing: ["GOOGLE_SC_SERVICE_ACCOUNT_BASE64"],
+    });
+  });
+
+  it("los espacios en blanco cuentan como secret sin crear", async () => {
+    setEnv({ WEB_GA4_ID: "   ", WEB_META_PIXEL_ID: "111222333195" });
+    const { integrations } = await fetchIntegrations();
+    expect(byKey(integrations, "ga4")).toMatchObject({
+      enabled: false,
+      missing: ["WEB_GA4_ID"],
+    });
+    expect(byKey(integrations, "meta_pixel")).toMatchObject({
+      enabled: true,
+      missing: [],
+    });
   });
 });

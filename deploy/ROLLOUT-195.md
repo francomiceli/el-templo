@@ -50,6 +50,8 @@ Los secrets ya existentes (`VITE_API_URL`, `STAGING_VITE_API_URL`, SSH, rutas de
 
 Los valores del `.env.production` de la API se escriben en cada deploy de la API: crear o cambiar un secret de la API NO tiene efecto hasta el próximo deploy de la API (un push que toque `el-templo-api/**` o un dispatch con target `todo`; `solo-web` no toca la API). Los IDs de GA4 y Pixel se leen en el build web: cambiarlos requiere regenerar la web (`solo-web`).
 
+Admin › Reportes › Origen de altas muestra arriba la card "Integraciones apagadas" con lo que falta cargar de esta tabla (solo nombres de secrets, nunca valores). La card lee el entorno de la API: para que `WEB_GA4_ID` y `WEB_META_PIXEL_ID` figuren prendidos, el deploy de producción también los escribe en el `.env.production` de la API, así que la card se actualiza recién con el próximo deploy de la API (aunque la web ya mida desde el `solo-web`).
+
 ## 4. Orden de activación de las integraciones
 
 1. **Texto de `/privacidad` en producción primero.** Franco aprueba el texto nuevo (`docs/privacidad-con-medicion.vue.txt`, con razón social, NIF y domicilio de España completados) y la web con esa página tiene que estar en prod antes de cargar `WEB_GA4_ID`, `WEB_META_PIXEL_ID` o cualquier `META_*`. El primer rollout sale con el `/privacidad` actual (decisión de Franco 2026-10-07).

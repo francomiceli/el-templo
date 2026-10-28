@@ -470,6 +470,8 @@ jobs:
 
       # Fase 195: Meta (CAPI + gasto) y Google (Search Console + Business Profile) viven SOLO aca.
       # Un secret sin crear llega vacio y la integracion queda apagada (la API lo trata como ausente).
+      # WEB_GA4_ID y WEB_META_PIXEL_ID (IDs publicos del build web) van tambien aca solo para que la card
+      # "Integraciones apagadas" de Reportes sepa si la web mide: la API no los usa para nada mas.
       - name: Create .env.production for API
         if: needs.build-api.result == 'success'
         run: |
@@ -511,6 +513,8 @@ jobs:
           GBP_OAUTH_CLIENT_ID=${{ secrets.GBP_OAUTH_CLIENT_ID }}
           GBP_OAUTH_CLIENT_SECRET=${{ secrets.GBP_OAUTH_CLIENT_SECRET }}
           GBP_REFRESH_TOKEN=${{ secrets.GBP_REFRESH_TOKEN }}
+          WEB_GA4_ID=${{ secrets.WEB_GA4_ID }}
+          WEB_META_PIXEL_ID=${{ secrets.WEB_META_PIXEL_ID }}
           EOF
 
       # --- Deploy via rsync (only projects that were built) ---

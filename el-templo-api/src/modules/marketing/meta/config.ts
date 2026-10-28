@@ -45,27 +45,59 @@ function readGraphVersion(): string {
 }
 
 /**
+ * Resultado de leer una config de Meta: la config (o `null` si queda apagada)
+ * y los NOMBRES de las variables que faltan o no son válidas — son los mismos
+ * que los secrets de GitHub del deploy. Nunca incluye valores: lo usa el
+ * reporte de Origen de altas para decir qué falta cargar.
+ */
+export interface MetaConfigResolution<T> {
+  config: T | null;
+  missing: string[];
+}
+
+/**
  * Config de CAPI o `null` si falta el token, el pixel o la fecha de activación
  * (`META_CAPI_START_AT`, ISO obligatoria), o si esa fecha no es válida. El
  * pixel id va en la ruta de la URL: solo dígitos.
  */
-export function getMetaCapiConfig(): MetaCapiConfig | null {
+export function resolveMetaCapiConfig(): MetaConfigResolution<MetaCapiConfig> {
   const token = readTrimmed("META_ACCESS_TOKEN");
   const pixelId = readTrimmed("META_PIXEL_ID");
   const startAtRaw = readTrimmed("META_CAPI_START_AT");
-  if (token === null || pixelId === null || startAtRaw === null) return null;
-  if (!/^[0-9]+$/.test(pixelId)) return null;
+  const startAt = startAtRaw === null ? null : new Date(startAtRaw);
 
-  const startAt = new Date(startAtRaw);
-  if (Number.isNaN(startAt.getTime())) return null;
+  const missing: string[] = [];
+  if (token === null) missing.push("META_ACCESS_TOKEN");
+  if (pixelId === null || !/^[0-9]+$/.test(pixelId)) {
+    missing.push("META_PIXEL_ID");
+  }
+  if (startAt === null || Number.isNaN(startAt.getTime())) {
+    missing.push("META_CAPI_START_AT");
+  }
+  if (
+    token === null ||
+    pixelId === null ||
+    startAt === null ||
+    missing.length
+  ) {
+    return { config: null, missing };
+  }
 
   return {
-    token,
-    pixelId,
-    graphVersion: readGraphVersion(),
-    startAt,
-    testEventCode: readTrimmed("META_CAPI_TEST_EVENT_CODE"),
+    config: {
+      token,
+      pixelId,
+      graphVersion: readGraphVersion(),
+      startAt,
+      testEventCode: readTrimmed("META_CAPI_TEST_EVENT_CODE"),
+    },
+    missing,
   };
+}
+
+/** Config de CAPI o `null` si está apagada (ver `resolveMetaCapiConfig`). */
+export function getMetaCapiConfig(): MetaCapiConfig | null {
+  return resolveMetaCapiConfig().config;
 }
 
 /**
@@ -74,16 +106,26 @@ export function getMetaCapiConfig(): MetaCapiConfig | null {
  * normaliza a dígitos solos (el cliente vuelve a anteponer `act_` al llamar) y
  * lo que no sea numérico se descarta (el id viaja en la ruta de la URL).
  */
-export function getMetaSpendConfig(): MetaSpendConfig | null {
+export function resolveMetaSpendConfig(): MetaConfigResolution<MetaSpendConfig> {
   const token = readTrimmed("META_ACCESS_TOKEN");
   const rawAccounts = readTrimmed("META_AD_ACCOUNT_IDS");
-  if (token === null || rawAccounts === null) return null;
-
-  const adAccountIds = rawAccounts
+  const adAccountIds = (rawAccounts ?? "")
     .split(",")
     .map((s) => s.trim().replace(/^act_/i, ""))
     .filter((s) => /^[0-9]+$/.test(s));
-  if (adAccountIds.length === 0) return null;
 
-  return { token, graphVersion: readGraphVersion(), adAccountIds };
+  const missing: string[] = [];
+  if (token === null) missing.push("META_ACCESS_TOKEN");
+  if (adAccountIds.length === 0) missing.push("META_AD_ACCOUNT_IDS");
+  if (token === null || missing.length) return { config: null, missing };
+
+  return {
+    config: { token, graphVersion: readGraphVersion(), adAccountIds },
+    missing,
+  };
+}
+
+/** Config del gasto o `null` si está apagado (ver `resolveMetaSpendConfig`). */
+export function getMetaSpendConfig(): MetaSpendConfig | null {
+  return resolveMetaSpendConfig().config;
 }

@@ -41,6 +41,12 @@ export interface ConfigResolution<T> {
   config: T | null;
   /** Por qué quedó apagada (null si está activa). Sin secretos. */
   reason: string | null;
+  /**
+   * NOMBRES de las variables que faltan o no son válidas (los mismos que los
+   * secrets de GitHub del deploy). Vacío si está activa. Nunca valores: lo
+   * usa el reporte de Origen de altas para decir qué falta cargar.
+   */
+  missing: string[];
 }
 
 function readTrimmed(name: string): string | null {
@@ -78,6 +84,7 @@ export function resolveSearchConsoleConfig(): ConfigResolution<SearchConsoleConf
     return {
       config: null,
       reason: "falta GOOGLE_SC_SERVICE_ACCOUNT_BASE64",
+      missing: ["GOOGLE_SC_SERVICE_ACCOUNT_BASE64"],
     };
   }
   const serviceAccount = parseServiceAccount(raw);
@@ -86,6 +93,7 @@ export function resolveSearchConsoleConfig(): ConfigResolution<SearchConsoleConf
       config: null,
       reason:
         "GOOGLE_SC_SERVICE_ACCOUNT_BASE64 no es un JSON en base64 con client_email y private_key",
+      missing: ["GOOGLE_SC_SERVICE_ACCOUNT_BASE64"],
     };
   }
   return {
@@ -94,6 +102,7 @@ export function resolveSearchConsoleConfig(): ConfigResolution<SearchConsoleConf
       siteUrl: readTrimmed("GOOGLE_SC_SITE_URL") ?? DEFAULT_SITE_URL,
     },
     reason: null,
+    missing: [],
   };
 }
 
@@ -103,37 +112,59 @@ export function getSearchConsoleConfig(): SearchConsoleConfig | null {
 }
 
 /**
+ * Modo del sync de GBP según `GBP_SYNC_MODE`: ausente u `off` = `off` (es el
+ * default y NO es un error), un valor desconocido = `invalid`.
+ */
+export function readGbpSyncMode(): GbpSyncMode | "off" | "invalid" {
+  const modeRaw = (readTrimmed("GBP_SYNC_MODE") ?? "off").toLowerCase();
+  if (modeRaw === "off" || modeRaw === "dry-run" || modeRaw === "apply") {
+    return modeRaw;
+  }
+  return "invalid";
+}
+
+/**
  * Config de GBP con el motivo si está apagada. `GBP_SYNC_MODE` ausente o `off`
  * = apagado (es el default y NO es un error). Un modo desconocido también
  * apaga: ante la duda, no escribir en fichas reales.
  */
 export function resolveGbpConfig(): ConfigResolution<GbpConfig> {
-  const modeRaw = (readTrimmed("GBP_SYNC_MODE") ?? "off").toLowerCase();
-  if (modeRaw === "off") {
-    return { config: null, reason: "GBP_SYNC_MODE=off" };
-  }
-  if (modeRaw !== "dry-run" && modeRaw !== "apply") {
-    return {
-      config: null,
-      reason: "GBP_SYNC_MODE inválido (valores: off, dry-run, apply)",
-    };
-  }
-
+  const mode = readGbpSyncMode();
   const clientId = readTrimmed("GBP_OAUTH_CLIENT_ID");
   const clientSecret = readTrimmed("GBP_OAUTH_CLIENT_SECRET");
   const refreshToken = readTrimmed("GBP_REFRESH_TOKEN");
-  const missing = [
+  const missingCredentials = [
     clientId === null ? "GBP_OAUTH_CLIENT_ID" : null,
     clientSecret === null ? "GBP_OAUTH_CLIENT_SECRET" : null,
     refreshToken === null ? "GBP_REFRESH_TOKEN" : null,
   ].filter((name): name is string => name !== null);
+
+  if (mode === "off") {
+    return {
+      config: null,
+      reason: "GBP_SYNC_MODE=off",
+      missing: ["GBP_SYNC_MODE", ...missingCredentials],
+    };
+  }
+  if (mode === "invalid") {
+    return {
+      config: null,
+      reason: "GBP_SYNC_MODE inválido (valores: off, dry-run, apply)",
+      missing: ["GBP_SYNC_MODE", ...missingCredentials],
+    };
+  }
   if (clientId === null || clientSecret === null || refreshToken === null) {
-    return { config: null, reason: `falta ${missing.join(", ")}` };
+    return {
+      config: null,
+      reason: `falta ${missingCredentials.join(", ")}`,
+      missing: missingCredentials,
+    };
   }
 
   return {
-    config: { mode: modeRaw, clientId, clientSecret, refreshToken },
+    config: { mode, clientId, clientSecret, refreshToken },
     reason: null,
+    missing: [],
   };
 }
 
