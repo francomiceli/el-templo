@@ -8,7 +8,7 @@ import { LOAD_DEADLINE_MS } from 'src/utils/load-deadline'
  * - `start()` arma UN solo timer (si ya estaba armado lo reinicia y vuelve `passed` a false;
  *   nunca quedan dos).
  * - `cleanup()` lo limpia; `passed` no cambia más.
- * - La página llama `start()` en `onMounted` y `cleanup()` en `onUnmounted`/`onBeforeUnmount`:
+ * - La página llama `start()` al montarse y `cleanup()` al desmontarse:
  *   el composable no engancha el ciclo de vida del componente.
  * - Es un timer de UI porque CapacitorHttp ignora el timeout de axios (ver `LOAD_DEADLINE_MS`).
  */
