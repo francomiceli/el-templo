@@ -1,7 +1,9 @@
 <template>
   <q-page class="tu-cuerpo">
     <!-- Sin barra de arriba (2026-10-28): el título queda para lectores de pantalla y la flecha de
-         volver va dentro de la card, arriba a la derecha; así la figura gana esos 50 px. -->
+         volver va dentro de la card, arriba a la izquierda; así la figura gana esos 50 px. Con la
+         hoja abierta, Frente/Espalda pasa al costado (pastilla vertical arriba a la derecha) y la
+         figura arranca arriba de todo: más grande. -->
     <h1 class="tu-cuerpo__h1">Tus músculos</h1>
 
     <div ref="scroller" class="tu-cuerpo__scroll">
@@ -17,7 +19,7 @@
       <div v-else class="tu-cuerpo__body">
         <!-- Todo el texto va sobre blanco (sketch 023 "Después"): la ayuda, el selector y la figura
              comparten una card; el crema queda solo de fondo. -->
-        <div class="tu-cuerpo__card">
+        <div class="tu-cuerpo__card" :class="{ 'tu-cuerpo__card--hoja': sheetOpen }">
           <button
             type="button"
             class="tu-cuerpo__back"
@@ -319,7 +321,7 @@ onMounted(async () => {
   @include pd-hit-44;
   position: absolute;
   top: 8px;
-  right: 8px;
+  left: 8px;
   z-index: 1;
   display: flex;
   align-items: center;
@@ -372,6 +374,29 @@ onMounted(async () => {
   &:focus-visible {
     outline: 2px solid $pd-terra-ink;
     outline-offset: 2px;
+  }
+}
+
+// Hoja abierta: Frente/Espalda al costado, en vertical, para que la figura use todo el alto.
+.tu-cuerpo__card--hoja {
+  padding-top: 8px;
+
+  .tu-cuerpo__flip {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 1;
+    flex-direction: column;
+    align-items: stretch;
+    margin: 0;
+    // En vertical, radios chicos: cada opción se ve como botón, no como un óvalo.
+    border-radius: 14px;
+  }
+
+  .tu-cuerpo__flip-btn {
+    padding: 8px 12px;
+    border-radius: 11px;
+    font-size: 13px;
   }
 }
 
