@@ -23,15 +23,21 @@ export function useProgressionApi() {
    * Updates the progression store with the response data.
    */
   async function fetchStats(): Promise<void> {
+    // Tras un logout (`progressionStore.reset()`) la respuesta tardía del socio anterior no escribe
+    // nada: ni stats, ni "respondió", ni error, ni toast, ni el flag de carga del socio nuevo.
+    const gen = progressionStore.currentGeneration()
+    const isCurrent = () => gen === progressionStore.currentGeneration()
     loading.value = true
     error.value = null
     progressionStore.setLoading(true)
 
     try {
       const response = await api.get<ProgressionResponse>('/progression/stats')
+      if (!isCurrent()) return
       progressionStore.setProgressionData(response.data)
       progressionStore.markStatsSettled(true)
     } catch (err: unknown) {
+      if (!isCurrent()) return
       const errorMessage = extractError(err, 'Error cargando progresión')
       error.value = errorMessage
       progressionStore.setError(errorMessage)
@@ -46,7 +52,7 @@ export function useProgressionApi() {
       })
     } finally {
       loading.value = false
-      progressionStore.setLoading(false)
+      if (isCurrent()) progressionStore.setLoading(false)
     }
   }
 

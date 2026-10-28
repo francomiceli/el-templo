@@ -187,3 +187,23 @@ describe('progressionStore — checkInSettled / checkInOk (fase 203, D-02/D-07)'
     expect(store.checkInOk).toBeNull()
   })
 })
+
+describe('progressionStore — generación (cierre 203)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  it('reset() sube la generación; las demás acciones no', () => {
+    const store = useProgressionStore()
+    const g0 = store.currentGeneration()
+
+    store.setProgressionData(PROGRESSION)
+    store.markStatsSettled(true)
+    expect(store.currentGeneration()).toBe(g0)
+
+    store.reset()
+    expect(store.currentGeneration()).toBe(g0 + 1)
+    store.reset()
+    expect(store.currentGeneration()).toBe(g0 + 2)
+  })
+})

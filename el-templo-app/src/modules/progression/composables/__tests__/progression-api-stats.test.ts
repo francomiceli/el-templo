@@ -120,6 +120,63 @@ describe('useProgressionApi.fetchStats — banderas y toast (fase 203, D-16)', (
   })
 })
 
+describe('useProgressionApi.fetchStats — respuesta tardía del socio anterior (cierre 203)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.mocked(api.get).mockReset()
+    notifyCreate.mockClear()
+  })
+
+  it('una respuesta 2xx de antes del reset() no escribe stats ni marca statsLoaded del socio nuevo', async () => {
+    let resolve!: (value: unknown) => void
+    vi.mocked(api.get).mockReturnValue(new Promise((res) => (resolve = res)) as never)
+    const store = useProgressionStore()
+    const pending = useProgressionApi().fetchStats()
+
+    store.reset()
+    resolve({ data: PROGRESSION })
+    await pending
+
+    expect(store.stats).toBeNull()
+    expect(store.level).toBeNull()
+    expect(store.statsLoaded).toBe(false)
+    expect(store.statsOk).toBeNull()
+  })
+
+  it('un error de antes del reset() no marca statsLoaded/statsOk, ni setea error, ni avisa con el toast', async () => {
+    let reject!: (reason: unknown) => void
+    vi.mocked(api.get).mockReturnValue(new Promise((_, rej) => (reject = rej)) as never)
+    const store = useProgressionStore()
+    const pending = useProgressionApi().fetchStats()
+
+    store.reset()
+    reject(new Error('Network Error'))
+    await pending
+
+    expect(store.statsLoaded).toBe(false)
+    expect(store.statsOk).toBeNull()
+    expect(store.error).toBeNull()
+    expect(notifyCreate).not.toHaveBeenCalled()
+  })
+
+  it('la respuesta vieja no baja el loading del pedido del socio nuevo', async () => {
+    let resolveOld!: (value: unknown) => void
+    vi.mocked(api.get).mockReturnValueOnce(new Promise((res) => (resolveOld = res)) as never)
+    vi.mocked(api.get).mockReturnValueOnce(new Promise(() => {}) as never)
+    const store = useProgressionStore()
+    const pendingOld = useProgressionApi().fetchStats()
+
+    store.reset()
+    void useProgressionApi().fetchStats()
+    expect(store.loading).toBe(true)
+    resolveOld({ data: PROGRESSION })
+    await pendingOld
+
+    expect(store.loading).toBe(true)
+    expect(store.statsLoaded).toBe(false)
+  })
+})
+
 describe('useCheckInApi.fetchTodayCheckIns — banderas (fase 203)', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -147,5 +204,35 @@ describe('useCheckInApi.fetchTodayCheckIns — banderas (fase 203)', () => {
     expect(store.checkInSettled).toBe(true)
     expect(store.checkInOk).toBe(false)
     expect(store.checkInLoading).toBe(false)
+  })
+
+  it('una respuesta de antes del reset() no marca checkInSettled ni escribe el estado del socio nuevo', async () => {
+    let resolve!: (value: unknown) => void
+    vi.mocked(api.get).mockReturnValue(new Promise((res) => (resolve = res)) as never)
+    const store = useProgressionStore()
+    const pending = useCheckInApi().fetchTodayCheckIns()
+
+    store.reset()
+    resolve({ data: CHECK_IN })
+    await pending
+
+    expect(store.checkInState).toBeNull()
+    expect(store.checkInSettled).toBe(false)
+    expect(store.checkInOk).toBeNull()
+  })
+
+  it('un error de antes del reset() no marca checkInSettled ni checkInOk', async () => {
+    let reject!: (reason: unknown) => void
+    vi.mocked(api.get).mockReturnValue(new Promise((_, rej) => (reject = rej)) as never)
+    const store = useProgressionStore()
+    const pending = useCheckInApi().fetchTodayCheckIns()
+
+    store.reset()
+    reject(new Error('Network Error'))
+    await pending
+
+    expect(store.checkInSettled).toBe(false)
+    expect(store.checkInOk).toBeNull()
+    expect(store.checkInError).toBeNull()
   })
 })

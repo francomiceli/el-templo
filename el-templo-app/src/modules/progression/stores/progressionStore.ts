@@ -76,6 +76,13 @@ export const useProgressionStore = defineStore('progression', () => {
   /** Last error message from operations */
   const error = ref<string | null>(null)
 
+  /**
+   * Generación de la sesión (fase 203, cierre): sube en `reset()` (logout). Los composables de
+   * `/progression/stats` y `/check-ins/today` la capturan al empezar y no escriben nada si cambió:
+   * una respuesta tardía del socio anterior nunca marca "respondió" para el nuevo. No es reactiva.
+   */
+  let generation = 0
+
   // Computed
   /**
    * Check if member is eligible to request evaluation and has no pending request
@@ -202,7 +209,13 @@ export const useProgressionStore = defineStore('progression', () => {
     }
   }
 
+  /** Generación vigente; `isCurrentGeneration(g)` compara contra la capturada al empezar. */
+  function currentGeneration(): number {
+    return generation
+  }
+
   function reset() {
+    generation++
     level.value = null
     stats.value = null
     rpeTrend.value = null
@@ -242,6 +255,7 @@ export const useProgressionStore = defineStore('progression', () => {
     evaluationEligible,
     statsFailed,
     // Actions
+    currentGeneration,
     markStatsSettled,
     setProgressionData,
     setEvaluationPending,

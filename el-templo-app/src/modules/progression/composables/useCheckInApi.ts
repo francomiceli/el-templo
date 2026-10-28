@@ -22,15 +22,20 @@ export function useCheckInApi() {
    * Updates the progression store with the response data.
    */
   async function fetchTodayCheckIns(): Promise<void> {
+    // Misma regla que `fetchStats`: tras un logout la respuesta del socio anterior no escribe.
+    const gen = progressionStore.currentGeneration()
+    const isCurrent = () => gen === progressionStore.currentGeneration()
     progressionStore.setCheckInLoading(true)
     try {
       const response = await api.get<TodayCheckInState>('/check-ins/today')
+      if (!isCurrent()) return
       progressionStore.setCheckInState(response.data)
     } catch (err: unknown) {
+      if (!isCurrent()) return
       const errorMessage = extractError(err, 'Error cargando check-ins')
       progressionStore.setCheckInError(errorMessage)
     } finally {
-      progressionStore.setCheckInLoading(false)
+      if (isCurrent()) progressionStore.setCheckInLoading(false)
     }
   }
 
