@@ -233,9 +233,11 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useQuasar } from 'quasar'
 import axios from 'axios'
+import { Capacitor } from '@capacitor/core'
 import { useAuthStore } from 'stores/useAuthStore'
 import { extractError } from 'src/utils/extract-error'
 import { normalizeSignupCode } from 'src/utils/signup-code'
+import { buildSignupAttribution, registerHeaderText, toSignupPlatform } from 'src/utils/attribution'
 import {
   normalizeInvitationCode,
   pendingInvitation,
@@ -268,10 +270,10 @@ const genderOptions = [
   { label: 'No especificar', value: 'unspecified' },
 ]
 
-const headerText = computed(() => {
-  if (route.query.branchId) return 'Registrarse en Park'
-  return 'Bienvenido al Templo'
-})
+// Pitfall 14: el encabezado ya no dice "Park" para cualquier sede. Con
+// `branchName` (lo manda la web) muestra esa sede; con solo `branchId` mantiene
+// "Park" (QR impresos del Park, fase 57).
+const headerText = computed(() => registerHeaderText(route.query))
 
 const promoCode = computed(() => {
   const code = route.query.promo
@@ -364,6 +366,16 @@ function togglePassword() {
   }, 300)
 }
 
+// sessionStorage puede lanzar (modo privado, webview restringido): sin él solo
+// se manda lo que trae la query actual.
+function safeSessionStorage(): Storage | null {
+  try {
+    return window.sessionStorage
+  } catch {
+    return null
+  }
+}
+
 // Con código de invitación, un 409 (email/DNI/teléfono ya registrados) lleva a login conservando el
 // código; el mensaje del servidor igual se muestra en la notificación.
 const conflictCode = ref<string | null>(null)
@@ -392,6 +404,13 @@ async function onSubmit() {
       // Back-compat total (D-02): code se SUMA, nunca reemplaza promoCode/ref.
       // El servidor resuelve code ?? ref ?? promoCode.
       code: signupCode.value || undefined,
+      // Fase 195-07 (D-18): origen del alta (query de la web + first-touch +
+      // plataforma). La API lo guarda best-effort y nunca bloquea el registro.
+      attribution: buildSignupAttribution(
+        route.query,
+        safeSessionStorage(),
+        toSignupPlatform(Capacitor.getPlatform()),
+      ),
     })
     $q.notify({
       type: 'positive',

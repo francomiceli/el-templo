@@ -1,6 +1,7 @@
 /**
  * Fastify JSON schemas for Members API request/response validation.
  */
+import { manualOriginSchema } from "../marketing/schemas";
 
 import {
   activatedInvitationProperties,
@@ -363,6 +364,11 @@ export const createTrialMemberSchema = {
       lastName: { type: "string", minLength: 1, maxLength: 100 },
       phone: { type: "string", minLength: 1, maxLength: 30 },
       branchId: { type: "integer" },
+      // Fase 195-07 (D-18): "¿Cómo nos conoció?" y campaña opcional. Se
+      // declaran acá porque additionalProperties:false las borraría (AJV
+      // removeAdditional) antes de llegar a la ruta.
+      origin: manualOriginSchema,
+      campaign: { type: "string", maxLength: 150 },
       // Fase 194 D-24 "Lo invita": socio que invita. Opcional: sin él el alta
       // es la de siempre. Se valida server-side (gimnasio, membresía, cupo).
       inviterId: { type: "integer", minimum: 1 },

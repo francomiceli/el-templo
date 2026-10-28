@@ -16,10 +16,10 @@
 // - La interfaz `ModuleDef`: la forma mínima con la que un módulo declara
 //   sus rutas HTTP (`filters`/`events` los agrega el plan 176-06, registry
 //   de hooks — no adelantados acá).
-// - Los `ModuleDef` de `templo-marketing` (5 registros) y `templo-onboarding`
+// - Los `ModuleDef` de `templo-marketing` (6 registros) y `templo-onboarding`
 //   (1 registro), declarados ACÁ MISMO porque ninguno de los dos tiene una
-//   carpeta de módulo única: marketing son 5 carpetas HTTP distintas
-//   (`franchise`, `gladius`, `blog`, `academy`, `app-landing`) sin service
+//   carpeta de módulo única: marketing son 6 carpetas HTTP distintas
+//   (`franchise`, `gladius`, `blog`, `academy`, `app-landing`, `web-public`) sin service
 //   compartido, y onboarding no tiene hooks que justifiquen vivir en su
 //   propia carpeta como `module.ts`. `temploGamificationModule` SÍ vive en su
 //   propia carpeta (`modules/aura/module.ts`) — ver el docblock de ese
@@ -71,6 +71,7 @@ import {
 } from "./modules/shared/hooks";
 import { moduleScope } from "./modules/shared/module-registry";
 import type { ModuleName } from "./modules/shared/modules";
+import { webPublicRoutes } from "./modules/web-public";
 
 /**
  * Manifest mínimo de un módulo Templo: sus rutas HTTP y sus hooks (176-06).
@@ -85,7 +86,7 @@ export interface ModuleDef {
 }
 
 /**
- * `temploMarketingModule` — 5 registros, sin carpeta de módulo única (ver
+ * `temploMarketingModule` — 6 registros, sin carpeta de módulo única (ver
  * docblock del archivo). Los comentarios que hoy documentaban cada
  * `app.register(...)` en `app.ts` viajan acá.
  */
@@ -102,6 +103,8 @@ export const temploMarketingModule: ModuleDef = {
     { plugin: academyRoutes, prefix: "/api/academy" },
     // App landing routes (waitlist + Labs inquiry forms)
     { plugin: appLandingRoutes, prefix: "/api/app" },
+    // Web pública (fase 195): datos de sedes para el build de eltemplo.org
+    { plugin: webPublicRoutes, prefix: "/api/web" },
   ],
 };
 
@@ -130,9 +133,7 @@ async function registerModule(
   for (const { plugin, prefix } of def.routes ?? []) {
     await moduleScope(app, def.name, plugin, { prefix });
   }
-  for (const key of Object.keys(def.filters ?? {}) as Array<
-    keyof FilterMap
-  >) {
+  for (const key of Object.keys(def.filters ?? {}) as Array<keyof FilterMap>) {
     const handler = def.filters?.[key];
     if (handler) hooks.setFilter(def.name, key, handler);
   }

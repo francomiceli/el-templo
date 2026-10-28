@@ -7,7 +7,9 @@
  * and scroll indicator. First impression: "this is not a gym."
  */
 
-const sedesCount = 8;
+import { sedesCount } from "~/data/sedes";
+
+const sedesTotal = sedesCount.total;
 
 // Placeholder paths — replace with real assets when available.
 // Using runtime refs so Vite does not try to resolve these as module imports.
@@ -146,7 +148,7 @@ const parallaxTransform = computed(() => {
         class="hero__subtitle hero--delay-2"
         :class="{ 'hero--entered': entered }"
       >
-        {{ sedesCount }} sedes donde la calistenia se practica como lo que es:
+        {{ sedesTotal }} sedes donde la calistenia se practica como lo que es:
         el arte m&aacute;s antiguo de forjar el cuerpo con su propio peso.
       </p>
 

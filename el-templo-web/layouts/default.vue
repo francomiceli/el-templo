@@ -6,7 +6,9 @@
     </div>
     <AppPrefooter />
     <AppFooter />
-    <CookieConsent />
+    <ClientOnly>
+      <ConsentBanner />
+    </ClientOnly>
   </div>
 </template>
 

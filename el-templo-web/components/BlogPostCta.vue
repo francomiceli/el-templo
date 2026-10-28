@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { DEFAULT_TRIAL_TEXT, salesWhatsappUrl } from "~/utils/whatsapp";
+
 /**
  * BlogPostCta -- Cross-page CTA banner for blog post pages.
  *
@@ -45,8 +47,7 @@ const ctaConfig = computed(() => {
         subtext:
           "Descubr\u00ED tu nivel y empez\u00E1 a entrenar con el M\u00E9todo El Templo.",
         buttonText: "RESERVAR SESI\u00D3N",
-        buttonLink:
-          "https://wa.me/5492235820521?text=Hola%21%20Quiero%20reservar%20mi%20primera%20sesi%C3%B3n%20de%20prueba",
+        buttonLink: salesWhatsappUrl("AR", DEFAULT_TRIAL_TEXT),
         isExternal: true,
         modifier: "trial" as const,
       };

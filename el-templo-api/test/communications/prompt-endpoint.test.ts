@@ -30,7 +30,7 @@
  */
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { sql, and, eq } from "drizzle-orm";
+import { sql, and, eq, like } from "drizzle-orm";
 import {
   createTestApp,
   cleanAllTestData,
@@ -727,6 +727,17 @@ describe("eventos — POST /api/communications/me/avisos/:id/event (D-11)", () =
 
 describe("config — GET /api/communications/me/config (D-20)", () => {
   it("devuelve el número del país de la sede del socio y null si el tenant no lo cargó", async () => {
+    // La migración 0271 (fase 195) siembra los WhatsApp de ventas AR y ES en
+    // cada DB de test: este caso parte del namespace vacío para probar el "null
+    // si el tenant no lo cargó" (mismo criterio que sales-number.test.ts).
+    await app.db
+      .delete(schema.tenantSettings)
+      .where(
+        and(
+          eq(schema.tenantSettings.tenantId, TENANT_TEMPLO),
+          like(schema.tenantSettings.settingKey, "whatsapp.sales_number.%"),
+        ),
+      );
     const memberAr = await createTestMember(app, { branchId: 1 });
     const memberEs = await createTestMember(app, { branchId: esBranchId });
 

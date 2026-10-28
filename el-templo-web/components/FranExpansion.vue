@@ -18,7 +18,7 @@ import {
   argSilhouette,
   spaSilhouette,
 } from "~/data/expansion-maps";
-import { sedesByCity } from "~/data/sedes";
+import { sedesByCity, sedesCount } from "~/data/sedes";
 import { useCountUp } from "~/composables/useCountUp";
 
 // --- Count-up animation ---
@@ -120,7 +120,7 @@ onBeforeUnmount(() => {
           </div>
           <CityMap :config="mdpMapConfig" :revealed="mapRevealed" />
           <h3 class="expansion__city-name">Mar del Plata</h3>
-          <p class="expansion__city-count">7 sedes</p>
+          <p class="expansion__city-count">{{ sedesCount.mdp }} sedes</p>
           <ul class="expansion__sede-list">
             <li v-for="sede in sedesByCity.mdp" :key="sede.id">
               <a

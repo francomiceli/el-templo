@@ -5,6 +5,7 @@
  * Shows posts filtered by tag, with tag bar, pagination, SEO meta, and BreadcrumbList.
  * BEM prefix: blog-tag-page
  */
+import { breadcrumbNode, jsonLdScript } from "~/utils/schema-graph";
 
 interface BlogPost {
   id: number;
@@ -102,19 +103,19 @@ useHead({
 });
 
 // BreadcrumbList JSON-LD
-watchEffect(() => {
-  if (tag.value) {
-    useSchemaOrg([
-      defineBreadcrumb({
-        itemListElement: [
-          { name: "Inicio", item: "https://eltemplo.org/" },
-          { name: "Blog", item: "https://eltemplo.org/blog" },
-          { name: tag.value.name },
-        ],
-      }),
-    ]);
-  }
-});
+useHead(() => ({
+  script: tag.value
+    ? [
+        jsonLdScript([
+          breadcrumbNode([
+            { name: "Inicio", url: "https://eltemplo.org/" },
+            { name: "Blog", url: "https://eltemplo.org/blog" },
+            { name: tag.value.name },
+          ]),
+        ]),
+      ]
+    : [],
+}));
 </script>
 
 <template>

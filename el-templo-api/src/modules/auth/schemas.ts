@@ -1,3 +1,5 @@
+import { signupAttributionBodySchema } from "../marketing/schemas";
+
 export const registerSchema = {
   body: {
     type: "object",
@@ -25,6 +27,8 @@ export const registerSchema = {
       // `ref`/`promoCode`, que las builds nativas viejas van a seguir
       // mandando por meses (Pitfall 9).
       code: { type: "string", maxLength: 24 },
+      // Fase 195-07 (D-18): origen del alta (utm, referrer, plataforma...).
+      attribution: signupAttributionBodySchema,
     },
   },
 };

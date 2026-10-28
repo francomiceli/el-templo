@@ -738,6 +738,11 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "PATCH /api/admin/renewals/reasons/:id": { categoria: "tenant-scoped" },
 
   // ── /api/admin/reports ────────────────────────────────────────────────────
+  // Fase 195 (plan 10): origen de altas (owner/admin), `tenant-scoped`.
+  "GET /api/admin/reports/attribution": { categoria: "tenant-scoped" },
+  "GET /api/admin/reports/attribution/search-console": {
+    categoria: "tenant-scoped",
+  },
   "GET /api/admin/reports/access": { categoria: "tenant-scoped" },
   "GET /api/admin/reports/access/export": { categoria: "tenant-scoped" },
   // Fase 204 D-16: reporte Wellhub por sede y mes; lee attendance/bookings/wellhub_*/subscriptions/users con tenantWhere
@@ -1230,6 +1235,15 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   // Todo el plugin de device (pairing público + poll device-authed + telemetría)
   // se eliminó al pasar la pantalla TV a una vista autenticada del admin. Ya no hay
   // ninguna ruta `/api/tv/*`: el estado se lee por `/api/admin/tv/control/screen`.
+
+  // ── /api/web (Fase 195) ───────────────────────────────────────────────────
+  // Datos públicos de sedes y horarios para el build de eltemplo.org. Anónima:
+  // el tenant sale del servidor (`DEFAULT_PUBLIC_TENANT_ID`), como el resto de
+  // la superficie pública de marketing.
+  "GET /api/web/site-data": {
+    categoria: "templo-module",
+    modulo: "templo-marketing",
+  },
 
   // ── /api/webhooks ─────────────────────────────────────────────────────────
   "POST /api/webhooks/wellhub": {

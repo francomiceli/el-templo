@@ -1,0 +1,137 @@
+# Investigación SEO local + AEO/LLMs — eltemplo.org (2026-10-05)
+
+> Estado: investigación cerrada. Rondas 1-5 decididas; se convierte en la **fase GSD 195** (todo junto, 2026-10-06). Pendientes para el discuss: blog, RGPD BCN, WhatsApp de ventas, alcance de automatización, bloque C.
+> Objetivos elegidos por Franco: captar alumnos nuevos · marca y comunidad · descargas de la app (sedes nuevas en 2º plano).
+> Fuentes: inventario del repo (`origin/master` 107eef5ca), auditoría live con curl/WebSearch, estado del arte con fuentes primarias.
+> Leyenda de confianza: **[P]** doc oficial · **[E]** estudio empírico · **[S]** especulación/agencias.
+
+## 1. Contexto real del negocio
+
+- Escuela de **calistenia**: 6 sedes en Mar del Plata (Constitución 6745, Jujuy 3761, Moreno 3751, **Juan B. Justo 1018** (ex Alem, mudanza 2026-09-18, mig 0230, code `ALEM`), Alberti 2024, Mario Bravo 618) + Barcelona (Av. Diagonal 368, Eixample).
+- **El Templo Park** no es una sede: es un espacio dentro del Parque Primavesi, de acceso público. **Chapadmalal ya no existe.**
+- Yoga/Aura (Yoga Moreno) existe como producto pero **no aparece en la web**.
+- La web es `el-templo-web/`: Nuxt 4, `ssr: true` + `nitro.preset: static` (SSG), servida como estático por nginx (`deploy/nginx/eltemplo.org`). El HTML inicial ya tiene todo el contenido, lo cual es ideal para crawlers de IA.
+- ⚠️ El `el-templo-web/` del checkout principal está **atrasado** respecto de origin/master: trabajar siempre en un worktree desde `origin/master`.
+
+## 2. Hallazgos técnicos (verificados)
+
+| # | Problema | Evidencia |
+|---|---|---|
+| 1 | **JSON-LD colapsado**: toda la marca es un solo nodo `Organization+LocalBusiness` llamado "El Templo Eixample", con dirección de Barcelona y teléfono AR. Las sedes de MdP no existen en el schema. | `pages/index.vue:45-78`, `nuxt.config.ts:27-29` (identity comparte `@id`) |
+| 2 | **Dirección vieja de Alem** (3958) publicada en web, schema y llms.txt | `data/sedes.ts:70` vs mig `0230_alem_renombre_juan_b_justo.sql` |
+| 3 | **Prod no mide nada**: `NUXT_PUBLIC_GA4_ID`/`META_PIXEL_ID` no se inyectan en CI; sin Search Console | `deploy.yml:252-256`, `plugins/ga4.client.ts`, `plugins/meta-pixel.client.ts` |
+| 4 | **Soft-404 global**: cualquier URL responde 200 con la home | `deploy/nginx/eltemplo.org:47` (`try_files ... /index.html`) |
+| 5 | Redirects `/qr/*` y `/curso-entrenadores` son meta-refresh con 200 | `nuxt.config.ts:35-51` + preset static |
+| 6 | Assets 404: og:image de academy/franquicias/gladius/blog, `logo-eltemplo.svg` (schema), hero poster+video | `app.vue:47`, `SectionHero.vue:14-15` |
+| 7 | Placeholders visibles: testimonios `[Nombre]`, `wa.me/54223XXXXXXX`, PlaceholderBox en 8/9 sedes, "Próximamente en App Store" | `community.ts:29-51`, `SectionLocations.vue:70` |
+| 8 | "8 sedes" en el copy; Park/Chapadmalal publicadas; Alberti falta en el mapa de expansión; geo corrido hasta 5 km | `sedes.ts`, `expansion-maps.ts:27-35` |
+| 9 | Indexables sin noindex: `web-staging.`, `app.`, `admin.` (devuelven HTML en /robots.txt) | live |
+| 10 | Blog estático: un post nuevo no existe hasta redeploy; tags vacíos en prod; sin covers; `catch {}` mudo en sitemap | `server/api/__sitemap__/blog.ts:46` |
+| 11 | Sin endpoint público de sedes/horarios/planes; `branches` no tiene lat/lng/teléfono | `scheduling/routes.ts:1538` (auth) |
+| 12 | Sin `assetlinks.json` / `apple-app-site-association`, sin Smart App Banner, sin hreflang, sin manifest | live |
+| 13 | `twitter:site=@eltemplo` (la marca es `eltemplomdp`) | `app.vue:11-14` |
+| 14 | Imágenes sin width/height, `@nuxt/image` instalado pero sin uso | componentes de secciones |
+| 15 | No hay Meta CAPI ni captura de UTM/origen en el alta | grep del API |
+
+Docs previos: fase 36 (SEO+Analytics), fase 37 (audit fixes) y fase 41 (Content & Media Handoff, **nunca ejecutada**, explica los placeholders).
+
+## 3. Presencia externa (auditoría live)
+
+- **Aparece** en "calistenia en Mar del Plata", "calistenia Barcelona Eixample" (en Barcelona, Wellhub es el 1er resultado y el mejor activo).
+- **No aparece** en "mejores gimnasios en Mar del Plata": las IA citan Yably, gimnasios.com y crossfyapp, y El Templo no está en ninguno.
+- "Yoga en Moreno Mar del Plata" lleva al homónimo `facebook.com/eltemplocasa`. Otros homónimos: El Templo Center (BCN), iglesias.
+- NAP inconsistente: Superprof (Viamonte 2563, tel 0223 697-4897), Foursquare (tel +54 223 479-2626), prensa ("Mogotes"), IG ("6 locations").
+- Prensa del Parque Primavesi (0223, Bacap, Infodeportes, Noticias MDP, mardelplata.gob.ar, ene-2025): **sin links** a eltemplo.org.
+- IG `@eltemplomdp` (~34k, verificada): la bio linkea a **beacons.ai**, no a la web. `@eltemplobcn` no está en `sameAs`.
+- App Store: "El Templo - Calistenia", **1 sola calificación**, idioma English. Existe una app vieja de Virtuagym ("El Templo Calistenia") que hoy da 404.
+- GBP/Maps: **no se pudo verificar**, hay que revisarlo a mano.
+
+## 4. Estado del arte (resumen con fuentes)
+
+- **Local pack** (Whitespark 2026 [E]): GBP 32 %, reseñas 20 %, on-page 19 %, links 15 %, citas 7 %. Recencia y respuesta a reseñas pesan más que el conteo (BrightLocal [E]: el 74 % mira solo reseñas de los últimos 3 meses). Nombre de GBP = fachada, sin keywords [P].
+- **IA local** (BrightLocal [E]): el perfil de GBP es la fuente más citada (28,6 %); el 42 % de las citas son sitios propios del negocio. Las respuestas son muy variables (SparkToro [E]: <1 % de repetir la misma lista), así que hay que medir la tasa de aparición, no la posición.
+- Google [P]: no hay optimización especial para AI Overviews/AI Mode; desmiente llms.txt y el "chunking". https://developers.google.com/search/docs/fundamentals/ai-optimization-guide
+- Qué ayuda a ser citado [E]: páginas de servicio dedicadas, menciones en listas y directorios de terceros, datos concretos (Princeton GEO +22-41 %), YouTube (Ahrefs, correlación 0,74), Reddit.
+- **FAQPage sin rich results desde 2026-05-07**; HowTo retirado; `aggregateRating` propio no elegible [P].
+- Schema [P]: `Organization` raíz + `ExerciseGym` por sede (`@id`, `parentOrganization`, `geo` con 5+ decimales, `openingHoursSpecification`, teléfono por sede). `Event` solo para eventos puntuales, no para clases recurrentes.
+- **llms.txt**: 0 requests de GPTBot/ClaudeBot/PerplexityBot en ~900 dominios [E]. Inofensivo, pero no invertir.
+- Crawlers [P]: búsqueda (`OAI-SearchBot`, `Claude-SearchBot`, `PerplexityBot`) vs entrenamiento (`GPTBot`, `ClaudeBot`, `Google-Extended`, `Applebot-Extended`) vs fetch de usuario. Bloquear `Google-Extended` no afecta a Search. Los crawlers de OpenAI y Anthropic no ejecutan JS, y el SSG ya resuelve eso.
+- hreflang [P]: `es-AR`/`es-ES`, recíproco, solo entre páginas equivalentes. https://developers.google.com/search/docs/specialty/international/localized-versions
+- Medición: Search Console tiene reportes de IA desde jun-2026 (solo impresiones); ChatGPT agrega `utm_source=chatgpt.com`; UTM por sede en GBP.
+- App: Firebase App Indexing deprecado; usar App Links/Universal Links + Smart App Banner [P].
+
+Fuentes principales: whitespark.ca/local-search-ranking-factors · brightlocal.com/research/local-consumer-review-survey · brightlocal.com/research/local-ai-visibility-study · developers.google.com/search/docs/appearance/structured-data/local-business · developers.openai.com/api/docs/bots · support.claude.com/en/articles/8896518 · docs.perplexity.ai/docs/resources/perplexity-crawlers · ahrefs.com/blog/ai-brand-visibility-correlations · sparktoro.com (inconsistencia de IA).
+
+## 5. Decisiones tomadas
+
+### Bloque A — fixes técnicos
+- **A1** Schema: `Organization` raíz con `@id` fijo + `ExerciseGym` por sede con `@id` propio (en la home por ahora; se mudan a las páginas de sede en B).
+- **A2** GA4 + Meta Pixel por secrets en CI (+ `.env.example`) + Search Console + Bing Webmaster por DNS. Franco consigue los IDs.
+- **A3** 404 real (`error_page` + sin fallback a `/index.html`) + redirects 301/302 reales en nginx. Requiere deploy de config por SSH (preguntar antes).
+- **A4** Esperar contenido real para fotos, testimonios, hero y og:image. **Sí se arreglan ya**: logo del schema (404) y el link `wa.me` roto.
+- **A5** Quitar Chapadmalal. Park pasa a ser "espacio de comunidad en Parque Primavesi" (sin `ExerciseGym`). Corregir todos los conteos (6 MdP + BCN).
+- **A5-bis** 🔴 Urgente: dirección de Alem → Juan B. Justo 1018 en web, schema y llms.txt.
+- **A6** Franco pasa los links de Google Maps de cada ficha (lat/lng exactos + Place ID); horarios desde la grilla real de la DB.
+- **A7** `X-Robots-Tag: noindex` + robots `Disallow` para web-staging, app y admin (en el mismo deploy de nginx que A3).
+
+### Bloque B — fase
+- **B1** Fuente única = tabla `branches` (migración: slug, lat/lng, place_id, WhatsApp, foto, publicar_en_web) + endpoint público de solo lectura con sedes y horarios; la web lo consume en el build.
+- **B2** Rebuild **manual** (sin cron ni SSR). **B2-bis**: botón "solo web" en GitHub (input de `workflow_dispatch` o workflow aparte, con backup/rollback).
+- **B3** Páginas: hub `/sedes` + una por sede; disciplinas/niveles (incluye Aura/Yoga); profes (Person) + landing "primera clase gratis"; **planes SIN precios** con CTA al WhatsApp de ventas.
+- **B4** Barcelona en `/es/` con hreflang es-AR/es-ES solo entre páginas equivalentes.
+- **B5** Deep links (assetlinks/AASA, requiere build de tiendas) + Smart App Banner + pedido de reseña in-app (plugin Capacitor: preguntar antes de instalar) + ASO de las fichas.
+
+### Ronda 5 (2026-10-06)
+- **Organización**: TODO en una sola fase GSD 195 (A + B juntos), **incluido JBJ** (Franco descartó sacarlo antes como fix suelto).
+- **B7** robots.txt explícito permitiendo bots de búsqueda IA (`OAI-SearchBot`, `Claude-SearchBot`, `PerplexityBot`) + llms.txt generado desde los datos de sedes (sin invertir más). No se bloquean bots de entrenamiento.
+- **B8** Segmento GA4 de referrers IA + planilla mensual de 20-30 prompts. Franco preguntó qué le toca hacer a él (ver checklist abajo).
+- **B6** Atribución propia + CAPI, ambas dentro de la fase. Directiva de Franco: **automatizar lo más posible** del lado de Meta y Google, y cerrar la fase con una guía paso a paso de lo que le toca hacer a él (lo mínimo inevitable).
+
+### Ronda 6 (2026-10-06) — automatización y alcance
+- **B9 Gasto Meta**: automático. Job diario trae el gasto por campaña de la Marketing API (usuario del sistema del Business Manager, permiso `ads_read`; la misma credencial sirve para CAPI) → Reportes calcula costo por alumno pago por campaña y sede.
+- **B10 Google/IA automatizado**: (1) detectar origen IA en nuestro alta (referrer + `utm_source` de chatgpt.com, perplexity, gemini, copilot, etc.) y mostrarlo en Reportes; (2) job semanal de la API de Search Console (consultas/clics por página de sede) visible en el admin; (3) sync de fichas de Google Business Profile (horarios/dirección) desde `branches` — requiere aprobación de acceso de Google (puede tardar semanas) y fichas verificadas → construir detrás de flag, se activa cuando llegue el acceso. **NO** se automatiza el monitoreo de prompts por APIs de IA (queda la planilla mensual manual de B8).
+- **B11 RGPD Barcelona**: banner de consentimiento propio solo en `/es/`, con Google Consent Mode v2; GA, Pixel y eventos CAPI de usuarios ES no se disparan sin aceptación. Sin CMP externa. Argentina sin cambios.
+- **B12 WhatsApp de ventas**: un número por país (MdP y Barcelona), configurable (no hardcodeado). Reemplaza el "WhatsApp por sede" de B1 para el CTA de planes.
+- **Blog**: solo arreglos técnicos + autor real (Ignacio Bordón `Person`); artículos los escribe el equipo.
+- **Nombre canónico**: "El Templo Calistenia" (sede = "El Templo Calistenia — <Sede>").
+
+## 6. Pendiente — retomar acá
+
+### Ronda 5 (re-preguntar tal cual, partiendo de la explicación de abajo)
+1. **B6 Meta Ads**: (a) atribución propia + CAPI (CAPI solo AR, aviso en /privacidad, acceso a Events Manager) *recomendado* · (b) primero solo atribución propia · (c) ninguna, solo el Pixel de A2.
+2. **Organización**: (a) A = rama de fix ya (JBJ primero), B = fase GSD nueva con este doc como insumo *recomendado* · (b) todo en una fase · (c) sin GSD, ramas sueltas.
+3. **B7 robots/llms**: (a) robots explícito con bots de búsqueda IA permitidos + llms.txt generado desde los datos de sedes *recomendado* · (b) además bloquear los bots de entrenamiento · (c) solo corregir datos del llms.txt.
+4. **B8 Medir IA**: (a) segmento GA4 de referrers IA + planilla mensual de 20-30 prompts *recomendado* · (b) herramienta paga (Otterly/Peec) · (c) solo Search Console.
+
+**Explicación de CAPI vs atribución propia, tal como se le dio a Franco:**
+- Hoy Meta solo ve clics: no sabe si la persona se registró, reservó la prueba o pagó (pasa en la app y en caja), así que optimiza hacia curiosos.
+- **CAPI** = nuestro servidor le avisa a Meta "esta persona (email/tel hasheado, irreversible) se registró / reservó la prueba / pagó $X". Meta busca gente parecida a la que paga y baja el costo por alumno. Hay que mencionarlo en /privacidad; Barcelona requiere consentimiento (RGPD).
+- **Atribución propia** = guardar en la ficha del alumno de dónde vino (`?promo=`, `utm`) y mostrar en Reportes registros → pagos → facturación por campaña y sede. Costo real por alumno = gasto en ads ÷ alumnos que pagaron. No depende de Meta y sirve también para Google, IG, QR y flyers.
+- La atribución propia te informa a vos; la CAPI entrena a Meta.
+
+**Otras directivas de Meta Ads que ya se dieron:** geo de 3-5 km por sede con su anuncio, lookalikes de alumnos que pagan, excluir activos, retargeting web/IG, click-to-WhatsApp por sede, Reels de clases reales con "primera clase gratis", y que cada anuncio aterrice en la página de su sede (B3). Falta saber si los ads los maneja una agencia o alguien interno.
+
+### Lo que le toca a Franco (B6 Meta + B8 medir IA)
+**Atribución propia (B6):** que todos los anuncios lleven parámetros de URL. Va una sola plantilla en Ads Manager, en "Parámetros de URL": `utm_source=meta&utm_medium=paid&utm_campaign={{campaign.name}}&utm_content={{ad.name}}`. Además, una vez por mes, exportar el gasto por campaña desde Ads Manager (CSV) para calcular el costo por alumno. Todo lo demás es código nuestro.
+**CAPI (B6, opcional):** acceso de admin al Business Manager. En Events Manager: ID del dataset/Pixel, token de la Conversions API (se pasa como secret, nunca por chat) y "código de evento de prueba" para validar. Aprobar el texto nuevo de /privacidad. Saber quién maneja los ads (agencia o interno), porque esa persona tiene que marcar los eventos como objetivo de optimización.
+**B8:** (1) GA4: crear la propiedad y pasar el ID `G-XXXX` (es lo mismo que A2); el segmento de IA es un filtro que dejamos documentado, 5 min. (2) Search Console + Bing: pasar quién administra el DNS de eltemplo.org para cargar los registros TXT. (3) Planilla: la armamos nosotros (prompts + columnas). Una vez por mes alguien del equipo (~1 h) corre los prompts en ChatGPT, Gemini, Perplexity y Google AI Mode en incógnito y marca si aparece El Templo, qué sede y qué fuente cita.
+
+### Rondas siguientes (todavía no preguntadas)
+- **Blog**: autor real (Ignacio Bordón como Person), covers, tags vacíos en prod, contenido local ("calistenia en MdP para principiantes", "calistenia vs crossfit", Barcelona).
+- **Consentimiento de cookies RGPD** para Barcelona (hoy el banner solo informa y los analytics cargarían sin consentimiento).
+- **WhatsApp de ventas** para el CTA de planes: ¿un número por país o por sede?
+- **Bloque C (sin código, Franco/equipo):**
+  - GBP por sede (verificar, categoría, horarios, fotos, UTM, mudanza JBJ)
+  - proceso de reseñas para todos los alumnos (sin gating) y responderlas
+  - unificar NAP (Superprof, Foursquare, IG, Wellhub)
+  - directorios de MdP (Yably, gimnasios.com, crossfyapp, guiadeo)
+  - pedir links a la prensa de Primavesi
+  - bio de IG → eltemplo.org
+  - Bing Places + Apple Business Connect
+  - Urban Sports Club / ClassPass en BCN
+  - Reddit genuino
+  - Wikidata cuando haya fuentes
+- **Decisiones de negocio:** nombre canónico de marca ("El Templo Calistenia"?), cómo presentar Park, qué hacer con la app vieja de Virtuagym.
+
+### Descartado por evidencia
+Invertir en llms.txt como táctica · FAQPage para rich results · `aggregateRating` propio · keyword stuffing · keywords en el nombre de GBP.

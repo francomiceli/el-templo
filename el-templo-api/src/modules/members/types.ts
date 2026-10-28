@@ -6,6 +6,7 @@
  */
 
 import type { MemberSegment } from "../segmentation/types";
+import type { ManualOrigin } from "../marketing/channel";
 import type { USER_STATUS_VALUES } from "../../db/schema/users";
 
 export type DocumentType = "DNI" | "Pasaporte" | "NIE" | "NIF" | "Otro";
@@ -347,6 +348,16 @@ export interface CreateTrialMemberInput {
    * ruta (orquesta la invitación asistida); `createTrialMember` lo ignora.
    */
   inviterId?: number;
+}
+
+/**
+ * Fase 195-07 (D-18): body de `POST /admin/members/trial` = el alta de 4 campos
+ * más el origen manual. `origin`/`campaign` los consume la ruta (atribución) y
+ * NO llegan al service: el tipo `CreateTrialMemberInput` no cambia.
+ */
+export interface CreateTrialMemberRequestBody extends CreateTrialMemberInput {
+  origin?: ManualOrigin;
+  campaign?: string;
 }
 
 /**

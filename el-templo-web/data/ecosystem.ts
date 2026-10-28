@@ -8,6 +8,9 @@
  * in the component template where needed.
  */
 
+import { sedesCount } from "~/data/sedes";
+
+
 export interface EcosystemPathway {
   id: string;
   tag: string;
@@ -44,7 +47,7 @@ export const pathways: EcosystemPathway[] = [
     tag: "Invert\u00ED",
     title: "S\u00E9 due\u00F1o de tu propio Templo.",
     description:
-      "El modelo de franquicia viene con todo: m\u00E9todo patentado, equipamiento Gladius, formaci\u00F3n de tu equipo y respaldo de una marca con 8 sedes y m\u00E1s de 10.000 alumnos. Invert\u00ED en algo que crece.",
+      `El modelo de franquicia viene con todo: m\u00E9todo patentado, equipamiento Gladius, formaci\u00F3n de tu equipo y respaldo de una marca con ${sedesCount.total} sedes y m\u00E1s de 10.000 alumnos. Invert\u00ED en algo que crece.`,
     ctaText: "Explorar franquicias",
     ctaHref: "/franquicias",
     variant: "franchise",
@@ -54,7 +57,7 @@ export const pathways: EcosystemPathway[] = [
     tag: "Equip\u00E1te",
     title: "Las barras que usamos, ahora en tu espacio.",
     description:
-      "Gladius es nuestra l\u00EDnea de barras y paralelas. Dise\u00F1adas en El Templo, probadas en 8 sedes, construidas para durar. Para tu casa, tu parque, tu gimnasio.",
+      `Gladius es nuestra l\u00EDnea de barras y paralelas. Dise\u00F1adas en El Templo, probadas en ${sedesCount.total} sedes, construidas para durar. Para tu casa, tu parque, tu gimnasio.`,
     ctaText: "Ver Gladius",
     ctaHref: "/gladius",
     variant: "gladius",

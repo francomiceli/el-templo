@@ -4,6 +4,7 @@ import { api } from 'boot/axios'
 import { useTokenStorage } from 'src/composables/useTokenStorage'
 import { useUserStore } from './useUserStore'
 import { extractError } from 'src/utils/extract-error'
+import type { SignupAttribution } from 'src/utils/attribution'
 import { pendingInvitation } from 'src/utils/pending-invitation'
 
 export interface AuthUser {
@@ -93,6 +94,9 @@ export const useAuthStore = defineStore('auth', () => {
     // Phase 179-15 (D-02/D-03): unified manual code field, sent alongside
     // promoCode/ref for back-compat. Server resolves code ?? ref ?? promoCode.
     code?: string
+    // Fase 195-07 (D-18): origen del alta (utm, referrer, plataforma...). La API
+    // lo guarda best-effort: nunca bloquea el registro.
+    attribution?: SignupAttribution
   }): Promise<
     | {
         promoApplied?: boolean

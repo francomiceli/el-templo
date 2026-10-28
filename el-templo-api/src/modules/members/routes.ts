@@ -61,9 +61,10 @@ import {
   isWellhubBookingSql,
   notWellhubBookingSql,
 } from "../shared/wellhub-sources";
+import { recordSignupAttributionBestEffort } from "../marketing/attribution-service";
 import type {
   CreateMemberInput,
-  CreateTrialMemberInput,
+  CreateTrialMemberRequestBody,
   ConvertFreemiumToTrialInput,
   UpdateMemberInput,
   MemberListParams,
@@ -938,7 +939,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
   // with only 4 fields (firstName, lastName, phone, branchId). Status set
   // to 'prueba'; email/DNI/etc. remain NULL until the lead converts via
   // the standard edit + assignPlan flow.
-  fastify.post<{ Body: CreateTrialMemberInput }>(
+  fastify.post<{ Body: CreateTrialMemberRequestBody }>(
     "/trial",
     {
       schema: createTrialMemberSchema,
@@ -947,7 +948,8 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       const ctx = assertTenant(request.scope, "members.createTrial");
       try {
-        const { inviterId, ...trialInput } = request.body;
+        // Fase 195-07 (D-18): origin/campaign son del alta, no del service.
+        const { inviterId, origin, campaign, ...trialInput } = request.body;
 
         // Fase 194 D-24 "Lo invita": el alta de prueba con invitador crea el
         // lead y activa la invitación asistida (accesos). Sin `inviterId` el
@@ -982,6 +984,16 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
                 })
               ).member,
           });
+          // Fase 195-07 (D-18): mismo registro best-effort de origen que el
+          // alta sin invitador.
+          await recordSignupAttributionBestEffort(fastify.db, request.log, ctx, {
+            userId: result.lead.id,
+            branchId: trialInput.branchId,
+            capturedVia: "admin_trial",
+            platform: "admin",
+            manualOrigin: origin,
+            manualCampaign: campaign,
+          });
           return reply.code(201).send({
             ...result.lead,
             invitation: result.invitation,
@@ -993,6 +1005,16 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         const { member } = await memberService.createTrialMember(ctx, {
           ...trialInput,
           createdBy: request.user.userId,
+        });
+        // Best-effort: el origen nunca bloquea el alta (se guarda también sin
+        // `origin`, como 'directo').
+        await recordSignupAttributionBestEffort(fastify.db, request.log, ctx, {
+          userId: member.id,
+          branchId: trialInput.branchId,
+          capturedVia: "admin_trial",
+          platform: "admin",
+          manualOrigin: origin,
+          manualCampaign: campaign,
         });
         return reply.code(201).send(member);
       } catch (err: unknown) {

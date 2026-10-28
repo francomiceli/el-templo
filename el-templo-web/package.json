@@ -6,11 +6,14 @@
   "scripts": {
     "dev": "nuxt dev",
     "build": "nuxt build",
-    "generate": "nuxt generate",
+    "generate": "node scripts/fetch-web-data.mjs && nuxt generate",
     "preview": "nuxt preview",
     "typecheck": "nuxi typecheck",
     "lint": "eslint .",
-    "postinstall": "nuxi prepare"
+    "postinstall": "node scripts/fetch-web-data.mjs --if-missing && nuxi prepare",
+    "prepare-data": "node scripts/fetch-web-data.mjs",
+    "test": "node --test scripts/group-schedule.test.mjs",
+    "verify-seo": "node scripts/verify-seo-output.mjs"
   },
   "dependencies": {
     "@nuxt/content": "^3.12.0",

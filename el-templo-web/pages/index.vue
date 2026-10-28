@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { sedes } from "~/data/sedes";
-import { faqItems } from "~/data/faq";
+import { sedesCount, webData } from "~/data/sedes";
+import { hreflangLinks } from "~/utils/hreflang";
+import { jsonLdScript, organizationNode } from "~/utils/schema-graph";
 
 const { cleanup: cleanupTracking } = useSectionTracking({
   sections: {
@@ -24,7 +25,7 @@ useHead({
     {
       name: "description",
       content:
-        "Escuela de calistenia con m\u00E9todo propio y 6 niveles. Entrenamiento con peso corporal en 8 sedes de Mar del Plata y Barcelona. Tu primera sesi\u00F3n es gratis.",
+        `Escuela de calistenia con m\u00E9todo propio y 6 niveles. Entrenamiento con peso corporal en ${sedesCount.total} sedes de Mar del Plata y Barcelona. Tu primera sesi\u00F3n es gratis.`,
     },
     {
       property: "og:title",
@@ -33,49 +34,20 @@ useHead({
     {
       property: "og:description",
       content:
-        "Escuela de calistenia y movimiento funcional. Entrenamiento con peso corporal en 8 sedes. M\u00E9todo propio, 6 niveles. Primera sesi\u00F3n gratis.",
+        `Escuela de calistenia y movimiento funcional. Entrenamiento con peso corporal en ${sedesCount.total} sedes. M\u00E9todo propio, 6 niveles. Primera sesi\u00F3n gratis.`,
     },
     { property: "og:url", content: "https://eltemplo.org" },
     { property: "og:type", content: "website" },
     { property: "og:site_name", content: "El Templo" },
   ],
-  link: [{ rel: "canonical", href: "https://eltemplo.org" }],
+  link: [
+    { rel: "canonical", href: "https://eltemplo.org" },
+    ...hreflangLinks("/"),
+  ],
 });
 
-useSchemaOrg([
-  // LocalBusiness per sede
-  ...sedes.map((sede) =>
-    defineLocalBusiness({
-      name: `El Templo ${sede.name}`,
-      "@type": "SportsActivityLocation",
-      address: {
-        "@type": "PostalAddress",
-        streetAddress: sede.address,
-        addressLocality: sede.city,
-        addressCountry: sede.city === "Barcelona" ? "ES" : "AR",
-      },
-      url: "https://eltemplo.org",
-      telephone: "+54-9-223-582-0521",
-      ...(sede.lat && sede.lng
-        ? {
-            geo: {
-              "@type": "GeoCoordinates",
-              latitude: sede.lat,
-              longitude: sede.lng,
-            },
-          }
-        : {}),
-    }),
-  ),
-  // FAQPage schema
-  defineWebPage({ "@type": "FAQPage" }),
-  ...faqItems.map((item) =>
-    defineQuestion({
-      name: item.question,
-      acceptedAnswer: item.answer,
-    }),
-  ),
-]);
+// Solo el Organization: las sedes tienen su ExerciseGym en /sedes/<slug>.
+useHead({ script: [jsonLdScript([organizationNode(webData)])] });
 </script>
 
 <template>
@@ -86,7 +58,7 @@ useSchemaOrg([
       <p class="seo-intro__text">
         El Templo es una escuela de calistenia con m&eacute;todo propio con
         sedes en Argentina y Espa&ntilde;a. Entrenamiento funcional con peso
-        corporal en 8 sedes de Mar del Plata y Barcelona. 6 niveles de
+        corporal en {{ sedesCount.total }} sedes de Mar del Plata y Barcelona. 6 niveles de
         progresi&oacute;n, sesiones ROM y SKILLS, y una comunidad de m&aacute;s
         de 1000 alumnos.
       </p>

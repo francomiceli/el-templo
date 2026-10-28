@@ -1,0 +1,80 @@
+# Rollout fase 195 (Web SEO local + AEO + atribución)
+
+Checklist para Franco y el orquestador. Todo `git push` y todo SSH son gates humanos: se hacen solo con el OK explícito de Franco en la conversación.
+
+**Por qué hay un orden.** Desde el plan 195-03, el build de la web lee las sedes, el WhatsApp de ventas y el blog de `GET /api/web/site-data` de la API a la que apunta `VITE_API_URL`. Si esa API todavía no tiene el endpoint (plan 195-02), el build web falla a propósito: nunca publica datos viejos ni del fixture. Como el build web corre ANTES del job `deploy`, un push que trae API nueva + web nueva con una API vieja en el servidor deja el build web en rojo. Desde el plan 195-11 eso ya no frena el deploy de la API (la web queda en su versión anterior y hay un aviso), pero el rollout en 2 pasos evita el rojo y la web desactualizada.
+
+## 1. Orden de publicación (staging primero, después master)
+
+Actualizado 2026-10-28: desde este cambio, en los dos workflows la web se arma **después** del deploy de API, app y admin (`build-web` depende de `deploy`) y se sube en su propio job `deploy-web`, con respaldo, smoke test y rollback propios. Así el build siempre le pide `/api/web/site-data` a la API ya desplegada y **no hace falta "solo web" después del push**. Una falla de la web sigue sin frenar ni revertir API, app y admin (D-29).
+
+Además, todo push que toque la API rearma también la web (sus datos salen de la API: sedes, horarios, blog), así que una migración de datos llega sola a la web.
+
+Lo que pasó antes del cambio: el primer push a staging (`68a9dd86f`) armó la web en paralelo con la API, recibió 404 de la API vieja y la web quedó sin publicar. Se resolvió con este cambio.
+
+1. Con OK de Franco: push a staging. En la misma corrida se despliega la API (corre la migración 0270-0274 y 0277), después se arma la web contra esa API y se publica en web-staging.
+2. Comprobar: `curl -s https://api-staging.eltemplo.org/api/web/site-data | head -c 300` y abrir web-staging.
+3. UAT en staging. Recién después, con OK de Franco, lo mismo hacia producción (push a master). El deploy de prod sigue el mismo orden: API primero, web después.
+
+La web sale **sin medición** (sin `WEB_GA4_ID` ni `WEB_META_PIXEL_ID`) y con el `/privacidad` actual. La medición se prende después, siguiendo la guía §1.2 y §3.
+
+La migración 0271 carga datos reales de sedes (calle, slug, WhatsApp, publicación) en la base de producción al desplegar. Revisar la tabla `branches` después de ese deploy.
+
+## 2. Si el build web falla
+
+- El job `Deploy to Production` / `Deploy to Staging` ya corrió antes para API, app y admin; si `Build Web` falla, `Deploy Web` no corre y la web queda en su versión anterior (no se toca el directorio de la web, ni su backup).
+- La corrida igual queda en rojo por el job `Build Web`. Mirar el log: el error dice si la API no tiene el endpoint, si el payload es inválido o si `verify-seo-output.mjs` encontró un problema.
+- Corregir la causa (típicamente: la API todavía no tiene el endpoint, o un dato de sede inválido) y volver a disparar solo la web (sección 6).
+- Si falla la verificación `--require-api` es porque el build salió del fixture y no de la API real (revisar `VITE_API_URL` / `STAGING_VITE_API_URL`), **o porque algún html conserva un marcador `PENDIENTE DE COMPLETAR`** (el primer rollout sale con el `/privacidad` actual, sin marcador; el marcador aparece recién al copiar `docs/privacidad-con-medicion.vue.txt`, ver guía §1.2).
+
+## 3. Secrets a crear en GitHub (Settings › Secrets and variables › Actions)
+
+Los crea Franco. La guía `docs/guia-195-web-seo-atribucion.md` (plan 195-14) explica cómo conseguir cada valor. Un secret que no existe llega vacío y la integración queda apagada: la API arranca igual y el build web no rompe. **Ninguno de estos va a staging.**
+
+| Secret                             | Entorno                         | Para qué                                                                  | Quién lo consigue                                                                                                  |
+| ---------------------------------- | ------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `WEB_GA4_ID`                       | solo producción (build web)     | Medición de la web con GA4 (`NUXT_PUBLIC_GA4_ID`)                         | Franco, en GA4 (Admin › Flujos de datos, ID `G-XXXX`)                                                              |
+| `WEB_META_PIXEL_ID`                | solo producción (build web)     | Meta Pixel de la web (`NUXT_PUBLIC_META_PIXEL_ID`)                        | Franco, en Meta Events Manager                                                                                     |
+| `META_ACCESS_TOKEN`                | solo producción (API)           | Token único para CAPI y gasto publicitario                                | Franco / quien administre el Business Manager (usuario del sistema con acceso al pixel y a la cuenta publicitaria) |
+| `META_PIXEL_ID`                    | solo producción (API)           | Pixel/dataset al que CAPI envía conversiones                              | Meta Events Manager                                                                                                |
+| `META_AD_ACCOUNT_IDS`              | solo producción (API)           | Cuentas publicitarias de las que se baja el gasto (separadas por coma)    | Meta Business Manager                                                                                              |
+| `META_CAPI_START_AT`               | solo producción (API)           | Fecha ISO de activación de CAPI: solo se envían eventos posteriores       | Franco, el día de la activación (ver sección 4)                                                                    |
+| `META_GRAPH_VERSION`               | solo producción (API), opcional | Versión de la Graph API (default `v26.0`)                                 | No hace falta crearlo                                                                                              |
+| `META_CAPI_TEST_EVENT_CODE`        | solo producción (API), temporal | Código de Events Manager › Probar eventos para validar sin ensuciar datos | Franco, solo durante la validación (borrarlo después)                                                              |
+| `GOOGLE_SC_SERVICE_ACCOUNT_BASE64` | solo producción (API)           | Service account de GCP para Search Console (`base64 -w0 key.json`)        | Franco, en GCP; agregar su email como usuario de la propiedad                                                      |
+| `GOOGLE_SC_SITE_URL`               | solo producción (API), opcional | Propiedad de Search Console (default `sc-domain:eltemplo.org`)            | No hace falta crearlo                                                                                              |
+| `GBP_SYNC_MODE`                    | solo producción (API)           | `off` (default), `dry-run` o `apply` para el sync de fichas de Google     | Franco decide el valor (sección 4)                                                                                 |
+| `GBP_OAUTH_CLIENT_ID`              | solo producción (API)           | Cliente OAuth de Google Business Profile                                  | Franco, en GCP                                                                                                     |
+| `GBP_OAUTH_CLIENT_SECRET`          | solo producción (API)           | Secreto del cliente OAuth                                                 | Franco, en GCP                                                                                                     |
+| `GBP_REFRESH_TOKEN`                | solo producción (API)           | Refresh token del owner de las fichas                                     | Franco, con `scripts/gbp-authorize.ts` (plan 195-09)                                                               |
+
+Los secrets ya existentes (`VITE_API_URL`, `STAGING_VITE_API_URL`, SSH, rutas de deploy, etc.) no cambian.
+
+Los valores del `.env.production` de la API se escriben en cada deploy de la API: crear o cambiar un secret de la API NO tiene efecto hasta el próximo deploy de la API (un push que toque `el-templo-api/**` o un dispatch con target `todo`; `solo-web` no toca la API). Los IDs de GA4 y Pixel se leen en el build web: cambiarlos requiere regenerar la web (`solo-web`).
+
+Admin › Reportes › Origen de altas muestra arriba la card "Integraciones apagadas" con lo que falta cargar de esta tabla (solo nombres de secrets, nunca valores). La card lee el entorno de la API: para que `WEB_GA4_ID` y `WEB_META_PIXEL_ID` figuren prendidos, el deploy de producción también los escribe en el `.env.production` de la API, así que la card se actualiza recién con el próximo deploy de la API (aunque la web ya mida desde el `solo-web`).
+
+## 4. Orden de activación de las integraciones
+
+1. **Texto de `/privacidad` en producción primero.** Franco aprueba el texto nuevo (`docs/privacidad-con-medicion.vue.txt`, con razón social, NIF y domicilio de España completados) y la web con esa página tiene que estar en prod antes de cargar `WEB_GA4_ID`, `WEB_META_PIXEL_ID` o cualquier `META_*`. El primer rollout sale con el `/privacidad` actual (decisión de Franco 2026-10-07).
+2. **Meta: gasto.** Cargar `META_ACCESS_TOKEN`, `META_PIXEL_ID` y `META_AD_ACCOUNT_IDS` y deployar la API. Con eso se prende solo el gasto publicitario (no necesita fecha ni pixel). CAPI sigue apagado: la API solo lo activa cuando también existe `META_CAPI_START_AT`.
+3. **Meta CAPI, validación.** CAPI no envía nada sin `META_CAPI_START_AT`, así que para probar con "Probar eventos" hay que cargar `META_CAPI_TEST_EVENT_CODE` **y** `META_CAPI_START_AT` = fecha y hora de ahora (ISO), y deployar la API. Hacer un registro y una reserva de prueba y mirar Events Manager › Probar eventos (el sistema revisa cada 10 minutos). Mientras el código de prueba esté cargado, TODOS los eventos (también los de alumnos reales) van solo al panel de prueba y quedan marcados como enviados: no se reenvían. Conviene que esta ventana sea corta.
+4. **Meta CAPI, activación real.** Con la validación bien: borrar `META_CAPI_TEST_EVENT_CODE` y deployar la API. `META_CAPI_START_AT` queda como está. Desde ahí CAPI envía de verdad (nunca de España ni de altas iOS o de origen desconocido).
+5. **Search Console.** Cargar `GOOGLE_SC_SERVICE_ACCOUNT_BASE64` (y agregar la service account a la propiedad). El job es semanal y de solo lectura.
+6. **Fichas de Google.** Cargar los tres `GBP_OAUTH_*`/`GBP_REFRESH_TOKEN` y `GBP_SYNC_MODE=dry-run`. Dejarlo **una semana** mirando los logs de la API. Antes de pasar a `apply`, cargar los teléfonos reales en `branches.phone`: si están vacíos, el sync pone el WhatsApp de ventas como teléfono de la ficha. Después `GBP_SYNC_MODE=apply`. Hasta que Google apruebe el acceso a la API, el sync falla por ficha con 403/429 sin romper nada.
+7. **Staging nunca recibe `META_*`, `GOOGLE_SC_*` ni `GBP_*`**: corre con datos reales clonados y mandaría conversiones reales a Meta y editaría fichas reales de Google. Está escrito como comentario en `deploy-staging.yml` encima del `.env.production`.
+
+## 5. nginx
+
+No se toca (decisión de Franco, 2026-10-07). El noindex de web-staging, app y admin sale con el deploy normal (meta robots en el código; el verificador impide noindex en producción). El 404 real y los redirects reales quedaron descartados (impacto SEO bajo); la historia los conserva (commits `7415b4a6f` y `105aaaf60`). Si Apple rechaza el `apple-app-site-association` por no tener `application/json`, hará falta un ajuste de nginx que decide Franco en ese momento.
+
+## 6. Cómo usar "solo web"
+
+Sirve para publicar un post del blog, cambiar horarios, sedes o el WhatsApp de ventas, o reintentar un build web fallido, sin tocar la API, la app ni el admin.
+
+1. GitHub › Actions › **Deploy** (producción) o **Deploy Staging** › **Run workflow**.
+2. Elegir la rama (`master` para producción, `staging` para staging: el job de deploy solo corre en esas ramas) y **target: `solo-web`**.
+3. Run workflow. Se construye únicamente la web (con los datos actuales de `GET /api/web/site-data`), se verifica con `verify-seo-output.mjs --require-api`, se hace el backup del directorio de la web y se publica. Si el smoke test falla, se restaura solo la web (la API no se reinicia).
+4. Con target `todo` (el valor por defecto) se despliegan los 4 proyectos. Un push sigue detectando qué cambió, como siempre.
+
+La primera vez, validar el botón con un dispatch en staging: el contexto `inputs.target` se validó solo leyendo la documentación de GitHub.

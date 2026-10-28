@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { DEFAULT_TRIAL_TEXT, salesWhatsappUrl } from "~/utils/whatsapp";
+
 /**
  * AppNav — Fixed navigation bar with desktop links, mobile drawer,
  * scroll shadow, and active section highlighting.
@@ -14,7 +16,7 @@ interface NavLink {
 const navLinks: NavLink[] = [
   { label: "El Metodo", href: "/#metodo", sectionId: "metodo" },
   { label: "Niveles", href: "/#niveles", sectionId: "niveles" },
-  { label: "Sedes", href: "/#sedes", sectionId: "sedes" },
+  { label: "Sedes", href: "/sedes", sectionId: null },
   { label: "Franquicias", href: "/franquicias", sectionId: null },
   {
     label: "Gladius",
@@ -27,8 +29,7 @@ const navLinks: NavLink[] = [
   { label: "App", href: "/app", sectionId: null },
 ];
 
-const WHATSAPP_URL =
-  "https://wa.me/5492235820521?text=Hola%21%20Quiero%20reservar%20mi%20primera%20sesi%C3%B3n%20de%20prueba";
+const WHATSAPP_URL = salesWhatsappUrl("AR", DEFAULT_TRIAL_TEXT);
 
 const ctaLink: NavLink = {
   label: "Reservar Sesion",

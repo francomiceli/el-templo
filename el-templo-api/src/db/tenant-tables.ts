@@ -69,6 +69,9 @@
 export const GYM_OWNED_TABLES = [
   "academy_inquiries",
   "activities",
+  // Gasto publicitario diario por campaña (fase 195, plan 08, migración 0273):
+  // nace con tenant_id y strict (módulo `marketing`).
+  "ad_spend_daily",
   "app_waitlist",
   "attendance",
   "audit_log",
@@ -137,6 +140,9 @@ export const GYM_OWNED_TABLES = [
   "member_logins",
   "member_notes",
   "member_profiles",
+  // Outbox de Meta Conversions API (fase 195, plan 08, migración 0273): nace con
+  // tenant_id y strict (módulo `marketing`).
+  "meta_capi_events",
   "notification_preferences",
   "notification_templates",
   // Novedades en Mi Templo (2026-10-14, migración 0275): nacen con tenant_id y
@@ -163,12 +169,18 @@ export const GYM_OWNED_TABLES = [
   "saved_blocks",
   "schedule_exceptions",
   "schedules",
+  // Estadísticas de Google Search Console (fase 195, plan 09, migración 0274):
+  // nace con tenant_id y strict (módulo `marketing`).
+  "search_console_stats",
   "session_blocks",
   "session_edit_logs",
   "session_prescriptions",
   "session_traces",
   "session_week_regime",
   "sessions",
+  // Atribución propia de altas (fase 195, plan 07, migración 0272): nace con
+  // tenant_id y strict (ver TENANT_STRICT_MODULES["marketing"] más abajo).
+  "signup_attributions",
   "spom_config",
   "spom_rules",
   // Patrocinadores (fase 199, mig 0279): métricas por socio y marca con el
@@ -716,6 +728,16 @@ export const TENANT_STRICT_MODULES: Record<string, readonly string[]> = {
   // nace strict, sin deuda previa que tolerar (mismo criterio que
   // `renewals`/`communications`/`staff-attendance`).
   "trial-followups": ["trial_followups"],
+  // Fase 195: nace strict (atribución propia de altas, mig 0272) — sin deuda
+  // previa que tolerar, mismo criterio que `renewals`/`trial-followups`.
+  // Plan 195-08 (mig 0273): + outbox de CAPI y gasto diario de Meta.
+  // Plan 195-09 (mig 0274): + estadísticas de Search Console.
+  marketing: [
+    "ad_spend_daily",
+    "meta_capi_events",
+    "search_console_stats",
+    "signup_attributions",
+  ],
   wellhub: [
     "wellhub_bookings",
     "wellhub_classes",

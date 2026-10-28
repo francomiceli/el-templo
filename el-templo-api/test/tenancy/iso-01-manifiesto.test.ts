@@ -326,9 +326,14 @@ import {
 // 2026-10-07: 453 -> 455 por el reporte y la bandeja de leads de Invitaciones
 // (Fase 194-20, D-19/D-18): `GET /api/admin/referrals/invitations/report` y
 // `GET /api/admin/referrals/invitations`, `tenant-scoped`.
-// 2026-10-08: 455 -> 456 por el tablero de jornadas del staff (owner/admin):
+// 2026-10-07 (fase 195): +1 por el endpoint público de datos de la web:
+// `GET /api/web/site-data`, `templo-module` (templo-marketing).
+// 2026-10-07 (fase 195, plan 10): +2 por los reportes de origen de altas:
+// `GET /api/admin/reports/attribution` y
+// `GET /api/admin/reports/attribution/search-console`, ambas `tenant-scoped`.
+// 2026-10-08: +1 por el tablero de jornadas del staff (owner/admin):
 // `GET /api/admin/staff-attendance/dashboard`, `tenant-scoped`.
-// 2026-10-08: 456 -> 457 por el cierre forzado de jornadas (owner/admin):
+// 2026-10-08: +1 por el cierre forzado de jornadas (owner/admin):
 // `POST /api/admin/staff-attendance/shifts/:id/force-checkout`, `tenant-scoped`.
 // 2026-10-14: 457 -> 463 por Novedades en Mi Templo (6 rutas bajo
 // `/api/communications`): `GET/POST /admin/novedades`, `PUT/DELETE
@@ -409,7 +414,11 @@ import {
 // 2026-10-28: 537 -> 539 por el resumen de Planes del socio: GET
 // /api/members/subscription/me/plan-summary y POST
 // /api/members/subscription/me/plan-summary/seen, `tenant-scoped`.
-const ENTRADAS_BASELINE = 539;
+// 2026-10-28 (integración de la fase 195 con master): 539 -> 542 por las 3
+// rutas de la 195 anotadas arriba (`GET /api/web/site-data`, templo-module, y
+// `GET /api/admin/reports/attribution` + `.../attribution/search-console`,
+// `tenant-scoped`).
+const ENTRADAS_BASELINE = 542;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -552,7 +561,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 539 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 542 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(

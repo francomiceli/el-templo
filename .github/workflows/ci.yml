@@ -225,8 +225,14 @@ jobs:
       - name: Type check
         run: pnpm exec nuxi typecheck
 
+      - name: Unit tests (utils)
+        run: pnpm test
+
       - name: Build (SSG)
         run: pnpm run generate
+
+      - name: Verify SEO output
+        run: node scripts/verify-seo-output.mjs
 
   # ===========================================
   # Admin App - Lint, Audit, and Build

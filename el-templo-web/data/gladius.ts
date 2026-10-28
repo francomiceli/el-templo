@@ -5,6 +5,9 @@
  * No component logic — typed exports only.
  */
 
+import { sedesCount } from "~/data/sedes";
+
+
 // --- Feature items for Philosophy section ---
 export interface GladiusFeature {
   title: string;
@@ -24,7 +27,7 @@ export const gladiusConfig = {
   hero: {
     title: "EQUIPAMIENTO DE CALISTENIA FORJADO PARA LOS QUE ENTRENAN EN SERIO.",
     subtitle:
-      "Barras de calistenia dise\u00F1adas en El Templo. Probadas en 8 sedes. Construidas para durar.",
+      `Barras de calistenia dise\u00F1adas en El Templo. Probadas en ${sedesCount.total} sedes. Construidas para durar.`,
     cta: "VER PRODUCTOS",
     ctaAnchor: "#catalogo-gladius",
     ctaSecondary: "CONSULTAR",
@@ -54,7 +57,7 @@ export const gladiusConfig = {
     title: "EQUIPAMIENTO DE CALISTENIA EN ACCI\u00D3N",
     subtitle:
       "El mismo equipamiento que us\u00E1s en El Templo. En cada sede, cada sesi\u00F3n, cada d\u00EDa.",
-    socialProof: "Las mismas barras que usan +1000 alumnos en 8 sedes.",
+    socialProof: `Las mismas barras que usan +1000 alumnos en ${sedesCount.total} sedes.`,
     photos: Array.from({ length: 6 }, (_, i) => ({
       id: i + 1,
       alt: `Gladius en uso - foto ${i + 1}`,
