@@ -792,5 +792,34 @@ describe('useUserStore · estado del socio (loadMemberState / ensureMemberState)
       expect(store.memberStateLoaded).toBe(true)
       expect(vi.getTimerCount()).toBe(0)
     })
+
+    it('un refresh que reemplaza a una carga colgada apaga subscriptionLoading (y planStatusLoading) de las fuentes que no pide', async () => {
+      vi.useFakeTimers()
+      const store = useUserStore()
+      // Carga 1 completa: suscripción activa y memberStateLoaded.
+      mockApi({ subscription: () => ({ status: 200, data: ACTIVE_SUB }) })
+      await store.ensureMemberState()
+      expect(store.hasActiveSubscription).toBe(true)
+      expect(store.memberStateLoaded).toBe(true)
+
+      // Carga 2 (force = completa) con suscripción y plan-status colgados.
+      mockApi({
+        subscription: () => new Promise(() => {}),
+        planStatus: () => new Promise(() => {}),
+      })
+      void store.ensureMemberState({ force: true })
+      await flush()
+      expect(store.subscriptionLoading).toBe(true)
+
+      // Vence el tope y la frescura: la próxima es un 'refresh' (con plan activo no pide esas fuentes).
+      await vi.advanceTimersByTimeAsync(MEMBER_LOAD_MAX_IN_FLIGHT_MS + 1_000)
+      const subCalls = count('subscription')
+      const planCalls = count('planStatus')
+      await store.ensureMemberState()
+
+      expect(count('subscription')).toBe(subCalls)
+      expect(count('planStatus')).toBe(planCalls)
+      expect(store.subscriptionLoading).toBe(false)
+    })
   })
 })

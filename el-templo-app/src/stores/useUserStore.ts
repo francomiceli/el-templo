@@ -768,6 +768,8 @@ export const useUserStore = defineStore('user', () => {
     } else {
       // Esta carga ya es la vigente y NO pide estas fuentes: considera bueno el dato que hay. Si una
       // carga 'initial' colgada las dejó en "cargando", ya no es current y su `finally` no las apaga.
+      subscriptionLoading.value = false
+      planStatusLoading.value = false
     }
     tasks.push(fetchProgramEnrollmentStatus(isCurrent), fetchCurrentProgram(isCurrent))
     // Tope (W4): en nativo CapacitorHttp ignora el timeout de axios, y quien hace
