@@ -12,7 +12,7 @@
 - ✅ **Fases en vuelo fuera de milestone** — 179 (referidos partners/marcas) y 180 (freemium etapa 2): en master `9ecc1c2e`, migs 0210+0215, cerradas fuera de v6.1. **No se renumeran ni se tocan desde este roadmap.**
 - 🚧 **v6.1 Módulo Gimnasio** — Phases 181-192.3: 181 (diseño) en master; 182-192.2 ejecutadas en el tren `feat/v6.1-gimnasio` **SIN PUSH** (UAT pendiente); 192.3 Workout Engine ejecutada en rama aparte, por integrar al tren
 - ✅ **Fuera de milestone, en master/prod (2026-10-28)** — 193 Comunicaciones, 194 Invitaciones, 197 Entrenar (tabs/Libre/Desafíos ocultos por flag), 199 Rediseño Mi Templo, 200 Anatomía, 201 Conquer v2 (tab oculta), 202 Conquer tutoriales, 204 Usuarios Wellhub
-- 🚧 **Fuera de milestone, no en master** — 203 Carga sin parpadeos (planificada 17 planes, sin ejecutar, `feat/203-carga-sin-parpadeos`)
+- ✅ **Fuera de milestone** — 203 Carga sin parpadeos EN MASTER 2026-10-28 (app 1.9.2)
 - 📦 **Archivada / en espera** — 196 Personalizados + Conquer v1 (archivada, reemplazada por 201; tag `archive/196-personalizados`); 198 AURA configurable por fuente (en espera, sin planificar)
 
 > El detalle de las fases 1-178 vive en los archivos de milestone (`milestones/v6.0-ROADMAP.md`, `milestones/v5.8-ROADMAP.md`) y en `MILESTONES.md`. Este documento arranca en la fase 181 e incluye las fases 193-204, que corren fuera del milestone v6.1.
@@ -71,7 +71,7 @@ El recorrido: primero se cierra la **fase de diseño bloqueante** (las 7 definic
 - [x] **Phase 200: Anatomía funcional (fuera del milestone)** - Un solo modelo de contenido (archivos) músculo ↔ zona ↔ ruta ↔ rol que reemplaza a `muscle-zones.ts`, con la sección Anatomía del admin para profes, la Guía partida en dos (Empezá acá + Tu cuerpo) y el cuerpo tocable en Entrenar — **[EN MASTER]**
 - [x] **Phase 201: Conquer v2 de cero, simple (fuera del milestone)** - Modo Conquer simple según la síntesis de Nacho del 2026-10-21. El coach activa al alumno eligiendo nivel y días. El alumno carga un número por escalón y la app calcula objetivos y cuándo subir. El coach trabaja por excepción con alertas. — **[EN MASTER (tab oculta)]**
 - [x] **Phase 202: Conquer — tutoriales y correcciones con video (fuera del milestone)** - Pedidos del profe probando la 201 en staging. Tutoriales: un video por ejercicio y por combo que sube el coach y el alumno ve con "Ver cómo se hace". Correcciones: el alumno manda un video de 30 s como máximo, el coach responde con texto y/o video y puede borrar el del alumno… — **[EN MASTER]**
-- [ ] **Phase 203: Carga sin parpadeos (fuera del milestone)** - Las pantallas de la app no muestran contenido equivocado mientras llegan los datos: regla única de carga (esperar / reservar lugar / ocultar), pedidos en paralelo, sin pedidos repetidos al arranque y HTTP/2 en la API — **[PLANIFICADA, sin ejecutar (`feat/203-carga-sin-parpadeos`)]**
+- [x] **Phase 203: Carga sin parpadeos (fuera del milestone)** - Las pantallas de la app no muestran contenido equivocado mientras llegan los datos: regla única de carga (esperar / reservar lugar / ocultar), pedidos en paralelo, sin pedidos repetidos al arranque y HTTP/2 en la API — **[EN MASTER (app 1.9.2)]**
 - [x] **Phase 204: Usuarios Wellhub como tipo de usuario (fuera del milestone)** - Distinguir a quien usa Wellhub en admin, Horarios y métricas — visitantes nuevos, ex-alumnos y socios activos vinculados por email — y que sus reservas no toquen el plan del socio — **[EN MASTER]**
 
 ## Phase Details
@@ -869,7 +869,7 @@ Plans:
 | 200. Anatomía funcional | fuera | 23/23 | EN MASTER | 2026-10-22 |
 | 201. Conquer v2 | fuera | 34/35 | EN MASTER (tab oculta) | 2026-10-27 |
 | 202. Conquer tutoriales | fuera | 15/15 | EN MASTER | 2026-10-27 |
-| 203. Carga sin parpadeos | fuera | 0/17 | Planificada, sin ejecutar | - |
+| 203. Carga sin parpadeos | fuera | 16/17 (02 cancelado) | En master | 2026-10-28 |
 | 204. Usuarios Wellhub | fuera | 16/16 | EN MASTER | 2026-10-27 |
 
 ## Coverage
@@ -966,7 +966,7 @@ Plans:
 
 ### Phase 203: Carga sin parpadeos (fuera del milestone v6.1)
 
-**Estado (2026-10-28)**: PLANIFICADA, SIN EJECUTAR. Rama `feat/203-carga-sin-parpadeos`, 17 planes reajustados el 2026-10-28 por "Tu plan" (ver Addendum del CONTEXT). Siguiente paso: `/gsd-execute-phase 203` (01-03 con Franco: SSH + línea base).
+**Estado (2026-10-28)**: EN MASTER, app 1.9.2. Ejecutada el 2026-10-28: 02 cancelado (HTTP/2 ya activo y la API ya se logueaba en access.log; nginx no se toca), 03 = `203-BASELINE.md` sobre los logs existentes, 04-16 + 7 fixes de code-review. Arranque con plan activo: 16 pedidos (base 19). UAT aprobado por uso en staging; el checklist detallado de `203-UAT.md` no se corrió. Pendiente: builds de tiendas 1.9.2 y repetir la medición del BASELINE.
 
 **Goal**: Ninguna pantalla de la app muestra un texto, card o estado equivocado mientras llegan sus datos ("todavía no sé" nunca se dibuja como "no"), las cards no empujan el contenido al aparecer, y el arranque hace menos pedidos y los hace sin cola
 **Depends on**: nada. Base `origin/master` `ab4342b27` (app 1.8.6); rebaseada el 2026-10-28 sobre `1735ef656` y planes reajustados por "Tu plan" (ver Addendum del CONTEXT). (La 202 es Conquer tutoriales, en `feat/201-conquer`.) Sale staging → master como bugfix (patch, bump fuera de la fase)
@@ -986,71 +986,71 @@ Plans:
 
 **Wave 1**
 
-- [ ] 203-01-PLAN.md — Script de verificación h2/h1.1 + config viva de nginx al repo + diff http2 explícito y access_log permanente sin la TV
+- [x] 203-01-PLAN.md — Script de verificación h2/h1.1 + config viva de nginx al repo + diff http2 explícito y access_log permanente sin la TV
 
 **Wave 2** _(blocked on Wave 1 completion)_
 
-- [ ] 203-02-PLAN.md — Aplicar nginx en staging y prod con OK de Franco, script verde en los dos, playbook apunta al log nuevo
+- [x] ~~203-02-PLAN.md~~ (CANCELADO) — Aplicar nginx en staging y prod con OK de Franco, script verde en los dos, playbook apunta al log nuevo
 
 **Wave 3** _(blocked on Wave 2 completion)_
 
-- [ ] 203-03-PLAN.md — Checkpoint de 1-2 días: línea base del access_log (203-BASELINE.md)
+- [x] 203-03-PLAN.md — Checkpoint de 1-2 días: línea base del access_log (203-BASELINE.md)
 
 **Wave 4** _(blocked on Wave 3 completion)_
 
-- [ ] 203-04-PLAN.md — useUserStore dueño único del estado del socio: todo en paralelo (D-15), promesa compartida, banderas loaded/failed
+- [x] 203-04-PLAN.md — useUserStore dueño único del estado del socio: todo en paralelo (D-15), promesa compartida, banderas loaded/failed
 
 **Wave 5** _(blocked on Wave 4 completion)_
 
-- [ ] 203-05-PLAN.md — my-bookings ×2 → 1 (parámetro weeks retrocompatible en la API + test) y loadedTz
+- [x] 203-05-PLAN.md — my-bookings ×2 → 1 (parámetro weeks retrocompatible en la API + test) y loadedTz
 
 **Wave 6** _(blocked on Wave 5 completion)_
 
-- [ ] 203-06-PLAN.md — Reservas multi-sede pide /weekly una sola vez (R-1)
+- [x] 203-06-PLAN.md — Reservas multi-sede pide /weekly una sola vez (R-1)
 
 **Wave 7** _(blocked on Wave 6 completion)_
 
-- [ ] 203-07-PLAN.md — Helpers: tope D-07, regla de slot, flag 'tuvo contenido' (D-02) precargado, CardSkeleton
+- [x] 203-07-PLAN.md — Helpers: tope D-07, regla de slot, flag 'tuvo contenido' (D-02) precargado, CardSkeleton
 
 **Wave 8** _(blocked on Wave 7 completion)_
 
-- [ ] 203-08-PLAN.md — Planes (con "Tu plan") aparece completa: resumen, planes y catálogo en paralelo, my-progress del store, un esqueleto por sección y sin 'No hay planes' antes de tiempo (D-04)
+- [x] 203-08-PLAN.md — Planes (con "Tu plan") aparece completa: resumen, planes y catálogo en paralelo, my-progress del store, un esqueleto por sección y sin 'No hay planes' antes de tiempo (D-04)
 
 **Wave 9** _(blocked on Wave 8 completion)_
 
-- [ ] 203-09-PLAN.md — /sessions/weekly sin view (el server decide) + loaded + tests de API del default
+- [x] 203-09-PLAN.md — /sessions/weekly sin view (el server decide) + loaded + tests de API del default
 
 **Wave 10** _(blocked on Wave 9 completion)_
 
-- [ ] 203-10-PLAN.md — Card de hoy: entradas de carga, tope y estado neutral (D-05/D-07/D-18)
+- [x] 203-10-PLAN.md — Card de hoy: entradas de carga, tope y estado neutral (D-05/D-07/D-18)
 
 **Wave 11** _(blocked on Wave 10 completion)_
 
-- [ ] 203-11-PLAN.md — Mi Templo en paralelo y sin duplicados + saludo/turnos esperan el perfil real (D-08)
+- [x] 203-11-PLAN.md — Mi Templo en paralelo y sin duplicados + saludo/turnos esperan el perfil real (D-08)
 
 **Wave 12** _(blocked on Wave 11 completion)_
 
-- [ ] 203-12-PLAN.md — Stores de Mi Templo con loaded/lastLoadOk, statsLoaded; toast de stats intacto (D-16)
+- [x] 203-12-PLAN.md — Stores de Mi Templo con loaded/lastLoadOk, statsLoaded; toast de stats intacto (D-16)
 
 **Wave 13** _(blocked on Wave 12 completion)_
 
-- [ ] 203-13-PLAN.md — Mi Templo reserva el lugar de sus cards, sin loader ni error de página (D-02/D-16)
+- [x] 203-13-PLAN.md — Mi Templo reserva el lugar de sus cards, sin loader ni error de página (D-02/D-16)
 
 **Wave 14** _(blocked on Wave 13 completion)_
 
-- [ ] 203-14-PLAN.md — Entrenar (TrainingIndex) y Perfil no deciden 'sin plan' antes de tiempo
+- [x] 203-14-PLAN.md — Entrenar (TrainingIndex) y Perfil no deciden 'sin plan' antes de tiempo
 
 **Wave 15** _(blocked on Wave 14 completion)_
 
-- [ ] 203-15-PLAN.md — CTA de Entrenar sin 'Empezar → Continuar' (C-10)
+- [x] 203-15-PLAN.md — CTA de Entrenar sin 'Empezar → Continuar' (C-10)
 
 **Wave 16** _(blocked on Wave 15 completion)_
 
-- [ ] 203-16-PLAN.md — Latencia artificial y contador de pedidos solo en dev (VITE_DEV_LATENCY_MS)
+- [x] 203-16-PLAN.md — Latencia artificial y contador de pedidos solo en dev (VITE_DEV_LATENCY_MS)
 
 **Wave 17** _(blocked on Wave 16 completion)_
 
-- [ ] 203-17-PLAN.md — Checklist 203-UAT.md + UAT de Franco con red limitada
+- [x] 203-17-PLAN.md — Checklist 203-UAT.md + UAT de Franco con red limitada
 
 ### Phase 204: Usuarios Wellhub como tipo de usuario (fuera del milestone v6.1)
 

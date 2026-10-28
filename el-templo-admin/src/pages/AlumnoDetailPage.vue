@@ -1473,6 +1473,14 @@ async function loadMemberAdjustments() {
 }
 
 async function loadAll() {
+  // Un link roto (/alumnos/null, /alumnos/undefined) daría NaN y cada request
+  // de la ficha rebotaría con 400 "params/userId must be integer" (Sentry NODE-6G).
+  if (!Number.isInteger(userId.value) || userId.value <= 0) {
+    memberProfile.value = null;
+    pageError.value = 'Alumno no encontrado';
+    pageLoading.value = false;
+    return;
+  }
   pageLoading.value = true;
   pageError.value = null;
 
