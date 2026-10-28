@@ -74,7 +74,11 @@
 
       <!-- Profile + Logout -->
       <div v-if="authStore.isAuthenticated" class="desktop-rail__actions">
-        <router-link to="/profile" class="desktop-rail__tab">
+        <router-link
+          to="/profile"
+          class="desktop-rail__tab"
+          :class="{ 'desktop-rail__tab--active': route.path.startsWith('/profile') }"
+        >
           <q-icon name="person" size="24px" />
           <span class="desktop-rail__label">Mi Perfil</span>
         </router-link>
@@ -690,7 +694,7 @@ async function onLogout() {
   align-items: center;
   gap: 14px;
   padding: 14px 20px;
-  color: rgba(white, 0.6);
+  color: #f2ede5; // inactiva: crema sólido, igual que la barra de abajo (fase 199-11, sketch 009 A)
   text-decoration: none;
   white-space: nowrap;
   transition:
@@ -702,16 +706,21 @@ async function onLogout() {
     background-color: rgba(white, 0.1);
   }
 
-  &--active {
-    color: white;
+  // Activa: blanco + franja translúcida con filete a la izquierda, así se distingue sin
+  // depender solo del color (el fondo y el filete son decoración; el texto sigue sólido).
+  &--active,
+  &--active:hover {
+    color: #fff;
+    background-color: rgba(white, 0.2);
+    box-shadow: inset 3px 0 0 #fff;
+
+    .desktop-rail__label {
+      font-weight: 700;
+    }
   }
 
+  // Íconos imagen (SVG): no heredan `color`; a opacidad plena como los de la barra de abajo.
   :deep(.q-icon img) {
-    opacity: 0.6;
-    transition: opacity 200ms ease;
-  }
-
-  &--active :deep(.q-icon img) {
     opacity: 1;
   }
 
