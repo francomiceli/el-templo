@@ -28,8 +28,12 @@ export const FREE_BLOCKS_ENABLED = false
  * Fase 197: tabs de Entrenar. Fase 201 D-10: vuelven prendidas, pero solo Semana y Conquer
  * (Libre sigue con FREE_BLOCKS_ENABLED y Desafíos con ENTRENAR_DESAFIOS_ENABLED, ambos apagados).
  * Con false Entrenar muestra solo Semana, sin barra de tabs, y cualquier `?tab=` abre Semana.
+ *
+ * 2026-10-27: apagado para OCULTAR Conquer (pedido de Franco) aunque esté todo en producción: sin la
+ * tab no hay entrada a Conquer en el app, y el `?tab=conquer` del pop-up de lanzamiento abre Semana.
+ * El código, las rutas y el API de Conquer quedan.
  */
-export const ENTRENAR_TABS_ENABLED = true
+export const ENTRENAR_TABS_ENABLED = false
 
 /**
  * Fase 201 D-10: tab Desafíos de Entrenar. Apagada (mismo patrón que Libre): sin tab, ni como
