@@ -1038,6 +1038,13 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
             message: err.message,
           });
         }
+        // F1 (2026-10-29): "Lo invita" con una sede de otro país que el del
+        // invitador se rechaza ANTES de crear el lead (`assertBranchInInviterCountry`).
+        if (err instanceof BadRequestError) {
+          return reply
+            .code(400)
+            .send({ error: "Solicitud invalida", message: err.message });
+        }
         request.log.error({ err }, "Error creating trial member");
         return reply.code(500).send({
           error: "Error del servidor",
