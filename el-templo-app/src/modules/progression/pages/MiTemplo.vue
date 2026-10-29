@@ -152,7 +152,7 @@
 </template>
 
 <script setup lang="ts">
-// deploy: forzar build de la app tras el CI rojo de NODE-6K + ladder (sentinel de tenancy en el test, paths-filter, 2026-10-29)
+// deploy: release a master de Mis invitados + Conquer solo staging + fix intro-stories (paths-filter, 2026-10-29)
 /**
  * MiTemplo page — personalized daily briefing ("Tu Dia").
  *
