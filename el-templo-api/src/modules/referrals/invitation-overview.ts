@@ -24,18 +24,36 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
-import { DEFAULT_TENANT_TIMEZONE, todayInTz } from "../shared/date-utils";
+import {
+  DEFAULT_TENANT_TIMEZONE,
+  shiftMonth,
+  todayInTz,
+} from "../shared/date-utils";
+import type { CountryCode } from "../shared/country-scope";
+import { BOOKING_CANCEL_WINDOW_MINUTES } from "../scheduling/booking-constants";
 import { paidSinceActivationSql } from "./invitation-purchase";
 import { tenantWhere, type TenantContext } from "../shared/tenant";
 import { deriveMembershipCoveredUntilBatch } from "../subscriptions/coverage";
 import { InvitationRules } from "./invitation-rules";
+import {
+  getInvitationAccessesPerCountry,
+  getInvitationSettings,
+  INVITATION_CAP_COUNTRIES,
+  type InvitationSettings,
+} from "./invitation-settings";
 import {
   accessesUsed,
   deriveInviteeState,
   deriveLeadStage,
 } from "./invitation-states";
 import { loadTrainedBranches } from "./invitation-trained-branches";
-import type { InvitationsOverview, InvitedByView, InviteeView } from "./types";
+import type { InviterQuota } from "./invitation-types";
+import type {
+  InvitationConditionsView,
+  InvitationsOverview,
+  InvitedByView,
+  InviteeView,
+} from "./types";
 
 type DbInstance = MySql2Database<typeof schema>;
 
@@ -68,6 +86,8 @@ export interface InvitationOverviewInput {
   links: OverviewLink[];
   /** % de descuento vigente (el mismo del cobro, `computeReferralDiscountPercent`). */
   percent: number;
+  /** Parámetros del programa si el llamador ya los leyó (si no, se leen acá). */
+  settings?: InvitationSettings;
 }
 
 /** Fila de una invitación del usuario como INVITADOR con todo lo que el estado necesita. */
@@ -88,7 +108,7 @@ export class InvitationOverview {
 
   constructor(
     private readonly db: DbInstance,
-    log: FastifyBaseLogger,
+    private readonly log: FastifyBaseLogger,
   ) {
     this.rules = new InvitationRules(db, log);
   }
@@ -108,12 +128,20 @@ export class InvitationOverview {
     const today = todayInTz(timezone);
 
     const quota = await this.rules.computeQuota(ctx, userId, timezone, this.db);
+    const conditions = await this.buildConditions(
+      ctx,
+      userId,
+      user,
+      quota,
+      input.settings,
+    );
     const invitees = await this.buildInvitees(ctx, userId, input, today);
     const invitedBy = await this.buildInvitedBy(ctx, userId, today);
 
     return {
       invitations: {
         quota,
+        conditions,
         inviteUrl: buildInviteUrl(input.referralCode),
         invitees,
         discount: {
@@ -123,6 +151,61 @@ export class InvitationOverview {
         },
       },
       invitedBy,
+    };
+  }
+
+  // ─── Condiciones del programa (config del servidor, no de la app) ───────
+
+  /**
+   * Condiciones que la pantalla "Mis invitados" lista. Todo sale de los settings y
+   * de las reglas existentes: `canInvite` es `evaluateInviterCanInvite` (la misma
+   * regla que la activación) reusando el cupo que el overview ya contó; el país
+   * del socio (accesos y tope en dinero) es el de su sede, virtual incluida.
+   */
+  private async buildConditions(
+    ctx: TenantContext,
+    userId: number,
+    user: { timezone: string; country: string } | undefined,
+    quota: InviterQuota,
+    knownSettings: InvitationSettings | undefined,
+  ): Promise<InvitationConditionsView> {
+    const settings =
+      knownSettings ?? (await getInvitationSettings(this.db, ctx, this.log));
+    const timezone = user?.timezone ?? DEFAULT_TENANT_TIMEZONE;
+    const country = toCountryCode(user?.country);
+
+    const verdict = await this.rules.evaluateInviterCanInvite(
+      ctx,
+      userId,
+      this.db,
+      user ? { timezone, quota } : undefined,
+    );
+    const accesses = await getInvitationAccessesPerCountry(this.db, ctx);
+    const capAmount = settings.discountCapAmount[country];
+
+    return {
+      monthlyQuota: quota.limit,
+      quotaRenewsOn: `${shiftMonth(quota.month, 1)}-01`,
+      canInvite: verdict.canInvite,
+      // `inviter_not_found` (el overview de un usuario sin sede) se ve igual que "sin membresía".
+      cannotInviteReason: verdict.canInvite
+        ? null
+        : verdict.reason === "inviter_quota_exhausted"
+          ? "inviter_quota_exhausted"
+          : "inviter_not_member",
+      exMemberInactivityMonths: settings.exMemberInactivityMonths,
+      reinviteWindowDays: settings.reinviteWindowDays,
+      accessesPerInvitation: accesses[country],
+      accessBusinessDays: settings.accessBusinessDays,
+      latePurchaseWindowDays: settings.latePurchaseWindowDays,
+      inviteePercent: settings.inviteePercent,
+      perInviteePercent: settings.perLinkPercent,
+      maxPercentCap: settings.maxPercentCap,
+      discountCapAmount:
+        capAmount === null
+          ? null
+          : { amount: capAmount, currency: currencyOfCountry(country) },
+      cancelWindowMinutes: BOOKING_CANCEL_WINDOW_MINUTES,
     };
   }
 
@@ -375,6 +458,18 @@ export class InvitationOverview {
       channel: row.channel,
     };
   }
+}
+
+/** País de la sede como `CountryCode`; sin sede (o país fuera de AR/ES) cae a AR, el default de `branches.country`. */
+function toCountryCode(country: string | undefined): CountryCode {
+  return (INVITATION_CAP_COUNTRIES as readonly string[]).includes(country ?? "")
+    ? (country as CountryCode)
+    : "AR";
+}
+
+/** Moneda del tope por país: la misma convención de los planes (ES -> EUR, resto -> ARS). */
+function currencyOfCountry(country: CountryCode): string {
+  return country === "ES" ? "EUR" : "ARS";
 }
 
 /** Nombre de pila + inicial del apellido en mayúscula (T-194-63). */

@@ -1,116 +1,157 @@
 <!-- Pantalla "Mis invitados" (Fase 194, SC-5): reemplaza a la vieja pantalla de referidos (fases 158/194).
-     Cupo, link, estados y descuento los calcula el servidor (GET /members/referrals, bloque `invitations`):
-     la app solo los muestra. El link lo arma el servidor (T-194-85), el cliente no construye URLs. -->
+     Cupo, link, estados, descuento y condiciones los calcula el servidor (GET /members/referrals, bloque
+     `invitations`): la app solo los muestra. El link lo arma el servidor (T-194-85), el cliente no construye URLs.
+     2026-10-29: lenguaje del rework (como Perfil) + "Cómo funciona" con las condiciones aprobadas por Franco
+     (`.docs/mis-invitados-condiciones.md`), con los números de la configuración. -->
 <template>
-  <q-page class="invitados-page" padding>
-    <p class="page-title">Mis invitados</p>
+  <q-page class="invitados-page">
+    <div class="invitados-wrap">
+      <header class="invitados-head">
+        <h1 class="invitados-head__title">Mis invitados</h1>
+        <p class="invitados-head__lead">Invitá a alguien a entrenar con vos.</p>
+      </header>
 
-    <!-- Loading -->
-    <div v-if="loading" class="invitados-loading">
-      <TemploLoader />
-    </div>
+      <!-- Loading: esqueleto del alto de la card de cupo (fase 203, sin saltos al llegar el dato) -->
+      <CardSkeleton v-if="loading" :height="236" :radius="16" label="Cargando tus invitaciones" />
 
-    <!-- Load error -->
-    <div v-else-if="loadError" class="invitados-error">
-      <q-icon name="error_outline" size="40px" color="negative" />
-      <p class="invitados-error__text">No pudimos cargar tus invitaciones.</p>
-      <q-btn color="primary" unelevated label="Reintentar" no-caps @click="fetchOverview" />
-    </div>
-
-    <!-- Loaded -->
-    <template v-else-if="overview">
-      <!-- Bloque 1: cupo + invitar -->
-      <div class="info-card q-mb-md">
-        <q-icon name="card_giftcard" size="24px" color="primary" class="info-card__icon" />
-        <div class="info-card__content">
-          <span class="info-card__label">Tus invitaciones</span>
-          <span class="quota-headline">{{ quotaLabel }}</span>
-          <q-btn
-            class="q-mt-md"
-            color="primary"
-            unelevated
-            no-caps
-            icon="share"
-            label="Invitar a alguien"
-            :disabled="quotaExhausted"
-            :loading="sharing"
-            @click="shareInvitation"
-          />
-        </div>
+      <!-- Load error -->
+      <div v-else-if="loadError" class="invitados-card invitados-error">
+        <q-icon name="error_outline" size="32px" class="invitados-error__icon" aria-hidden="true" />
+        <p class="invitados-error__text">No pudimos cargar tus invitaciones.</p>
+        <button type="button" class="invitados-cta" @click="fetchOverview">Reintentar</button>
       </div>
 
-      <!-- Bloque 2: descuento vigente -->
-      <div class="info-card q-mb-md">
-        <q-icon name="local_offer" size="24px" color="primary" class="info-card__icon" />
-        <div class="info-card__content">
-          <span class="info-card__label">Tu descuento por invitaciones</span>
-          <span
-            class="discount-headline"
-            :class="{ 'discount-headline--muted': overview.invitations.discount.percent <= 0 }"
-            >{{ discountLabel }}</span
-          >
-        </div>
-      </div>
-
-      <!-- Bloque 3: quién me invitó -->
-      <template v-if="overview.invitedBy">
-        <p class="section-title">Te invitó</p>
-        <div class="links-card q-mb-md">
-          <div class="link-row">
-            <div class="link-row__main">
-              <span class="link-row__name">{{
-                inviterDisplayName(overview.invitedBy.inviterName)
-              }}</span>
-              <span class="link-row__caption">{{ invitedByCaption }}</span>
+      <!-- Loaded -->
+      <template v-else-if="overview">
+        <!-- Cupo + invitar + descuento -->
+        <section class="invitados-section">
+          <h2 class="invitados-title">Tus invitaciones</h2>
+          <div class="invitados-card">
+            <div class="quota">
+              <p class="quota__headline">{{ quotaLabel }}</p>
+              <p v-if="renewalLabel" class="quota__caption">{{ renewalLabel }}</p>
+              <button
+                type="button"
+                class="invitados-cta quota__cta"
+                :disabled="!canInvite || sharing"
+                :aria-busy="sharing"
+                @click="shareInvitation"
+              >
+                <q-icon name="share" size="20px" aria-hidden="true" />
+                <span>Invitar a alguien</span>
+              </button>
+              <p v-if="cannotInviteLabel" class="quota__blocked">
+                <q-icon name="info" size="18px" aria-hidden="true" />
+                <span>{{ cannotInviteLabel }}</span>
+              </p>
             </div>
-            <q-chip
-              :color="invitedByStageColor(overview.invitedBy.stage)"
-              text-color="white"
-              dense
-              :label="invitedByStageLabel(overview.invitedBy.stage)"
-            />
-          </div>
-        </div>
-      </template>
-
-      <!-- Bloque 4: mis invitados -->
-      <template v-if="overview.invitations.invitees.length > 0">
-        <p class="section-title">Invitaste a</p>
-        <div class="links-card q-mb-md">
-          <div
-            v-for="invitee in overview.invitations.invitees"
-            :key="`${invitee.source}-${invitee.userId}`"
-            class="link-row"
-          >
-            <q-avatar color="primary" text-color="white" size="36px" class="link-row__avatar">
-              {{ initialOf(invitee.firstName) }}
-            </q-avatar>
-            <div class="link-row__main">
-              <span class="link-row__name">{{ inviteeName(invitee) }}</span>
-              <span v-if="inviteeCaption(invitee)" class="link-row__caption">{{
-                inviteeCaption(invitee)
-              }}</span>
+            <div class="invitados-row">
+              <q-icon
+                name="local_offer"
+                size="22px"
+                class="invitados-row__icon"
+                aria-hidden="true"
+              />
+              <div class="invitados-row__text">
+                <span class="invitados-row__label">Tu descuento por invitaciones</span>
+                <span
+                  class="invitados-row__value"
+                  :class="{
+                    'invitados-row__value--muted': overview.invitations.discount.percent <= 0,
+                  }"
+                  >{{ discountLabel }}</span
+                >
+                <span v-if="activeInviteesLabel" class="invitados-row__caption">{{
+                  activeInviteesLabel
+                }}</span>
+              </div>
             </div>
-            <q-chip
-              :color="inviteeStateColor(invitee.state)"
-              text-color="white"
-              dense
-              :label="inviteeStateLabel(invitee.state)"
-            />
           </div>
-        </div>
-      </template>
+        </section>
 
-      <!-- Estado vacío -->
-      <div v-else class="invitados-empty">
-        <q-icon name="group_add" size="48px" color="primary" />
-        <p class="invitados-empty__heading">Todavía no invitaste a nadie</p>
-        <p class="invitados-empty__body">
-          Compartí tu link con quien quieras que entrene con vos. Mientras los dos sean activos,
-          obtienen un descuento en su cuota.
-        </p>
-      </div>
-    </template>
+        <!-- Sin invitados todavía, "Cómo funciona" va enseguida del cupo (pedido de Franco
+             2026-10-29). Sin el bloque de condiciones (API vieja durante un deploy) no se muestra
+             nada antes que inventar números. -->
+        <InvitationRules v-if="!hasInvitees && groups.length > 0" :groups="groups" />
+
+        <!-- Quién me invitó -->
+        <section v-if="overview.invitedBy" class="invitados-section">
+          <h2 class="invitados-title">Te invitó</h2>
+          <div class="invitados-card">
+            <div class="invitados-row">
+              <div class="invitados-avatar" aria-hidden="true">
+                {{ initialOf(overview.invitedBy.inviterName) }}
+              </div>
+              <div class="invitados-row__text">
+                <span class="invitados-row__value">{{
+                  inviterDisplayName(overview.invitedBy.inviterName)
+                }}</span>
+                <span v-if="invitedByCaption" class="invitados-row__caption">{{
+                  invitedByCaption
+                }}</span>
+              </div>
+              <span
+                class="invitados-pill"
+                :class="`invitados-pill--${invitedByStageTone(overview.invitedBy.stage)}`"
+                >{{ invitedByStageLabel(overview.invitedBy.stage) }}</span
+              >
+            </div>
+          </div>
+        </section>
+
+        <!-- Mis invitados -->
+        <section class="invitados-section">
+          <h2 class="invitados-title">Invitaste a</h2>
+          <div class="invitados-card">
+            <template v-if="hasInvitees">
+              <div
+                v-for="invitee in overview.invitations.invitees"
+                :key="`${invitee.source}-${invitee.invitationId ?? 'link'}-${invitee.userId}`"
+                class="invitados-row"
+              >
+                <div class="invitados-avatar" aria-hidden="true">
+                  {{ initialOf(invitee.firstName) }}
+                </div>
+                <div class="invitados-row__text">
+                  <span class="invitados-row__value">{{ inviteeName(invitee) }}</span>
+                  <span v-if="inviteeCaption(invitee)" class="invitados-row__caption">{{
+                    inviteeCaption(invitee)
+                  }}</span>
+                  <span
+                    v-if="discountNote(invitee)"
+                    class="invitados-row__note"
+                    :class="{ 'invitados-row__note--on': invitee.sumaDescuento }"
+                    >{{ discountNote(invitee) }}</span
+                  >
+                </div>
+                <span
+                  class="invitados-pill"
+                  :class="`invitados-pill--${inviteeStateTone(invitee.state)}`"
+                  >{{ inviteeStateLabel(invitee.state) }}</span
+                >
+              </div>
+            </template>
+
+            <!-- Estado vacío -->
+            <div v-else class="invitados-empty">
+              <q-icon
+                name="group_add"
+                size="36px"
+                class="invitados-empty__icon"
+                aria-hidden="true"
+              />
+              <p class="invitados-empty__heading">Todavía no invitaste a nadie</p>
+              <p class="invitados-empty__body">
+                Compartí tu link con quien quieras que entrene con vos.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Cómo funciona al final cuando ya hay invitados (sin invitados va arriba). -->
+        <InvitationRules v-if="hasInvitees && groups.length > 0" :groups="groups" />
+      </template>
+    </div>
   </q-page>
 </template>
 
@@ -122,21 +163,30 @@ import { createLogger } from 'src/utils/logger'
 import { copyWithFallback } from 'src/utils/clipboard'
 import { extractError } from 'src/utils/extract-error'
 import { useUserStore } from 'src/stores/useUserStore'
-import TemploLoader from 'src/components/TemploLoader.vue'
+import CardSkeleton from 'src/components/CardSkeleton.vue'
+import InvitationRules from 'src/components/InvitationRules.vue'
 import {
   inviteeStateLabel,
-  inviteeStateColor,
+  inviteeStateTone,
   invitedByStageLabel,
-  invitedByStageColor,
+  invitedByStageTone,
+  inviteeDiscountNote,
   quotaText,
   accessesText,
   expiryText,
   discountText,
+  activeInviteesText,
   shareMessage,
   inviterDisplayName,
   type InviteeState,
   type InvitedByStage,
 } from 'src/utils/invitation-view'
+import {
+  conditionGroups,
+  quotaRenewalText,
+  cannotInviteText,
+  type InvitationConditions,
+} from 'src/utils/invitation-conditions'
 
 // Contrato de GET /api/members/referrals (194-19). Solo los campos que usa esta pantalla.
 interface InviteeView {
@@ -168,6 +218,8 @@ interface InvitationsOverview {
   inviteUrl: string
   invitees: InviteeView[]
   discount: { percent: number; activeInvitees: number }
+  /** 2026-10-29. Opcional: una API anterior al deploy no lo manda. */
+  conditions?: InvitationConditions
 }
 
 interface ReferralsResponse {
@@ -184,18 +236,31 @@ const loadError = ref(false)
 const sharing = ref(false)
 const overview = ref<ReferralsResponse | null>(null)
 
-const quotaExhausted = computed(() => (overview.value?.invitations.quota.remaining ?? 0) <= 0)
+const conditions = computed(() => overview.value?.invitations.conditions ?? null)
+
+// E2: sin plan vigente el botón se deshabilita (lo decide el servidor). Sin el bloque de
+// condiciones (API vieja) queda la regla de antes: solo el cupo.
+const canInvite = computed(() => {
+  if (!overview.value) return false
+  return conditions.value
+    ? conditions.value.canInvite
+    : overview.value.invitations.quota.remaining > 0
+})
+const cannotInviteLabel = computed(() =>
+  conditions.value ? cannotInviteText(conditions.value) : '',
+)
 const quotaLabel = computed(() =>
   overview.value ? quotaText(overview.value.invitations.quota) : '',
 )
+const renewalLabel = computed(() => (conditions.value ? quotaRenewalText(conditions.value) : ''))
 const discountLabel = computed(() =>
-  overview.value
-    ? discountText(
-        overview.value.invitations.discount.percent,
-        overview.value.invitations.discount.activeInvitees,
-      )
-    : '',
+  overview.value ? discountText(overview.value.invitations.discount.percent) : '',
 )
+const activeInviteesLabel = computed(() =>
+  overview.value ? activeInviteesText(overview.value.invitations.discount.activeInvitees) : '',
+)
+const groups = computed(() => (conditions.value ? conditionGroups(conditions.value) : []))
+const hasInvitees = computed(() => (overview.value?.invitations.invitees.length ?? 0) > 0)
 
 const invitedByCaption = computed(() => {
   const by = overview.value?.invitedBy
@@ -207,6 +272,10 @@ const invitedByCaption = computed(() => {
 
 function initialOf(firstName: string): string {
   return firstName.trim().charAt(0).toUpperCase()
+}
+
+function discountNote(invitee: InviteeView): string {
+  return inviteeDiscountNote(invitee, overview.value?.invitations.invitees ?? [])
 }
 
 function inviteeName(invitee: InviteeView): string {
@@ -300,172 +369,286 @@ onMounted(fetchOverview)
 </script>
 
 <style scoped lang="scss">
-@import 'src/css/quasar.variables.scss';
+@import 'src/css/brand';
+@import 'src/css/premium-card';
 
+@include pd-sheen-keyframes;
+
+// Lenguaje del rework (como Perfil, 2026-10-28): página transparente sobre `.app-bg`, títulos de
+// bloque en tinta, cards blancas con borde cálido, filas con ícono terracota y pills de Reservas.
 .invitados-page {
-  max-width: 600px;
-  margin: 0 auto;
+  background-color: transparent; // la foto de fondo (.app-bg) se ve detrás
 }
 
-.page-title {
-  font-family: 'Montserrat', sans-serif;
-  font-size: 20px;
-  font-weight: 700;
-  color: $primary;
-  margin: 8px 0 16px;
-}
-
-.invitados-loading {
-  display: flex;
-  justify-content: center;
-  padding: 48px 0;
-}
-
-.invitados-error {
+.invitados-wrap {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  padding: 48px 16px;
-  text-align: center;
+  gap: 16px;
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 16px 16px 32px;
+}
 
-  &__text {
-    font-size: 14px;
-    color: $grey-7;
+.invitados-head {
+  &__title {
     margin: 0;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1.25;
+    color: $pd-ink;
+  }
+
+  &__lead {
+    margin: 2px 0 0;
+    font-family: 'Geologica', sans-serif;
+    font-size: 14px;
+    color: $pd-ink;
   }
 }
 
-.section-title {
-  font-family: 'Montserrat', sans-serif;
-  font-size: 16px;
-  font-weight: 600;
-  color: rgba($primary, 0.6);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin: 4px 0 8px;
-}
-
-.info-card {
+.invitados-section {
   display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 16px;
-  background: white;
-  border: 1px solid rgba($primary, 0.15);
-  border-radius: 12px;
-  border-left: 4px solid $primary;
-
-  &__icon {
-    flex-shrink: 0;
-    margin-top: 2px;
-  }
-
-  &__content {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-  }
-
-  &__label {
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: rgba($primary, 0.5);
-    display: block;
-  }
+  flex-direction: column;
+  gap: 8px; // título → card
 }
 
-.quota-headline {
-  font-family: 'Montserrat', sans-serif;
-  font-size: 18px;
-  line-height: 1.3;
-  font-weight: 700;
-  color: $primary;
-  margin-top: 4px;
+// Sobre la PÁGINA el título va en tinta (terracota no llega a AA ahí).
+.invitados-title {
+  @include mt-block-title;
+  margin: 0;
+  color: $pd-ink;
 }
 
-.discount-headline {
-  font-family: 'Montserrat', sans-serif;
-  font-size: 18px;
-  line-height: 1.3;
-  font-weight: 700;
-  color: $primary;
-  margin-top: 4px;
-
-  &--muted {
-    color: rgba($primary, 0.6);
-  }
-}
-
-.links-card {
-  background: white;
-  border: 1px solid rgba($primary, 0.15);
-  border-radius: 12px;
-  border-left: 4px solid $primary;
+.invitados-card {
+  @include pd-surface-light;
   overflow: hidden;
 }
 
-.link-row {
+.invitados-cta {
+  @include pd-cta;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  &:disabled {
+    @include pd-cta-disabled;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $pd-terra-ink;
+    outline-offset: 2px;
+  }
+}
+
+// ── Cupo ──
+.quota {
+  padding: 16px;
+
+  &__headline {
+    margin: 0;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 19px;
+    font-weight: 700;
+    line-height: 1.3;
+    color: $pd-ink;
+  }
+
+  &__caption {
+    margin: 4px 0 0;
+    font-family: 'Geologica', sans-serif;
+    font-size: 13.5px;
+    color: $pd-ink-2;
+  }
+
+  &__cta {
+    margin-top: 14px;
+  }
+
+  &__blocked {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    margin: 10px 0 0;
+    font-family: 'Geologica', sans-serif;
+    font-size: 13.5px;
+    line-height: 1.4;
+    color: $pd-ink-2;
+
+    .q-icon {
+      flex: none;
+      margin-top: 1px;
+      color: $pd-terra-ink;
+    }
+  }
+}
+
+// ── Filas: ícono terracota o inicial, texto y pill ──
+.invitados-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 14px;
+  min-height: 52px;
   padding: 12px 16px;
+  border-top: 1px solid $pd-light-line;
 
-  & + & {
-    border-top: 1px solid rgba($primary, 0.08);
+  &:first-child {
+    border-top: 0;
   }
 
-  &__avatar {
-    flex-shrink: 0;
+  &__icon {
+    flex: none;
+    color: $pd-terra-ink;
   }
 
-  &__main {
+  &__text {
     display: flex;
     flex-direction: column;
+    gap: 2px;
     flex: 1;
     min-width: 0;
   }
 
-  &__name {
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.5;
-    color: $primary;
+  &__label {
+    @include pd-label-11;
+    color: $pd-ink-2;
+  }
+
+  &__value {
+    font-family: 'Geologica', sans-serif;
+    font-size: 15px;
+    font-weight: 500;
+    color: $pd-ink;
+    overflow-wrap: anywhere;
+
+    &--muted {
+      color: $pd-ink-2;
+    }
   }
 
   &__caption {
-    font-size: 12px;
+    font-family: 'Geologica', sans-serif;
+    font-size: 13px;
     line-height: 1.4;
-    color: $grey-6;
-    margin-top: 2px;
+    color: $pd-ink-2;
+  }
+
+  // E3: si el invitado suma a mi descuento (salvia) o no (tinta secundaria).
+  &__note {
+    font-family: 'Geologica', sans-serif;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: $pd-ink-2;
+
+    &--on {
+      color: $pd-sage;
+    }
   }
 }
 
+.invitados-avatar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, $pd-btn-a, $pd-btn-b); // blanco encima ≥ 4.9:1
+  font-family: 'Montserrat', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+}
+
+// Mismas pills del rework que Reservas (.week-pill), más el tono terracota de "Entrenando".
+.invitados-pill {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-family: 'Geologica', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+
+  &--ok {
+    color: $pd-sage;
+    background: $pd-sage-tint;
+  }
+
+  &--neutral {
+    color: $pd-ink-3;
+    background: #f3ede4;
+  }
+
+  &--warn {
+    color: $pd-gold-ink;
+    background: $pd-gold-tint;
+  }
+
+  &--bad {
+    color: $pd-neg-title;
+    background: #f7e6e2;
+  }
+
+  &--terra {
+    color: $pd-btn-b; // 6.9:1 sobre el tinte
+    background: #f6e9e0;
+  }
+}
+
+// ── Estado vacío (dentro de la card) ──
 .invitados-empty {
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
-  padding: 32px 16px;
+  padding: 24px 16px;
+
+  &__icon {
+    color: $pd-terra-ink;
+  }
 
   &__heading {
+    margin: 10px 0 4px;
     font-family: 'Montserrat', sans-serif;
     font-size: 16px;
-    font-weight: 600;
-    color: $primary;
-    margin: 16px 0 8px;
+    font-weight: 700;
+    color: $pd-ink;
   }
 
   &__body {
-    font-size: 14px;
-    line-height: 1.5;
-    color: $grey-7;
     margin: 0;
     max-width: 340px;
+    font-family: 'Geologica', sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    color: $pd-ink-2;
+  }
+}
+
+// ── Error ──
+.invitados-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 24px 16px;
+  text-align: center;
+
+  &__icon {
+    color: $pd-neg-title;
+  }
+
+  &__text {
+    margin: 0;
+    font-family: 'Geologica', sans-serif;
+    font-size: 14px;
+    color: $pd-ink-2;
   }
 }
 </style>

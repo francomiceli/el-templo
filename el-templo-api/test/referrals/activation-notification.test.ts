@@ -18,6 +18,12 @@ import {
   createMember,
   assignPlan,
 } from "../subscriptions/_helpers";
+import {
+  createActiveSub,
+  createMembershipPlan,
+  fixtureCtx,
+  type InvitationsFixtureCtx,
+} from "../invitations/_helpers";
 import { NotificationService } from "../../src/modules/notifications/service";
 import type { TenantContext } from "../../src/modules/shared/tenant";
 
@@ -26,9 +32,11 @@ const CTX: TenantContext = { tenantId: 1 };
 
 let app: FastifyInstance;
 let adminToken: string;
+let fixtures: InvitationsFixtureCtx;
 
 beforeAll(async () => {
   app = await createTestApp();
+  fixtures = fixtureCtx(app);
   adminToken = await getAuthToken(app, "admin@test.com", "adminpass123");
 });
 
@@ -63,6 +71,15 @@ async function link(
     sql`INSERT INTO referrals (tenant_id, referrer_id, referred_id, status, attribution_channel)
         VALUES (${CTX.tenantId}, ${referrerId}, ${referredId}, ${status}, 'assisted')`,
   );
+}
+
+/**
+ * F3: el aviso solo sale si el referidor tiene membresía vigente hoy (la misma
+ * regla que D-10d). Le da una membresía real (no `is_trial`) con 20 días por delante.
+ */
+async function giveMembership(userId: number): Promise<void> {
+  const plan = await createMembershipPlan(fixtures);
+  await createActiveSub(fixtures, { userId, planId: plan.id });
 }
 
 /** Registra un device token para el usuario (sin él, queueNotification skippea -1). */
@@ -101,6 +118,7 @@ describe("Referral activation notification on first payment", () => {
       firstName: "Nacho",
     });
     await link(referrer.id, referred.id, "pending");
+    await giveMembership(referrer.id);
     await giveDeviceToken(referrer.id);
 
     const res = await assignPlan(app, adminToken, referred.id, {
@@ -138,6 +156,7 @@ describe("Referral activation notification on first payment", () => {
     // encuentra un pending que flippear → qualifyFirstPayment devuelve null →
     // el hook no encola. Así se prueba que la notificación no se duplica.
     await link(referrer.id, referred.id, "qualified");
+    await giveMembership(referrer.id);
     await giveDeviceToken(referrer.id);
 
     const res = await assignPlan(app, adminToken, referred.id, {
@@ -161,6 +180,7 @@ describe("Referral activation notification on first payment", () => {
       firstName: "Nacho",
     });
     await link(referrer.id, referred.id, "pending");
+    await giveMembership(referrer.id);
     // Referidor SIN device token → queueNotification devuelve -1 (skip).
 
     const res = await assignPlan(app, adminToken, referred.id, {
@@ -176,5 +196,36 @@ describe("Referral activation notification on first payment", () => {
     expect((l[0] as Array<{ status: string }>)[0]?.status).toBe("qualified");
 
     expect(await readNotifications(referrer.id)).toHaveLength(0);
+  });
+
+  it("F3: referidor SIN membresía vigente: el vínculo legacy igual cualifica pero no se le encola el aviso", async () => {
+    const plan = await createPlan(app, adminToken, {
+      allowsInvitationDiscount: true,
+    });
+    const referrer = await createMember(app, {
+      email: "an4-r@test.com",
+      firstName: "Referidor",
+    });
+    const referred = await createMember(app, {
+      email: "an4-d@test.com",
+      firstName: "Nacho",
+    });
+    await link(referrer.id, referred.id, "pending");
+    // Con device token (el aviso se podría entregar), pero sin ninguna membresía.
+    await giveDeviceToken(referrer.id);
+
+    const res = await assignPlan(app, adminToken, referred.id, {
+      planId: plan.id,
+    });
+    expect(res.statusCode).toBe(201);
+
+    const l = await app.db.execute(
+      sql`/* tenant-safe: lectura por referred_id, UNIQUE (D-14/REF-04) */ SELECT status FROM referrals WHERE referred_id = ${referred.id} LIMIT 1`,
+    );
+    expect((l[0] as unknown as Array<{ status: string }>)[0]?.status).toBe(
+      "qualified",
+    );
+    expect(await readNotifications(referrer.id)).toHaveLength(0);
+    expect(await readNotifications(referred.id)).toHaveLength(0);
   });
 });

@@ -96,6 +96,7 @@ describe('pending-invitation (Fase 194-28)', () => {
       'invitee_recent_invitation',
       'self_invite',
       'inviter_not_found',
+      'invitee_other_country',
     ]) {
       expect(isDefinitiveInvitationReason(reason)).toBe(true)
     }

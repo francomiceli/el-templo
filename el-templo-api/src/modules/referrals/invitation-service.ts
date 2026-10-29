@@ -45,6 +45,7 @@ import { InvitationRules, type InvitationExecutor } from "./invitation-rules";
 import { ReferralService } from "./service";
 import {
   ACTIVATION_FAILED_REASON,
+  BRANCH_OTHER_COUNTRY_MESSAGE,
   InvitationRuleError,
   INVITEE_MESSAGES,
   type ActivatedInvitation,
@@ -109,11 +110,11 @@ export class InvitationService {
    * puede invitar NO lanza: devuelve `eligible:false` con el motivo, para que la
    * pantalla explique por qué. T-194-35: solo el NOMBRE DE PILA del invitador.
    *
-   * País de referencia (para el plan Invitación y las sedes a elegir): el de la
-   * sede FÍSICA actual del socio; si está en la sede virtual, el de la sede
-   * destino elegida (`branchId`); sin ninguna de las dos, `accessesBudget` es
-   * null y se listan las sedes físicas de todos los países. `activate` usa la
-   * misma regla, así el texto nunca difiere del plan que se asigna.
+   * País (para el plan Invitación y las sedes a elegir): los países nunca se
+   * cruzan, así que es SIEMPRE el de la sede del INVITADOR. Se listan solo sus
+   * sedes físicas activas; una sede elegida de otro país es 400 y un invitado que
+   * ya entrena en una sede física de otro país es `invitee_other_country`.
+   * `activate` usa la misma regla, así el texto nunca difiere del plan que se asigna.
    */
   async previewActivation(
     ctx: TenantContext,
@@ -145,6 +146,11 @@ export class InvitationService {
     const invitee = people.find((p) => p.id === input.invitedUserId);
     if (!invitee) throw new NotFoundError("Alumno no encontrado");
     const inviter = people.find((p) => p.id === inviterId);
+    // F1: país del invitador (null si el invitador ya no existe: el motivo es
+    // `inviter_not_found` y no hay sedes que ofrecer).
+    const inviterCountry = inviter
+      ? (await this.loadBranch(ctx, inviter.branchId, this.db)).country
+      : null;
 
     const current = await this.loadBranch(ctx, invitee.branchId, this.db);
     const chosen =
@@ -156,8 +162,12 @@ export class InvitationService {
         "Elegí una sede física para activar la invitación",
       );
     }
-    if (chosen && !current.isVirtual && current.country !== chosen.country) {
-      throw new BadRequestError("La sede elegida es de otro país");
+    if (
+      chosen &&
+      inviterCountry !== null &&
+      chosen.country !== inviterCountry
+    ) {
+      throw new BadRequestError(BRANCH_OTHER_COUNTRY_MESSAGE);
     }
     const reference = !current.isVirtual ? current : chosen;
 
@@ -187,31 +197,32 @@ export class InvitationService {
       }
     }
 
-    const branches = await this.db
-      .select({
-        id: schema.branches.id,
-        name: schema.branches.name,
-        country: schema.branches.country,
-      })
-      .from(schema.branches)
-      .where(
-        and(
-          tenantWhere(schema.branches, ctx),
-          eq(schema.branches.isVirtual, false),
-          eq(schema.branches.isActive, true),
-          reference
-            ? eq(schema.branches.country, reference.country)
-            : undefined,
-        ),
-      )
-      .orderBy(schema.branches.country, schema.branches.name);
+    const branches =
+      inviterCountry === null
+        ? []
+        : await this.db
+            .select({
+              id: schema.branches.id,
+              name: schema.branches.name,
+              country: schema.branches.country,
+            })
+            .from(schema.branches)
+            .where(
+              and(
+                tenantWhere(schema.branches, ctx),
+                eq(schema.branches.isVirtual, false),
+                eq(schema.branches.isActive, true),
+                eq(schema.branches.country, inviterCountry),
+              ),
+            )
+            .orderBy(schema.branches.country, schema.branches.name);
 
     let accessesBudget: number | null = null;
-    if (reference) {
+    if (inviterCountry !== null) {
       try {
         const plan = await subscriptionService.findInvitationPlan(
           ctx,
-          reference.country,
+          inviterCountry,
         );
         accessesBudget = plan.classesPerWeek ?? null;
       } catch (err: unknown) {
@@ -323,12 +334,14 @@ export class InvitationService {
           "Elegí una sede física para activar la invitación",
         );
       }
-      // Un invitado que ya entrena en una sede FÍSICA de otro país no se
-      // muda de país por una invitación. Uno en la sede virtual (el registro
-      // sin sede) no tiene país propio: elige libremente.
-      const current = await this.loadBranch(ctx, invitee.branchId, tx);
-      if (!current.isVirtual && current.country !== branch.country) {
-        throw new BadRequestError("La sede elegida es de otro país");
+      // F1: los países nunca se cruzan. La sede elegida tiene que ser del país
+      // del INVITADOR; un invitado que ya entrena en una sede física de otro país
+      // lo corta `assertInviteeEligible` (`invitee_other_country`). Uno en la sede
+      // virtual (el registro sin sede) no tiene país propio y elige dentro del
+      // país del invitador.
+      const inviterBranch = await this.loadBranch(ctx, inviter.branchId, tx);
+      if (branch.country !== inviterBranch.country) {
+        throw new BadRequestError(BRANCH_OTHER_COUNTRY_MESSAGE);
       }
 
       // D-11 + D-12 + identidad, bajo el lock.
@@ -646,6 +659,28 @@ export class InvitationService {
     );
     if (id === null) throw new InvitationRuleError("inviter_not_found");
     return id;
+  }
+
+  /**
+   * F1 para quien necesita validar la sede ANTES de crear algo (alta "Nuevo en
+   * Prueba" con "Lo invita"): la sede tiene que ser del país del invitador, la misma
+   * regla (y el mismo 400) que aplica `activate`.
+   */
+  async assertBranchInInviterCountry(
+    ctx: TenantContext,
+    inviterId: number,
+    branchId: number,
+  ): Promise<void> {
+    const inviter = await this.rules.loadUserWithTimezone(
+      ctx,
+      inviterId,
+      this.db,
+    );
+    if (!inviter) throw new InvitationRuleError("inviter_not_found");
+    const branch = await this.loadBranch(ctx, branchId, this.db);
+    if (branch.country !== inviter.country) {
+      throw new BadRequestError(BRANCH_OTHER_COUNTRY_MESSAGE);
+    }
   }
 
   /** Sede del tenant (404 si no existe o es de otro gimnasio). */

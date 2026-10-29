@@ -170,14 +170,15 @@ describe("Fase 194 D-06 — rutas de invitaciones del socio (app)", () => {
       );
     });
 
-    it("socio en sede virtual: accessesBudget solo con la sede destino elegida, y sale del plan del país de esa sede", async () => {
+    it("socio en sede virtual: accessesBudget sale del plan del país del INVITADOR, con o sin sede destino elegida", async () => {
       const inviter = await createInviterWithCode(ctx);
       const invitee = await createInvitee();
 
+      // F1: los países nunca se cruzan, así que el plan se conoce antes de elegir sede.
       const sinSede = JSON.parse(
         (await get(`${ELIGIBILITY}?code=${inviter.code}`, invitee.token)).body,
       ) as PreviewBody;
-      expect(sinSede.accessesBudget).toBeNull();
+      expect(sinSede.accessesBudget).toBe(4);
 
       const conSede = await get(
         `${ELIGIBILITY}?code=${inviter.code}&branchId=${arBranch.id}`,
@@ -213,7 +214,7 @@ describe("Fase 194 D-06 — rutas de invitaciones del socio (app)", () => {
 
     it("país sin plan Invitación configurado: 200 con accessesBudget null (copy genérico)", async () => {
       const esBranch = await ensurePhysicalBranch(ctx, "ES");
-      const inviter = await createInviterWithCode(ctx);
+      const inviter = await createInviterWithCode(ctx, { country: "ES" });
       const invitee = await createInvitee();
       await moveToBranch(invitee.id, esBranch.id);
 

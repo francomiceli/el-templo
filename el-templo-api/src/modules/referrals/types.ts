@@ -102,9 +102,47 @@ export interface InviteeView {
   source: "invitation" | "legacy_link";
 }
 
+/**
+ * Condiciones del programa de Invitaciones para el socio (pantalla "Mis invitados").
+ * Todos los números salen de la configuración del servidor: la app no hardcodea ninguno.
+ * Los valores por país usan el país de la sede del socio (`branches.country`).
+ */
+export interface InvitationConditionsView {
+  /** Invitaciones por mes (= quota.limit, `invitations.monthly_quota`). */
+  monthlyQuota: number;
+  /** 'YYYY-MM-DD' del día 1 del mes siguiente en la tz de la sede del socio (cuándo se renueva el cupo). */
+  quotaRenewsOn: string;
+  /** El socio puede invitar HOY: membresía vigente (misma regla que assertInviterCanInvite) y cupo > 0. */
+  canInvite: boolean;
+  /** null si canInvite. Si no: los mismos `reason` de InvitationRuleError. */
+  cannotInviteReason: "inviter_not_member" | "inviter_quota_exhausted" | null;
+  /** Meses sin membresía para que un ex socio pueda ser invitado (`invitations.ex_member_inactivity_months`). */
+  exMemberInactivityMonths: number;
+  /** Días antes de poder reinvitar a la misma persona (`invitations.reinvite_window_days`). */
+  reinviteWindowDays: number;
+  /** Accesos gratis del plan Invitación del PAÍS de la sede del socio. null si no hay plan para ese país. */
+  accessesPerInvitation: number | null;
+  /** Vigencia de los accesos, en días hábiles (`invitations.access_business_days`). */
+  accessBusinessDays: number;
+  /** Días tras vencer los accesos en que una compra todavía da el descuento (`invitations.late_purchase_window_days`). */
+  latePurchaseWindowDays: number;
+  /** % de descuento del invitado (`invitations.invitee_percent`). */
+  inviteePercent: number;
+  /** % por cada invitado activo del lado invitador (aura_config referral). */
+  perInviteePercent: number;
+  /** Tope % total acumulable (`referral.max_percent_cap`). */
+  maxPercentCap: number;
+  /** Tope en dinero por cobro del país del socio; null si gestión no cargó uno. */
+  discountCapAmount: { amount: number; currency: string } | null;
+  /** Minutos antes de la clase hasta los que se puede cancelar una reserva. */
+  cancelWindowMinutes: number;
+}
+
 /** Bloque "Mis invitados" del overview (Fase 194-19). */
 export interface InvitationsOverview {
   quota: InviterQuota;
+  /** Condiciones del programa con los números de la configuración del servidor. */
+  conditions: InvitationConditionsView;
   /** URL de invitación armada server-side (T-194-66): `FRONTEND_URL` + `/invitacion/CODE`. */
   inviteUrl: string;
   invitees: InviteeView[];
