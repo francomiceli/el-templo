@@ -52,7 +52,6 @@ import {
 import { enabledModulesFor } from "../shared/module-flags";
 import { recordRegisterAttribution } from "../marketing/attribution-service";
 import type { SignupAttributionBody } from "../marketing/attribution-service";
-import { readAffectedRows } from "../shared/affected-rows";
 
 interface RegisterBody {
   email: string;
@@ -1286,7 +1285,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           .limit(1);
         return row;
       };
-      let existing = await readStories();
+      const existing = await readStories();
 
       // Redondeado al segundo: `member_profiles.intro_stories_*` son TIMESTAMP
       // sin fracción de segundo — MySQL REDONDEA (no trunca) al persistir un
@@ -1304,10 +1303,11 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       if (!existing) {
         // NODE-6K (2026-10-29): si entre el SELECT y acá otra request creó la
         // fila (el onboarding, o una doble apertura), un INSERT pelado chocaba
-        // con el UNIQUE de user_id → 500. El ON DUPLICATE KEY no toca nada
-        // (affectedRows 0): en ese caso se relee la fila y sigue por el camino
-        // idempotente de abajo, como si ya hubiera existido.
-        const inserted = await fastify.db
+        // con el UNIQUE de user_id → 500. El upsert aplica en el mismo SQL la
+        // regla idempotente de abajo (un timestamp ya estampado no se pisa) y
+        // la respuesta sale de releer la fila. No se mira `affectedRows`: mysql2
+        // conecta con FOUND_ROWS y un ON DUPLICATE sin cambios también da 1.
+        await fastify.db
           .insert(memberProfiles)
           .values(
             tenantValues(ctx, {
@@ -1317,20 +1317,20 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
               introStoriesLastSlide: lastSlide,
             }),
           )
-          .onDuplicateKeyUpdate({ set: { userId: sql`user_id` } });
+          .onDuplicateKeyUpdate({
+            set: {
+              introStoriesSeenAt: sql`COALESCE(intro_stories_seen_at, VALUES(intro_stories_seen_at))`,
+              introStoriesCompletedAt: sql`COALESCE(intro_stories_completed_at, VALUES(intro_stories_completed_at))`,
+              introStoriesLastSlide: sql`VALUES(intro_stories_last_slide)`,
+            },
+          });
 
-        if (readAffectedRows(inserted) === 1) {
-          return {
-            introStoriesSeenAt: event === "seen" ? now.toISOString() : null,
-            introStoriesCompletedAt:
-              event === "completed" ? now.toISOString() : null,
-            introStoriesLastSlide: lastSlide,
-          };
-        }
-        existing = await readStories();
-        if (!existing) {
-          throw new Error("member_profiles row vanished after upsert");
-        }
+        const row = await readStories();
+        return {
+          introStoriesSeenAt: row?.seenAt?.toISOString() ?? null,
+          introStoriesCompletedAt: row?.completedAt?.toISOString() ?? null,
+          introStoriesLastSlide: lastSlide,
+        };
       }
 
       const updates: {
