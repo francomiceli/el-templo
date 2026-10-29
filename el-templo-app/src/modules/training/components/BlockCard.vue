@@ -62,7 +62,7 @@
           <div v-for="exercise in block.exercises" :key="exercise.exerciseId" class="exercise-item">
             <span class="exercise-name">{{ exercise.exerciseName }}</span>
             <span class="exercise-prescription">{{
-              formatInlinePrescription(exercise, isPyramid)
+              formatInlinePrescription(exercise, doseShape)
             }}</span>
           </div>
         </div>
@@ -75,7 +75,7 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import type { Block, BlockRole } from '../types/session'
-import { formatInlinePrescription, isPyramidBlock } from '../utils/formatDose'
+import { doseShapeOf, formatInlinePrescription } from '../utils/formatDose'
 import { getRouteName } from '../utils/routeNames'
 import { ROLE_LABELS } from 'src/constants/roleLabels'
 import { getGuiaLinkForRole } from '../guia-role-map'
@@ -124,7 +124,7 @@ function romZoneLabel(role: BlockRole): string {
  */
 const guiaLink = computed(() => getGuiaLinkForRole(props.block.role))
 
-const isPyramid = computed(() => isPyramidBlock(props.block))
+const doseShape = computed(() => doseShapeOf(props.block))
 
 function openGuia() {
   const link = guiaLink.value

@@ -53,7 +53,7 @@ import { ROLE_LABELS } from 'src/constants/roleLabels'
 import type { Block, Prescription } from '../../types/session'
 import { getGuiaLinkForRole } from '../../guia-role-map'
 import { blockDisplayName, blockMetaLine, keepHyphenWords } from '../../utils/blockMeta'
-import { formatDose, formatQuickDose, isPyramidBlock } from '../../utils/formatDose'
+import { doseShapeOf, formatDose } from '../../utils/formatDose'
 
 interface Props {
   block: Block
@@ -81,11 +81,11 @@ function isDone(exerciseId: number): boolean {
   return doneSet.value === null || doneSet.value.has(exerciseId)
 }
 
-// formatDose no es consciente de las pirámides: para esos bloques se usa la versión compacta.
-const pyramid = computed(() => isPyramidBlock(props.block))
+// Pirámide y ladder dibujan su propia serie (doseShapeOf); el resto, la dosis de siempre.
+const doseShape = computed(() => doseShapeOf(props.block))
 
 function doseOf(ex: Prescription): string {
-  return pyramid.value ? formatQuickDose(ex, true) : formatDose(ex)
+  return formatDose(ex, doseShape.value)
 }
 
 const guiaLink = computed(() => (props.showGuia ? getGuiaLinkForRole(props.block.role) : null))

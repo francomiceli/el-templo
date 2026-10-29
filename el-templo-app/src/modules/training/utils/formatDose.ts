@@ -8,10 +8,12 @@ interface DoseFields {
   repsMax?: number | null
   secondsMax?: number | null
   increment?: number | null
+  contraction?: string | null
 }
 
-type PyramidFields = Pick<
-  Prescription,
+/** Lo que necesitan las series de pirámide y ladder (prescripción o movilidad). */
+type SeriesFields = Pick<
+  DoseFields,
   'contraction' | 'reps' | 'repsMax' | 'seconds' | 'secondsMax' | 'increment'
 >
 
@@ -26,6 +28,56 @@ export function isPyramidBlock(block: Pick<Block, 'format' | 'formatParams'>): b
   return typeof block.format === 'string' && block.format.trim().toLowerCase() === 'pyramid'
 }
 
+const LADDER_TYPES: ReadonlySet<string> = new Set([
+  'ladder',
+  'ladder_corta',
+  'ladder_block',
+  'broken_ladder',
+])
+
+/**
+ * Whether the block's doses are a ladder. Mismo criterio que `isLadderFormat`
+ * del editor del admin (constants/formats.ts) y que la TV.
+ */
+export function isLadderBlock(block: Pick<Block, 'format' | 'formatParams'>): boolean {
+  const type = block.formatParams?.type
+  if (typeof type === 'string' && type !== 'standard') return LADDER_TYPES.has(type)
+  return typeof block.format === 'string' && block.format.toLowerCase().includes('ladder')
+}
+
+/**
+ * Cómo se dibuja la dosis de un bloque (mismo criterio que la TV):
+ * - `pyramid`: serie de subida y bajada (`pyramidSequence`).
+ * - `ladder`: escalera por ejercicio (`ladderSequence`), con la variante del bloque.
+ * - `standard`: reps/segundos/rango/escalera Death By.
+ */
+export type DoseShape =
+  | { kind: 'standard' }
+  | { kind: 'pyramid' }
+  | { kind: 'ladder'; variant: string | null; blockSize: number | null; breakAfter: number | null }
+
+export const STANDARD_DOSE: DoseShape = { kind: 'standard' }
+export const PYRAMID_DOSE: DoseShape = { kind: 'pyramid' }
+
+function positiveOrNull(value: unknown): number | null {
+  const n = Number(value)
+  return Number.isFinite(n) && n > 0 ? n : null
+}
+
+export function doseShapeOf(block: Pick<Block, 'format' | 'formatParams'>): DoseShape {
+  if (isPyramidBlock(block)) return PYRAMID_DOSE
+  if (isLadderBlock(block)) {
+    const params = block.formatParams
+    return {
+      kind: 'ladder',
+      variant: typeof params?.type === 'string' ? params.type : null,
+      blockSize: positiveOrNull(params?.blockSize),
+      breakAfter: positiveOrNull(params?.breakAfter),
+    }
+  }
+  return STANDARD_DOSE
+}
+
 /**
  * Serie de una pirámide, sin unidad. Contrato del editor del admin y del PDF:
  * inicio en `repsMax`/`secondsMax`, paso en `increment`, pico en
@@ -38,7 +90,7 @@ export function isPyramidBlock(block: Pick<Block, 'format' | 'formatParams'>): b
  * Si los parámetros no arman una pirámide (falta inicio o paso, inicio > pico)
  * devuelve solo el pico; sin pico, ''.
  */
-export function pyramidSequence(exercise: PyramidFields): string {
+export function pyramidSequence(exercise: SeriesFields): string {
   const isIso = exercise.contraction === 'ISO'
   const start = (isIso ? exercise.secondsMax : exercise.repsMax) ?? 0
   const step = exercise.increment ?? 0
@@ -56,23 +108,77 @@ export function pyramidSequence(exercise: PyramidFields): string {
 }
 
 /**
- * Format prescription inline (compact format for block exercise lists).
- * Returns: "8 · CON" or "30s ISO". `pyramid` = the block is a pyramid
- * (`isPyramidBlock`).
+ * Escalera de un ejercicio en un bloque ladder. Contrato del editor del admin,
+ * del PDF y de la TV: inicio en `repsMax`/`secondsMax`, paso en `increment`,
+ * rondas en `reps`/`seconds` (segundos si la contracción es ISO).
+ * Ej. inicio 20, paso 5, 3 rondas → "20-25-30".
+ *
+ * Antes se trataba como escalera Death By tomando las RONDAS como inicio:
+ * 20 / paso 5 / 3 rondas salía "3 - 8 - 13 - ..." (bug reportado por un profe
+ * el 2026-10-29). Lo que falte usa los defaults del editor y del PDF (inicio 1,
+ * paso 1, 5 rondas). `unit` va al final de la escalera simple y en cada
+ * escalón de las variantes (`ladder_block` "2x3-4x3...", `broken_ladder`
+ * "1-2-3 | 1-2-3 | ..."), igual que el PDF.
  */
-export function formatInlinePrescription(exercise: Prescription, pyramid = false): string {
+export function ladderSequence(
+  exercise: SeriesFields,
+  shape: Extract<DoseShape, { kind: 'ladder' }>,
+  unit = '',
+): string {
+  const isIso = exercise.contraction === 'ISO'
+  const start = (isIso ? exercise.secondsMax : exercise.repsMax) || 1
+  const step = exercise.increment || 1
+  const rounds = (isIso ? exercise.seconds : exercise.reps) || 5
+  const steps = (count: number): number[] =>
+    Array.from({ length: count }, (_, i) => start + i * step)
+
+  if (shape.variant === 'ladder_block') {
+    const blockSize = shape.blockSize ?? 3
+    return `${steps(Math.min(rounds, 4))
+      .map((n) => `${n}${unit}x${blockSize}`)
+      .join('-')}...`
+  }
+  if (shape.variant === 'broken_ladder') {
+    const segment = steps(shape.breakAfter ?? 3)
+      .map((n) => `${n}${unit}`)
+      .join('-')
+    return `${segment} | ${segment} | ...`
+  }
+  // ladder / ladder_corta: hasta 7 escalones completos; más largo, se resume
+  // con los 3 primeros y los 2 últimos ("1-2-3...9-10"), igual que el PDF.
+  const values = steps(rounds)
+  const seq =
+    values.length <= 7
+      ? values.join('-')
+      : `${values.slice(0, 3).join('-')}...${values.slice(-2).join('-')}`
+  return `${seq}${unit}`
+}
+
+/**
+ * Format prescription inline (compact format for block exercise lists).
+ * Returns: "8 · CON" or "30s ISO". `shape` = how the block draws its doses
+ * (`doseShapeOf`).
+ */
+export function formatInlinePrescription(
+  exercise: Prescription,
+  shape: DoseShape = STANDARD_DOSE,
+): string {
   // PAUSA exercise (I Go You Go)
   if (exercise.notes === 'PAUSA') return 'PAUSA'
 
-  if (pyramid) {
+  const isIso = exercise.contraction === 'ISO'
+  if (shape.kind === 'pyramid') {
     const seq = pyramidSequence(exercise)
-    if (seq) {
-      return exercise.contraction === 'ISO' ? `${seq}s ISO` : `${seq} · ${exercise.contraction}`
-    }
+    if (seq) return isIso ? `${seq}s ISO` : `${seq} · ${exercise.contraction}`
+  }
+  if (shape.kind === 'ladder') {
+    return isIso
+      ? `${ladderSequence(exercise, shape, 's')} ISO`
+      : `${ladderSequence(exercise, shape)} · ${exercise.contraction}`
   }
 
   // Death By sequence
-  if (!pyramid && exercise.increment) {
+  if (shape.kind === 'standard' && exercise.increment) {
     const start = exercise.reps || exercise.seconds || 0
     const seq = `${start}-${start + exercise.increment}-${start + exercise.increment * 2}-...`
     return exercise.contraction === 'ISO' ? `${seq}s ISO` : `${seq} · ${exercise.contraction}`
@@ -110,11 +216,14 @@ export function formatInlinePrescription(exercise: Prescription, pyramid = false
  *
  * Handles reps, seconds, ranges (repsMax/secondsMax), Death By increments,
  * and the PAUSA special case. Works for both regular prescriptions and
- * mobility exercises. Not pyramid-aware: for pyramid blocks use
- * `formatQuickDose`/`formatInlinePrescription` with `pyramid`.
+ * mobility exercises. Pyramid and ladder blocks (`shape`, from `doseShapeOf`)
+ * draw their own series like `formatQuickDose`.
  */
-export function formatDose(exercise: DoseFields): string {
+export function formatDose(exercise: DoseFields, shape: DoseShape = STANDARD_DOSE): string {
   if (exercise.notes === 'PAUSA') return 'PAUSA'
+
+  const series = seriesDose(exercise, shape)
+  if (series) return series
 
   if (exercise.reps !== null && exercise.reps > 0) {
     if (exercise.increment) {
@@ -148,20 +257,33 @@ export function formatDose(exercise: DoseFields): string {
 }
 
 /**
+ * Serie de un bloque pirámide o ladder con su unidad ("20-25-30 SEG",
+ * "10-12-10 REPS"); '' si no aplica (bloque estándar o pirámide sin serie).
+ */
+function seriesDose(exercise: SeriesFields, shape: DoseShape): string {
+  const unit = exercise.contraction === 'ISO' ? 'SEG' : 'REPS'
+  if (shape.kind === 'pyramid') {
+    const seq = pyramidSequence(exercise)
+    return seq ? `${seq} ${unit}` : ''
+  }
+  if (shape.kind === 'ladder') return `${ladderSequence(exercise, shape)} ${unit}`
+  return ''
+}
+
+/**
  * Compact dose string for list views.
  * Same logic as formatDose but truncates Death By increments to 2 terms.
- * `pyramid` = the block is a pyramid (`isPyramidBlock`).
+ * `shape` = how the block draws its doses (`doseShapeOf`).
  */
-export function formatQuickDose(exercise: Prescription, pyramid = false): string {
+export function formatQuickDose(exercise: Prescription, shape: DoseShape = STANDARD_DOSE): string {
   if (exercise.notes === 'PAUSA') return 'PAUSA'
 
-  if (pyramid) {
-    const seq = pyramidSequence(exercise)
-    if (seq) return `${seq} ${exercise.contraction === 'ISO' ? 'SEG' : 'REPS'}`
-  }
+  const series = seriesDose(exercise, shape)
+  if (series) return series
 
+  const standard = shape.kind === 'standard'
   if (exercise.reps !== null && exercise.reps > 0) {
-    if (!pyramid && exercise.increment) {
+    if (standard && exercise.increment) {
       return `${exercise.reps} - ${exercise.reps + exercise.increment} - ...`
     }
     const repsText =
@@ -172,7 +294,7 @@ export function formatQuickDose(exercise: Prescription, pyramid = false): string
   }
 
   if (exercise.seconds !== null && exercise.seconds > 0) {
-    if (!pyramid && exercise.increment) {
+    if (standard && exercise.increment) {
       return `${exercise.seconds} - ${exercise.seconds + exercise.increment} - ...`
     }
     const secsText =

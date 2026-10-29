@@ -60,7 +60,7 @@
             >
               <span class="exercise-name">{{ exercise.exerciseName }}</span>
               <span class="exercise-prescription">{{
-                formatInlinePrescription(exercise, isPyramidBlock(option.block))
+                formatInlinePrescription(exercise, doseShapeOf(option.block))
               }}</span>
             </div>
           </div>
@@ -74,7 +74,7 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import type { Block } from '../types/session'
-import { formatInlinePrescription, isPyramidBlock } from '../utils/formatDose'
+import { doseShapeOf, formatInlinePrescription } from '../utils/formatDose'
 import { getRouteName } from '../utils/routeNames'
 import { getGuiaLinkForRole } from '../guia-role-map'
 

@@ -1163,4 +1163,117 @@ describe("TvService.buildPollPayload — dose de bloques piramidales", () => {
     // render de siempre (escalera Death By).
     expect(await mainDoses()).toEqual(["10-12-10", "8-10-12-..."]);
   });
+
+  // ── Ladder (bug reportado por un profe 2026-10-29: el TV mostraba "3-8-13-..."
+  // tomando las RONDAS como inicio). Contrato del editor y del PDF: inicio en
+  // reps_max/seconds_max, paso en increment, rondas en reps/seconds.
+
+  async function seedLadderAlfa(
+    fields: Parameters<typeof patchMain>[1],
+    formatParams: Record<string, unknown> | null = {
+      type: "ladder",
+      direction: "ascending",
+      start: 1,
+      step: 1,
+      rounds: 3,
+    },
+    formatName = "Ladder",
+  ) {
+    await seedNucleusPair();
+    await setNucleusFormat("alfa", formatName, formatParams);
+    await patchMain("alfa", fields);
+    return (await mainDoses())[0];
+  }
+
+  it('ladder ISO: inicio 20", paso 5, 3 rondas → 20-25-30" (el bug reportado: salía 3-8-13-...)', async () => {
+    expect(
+      await seedLadderAlfa({
+        contraction: "ISO",
+        seconds: 3,
+        secondsMax: 20,
+        increment: 5,
+      }),
+    ).toBe('20-25-30"');
+  });
+
+  it("ladder CON: inicio 10, paso 2, 3 rondas → 10-12-14 (el bug reportado: salía 3-5-7-...)", async () => {
+    expect(await seedLadderAlfa({ reps: 3, repsMax: 10, increment: 2 })).toBe(
+      "10-12-14",
+    );
+  });
+
+  it("ladder de más de 7 rondas se resume con los 3 primeros y los 2 últimos (como el PDF)", async () => {
+    expect(await seedLadderAlfa({ reps: 10, repsMax: 1, increment: 1 })).toBe(
+      "1-2-3...9-10",
+    );
+  });
+
+  it("ladder sin inicio ni paso usa los defaults del editor y del PDF (1, paso 1)", async () => {
+    expect(
+      await seedLadderAlfa({ reps: 4, repsMax: null, increment: null }),
+    ).toBe("1-2-3-4");
+  });
+
+  it("ladder_corta usa la misma escalera", async () => {
+    expect(
+      await seedLadderAlfa(
+        { reps: 3, repsMax: 5, increment: 5 },
+        {
+          type: "ladder_corta",
+          direction: "ascending",
+          start: 1,
+          step: 1,
+          rounds: 3,
+        },
+        "Ladder Corta",
+      ),
+    ).toBe("5-10-15");
+  });
+
+  it("ladder_block repite cada escalón blockSize veces (como el PDF)", async () => {
+    expect(
+      await seedLadderAlfa(
+        { reps: 3, repsMax: 2, increment: 2 },
+        {
+          type: "ladder_block",
+          direction: "ascending",
+          start: 2,
+          step: 2,
+          blockSize: 3,
+        },
+        "Ladder Block",
+      ),
+    ).toBe("2x3-4x3-6x3...");
+  });
+
+  it("broken_ladder corta el tramo cada breakAfter escalones (como el PDF)", async () => {
+    expect(
+      await seedLadderAlfa(
+        { reps: 5, repsMax: 1, increment: 1 },
+        {
+          type: "broken_ladder",
+          direction: "ascending",
+          start: 1,
+          step: 1,
+          breakAfter: 3,
+        },
+        "Broken Ladder",
+      ),
+    ).toBe("1-2-3 | 1-2-3 | ...");
+  });
+
+  it("ladder sin format_params cae al nombre del formato", async () => {
+    expect(
+      await seedLadderAlfa({ reps: 3, repsMax: 10, increment: 2 }, null),
+    ).toBe("10-12-14");
+  });
+
+  it("ladder con format_params 'standard' (stale) también cae al nombre del formato", async () => {
+    expect(
+      await seedLadderAlfa(
+        { reps: 3, repsMax: 10, increment: 2 },
+        { type: "standard" },
+      ),
+    ).toBe("10-12-14");
+  });
 });
