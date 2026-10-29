@@ -32,8 +32,12 @@ export const FREE_BLOCKS_ENABLED = false
  * 2026-10-27: apagado para OCULTAR Conquer (pedido de Franco) aunque esté todo en producción: sin la
  * tab no hay entrada a Conquer en el app, y el `?tab=conquer` del pop-up de lanzamiento abre Semana.
  * El código, las rutas y el API de Conquer quedan.
+ *
+ * 2026-10-29: prendido SOLO en el build web de staging (pedido de Franco, para probar Conquer).
+ * Reusa la misma señal que la marca azul de staging (`VITE_APP_ENVIRONMENT=staging`, la pone
+ * deploy-staging.yml): producción y los builds de tienda no la tienen y siguen sin la tab.
  */
-export const ENTRENAR_TABS_ENABLED = false
+export const ENTRENAR_TABS_ENABLED = import.meta.env.VITE_APP_ENVIRONMENT === 'staging'
 
 /**
  * Fase 201 D-10: tab Desafíos de Entrenar. Apagada (mismo patrón que Libre): sin tab, ni como
