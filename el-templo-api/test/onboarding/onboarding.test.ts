@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
 import type { RowDataPacket } from "mysql2";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 import {
   createTestApp,
   registerUser,
@@ -518,8 +519,8 @@ describe("Onboarding Routes", () => {
       const [rows] = (await app.dbPool.query(
         `SELECT onboarding_completed_at AS completedAt, intro_stories_seen_at AS seenAt,
                 age_range AS ageRange
-         FROM member_profiles WHERE user_id = ?`,
-        [userId],
+         FROM member_profiles WHERE tenant_id = ? AND user_id = ?`,
+        [TENANT_TEMPLO, userId],
       )) as [RowDataPacket[], unknown];
       return rows;
     }
@@ -527,8 +528,8 @@ describe("Onboarding Routes", () => {
     async function onboardingAura(userId: number): Promise<number> {
       const [rows] = (await app.dbPool.query(
         `SELECT COALESCE(SUM(amount), 0) AS total FROM aura_transactions
-         WHERE user_id = ? AND source_type = 'onboarding_completion'`,
-        [userId],
+         WHERE tenant_id = ? AND user_id = ? AND source_type = 'onboarding_completion'`,
+        [TENANT_TEMPLO, userId],
       )) as [RowDataPacket[], unknown];
       return Number(rows[0].total);
     }
