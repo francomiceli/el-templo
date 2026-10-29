@@ -30,6 +30,7 @@ import {
   and,
   eq,
   gte,
+  inArray,
   isNotNull,
   isNull,
   ne,
@@ -187,7 +188,7 @@ export class InvitationRules {
 
   /**
    * Evalúa al invitado SIN lanzar. Orden fijo, corta en la primera falla:
-   * `self_invite` -> identificación (`phone_required`/`phone_taken`/`dni_taken`)
+   * `self_invite` -> `invitee_other_country` -> identificación (`phone_required`/`phone_taken`/`dni_taken`)
    * -> D-11 (historial de membresía) -> D-12 (invitación reciente por persona).
    * No consulta reservas: la SP comercial no bloquea (D-12).
    */
@@ -242,6 +243,12 @@ export class InvitationRules {
   ): Promise<InvitationIneligibleReason | null> {
     if (input.inviterId === input.invitedUserId) return "self_invite";
 
+    // F1: los países nunca se cruzan. Es una regla del par invitador/invitado, así
+    // que la corren por igual la consulta previa, la activación y el canal asistido.
+    if (await this.isInviteeInOtherCountry(ctx, input, exec)) {
+      return "invitee_other_country";
+    }
+
     // La consulta previa de la app (`previewActivation`) todavía no tiene el
     // teléfono que el socio va a tipear: la identidad se valida recién al activar.
     if (!opts.skipIdentity) {
@@ -268,6 +275,44 @@ export class InvitationRules {
       exec,
     );
     return recent ? "invitee_recent_invitation" : null;
+  }
+
+  /**
+   * F1: el invitado ya entrena en una sede FÍSICA de otro país que el invitador.
+   * Uno en la sede virtual (registro sin sede) no tiene país propio y elige
+   * libremente, pero solo entre sedes del país del invitador (eso lo valida el
+   * servicio con la sede elegida).
+   */
+  private async isInviteeInOtherCountry(
+    ctx: TenantContext,
+    input: Pick<InviteeEligibilityInput, "inviterId" | "invitedUserId">,
+    exec: InvitationExecutor,
+  ): Promise<boolean> {
+    const rows = await exec
+      .select({
+        id: schema.users.id,
+        country: schema.branches.country,
+        isVirtual: schema.branches.isVirtual,
+      })
+      .from(schema.users)
+      .innerJoin(
+        schema.branches,
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.users.branchId),
+        ),
+      )
+      .where(
+        and(
+          tenantWhere(schema.users, ctx),
+          inArray(schema.users.id, [input.inviterId, input.invitedUserId]),
+          isNull(schema.users.deletedAt),
+        ),
+      );
+    const inviter = rows.find((row) => row.id === input.inviterId);
+    const invitee = rows.find((row) => row.id === input.invitedUserId);
+    if (!inviter || !invitee || invitee.isVirtual) return false;
+    return invitee.country !== inviter.country;
   }
 
   private async findIdentityReason(

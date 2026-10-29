@@ -13,6 +13,7 @@ export type InvitationIneligibleReason =
   | "inviter_not_member"
   | "inviter_quota_exhausted"
   | "self_invite"
+  | "invitee_other_country"
   | "invitee_is_member"
   | "invitee_recent_member"
   | "invitee_recent_invitation"
@@ -119,6 +120,13 @@ export interface VoidInvitationInput {
   reason: string;
 }
 
+/**
+ * 400 cuando la sede elegida para activar es de otro país que el de quien invita. Los
+ * países nunca se cruzan: el invitado solo activa en sedes del país del INVITADOR.
+ */
+export const BRANCH_OTHER_COUNTRY_MESSAGE =
+  "La sede elegida es de otro país que el de quien hace la invitación. Elegí una sede de su mismo país.";
+
 /** `void_reason` que deja la compensación de una activación fallida (T-194-33). */
 export const ACTIVATION_FAILED_REASON = "activation_failed";
 
@@ -133,6 +141,8 @@ export const INELIGIBLE_MESSAGES: Record<InvitationIneligibleReason, string> = {
   inviter_quota_exhausted:
     "Ya usaste todas tus invitaciones de este mes. El mes que viene vas a tener nuevas.",
   self_invite: "No podés invitarte a vos mismo.",
+  invitee_other_country:
+    "Esta persona ya entrena en una sede de otro país que el de quien invita, por eso no se la puede invitar.",
   invitee_is_member:
     "Esta persona ya tiene una membresía vigente, por eso no se la puede invitar.",
   invitee_recent_member:
@@ -162,6 +172,8 @@ export const INVITEE_MESSAGES: Record<InvitationIneligibleReason, string> = {
   inviter_not_member: INVITER_UNAVAILABLE_FOR_INVITEE,
   inviter_quota_exhausted: INVITER_UNAVAILABLE_FOR_INVITEE,
   self_invite: "No podés usar tu propio código de invitación.",
+  invitee_other_country:
+    "Ya entrenás en una sede de otro país que el de quien te invitó, así que no podés usar esta invitación.",
   invitee_is_member:
     "Ya tenés una membresía vigente, por eso no necesitás una invitación.",
   invitee_recent_member:

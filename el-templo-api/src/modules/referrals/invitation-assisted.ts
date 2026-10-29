@@ -117,8 +117,9 @@ export class AssistedInvitations {
   /**
    * D-24 "Lo invita": alta de un lead + invitación asistida.
    *
-   *  1. ANTES de crear nada se valida al invitador (membresía vigente + cupo):
-   *     si no puede invitar, la request falla y NO queda ningún lead.
+   *  1. ANTES de crear nada se valida al invitador (membresía vigente + cupo) y
+   *     que la sede sea de SU país (F1: los países nunca se cruzan): si no, la
+   *     request falla y NO queda ningún lead.
    *  2. `createLead` crea el lead (con su propio dedupe).
    *  3. Se activa la invitación. Si falla (p. ej. sin plan Invitación del país o
    *     sede virtual) el lead YA existe y vale por sí mismo: se devuelve con
@@ -135,6 +136,11 @@ export class AssistedInvitations {
     },
   ): Promise<LeadWithInvitation<TLead>> {
     await this.invitations.rules.assertInviterCanInvite(ctx, params.inviterId);
+    await this.invitations.assertBranchInInviterCountry(
+      ctx,
+      params.inviterId,
+      params.branchId,
+    );
 
     const lead = await params.createLead();
     try {
