@@ -22,6 +22,7 @@
  */
 
 import { eq, and, inArray, asc, isNotNull } from "drizzle-orm";
+import { readAffectedRows } from "../shared/affected-rows";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../db/schema";
 import {
@@ -1569,33 +1570,4 @@ export class TreeEditorService {
 
     return { deleted, written };
   }
-}
-
-/**
- * Read the affected-row count from a Drizzle mysql2 delete/update result without
- * `any`. The mysql2 driver returns a ResultSetHeader with `affectedRows`; the
- * Drizzle wrapper surfaces it as the first element of a tuple. Defensive: any
- * shape we don't recognize yields 0 (never throws).
- */
-function readAffectedRows(result: unknown): number {
-  if (Array.isArray(result)) {
-    const header = result[0];
-    if (
-      typeof header === "object" &&
-      header !== null &&
-      "affectedRows" in header
-    ) {
-      const n = Number((header as { affectedRows: unknown }).affectedRows);
-      return Number.isFinite(n) ? n : 0;
-    }
-  }
-  if (
-    typeof result === "object" &&
-    result !== null &&
-    "affectedRows" in result
-  ) {
-    const n = Number((result as { affectedRows: unknown }).affectedRows);
-    return Number.isFinite(n) ? n : 0;
-  }
-  return 0;
 }

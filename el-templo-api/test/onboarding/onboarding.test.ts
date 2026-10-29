@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
+import type { RowDataPacket } from "mysql2";
 import {
   createTestApp,
   registerUser,
@@ -475,6 +476,129 @@ describe("Onboarding Routes", () => {
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
       expect(body.onboardingProfile).toBeNull();
+    });
+  });
+
+  // -----------------------------------------------------------------
+  // NODE-6K (2026-10-29): Duplicate entry en member_profiles.user_id.
+  // Leer y después insertar no era atómico: dos envíos a la vez o la fila
+  // que crea /me/intro-stories chocaban con el UNIQUE → 500.
+  // -----------------------------------------------------------------
+  describe("NODE-6K — perfil duplicado", () => {
+    async function freshMember(
+      label: string,
+    ): Promise<{ token: string; userId: number }> {
+      const { token, user } = await registerUser(app, {
+        email: `node6k-${label}@test.com`,
+        password: "password123",
+        branchId: 1,
+      });
+      return { token, userId: Number(user.id) };
+    }
+
+    function complete(token: string) {
+      return app.inject({
+        method: "POST",
+        url: "/api/onboarding/complete",
+        headers: { authorization: `Bearer ${token}` },
+        payload: validQuizAnswersV2,
+      });
+    }
+
+    function introStories(token: string, event: "seen" | "completed") {
+      return app.inject({
+        method: "POST",
+        url: "/api/auth/me/intro-stories",
+        headers: { authorization: `Bearer ${token}` },
+        payload: { event, lastSlide: 0 },
+      });
+    }
+
+    async function profileRows(userId: number) {
+      const [rows] = (await app.dbPool.query(
+        `SELECT onboarding_completed_at AS completedAt, intro_stories_seen_at AS seenAt,
+                age_range AS ageRange
+         FROM member_profiles WHERE user_id = ?`,
+        [userId],
+      )) as [RowDataPacket[], unknown];
+      return rows;
+    }
+
+    async function onboardingAura(userId: number): Promise<number> {
+      const [rows] = (await app.dbPool.query(
+        `SELECT COALESCE(SUM(amount), 0) AS total FROM aura_transactions
+         WHERE user_id = ? AND source_type = 'onboarding_completion'`,
+        [userId],
+      )) as [RowDataPacket[], unknown];
+      return Number(rows[0].total);
+    }
+
+    it("dos envíos a la vez: los dos responden 201, una sola fila y 50 AURA una sola vez", async () => {
+      const { token, userId } = await freshMember("doble");
+
+      const [a, b] = await Promise.all([complete(token), complete(token)]);
+
+      expect(a.statusCode).toBe(201);
+      expect(b.statusCode).toBe(201);
+      const awarded = [
+        JSON.parse(a.body).auraAwarded,
+        JSON.parse(b.body).auraAwarded,
+      ].sort();
+      expect(awarded).toEqual([0, 50]);
+      const rows = await profileRows(userId);
+      expect(rows).toHaveLength(1);
+      expect(rows[0].completedAt).not.toBeNull();
+      expect(rows[0].ageRange).toBe("25_34");
+      expect(await onboardingAura(userId)).toBe(50);
+    });
+
+    it("con la fila creada antes por las historias: completa el perfil y da los 50 AURA", async () => {
+      const { token, userId } = await freshMember("historias-antes");
+      expect((await introStories(token, "seen")).statusCode).toBe(200);
+
+      const res = await complete(token);
+
+      expect(res.statusCode).toBe(201);
+      expect(JSON.parse(res.body).auraAwarded).toBe(50);
+      const rows = await profileRows(userId);
+      expect(rows).toHaveLength(1);
+      expect(rows[0].completedAt).not.toBeNull();
+      expect(rows[0].seenAt).not.toBeNull();
+      expect(rows[0].ageRange).toBe("25_34");
+      expect(await onboardingAura(userId)).toBe(50);
+    });
+
+    it("onboarding e historias a la vez: ninguno da 500 y la fila queda con los dos datos", async () => {
+      const { token, userId } = await freshMember("carrera");
+
+      const [done, seen] = await Promise.all([
+        complete(token),
+        introStories(token, "seen"),
+      ]);
+
+      expect(done.statusCode).toBe(201);
+      expect(seen.statusCode).toBe(200);
+      const rows = await profileRows(userId);
+      expect(rows).toHaveLength(1);
+      expect(rows[0].completedAt).not.toBeNull();
+      expect(rows[0].seenAt).not.toBeNull();
+      expect(await onboardingAura(userId)).toBe(50);
+    });
+
+    it("historias dos veces a la vez sobre un socio sin fila: los dos 200 y el seen estampado", async () => {
+      const { token, userId } = await freshMember("historias-doble");
+
+      const [a, b] = await Promise.all([
+        introStories(token, "seen"),
+        introStories(token, "seen"),
+      ]);
+
+      expect(a.statusCode).toBe(200);
+      expect(b.statusCode).toBe(200);
+      const rows = await profileRows(userId);
+      expect(rows).toHaveLength(1);
+      expect(rows[0].seenAt).not.toBeNull();
+      expect(rows[0].completedAt).toBeNull();
     });
   });
 });
