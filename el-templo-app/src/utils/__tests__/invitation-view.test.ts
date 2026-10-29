@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   inviteeStateLabel,
-  inviteeStateColor,
+  inviteeStateTone,
   quotaText,
   accessesText,
   formatShortDate,
@@ -9,7 +9,9 @@ import {
   expiryText,
   discountText,
   invitedByStageLabel,
-  invitedByStageColor,
+  invitedByStageTone,
+  inviteeDiscountNote,
+  activeInviteesText,
   shareMessage,
   inviterDisplayName,
   type InviteeState,
@@ -26,12 +28,8 @@ describe('invitation-view (Fase 194-27)', () => {
     expect(inviteeStateLabel('inactivo')).toBe('Inactivo')
   })
 
-  it('los colores son de la paleta cálida: ninguno azul', () => {
-    for (const state of ALL_STATES) {
-      const color = inviteeStateColor(state)
-      expect(color).not.toMatch(/blue|indigo|cyan|light-blue/)
-    }
-    expect(inviteeStateColor('socio_activo')).toBe('positive')
+  it('cada estado tiene su tono de pill del rework', () => {
+    expect(ALL_STATES.map(inviteeStateTone)).toEqual(['neutral', 'terra', 'warn', 'ok', 'bad'])
   })
 
   it('rotula las 4 etapas de la propia invitación con colores cálidos', () => {
@@ -39,8 +37,10 @@ describe('invitation-view (Fase 194-27)', () => {
     expect(invitedByStageLabel('entrenando')).toBe('Entrenando')
     expect(invitedByStageLabel('vencido')).toBe('Vencido')
     expect(invitedByStageLabel('convertido')).toBe('Ya sos socio')
-    expect(invitedByStageColor('convertido')).toBe('positive')
-    expect(invitedByStageColor('invitado')).not.toMatch(/blue/)
+    expect(invitedByStageTone('convertido')).toBe('ok')
+    expect(invitedByStageTone('invitado')).toBe('neutral')
+    expect(invitedByStageTone('entrenando')).toBe('terra')
+    expect(invitedByStageTone('vencido')).toBe('warn')
   })
 
   it('quotaText con singular y plural', () => {
@@ -76,10 +76,31 @@ describe('invitation-view (Fase 194-27)', () => {
     expect(formatLongDate('basura')).toBe('basura')
   })
 
-  it('discountText con singular, plural y sin descuento', () => {
-    expect(discountText(10, 1)).toBe('Estás pagando 10% menos (1 invitado activo)')
-    expect(discountText(20, 2)).toBe('Estás pagando 20% menos (2 invitados activos)')
-    expect(discountText(0, 0)).toBe('Todavía no tenés descuento activo')
+  it('discountText con y sin descuento', () => {
+    expect(discountText(10)).toBe('Estás pagando 10% menos')
+    expect(discountText(0)).toBe('Todavía no tenés descuento activo')
+  })
+
+  it('activeInviteesText con singular, plural y sin invitados', () => {
+    expect(activeInviteesText(1)).toBe('1 invitado activo suma a tu descuento')
+    expect(activeInviteesText(3)).toBe('3 invitados activos suman a tu descuento')
+    expect(activeInviteesText(0)).toBe('')
+  })
+
+  it('inviteeDiscountNote aclara quién suma y quién no', () => {
+    const suma = { userId: 1, state: 'socio_activo' as const, sumaDescuento: true }
+    const noSuma = { userId: 2, state: 'socio_activo' as const, sumaDescuento: false }
+    const entrenando = { userId: 3, state: 'entrenando' as const, sumaDescuento: false }
+    const all = [suma, noSuma, entrenando]
+    expect(inviteeDiscountNote(suma, all)).toBe('Suma a tu descuento')
+    expect(inviteeDiscountNote(noSuma, all)).toBe('No suma a tu descuento')
+    expect(inviteeDiscountNote(entrenando, all)).toBe('')
+  })
+
+  it('inviteeDiscountNote no dice "No suma" en la fila vieja de alguien que ya suma', () => {
+    const latest = { userId: 7, state: 'socio_activo' as const, sumaDescuento: true }
+    const older = { userId: 7, state: 'socio_activo' as const, sumaDescuento: false }
+    expect(inviteeDiscountNote(older, [latest, older])).toBe('')
   })
 
   it('shareMessage incluye la URL, personaliza con el nombre y nunca dice "referido"', () => {

@@ -35,6 +35,8 @@ export const DEFINITIVE_INVITATION_REASONS = [
   'invitee_recent_invitation',
   'self_invite',
   'inviter_not_found',
+  // F1 (2026-10-29): el país de la sede del invitado no cambia por una invitación.
+  'invitee_other_country',
 ] as const
 
 /** Motivos del servidor (campo `reason`) que cierran la invitación para esta persona. */
