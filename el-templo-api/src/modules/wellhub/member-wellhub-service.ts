@@ -15,6 +15,7 @@
 // AISLAMIENTO: toda query lleva el gimnasio (`tenantWhere`, también en cada
 // tabla unida).
 import { and, asc, desc, eq, gte, inArray, sql } from "drizzle-orm";
+import { readAffectedRows } from "../shared/affected-rows";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
@@ -112,21 +113,6 @@ class WellhubMergeError extends Error {
     super(message);
     this.name = "WellhubMergeError";
   }
-}
-
-/** Filas afectadas de un UPDATE/DELETE de drizzle-mysql2 (`[ResultSetHeader, ...]`). */
-function affectedRows(result: unknown): number {
-  if (Array.isArray(result) && result.length > 0) {
-    const header: unknown = result[0];
-    if (
-      typeof header === "object" &&
-      header !== null &&
-      "affectedRows" in header
-    ) {
-      return Number((header as { affectedRows: unknown }).affectedRows);
-    }
-  }
-  return 0;
 }
 
 /** Timestamp de MySQL (Date o string) a ISO; null si no hay valor parseable. */
@@ -619,7 +605,7 @@ export class MemberWellhubService {
             ),
           );
 
-        const bookings = affectedRows(
+        const bookings = readAffectedRows(
           await tx
             .update(schema.bookings)
             .set({ memberId: targetUserId })
@@ -630,7 +616,7 @@ export class MemberWellhubService {
               ),
             ),
         );
-        const attendance = affectedRows(
+        const attendance = readAffectedRows(
           await tx
             .update(schema.attendance)
             .set({ memberId: targetUserId })
@@ -641,7 +627,7 @@ export class MemberWellhubService {
               ),
             ),
         );
-        const wellhubBookings = affectedRows(
+        const wellhubBookings = readAffectedRows(
           await tx
             .update(schema.wellhubBookings)
             .set({ userId: targetUserId })
@@ -652,7 +638,7 @@ export class MemberWellhubService {
               ),
             ),
         );
-        const notes = affectedRows(
+        const notes = readAffectedRows(
           await tx
             .update(schema.memberNotes)
             .set({ userId: targetUserId })

@@ -52,6 +52,7 @@ import {
 import { enabledModulesFor } from "../shared/module-flags";
 import { recordRegisterAttribution } from "../marketing/attribution-service";
 import type { SignupAttributionBody } from "../marketing/attribution-service";
+import { readAffectedRows } from "../shared/affected-rows";
 
 interface RegisterBody {
   email: string;
@@ -1269,19 +1270,23 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       await attachCountryScope(request, fastify.db);
       const ctx = assertTenant(request.scope, "auth.intro-stories");
 
-      const [existing] = await fastify.db
-        .select({
-          seenAt: memberProfiles.introStoriesSeenAt,
-          completedAt: memberProfiles.introStoriesCompletedAt,
-        })
-        .from(memberProfiles)
-        .where(
-          and(
-            tenantWhere(memberProfiles, ctx),
-            eq(memberProfiles.userId, userId),
-          ),
-        )
-        .limit(1);
+      const readStories = async () => {
+        const [row] = await fastify.db
+          .select({
+            seenAt: memberProfiles.introStoriesSeenAt,
+            completedAt: memberProfiles.introStoriesCompletedAt,
+          })
+          .from(memberProfiles)
+          .where(
+            and(
+              tenantWhere(memberProfiles, ctx),
+              eq(memberProfiles.userId, userId),
+            ),
+          )
+          .limit(1);
+        return row;
+      };
+      let existing = await readStories();
 
       // Redondeado al segundo: `member_profiles.intro_stories_*` son TIMESTAMP
       // sin fracción de segundo — MySQL REDONDEA (no trunca) al persistir un
@@ -1297,21 +1302,35 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       // creamos la fila acá (mismo patrón que un onboarding tardío la
       // crearía, solo que con los campos de intro-stories poblados).
       if (!existing) {
-        await fastify.db.insert(memberProfiles).values(
-          tenantValues(ctx, {
-            userId,
-            introStoriesSeenAt: event === "seen" ? now : null,
-            introStoriesCompletedAt: event === "completed" ? now : null,
-            introStoriesLastSlide: lastSlide,
-          }),
-        );
+        // NODE-6K (2026-10-29): si entre el SELECT y acá otra request creó la
+        // fila (el onboarding, o una doble apertura), un INSERT pelado chocaba
+        // con el UNIQUE de user_id → 500. El ON DUPLICATE KEY no toca nada
+        // (affectedRows 0): en ese caso se relee la fila y sigue por el camino
+        // idempotente de abajo, como si ya hubiera existido.
+        const inserted = await fastify.db
+          .insert(memberProfiles)
+          .values(
+            tenantValues(ctx, {
+              userId,
+              introStoriesSeenAt: event === "seen" ? now : null,
+              introStoriesCompletedAt: event === "completed" ? now : null,
+              introStoriesLastSlide: lastSlide,
+            }),
+          )
+          .onDuplicateKeyUpdate({ set: { userId: sql`user_id` } });
 
-        return {
-          introStoriesSeenAt: event === "seen" ? now.toISOString() : null,
-          introStoriesCompletedAt:
-            event === "completed" ? now.toISOString() : null,
-          introStoriesLastSlide: lastSlide,
-        };
+        if (readAffectedRows(inserted) === 1) {
+          return {
+            introStoriesSeenAt: event === "seen" ? now.toISOString() : null,
+            introStoriesCompletedAt:
+              event === "completed" ? now.toISOString() : null,
+            introStoriesLastSlide: lastSlide,
+          };
+        }
+        existing = await readStories();
+        if (!existing) {
+          throw new Error("member_profiles row vanished after upsert");
+        }
       }
 
       const updates: {

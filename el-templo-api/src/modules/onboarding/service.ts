@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import { memberProfiles, onboardingAnalytics } from "../../db/schema";
@@ -18,6 +18,7 @@ import type {
   AnalyticsEventInput,
 } from "./types";
 import { resolveAvatar } from "./avatar-resolution.js";
+import { readAffectedRows } from "../shared/affected-rows";
 
 type DbInstance = MySql2Database<typeof schema>;
 
@@ -96,21 +97,17 @@ export class OnboardingService {
     ctx: TenantContext,
     input: CompleteOnboardingInputV2,
   ): Promise<{ profile: OnboardingProfileV2; auraAwarded: number }> {
-    // Idempotent: if the user already has a profile, overwrite it with the
-    // latest answers so they can re-do the quiz. AURA is only awarded on the
-    // first completion — re-submissions return auraAwarded: 0.
-    const existing = await this.db
-      .select({ id: memberProfiles.id })
-      .from(memberProfiles)
-      .where(
-        and(
-          tenantWhere(memberProfiles, ctx),
-          eq(memberProfiles.userId, input.userId),
-        ),
-      )
-      .limit(1);
-
-    const isRepeat = existing.length > 0;
+    // Idempotent: re-doing the quiz overwrites the answers. AURA is only awarded
+    // on the first completion — re-submissions return auraAwarded: 0.
+    //
+    // NODE-6K (2026-10-29): this used to read the row and then INSERT or UPDATE.
+    // Not atomic: two requests at once (double tap, retry) or the row that
+    // `POST /auth/intro-stories` creates for a freemium member who opened "Empezá
+    // acá" first collided with the UNIQUE on user_id → 500. A row created by the
+    // stories also counted as "already onboarded", so that member never got the
+    // AURA. Now: upsert the answers, and "first completion" is decided by a
+    // conditional UPDATE on `onboarding_completed_at IS NULL` — only one request
+    // can win it, so AURA is awarded once even under concurrency.
 
     // Resolve avatar from quiz answers + gender
     const { avatarType, suggestedProgram } = resolveAvatar({
@@ -123,30 +120,42 @@ export class OnboardingService {
     });
 
     const now = new Date();
-    const profileValues = {
-      userId: input.userId,
+    const answers = {
       ageRange: input.ageRange,
       trainingBackground: input.trainingBackground,
       painPoint: input.painPoint,
       trainingFrequency: input.trainingFrequency,
       avatarType,
-      onboardingCompletedAt: now,
     };
 
+    await this.db
+      .insert(memberProfiles)
+      .values(tenantValues(ctx, { userId: input.userId, ...answers }))
+      .onDuplicateKeyUpdate({ set: answers });
+
+    const claimed = await this.db
+      .update(memberProfiles)
+      .set({ onboardingCompletedAt: now })
+      .where(
+        and(
+          tenantWhere(memberProfiles, ctx),
+          eq(memberProfiles.userId, input.userId),
+          isNull(memberProfiles.onboardingCompletedAt),
+        ),
+      );
+    const isRepeat = readAffectedRows(claimed) === 0;
+
     if (isRepeat) {
+      // Same as before the fix: a repeat refreshes the completion timestamp.
       await this.db
         .update(memberProfiles)
-        .set(profileValues)
+        .set({ onboardingCompletedAt: now })
         .where(
           and(
             tenantWhere(memberProfiles, ctx),
             eq(memberProfiles.userId, input.userId),
           ),
         );
-    } else {
-      await this.db
-        .insert(memberProfiles)
-        .values(tenantValues(ctx, profileValues));
     }
 
     // Update user level if they selected one (el_templo training background)
