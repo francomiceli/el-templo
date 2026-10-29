@@ -30,9 +30,9 @@ const avisosStore = useAvisosStore()
 // El helper de la app `utils/ab-variant.ts` se borró (retiro confirmado en
 // el UAT de la 193, 2026-09-03); el backend sigue calculando variantes para
 // el registro/atribución de clics de referidos, que este componente NO toca.
-const FALLBACK_TITLE = 'Vos decidís cuánto bajás tu cuota'
-// Igual al copy sembrado por la migración 0261 (aviso `card_referral`).
-const FALLBACK_SUBTITLE = 'Invitá a entrenar: cada persona que invites y se sume baja tu cuota.'
+// Igual al copy de la migración 0315 (aviso `card_referral`, 2026-10-29).
+const FALLBACK_TITLE = 'Invitá a entrenar a tus amigos'
+const FALLBACK_SUBTITLE = 'Tienen 3 clases gratis y, si se suman, los dos tienen descuento.'
 const FALLBACK_BUTTON_TEXT = 'Invitar a alguien'
 
 const cardRow = computed(() => avisosStore.tarjetaByCode('card_referral'))

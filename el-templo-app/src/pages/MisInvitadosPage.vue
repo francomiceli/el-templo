@@ -69,6 +69,11 @@
           </div>
         </section>
 
+        <!-- Sin invitados todavía, "Cómo funciona" va enseguida del cupo (pedido de Franco
+             2026-10-29). Sin el bloque de condiciones (API vieja durante un deploy) no se muestra
+             nada antes que inventar números. -->
+        <InvitationRules v-if="!hasInvitees && groups.length > 0" :groups="groups" />
+
         <!-- Quién me invitó -->
         <section v-if="overview.invitedBy" class="invitados-section">
           <h2 class="invitados-title">Te invitó</h2>
@@ -98,7 +103,7 @@
         <section class="invitados-section">
           <h2 class="invitados-title">Invitaste a</h2>
           <div class="invitados-card">
-            <template v-if="overview.invitations.invitees.length > 0">
+            <template v-if="hasInvitees">
               <div
                 v-for="invitee in overview.invitations.invitees"
                 :key="`${invitee.source}-${invitee.invitationId ?? 'link'}-${invitee.userId}`"
@@ -137,26 +142,14 @@
               />
               <p class="invitados-empty__heading">Todavía no invitaste a nadie</p>
               <p class="invitados-empty__body">
-                Compartí tu link con quien quieras que entrene con vos. Abajo tenés cómo funciona.
+                Compartí tu link con quien quieras que entrene con vos.
               </p>
             </div>
           </div>
         </section>
 
-        <!-- Cómo funciona: condiciones con los números de la configuración. Sin el bloque (API vieja
-             durante un deploy) no se muestra nada antes que inventar números. -->
-        <section v-if="groups.length > 0" class="invitados-section" aria-labelledby="como-funciona">
-          <h2 id="como-funciona" class="invitados-title">Cómo funciona</h2>
-          <div v-for="group in groups" :key="group.title" class="invitados-card rules">
-            <h3 class="rules__title">
-              <q-icon :name="group.icon" size="20px" class="rules__icon" aria-hidden="true" />
-              <span>{{ group.title }}</span>
-            </h3>
-            <ul class="rules__list">
-              <li v-for="item in group.items" :key="item" class="rules__item">{{ item }}</li>
-            </ul>
-          </div>
-        </section>
+        <!-- Cómo funciona al final cuando ya hay invitados (sin invitados va arriba). -->
+        <InvitationRules v-if="hasInvitees && groups.length > 0" :groups="groups" />
       </template>
     </div>
   </q-page>
@@ -171,6 +164,7 @@ import { copyWithFallback } from 'src/utils/clipboard'
 import { extractError } from 'src/utils/extract-error'
 import { useUserStore } from 'src/stores/useUserStore'
 import CardSkeleton from 'src/components/CardSkeleton.vue'
+import InvitationRules from 'src/components/InvitationRules.vue'
 import {
   inviteeStateLabel,
   inviteeStateTone,
@@ -266,6 +260,7 @@ const activeInviteesLabel = computed(() =>
   overview.value ? activeInviteesText(overview.value.invitations.discount.activeInvitees) : '',
 )
 const groups = computed(() => (conditions.value ? conditionGroups(conditions.value) : []))
+const hasInvitees = computed(() => (overview.value?.invitations.invitees.length ?? 0) > 0)
 
 const invitedByCaption = computed(() => {
   const by = overview.value?.invitedBy
@@ -654,57 +649,6 @@ onMounted(fetchOverview)
     font-family: 'Geologica', sans-serif;
     font-size: 14px;
     color: $pd-ink-2;
-  }
-}
-
-// ── Cómo funciona ──
-.rules {
-  padding: 14px 16px 16px;
-
-  &__title {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin: 0 0 10px;
-    font-family: 'Montserrat', sans-serif;
-    font-size: 15px;
-    font-weight: 700;
-    line-height: 1.3;
-    color: $pd-ink;
-  }
-
-  &__icon {
-    color: $pd-terra-ink;
-  }
-
-  &__list {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  // Viñeta terracota alineada con el ícono del título.
-  &__item {
-    position: relative;
-    padding-left: 30px;
-    font-family: 'Geologica', sans-serif;
-    font-size: 14px;
-    line-height: 1.45;
-    color: $pd-ink;
-
-    &::before {
-      content: '';
-      position: absolute;
-      left: 7px;
-      top: 0.6em;
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: $pd-terra-ink;
-    }
   }
 }
 </style>
