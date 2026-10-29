@@ -222,7 +222,7 @@ import { useStoryNavigation } from '../composables/useStoryNavigation'
 
 // Utils
 import { IN_SESSION_ADJUST_ENABLED } from 'src/config/featureFlags'
-import { formatDose, formatQuickDose, isPyramidBlock } from '../utils/formatDose'
+import { doseShapeOf, formatDose, formatQuickDose } from '../utils/formatDose'
 import { blockTimerView } from '../utils/blockTimer'
 import {
   playerBlockContent,
@@ -513,7 +513,7 @@ const currentSlideQuickDose = computed(() => {
   if (!block) return ''
   if (isMobilitySlide.value && block.mobilityExercise) return formatDose(block.mobilityExercise)
   const exercise = currentSlideExercise.value
-  return exercise ? formatQuickDose(exercise, isPyramidBlock(block)) : ''
+  return exercise ? formatQuickDose(exercise, doseShapeOf(block)) : ''
 })
 
 // Ruta del slide actual (ejercicio o movilidad) para la figura de PlayerCuerpo

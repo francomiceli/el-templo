@@ -6,7 +6,7 @@
 import { ROLE_LABELS } from 'src/constants/roleLabels'
 import type { Block, BlockRole } from '../types/session'
 import { blockDisplayName, estimatedMinutes, formatLabel } from './blockMeta'
-import { formatQuickDose, isPyramidBlock } from './formatDose'
+import { doseShapeOf, formatQuickDose } from './formatDose'
 
 /** Cuántos ejercicios del bloque siguiente se listan en "Lo que viene" (el resto va como "y N más"). */
 export const MAX_PREVIEW_ITEMS = 5
@@ -97,12 +97,12 @@ export type TransitionRest =
 /** Lista del bloque que viene, con tope de `MAX_PREVIEW_ITEMS` y "y N más". */
 export function chooseTransitionRest(next: Block | null): TransitionRest {
   if (next && next.exercises.length > 0) {
-    const pyramid = isPyramidBlock(next)
+    const shape = doseShapeOf(next)
     return {
       kind: 'preview',
       items: next.exercises.slice(0, MAX_PREVIEW_ITEMS).map((ex) => ({
         name: ex.exerciseName,
-        dose: formatQuickDose(ex, pyramid),
+        dose: formatQuickDose(ex, shape),
       })),
       extra: Math.max(0, next.exercises.length - MAX_PREVIEW_ITEMS),
     }

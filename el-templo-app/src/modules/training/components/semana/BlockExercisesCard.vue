@@ -25,7 +25,7 @@
       >
         <span class="exercise-row__idx" aria-hidden="true">{{ i + 1 }}</span>
         <span class="exercise-row__name">{{ ex.exerciseName }}</span>
-        <span class="exercise-row__dose">{{ formatDose(ex) }}</span>
+        <span class="exercise-row__dose">{{ formatDose(ex, doseShape) }}</span>
       </li>
     </ol>
   </section>
@@ -38,7 +38,7 @@ import { ROLE_LABELS } from 'src/constants/roleLabels'
 import type { Block } from '../../types/session'
 import { getGuiaLinkForRole } from '../../guia-role-map'
 import { blockDisplayName, blockMetaLine } from '../../utils/blockMeta'
-import { formatDose } from '../../utils/formatDose'
+import { doseShapeOf, formatDose } from '../../utils/formatDose'
 
 // Fase 197 D-03: lista de ejercicios del bloque elegido en Semana. Sin cruz de cerrar (Franco la
 // sacó). Sin video ni indicio de video: los videos se ven solo en el player (Franco, 2026-10-20).
@@ -51,6 +51,9 @@ const router = useRouter()
 const guiaLink = computed(() => getGuiaLinkForRole(props.block.role))
 
 const meta = computed(() => blockMetaLine(props.block, { withEstimate: false }))
+
+// Pirámide y ladder dibujan su propia serie (la del editor, el PDF y la TV).
+const doseShape = computed(() => doseShapeOf(props.block))
 
 const exercises = computed(() =>
   [...props.block.exercises].sort((a, b) => a.sortOrder - b.sortOrder),

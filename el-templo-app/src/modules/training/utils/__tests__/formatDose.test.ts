@@ -1,10 +1,17 @@
 import { describe, it, expect } from 'vitest'
 import type { Prescription } from '../../types/session'
 import {
+  doseShapeOf,
+  formatDose,
   formatInlinePrescription,
   formatQuickDose,
+  isLadderBlock,
   isPyramidBlock,
+  ladderSequence,
   pyramidSequence,
+  PYRAMID_DOSE,
+  STANDARD_DOSE,
+  type DoseShape,
 } from '../formatDose'
 
 /**
@@ -90,17 +97,17 @@ describe('pyramidSequence', () => {
 
 describe('formatInlinePrescription', () => {
   it('pirámide ISO → "20-30-20s ISO" (antes "30-40-50-...s ISO")', () => {
-    expect(formatInlinePrescription(isoPyramid, true)).toBe('20-30-20s ISO')
+    expect(formatInlinePrescription(isoPyramid, PYRAMID_DOSE)).toBe('20-30-20s ISO')
   })
 
   it('pirámide CON → "10-12-10 · CON"', () => {
-    expect(formatInlinePrescription(conPyramid, true)).toBe('10-12-10 · CON')
+    expect(formatInlinePrescription(conPyramid, PYRAMID_DOSE)).toBe('10-12-10 · CON')
   })
 
   it('pirámide con parámetros inválidos → solo el pico, sin escalera ni rango', () => {
-    expect(formatInlinePrescription(rx({ reps: 12, repsMax: 14, increment: 2 }), true)).toBe(
-      '12 · CON',
-    )
+    expect(
+      formatInlinePrescription(rx({ reps: 12, repsMax: 14, increment: 2 }), PYRAMID_DOSE),
+    ).toBe('12 · CON')
   })
 
   it('fuera de una pirámide, increment sigue siendo la escalera Death By', () => {
@@ -108,7 +115,7 @@ describe('formatInlinePrescription', () => {
   })
 
   it('PAUSA gana siempre', () => {
-    expect(formatInlinePrescription(rx({ notes: 'PAUSA', reps: 12 }), true)).toBe('PAUSA')
+    expect(formatInlinePrescription(rx({ notes: 'PAUSA', reps: 12 }), PYRAMID_DOSE)).toBe('PAUSA')
   })
 
   it('conserva rango válido y descarta el stale (no "40-16")', () => {
@@ -122,15 +129,118 @@ describe('formatInlinePrescription', () => {
 
 describe('formatQuickDose', () => {
   it('pirámide → serie con unidad', () => {
-    expect(formatQuickDose(isoPyramid, true)).toBe('20-30-20 SEG')
-    expect(formatQuickDose(conPyramid, true)).toBe('10-12-10 REPS')
+    expect(formatQuickDose(isoPyramid, PYRAMID_DOSE)).toBe('20-30-20 SEG')
+    expect(formatQuickDose(conPyramid, PYRAMID_DOSE)).toBe('10-12-10 REPS')
   })
 
   it('pirámide con parámetros inválidos → solo el pico', () => {
-    expect(formatQuickDose(rx({ reps: 20, repsMax: null, increment: 2 }), true)).toBe('20 REPS')
+    expect(formatQuickDose(rx({ reps: 20, repsMax: null, increment: 2 }), PYRAMID_DOSE)).toBe(
+      '20 REPS',
+    )
   })
 
   it('fuera de una pirámide, increment sigue siendo la escalera Death By', () => {
     expect(formatQuickDose(rx({ reps: 8, increment: 2 }))).toBe('8 - 10 - ...')
+  })
+})
+
+/**
+ * Regresión del ladder (2026-10-29, reporte de un profe): el editor guarda
+ * inicio en repsMax/secondsMax, paso en increment y RONDAS en reps/seconds. La
+ * app y la TV veían `increment` y dibujaban Death By tomando las rondas como
+ * inicio: inicio 20" / paso 5 / 3 rondas salía "3 - 8 - 13 - ...".
+ */
+const LADDER: Extract<DoseShape, { kind: 'ladder' }> = {
+  kind: 'ladder',
+  variant: 'ladder',
+  blockSize: null,
+  breakAfter: null,
+}
+const isoLadder = rx({ contraction: 'ISO', seconds: 3, secondsMax: 20, increment: 5 })
+const conLadder = rx({ reps: 3, repsMax: 10, increment: 2 })
+
+describe('isLadderBlock / doseShapeOf', () => {
+  it('manda formatParams.type: las 4 variantes de ladder', () => {
+    for (const type of ['ladder', 'ladder_corta', 'ladder_block', 'broken_ladder']) {
+      expect(isLadderBlock({ format: 'X', formatParams: { type } })).toBe(true)
+    }
+    expect(isLadderBlock({ format: 'Ladder', formatParams: { type: 'amrap' } })).toBe(false)
+  })
+
+  it('sin type o con "standard" stale cae al nombre del formato', () => {
+    expect(isLadderBlock({ format: 'Ladder', formatParams: null })).toBe(true)
+    expect(isLadderBlock({ format: 'Ladder Corta', formatParams: { type: 'standard' } })).toBe(true)
+    expect(isLadderBlock({ format: 'AMRAP', formatParams: { type: 'standard' } })).toBe(false)
+  })
+
+  it('doseShapeOf: pirámide, ladder con su variante y parámetros, o estándar', () => {
+    expect(doseShapeOf({ format: 'Pyramid', formatParams: { type: 'pyramid' } })).toEqual(
+      PYRAMID_DOSE,
+    )
+    expect(
+      doseShapeOf({ format: 'Ladder Block', formatParams: { type: 'ladder_block', blockSize: 4 } }),
+    ).toEqual({ kind: 'ladder', variant: 'ladder_block', blockSize: 4, breakAfter: null })
+    expect(doseShapeOf({ format: 'AMRAP', formatParams: { type: 'amrap' } })).toEqual(STANDARD_DOSE)
+  })
+})
+
+describe('ladderSequence', () => {
+  it('ISO: inicio 20, paso 5, 3 rondas → 20-25-30 (el bug reportado)', () => {
+    expect(ladderSequence(isoLadder, LADDER)).toBe('20-25-30')
+  })
+
+  it('CON: inicio 10, paso 2, 3 rondas → 10-12-14', () => {
+    expect(ladderSequence(conLadder, LADDER)).toBe('10-12-14')
+  })
+
+  it('más de 7 rondas se resume con los 3 primeros y los 2 últimos', () => {
+    expect(ladderSequence(rx({ reps: 10, repsMax: 1, increment: 1 }), LADDER)).toBe('1-2-3...9-10')
+  })
+
+  it('sin inicio ni paso usa los defaults del editor y del PDF', () => {
+    expect(ladderSequence(rx({ reps: 4 }), LADDER)).toBe('1-2-3-4')
+  })
+
+  it('ladder_block y broken_ladder como el PDF y la TV', () => {
+    expect(
+      ladderSequence(rx({ reps: 3, repsMax: 2, increment: 2 }), {
+        ...LADDER,
+        variant: 'ladder_block',
+        blockSize: 3,
+      }),
+    ).toBe('2x3-4x3-6x3...')
+    expect(
+      ladderSequence(rx({ reps: 5, repsMax: 1, increment: 1 }), {
+        ...LADDER,
+        variant: 'broken_ladder',
+        breakAfter: 3,
+      }),
+    ).toBe('1-2-3 | 1-2-3 | ...')
+  })
+})
+
+describe('dosis de un bloque ladder en cada vista', () => {
+  it('inline (cards de bloque)', () => {
+    expect(formatInlinePrescription(isoLadder, LADDER)).toBe('20-25-30s ISO')
+    expect(formatInlinePrescription(conLadder, LADDER)).toBe('10-12-14 · CON')
+  })
+
+  it('compacta (player y transición)', () => {
+    expect(formatQuickDose(isoLadder, LADDER)).toBe('20-25-30 SEG')
+    expect(formatQuickDose(conLadder, LADDER)).toBe('10-12-14 REPS')
+  })
+
+  it('Semana y resumen (formatDose con la forma del bloque)', () => {
+    expect(formatDose(isoLadder, LADDER)).toBe('20-25-30 SEG')
+    expect(formatDose(conLadder, LADDER)).toBe('10-12-14 REPS')
+  })
+
+  it('PAUSA gana siempre', () => {
+    expect(formatQuickDose(rx({ notes: 'PAUSA', reps: 3 }), LADDER)).toBe('PAUSA')
+    expect(formatDose(rx({ notes: 'PAUSA', reps: 3 }), LADDER)).toBe('PAUSA')
+  })
+
+  it('fuera de un ladder, increment sigue siendo la escalera Death By', () => {
+    expect(formatDose(rx({ reps: 8, increment: 2 }))).toBe('8 - 10 - 12 - ...')
   })
 })

@@ -48,6 +48,7 @@ import {
 import { getRouteLabel } from "./route-labels";
 import { buildRecorridoDeInicio } from "./recorrido";
 import { toTimerSpec } from "./timer-spec";
+import type { FormatParams } from "../admin/format-params";
 import type {
   TvAvisoPollPayload,
   TvBlockSummary,
@@ -192,24 +193,43 @@ function utcOffsetMinutes(tz: string, at: Date): number {
  * Como se dibuja la dosis de un bloque segun su formato:
  * - `dictated`: la dicta la estructura del formato (FORMAT_DICTATED_TYPES), va vacia.
  * - `pyramid`: serie de subida y bajada (`pyramidVolume`).
+ * - `ladder`: escalera por ejercicio (`ladderVolume`), con la variante del bloque.
  * - `standard`: reps/segundos/rango/escalera Death By (`prescriptionVolume`).
  */
-type DoseMode = "dictated" | "pyramid" | "standard";
+type DoseMode =
+  | { kind: "dictated" }
+  | { kind: "pyramid" }
+  | { kind: "ladder"; params: FormatParams | null }
+  | { kind: "standard" };
+
+const LADDER_TYPES: ReadonlySet<string> = new Set([
+  "ladder",
+  "ladder_corta",
+  "ladder_block",
+  "broken_ladder",
+]);
 
 /**
- * Mismo criterio que `isPyramid` del editor (EditableExerciseRow.vue): manda
- * `format_params.type`, salvo que falte o haya quedado en 'standard' (stale);
- * ahi cae al nombre del formato.
+ * Mismo criterio que `isPyramid` / `isLadderFormat` del editor
+ * (EditableExerciseRow.vue, constants/formats.ts): manda `format_params.type`,
+ * salvo que falte o haya quedado en 'standard' (stale); ahi cae al nombre del
+ * formato.
  */
 function doseModeOf(block: ClassDayBlock | null | undefined): DoseMode {
-  if (!block) return "standard";
+  if (!block) return { kind: "standard" };
   const type = block.formatParams?.type;
-  if (type && FORMAT_DICTATED_TYPES.has(type)) return "dictated";
-  const isPyramid =
-    type && type !== "standard"
-      ? type === "pyramid"
-      : block.formatName.trim().toLowerCase() === "pyramid";
-  return isPyramid ? "pyramid" : "standard";
+  if (type && FORMAT_DICTATED_TYPES.has(type)) return { kind: "dictated" };
+  if (type && type !== "standard") {
+    if (type === "pyramid") return { kind: "pyramid" };
+    return LADDER_TYPES.has(type)
+      ? { kind: "ladder", params: block.formatParams }
+      : { kind: "standard" };
+  }
+  const name = block.formatName.trim().toLowerCase();
+  if (name === "pyramid") return { kind: "pyramid" };
+  return name.includes("ladder")
+    ? { kind: "ladder", params: block.formatParams }
+    : { kind: "standard" };
 }
 
 /**
@@ -246,9 +266,63 @@ function pyramidVolume(p: ClassDayPrescription): string {
   return `${seq}${unit}`;
 }
 
+/** Escalera ascendente: inicio, inicio+paso, inicio+2*paso, ... (`count` valores). */
+function ladderSteps(start: number, step: number, count: number): number[] {
+  const values: number[] = [];
+  for (let i = 0; i < count; i++) values.push(start + i * step);
+  return values;
+}
+
+/**
+ * Escalera de un ejercicio en un bloque ladder, con el contrato del editor del
+ * admin y del PDF (`buildLadderVolume`): inicio en `reps_max`/`seconds_max`,
+ * paso en `increment`, rondas en `reps`/`seconds` (segundos si la contraccion
+ * es ISO). Ej. inicio 20", paso 5, 3 rondas → 20-25-30".
+ *
+ * Antes el TV lo trataba como escalera Death By y tomaba las RONDAS como
+ * inicio: 20" / paso 5 / 3 rondas salia "3-8-13-..." (bug reportado por un
+ * profe el 2026-10-29). Los valores que falten usan los mismos defaults que el
+ * editor y el PDF (inicio 1, paso 1, 5 rondas). Variantes como el PDF:
+ * `ladder_block` repite cada escalon `blockSize` veces y `broken_ladder` corta
+ * el tramo cada `breakAfter` escalones.
+ */
+function ladderVolume(
+  p: ClassDayPrescription,
+  params: FormatParams | null,
+): string {
+  const isIso = p.contraction.toUpperCase() === "ISO";
+  const start = (isIso ? p.secondsMax : p.repsMax) || 1;
+  const step = p.increment || 1;
+  const rounds = (isIso ? p.seconds : p.reps) || 5;
+  const unit = isIso ? '"' : "";
+
+  if (params?.type === "ladder_block") {
+    const blockSize = params.blockSize || 3;
+    return `${ladderSteps(start, step, Math.min(rounds, 4))
+      .map((n) => `${n}${unit}x${blockSize}`)
+      .join("-")}...`;
+  }
+  if (params?.type === "broken_ladder") {
+    const segment = ladderSteps(start, step, params.breakAfter || 3)
+      .map((n) => `${n}${unit}`)
+      .join("-");
+    return `${segment} | ${segment} | ...`;
+  }
+
+  // ladder / ladder_corta: hasta 7 escalones completos; mas largo, se resume
+  // con los 3 primeros y los 2 ultimos ("1-2-3...9-10"), igual que el PDF.
+  const values = ladderSteps(start, step, rounds);
+  const seq =
+    values.length <= 7
+      ? values.join("-")
+      : `${values.slice(0, 3).join("-")}...${values.slice(-2).join("-")}`;
+  return `${seq}${unit}`;
+}
+
 /**
  * Volumen de una prescripcion, con la misma logica que imprime el PDF. Solo
- * para bloques no piramidales: la piramide va por `pyramidVolume`.
+ * para bloques sin serie propia: la piramide va por `pyramidVolume` y la
+ * escalera de un bloque ladder por `ladderVolume`.
  */
 function prescriptionVolume(p: ClassDayPrescription): string {
   if (p.increment) {
@@ -1179,11 +1253,13 @@ export class TvService {
   private toExercise(p: ClassDayPrescription, doseMode: DoseMode): TvExercise {
     const name = p.weighted ? `${p.exerciseName} (W)` : p.exerciseName;
     const dose =
-      doseMode === "dictated"
+      doseMode.kind === "dictated"
         ? ""
-        : doseMode === "pyramid"
+        : doseMode.kind === "pyramid"
           ? pyramidVolume(p)
-          : prescriptionVolume(p);
+          : doseMode.kind === "ladder"
+            ? ladderVolume(p, doseMode.params)
+            : prescriptionVolume(p);
     return {
       name,
       contraction: p.contraction,
