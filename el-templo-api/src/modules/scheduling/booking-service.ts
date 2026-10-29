@@ -49,6 +49,7 @@ import {
 } from "../shared/errors";
 import { sameActivityKindSql, specialLineLabel } from "./special-line";
 import { categoryGroup, isInvitationPlan } from "../subscriptions/types";
+import { BOOKING_CANCEL_WINDOW_MINUTES } from "./booking-constants";
 import { getEffectiveCapacity as resolveSlotCapacity } from "./capacity";
 import { getScheduleException } from "./schedule-exceptions";
 import {
@@ -603,7 +604,7 @@ export class BookingService {
       )
     ) {
       throw new BadRequestError(
-        "No se puede cancelar menos de 20 minutos antes",
+        `No se puede cancelar menos de ${BOOKING_CANCEL_WINDOW_MINUTES} minutos antes`,
       );
     }
 
@@ -2279,7 +2280,9 @@ export class BookingService {
   ): boolean {
     const now = new Date();
     const classTime = buildClassDateTime(bookingDate, scheduleStartTime, tz);
-    const cutoff = new Date(classTime.getTime() - 20 * 60 * 1000);
+    const cutoff = new Date(
+      classTime.getTime() - BOOKING_CANCEL_WINDOW_MINUTES * 60 * 1000,
+    );
     return now <= cutoff;
   }
 

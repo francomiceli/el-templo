@@ -55,6 +55,7 @@ import {
   type EligibilityResult,
   type InvitationIneligibleReason,
   type InviteeEligibilityInput,
+  type InviterCanInviteResult,
   type InviterQuota,
 } from "./invitation-types";
 
@@ -92,36 +93,65 @@ export class InvitationRules {
    * Aserción de D-10d + D-10: el invitador existe, tiene membresía vigente
    * (cobertura de membresía >= hoy en la tz de su sede, sin contar `is_trial`) y
    * le queda cupo este mes. Devuelve el cupo para que el llamador lo reuse.
+   * La regla vive en {@link evaluateInviterCanInvite}; esto solo la lanza.
    */
   async assertInviterCanInvite(
     ctx: TenantContext,
     inviterId: number,
     exec: InvitationExecutor = this.db,
   ): Promise<InviterQuota> {
-    const inviter = await this.loadUserWithTimezone(ctx, inviterId, exec);
-    if (!inviter) throw new InvitationRuleError("inviter_not_found");
+    const result = await this.evaluateInviterCanInvite(ctx, inviterId, exec);
+    if (!result.canInvite) throw new InvitationRuleError(result.reason);
+    return result.quota;
+  }
+
+  /**
+   * ÚNICA fuente de la regla "el socio puede invitar hoy" (D-10d + D-10), SIN
+   * lanzar: la usan {@link assertInviterCanInvite} (activación) y el overview de
+   * "Mis invitados" (`conditions.canInvite`). Orden fijo: existe -> membresía
+   * vigente -> cupo. `known` evita recargar el usuario y recontar el cupo cuando el
+   * llamador ya los tiene (el overview).
+   */
+  async evaluateInviterCanInvite(
+    ctx: TenantContext,
+    inviterId: number,
+    exec: InvitationExecutor = this.db,
+    known?: { timezone: string; quota: InviterQuota },
+  ): Promise<InviterCanInviteResult> {
+    let timezone = known?.timezone;
+    if (timezone === undefined) {
+      const inviter = await this.loadUserWithTimezone(ctx, inviterId, exec);
+      if (!inviter) return { canInvite: false, reason: "inviter_not_found" };
+      timezone = inviter.timezone;
+    }
 
     // Fase 194 D-10d: "activo" = cobertura de MEMBRESÍA vigente. Un invitador
     // que solo tiene accesos de invitación (plan is_trial) no puede invitar.
-    const coveredUntil = await deriveMembershipCoveredUntil(
-      exec,
-      inviterId,
-      ctx,
-    );
-    if (coveredUntil === null || coveredUntil < todayInTz(inviter.timezone)) {
-      throw new InvitationRuleError("inviter_not_member");
+    if (!(await this.hasMembershipToday(ctx, inviterId, timezone, exec))) {
+      return { canInvite: false, reason: "inviter_not_member" };
     }
 
-    const quota = await this.computeQuota(
-      ctx,
-      inviterId,
-      inviter.timezone,
-      exec,
-    );
+    const quota =
+      known?.quota ?? (await this.computeQuota(ctx, inviterId, timezone, exec));
     if (quota.remaining <= 0) {
-      throw new InvitationRuleError("inviter_quota_exhausted");
+      return { canInvite: false, reason: "inviter_quota_exhausted" };
     }
-    return quota;
+    return { canInvite: true, quota };
+  }
+
+  /**
+   * ¿Tiene cobertura de MEMBRESÍA (sin `is_trial`) hoy, en la tz dada? Es la regla
+   * de D-10d, y también la que decide si al invitador se le avisa que su invitado se
+   * sumó (`invitation-link-notifications.ts`): una sola definición de "membresía vigente".
+   */
+  async hasMembershipToday(
+    ctx: TenantContext,
+    userId: number,
+    timezone: string,
+    exec: InvitationExecutor = this.db,
+  ): Promise<boolean> {
+    const coveredUntil = await deriveMembershipCoveredUntil(exec, userId, ctx);
+    return coveredUntil !== null && coveredUntil >= todayInTz(timezone);
   }
 
   /**
@@ -410,14 +440,18 @@ export class InvitationRules {
 
   // ─── Carga de datos que las reglas necesitan ─────────────────────────────
 
-  /** Usuario (no borrado) del tenant con la tz de su sede. */
+  /** Usuario (no borrado) del tenant con la tz y el país de su sede. */
   async loadUserWithTimezone(
     ctx: TenantContext,
     userId: number,
     exec: InvitationExecutor,
-  ): Promise<{ id: number; timezone: string } | undefined> {
+  ): Promise<{ id: number; timezone: string; country: string } | undefined> {
     const [row] = await exec
-      .select({ id: schema.users.id, timezone: schema.branches.timezone })
+      .select({
+        id: schema.users.id,
+        timezone: schema.branches.timezone,
+        country: schema.branches.country,
+      })
       .from(schema.users)
       .innerJoin(
         schema.branches,

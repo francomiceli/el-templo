@@ -28,6 +28,20 @@ export interface InviterQuota {
   month: string;
 }
 
+/**
+ * Resultado de evaluar si el socio puede invitar HOY (D-10d + D-10) sin lanzar:
+ * cuando puede, trae el cupo; cuando no, el `reason` que lanzaría `assertInviterCanInvite`.
+ */
+export type InviterCanInviteResult =
+  | { canInvite: true; quota: InviterQuota }
+  | {
+      canInvite: false;
+      reason: Extract<
+        InvitationIneligibleReason,
+        "inviter_not_found" | "inviter_not_member" | "inviter_quota_exhausted"
+      >;
+    };
+
 /** Resultado de evaluar al invitado SIN lanzar (para `GET .../eligibility`). */
 export interface EligibilityResult {
   eligible: boolean;
