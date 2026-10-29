@@ -178,14 +178,18 @@ describe("Fase 194 SC-1 / D-14 — uso de los accesos de invitación (reserva y 
   }
 
   /** Invitado logueable activado en la sede A (registro real en la sede virtual). */
-  async function activatedInvitee(branchId: number = branchA.id): Promise<{
+  // F1 (2026-10-29): los países nunca se cruzan, así que el invitador es del país de la sede.
+  async function activatedInvitee(
+    branchId: number = branchA.id,
+    inviterCountry: "AR" | "ES" = "AR",
+  ): Promise<{
     userId: number;
     token: string;
     subscriptionId: number;
     invitationId: number;
     accessExpiresOn: string;
   }> {
-    const inviter = await createInviterWithCode(ctx);
+    const inviter = await createInviterWithCode(ctx, { country: inviterCountry });
     const virtual = await ensureVirtualBranch(ctx);
     const email = `acc-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}@test.com`;
     const reg = await registerUser(app, {
@@ -387,7 +391,7 @@ describe("Fase 194 SC-1 / D-14 — uso de los accesos de invitación (reserva y 
   });
 
   it("invitado en la sede de España: reserva en una sede de AR rechazada (país de la sub)", async () => {
-    const inv = await activatedInvitee(branchEs.id);
+    const inv = await activatedInvitee(branchEs.id, "ES");
 
     const res = await reserve(inv.token, branchA.id, addDays(arToday, 1));
 
