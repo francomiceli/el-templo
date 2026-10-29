@@ -30,6 +30,7 @@ import {
   and,
   eq,
   gte,
+  inArray,
   isNotNull,
   isNull,
   ne,
@@ -55,6 +56,7 @@ import {
   type EligibilityResult,
   type InvitationIneligibleReason,
   type InviteeEligibilityInput,
+  type InviterCanInviteResult,
   type InviterQuota,
 } from "./invitation-types";
 
@@ -92,36 +94,65 @@ export class InvitationRules {
    * Aserción de D-10d + D-10: el invitador existe, tiene membresía vigente
    * (cobertura de membresía >= hoy en la tz de su sede, sin contar `is_trial`) y
    * le queda cupo este mes. Devuelve el cupo para que el llamador lo reuse.
+   * La regla vive en {@link evaluateInviterCanInvite}; esto solo la lanza.
    */
   async assertInviterCanInvite(
     ctx: TenantContext,
     inviterId: number,
     exec: InvitationExecutor = this.db,
   ): Promise<InviterQuota> {
-    const inviter = await this.loadUserWithTimezone(ctx, inviterId, exec);
-    if (!inviter) throw new InvitationRuleError("inviter_not_found");
+    const result = await this.evaluateInviterCanInvite(ctx, inviterId, exec);
+    if (!result.canInvite) throw new InvitationRuleError(result.reason);
+    return result.quota;
+  }
+
+  /**
+   * ÚNICA fuente de la regla "el socio puede invitar hoy" (D-10d + D-10), SIN
+   * lanzar: la usan {@link assertInviterCanInvite} (activación) y el overview de
+   * "Mis invitados" (`conditions.canInvite`). Orden fijo: existe -> membresía
+   * vigente -> cupo. `known` evita recargar el usuario y recontar el cupo cuando el
+   * llamador ya los tiene (el overview).
+   */
+  async evaluateInviterCanInvite(
+    ctx: TenantContext,
+    inviterId: number,
+    exec: InvitationExecutor = this.db,
+    known?: { timezone: string; quota: InviterQuota },
+  ): Promise<InviterCanInviteResult> {
+    let timezone = known?.timezone;
+    if (timezone === undefined) {
+      const inviter = await this.loadUserWithTimezone(ctx, inviterId, exec);
+      if (!inviter) return { canInvite: false, reason: "inviter_not_found" };
+      timezone = inviter.timezone;
+    }
 
     // Fase 194 D-10d: "activo" = cobertura de MEMBRESÍA vigente. Un invitador
     // que solo tiene accesos de invitación (plan is_trial) no puede invitar.
-    const coveredUntil = await deriveMembershipCoveredUntil(
-      exec,
-      inviterId,
-      ctx,
-    );
-    if (coveredUntil === null || coveredUntil < todayInTz(inviter.timezone)) {
-      throw new InvitationRuleError("inviter_not_member");
+    if (!(await this.hasMembershipToday(ctx, inviterId, timezone, exec))) {
+      return { canInvite: false, reason: "inviter_not_member" };
     }
 
-    const quota = await this.computeQuota(
-      ctx,
-      inviterId,
-      inviter.timezone,
-      exec,
-    );
+    const quota =
+      known?.quota ?? (await this.computeQuota(ctx, inviterId, timezone, exec));
     if (quota.remaining <= 0) {
-      throw new InvitationRuleError("inviter_quota_exhausted");
+      return { canInvite: false, reason: "inviter_quota_exhausted" };
     }
-    return quota;
+    return { canInvite: true, quota };
+  }
+
+  /**
+   * ¿Tiene cobertura de MEMBRESÍA (sin `is_trial`) hoy, en la tz dada? Es la regla
+   * de D-10d, y también la que decide si al invitador se le avisa que su invitado se
+   * sumó (`invitation-link-notifications.ts`): una sola definición de "membresía vigente".
+   */
+  async hasMembershipToday(
+    ctx: TenantContext,
+    userId: number,
+    timezone: string,
+    exec: InvitationExecutor = this.db,
+  ): Promise<boolean> {
+    const coveredUntil = await deriveMembershipCoveredUntil(exec, userId, ctx);
+    return coveredUntil !== null && coveredUntil >= todayInTz(timezone);
   }
 
   /**
@@ -157,7 +188,7 @@ export class InvitationRules {
 
   /**
    * Evalúa al invitado SIN lanzar. Orden fijo, corta en la primera falla:
-   * `self_invite` -> identificación (`phone_required`/`phone_taken`/`dni_taken`)
+   * `self_invite` -> `invitee_other_country` -> identificación (`phone_required`/`phone_taken`/`dni_taken`)
    * -> D-11 (historial de membresía) -> D-12 (invitación reciente por persona).
    * No consulta reservas: la SP comercial no bloquea (D-12).
    */
@@ -212,6 +243,12 @@ export class InvitationRules {
   ): Promise<InvitationIneligibleReason | null> {
     if (input.inviterId === input.invitedUserId) return "self_invite";
 
+    // F1: los países nunca se cruzan. Es una regla del par invitador/invitado, así
+    // que la corren por igual la consulta previa, la activación y el canal asistido.
+    if (await this.isInviteeInOtherCountry(ctx, input, exec)) {
+      return "invitee_other_country";
+    }
+
     // La consulta previa de la app (`previewActivation`) todavía no tiene el
     // teléfono que el socio va a tipear: la identidad se valida recién al activar.
     if (!opts.skipIdentity) {
@@ -238,6 +275,44 @@ export class InvitationRules {
       exec,
     );
     return recent ? "invitee_recent_invitation" : null;
+  }
+
+  /**
+   * F1: el invitado ya entrena en una sede FÍSICA de otro país que el invitador.
+   * Uno en la sede virtual (registro sin sede) no tiene país propio y elige
+   * libremente, pero solo entre sedes del país del invitador (eso lo valida el
+   * servicio con la sede elegida).
+   */
+  private async isInviteeInOtherCountry(
+    ctx: TenantContext,
+    input: Pick<InviteeEligibilityInput, "inviterId" | "invitedUserId">,
+    exec: InvitationExecutor,
+  ): Promise<boolean> {
+    const rows = await exec
+      .select({
+        id: schema.users.id,
+        country: schema.branches.country,
+        isVirtual: schema.branches.isVirtual,
+      })
+      .from(schema.users)
+      .innerJoin(
+        schema.branches,
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.users.branchId),
+        ),
+      )
+      .where(
+        and(
+          tenantWhere(schema.users, ctx),
+          inArray(schema.users.id, [input.inviterId, input.invitedUserId]),
+          isNull(schema.users.deletedAt),
+        ),
+      );
+    const inviter = rows.find((row) => row.id === input.inviterId);
+    const invitee = rows.find((row) => row.id === input.invitedUserId);
+    if (!inviter || !invitee || invitee.isVirtual) return false;
+    return invitee.country !== inviter.country;
   }
 
   private async findIdentityReason(
@@ -410,14 +485,18 @@ export class InvitationRules {
 
   // ─── Carga de datos que las reglas necesitan ─────────────────────────────
 
-  /** Usuario (no borrado) del tenant con la tz de su sede. */
+  /** Usuario (no borrado) del tenant con la tz y el país de su sede. */
   async loadUserWithTimezone(
     ctx: TenantContext,
     userId: number,
     exec: InvitationExecutor,
-  ): Promise<{ id: number; timezone: string } | undefined> {
+  ): Promise<{ id: number; timezone: string; country: string } | undefined> {
     const [row] = await exec
-      .select({ id: schema.users.id, timezone: schema.branches.timezone })
+      .select({
+        id: schema.users.id,
+        timezone: schema.branches.timezone,
+        country: schema.branches.country,
+      })
       .from(schema.users)
       .innerJoin(
         schema.branches,

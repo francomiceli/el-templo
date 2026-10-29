@@ -63,6 +63,7 @@ async function qualifyReferralOnCharge(
   await notifyReferralLinkActivated(
     deps.db,
     deps.log,
+    ctx,
     flipped.referrerId,
     flipped.referredFirstName,
   );

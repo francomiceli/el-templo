@@ -675,8 +675,8 @@ describe("Fase 194 D-06 — activación de invitaciones", () => {
     }
   });
 
-  it("invitado de la sede virtual que elige una sede de España: se muda y recibe el plan Invitación de ES", async () => {
-    const inviter = await createInviterWithCode(ctx);
+  it("invitado de la sede virtual que elige una sede de España (invitador de ES): se muda y recibe el plan Invitación de ES", async () => {
+    const inviter = await createInviterWithCode(ctx, { country: "ES" });
     const invitee = await createMemberInVirtualBranch(ctx);
     const esBranch = await ensurePhysicalBranch(ctx, "ES");
     const esPlan = await createTrialPlan(ctx, { country: "ES" });

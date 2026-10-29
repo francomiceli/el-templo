@@ -174,10 +174,10 @@ export const SYSTEM_AVISOS: SystemAvisoSeed[] = [
     // referidos (`POST /members/referrals/cta-click`) NO cambia.
     code: "card_referral",
     placement: "tarjeta",
-    title: "Vos decidís cuánto bajás tu cuota",
-    // Fase 194 D-26 (migración 0261): copy de invitaciones. El título no
-    // menciona "referido" y se conserva.
-    body: "Invitá a entrenar: cada persona que invites y se sume baja tu cuota.",
+    // Migración 0315 (2026-10-29): copy alineado con la novedad + push de
+    // invitaciones. Antes: 0261 (Fase 194 D-26).
+    title: "Invitá a entrenar a tus amigos",
+    body: "Tienen 3 clases gratis y, si se suman, los dos tienen descuento.",
     buttonText: "Invitar",
     destinationType: "app_section",
     destinationSection: "referidos",

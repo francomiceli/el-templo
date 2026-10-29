@@ -5,40 +5,42 @@
  * (194-19): acá solo se rotulan. Ningún número (cupo, accesos, vigencia) está
  * hardcodeado: todo llega por parámetro.
  *
- * Paleta de marca (quasar.variables.scss), sin azul: `info` = Olive Stone,
- * `secondary` = Clay, `warning` = dorado oscuro, `positive` = verde cálido.
+ * Tonos de las pills del rework (2026-10-29, mismas que Reservas): salvia, neutro, ocre,
+ * rojo tierra y terracota, texto sólido sobre su tinte. Sin colores de Quasar ni azul.
  */
 
 export type InviteeState = 'socio_activo' | 'inactivo' | 'vencido' | 'entrenando' | 'invitado'
 
+export type PillTone = 'ok' | 'neutral' | 'warn' | 'bad' | 'terra'
+
 interface StateMeta {
   label: string
-  color: string
+  tone: PillTone
 }
 
 const STATE_META: Record<InviteeState, StateMeta> = {
-  invitado: { label: 'Invitado', color: 'info' },
-  entrenando: { label: 'Entrenando', color: 'secondary' },
-  vencido: { label: 'Vencido', color: 'warning' },
-  socio_activo: { label: 'Socio activo', color: 'positive' },
-  inactivo: { label: 'Inactivo', color: 'grey-7' },
+  invitado: { label: 'Invitado', tone: 'neutral' },
+  entrenando: { label: 'Entrenando', tone: 'terra' },
+  vencido: { label: 'Vencido', tone: 'warn' },
+  socio_activo: { label: 'Socio activo', tone: 'ok' },
+  inactivo: { label: 'Inactivo', tone: 'bad' },
 }
 
 export function inviteeStateLabel(state: InviteeState): string {
   return STATE_META[state].label
 }
 
-export function inviteeStateColor(state: InviteeState): string {
-  return STATE_META[state].color
+export function inviteeStateTone(state: InviteeState): PillTone {
+  return STATE_META[state].tone
 }
 
 export type InvitedByStage = 'invitado' | 'entrenando' | 'vencido' | 'convertido'
 
 const STAGE_META: Record<InvitedByStage, StateMeta> = {
-  invitado: { label: 'Invitado', color: 'info' },
-  entrenando: { label: 'Entrenando', color: 'secondary' },
-  vencido: { label: 'Vencido', color: 'warning' },
-  convertido: { label: 'Ya sos socio', color: 'positive' },
+  invitado: { label: 'Invitado', tone: 'neutral' },
+  entrenando: { label: 'Entrenando', tone: 'terra' },
+  vencido: { label: 'Vencido', tone: 'warn' },
+  convertido: { label: 'Ya sos socio', tone: 'ok' },
 }
 
 /** Etapa de MI invitación ("Te invitó ..."): la deriva el servidor, acá solo se rotula. */
@@ -46,8 +48,24 @@ export function invitedByStageLabel(stage: InvitedByStage): string {
   return STAGE_META[stage].label
 }
 
-export function invitedByStageColor(stage: InvitedByStage): string {
-  return STAGE_META[stage].color
+export function invitedByStageTone(stage: InvitedByStage): PillTone {
+  return STAGE_META[stage].tone
+}
+
+/**
+ * Si el invitado suma a mi descuento (E3, 2026-10-29). `sumaDescuento` lo marca el servidor
+ * (vínculo cualificado + plan vigente) y solo en la fila MÁS RECIENTE de cada persona: una fila
+ * vieja de alguien que ya suma por otra no dice "No suma". "No suma" solo se aclara para un
+ * socio activo, que es el caso que confunde (compró un plan sin descuento o fuera de término).
+ */
+export function inviteeDiscountNote(
+  invitee: { userId: number; state: InviteeState; sumaDescuento: boolean },
+  all: ReadonlyArray<{ userId: number; sumaDescuento: boolean }>,
+): string {
+  if (invitee.sumaDescuento) return 'Suma a tu descuento'
+  if (invitee.state !== 'socio_activo') return ''
+  const sumsElsewhere = all.some((row) => row.userId === invitee.userId && row.sumaDescuento)
+  return sumsElsewhere ? '' : 'No suma a tu descuento'
 }
 
 /**
@@ -116,11 +134,18 @@ export function expiryText(ymd: string | null): string {
   return short ? `Vence ${short}` : ''
 }
 
-/** Descuento vigente por invitaciones: "10% (2 invitados activos)". */
-export function discountText(percent: number, activeInvitees: number): string {
+/** Descuento vigente por invitaciones: "Estás pagando 10% menos". */
+export function discountText(percent: number): string {
   if (percent <= 0) return 'Todavía no tenés descuento activo'
-  const who = activeInvitees === 1 ? '1 invitado activo' : `${activeInvitees} invitados activos`
-  return `Estás pagando ${percent}% menos (${who})`
+  return `Estás pagando ${percent}% menos`
+}
+
+/** Debajo del descuento: cuántos invitados suman; '' sin ninguno. */
+export function activeInviteesText(activeInvitees: number): string {
+  if (activeInvitees <= 0) return ''
+  return activeInvitees === 1
+    ? '1 invitado activo suma a tu descuento'
+    : `${activeInvitees} invitados activos suman a tu descuento`
 }
 
 /** Mensaje para compartir (share sheet). Sin cantidades: el detalle lo muestra la app al activar. */

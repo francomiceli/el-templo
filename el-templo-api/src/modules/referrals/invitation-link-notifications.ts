@@ -10,21 +10,40 @@ import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { NotificationService } from "../notifications/service";
 import { tenantWhere, type TenantContext } from "../shared/tenant";
+import { InvitationRules } from "./invitation-rules";
 
 type DbInstance = MySql2Database<typeof schema>;
 
 /**
  * Aviso al invitador de que su descuento quedó activo. Best-effort (D-33): un fallo
  * de la cola JAMÁS relanza ni rompe el cobro. Lo comparten el flip `pending→qualified`
- * de la 157 (`qualifyReferralOnCharge`) y la materialización de este archivo.
+ * de la 157 (`qualifyReferralOnCharge`) y la materialización de este archivo, así que
+ * el filtro de abajo cubre los dos caminos.
+ *
+ * F3: si el invitador no tiene membresía vigente hoy (la misma regla que D-10d, en la
+ * tz de su sede) NO se le avisa: "ya tenés tu descuento activo" sería mentira para
+ * quien no está cubierto. Solo se salta el aviso; el vínculo y el descuento no cambian.
  */
 export async function notifyReferralLinkActivated(
   db: DbInstance,
   log: FastifyBaseLogger,
+  ctx: TenantContext,
   referrerId: number,
   referredFirstName: string,
 ): Promise<void> {
   try {
+    const rules = new InvitationRules(db, log);
+    const referrer = await rules.loadUserWithTimezone(ctx, referrerId, db);
+    if (
+      !referrer ||
+      !(await rules.hasMembershipToday(ctx, referrerId, referrer.timezone, db))
+    ) {
+      log.info(
+        { referrerId },
+        "referral activation notification skipped: el invitador no tiene membresía vigente",
+      );
+      return;
+    }
     await new NotificationService(db, log).queueNotification({
       userId: referrerId,
       templateKey: "referral_link_activated",
@@ -62,6 +81,7 @@ export async function notifyInviterLinkActivated(
     await notifyReferralLinkActivated(
       db,
       log,
+      ctx,
       inviterId,
       payer.firstName ?? "",
     );

@@ -42,6 +42,7 @@ import {
   createInvitationRow,
   createInviterWithCode,
   createMemberInPhysicalBranch,
+  createMembershipPlan,
   createTrialPlan,
   fixtureCtx,
   resetInvitationSettings,
@@ -363,6 +364,75 @@ describe("194-15: la compra del invitado crea el vínculo y descuenta (D-05 / D-
 });
 
 // ─── D-13: ventana de compra tardía ──────────────────────────────────────────
+
+describe("F3: el aviso al invitador solo sale si tiene membresía vigente hoy", () => {
+  /** Invitador cuya última membresía venció hace 5 días (sin cobertura hoy). */
+  async function inviterWithExpiredMembership(): Promise<{ id: number }> {
+    const member = await createMemberInPhysicalBranch(ctx, {
+      status: "inactivo",
+    });
+    const plan = await createMembershipPlan(ctx);
+    await createActiveSub(ctx, {
+      userId: member.id,
+      planId: plan.id,
+      startOffsetDays: -40,
+      endOffsetDays: -5,
+      status: "expired",
+    });
+    return member;
+  }
+
+  it("invitador SIN membresía vigente: el vínculo nace igual pero no se le encola ningún aviso", async () => {
+    const inviter = await inviterWithExpiredMembership();
+    await giveDeviceToken(inviter.id);
+    const payer = await inviteeOf(inviter, { withAccessSub: true });
+    const planId = await monthPlan();
+
+    const res = await buy(payer, planId);
+
+    expect(res.statusCode, JSON.stringify(res.body)).toBe(201);
+    // La lógica de vínculo y descuento NO cambia: solo se salta el aviso.
+    const links = await referralRowsOf(payer.id);
+    expect(links).toHaveLength(1);
+    expect(links[0]).toMatchObject({
+      referrerId: inviter.id,
+      referredId: payer.id,
+      status: "qualified",
+    });
+    expect(await notificationsOf(inviter.id)).toHaveLength(0);
+    expect(await notificationsOf(payer.id)).toHaveLength(0);
+  });
+
+  it("invitador sin ninguna membresía (solo accesos de invitación): tampoco se le avisa", async () => {
+    const inviter = await createMemberInPhysicalBranch(ctx, {
+      status: "prueba",
+    });
+    const trialPlan = await createTrialPlan(ctx);
+    await createActiveSub(ctx, { userId: inviter.id, planId: trialPlan.id });
+    await giveDeviceToken(inviter.id);
+    const payer = await inviteeOf(inviter);
+
+    const res = await buy(payer, await monthPlan());
+
+    expect(res.statusCode, JSON.stringify(res.body)).toBe(201);
+    expect(await referralRowsOf(payer.id)).toHaveLength(1);
+    expect(await notificationsOf(inviter.id)).toHaveLength(0);
+  });
+
+  it("control: invitador con membresía vigente SÍ recibe el aviso (y el vínculo nace igual)", async () => {
+    const inviter = await createInviterWithCode(ctx);
+    await giveDeviceToken(inviter.id);
+    const payer = await inviteeOf(inviter);
+
+    const res = await buy(payer, await monthPlan());
+
+    expect(res.statusCode, JSON.stringify(res.body)).toBe(201);
+    expect(await referralRowsOf(payer.id)).toHaveLength(1);
+    const notifs = await notificationsOf(inviter.id);
+    expect(notifs).toHaveLength(1);
+    expect(notifs[0].template_key).toBe("referral_link_activated");
+  });
+});
 
 describe("194-15: compra tardía (D-13)", () => {
   it("accesos vencidos hace 30 días (borde de la ventana de 30) → vínculo y descuento", async () => {

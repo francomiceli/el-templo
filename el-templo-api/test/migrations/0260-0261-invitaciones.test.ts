@@ -572,6 +572,11 @@ const OLD_TITLE_FEMALE = "¡Tu referida pagó!";
 const OLD_AVISO_BODY =
   "Invitá a entrenar: cada persona que traigas suma descuento a tu cuota.";
 const OLD_AVISO_BUTTON = "Compartir código";
+// Copy que deja la 0261. El seed en codigo ya no es este: la 0315 lo cambio otra vez
+// (2026-10-29), asi que los asserts de la 0261 comparan contra su propio texto.
+const AVISO_TITLE_0261 = "Vos decidís cuánto bajás tu cuota";
+const AVISO_BODY_0261 =
+  "Invitá a entrenar: cada persona que invites y se sume baja tu cuota.";
 const NOTIF_KEY = "referral_link_activated";
 const AVISO_CODE = "card_referral";
 
@@ -615,6 +620,7 @@ describe("Migracion 0261 — copy de invitaciones (notificacion y aviso)", () =>
       bodyFemale: notifSeed?.bodyFemale ?? "",
     });
     await setAviso({
+      title: avisoSeed?.title ?? "",
       body: avisoSeed?.body ?? "",
       buttonText: avisoSeed?.buttonText ?? "",
     });
@@ -666,7 +672,7 @@ describe("Migracion 0261 — copy de invitaciones (notificacion y aviso)", () =>
     over: Partial<{ title: string; body: string; buttonText: string }>,
   ): Promise<void> {
     const v = {
-      title: "Vos decidís cuánto bajás tu cuota",
+      title: AVISO_TITLE_0261,
       body: OLD_AVISO_BODY,
       buttonText: OLD_AVISO_BUTTON,
       ...over,
@@ -723,7 +729,7 @@ describe("Migracion 0261 — copy de invitaciones (notificacion y aviso)", () =>
     expect(sqlText).toContain(lit(notifSeed?.titleFemale));
     expect(sqlText).toContain(lit(notifSeed?.bodyFemale));
     expect(sqlText).toContain(lit(notifSeed?.route));
-    expect(sqlText).toContain(lit(avisoSeed?.body));
+    expect(sqlText).toContain(lit(AVISO_BODY_0261));
     expect(sqlText).toContain(lit(avisoSeed?.buttonText));
     // Textos exactos de la decision (D-26)
     expect(notifSeed?.title).toBe("¡Tu invitado se sumó!");
@@ -752,9 +758,9 @@ describe("Migracion 0261 — copy de invitaciones (notificacion y aviso)", () =>
     await apply();
 
     const a = await readAviso();
-    expect(a.body).toBe(avisoSeed?.body);
+    expect(a.body).toBe(AVISO_BODY_0261);
     expect(a.buttonText).toBe(avisoSeed?.buttonText);
-    expect(a.title).toBe("Vos decidís cuánto bajás tu cuota");
+    expect(a.title).toBe(AVISO_TITLE_0261);
     expect(a.destinationSection).toBe("referidos");
     expect(a.status).toBe("active");
   });

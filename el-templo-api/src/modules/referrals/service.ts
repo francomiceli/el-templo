@@ -220,8 +220,13 @@ export class ReferralService {
       simulateInvitationLink?: { inviterId: number };
     },
   ): Promise<number> {
+    const invitationSettings = await getInvitationSettings(
+      this.db,
+      ctx,
+      this.log,
+    );
     const { inviteePercent, perLinkPercent, maxPercentCap } =
-      await getInvitationSettings(this.db, ctx, this.log);
+      invitationSettings;
 
     const qualifiedFilter = eq(referrals.status, "qualified");
     const statusFilter = opts?.simulatePendingQualification
@@ -329,8 +334,13 @@ export class ReferralService {
 
     // Fase 194 D-10e: el % de cada LADO sale de los settings del programa
     // (invitado: `invitations.invitee_percent`; invitador: aura_config['referral']).
+    const invitationSettings = await getInvitationSettings(
+      this.db,
+      ctx,
+      this.log,
+    );
     const { inviteePercent, perLinkPercent, maxPercentCap } =
-      await getInvitationSettings(this.db, ctx, this.log);
+      invitationSettings;
     const today = new Date().toISOString().split("T")[0];
 
     const referred: ReferralLinkView[] = [];
@@ -426,6 +436,7 @@ export class ReferralService {
       referralCode,
       links,
       percent,
+      settings: invitationSettings,
     });
 
     return {
