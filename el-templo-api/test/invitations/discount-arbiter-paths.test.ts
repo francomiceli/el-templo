@@ -42,7 +42,10 @@ import {
   settlementColumns,
   type ChargeSettlement,
 } from "../../src/modules/subscriptions/discount-arbiter";
-import { computeProratedPrice } from "../../src/modules/subscriptions/month-end";
+import {
+  computeProratedPrice,
+  renewalProrationStart,
+} from "../../src/modules/subscriptions/month-end";
 import {
   createInvitationRow,
   createInviterWithCode,
@@ -1285,8 +1288,11 @@ describe("renewSubscription", () => {
     const res = await renew(payer, { prorateToMonthEnd: true });
     expect(res.statusCode).toBe(201);
     const row = await readSub(res.body.id as number);
+    // Renovación contigua: arranca en el vencimiento anterior (ya pago), así que
+    // el proporcional cuenta desde el día siguiente (2026-10-30).
+    const start = res.body.startDate as string;
     expect(row.pricePaid).toBe(
-      computeProratedPrice(BASE, res.body.startDate as string),
+      computeProratedPrice(BASE, renewalProrationStart(start, start)),
     );
     expect(row.referralDiscountAmount).toBeNull();
     expect(row.partnerDiscountAmount).toBeNull();

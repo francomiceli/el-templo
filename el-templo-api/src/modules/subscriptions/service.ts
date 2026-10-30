@@ -18,6 +18,7 @@ import {
   inArray,
   isNotNull,
   isNull,
+  type SQL,
 } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
@@ -57,6 +58,7 @@ import type {
 } from "./types";
 import {
   categoryGroup,
+  PRESENCIAL_GROUP_CATEGORIES,
   excludedFromReferrals,
   isInvitationPlan,
   planAllowsInvitationDiscount,
@@ -306,6 +308,46 @@ export {
   deriveReminderCoveredUntilBatch,
   EXPIRY_REMINDER_MIN_DURATION_DAYS,
 } from "./coverage";
+
+/**
+ * Condición SQL (sobre `subscription_plans`, requiere el JOIN) "el plan es del
+ * MISMO grupo que `plan`": un socio puede tener en paralelo una sub por grupo
+ * (presencial + online + especial), así que todo chequeo o cascada sobre "la
+ * otra sub" (solapamiento del alta, programada existente al renovar o al
+ * programar un cambio, cancelación en cascada) tiene que mirar solo su grupo.
+ *  - presencial: incluye 'paquete' (fase 177 D-02, presencial↔paquete choca).
+ *  - especial: solo la MISMA línea del pase (2026-09-29: yoga no choca con
+ *    Aura; NULL, la línea Aura, choca con NULL).
+ *  - online: todo lo que no es presencial, paquete ni especial.
+ * Caso que lo generalizó (2026-10-30, Alan Maldonado): una Aura programada
+ * bloqueaba el cambio de su presencial a la anual, y "cambiar ahora" o cancelar
+ * la presencial le habría cancelado la Aura ya paga.
+ */
+function samePlanGroupCondition(plan: {
+  planCategory: PlanCategory;
+  specialLine: string | null;
+}): SQL {
+  const group = categoryGroup(plan.planCategory);
+  if (group === "presencial") {
+    return inArray(schema.subscriptionPlans.planCategory, [
+      ...PRESENCIAL_GROUP_CATEGORIES,
+    ]);
+  }
+  if (group === "especial") {
+    return and(
+      eq(schema.subscriptionPlans.planCategory, "especial"),
+      specialLineCondition(
+        schema.subscriptionPlans.specialLine,
+        plan.specialLine,
+      ),
+    ) as SQL;
+  }
+  return and(
+    ne(schema.subscriptionPlans.planCategory, "presencial"),
+    ne(schema.subscriptionPlans.planCategory, "especial"),
+    ne(schema.subscriptionPlans.planCategory, "paquete"),
+  ) as SQL;
+}
 
 export class SubscriptionService {
   private bookingService?: BookingServiceType;
@@ -2270,33 +2312,7 @@ export class SubscriptionService {
     // criterio que renewSubscription (`input.startDate < currentSub.endDate` →
     // error) y que changePlanAfterCurrent, que ya encolaban correctamente.
     const planGroup = categoryGroup(plan.planCategory);
-    const sameGroupCategoryCondition =
-      planGroup === "presencial"
-        ? // Fase 177 (D-02): el grupo presencial incluye 'paquete'. Comparar por
-          // grupo (no por el literal 'presencial') para detectar los solapamientos
-          // presencial↔paquete y paquete↔paquete que categoryGroup ya define.
-          inArray(schema.subscriptionPlans.planCategory, [
-            "presencial",
-            "paquete",
-          ])
-        : planGroup === "especial"
-          ? // Línea del pase (2026-09-29): un pase de yoga no choca con uno de
-            // Aura — solo dos pases de la MISMA línea se solapan (NULL, la
-            // línea Aura, choca con NULL).
-            and(
-              eq(schema.subscriptionPlans.planCategory, "especial"),
-              specialLineCondition(
-                schema.subscriptionPlans.specialLine,
-                plan.specialLine,
-              ),
-            )
-          : and(
-              ne(schema.subscriptionPlans.planCategory, "presencial"),
-              ne(schema.subscriptionPlans.planCategory, "especial"),
-              // Excluir 'paquete' del grupo online: pertenece al grupo presencial,
-              // no debe contar como solapamiento al asignar un plan online.
-              ne(schema.subscriptionPlans.planCategory, "paquete"),
-            );
+    const sameGroupCategoryCondition = samePlanGroupCondition(plan);
     const sameGroupRows = await this.db
       .select({
         id: schema.subscriptions.id,
@@ -4089,8 +4105,14 @@ export class SubscriptionService {
         id: schema.subscriptions.id,
         userId: schema.subscriptions.userId,
         status: schema.subscriptions.status,
+        planCategory: schema.subscriptionPlans.planCategory,
+        specialLine: schema.subscriptionPlans.specialLine,
       })
       .from(schema.subscriptions)
+      .innerJoin(
+        schema.subscriptionPlans,
+        eq(schema.subscriptions.planId, schema.subscriptionPlans.id),
+      )
       .where(
         and(
           tenantWhere(schema.subscriptions, ctx),
@@ -4214,32 +4236,35 @@ export class SubscriptionService {
     // membership (active/paused). When the admin cancels a scheduled sub
     // directly (e.g., reverting a wrong renewal — caso Pomilio), the
     // current membership must stay intact, so we skip the cascade.
+    // Solo las programadas del MISMO grupo (2026-10-30): cancelar la presencial
+    // no toca una Aura programada ya paga, ni le borra su deuda abajo.
     let scheduledSuccessors: { id: number }[] = [];
     if (sub.status !== "scheduled") {
-      scheduledSuccessors = await tx
-        .select({ id: schema.subscriptions.id })
-        .from(schema.subscriptions)
-        .where(
-          and(
-            tenantWhere(schema.subscriptions, ctx),
-            eq(schema.subscriptions.userId, userId),
-            eq(schema.subscriptions.status, "scheduled"),
-          ),
-        );
-      await tx
-        .update(schema.subscriptions)
-        .set({
-          status: "cancelled",
-          cancelledAt: new Date(),
-          notes: "Cancelado por cancelacion de suscripcion activa",
-        })
-        .where(
-          and(
-            tenantWhere(schema.subscriptions, ctx),
-            eq(schema.subscriptions.userId, userId),
-            eq(schema.subscriptions.status, "scheduled"),
-          ),
-        );
+      const successorIds = await this.findScheduledInGroup(
+        ctx,
+        userId,
+        {
+          planCategory: subRow.planCategory as PlanCategory,
+          specialLine: subRow.specialLine,
+        },
+        tx,
+      );
+      scheduledSuccessors = successorIds.map((id) => ({ id }));
+      if (successorIds.length > 0) {
+        await tx
+          .update(schema.subscriptions)
+          .set({
+            status: "cancelled",
+            cancelledAt: new Date(),
+            notes: "Cancelado por cancelacion de suscripcion activa",
+          })
+          .where(
+            and(
+              tenantWhere(schema.subscriptions, ctx),
+              inArray(schema.subscriptions.id, successorIds),
+            ),
+          );
+      }
     }
 
     // Forgive phantom debt: when a sub was assigned without a paid charge,
@@ -4586,29 +4611,11 @@ export class SubscriptionService {
     input: AssignPlanInput,
     adminId: number,
   ): Promise<SubscriptionDetail> {
-    // Cancel any scheduled successor before proceeding.
-    // Fase 174-02 (Rule 1 — T-174-02-T): esta update corría ANTES de la
-    // primera validación de tenant sobre `userId` (getMemberSubscription más
-    // abajo). Sin `tenantWhere`, un userId de OTRO gimnasio cancelaba su
-    // propia sub programada aunque el resto del método terminara en 404 —
-    // tampering cross-tenant real, no solo lectura.
-    await this.db
-      .update(schema.subscriptions)
-      .set({
-        status: "cancelled",
-        cancelledAt: new Date(),
-        notes: "Cancelado por cambio de plan",
-      })
-      .where(
-        and(
-          tenantWhere(schema.subscriptions, ctx),
-          eq(schema.subscriptions.userId, userId),
-          eq(schema.subscriptions.status, "scheduled"),
-        ),
-      );
-
     const existingSub = await this.getMemberSubscription(ctx, userId);
-    if (!existingSub) {
+    // getMemberSubscription cae a una `scheduled` si no hay activa/pausada.
+    // Antes no llegaba acá porque las programadas se cancelaban primero; el
+    // cambio inmediato sigue exigiendo una activa o pausada.
+    if (!existingSub || existingSub.status === "scheduled") {
       throw new NotFoundError("No se encontro suscripcion activa o pausada");
     }
 
@@ -4653,6 +4660,33 @@ export class SubscriptionService {
       throw new BadRequestError(
         "No se puede cambiar a un plan de menor precio durante el periodo activo",
       );
+    }
+
+    // Cancel the scheduled successor (renovación anticipada) of the sub being
+    // replaced — SOLO del mismo grupo: antes cancelaba toda programada del
+    // socio, incluida una Aura ya paga (caso Alan Maldonado, 2026-10-30). Corre
+    // después de validar (antes cancelaba aunque el cambio terminara en 400) y
+    // con `tenantWhere` (174-02, T-174-02-T: sin él un userId de otro gimnasio
+    // cancelaba su programada).
+    const scheduledToCancel = await this.findScheduledInGroup(
+      ctx,
+      userId,
+      currentPlan,
+    );
+    if (scheduledToCancel.length > 0) {
+      await this.db
+        .update(schema.subscriptions)
+        .set({
+          status: "cancelled",
+          cancelledAt: new Date(),
+          notes: "Cancelado por cambio de plan",
+        })
+        .where(
+          and(
+            tenantWhere(schema.subscriptions, ctx),
+            inArray(schema.subscriptions.id, scheduledToCancel),
+          ),
+        );
     }
 
     // Calculate proration from CURRENT subscription only (single record, no accumulation)
@@ -5155,25 +5189,6 @@ export class SubscriptionService {
     input: AssignPlanInput,
     adminId: number,
   ): Promise<SubscriptionDetail> {
-    // Block if a scheduled sub already exists
-    const [existingScheduled] = await this.db
-      .select({ id: schema.subscriptions.id })
-      .from(schema.subscriptions)
-      .where(
-        and(
-          tenantWhere(schema.subscriptions, ctx),
-          eq(schema.subscriptions.userId, userId),
-          eq(schema.subscriptions.status, "scheduled"),
-        ),
-      )
-      .limit(1);
-
-    if (existingScheduled) {
-      throw new ConflictError(
-        "Ya existe una suscripcion programada. Cancele la existente antes de programar otra.",
-      );
-    }
-
     // Find current active subscription (must be active, not paused, with endDate)
     const currentSub = await this.getMemberSubscription(ctx, userId);
     if (!currentSub) {
@@ -5207,6 +5222,14 @@ export class SubscriptionService {
     }
     if (targetPlan.isArchived) {
       throw new BadRequestError("No se puede asignar un plan archivado");
+    }
+
+    // Block if a scheduled sub of the SAME group already exists (una Aura
+    // programada no bloquea programar el cambio de la presencial).
+    if ((await this.findScheduledInGroup(ctx, userId, targetPlan)).length > 0) {
+      throw new ConflictError(
+        "Ya existe una suscripcion programada. Cancele la existente antes de programar otra.",
+      );
     }
 
     // Reject cross-country scheduled plan changes. Look up the member's
@@ -5590,6 +5613,35 @@ export class SubscriptionService {
   }
 
   /**
+   * Ids de las subs `scheduled` del socio en el MISMO grupo que `plan`
+   * (`samePlanGroupCondition`). Las de otro grupo (p. ej. una Aura programada
+   * frente a la presencial) no cuentan como conflicto ni se cascadean.
+   */
+  private async findScheduledInGroup(
+    ctx: TenantContext,
+    userId: number,
+    plan: { planCategory: PlanCategory; specialLine: string | null },
+    db: TxHandle | MySql2Database<typeof schema> = this.db,
+  ): Promise<number[]> {
+    const rows = await db
+      .select({ id: schema.subscriptions.id })
+      .from(schema.subscriptions)
+      .innerJoin(
+        schema.subscriptionPlans,
+        eq(schema.subscriptions.planId, schema.subscriptionPlans.id),
+      )
+      .where(
+        and(
+          tenantWhere(schema.subscriptions, ctx),
+          eq(schema.subscriptions.userId, userId),
+          eq(schema.subscriptions.status, "scheduled"),
+          samePlanGroupCondition(plan),
+        ),
+      );
+    return rows.map((r) => r.id);
+  }
+
+  /**
    * Inicio del período que renueva `renewSubscription` (y que previsualiza
    * `getRenewalPreview`: misma derivación para que el preview no diverja).
    * Por defecto la renovación arranca en el vencimiento actual (renovación anticipada)
@@ -5848,25 +5900,6 @@ export class SubscriptionService {
     input: RenewSubscriptionInput,
     adminId: number,
   ): Promise<SubscriptionDetail> {
-    // Block if there's already a scheduled renewal
-    const [existingScheduled] = await this.db
-      .select({ id: schema.subscriptions.id })
-      .from(schema.subscriptions)
-      .where(
-        and(
-          tenantWhere(schema.subscriptions, ctx),
-          eq(schema.subscriptions.userId, userId),
-          eq(schema.subscriptions.status, "scheduled"),
-        ),
-      )
-      .limit(1);
-
-    if (existingScheduled) {
-      throw new ConflictError(
-        "Ya existe una renovacion programada. Cancele la existente antes de renovar nuevamente.",
-      );
-    }
-
     const currentSub = await this.findRenewableSubscription(
       ctx,
       userId,
@@ -5877,6 +5910,14 @@ export class SubscriptionService {
     const plan = await this.getPlanById(ctx, currentSub.planId);
     if (!plan) {
       throw new NotFoundError("Plan no encontrado");
+    }
+
+    // Block if there's already a scheduled renewal of the SAME group (una Aura
+    // programada no bloquea renovar la presencial, ni al revés).
+    if ((await this.findScheduledInGroup(ctx, userId, plan)).length > 0) {
+      throw new ConflictError(
+        "Ya existe una renovacion programada. Cancele la existente antes de renovar nuevamente.",
+      );
     }
 
     // Fase 194 (T-194-17): renovar los accesos de invitación los haría
