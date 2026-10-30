@@ -1041,6 +1041,16 @@ export const renewalPreviewSchema = {
       type: "object",
       properties: {
         subscriptionId: { type: "integer" },
+        startDate: { type: "string" },
+        endDate: { type: "string" },
+        monthEnd: {
+          type: "object",
+          properties: {
+            endDate: { type: "string" },
+            daysCharged: { type: "integer" },
+            daysInMonth: { type: "integer" },
+          },
+        },
         base: { type: "integer" },
         source: {
           type: "string",

@@ -620,6 +620,10 @@ describe("caracterización pre-194: renewSubscription y getRenewalPreview", () =
     const preview = await renewalPreview(payer.id);
     expect(preview).toEqual({
       subscriptionId: first.body.id,
+      // Vencimientos de la renovación (2026-10-30): los cubre renewal-proration-month-end.
+      startDate: expect.any(String),
+      endDate: expect.any(String),
+      monthEnd: expect.any(Object),
       base: 100000, // 90000 pagado + 10000 de add-back del referido
       source: "inherited",
       basePrice: 100000,

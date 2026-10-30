@@ -854,11 +854,19 @@ const renewalPickerRef = ref<InstanceType<typeof FixedSchedulePicker> | null>(nu
 const showEditStartDateDialog = ref(false);
 const editStartDateTarget = ref<SubscriptionDetail | null>(null);
 
-// Domiciliación sólo en España: se deriva de la moneda de la suscripción que se
-// está renovando (el server la fuerza a coincidir con el país de la sede).
-const paymentMethodOptions = computed(() =>
-  paymentMethodOptionsFor(renewTarget.value?.currency === 'EUR' ? 'ES' : 'AR')
-);
+// Domiciliación sólo en España: se deriva del país de la sede de la suscripción
+// que se está renovando, igual que el server al registrar el cobro. Antes se
+// derivaba de la moneda de la sub, y una sub de una sede española guardada en
+// ARS escondía la opción (pedido del staff de España, 2026-10-30). La moneda
+// queda como respaldo si la lista de sedes no cargó.
+const renewalBranchCountry = computed(() => {
+  const target = renewTarget.value;
+  if (!target) return null;
+  const branch = (props.branches ?? []).find((b) => b.id === target.branchId);
+  if (branch?.country === 'ES' || branch?.country === 'AR') return branch.country;
+  return target.currency === 'EUR' ? 'ES' : 'AR';
+});
+const paymentMethodOptions = computed(() => paymentMethodOptionsFor(renewalBranchCountry.value));
 
 // =========================================================================
 // Computed — split subscriptions
@@ -1032,16 +1040,6 @@ const renewalTurnosError = computed(() => {
   return null;
 });
 
-// Duración del plan en días (derivada del período de la sub actual). Fallback
-// defensivo de 30 días si la sub no tiene un endDate coherente.
-const renewalDurationDays = computed(() => {
-  if (!renewTarget.value?.endDate) return 30;
-  const startMs = new Date(renewTarget.value.startDate).getTime();
-  const endMs = new Date(renewTarget.value.endDate).getTime();
-  const days = Math.round((endMs - startMs) / (1000 * 60 * 60 * 24));
-  return days > 0 ? days : 30;
-});
-
 // Fecha de inicio automática: vencimiento actual si la sub sigue vigente, si no hoy.
 const renewalAutoStartDate = computed(() => {
   const today = new Date().toISOString().split('T')[0];
@@ -1079,15 +1077,14 @@ const renewalStartDateError = computed<string | null>(() => {
   return null;
 });
 
+// Vencimiento que va a guardar el cobro, resuelto por el server (renewal-preview):
+// estándar = inicio + duración del PLAN; prorrateo = fin del mes del primer día
+// no pago. Antes se recalculaba acá con la duración del período anterior (un
+// período prorrateado de 16 días se "renovaba" por 16) y divergía del server.
 const renewalEndDate = computed(() => {
-  if (!renewTarget.value?.endDate) return '—';
-  // Prorrateo: vence el último día del mes del inicio (no start + duración).
-  if (renewalProrate.value) {
-    return formatDate(renewalMonthEndParts.value.endDate);
-  }
-  const end = new Date(renewalEffectiveStartDate.value);
-  end.setDate(end.getDate() + renewalDurationDays.value);
-  return formatDate(end.toISOString().split('T')[0]);
+  const preview = renewalPreview.value;
+  if (!preview) return '—';
+  return formatDate(renewalProrate.value ? preview.monthEnd.endDate : preview.endDate);
 });
 
 // Cuando la renovación arranca en el futuro (sub vigente o fecha custom futura),
@@ -1105,16 +1102,13 @@ const renewalActivationDate = computed(() => {
 // corte de mes también sirve en AR. El backend nunca tuvo el gate.
 const renewalProrateAvailable = computed(() => renewTarget.value !== null);
 
-// Último día del mes del inicio + días cobrados (día del inicio incluido),
-// parseando las partes de la fecha para no depender de la zona horaria — misma
-// fórmula que el backend (computeMonthEndProration).
-const renewalMonthEndParts = computed(() => {
-  const [y, m, d] = renewalEffectiveStartDate.value.split('-').map(Number);
-  const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
-  const daysCharged = daysInMonth - d + 1;
-  const endDate = `${y}-${String(m).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
-  return { endDate, daysCharged, daysInMonth };
-});
+// Fin de mes + días cobrados sobre los días del mes, del server (renewal-preview):
+// cuenta desde el primer día no pago, así una sub alineada al 31/10 renueva
+// hasta el 30/11 a mes completo. Mientras carga, 0 días (el botón de confirmar
+// sigue deshabilitado y al llegar el preview se recalcula el sugerido).
+const renewalMonthEndParts = computed(
+  () => renewalPreview.value?.monthEnd ?? { endDate: '', daysCharged: 0, daysInMonth: 1 }
+);
 
 // Base heredada del MES COMPLETO, sin descuentos pegados (resolveRenewalBase del server).
 // Mientras carga, lo que venía pagando — el botón de confirmar sigue
