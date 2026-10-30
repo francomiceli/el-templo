@@ -47,7 +47,10 @@ import {
 import * as schema from "../../src/db/schema";
 import { setInvitationSettings } from "../../src/modules/referrals/invitation-settings";
 import { PRICING_SETTINGS_KEYS } from "../../src/modules/settings/keys";
-import { computeProratedPrice } from "../../src/modules/subscriptions/month-end";
+import {
+  computeProratedPrice,
+  renewalProrationStart,
+} from "../../src/modules/subscriptions/month-end";
 import { addDays, todayInTz } from "../../src/modules/shared/date-utils";
 import { tenantWhere } from "../../src/modules/shared/tenant";
 import { TENANT_TEMPLO } from "../fixtures/second-tenant";
@@ -1048,8 +1051,13 @@ describe("194-18: paridad preview ↔ cobro de la renovación (renewSubscription
     expect(auto.statusCode).toBe(200);
     expect(auto.body.winningDiscount).toBe("none");
     expect(auto.body.invitationDiscountAmount).toBe(0);
+    // Arranca en el vencimiento actual (ya pago): el proporcional cuenta desde
+    // el día siguiente (2026-10-30).
     expect(auto.body.finalPrice).toBe(
-      computeProratedPrice(RENEW_BASE, payer.endDate),
+      computeProratedPrice(
+        RENEW_BASE,
+        renewalProrationStart(payer.endDate, payer.endDate),
+      ),
     );
 
     const edited = await renewalPreviewOf(
