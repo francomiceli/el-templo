@@ -423,6 +423,12 @@ export type WinningDiscount = 'none' | 'aura' | 'partner' | 'invitation' | 'boar
  */
 export interface RenewalPreview {
   subscriptionId: number;
+  /** Inicio del nuevo período (vencimiento actual, hoy o la fecha custom). */
+  startDate: string;
+  /** Vencimiento de la renovación estándar (inicio + duración del plan). */
+  endDate: string;
+  /** Variante prorrateada hasta fin de mes, desde el primer día no pago. */
+  monthEnd: { endDate: string; daysCharged: number; daysInMonth: number };
   base: number;
   source: 'inherited' | 'previous_period' | 'plan_price';
   basePrice: number;

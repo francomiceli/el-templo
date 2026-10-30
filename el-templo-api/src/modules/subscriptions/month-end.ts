@@ -69,3 +69,47 @@ export function isMonthEndProratedPeriod(
     daysBetween(startDate, endDate) < durationDays
   );
 }
+
+/**
+ * Desde qué día cuenta el prorrateo hasta fin de mes de una RENOVACIÓN. La
+ * renovación contigua arranca el mismo día del vencimiento actual (convención de
+ * `resolveRenewalStart`), pero ese día ya lo pagó el período vigente. Contar
+ * desde ahí cortaba una sub alineada al 31/10 en el mismo 31/10 (1 día cobrado)
+ * en vez de llevarla al 30/11 (pedido del staff de España, 2026-10-30). Si la
+ * renovación arranca en otra fecha (sub vencida → hoy, o fecha custom
+ * posterior), ese día no está pago y se cuenta desde él.
+ */
+export function renewalProrationStart(
+  newStartDate: string,
+  currentEndDate: string | null,
+): string {
+  if (currentEndDate === null || newStartDate !== currentEndDate) {
+    return newStartDate;
+  }
+  const [year, month, day] = newStartDate.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day + 1))
+    .toISOString()
+    .split("T")[0];
+}
+
+/**
+ * Vencimiento de una renovación. Por defecto `startDate + durationDays` del plan
+ * (mes completo). Con prorrateo hasta fin de mes (alineación a la domiciliación)
+ * vence el último día del mes del primer día no pago (`renewalProrationStart`).
+ * Fuente única: la usan `renewSubscription` y su preview.
+ */
+export function computeRenewalEndDate(params: {
+  newStartDate: string;
+  currentEndDate: string | null;
+  durationDays: number;
+  prorateToMonthEnd: boolean;
+}): string {
+  if (params.prorateToMonthEnd) {
+    return computeMonthEndProration(
+      renewalProrationStart(params.newStartDate, params.currentEndDate),
+    ).endDate;
+  }
+  const newEnd = new Date(params.newStartDate);
+  newEnd.setDate(newEnd.getDate() + params.durationDays);
+  return newEnd.toISOString().split("T")[0];
+}

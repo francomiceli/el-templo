@@ -83,7 +83,9 @@ import { resolveRenewalBase, type RenewalBaseSub } from "./renewal-base";
 import {
   computeMonthEndProration,
   computeProratedPrice,
+  computeRenewalEndDate,
   daysBetween,
+  renewalProrationStart,
 } from "./month-end";
 import type { TransactionService } from "../finance";
 import type { TxHandle } from "../finance/balance-service";
@@ -5694,7 +5696,10 @@ export class SubscriptionService {
       const prorated =
         params.priceOverrideAmount !== undefined
           ? params.priceOverrideAmount
-          : computeProratedPrice(fullMonthPrice, newStartDate);
+          : computeProratedPrice(
+              fullMonthPrice,
+              renewalProrationStart(newStartDate, currentSub.endDate),
+            );
       if (prorated > fullMonthPrice) {
         throw new BadRequestError(
           "El precio prorrateado no puede superar el precio del mes completo",
@@ -5795,8 +5800,25 @@ export class SubscriptionService {
       priceOverrideReason: options.priceOverrideReason,
     });
     const { settlement, partnerCandidate } = charge;
+    // Vencimientos de las dos variantes, para que el admin muestre el que el
+    // cobro va a guardar en vez de recalcularlo (antes repetía la duración del
+    // período anterior y divergía del plan).
+    const renewalDates = {
+      newStartDate,
+      currentEndDate: currentSub.endDate,
+      durationDays: plan.durationDays,
+    };
+    const monthEnd = computeMonthEndProration(
+      renewalProrationStart(newStartDate, currentSub.endDate),
+    );
     return {
       subscriptionId: currentSub.id,
+      startDate: newStartDate,
+      endDate: computeRenewalEndDate({
+        ...renewalDates,
+        prorateToMonthEnd: false,
+      }),
+      monthEnd,
       base: charge.inherited.base,
       source: charge.inherited.source,
       basePrice: charge.priceBeforeDiscount,
@@ -5952,18 +5974,14 @@ export class SubscriptionService {
       currentSub,
       input.startDate,
     );
-    // Vencimiento del nuevo período. Por defecto `startDate + durationDays`
-    // (mes completo). Con prorrateo hasta fin de mes (alineación a la
-    // domiciliación) vence el último día del mes calendario del inicio — misma
-    // fuente de cálculo que el alta prorrateada (computeMonthEndProration).
-    let newEndDate: string;
-    if (input.prorateToMonthEnd) {
-      newEndDate = computeMonthEndProration(newStartDate).endDate;
-    } else {
-      const newEnd = new Date(newStartDate);
-      newEnd.setDate(newEnd.getDate() + plan.durationDays);
-      newEndDate = newEnd.toISOString().split("T")[0];
-    }
+    // Vencimiento del nuevo período (mes completo o prorrateado a fin de mes):
+    // misma derivación que `getRenewalPreview`.
+    const newEndDate = computeRenewalEndDate({
+      newStartDate,
+      currentEndDate: currentSub.endDate,
+      durationDays: plan.durationDays,
+      prorateToMonthEnd: input.prorateToMonthEnd === true,
+    });
 
     // Fresh class budget for the new period. Mismo criterio que assignPlan: los
     // planes con classesPerWeek derivan; el pase especial (classesPerWeek=NULL)

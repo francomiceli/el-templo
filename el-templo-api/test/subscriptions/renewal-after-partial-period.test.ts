@@ -156,20 +156,17 @@ describe("Subscriptions API — Renovación tras período prorrateado", () => {
   it("alta prorrateada → la renovación prorrateada usa el precio de lista como base y tope", async () => {
     const { planId, memberId } = await setupPlanAndMember();
     const alta = await assignProrated(memberId, planId);
-    // Inicio automático, espejo del service: el vencimiento del alta si sigue
-    // vigente, si no hoy.
-    const today = todayStr();
-    const renewalStart = alta.endDate >= today ? alta.endDate : today;
 
+    // El alta vence el último día del mes y la renovación arranca ese mismo
+    // día (ya pago): el proporcional cuenta desde el 1° del mes siguiente, o
+    // sea el mes completo sobre el precio de lista (2026-10-30).
     const suggested = await renew(memberId, {
       paymentMethod: "cash",
       subscriptionId: alta.id,
       prorateToMonthEnd: true,
     });
     expect(suggested.statusCode).toBe(201);
-    expect(suggested.body.pricePaid).toBe(
-      proratedFrom(PRICE_REGULAR, renewalStart),
-    );
+    expect(suggested.body.pricePaid).toBe(PRICE_REGULAR);
   });
 
   it("alta prorrateada → la renovación prorrateada acepta el mes completo como monto editado (antes: 400)", async () => {

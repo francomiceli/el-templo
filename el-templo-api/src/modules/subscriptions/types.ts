@@ -564,6 +564,15 @@ export type RenewalBaseSource = "inherited" | "previous_period" | "plan_price";
  */
 export interface RenewalPreview {
   subscriptionId: number;
+  /** Inicio del nuevo período (vencimiento actual, hoy o la fecha custom). */
+  startDate: string;
+  /** Vencimiento de la renovación estándar: `startDate + durationDays` del plan. */
+  endDate: string;
+  /**
+   * Variante prorrateada hasta fin de mes: vencimiento y días cobrados sobre los
+   * días del mes, contados desde el primer día no pago (`renewalProrationStart`).
+   */
+  monthEnd: { endDate: string; daysCharged: number; daysInMonth: number };
   /** Base del mes completo (D-22: sin promos pegadas), antes de normalización/override/prorrateo. */
   base: number;
   source: RenewalBaseSource;
