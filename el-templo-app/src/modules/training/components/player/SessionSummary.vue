@@ -26,7 +26,13 @@
 
       <!-- Solo lectura: cierre de la sesión (duración, RPE y notas guardados) -->
       <section v-if="readOnly" class="session-summary__done" aria-label="Cierre de la sesión">
-        <div class="session-summary__done-row">
+        <div v-if="presencial" class="session-summary__done-row">
+          <q-icon name="groups" size="20px" class="session-summary__done-icon" aria-hidden="true" />
+          <span class="session-summary__done-text">
+            {{ branchName ? `Fuiste a la clase en ${branchName}` : 'Fuiste a la clase presencial' }}
+          </span>
+        </div>
+        <div v-else class="session-summary__done-row">
           <q-icon name="timer" size="20px" class="session-summary__done-icon" aria-hidden="true" />
           <span v-if="durationMinutes" class="session-summary__done-text">
             Sesión completada en {{ durationMinutes }} minutos
@@ -123,6 +129,10 @@ interface Props {
   savedRpe?: number | null
   /** Saved notes (read-only mode) */
   savedNotes?: string | null
+  /** Read-only: the day's session was the in-person class (QR check-in), not done in the app */
+  presencial?: boolean
+  /** Read-only: branch of the in-person class */
+  branchName?: string | null
 }
 
 interface Emits {
@@ -137,6 +147,8 @@ const props = withDefaults(defineProps<Props>(), {
   durationMinutes: null,
   savedRpe: null,
   savedNotes: null,
+  presencial: false,
+  branchName: null,
 })
 const emit = defineEmits<Emits>()
 

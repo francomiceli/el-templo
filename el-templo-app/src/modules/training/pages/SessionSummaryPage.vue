@@ -6,10 +6,7 @@
     </div>
 
     <!-- No data -->
-    <div
-      v-else-if="!todaySession"
-      class="session-summary-page__empty flex flex-center column q-pa-xl"
-    >
+    <div v-else-if="!summary" class="session-summary-page__empty flex flex-center column q-pa-xl">
       <q-icon name="event_busy" size="64px" class="session-summary-page__empty-icon" />
       <div class="text-h6 session-summary-page__empty-text q-mt-md">
         No hay sesión completada hoy
@@ -25,9 +22,11 @@
       :days-completed-this-week="sessionsThisWeek"
       :total-days-trained="totalDaysTrained"
       read-only
-      :duration-minutes="todaySession.durationMinutes"
-      :saved-rpe="todaySession.rpe"
-      :saved-notes="todaySession.notes"
+      :duration-minutes="summary.durationMinutes"
+      :saved-rpe="summary.rpe"
+      :saved-notes="summary.notes"
+      :presencial="summary.presencial"
+      :branch-name="summary.branchName"
       @restart="handleRestart"
       @back="router.back()"
     />
@@ -46,6 +45,7 @@ import { useSessionPlayerStore } from '../stores/sessionPlayerStore'
 import { useWeekStore } from '../stores/weekStore'
 import { useWeekData } from '../composables/useWeekData'
 import { getWeekDates, formatDayName, getDateState } from '../composables/useDateNavigation'
+import { resolveSummarySource } from '../utils/summarySource'
 import type { Block } from '../types/session'
 import SessionSummary from '../components/player/SessionSummary.vue'
 
@@ -61,10 +61,12 @@ const { fetchStats } = useProgressionApi()
 // (recarga o deep link, entrando por "Ver resumen" de Semana) el store llega vacío: se pide acá con la
 // misma acción que usa Mi Templo. Va en el setup (no en onMounted) para que `loading` ya esté en true
 // en el primer render y no parpadee el estado vacío.
-if (!progressionStore.todaySession) void fetchStats()
+if (!progressionStore.todaySession && !progressionStore.todayPresencial) void fetchStats()
 
 const loading = computed(() => progressionStore.loading)
-const todaySession = computed(() => progressionStore.todaySession)
+const summary = computed(() =>
+  resolveSummarySource(progressionStore.todaySession, progressionStore.todayPresencial),
+)
 const sessionsThisWeek = computed(() => progressionStore.stats?.sessionsThisWeek ?? 0)
 const totalDaysTrained = computed(() => progressionStore.stats?.totalDaysTrained ?? 0)
 
@@ -75,7 +77,7 @@ const todayStr = computed(() => {
 
 /** Get today's session Block objects from weekStore, filtered to completed block roles */
 const completedBlocks = computed<Block[]>(() => {
-  const completedRoles = todaySession.value?.blocksCompleted ?? []
+  const completedRoles = summary.value?.blocksCompleted ?? []
   if (completedRoles.length === 0) return []
 
   // Try weekStore first (populated if user visited WeeklyView)
@@ -111,11 +113,15 @@ async function loadWeekDataIfNeeded() {
 }
 
 function handleRestart() {
+  // Tras la clase presencial no se pierde nada: la asistencia queda y la sesión de la app se guarda aparte.
+  const presencial = summary.value?.presencial ?? false
   confirmDialog($q, {
     title: '¿Repetir la sesión?',
-    message: 'Vas a reiniciar la sesión de hoy y se pierde lo que habías registrado.',
+    message: presencial
+      ? 'Tu clase presencial queda registrada. Vas a hacer la sesión de hoy desde la app.'
+      : 'Vas a reiniciar la sesión de hoy y se pierde lo que habías registrado.',
     okLabel: 'Repetir',
-    destructive: true,
+    destructive: !presencial,
   }).onOk(async () => {
     const today = weekStore.weekDays.find((d) => d.date === todayStr.value)
     const dayId = today?.session?.dayId

@@ -46,6 +46,13 @@ export const progressionStatsResponseSchema = {
         blocksCompleted: { type: "array", items: { type: "string" } },
       },
     },
+    todayPresencial: {
+      type: ["object", "null"],
+      properties: {
+        branchName: { type: ["string", "null"] },
+        blocksCompleted: { type: "array", items: { type: "string" } },
+      },
+    },
   },
 };
 
