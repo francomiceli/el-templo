@@ -1,5 +1,5 @@
 import { FastifyPluginAsync } from "fastify";
-import { eq, gte, lte, and, sql, count, isNull } from "drizzle-orm";
+import { eq, gte, lte, and, sql, count, isNull, or } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import {
   checkEligibility,
@@ -15,6 +15,8 @@ import {
 } from "./schemas";
 import { attachCountryScope } from "../shared/country-scope";
 import { assertTenant, tenantWhere } from "../shared/tenant";
+import { todayInTz } from "../shared/date-utils";
+import { resolveMemberTimezone } from "../conquer/timezone";
 
 export const progressionRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /progression/stats - Get member's progression data
@@ -65,7 +67,12 @@ export const progressionRoutes: FastifyPluginAsync = async (fastify) => {
       const twoWeeksAgoStr = twoWeeksAgo.toISOString().split("T")[0];
       const fourWeeksAgoStr = fourWeeksAgo.toISOString().split("T")[0];
 
-      const todayStr = today.toISOString().split("T")[0];
+      // "Hoy" del socio es el de su sede, no UTC: el check-in presencial y la
+      // Semana de la app ya usan esa fecha (de noche en Argentina UTC es mañana).
+      const todayStr = todayInTz(
+        await resolveMemberTimezone(fastify.db, ctx, userId),
+        today,
+      );
 
       // Parallel queries for performance
       const [
@@ -156,7 +163,9 @@ export const progressionRoutes: FastifyPluginAsync = async (fastify) => {
             ),
           ),
 
-        // Today's completed regular training session (exclude goal plans)
+        // Today's completed sessions: the one done in the app (goal_plan_type
+        // NULL) and the in-person class the QR check-in mirrors ('presencial').
+        // Goal plans are excluded.
         fastify.db
           .select({
             rpe: schema.completedSessions.rpe,
@@ -164,13 +173,25 @@ export const progressionRoutes: FastifyPluginAsync = async (fastify) => {
             startedAt: schema.completedSessions.startedAt,
             completedAt: schema.completedSessions.completedAt,
             blocksCompleted: schema.completedSessions.blocksCompleted,
+            goalPlanType: schema.completedSessions.goalPlanType,
+            branchName: schema.branches.name,
           })
           .from(schema.completedSessions)
+          .leftJoin(
+            schema.branches,
+            and(
+              eq(schema.branches.id, schema.completedSessions.branchId),
+              tenantWhere(schema.branches, ctx),
+            ),
+          )
           .where(
             and(
               eq(schema.completedSessions.userId, userId),
               eq(schema.completedSessions.date, todayStr),
-              isNull(schema.completedSessions.goalPlanType),
+              or(
+                isNull(schema.completedSessions.goalPlanType),
+                eq(schema.completedSessions.goalPlanType, "presencial"),
+              ),
             ),
           ),
       ]);
@@ -181,7 +202,13 @@ export const progressionRoutes: FastifyPluginAsync = async (fastify) => {
       const currentStreak = streakResult[0]?.currentStreak ?? 0;
       const longestStreak = streakResult[0]?.longestStreak ?? 0;
       const pendingRequest = pendingRequestResult[0] ?? null;
-      const todaySession = todaySessionResult[0] ?? null;
+      // `todaySession` sigue siendo solo la sesión de la app: la 1.9.2 de las
+      // tiendas la usa para dar el día por completado en Mi Templo, y ahí la
+      // clase presencial tiene su propia card ("Asistencia registrada").
+      const todaySession =
+        todaySessionResult.find((r) => r.goalPlanType === null) ?? null;
+      const todayPresencial =
+        todaySessionResult.find((r) => r.goalPlanType === "presencial") ?? null;
 
       // Build response
       return {
@@ -222,6 +249,13 @@ export const progressionRoutes: FastifyPluginAsync = async (fastify) => {
                     )
                   : null,
               blocksCompleted: todaySession.blocksCompleted ?? [],
+            }
+          : null,
+        // Clase presencial de hoy (check-in QR), para el resumen de Semana.
+        todayPresencial: todayPresencial
+          ? {
+              branchName: todayPresencial.branchName ?? null,
+              blocksCompleted: todayPresencial.blocksCompleted ?? [],
             }
           : null,
       };

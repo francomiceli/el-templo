@@ -6,6 +6,7 @@ import type {
   RpeTrend,
   EvaluationStatus,
   TodaySession,
+  TodayPresencial,
   ProgressionResponse,
   WeeklySummary,
   TodayCheckInState,
@@ -35,6 +36,9 @@ export const useProgressionStore = defineStore('progression', () => {
 
   /** Today's completed session (if any) */
   const todaySession = ref<TodaySession | null>(null)
+
+  /** Today's in-person class (QR check-in), if any — only the session summary uses it */
+  const todayPresencial = ref<TodayPresencial | null>(null)
 
   /** Weekly summary data for Tu Dia */
   const weeklySummary = ref<WeeklySummary | null>(null)
@@ -111,6 +115,7 @@ export const useProgressionStore = defineStore('progression', () => {
     rpeTrend.value = response.rpeTrend
     evaluation.value = response.evaluation
     todaySession.value = response.todaySession
+    todayPresencial.value = response.todayPresencial ?? null
     error.value = null
   }
 
@@ -221,6 +226,7 @@ export const useProgressionStore = defineStore('progression', () => {
     rpeTrend.value = null
     evaluation.value = null
     todaySession.value = null
+    todayPresencial.value = null
     weeklySummary.value = null
     weeklySummaryLoading.value = false
     weeklySummaryError.value = null
@@ -242,6 +248,7 @@ export const useProgressionStore = defineStore('progression', () => {
     rpeTrend,
     evaluation,
     todaySession,
+    todayPresencial,
     weeklySummary,
     weeklySummaryLoading,
     weeklySummaryError,

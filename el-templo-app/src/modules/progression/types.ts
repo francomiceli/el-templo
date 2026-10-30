@@ -40,12 +40,20 @@ export interface TodaySession {
   blocksCompleted: string[]
 }
 
+/** Clase presencial de hoy (espejo del check-in QR). Va aparte de `TodaySession`, que es solo la de la app. */
+export interface TodayPresencial {
+  branchName: string | null
+  blocksCompleted: string[]
+}
+
 export interface ProgressionResponse {
   level: ProgressionLevel
   stats: ProgressionStats
   rpeTrend: RpeTrend
   evaluation: EvaluationStatus
   todaySession: TodaySession | null
+  /** Opcional: un API anterior a este campo no lo manda. */
+  todayPresencial?: TodayPresencial | null
 }
 
 export interface WeeklySummary {

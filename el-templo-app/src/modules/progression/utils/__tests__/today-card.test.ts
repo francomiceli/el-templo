@@ -42,6 +42,7 @@ function baseInput(over: Partial<TodayCardInput> = {}): TodayCardInput {
     windowState: null,
     minutesToStart: null,
     attendanceMarkedAt: null,
+    presencialSummary: false,
     waitlistTime: null,
     nextRoute: null,
     nextBooking: null,
@@ -1840,12 +1841,20 @@ describe('resolveTodayCard — Libre apagado (FREE_BLOCKS_ENABLED en false)', ()
     expect(m.secondary).toEqual({ label: 'Tus programas', action: 'open-program' })
   })
 
-  it('clase de hoy con asistencia registrada → conserva "Cambiar clase"', () => {
+  it('clase de hoy con asistencia registrada → sin "Cambiar clase" (ya fue a la clase)', () => {
     const m = resolveTodayCard(
       off({ booking: BOOKING, windowState: 'open', attendanceMarkedAt: '18:55' }),
     )
     expect(m.kind).toBe('presencial-turno')
-    expect(m.secondary).toEqual({ label: 'Cambiar clase', to: '/reservas' })
+    expect(m.secondary).toBeNull()
+    expect(allCopy(m)).not.toContain('Cambiar clase')
+  })
+
+  it('clase de hoy con asistencia y otros programas → "Tus programas" toma el link', () => {
+    const m = resolveTodayCard(
+      off({ booking: BOOKING, attendanceMarkedAt: '18:55', hasExtraPrograms: true }),
+    )
+    expect(m.secondary).toEqual({ label: 'Tus programas', action: 'open-program' })
   })
 
   it('presencial sin reserva → sin link', () => {
@@ -1888,5 +1897,54 @@ describe('resolveTodayCard — Libre apagado (FREE_BLOCKS_ENABLED en false)', ()
         expect(m.secondary?.to).not.toBe('/training?tab=libre')
       }
     }
+  })
+})
+
+describe('resolveTodayCard — clase presencial con asistencia: "Repetir sesión" (2026-10-30)', () => {
+  const REPETIR = { label: 'Repetir sesión', to: { name: 'session-summary' } }
+  const VER = { label: 'Ver la sesión', to: '/training' }
+
+  it('asistencia + resumen presencial → "Repetir sesión" lleva al resumen', () => {
+    const m = resolveTodayCard(
+      baseInput({ booking: BOOKING, attendanceMarkedAt: '18:55', presencialSummary: true }),
+    )
+    expect(m.kind).toBe('presencial-turno')
+    expect(m.primary).toEqual(REPETIR)
+    expect(allCopy(m)).not.toContain('Cambiar clase')
+  })
+
+  it('asistencia en ventana cerrada (después de la clase) → igual "Repetir sesión"', () => {
+    const m = resolveTodayCard(
+      baseInput({
+        booking: BOOKING,
+        windowState: 'after',
+        attendanceMarkedAt: '19:05',
+        presencialSummary: true,
+      }),
+    )
+    expect(m.kind).toBe('presencial-turno')
+    expect(m.primary).toEqual(REPETIR)
+  })
+
+  it('asistencia sin resumen (check-in Wellhub del profe) → "Ver la sesión", sin "Cambiar clase"', () => {
+    const m = resolveTodayCard(
+      baseInput({ booking: BOOKING, attendanceMarkedAt: '18:55', presencialSummary: false }),
+    )
+    expect(m.primary).toEqual(VER)
+    expect(allCopy(m)).not.toContain('Cambiar clase')
+  })
+
+  it('sin asistencia el resumen de otra clase no cambia nada: "Ver la sesión" + "Cambiar clase"', () => {
+    const m = resolveTodayCard(
+      baseInput({
+        booking: BOOKING,
+        windowState: 'open',
+        minutesToStart: 12,
+        presencialSummary: true,
+        libreEnabled: false,
+      }),
+    )
+    expect(m.primary).toEqual(VER)
+    expect(m.secondary).toEqual({ label: 'Cambiar clase', to: '/reservas' })
   })
 })

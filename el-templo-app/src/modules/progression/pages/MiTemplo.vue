@@ -466,6 +466,7 @@ const todayCard = computed(() => {
     windowState: todayBookingStore.windowState,
     minutesToStart: todayBookingStore.minutesToStart,
     attendanceMarkedAt: todayBookingStore.attendanceMarkedAt,
+    presencialSummary: progressionStore.todayPresencial !== null,
     waitlistTime: waitlist ? formatHHMM(waitlist.startTime) : null,
     nextRoute: nextRouteName.value,
     nextBooking: next

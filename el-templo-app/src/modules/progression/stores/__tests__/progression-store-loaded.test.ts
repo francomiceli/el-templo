@@ -207,3 +207,44 @@ describe('progressionStore — generación (cierre 203)', () => {
     expect(store.currentGeneration()).toBe(g0 + 2)
   })
 })
+
+describe('progressionStore — todayPresencial (resumen de la clase presencial)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  it('setProgressionData guarda la clase presencial de hoy', () => {
+    const store = useProgressionStore()
+
+    store.setProgressionData({
+      ...PROGRESSION,
+      todayPresencial: { branchName: 'Moreno', blocksCompleted: ['NUCLEUS'] },
+    })
+
+    expect(store.todayPresencial).toEqual({ branchName: 'Moreno', blocksCompleted: ['NUCLEUS'] })
+  })
+
+  it('un API sin el campo deja todayPresencial en null', () => {
+    const store = useProgressionStore()
+    store.setProgressionData({
+      ...PROGRESSION,
+      todayPresencial: { branchName: 'Moreno', blocksCompleted: [] },
+    })
+
+    store.setProgressionData(PROGRESSION)
+
+    expect(store.todayPresencial).toBeNull()
+  })
+
+  it('reset() la borra', () => {
+    const store = useProgressionStore()
+    store.setProgressionData({
+      ...PROGRESSION,
+      todayPresencial: { branchName: 'Moreno', blocksCompleted: [] },
+    })
+
+    store.reset()
+
+    expect(store.todayPresencial).toBeNull()
+  })
+})

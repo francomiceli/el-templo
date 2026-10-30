@@ -147,6 +147,11 @@ export interface TodayCardInput {
   windowState: 'before' | 'open' | 'after' | null
   minutesToStart: number | null
   attendanceMarkedAt: string | null
+  /**
+   * Hay resumen de la clase presencial de hoy (`progressionStore.todayPresencial`, espejo del
+   * check-in). El check-in Wellhub del profe no lo genera: sin resumen no se ofrece "Repetir sesión".
+   */
+  presencialSummary: boolean
   waitlistTime: string | null
   /**
    * Plani de hoy si existe; si no, la del próximo día cargado con sesión (ver `pickNextRoute`).
@@ -429,11 +434,17 @@ function presencialTurno(
     meta = null
   }
 
+  // Con la asistencia registrada ya no hay clase que cambiar; el resumen de la presencial ofrece
+  // hacer la sesión de hoy también en la app.
+  const attended = input.attendanceMarkedAt !== null
   return emptyModel('presencial-turno', KICKER_TURNO, input.todayRoute ?? booking.activityName, {
     meta,
     pill,
-    primary: { label: 'Ver la sesión', to: '/training' },
-    secondary: { label: 'Cambiar clase', to: '/reservas' },
+    primary:
+      attended && input.presencialSummary
+        ? { label: 'Repetir sesión', to: { name: 'session-summary' } }
+        : { label: 'Ver la sesión', to: '/training' },
+    secondary: attended ? null : { label: 'Cambiar clase', to: '/reservas' },
   })
 }
 
