@@ -72,7 +72,10 @@ export default defineConfig((/* ctx */) => {
       // extendViteConf (viteConf) {},
       // viteVuePluginOptions: {},
 
-      sourcemap: true,
+      // 'hidden': .map aparte y sin referencia en el JS. Con `true` Quasar los mete inline
+      // (base64 dentro de cada chunk, ~5x el peso) y el plugin de Sentry no encuentra .map
+      // que subir. Sentry los sube y borra (filesToDeleteAfterUpload) en CI.
+      sourcemap: 'hidden',
 
       vitePlugins: [
         [
