@@ -25,7 +25,6 @@
         <!-- ============ PLACA DE TÍTULO ============ -->
         <div v-if="slide.tipo === 'titulo'" :key="claveSlide" class="slide slide--titulo">
           <img class="parten aparece" :src="tvParthenonBlanco" alt="El Templo" />
-          <div class="kicker aparece" :style="delay(0.4)">El Templo celebra</div>
           <div class="titulo">
             <span
               v-for="(palabra, i) in ['FELIZ', 'CUMPLE']"
@@ -183,32 +182,36 @@ const DURACION_FOTO_MS = 8_000;
 /** Red de seguridad: si un video no arranca o no avisa que terminó, se sigue. */
 const VIDEO_TOPE_MS = 20_000;
 
+/** Títulos de Mati en cada pantalla. */
+const CHAD = 'Chad Lachuga';
+const ALEXANDER = 'Alexander Ladeliciosa';
+
 const SLIDES: Slide[] = [
   { tipo: 'titulo', duracionMs: DURACION_TITULO_MS },
   {
     tipo: 'foto',
     src: fotoSalchicha,
     orientacion: 'vertical',
-    leyenda: 'El guardián de la noche',
+    leyenda: ALEXANDER,
     duracionMs: DURACION_FOTO_MS,
   },
   {
     tipo: 'foto',
     src: fotoAsado,
     orientacion: 'horizontal',
-    leyenda: 'El enemigo se acerca',
+    leyenda: CHAD,
     duracionMs: DURACION_FOTO_MS,
   },
-  { tipo: 'video', src: videoRayo, orientacion: 'vertical', leyenda: 'Empieza la batalla' },
-  { tipo: 'video', src: videoPelea, orientacion: 'vertical', leyenda: 'Nada lo detiene' },
-  { tipo: 'video', src: videoJinete, orientacion: 'vertical', leyenda: 'La victoria' },
+  { tipo: 'video', src: videoRayo, orientacion: 'vertical', leyenda: ALEXANDER },
+  { tipo: 'video', src: videoPelea, orientacion: 'vertical', leyenda: CHAD },
+  { tipo: 'video', src: videoJinete, orientacion: 'vertical', leyenda: ALEXANDER },
   {
     tipo: 'video',
     src: videoCientifico,
     orientacion: 'horizontal',
-    leyenda: 'El genio detrás de todo',
+    leyenda: CHAD,
   },
-  { tipo: 'video', src: videoMeme, orientacion: 'horizontal', leyenda: 'Mentalidad Mati' },
+  { tipo: 'video', src: videoMeme, orientacion: 'horizontal', leyenda: CHAD },
 ];
 
 const indice = ref(0);
