@@ -25,7 +25,6 @@
         <!-- ============ PLACA DE TÍTULO ============ -->
         <div v-if="slide.tipo === 'titulo'" :key="claveSlide" class="slide slide--titulo">
           <img class="parten aparece" :src="tvParthenonBlanco" alt="El Templo" />
-          <div class="kicker aparece" :style="delay(0.4)">El Templo celebra</div>
           <div class="titulo">
             <span
               v-for="(palabra, i) in ['FELIZ', 'CUMPLE']"
@@ -62,7 +61,7 @@
               v-if="slide.tipo === 'foto'"
               class="medio medio--foto"
               :src="slide.src"
-              :style="{ animationDuration: `${slide.duracionMs}ms` }"
+              :style="{ animationDuration: `${DURACION_PANTALLA_MS}ms` }"
               alt=""
             />
             <video
@@ -73,8 +72,8 @@
               :muted="silenciado"
               playsinline
               preload="auto"
+              loop
               @loadeddata="reproducir"
-              @ended="avanzar"
               @error="onVideoError"
             ></video>
           </div>
@@ -87,7 +86,7 @@
               v-if="slide.tipo === 'foto'"
               class="medio medio--foto"
               :src="slide.src"
-              :style="{ animationDuration: `${slide.duracionMs}ms` }"
+              :style="{ animationDuration: `${DURACION_PANTALLA_MS}ms` }"
               alt=""
             />
             <video
@@ -98,8 +97,8 @@
               :muted="silenciado"
               playsinline
               preload="auto"
+              loop
               @loadeddata="reproducir"
-              @ended="avanzar"
               @error="onVideoError"
             ></video>
             <div class="cinta aparece" :style="delay(0.4)">
@@ -139,8 +138,8 @@
  * y roles que '/pantalla-inauguracion'); se abre desde TV control con el botón
  * "Feliz cumple, Mati" (ver `src/utils/cumple-mati.ts`).
  *
- * Recorrido en loop: placa de título → fotos (con zoom lento) → videos (hasta
- * que terminan). Autocontenida (sin CDN): medios como assets del bundle y
+ * Recorrido en loop: placa de título → fotos (con zoom lento) → videos, 30 s
+ * por pantalla (los videos se repiten hasta el corte). Autocontenida (sin CDN): medios como assets del bundle y
  * fuentes embebidas.
  *
  * Sonido: se intenta reproducir con audio (el tap del botón que trae hasta acá
@@ -174,41 +173,26 @@ const router = useRouter();
 type Orientacion = 'vertical' | 'horizontal';
 
 type Slide =
-  | { tipo: 'titulo'; duracionMs: number }
-  | { tipo: 'foto'; src: string; orientacion: Orientacion; leyenda: string; duracionMs: number }
-  | { tipo: 'video'; src: string; orientacion: Orientacion; leyenda: string };
+  | { tipo: 'titulo' }
+  | { tipo: 'foto' | 'video'; src: string; orientacion: Orientacion; leyenda: string };
 
-const DURACION_TITULO_MS = 9_000;
-const DURACION_FOTO_MS = 8_000;
-/** Red de seguridad: si un video no arranca o no avisa que terminó, se sigue. */
-const VIDEO_TOPE_MS = 20_000;
+/** Cada pantalla dura lo mismo; los videos (de ~8 s) se repiten hasta el corte. */
+const DURACION_PANTALLA_MS = 30_000;
 
 const SLIDES: Slide[] = [
-  { tipo: 'titulo', duracionMs: DURACION_TITULO_MS },
-  {
-    tipo: 'foto',
-    src: fotoSalchicha,
-    orientacion: 'vertical',
-    leyenda: 'El guardián de la noche',
-    duracionMs: DURACION_FOTO_MS,
-  },
-  {
-    tipo: 'foto',
-    src: fotoAsado,
-    orientacion: 'horizontal',
-    leyenda: 'El enemigo se acerca',
-    duracionMs: DURACION_FOTO_MS,
-  },
-  { tipo: 'video', src: videoRayo, orientacion: 'vertical', leyenda: 'Empieza la batalla' },
-  { tipo: 'video', src: videoPelea, orientacion: 'vertical', leyenda: 'Nada lo detiene' },
-  { tipo: 'video', src: videoJinete, orientacion: 'vertical', leyenda: 'La victoria' },
+  { tipo: 'titulo' },
+  { tipo: 'foto', src: fotoSalchicha, orientacion: 'vertical', leyenda: 'Bruce Mantecosa' },
+  { tipo: 'foto', src: fotoAsado, orientacion: 'horizontal', leyenda: 'Darth Vacío' },
+  { tipo: 'video', src: videoRayo, orientacion: 'vertical', leyenda: 'Thor Lacriolla' },
+  { tipo: 'video', src: videoPelea, orientacion: 'vertical', leyenda: 'Arnold Lechuguenegger' },
+  { tipo: 'video', src: videoJinete, orientacion: 'vertical', leyenda: 'Alexander Ladeliciosa' },
   {
     tipo: 'video',
     src: videoCientifico,
     orientacion: 'horizontal',
-    leyenda: 'El genio detrás de todo',
+    leyenda: 'Albert Einsalada',
   },
-  { tipo: 'video', src: videoMeme, orientacion: 'horizontal', leyenda: 'Mentalidad Mati' },
+  { tipo: 'video', src: videoMeme, orientacion: 'horizontal', leyenda: 'Chad Lachuga' },
 ];
 
 const indice = ref(0);
@@ -237,8 +221,7 @@ function avanzar(): void {
 
 function programarSlide(): void {
   limpiarTimer();
-  const actual = slide.value;
-  slideTimer = setTimeout(avanzar, actual.tipo === 'video' ? VIDEO_TOPE_MS : actual.duracionMs);
+  slideTimer = setTimeout(avanzar, DURACION_PANTALLA_MS);
 }
 
 watch(claveSlide, programarSlide);
