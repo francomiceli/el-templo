@@ -106,12 +106,7 @@ import tvParthenonBlanco from 'src/assets/tv-parthenon-blanco.png';
 import tvParthenonCharcoal from 'src/assets/tv-parthenon-charcoal.png';
 import tvBadgeAppStore from 'src/assets/tv-badge-appstore.png';
 import tvBadgeGooglePlay from 'src/assets/tv-badge-googleplay.png';
-import {
-  CINZEL_REGULAR_BASE64,
-  CINZEL_BOLD_BASE64,
-  NUNITO_SANS_REGULAR_BASE64,
-  NUNITO_SANS_BOLD_BASE64,
-} from 'src/utils/pdf/pdf-assets';
+import { installTvFonts, removeTvFonts } from 'src/utils/tv-fonts';
 
 const logger = createLogger('tv-inauguracion');
 
@@ -229,37 +224,11 @@ async function generarQrs(): Promise<void> {
 // ---------------------------------------------------------------------------
 
 const FONTS_STYLE_ID = 'tv-inauguracion-fonts';
-function fontFace(family: string, base64: string, weight: number): string {
-  return (
-    "@font-face{font-family:'" +
-    family +
-    "';font-weight:" +
-    weight +
-    ';font-style:normal;font-display:block;' +
-    'src:url(data:font/truetype;charset=utf-8;base64,' +
-    base64 +
-    ") format('truetype');}"
-  );
-}
-function installFonts(): void {
-  if (document.getElementById(FONTS_STYLE_ID)) return;
-  const style = document.createElement('style');
-  style.id = FONTS_STYLE_ID;
-  style.textContent =
-    fontFace('Cinzel', CINZEL_REGULAR_BASE64, 400) +
-    fontFace('Cinzel', CINZEL_BOLD_BASE64, 700) +
-    fontFace('NunitoSans', NUNITO_SANS_REGULAR_BASE64, 400) +
-    fontFace('NunitoSans', NUNITO_SANS_BOLD_BASE64, 700);
-  document.head.appendChild(style);
-}
-function removeFonts(): void {
-  document.getElementById(FONTS_STYLE_ID)?.remove();
-}
 
 const BODY_ACTIVE_CLASS = 'tv-inauguracion-active';
 
 onMounted(() => {
-  installFonts();
+  installTvFonts(FONTS_STYLE_ID);
   document.body.classList.add(BODY_ACTIVE_CLASS);
   recalcularEscala();
   window.addEventListener('resize', recalcularEscala);
@@ -271,7 +240,7 @@ onBeforeUnmount(() => {
   if (rotacionTimer !== null) clearTimeout(rotacionTimer);
   window.removeEventListener('resize', recalcularEscala);
   document.body.classList.remove(BODY_ACTIVE_CLASS);
-  removeFonts();
+  removeTvFonts(FONTS_STYLE_ID);
 });
 </script>
 
