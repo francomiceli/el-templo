@@ -42,6 +42,16 @@
           @click="onShowScreen"
         />
       </div>
+      <div v-if="cumpleMatiVisible" class="col-12 col-sm-auto">
+        <q-btn
+          class="tv-control__cumple-btn"
+          unelevated
+          no-caps
+          icon="cake"
+          label="Feliz cumple, Mati"
+          @click="openCumpleMati"
+        />
+      </div>
     </div>
 
     <!-- Carga inicial -->
@@ -350,6 +360,29 @@
             @click="showScreenFromSelection"
           />
         </q-card-actions>
+
+        <!-- Festejo especial (cumple de Mati, 31/10/2026): abre su pantalla en  -->
+        <!-- este mismo navegador, igual que la plani. Se apaga sola por fecha.   -->
+        <template v-if="cumpleMatiVisible">
+          <q-separator class="q-my-sm" />
+          <q-card-section class="q-pb-none">
+            <div class="text-subtitle1 text-weight-medium">Festejo especial</div>
+            <div class="text-body2 text-grey-7 q-mt-xs">
+              Fotos y videos del cumple de Mati, en loop, para el TV de Alberti.
+            </div>
+          </q-card-section>
+          <q-card-actions>
+            <q-btn
+              class="full-width tv-control__cumple-btn"
+              unelevated
+              size="lg"
+              no-caps
+              icon="cake"
+              label="Feliz cumple, Mati"
+              @click="openCumpleMati"
+            />
+          </q-card-actions>
+        </template>
       </q-card>
     </div>
 
@@ -453,6 +486,7 @@ import {
 } from 'src/composables/useTvApi';
 import { createLogger } from 'src/utils/logger';
 import { isExpectedClientError } from 'src/utils/extract-error';
+import { CUMPLE_MATI_PATH, isCumpleMatiVisible } from 'src/utils/cumple-mati';
 import {
   blockName,
   buildBlockButtons,
@@ -840,6 +874,15 @@ function onShowScreen(): void {
   openScreen(selectedBranchId.value);
 }
 
+/** Festejo del cumple de Mati: botón visible solo dentro de su ventana de fechas. */
+const cumpleMatiVisible = isCumpleMatiVisible();
+
+/** Abre la pantalla del festejo en la misma pestaña, como la plani. */
+function openCumpleMati(): void {
+  sedeSelectionOpen.value = false;
+  void router.push(CUMPLE_MATI_PATH);
+}
+
 /** Abre la pantalla del TV de una sede en la misma pestaña (fuente única del push). */
 function openScreen(branchId: number | null): void {
   if (!isValidOption(branchId)) return;
@@ -1141,5 +1184,12 @@ onUnmounted(() => {
 .tv-control__show-btn--off {
   opacity: 0.35;
   pointer-events: none;
+}
+
+/* Festejo especial: dorado de marca, se distingue de los botones de la plani. */
+.tv-control__cumple-btn {
+  background: #b89b5e;
+  color: #3d3732;
+  font-weight: 700;
 }
 </style>

@@ -2,6 +2,7 @@ import type { RouteRecordRaw } from 'vue-router';
 import type { AdminRole } from 'src/types/admin';
 import { useAuthStore } from 'stores/useAuthStore';
 import { canAccessTraining } from 'src/utils/trainingAccess';
+import { CUMPLE_MATI_PATH } from 'src/utils/cumple-mati';
 import {
   PLANES_READ_ROLES,
   PAGOS_ROLES,
@@ -81,6 +82,15 @@ const routes: RouteRecordRaw[] = [
     // retirar cuando pase la inauguración.
     path: '/pantalla-inauguracion',
     component: () => import('pages/TvInauguracionPage.vue'),
+    meta: { allowedRoles: TV_CONTROL_ROLES },
+  },
+  {
+    // Festejo del cumple de Mati Mamana (31/10/2026) en el TV de Alberti: fotos
+    // y videos en loop, mismo patrón que '/pantalla-inauguracion'. Se abre con
+    // el botón de TV control (ver utils/cumple-mati.ts). Retirar pasado el
+    // festejo.
+    path: CUMPLE_MATI_PATH,
+    component: () => import('pages/TvCumpleMatiPage.vue'),
     meta: { allowedRoles: TV_CONTROL_ROLES },
   },
   {
