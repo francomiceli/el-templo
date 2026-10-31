@@ -48,7 +48,7 @@
           unelevated
           no-caps
           icon="cake"
-          label="Feliz cumple, Mati"
+          label="¡Feliz cumple, Mati!"
           @click="openCumpleMati"
         />
       </div>
@@ -378,7 +378,7 @@
               size="lg"
               no-caps
               icon="cake"
-              label="Feliz cumple, Mati"
+              label="¡Feliz cumple, Mati!"
               @click="openCumpleMati"
             />
           </q-card-actions>

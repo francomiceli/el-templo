@@ -27,14 +27,14 @@
           <img class="parten aparece" :src="tvParthenonBlanco" alt="El Templo" />
           <div class="titulo">
             <span
-              v-for="(palabra, i) in ['FELIZ', 'CUMPLE']"
+              v-for="(palabra, i) in ['¡FELIZ', 'CUMPLE']"
               :key="palabra"
               class="palabra prendida"
               :style="delay(0.9 + i * 0.45)"
               >{{ palabra }}</span
             >
           </div>
-          <div class="nombre prendida" :style="delay(2)">MATI</div>
+          <div class="nombre prendida" :style="delay(2)">MATI!</div>
           <div class="bajada aparece" :style="delay(3)">
             Que este año venga con <span class="acento">más fuerza</span>, más marcas y muchos
             festejos.
@@ -49,12 +49,8 @@
         >
           <div class="lateral">
             <div class="kicker aparece">{{ slide.leyenda }}</div>
-            <div class="titulo titulo--lateral aparece" :style="delay(0.3)">FELIZ CUMPLE</div>
-            <div class="nombre nombre--lateral prendida" :style="delay(0.7)">MATI</div>
-            <div class="firma aparece" :style="delay(1.2)">
-              <img :src="tvParthenonBlanco" alt="" />
-              <span>El Templo · Alberti</span>
-            </div>
+            <div class="titulo titulo--lateral aparece" :style="delay(0.3)">¡FELIZ CUMPLE</div>
+            <div class="nombre nombre--lateral prendida" :style="delay(0.7)">MATI!</div>
           </div>
           <div class="marco marco--vertical">
             <img
@@ -103,7 +99,7 @@
             ></video>
             <div class="cinta aparece" :style="delay(0.4)">
               <span class="cinta__leyenda">{{ slide.leyenda }}</span>
-              <span class="cinta__saludo">Feliz cumple, <b>Mati</b></span>
+              <span class="cinta__saludo">¡Feliz cumple, <b>Mati</b>!</span>
             </div>
           </div>
         </div>
@@ -136,7 +132,7 @@
  * TvCumpleMatiPage — festejo del cumpleaños de Mati Mamana (31/10/2026) para el
  * TV de la sede Alberti. Ruta top-level '/pantalla-cumple-mati' (mismo patrón
  * y roles que '/pantalla-inauguracion'); se abre desde TV control con el botón
- * "Feliz cumple, Mati" (ver `src/utils/cumple-mati.ts`).
+ * "¡Feliz cumple, Mati!" (ver `src/utils/cumple-mati.ts`).
  *
  * Recorrido en loop: placa de título → fotos (con zoom lento) → videos, 30 s
  * por pantalla (los videos se repiten hasta el corte). Autocontenida (sin CDN): medios como assets del bundle y
@@ -570,22 +566,6 @@ body.tv-cumple-mati-active {
 
 #tvCumpleMatiRoot .nombre--lateral {
   font-size: 13rem;
-}
-
-#tvCumpleMatiRoot .firma {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin-top: 2.2rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.24em;
-  font-size: 1.4rem;
-  color: var(--bronce);
-}
-
-#tvCumpleMatiRoot .firma img {
-  width: 3.4rem;
 }
 
 #tvCumpleMatiRoot .marco {
