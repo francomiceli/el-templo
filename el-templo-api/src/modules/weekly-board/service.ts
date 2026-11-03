@@ -31,7 +31,7 @@
  * semanas congeladas (D-08/D-09, pueden diferir de lo que hoy muestran las
  * pantallas en vivo).
  */
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
@@ -39,7 +39,7 @@ import { enforcedBranchIds } from "../shared/branch-access";
 import { listBranchesForScope } from "../shared/branch-list";
 import type { CountryScope } from "../shared/country-scope";
 import { currencyForCountry } from "../shared/currency";
-import { addDays } from "../shared/date-utils";
+import { addDays, todayInTz } from "../shared/date-utils";
 import { BadRequestError, NotFoundError } from "../shared/errors";
 import {
   tenantValues,
@@ -67,7 +67,9 @@ import type {
   WeeklyBoardResponse,
 } from "./types";
 import {
+  BOARD_TZ,
   currentWeekStart,
+  dueClosures,
   isCapturedLate,
   isLeadsEditableWeek,
   isMonday,
@@ -77,6 +79,9 @@ import {
 } from "./week";
 
 type SnapshotRow = typeof schema.weeklyBoardSnapshots.$inferSelect;
+type BoardTx = Parameters<
+  Parameters<MySql2Database<typeof schema>["transaction"]>[0]
+>[0];
 
 /** Valores de una semana ya resueltos: por sede, estados y sellos de la foto. */
 interface ResolvedWeek {
@@ -375,6 +380,188 @@ export class WeeklyBoardService {
   }
 
   /**
+   * Cierre automático (D-08, D-09, D-10, D-11, D-25): saca las fotos que ya
+   * corresponden y faltan. Una sola regla, "cerrar lo vencido que falte", cubre
+   * los dos congelamientos y se recupera sola si una corrida se pierde:
+   *
+   * - Principal: la semana inmediata anterior, desde el lunes 00:05 AR.
+   * - Tardío (embudo + renovaciones): las dos semanas anteriores cuyo viernes de
+   *   cierre ya llegó (`dueClosures`). Las semanas más viejas que la anterior
+   *   NUNCA reciben foto principal: una deuda o unos activos sacados tarde
+   *   mentirían (D-11).
+   *
+   * Semántica temporal: la foto del lunes 00:05 ya ve el lunes para activos y
+   * edad de deuda. La del viernes 00:05 no cubre el 5.º día de "renovó" de un
+   * vencimiento del domingo (diferencia aceptada por Franco, D-09).
+   *
+   * Una fila por sede ACTIVA del tenant, física y virtual, con ceros explícitos.
+   * Los pasos de cada (semana, bloque) corren en UNA transacción: INSERT de las
+   * filas que faltan y UPDATE de los valores `WHERE <sello> IS NULL`. La
+   * idempotencia vive en el SQL: lo ya sellado no se toca y un cambio posterior
+   * de datos no altera una foto tomada. Una semana cuenta como cerrada solo si
+   * TODAS las sedes activas tienen el sello, así una semana sellada a medias
+   * (por lo que sea) se completa en la corrida siguiente. Los sellos usan el
+   * `now` inyectado, no `NOW()`. Los cálculos se hacen ANTES de abrir la
+   * transacción para que dure poco. Devuelve las semanas cerradas en esta corrida.
+   */
+  async closeDue(
+    ctx: TenantContext,
+    now: Date = new Date(),
+  ): Promise<{ main: string[]; late: string[] }> {
+    const closed: { main: string[]; late: string[] } = { main: [], late: [] };
+    const due = dueClosures(todayInTz(BOARD_TZ, now));
+    const weeks = [...new Set([...due.main, ...due.late])];
+    if (weeks.length === 0) return closed;
+
+    const branchRows = await this.db
+      .select({
+        id: schema.branches.id,
+        name: schema.branches.name,
+        country: schema.branches.country,
+        isVirtual: schema.branches.isVirtual,
+      })
+      .from(schema.branches)
+      .where(
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.isActive, true),
+        ),
+      );
+    if (branchRows.length === 0) return closed;
+    const branches: BoardBranch[] = branchRows.map((b) => ({
+      id: b.id,
+      name: b.name,
+      country: b.country,
+      isVirtual: b.isVirtual,
+      currency: currencyForCountry(b.country),
+    }));
+
+    const snapshots = await this.db
+      .select()
+      .from(schema.weeklyBoardSnapshots)
+      .where(
+        and(
+          tenantWhere(schema.weeklyBoardSnapshots, ctx),
+          inArray(schema.weeklyBoardSnapshots.weekStart, weeks),
+        ),
+      );
+
+    const rowsOf = (weekStart: string): SnapshotRow[] =>
+      snapshots.filter((r) => r.weekStart === weekStart);
+    // Cerrada = TODAS las sedes activas con sello (no "alguna").
+    const isSealed = (
+      weekStart: string,
+      stamp: "mainClosedAt" | "lateClosedAt",
+    ): boolean => {
+      const sealed = new Set(
+        rowsOf(weekStart)
+          .filter((r) => r[stamp] !== null)
+          .map((r) => r.branchId),
+      );
+      return branches.every((b) => sealed.has(b.id));
+    };
+    const missingRows = (weekStart: string): BoardBranch[] => {
+      const existing = new Set(rowsOf(weekStart).map((r) => r.branchId));
+      return branches.filter((b) => !existing.has(b.id));
+    };
+
+    const insertMissing = async (
+      tx: BoardTx,
+      weekStart: string,
+    ): Promise<void> => {
+      const missing = missingRows(weekStart);
+      if (missing.length === 0) return;
+      await tx
+        .insert(schema.weeklyBoardSnapshots)
+        .values(
+          missing.map((b) =>
+            tenantValues(ctx, {
+              weekStart,
+              branchId: b.id,
+              currency: b.currency,
+            }),
+          ),
+        )
+        // No-op explícito (sin ignorar conflictos en silencio, FA-09): si otra corrida insertó
+        // la fila entre la lectura y acá, el UNIQUE no tira y no cambia nada.
+        .onDuplicateKeyUpdate({ set: { branchId: sql`branch_id` } });
+    };
+
+    for (const weekStart of due.main) {
+      if (isSealed(weekStart, "mainClosedAt")) continue;
+      const [flows, pit] = await Promise.all([
+        this.calculator.computeWeekFlows(ctx, weekStart, branches),
+        this.calculator.computePointInTime(ctx, branches),
+      ]);
+      await this.db.transaction(async (tx) => {
+        await insertMissing(tx, weekStart);
+        for (const branch of branches) {
+          const main = BoardCalculator.composeMain(
+            flows.values.get(branch.id),
+            pit.values.get(branch.id) ?? null,
+          );
+          await tx
+            .update(schema.weeklyBoardSnapshots)
+            .set({ ...main, mainClosedAt: now })
+            .where(
+              and(
+                tenantWhere(schema.weeklyBoardSnapshots, ctx),
+                eq(schema.weeklyBoardSnapshots.weekStart, weekStart),
+                eq(schema.weeklyBoardSnapshots.branchId, branch.id),
+                isNull(schema.weeklyBoardSnapshots.mainClosedAt),
+              ),
+            );
+        }
+      });
+      closed.main.push(weekStart);
+      this.log.info(
+        {
+          tenantId: ctx.tenantId,
+          weekStart,
+          block: "main",
+          branches: branches.length,
+        },
+        "Tablero: semana cerrada",
+      );
+    }
+
+    for (const weekStart of due.late) {
+      if (isSealed(weekStart, "lateClosedAt")) continue;
+      const late = await this.calculator.computeLate(ctx, weekStart, branches);
+      await this.db.transaction(async (tx) => {
+        await insertMissing(tx, weekStart);
+        for (const branch of branches) {
+          const values = late.get(branch.id);
+          if (!values) continue;
+          await tx
+            .update(schema.weeklyBoardSnapshots)
+            .set({ ...values, lateClosedAt: now })
+            .where(
+              and(
+                tenantWhere(schema.weeklyBoardSnapshots, ctx),
+                eq(schema.weeklyBoardSnapshots.weekStart, weekStart),
+                eq(schema.weeklyBoardSnapshots.branchId, branch.id),
+                isNull(schema.weeklyBoardSnapshots.lateClosedAt),
+              ),
+            );
+        }
+      });
+      closed.late.push(weekStart);
+      this.log.info(
+        {
+          tenantId: ctx.tenantId,
+          weekStart,
+          block: "late",
+          branches: branches.length,
+        },
+        "Tablero: semana cerrada",
+      );
+    }
+
+    return closed;
+  }
+
+  /**
    * Guarda (o borra, con `leads: null`) los leads de una sede física activa en
    * la semana en curso o la anterior (D-04, D-05, D-24). El acceso a la sede lo
    * fuerza `requireBranchAccess` en la ruta (206-06).
@@ -442,7 +629,7 @@ export class WeeklyBoardService {
         .onDuplicateKeyUpdate({ set: { leads, updatedBy: userId } });
     }
 
-    // Se relee la fila: `affectedRows` de mysql2 cuenta filas encontradas, no
+    // Se relee la fila: el contador de filas de mysql2 cuenta filas encontradas, no
     // cambiadas, así que no sirve para saber qué quedó guardado.
     const [saved] = await this.db
       .select({ leads: schema.weeklyBoardLeads.leads })
