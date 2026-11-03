@@ -1105,10 +1105,19 @@ Plans:
 7. Los leads se cargan a mano por sede y por semana desde el mismo Tablero
 8. Tests de integración cubren el armado por sede, el cierre, el margen de Renovaciones, los leads manuales, los roles y el aislamiento por tenant
 
-**Plans:** 0 plans
+**Plans:** 10 plans (secuenciales, una wave cada uno)
 
 Plans:
-- [ ] TBD (correr /gsd:plan-phase 206)
+- [ ] 206-01-PLAN.md — Esquema: `weekly_board_snapshots` + `weekly_board_leads`, migración 0319, 5 conteos de tenancy
+- [ ] 206-02-PLAN.md — Calendario del Tablero (semana AR, cierres lunes/viernes, estados, ventana de leads) + moneda por país (TDD)
+- [ ] 206-03-PLAN.md — Fuentes por sede 1: Embudo (sede de la clase) y Renovaciones (sede del alumno) + tests de coincidencia
+- [ ] 206-04-PLAN.md — Fuentes por sede 2: Cobrado, Deuda y Alumnos activos por sede del alumno + tests de coincidencia
+- [ ] 206-05-PLAN.md — Contrato, armado puro de la matriz (Total por país, Online, %), calculadora y servicio (foto vs vivo, leads)
+- [ ] 206-06-PLAN.md — Rutas GET/PUT leads, manifiesto ISO-01 y tests de integración (armado, fotos, leads, roles, tenant)
+- [ ] 206-07-PLAN.md — Cierre automático: `closeDue` + job horario, CON-04 y tests del cierre
+- [ ] 206-08-PLAN.md — Admin: tipos espejo, composable y util de formato/deltas/semanas
+- [ ] 206-09-PLAN.md — Admin: pantalla `/tablero` (matriz por país, Online, leads editables, estados de bloque)
+- [ ] 206-10-PLAN.md — Admin: categoría "Gerencia" en el menú, ruta, landing owner/admin y checklist de UAT
 
 ---
 

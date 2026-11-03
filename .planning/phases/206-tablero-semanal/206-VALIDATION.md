@@ -39,10 +39,12 @@ created: 2026-11-03
 | Plan | Comportamiento | Tipo | Archivo |
 |------|----------------|------|---------|
 | 01 | Tablas nuevas strict, uniques con `tenant_id` al frente, 5 conteos fijos actualizados | integración + gates | `test/migrations/0319-weekly-board.test.ts`, tests de tenancy existentes |
-| 02 | `dueClosures(today)` para cada día lun..dom (cierre principal el lunes, tardío el viernes, recuperación si se perdió una corrida) | unit | `test/weekly-board/week.test.ts` |
-| 03-04 | Cada método "por sede" coincide con su endpoint de origen filtrado por esa sede; los tests existentes de Sesiones de prueba siguen verdes tras extraer `tallyTrialSessions` / `kpisFromTally` | integración + regresión | `test/weekly-board/by-branch-sources.test.ts`, `reports-trial-sessions.test.ts` |
-| 05-06 | Columnas = sedes físicas activas + columna informativa Online (fuera del Total) + grupo ES; Total AR desde conteos; % Reserva "—" sin leads; foto vs vivo vs provisorio vs sin foto; leads PUT; roles/alcance; tenant | integración | `test/weekly-board/weekly-board-routes.test.ts` |
-| 07 | `closeDue(ctx, now)`: principal de W-1 el lunes, tardío el viernes (4 días), idempotente, la foto no cambia con datos posteriores, barrido por tenant | integración | `test/jobs/weekly-board-close.test.ts` |
+| 02 | `dueClosures(today)` para cada día lun..dom, `resolveBlockState`, `isCapturedLate`, ventana de leads, moneda | unit | `test/weekly-board/week.test.ts` |
+| 03 | Embudo y Renovaciones por sede = pantalla de origen por sede; multisucursal en la sede del alumno (D-29); tests existentes de Sesiones de prueba y Renovaciones siguen verdes | integración + regresión | `test/weekly-board/by-branch-embudo-renovaciones.test.ts`, `reports-trial-sessions.test.ts`, `renewals/renewals.test.ts` |
+| 04 | Cobrado (D-14), Deuda (incluye sueltas) y Activos por sede = origen | integración + regresión | `test/weekly-board/by-branch-caja-alumnos.test.ts`, `finance/income-by-branch.test.ts`, `reports/debt-management.test.ts` |
+| 05 | Totales por país desde conteos, Online fuera del Total, % Reserva null sin leads, variación de activos, nulls | unit | `test/weekly-board/matrix.test.ts` |
+| 06 | Columnas, grupos AR/ES, Online (D-25), foto vs vivo vs provisorio vs sin foto, leads PUT, roles/alcance (D-02, D-27), tenant | integración | `test/weekly-board/weekly-board-routes.test.ts`, `test/weekly-board/weekly-board-access.test.ts`, ISO-01 (544) |
+| 07 | `closeDue(ctx, now)`: principal de W-1 el lunes, tardío el viernes, idempotente, foto congelada, recuperación, barrido por tenant | integración | `test/jobs/weekly-board-close.test.ts`, CON-04 (12 jobs) |
 | 08-10 | Admin: tipos, composable, pantalla, menú y landing | typecheck + lint + UAT | `vue-tsc`, `pnpm lint` |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
