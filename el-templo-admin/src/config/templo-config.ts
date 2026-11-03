@@ -171,6 +171,13 @@ export const ANALITICAS_ROLES: AdminRole[] = ['admin', 'owner', 'admin_sede'];
 export const PARTNERS_ROLES: AdminRole[] = ['gestion', 'admin', 'owner'];
 
 /**
+ * Oficina (fase 205, D-10): central de temas de gestión. Espeja OFFICE_ROLES del
+ * API (owner/admin/gestion). `admin_sede` y `recepcion` quedan afuera en v1 (gestión
+ * central). El gate REAL es el API (403); este set solo decide nav + `meta.allowedRoles`.
+ */
+export const OFICINA_ROLES: AdminRole[] = ['gestion', 'admin', 'owner'];
+
+/**
  * Televisores de sucursal (fase 164): Dueño + coach + cuenta tv (incidente
  * 2026-09: la tele quedaba logueada con la cuenta de un coach y un cambio de
  * sedes la dejaba en 403 silencioso — la cuenta `tv` es dedicada, ve TODAS las
@@ -253,6 +260,7 @@ export interface NavItem {
    *   público todavía en estado "new" (grupo Landing).
    * - 'conquer': pedidos de desbloqueo sin activar (fase 201 D-12) + correcciones con video sin
    *   responder (fase 202 D-26).
+   * - 'oficina': menciones sin leer + temas asignados a mí con novedades (fase 205 D-08).
    */
   badge?: NavBadge;
 }
@@ -263,7 +271,8 @@ export type NavBadge =
   | 'landing-academy'
   | 'landing-labs'
   | 'landing-franquicias'
-  | 'conquer';
+  | 'conquer'
+  | 'oficina';
 
 export interface NavCategory {
   header: string;
@@ -316,6 +325,9 @@ export const NAV_MODEL: NavCategory[] = [
     // Templo-only vía `templo: true` a nivel ítem.
     header: 'Gestión',
     items: [
+      // Oficina (fase 205 D-15): primera de Gestión; la pelotita cuenta menciones sin leer y
+      // temas asignados al usuario con actividad nueva. Es genérica (no `templo`).
+      { path: '/oficina', label: 'Oficina', icon: 'forum', roles: OFICINA_ROLES, badge: 'oficina' },
       { path: '/alumnos', label: 'Alumnos', icon: 'people', roles: ALL_STAFF_ROLES },
       { path: '/horarios', label: 'Horarios', icon: 'calendar_month', roles: ALL_STAFF_ROLES },
       {

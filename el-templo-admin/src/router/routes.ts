@@ -14,6 +14,7 @@ import {
   PARTNERS_ROLES,
   JORNADA_ROLES,
   ANALITICAS_ROLES,
+  OFICINA_ROLES,
 } from 'src/config/templo-config';
 
 /**
@@ -371,6 +372,18 @@ const routes: RouteRecordRaw[] = [
         path: 'comunicaciones',
         component: () => import('pages/ComunicacionesPage.vue'),
         meta: { allowedRoles: ['admin', 'owner'] as AdminRole[] },
+      },
+      {
+        // Oficina (fase 205): central de temas de gestión. `/oficina/:topicId` abre el
+        // detalle de un tema (misma página, la lista queda a la izquierda).
+        path: 'oficina',
+        component: () => import('pages/OficinaPage.vue'),
+        meta: { allowedRoles: OFICINA_ROLES },
+      },
+      {
+        path: 'oficina/:topicId',
+        component: () => import('pages/OficinaPage.vue'),
+        meta: { allowedRoles: OFICINA_ROLES },
       },
       {
         // Feedback del alumno: Clases / Profes / Sugerencias en tabs.
