@@ -310,7 +310,7 @@ export class OfficeService {
         role: schema.users.role,
       })
       .from(schema.users)
-      .where(and(...this.staffConditions(ctx)))
+      .where(and(tenantWhere(schema.users, ctx), ...this.staffFilters()))
       .orderBy(asc(schema.users.firstName), asc(schema.users.lastName));
     return rows.map((r) => ({
       id: r.id,
@@ -868,10 +868,13 @@ export class OfficeService {
 
   // ───────────────────────────── Privados ─────────────────────────────
 
-  /** Condiciones de "staff activo del gimnasio" (no socio, no TV, no deshabilitado, no borrado). */
-  private staffConditions(ctx: TenantContext): SQL[] {
+  /**
+   * Condiciones de "staff activo" (no socio, no TV, no deshabilitado, no
+   * borrado). NO incluye el filtro de gimnasio: cada query suma su propio
+   * `tenantWhere(schema.users, ctx)`, que es lo que lee el lint de tenancy.
+   */
+  private staffFilters(): SQL[] {
     return [
-      tenantWhere(schema.users, ctx),
       notInArray(schema.users.role, NON_STAFF_ROLES),
       eq(schema.users.staffDisabled, false),
       isNull(schema.users.deletedAt),
@@ -893,7 +896,13 @@ export class OfficeService {
         lastName: schema.users.lastName,
       })
       .from(schema.users)
-      .where(and(...this.staffConditions(ctx), eq(schema.users.id, userId)))
+      .where(
+        and(
+          tenantWhere(schema.users, ctx),
+          ...this.staffFilters(),
+          eq(schema.users.id, userId),
+        ),
+      )
       .limit(1);
     if (!row) {
       throw new BadRequestError("La persona elegida no es parte del staff");
@@ -1065,7 +1074,11 @@ export class OfficeService {
       .select({ id: schema.users.id })
       .from(schema.users)
       .where(
-        and(...this.staffConditions(ctx), inArray(schema.users.id, wanted)),
+        and(
+          tenantWhere(schema.users, ctx),
+          ...this.staffFilters(),
+          inArray(schema.users.id, wanted),
+        ),
       );
     if (valid.length === 0) return;
     await tx

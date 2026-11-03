@@ -418,7 +418,9 @@ import {
 // rutas de la 195 anotadas arriba (`GET /api/web/site-data`, templo-module, y
 // `GET /api/admin/reports/attribution` + `.../attribution/search-console`,
 // `tenant-scoped`).
-const ENTRADAS_BASELINE = 542;
+// 2026-11-03: 542 -> 550 por las 8 rutas de Oficina (fase 205), bajo
+// /api/admin/office, `tenant-scoped`.
+const ENTRADAS_BASELINE = 550;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -561,7 +563,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 542 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 550 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(
