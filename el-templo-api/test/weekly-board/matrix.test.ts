@@ -719,6 +719,22 @@ describe("buildBoardMetrics", () => {
     expect(variacion.totalByCountry.AR.value).toBe(25);
   });
 
+  it("variación del Total es null si ninguna sede del grupo está en la foto (no se infla)", () => {
+    const metrics = build({
+      groups: [groupAR({ online: false }), groupES()],
+      current: [
+        [SEDE_A, vals({ main: { activos: 120 } })],
+        [SEDE_B, vals({ main: { activos: 50 } })],
+        [SEDE_ES, vals({ main: { activos: 30 } })],
+      ],
+      // La foto solo trae la sede ES: el grupo AR no tiene base de comparación.
+      fotoPrev: [[SEDE_ES, 25]],
+    });
+    const variacion = metric(metrics, "variacionActivos");
+    expect(variacion.totalByCountry.AR.value).toBeNull();
+    expect(variacion.totalByCountry.ES.value).toBe(5);
+  });
+
   it("hasTotal false (admin_sede): sin Total; online null: sin Online", () => {
     const metrics = build({
       groups: [groupAR({ hasTotal: false, online: false })],

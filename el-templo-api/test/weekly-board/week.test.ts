@@ -77,6 +77,11 @@ describe("isMonday", () => {
     expect(isMonday("2026-11-2")).toBe(false);
     expect(isMonday("2026-02-30")).toBe(false);
     expect(isMonday("no-es-fecha")).toBe(false);
+    // Mes 13/00 y día 00: antes tiraban RangeError (500 en el endpoint).
+    expect(isMonday("2026-13-01")).toBe(false);
+    expect(isMonday("2026-00-10")).toBe(false);
+    expect(isMonday("2026-11-00")).toBe(false);
+    expect(isMonday("2026-13-45")).toBe(false);
   });
 });
 

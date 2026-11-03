@@ -221,13 +221,18 @@ function sumActivosFoto(
 ): number | null {
   if (foto.size === 0) return null;
   let total = 0;
+  let found = 0;
   for (const id of branchIds) {
     if (!foto.has(id)) continue;
     const value = foto.get(id) ?? null;
     if (value === null) return null;
     total += value;
+    found += 1;
   }
-  return total;
+  // Ninguna sede del grupo está en la foto (p. ej. la foto es de otro país o
+  // de sedes que ya no existen): sin base de comparación, variación null en
+  // vez de inflarla con todos los activos actuales.
+  return found === 0 ? null : total;
 }
 
 function deriveForAggregate(

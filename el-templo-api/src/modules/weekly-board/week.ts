@@ -61,6 +61,9 @@ export function weekRange(weekStart: string): {
  */
 export function isMonday(date: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+  // Mes 00/13 o día 00 dan un Date inválido y addDays tiraría RangeError
+  // (500 en vez de 400): se descartan antes del round-trip.
+  if (Number.isNaN(new Date(`${date}T12:00:00Z`).getTime())) return false;
   // Round-trip por addDays: "2026-02-30" se desliza a marzo y deja de coincidir.
   if (addDays(date, 0) !== date) return false;
   return mondayOf(date) === date;

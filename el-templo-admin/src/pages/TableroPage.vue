@@ -96,10 +96,23 @@ const WARNING_METRIC_LABELS: Record<WeeklyBoardResponse['warnings'][number]['met
 /** Lunes de la semana en curso (el domingo sigue en la semana que termina, no salta a la próxima). */
 const currentWeek = weekOptions(1)[0]!.value;
 
+/**
+ * `?semana=` válido = fecha real (no 2026-13-45 ni 2026-02-30), lunes y no
+ * futura. Cualquier otra cosa cae en la semana en curso, en vez de romper el
+ * selector o pedirle al API una semana que va a rechazar.
+ */
+function isValidWeekStart(raw: string): boolean {
+  if (!ISO_DATE.test(raw)) return false;
+  const date = new Date(`${raw}T12:00:00Z`);
+  if (Number.isNaN(date.getTime())) return false;
+  if (date.toISOString().slice(0, 10) !== raw) return false;
+  return date.getUTCDay() === 1 && raw <= currentWeek;
+}
+
 // La semana vive en la URL (?semana=YYYY-MM-DD): sin el parámetro, la semana en curso.
 const weekStart = computed(() => {
   const raw = route.query.semana;
-  return typeof raw === 'string' && ISO_DATE.test(raw) ? raw : currentWeek;
+  return typeof raw === 'string' && isValidWeekStart(raw) ? raw : currentWeek;
 });
 
 const board = ref<WeeklyBoardResponse | null>(null);
