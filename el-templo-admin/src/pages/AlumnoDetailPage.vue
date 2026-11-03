@@ -390,6 +390,7 @@
           <q-tab name="perfil" label="Perfil" />
           <q-tab name="entrenamiento" label="Entrenamiento" />
           <q-tab name="notas" label="Notas" />
+          <q-tab v-if="canSeeOficina" name="oficina" label="Oficina" />
           <q-tab v-if="!financeBlind" name="suscripcion">
             <div class="q-tab__label">Suscripcion</div>
             <q-badge
@@ -702,6 +703,11 @@
             />
           </q-tab-panel>
 
+          <!-- Oficina Tab (fase 205 D-20) -->
+          <q-tab-panel v-if="canSeeOficina" name="oficina">
+            <MemberOficinaTab :user-id="userId" :member-name="memberName" />
+          </q-tab-panel>
+
           <!-- Suscripcion Tab -->
           <q-tab-panel v-if="!financeBlind" name="suscripcion">
             <MemberSubscriptionTab
@@ -911,6 +917,7 @@ import MemberReferralsTab from 'src/components/MemberReferralsTab.vue';
 import InvitedByBlock from 'src/components/InvitedByBlock.vue';
 import InvitationCreateDialog from 'src/components/InvitationCreateDialog.vue';
 import MemberNotesTab from 'src/components/MemberNotesTab.vue';
+import MemberOficinaTab from 'src/components/oficina/MemberOficinaTab.vue';
 import MemberSubscriptionTab from 'src/components/MemberSubscriptionTab.vue';
 import MemberProgramsTab from 'src/components/MemberProgramsTab.vue';
 import MemberAttendanceTab from 'src/components/MemberAttendanceTab.vue';
@@ -924,7 +931,7 @@ import WhatsappIcon from 'src/components/icons/WhatsappIcon.vue';
 import type { MemberProfile, MemberSegment, BranchOption, InvitedByView } from 'src/types/member';
 import { SEGMENT_LABELS, SEGMENT_COLORS, AVATAR_LABELS } from 'src/types/member';
 import { levelColor } from 'src/constants/levels';
-import { TEMPLO_GREEK_LEVELS, isFinanceBlindRole } from 'src/config/templo-config';
+import { TEMPLO_GREEK_LEVELS, OFICINA_ROLES, isFinanceBlindRole } from 'src/config/templo-config';
 import {
   GOAL_PLAN_TYPE_LABELS,
   GOAL_PLAN_TIER_MAP,
@@ -1180,6 +1187,12 @@ const isLifecycleRole = computed(() => {
 });
 
 const canDeleteMember = computed(() => isLifecycleRole.value);
+
+// Fase 205 (D-20): espejo de OFFICE_ROLES en la API (owner/admin/gestion). Solo oculta la pestaña.
+const canSeeOficina = computed(() => {
+  const role = currentUser.value?.role;
+  return role !== undefined && OFICINA_ROLES.includes(role);
+});
 
 // Fase 194: espejo de INVITATION_ROLES en la API (lifecycle + recepción; coach queda
 // afuera). La pestaña Invitaciones es la de todas las operaciones de invitaciones
