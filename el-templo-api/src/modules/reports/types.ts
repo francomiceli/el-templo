@@ -386,6 +386,28 @@ export interface TrialFollowupSummary {
   lostNote: string | null;
 }
 
+/**
+ * Conteos crudos del embudo de Sesiones de Prueba, antes de derivar los
+ * porcentajes. El Tablero semanal (fase 206) los suma por país y recalcula los
+ * % con `kpisFromTally`: nunca se promedian porcentajes (D-26).
+ */
+export interface TrialSessionTally {
+  /** Sesiones cuyo mensaje vence en el turno actual-o-próximo. */
+  pendingThisShift: number;
+  /** Personas con sesión en el período (excluye ancestros de una reagenda). */
+  reservations: number;
+  /** Reservas cuya clase ya terminó (denominador de asistencia y conversión). */
+  occurred: number;
+  /** De las ocurridas, las que asistieron. */
+  attended: number;
+  /** Reservas ganadas (lead que compró), ocurridas o no. */
+  purchased: number;
+  /** Ganadas con clase ya terminada. */
+  purchasedOccurred: number;
+  /** Ganadas con asistencia. */
+  purchasedAttended: number;
+}
+
 export interface TrialSessionKpis {
   /** Sesiones cuyo mensaje vence en el turno actual-o-próximo (toggle "Pendientes de este turno"). */
   pendingThisShift: number;

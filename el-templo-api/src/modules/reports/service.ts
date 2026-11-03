@@ -78,6 +78,7 @@ import type {
   TrialLostReason,
   TrialRescheduleLinkedSession,
   TrialSessionKpis,
+  TrialSessionTally,
   TrialSessionsFilters,
   TrialSessionsReport,
   TrialSessionsRow,
@@ -196,6 +197,19 @@ function toDateOrNull(v: string | Date | null): Date | null {
 function computeTrialSessionKpis(
   rows: TrialSessionRowInternal[],
 ): TrialSessionKpis {
+  return kpisFromTally(tallyTrialSessions(rows));
+}
+
+/**
+ * Cuenta crudo el embudo de Sesiones de Prueba (primera mitad de
+ * `computeTrialSessionKpis`, ver ahí las reglas de grano y de "clase ya
+ * ocurrida"). Separado para que el Tablero semanal (fase 206) pueda sumar
+ * conteos de varias sedes y recalcular los porcentajes con
+ * {@link kpisFromTally}.
+ */
+function tallyTrialSessions(
+  rows: TrialSessionRowInternal[],
+): TrialSessionTally {
   let reservations = 0;
   let occurred = 0;
   let attended = 0;
@@ -221,17 +235,35 @@ function computeTrialSessionKpis(
     }
   }
 
+  return {
+    pendingThisShift,
+    reservations,
+    occurred,
+    attended,
+    purchased,
+    purchasedOccurred,
+    purchasedAttended,
+  };
+}
+
+/**
+ * Deriva los KPIs (con los porcentajes) desde conteos crudos. Única copia de
+ * las fórmulas del embudo (D-26): % Asistencia = asistieron / ocurridas,
+ * % Cierre = compraron con asistencia / asistieron, % Conversión total =
+ * compraron (ocurridas) / ocurridas. `null` si el denominador es 0.
+ */
+export function kpisFromTally(t: TrialSessionTally): TrialSessionKpis {
   const pct = (num: number, den: number): number | null =>
     den === 0 ? null : (num / den) * 100;
 
   return {
-    pendingThisShift,
-    reservations,
-    attended,
-    purchased,
-    attendanceRate: pct(attended, occurred),
-    closeRate: pct(purchasedAttended, attended),
-    totalConversionRate: pct(purchasedOccurred, occurred),
+    pendingThisShift: t.pendingThisShift,
+    reservations: t.reservations,
+    attended: t.attended,
+    purchased: t.purchased,
+    attendanceRate: pct(t.attended, t.occurred),
+    closeRate: pct(t.purchasedAttended, t.attended),
+    totalConversionRate: pct(t.purchasedOccurred, t.occurred),
   };
 }
 
@@ -2248,6 +2280,55 @@ export class ReportsService {
       .map(({ isPendingThisShift: _p, ...row }) => row);
 
     return { rows, total, page, limit, kpis };
+  }
+
+  /**
+   * Conteos crudos del embudo por SEDE DE LA CLASE (D-13), en una sola pasada
+   * por tenant. Método del Tablero semanal (fase 206): coincide, sede por
+   * sede, con `getTrialSessionsReport({ branchId, dateFrom, dateTo }).kpis`
+   * porque reusa los mismos helpers (`buildTrialSessionsConditions`,
+   * `fetchTrialSessionRawRows`, `buildTrialSessionRows`) y el mismo conteo
+   * (`tallyTrialSessions`). Las sedes sin sesiones en el rango no aparecen en
+   * el mapa. Alcance por país/sede: lo resuelve el caller sobre las claves.
+   */
+  async getTrialSessionTalliesByBranch(
+    ctx: TenantContext,
+    range: { dateFrom: string; dateTo: string },
+  ): Promise<Map<number, TrialSessionTally>> {
+    const conds = this.buildTrialSessionsConditions({
+      dateFrom: range.dateFrom,
+      dateTo: range.dateTo,
+    });
+    const dbRows = await this.fetchTrialSessionRawRows(
+      ctx,
+      conds,
+      TRIAL_SESSIONS_FETCH_CAP,
+    );
+    if (dbRows.length >= TRIAL_SESSIONS_FETCH_CAP) {
+      this.log.warn(
+        {
+          tenantId: ctx.tenantId,
+          cap: TRIAL_SESSIONS_FETCH_CAP,
+          dateFrom: range.dateFrom,
+          dateTo: range.dateTo,
+        },
+        "weekly board trial tallies: fetch cap reached, results may be truncated",
+      );
+    }
+    const allRows = await this.buildTrialSessionRows(ctx, dbRows);
+
+    const byBranch = new Map<number, TrialSessionRowInternal[]>();
+    for (const row of allRows) {
+      const group = byBranch.get(row.branchId);
+      if (group) group.push(row);
+      else byBranch.set(row.branchId, [row]);
+    }
+
+    const result = new Map<number, TrialSessionTally>();
+    for (const [branchId, rows] of byBranch) {
+      result.set(branchId, tallyTrialSessions(rows));
+    }
+    return result;
   }
 
   /**
