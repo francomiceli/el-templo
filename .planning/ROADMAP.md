@@ -73,6 +73,7 @@ El recorrido: primero se cierra la **fase de diseño bloqueante** (las 7 definic
 - [x] **Phase 202: Conquer — tutoriales y correcciones con video (fuera del milestone)** - Pedidos del profe probando la 201 en staging. Tutoriales: un video por ejercicio y por combo que sube el coach y el alumno ve con "Ver cómo se hace". Correcciones: el alumno manda un video de 30 s como máximo, el coach responde con texto y/o video y puede borrar el del alumno… — **[EN MASTER]**
 - [x] **Phase 203: Carga sin parpadeos (fuera del milestone)** - Las pantallas de la app no muestran contenido equivocado mientras llegan los datos: regla única de carga (esperar / reservar lugar / ocultar), pedidos en paralelo, sin pedidos repetidos al arranque y HTTP/2 en la API — **[EN MASTER (app 1.9.2)]**
 - [x] **Phase 204: Usuarios Wellhub como tipo de usuario (fuera del milestone)** - Distinguir a quien usa Wellhub en admin, Horarios y métricas — visitantes nuevos, ex-alumnos y socios activos vinculados por email — y que sus reservas no toquen el plan del socio — **[EN MASTER]**
+- [ ] **Phase 205: Oficina — central de temas de gestión (fuera del milestone)** - Una sección del admin para owner/admin/gestion con los temas de gestión del templo: manuales (responsable, hilo con menciones, dormir/cerrar) y del sistema (webhook Wellhub con error, jornada sin cerrar, clase de mañana sin profe), con pestaña en la ficha del socio — **[CÓDIGO LISTO en `feat/oficina`, SIN PUSH 2026-11-03]**
 
 ## Phase Details
 
@@ -871,6 +872,7 @@ Plans:
 | 202. Conquer tutoriales | fuera | 15/15 | EN MASTER | 2026-10-27 |
 | 203. Carga sin parpadeos | fuera | 16/17 (02 cancelado) | En master | 2026-10-28 |
 | 204. Usuarios Wellhub | fuera | 16/16 | EN MASTER | 2026-10-27 |
+| 205. Oficina | fuera | 5/5 | Código en `feat/oficina`, SIN PUSH (CI + UAT pendientes) | - |
 
 ## Coverage
 
@@ -1089,5 +1091,29 @@ Plans:
 - [x] 204-16-PLAN.md — Admin: pestaña Reportes › Wellhub + filtro Wellhub del log de accesos
 
 ---
+
+### Phase 205: Oficina — central de temas de gestión (fuera del milestone v6.1)
+
+**Estado (2026-11-03)**: código 5/5 ejecutado en `feat/oficina` (worktree `et-oficina`, base `origin/master` `9b5f64784`), SIN PUSH. Pendiente: CI (tests de integración), push a staging, UAT con gerencia.
+
+**Goal**: La gerencia (owner, admin, gestion) tiene un solo lugar en el admin donde ver y conversar los temas de gestión del templo: temas manuales con responsable, hilo de comentarios con menciones, dormir/cerrar, y temas que el sistema abre y cierra solo (webhook Wellhub con error, jornada sin cerrar, clase de mañana sin profe).
+**Depends on**: nada (módulo nuevo `office`, mig 0316). Decisiones y contrato de API en `205-CONTEXT.md`.
+**Success Criteria** (what must be TRUE):
+
+1. `/oficina` aparece en el menú (Gestión) solo para owner/admin/gestion, con badge de menciones sin leer + temas asignados con novedades
+2. Se puede crear un tema (suelto o vinculado a un socio), tomarlo, asignarlo, dormirlo hasta una fecha, cerrarlo con nota y reabrirlo; todo queda en el hilo
+3. Comentar con `@Nombre` deja una mención que cuenta en el badge hasta que la persona ve el tema
+4. El job cada 30 min abre temas del sistema con dedupe por `source_key` y los cierra solo cuando la condición desaparece; un tema cerrado a mano no se reabre
+5. La ficha del socio tiene pestaña Oficina con sus temas y alta prefijada
+6. Tests de integración cubren roles, visto propio (D-07), badge (D-08), aislamiento por tenant y los 3 detectores
+
+**Plans:** 5 plans (secuenciales, ejecutores sonnet en worktree compartido)
+
+Plans:
+- [x] 205-01-PLAN.md — Migración 0316 (4 tablas office_*) + schema + gates de tenancy (121→125)
+- [x] 205-02-PLAN.md — Servicio y 8 rutas `/api/admin/office` + manifiesto ISO-01 + tests
+- [x] 205-03-PLAN.md — Job `office-auto-topics` (3 detectores, auto-cierre, despertar dormidos) + CON-04 + tests
+- [x] 205-04-PLAN.md — Admin: menú con badge, rutas, composable, página lista+detalle, compositor con menciones, diálogo
+- [x] 205-05-PLAN.md — Admin: pestaña Oficina en la ficha del socio
 
 _Unificado el 2026-10-28 (rescate de docs del master local): sobre el ROADMAP de origin/master se sumaron las fases 188.1, 192.1-192.3, 193, 195, 196 (archivada), 198 y 199, 203, con su estado real. Textos de fase tomados de master local (193, 199), `origin/staging` (195), `feat/203-carga-sin-parpadeos` (203), `archive/196-personalizados` (196, 198) y el tren `feat/v6.1-gimnasio` / `feat/192.3-workout-engine` (188.1, 192.x)._
