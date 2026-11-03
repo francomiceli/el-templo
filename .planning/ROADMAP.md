@@ -1096,7 +1096,7 @@ Plans:
 **Depends on**: nada. Reusa los cálculos existentes de Reportes › Sesiones de prueba, Reportes › Renovaciones, Caja y Deudas. Decisiones en `206-CONTEXT.md`
 **Success Criteria** (what must be TRUE):
 
-1. `/tablero` está en el menú para owner/admin/gestion (y es su pantalla de inicio); admin_sede ve solo la columna de su sede
+1. `/tablero` está en el menú (categoría "Gerencia") para owner/admin/gestion y es la pantalla de inicio de owner y admin (gestion sigue en `/cobros`, D-03); admin_sede ve solo la columna de su sede
 2. Selector de semana (lunes a domingo, hora de Argentina): por defecto la semana en curso, con semanas anteriores
 3. Columnas: una por sede argentina + Total (solo AR, en pesos) + Semana anterior + ▲▼; Barcelona aparte en euros
 4. Bloques: Embudo (leads manuales, reservas, asistieron, compraron, 4 %), Renovaciones (vencimientos, renovaron, no renueva, volvió tarde, sin contactar en rojo si > 0, % renovación, vencen la semana que viene), Caja (cobrado, deuda cobrable, deuda > 10 días, incobrable) y Alumnos (activos y variación)

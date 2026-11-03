@@ -1,8 +1,8 @@
 ---
 phase: 206
 slug: tablero-semanal
-status: draft
-nyquist_compliant: false
+status: approved
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-11-03
 ---
@@ -53,7 +53,7 @@ created: 2026-11-03
 
 ## Wave 0 Requirements
 
-- [ ] `el-templo-api/test/fixtures/weekly-board.ts`: fixtures compartidas (sedes AR/ES/virtual/inactiva, embudo, renovaciones, cobrado, deuda, activos).
+- [ ] `el-templo-api/test/fixtures/weekly-board.ts`: fixtures compartidas. Nace en el plan 03; ningún test anterior la necesita (sedes AR/ES/virtual/inactiva, embudo, renovaciones, cobrado, deuda, activos).
 - [ ] Los archivos de test de la tabla de arriba (se crean en el plan de cada pieza).
 
 ---
@@ -70,11 +70,11 @@ created: 2026-11-03
 
 ## Validation Sign-Off
 
-- [ ] Todas las tareas tienen verificación automática o dependen de Wave 0
-- [ ] Nunca 3 tareas seguidas sin verificación automática
-- [ ] Wave 0 cubre todas las referencias faltantes
-- [ ] Sin flags de watch mode
-- [ ] Feedback latency < 120 s
-- [ ] `nyquist_compliant: true` en el frontmatter
+- [x] Todas las tareas tienen verificación automática o dependen de Wave 0
+- [x] Nunca 3 tareas seguidas sin verificación automática
+- [x] Wave 0 cubre todas las referencias faltantes
+- [x] Sin flags de watch mode
+- [x] Feedback latency < 120 s
+- [x] `nyquist_compliant: true` en el frontmatter
 
-**Approval:** pending
+**Approval:** approved 2026-11-03 (orquestador, tras el revisor de planes). Los tests de integración corren en CI: cada SUMMARY lista sus archivos de test como "pendiente de CI".

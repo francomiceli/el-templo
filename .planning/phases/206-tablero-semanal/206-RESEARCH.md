@@ -531,16 +531,16 @@ cron.schedule("5 * * * *", async () => {
 | A5 | Ventana editable de leads = semana en curso + semana pasada | Leads | Si Nacho carga más tarde, no puede |
 | A6 | Columna "Online" afuera, nota "Total = sedes físicas" | Columnas | Gerencia espera que el Total cierre contra Caja |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Leads y congelamiento (contradice el mensaje del orquestador).**
+1. **Leads y congelamiento (contradice el mensaje del orquestador).** **RESOLVED: D-24** (CONTEXT, enmiendas del orquestador).
    - Sabemos: el orquestador lista "leads" entre lo que se congela el lunes 00:05. Pero Nacho carga los leads de la semana a mano, y lo natural es hacerlo el lunes en la reunión, **después** del cierre.
    - Recomendación: los leads viven en su tabla, no se copian a la foto y se pueden editar en la semana en curso y la anterior. % Reserva se calcula al leer (con las reservas congeladas del bloque tardío). Confirmar con Franco.
-2. **Barcelona para admin/gestion.** `listBranchesForScope` limita a admin/gestion a su país. Un admin AR no vería el grupo Barcelona (hoy tampoco ve Barcelona en Reportes). ¿Está bien, o el Tablero tiene que mostrar todos los países a admin/gestion? Recomendación: respetar el alcance existente.
-3. **Online (sede virtual) y "los totales coinciden" (D-14).** Online queda afuera por D-15, así que el Total AR ≠ Caja AR. Opciones: (a) aceptar y cambiar la nota; (b) una fila informativa "Online (fuera de columnas)" debajo del Total. Recomendación: (a), y preguntar.
-4. **Fórmulas del Embudo (D-17 vs D-23).** Recomendación: usar las de la pantalla de origen (`occurred` como denominador, cierre = compraron con asistencia / asistieron) y corregir la redacción de D-17.
-5. **Ubicación en el menú (D-01) vs Oficina.** ¿Categoría nueva "Gerencia" al tope (recomendado) o primer ítem de "Gestión" (choca con Oficina)?
-6. **Renovaciones por sede: tercera excepción de D-23.** Agrupar por `users.branch_id` puede diferir algunas filas de Renovaciones filtrada por sede (la pantalla filtra por la sede de la sub). Documentarlo en D-23.
+2. **Barcelona para admin/gestion.** `listBranchesForScope` limita a admin/gestion a su país. Un admin AR no vería el grupo Barcelona (hoy tampoco ve Barcelona en Reportes). ¿Está bien, o el Tablero tiene que mostrar todos los países a admin/gestion? Recomendación: respetar el alcance existente. **RESOLVED: D-27** (CONTEXT, enmiendas del orquestador).
+3. **Online (sede virtual) y "los totales coinciden" (D-14).** Online queda afuera por D-15, así que el Total AR ≠ Caja AR. Opciones: (a) aceptar y cambiar la nota; (b) una fila informativa "Online (fuera de columnas)" debajo del Total. Recomendación: (a), y preguntar. **RESOLVED: D-25** (CONTEXT, enmiendas del orquestador).
+4. **Fórmulas del Embudo (D-17 vs D-23).** Recomendación: usar las de la pantalla de origen (`occurred` como denominador, cierre = compraron con asistencia / asistieron) y corregir la redacción de D-17. **RESOLVED: D-26** (CONTEXT, enmiendas del orquestador).
+5. **Ubicación en el menú (D-01) vs Oficina.** ¿Categoría nueva "Gerencia" al tope (recomendado) o primer ítem de "Gestión" (choca con Oficina)? **RESOLVED: D-28** (CONTEXT, enmiendas del orquestador).
+6. **Renovaciones por sede: tercera excepción de D-23.** Agrupar por `users.branch_id` puede diferir algunas filas de Renovaciones filtrada por sede (la pantalla filtra por la sede de la sub). Documentarlo en D-23. **RESOLVED: D-29** (CONTEXT, enmiendas del orquestador).
 
 ## Environment Availability
 
