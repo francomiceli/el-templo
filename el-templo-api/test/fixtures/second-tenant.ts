@@ -425,6 +425,21 @@ export async function limpiarSegundoGimnasio(
   await app.db.execute(
     sql`DELETE FROM novedades WHERE tenant_id = ${TENANT_DOS}`,
   );
+  // Oficina (fase 205, 0316): las cuatro tablas tienen FK a `users` y a
+  // `tenants`. Hijas antes que padres (menciones -> eventos -> temas) y todas
+  // ANTES del `DELETE FROM users` y del `DELETE FROM tenants` finales.
+  await app.db.execute(
+    sql`DELETE FROM office_mentions WHERE tenant_id = ${TENANT_DOS}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM office_topic_reads WHERE tenant_id = ${TENANT_DOS}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM office_topic_events WHERE tenant_id = ${TENANT_DOS}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM office_topics WHERE tenant_id = ${TENANT_DOS}`,
+  );
   // Patrocinadores (0279): las vistas por socio (gym-owned) tienen FK a `users` y
   // tienen que salir ANTES del `DELETE FROM users`. `sponsor_brands` no se limpia
   // acá: es de plataforma y no tiene tenant.
