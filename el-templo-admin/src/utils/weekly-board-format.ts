@@ -175,7 +175,7 @@ export const BLOCK_STATE_LABELS: Record<BoardBlockState, { label: string; toolti
 };
 
 /** "YYYY-MM-DD" -> "dd/mm", partiendo el string (sin Date local, sin corrimiento de huso). */
-function ddmm(iso: string): string {
+export function ddmm(iso: string): string {
   const [, m, d] = iso.split('-');
   return `${d}/${m}`;
 }
