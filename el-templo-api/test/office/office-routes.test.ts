@@ -374,6 +374,38 @@ describe("Oficina API (central de temas de gestión)", () => {
     expect(after[0].readAt).not.toBeNull();
   });
 
+  it("una acción propia (comentar) deja leídas mis menciones sin pasar por /seen", async () => {
+    const gestion = await staff("gestion");
+    const topic = await createTopic(owner.token, { title: "Respondé esto" });
+    await call(owner.token, "POST", `/topics/${topic.id}/comments`, {
+      body: "@Nombregestion Oficina ¿lo viste?",
+      mentionUserIds: [gestion.id],
+    });
+    expect((await badge(gestion.token)).mentions).toBe(1);
+
+    const res = await call(
+      gestion.token,
+      "POST",
+      `/topics/${topic.id}/comments`,
+      { body: "Sí, lo veo ahora" },
+    );
+    expect(res.statusCode).toBe(201);
+    expect(await badge(gestion.token)).toEqual({
+      count: 0,
+      mentions: 0,
+      assigned: 0,
+    });
+  });
+
+  it("rechaza con 400 un vínculo manual que no sea a un socio", async () => {
+    const res = await call(owner.token, "POST", "/topics", {
+      title: "Vínculo raro",
+      targetKind: "jornada",
+      targetId: 1,
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
   it("no cuenta las menciones de un tema cerrado en el badge", async () => {
     const gestion = await staff("gestion");
     const topic = await createTopic(owner.token, {
@@ -850,6 +882,9 @@ describe("Oficina API (central de temas de gestión)", () => {
           origin: "sistema" as const,
           sourceKey: "wellhub_event:1",
           createdBy: null,
+          // Reloj de Node (no NOW() de MySQL) para que el orden por
+          // last_activity_at sea determinista aunque los relojes difieran.
+          lastActivityAt: new Date(Math.floor(Date.now() / 1000) * 1000),
         }),
       )
       .$returningId();

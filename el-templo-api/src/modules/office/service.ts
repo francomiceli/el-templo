@@ -40,6 +40,7 @@ import {
   ne,
   notInArray,
   or,
+  sql,
   type SQL,
 } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
@@ -711,7 +712,13 @@ export class OfficeService {
           at,
         );
         touched = true;
-      } else if (snoozeValue === null && status === "dormido") {
+      } else if (
+        snoozeValue === null &&
+        status === "dormido" &&
+        input.status !== "cerrado"
+      ) {
+        // Si en el mismo PATCH viene status=cerrado, lo resuelve el bloque 4
+        // sin pasar por una reapertura falsa.
         status = "abierto";
         set.status = "abierto";
         set.snoozedUntil = null;
@@ -784,17 +791,6 @@ export class OfficeService {
     const at = nowSeconds();
     await this.db.transaction(async (tx: TxHandle) => {
       await this.touchRead(tx, ctx, actorId, topicId, at);
-      await tx
-        .update(schema.officeMentions)
-        .set({ readAt: at })
-        .where(
-          and(
-            tenantWhere(schema.officeMentions, ctx),
-            eq(schema.officeMentions.topicId, topicId),
-            eq(schema.officeMentions.userId, actorId),
-            isNull(schema.officeMentions.readAt),
-          ),
-        );
     });
   }
 
@@ -942,6 +938,11 @@ export class OfficeService {
       throw new BadRequestError("targetKind y targetId van juntos");
     }
     if (kind === null || id === null) return null;
+    if (kind !== "socio") {
+      // Los demás vínculos (jornada, wellhub_evento, horario) los crea solo el
+      // job con ids ya verificados por tenant. Desde la API manual, solo socio.
+      throw new BadRequestError("Desde acá solo se puede vincular un socio");
+    }
 
     let label = cleanText(input.targetLabel);
     if (kind === "socio") {
@@ -1042,7 +1043,12 @@ export class OfficeService {
       );
   }
 
-  /** D-07: la lectura del actor queda con el MISMO timestamp que su evento. */
+  /**
+   * D-07: la lectura del actor queda con el MISMO timestamp que su evento, y
+   * cualquier acción propia (ver, comentar, tomar, cerrar) también deja leídas
+   * sus menciones pendientes en ese tema. `GREATEST` evita que una lectura
+   * demorada haga retroceder una más nueva.
+   */
   private async touchRead(
     tx: TxHandle,
     ctx: TenantContext,
@@ -1053,7 +1059,22 @@ export class OfficeService {
     await tx
       .insert(schema.officeTopicReads)
       .values(tenantValues(ctx, { topicId, userId, lastSeenAt: at }))
-      .onDuplicateKeyUpdate({ set: { lastSeenAt: at } });
+      .onDuplicateKeyUpdate({
+        set: {
+          lastSeenAt: sql`GREATEST(${schema.officeTopicReads.lastSeenAt}, ${at})`,
+        },
+      });
+    await tx
+      .update(schema.officeMentions)
+      .set({ readAt: at })
+      .where(
+        and(
+          tenantWhere(schema.officeMentions, ctx),
+          eq(schema.officeMentions.topicId, topicId),
+          eq(schema.officeMentions.userId, userId),
+          isNull(schema.officeMentions.readAt),
+        ),
+      );
   }
 
   /**
