@@ -739,7 +739,9 @@ export class ReportsService {
         ft.currency,
         ft.payment_method AS paymentMethod,
         CONCAT(COALESCE(r.first_name, ''), ' ', COALESCE(r.last_name, '')) AS recorderName,
-        ft.voided_at AS voidedAt
+        ft.voided_at AS voidedAt,
+        fb.name AS chargeBranchName,
+        b.name AS memberBranchName
       FROM financial_transactions ft
       INNER JOIN transaction_links tl
         ON tl.transaction_id = ft.id AND tl.target_kind = 'subscription'
@@ -747,6 +749,9 @@ export class ReportsService {
       INNER JOIN subscriptions s ON s.id = tl.target_id
       INNER JOIN users m ON m.id = ft.member_id
       INNER JOIN branches b ON b.id = m.branch_id
+      -- Sede donde se registró el cobro. LEFT: financial_transactions.branch_id
+      -- es NULLABLE, y el filtro de sede sigue yendo por la sede del alumno (b).
+      LEFT JOIN branches fb ON fb.id = ft.branch_id
       INNER JOIN subscription_plans sp ON sp.id = s.plan_id
       INNER JOIN users r ON r.id = ft.recorded_by
       WHERE ft.tenant_id = ${ctx.tenantId}
@@ -772,6 +777,10 @@ export class ReportsService {
         paymentMethod: String(r.paymentMethod) as ChargeReportPaymentMethod,
         recorderName: String(r.recorderName).trim(),
         voidedAt: r.voidedAt ? String(r.voidedAt) : null,
+        chargeBranchName: r.chargeBranchName
+          ? String(r.chargeBranchName)
+          : null,
+        memberBranchName: String(r.memberBranchName),
       }),
     );
 

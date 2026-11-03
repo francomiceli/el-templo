@@ -621,6 +621,8 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
         sheet.columns = [
           { header: "Fecha", key: "paymentDate", width: 15 },
           { header: "Miembro", key: "memberName", width: 30 },
+          { header: "Sede del cobro", key: "chargeBranchName", width: 20 },
+          { header: "Sede del alumno", key: "memberBranchName", width: 20 },
           { header: "Plan", key: "planName", width: 25 },
           { header: "Monto", key: "amount", width: 12 },
           { header: "Moneda", key: "currency", width: 10 },
@@ -635,6 +637,8 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
           sheet.addRow({
             paymentDate: row.paymentDate,
             memberName: row.memberName,
+            chargeBranchName: row.chargeBranchName ?? "",
+            memberBranchName: row.memberBranchName,
             planName: row.planName,
             amount: row.amount,
             currency: row.currency,

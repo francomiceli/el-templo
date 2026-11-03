@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
+import { Workbook } from "exceljs";
 import { and, eq, sql } from "drizzle-orm";
 import {
   createTestApp,
@@ -133,6 +134,8 @@ describe("Reports API", () => {
     paymentMethod: "cash" | "transfer" | "card";
     date: string;
     voided?: boolean;
+    /** Sede donde se registró el cobro. Default: testBranchId. null = cobro sin sede. */
+    chargeBranchId?: number | null;
   }): Promise<void> {
     const [inserted] = await app.db.insert(financialTransactions).values(
       tenantValues(TEMPLO_CTX, {
@@ -144,7 +147,8 @@ describe("Reports API", () => {
         paymentMethod: opts.paymentMethod,
         transactionDate: opts.date,
         effectiveDate: opts.date,
-        branchId: testBranchId,
+        branchId:
+          opts.chargeBranchId === undefined ? testBranchId : opts.chargeBranchId,
         recordedBy: adminUserId,
         ...(opts.voided
           ? {
@@ -1011,6 +1015,146 @@ describe("Reports API", () => {
       const contentDisposition = res.headers["content-disposition"] as string;
       expect(contentDisposition).toContain("reportes-accesos-");
       expect(contentDisposition).toContain(".xlsx");
+    });
+  });
+
+  describe("GET /charges/export", () => {
+    beforeEach(async () => {
+      await cleanAllTestData(app);
+    });
+
+    it("incluye la sede del cobro y la sede del alumno como columnas separadas", async () => {
+      // Dos sedes físicas distintas: el alumno es de una y paga en la otra.
+      const physicalBranches = await app.db
+        .select({ id: branches.id, name: branches.name })
+        .from(branches)
+        .where(
+          and(
+            tenantWhere(branches, TEMPLO_CTX),
+            eq(branches.isVirtual, false),
+            eq(branches.isActive, true),
+          ),
+        );
+      expect(physicalBranches.length).toBeGreaterThanOrEqual(2);
+      const memberBranch = physicalBranches[0];
+      const otherBranch = physicalBranches[1];
+
+      const plan = await createPlan({ name: "Plan Export Sede" });
+      const member = await createMember({
+        email: "charge-export-sede@test.com",
+        firstName: "Sede",
+        lastName: "Export",
+        branchId: memberBranch.id,
+      });
+      const sub = await assignSubscription(member.id, plan.id);
+      const subId = sub.id as number;
+
+      const today = new Date().toISOString().split("T")[0];
+      await insertChargeTxn({
+        memberId: member.id,
+        subId,
+        amount: 7777,
+        paymentMethod: "cash",
+        date: today,
+        chargeBranchId: otherBranch.id,
+      });
+      await insertChargeTxn({
+        memberId: member.id,
+        subId,
+        amount: 8888,
+        paymentMethod: "transfer",
+        date: today,
+        chargeBranchId: null,
+      });
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${REPORTS_URL}/charges/export`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const contentDisposition = res.headers["content-disposition"] as string;
+      expect(contentDisposition).toContain("reportes-cobros-");
+
+      const wb = new Workbook();
+      await wb.xlsx.load(res.rawPayload);
+      const sheet = wb.getWorksheet("Cobros");
+      expect(sheet).toBeDefined();
+      if (!sheet) return;
+
+      const header = sheet.getRow(1);
+      const headers: string[] = [];
+      header.eachCell((cell) => headers.push(cell.text));
+      expect(headers).toEqual([
+        "Fecha",
+        "Miembro",
+        "Sede del cobro",
+        "Sede del alumno",
+        "Plan",
+        "Monto",
+        "Moneda",
+        "Metodo",
+        "Registro",
+        "Estado",
+      ]);
+      const colSedeCobro = headers.indexOf("Sede del cobro") + 1;
+      const colSedeAlumno = headers.indexOf("Sede del alumno") + 1;
+      const colMonto = headers.indexOf("Monto") + 1;
+
+      const rowByAmount = (amount: number) => {
+        for (let i = 2; i <= sheet.rowCount; i++) {
+          const row = sheet.getRow(i);
+          if (Number(row.getCell(colMonto).value) === amount) return row;
+        }
+        return undefined;
+      };
+
+      // Cobró en otra sede: cada columna muestra la suya.
+      const enOtraSede = rowByAmount(7777);
+      expect(enOtraSede).toBeDefined();
+      expect(enOtraSede?.getCell(colSedeCobro).text).toBe(otherBranch.name);
+      expect(enOtraSede?.getCell(colSedeAlumno).text).toBe(memberBranch.name);
+
+      // Cobro sin sede registrada: la columna queda vacía, sin inventar una.
+      const sinSede = rowByAmount(8888);
+      expect(sinSede).toBeDefined();
+      expect(sinSede?.getCell(colSedeCobro).text).toBe("");
+      expect(sinSede?.getCell(colSedeAlumno).text).toBe(memberBranch.name);
+    });
+
+    it("el JSON de /charges trae las dos sedes", async () => {
+      const plan = await createPlan({ name: "Plan JSON Sede" });
+      const member = await createMember({
+        email: "charge-json-sede@test.com",
+        firstName: "Sede",
+        lastName: "Json",
+      });
+      const sub = await assignSubscription(member.id, plan.id);
+      const today = new Date().toISOString().split("T")[0];
+      await insertChargeTxn({
+        memberId: member.id,
+        subId: sub.id as number,
+        amount: 6666,
+        paymentMethod: "cash",
+        date: today,
+      });
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${REPORTS_URL}/charges`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      const row = body.rows.find((r: { amount: number }) => r.amount === 6666);
+      expect(row).toBeDefined();
+      const [branch] = await app.db
+        .select({ name: branches.name })
+        .from(branches)
+        .where(eq(branches.id, testBranchId));
+      expect(row.chargeBranchName).toBe(branch.name);
+      expect(row.memberBranchName).toBe(branch.name);
     });
   });
 

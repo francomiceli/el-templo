@@ -92,6 +92,10 @@ export interface ChargeReportRow {
   paymentMethod: ChargeReportPaymentMethod;
   recorderName: string;
   voidedAt: string | null;
+  /** Sede donde se registró el cobro (financial_transactions.branch_id); null si el cobro no tiene sede. */
+  chargeBranchName: string | null;
+  /** Sede actual del alumno (users.branch_id) — la misma que usa el filtro de sede. */
+  memberBranchName: string;
 }
 
 export interface ExpiringReportRow {
