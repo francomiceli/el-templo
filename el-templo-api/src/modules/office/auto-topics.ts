@@ -384,6 +384,10 @@ async function findClassesWithoutCoach(
   const cancelled = new Set(exceptions.map((e) => e.scheduleId));
 
   // Change-points del roster para el día de la semana, hasta el lunes de la fecha.
+  /* tenant-safe: class_coach_assignments se escribe sin tenant_id
+     (ratings/service.ts) y se ancla por branch_id, que ya viene de
+     loadActiveBranches filtrado por tenant — mismo patron que
+     getEffectiveRosterCells en ratings/roster-attribution.ts */
   const changePoints = await db
     .select({
       branchId: schema.classCoachAssignments.branchId,
@@ -392,10 +396,7 @@ async function findClassesWithoutCoach(
       slot: schema.classCoachAssignments.slot,
       coachId: schema.classCoachAssignments.coachId,
     })
-    .from(
-      /* tenant-safe: el roster se escribe sin tenant_id (ratings/service.ts) y se ancla por branch_id, que ya viene filtrado por tenant */
-      schema.classCoachAssignments,
-    )
+    .from(schema.classCoachAssignments)
     .where(
       and(
         eq(schema.classCoachAssignments.branchId, branch.id),
