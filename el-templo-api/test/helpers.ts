@@ -283,6 +283,11 @@ const TABLES_TO_CLEAN = [
   // v5.5 follow-up: clics del CTA del A/B test — sin limpiar se acumularían entre tests.
   schema.referralCtaClicks,
   schema.memberNotes,
+  // Fase 205 Oficina (hijas primero)
+  schema.officeMentions,
+  schema.officeTopicReads,
+  schema.officeTopicEvents,
+  schema.officeTopics,
   schema.holidays,
   // Propuestas de mejora: FK a users -- sin limpiar, las filas huérfanas de un
   // test anterior rompen los counts y el prompt-status del siguiente.
