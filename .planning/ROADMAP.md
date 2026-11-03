@@ -1101,7 +1101,7 @@ Plans:
 3. Columnas: una por sede argentina + Total (solo AR, en pesos) + Semana anterior + ▲▼; Barcelona aparte en euros
 4. Bloques: Embudo (leads manuales, reservas, asistieron, compraron, 4 %), Renovaciones (vencimientos, renovaron, no renueva, volvió tarde, sin contactar en rojo si > 0, % renovación, vencen la semana que viene), Caja (cobrado, deuda cobrable, deuda > 10 días, incobrable) y Alumnos (activos y variación)
 5. Los números coinciden con las pantallas de origen para la misma semana y sede
-6. Cierre automático el domingo a la noche: las semanas pasadas quedan congeladas; el bloque Renovaciones se congela una semana después (margen de renovación tardía)
+6. Cierre automático el domingo a la noche: las semanas pasadas quedan congeladas; los bloques Renovaciones y Embudo se congelan 4 días después (el jueves siguiente, margen de renovación tardía)
 7. Los leads se cargan a mano por sede y por semana desde el mismo Tablero
 8. Tests de integración cubren el armado por sede, el cierre, el margen de Renovaciones, los leads manuales, los roles y el aislamiento por tenant
 
