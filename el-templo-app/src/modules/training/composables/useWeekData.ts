@@ -55,6 +55,10 @@ export function useWeekData(): UseWeekDataReturn {
   const hasData = ref(false)
   // Semana de lo que hay hoy en `sessions` (null = nada cargado todavia).
   let sessionsWeekStart: string | null = null
+  // Solo el ultimo pedido escribe: uno colgado al que se dejo de esperar (tope de
+  // useTrainingWeek, CapacitorHttp ignora el timeout de axios) puede responder tarde
+  // y no tiene que pisar la semana que se pidio despues.
+  let latestFetch = 0
 
   /**
    * Fetch sessions for a week starting from the first date
@@ -62,6 +66,8 @@ export function useWeekData(): UseWeekDataReturn {
    * @param dates - Array of date strings in YYYY-MM-DD format (first should be Monday)
    */
   async function fetchWeekSessions(dates: string[]): Promise<void> {
+    const fetchId = ++latestFetch
+    const isLatest = (): boolean => fetchId === latestFetch
     loading.value = true
     error.value = null
     // Use the first date (Monday) as week start
@@ -89,6 +95,7 @@ export function useWeekData(): UseWeekDataReturn {
       const response = await api.get<WeeklyResponse>('/sessions/weekly', {
         params,
       })
+      if (!isLatest()) return
 
       // Build sessions map from response
       const newSessions = new Map<string, Session | null>()
@@ -101,12 +108,14 @@ export function useWeekData(): UseWeekDataReturn {
       completedDates.value = response.data.completedDates ?? []
       hasData.value = true
     } catch (err: unknown) {
+      if (!isLatest()) return
       error.value = extractError(err, 'Error cargando semana')
       log.error('Failed to fetch week sessions', {
         error: err instanceof Error ? err.message : String(err),
       })
     } finally {
-      loading.value = false
+      // Un pedido viejo no apaga el `loading` del que sigue en vuelo
+      if (isLatest()) loading.value = false
       // Fail-open: un error tambien cuenta como "respondio" para no dejar el esqueleto eterno.
       loaded.value = true
     }

@@ -5,6 +5,7 @@ import { resolveTrainingIndexView, type TrainingIndexViewInput } from '../traini
 function input(over: Partial<TrainingIndexViewInput> = {}): TrainingIndexViewInput {
   return {
     profileLoaded: true,
+    profileRetrying: false,
     memberStateLoaded: true,
     subscriptionFailed: false,
     programFailed: false,
@@ -19,9 +20,48 @@ describe('resolveTrainingIndexView', () => {
     expect(resolveTrainingIndexView(input({ profileLoaded: false }))).toBe('loading')
   })
 
-  it("sin perfil y con el tope vencido -> 'loading' (D-08 manda sobre D-07)", () => {
+  it("sin perfil, con el tope vencido y sin reintento en vuelo -> 'sin-perfil' (nunca un loader eterno)", () => {
     expect(resolveTrainingIndexView(input({ profileLoaded: false, deadlinePassed: true }))).toBe(
+      'sin-perfil',
+    )
+  })
+
+  it('sin perfil, con el tope vencido y un reintento en vuelo -> loading', () => {
+    expect(
+      resolveTrainingIndexView(
+        input({ profileLoaded: false, deadlinePassed: true, profileRetrying: true }),
+      ),
+    ).toBe('loading')
+  })
+
+  it('sin perfil y con un reintento en vuelo, sin tope -> loading', () => {
+    expect(resolveTrainingIndexView(input({ profileLoaded: false, profileRetrying: true }))).toBe(
       'loading',
+    )
+  })
+
+  it('sin perfil y con el tope vencido nunca muestra Entrenar ni la vidriera (D-08)', () => {
+    for (const canEnterTraining of [true, false]) {
+      for (const memberStateLoaded of [true, false]) {
+        for (const profileRetrying of [true, false]) {
+          const view = resolveTrainingIndexView(
+            input({
+              profileLoaded: false,
+              deadlinePassed: true,
+              canEnterTraining,
+              memberStateLoaded,
+              profileRetrying,
+            }),
+          )
+          expect(['loading', 'sin-perfil']).toContain(view)
+        }
+      }
+    }
+  })
+
+  it('con perfil el reintento no cuenta: todo llegado y entra -> entrenar', () => {
+    expect(resolveTrainingIndexView(input({ canEnterTraining: true, profileRetrying: true }))).toBe(
+      'entrenar',
     )
   })
 
@@ -97,6 +137,7 @@ describe('resolveTrainingIndexView', () => {
               for (const profileLoaded of [true, false]) {
                 const view = resolveTrainingIndexView({
                   profileLoaded,
+                  profileRetrying: false,
                   memberStateLoaded,
                   subscriptionFailed,
                   programFailed,
