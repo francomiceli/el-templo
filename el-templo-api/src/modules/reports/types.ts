@@ -626,6 +626,16 @@ export interface OutstandingBalancesResult {
   };
 }
 
+/**
+ * Tablero semanal (fase 206): deuda de una sede en una moneda. `mas10` es el
+ * subconjunto de `cobrable` con mas de 10 dias (tramos 11-15 y 15+).
+ */
+export interface DebtTotalsByStatus {
+  cobrable: number;
+  mas10: number;
+  incobrable: number;
+}
+
 /** Resultado del PATCH de gestión de una deuda (upsert sobre debt_management). */
 export interface DebtManagementView {
   balanceId: number;
