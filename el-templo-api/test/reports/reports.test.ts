@@ -136,11 +136,19 @@ describe("Reports API", () => {
     voided?: boolean;
     /** Sede donde se registró el cobro. Default: testBranchId. null = cobro sin sede. */
     chargeBranchId?: number | null;
-  }): Promise<void> {
+    /** Default: plan_charge. */
+    kind?: "plan_charge" | "debt_settlement";
+    /**
+     * Links a suscripción. Default: uno solo a `subId` por el monto completo.
+     * Un pago de deuda que cancela deudas de varias suscripciones lleva uno
+     * por cada una, con su parte en `allocatedAmount`.
+     */
+    links?: Array<{ subId: number; allocatedAmount: number }>;
+  }): Promise<number> {
     const [inserted] = await app.db.insert(financialTransactions).values(
       tenantValues(TEMPLO_CTX, {
         memberId: opts.memberId,
-        kind: "plan_charge",
+        kind: opts.kind ?? "plan_charge",
         direction: "inflow",
         amount: opts.amount,
         currency: "ARS",
@@ -148,7 +156,9 @@ describe("Reports API", () => {
         transactionDate: opts.date,
         effectiveDate: opts.date,
         branchId:
-          opts.chargeBranchId === undefined ? testBranchId : opts.chargeBranchId,
+          opts.chargeBranchId === undefined
+            ? testBranchId
+            : opts.chargeBranchId,
         recordedBy: adminUserId,
         ...(opts.voided
           ? {
@@ -160,14 +170,46 @@ describe("Reports API", () => {
       }),
     );
     const txnId = (inserted as { insertId: number }).insertId;
-    await app.db.insert(transactionLinks).values(
-      tenantValues(TEMPLO_CTX, {
-        transactionId: txnId,
-        targetKind: "subscription",
-        targetId: opts.subId,
-        allocatedAmount: opts.amount,
-      }),
-    );
+    const links = opts.links ?? [
+      { subId: opts.subId, allocatedAmount: opts.amount },
+    ];
+    for (const link of links) {
+      await app.db.insert(transactionLinks).values(
+        tenantValues(TEMPLO_CTX, {
+          transactionId: txnId,
+          targetKind: "subscription",
+          targetId: link.subId,
+          allocatedAmount: link.allocatedAmount,
+        }),
+      );
+    }
+    return txnId;
+  }
+
+  /**
+   * Segunda suscripción del mismo alumno, insertada directo (la API no deja
+   * tener dos presenciales vivas a la vez). Copia la fila de `subId` con otro
+   * plan: el reporte de cobros solo mira el link y el nombre del plan.
+   */
+  async function cloneSubscriptionWithPlan(
+    subId: number,
+    planId: number,
+  ): Promise<number> {
+    const [source] = await app.db
+      .select()
+      .from(subscriptions)
+      .where(
+        and(
+          tenantWhere(subscriptions, TEMPLO_CTX),
+          eq(subscriptions.id, subId),
+        ),
+      );
+    expect(source).toBeDefined();
+    const { id: _sourceId, ...rest } = source;
+    const [inserted] = await app.db
+      .insert(subscriptions)
+      .values({ ...rest, planId });
+    return (inserted as { insertId: number }).insertId;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -419,6 +461,154 @@ describe("Reports API", () => {
       for (const row of body.rows) {
         expect(row.paymentMethod).toBe("transfer");
       }
+    });
+  });
+
+  describe("GET /charges — un pago que cubre varias suscripciones", () => {
+    beforeEach(async () => {
+      await cleanAllTestData(app);
+    });
+
+    /**
+     * Hotfix 2026-11-03: un pago de deuda que cancela deudas de DOS
+     * suscripciones tiene dos transaction_links. El reporte lo repetía en dos
+     * filas con el monto completo en cada una y sumaba de más contra
+     * Analítica (Alberti oct-2026: 9.014.000 vs 8.885.500).
+     */
+    async function seedPagoConDosSuscripciones(email: string) {
+      const planA = await createPlan({ name: "Plan Deuda A" });
+      const planB = await createPlan({ name: "Plan Deuda B" });
+      const member = await createMember({
+        email,
+        firstName: "Doble",
+        lastName: "Vinculo",
+      });
+      const sub = await assignSubscription(member.id, planA.id);
+      const subA = sub.id as number;
+      const subB = await cloneSubscriptionWithPlan(subA, planB.id);
+
+      const today = new Date().toISOString().split("T")[0];
+      const txnId = await insertChargeTxn({
+        memberId: member.id,
+        subId: subA,
+        kind: "debt_settlement",
+        amount: 12345,
+        paymentMethod: "cash",
+        date: today,
+        links: [
+          { subId: subA, allocatedAmount: 6000 },
+          { subId: subB, allocatedAmount: 6345 },
+        ],
+      });
+      return { member, txnId };
+    }
+
+    it("lo muestra en UNA fila, con los dos planes y el monto una sola vez", async () => {
+      const { member, txnId } = await seedPagoConDosSuscripciones(
+        "charge-doble-link@test.com",
+      );
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${REPORTS_URL}/charges?search=Vinculo&limit=100`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body) as {
+        total: number;
+        rows: Array<{ id: number; amount: number; planName: string }>;
+      };
+
+      const filasDelPago = body.rows.filter((r) => r.id === txnId);
+      expect(filasDelPago).toHaveLength(1);
+      expect(filasDelPago[0].amount).toBe(12345);
+      expect(filasDelPago[0].planName).toBe("Plan Deuda A + Plan Deuda B");
+
+      // Sin filas repetidas, y el total del paginado cuenta cobros, no links.
+      const ids = body.rows.map((r) => r.id);
+      expect(new Set(ids).size).toBe(ids.length);
+      expect(body.total).toBe(body.rows.length);
+
+      // La suma del reporte = la plata cobrada de verdad (cada cobro una vez),
+      // que es lo que suma Analítica.
+      const [real] = await app.db
+        .select({
+          total: sql<number>`CAST(COALESCE(SUM(${financialTransactions.amount}), 0) AS SIGNED)`,
+        })
+        .from(financialTransactions)
+        .where(
+          and(
+            tenantWhere(financialTransactions, TEMPLO_CTX),
+            eq(financialTransactions.memberId, member.id),
+            sql`${financialTransactions.kind} IN ('plan_charge', 'debt_settlement')`,
+            eq(financialTransactions.direction, "inflow"),
+            sql`${financialTransactions.voidedAt} IS NULL`,
+            eq(financialTransactions.validationStatus, "validado"),
+          ),
+        );
+      const sumaReporte = body.rows.reduce((acc, r) => acc + r.amount, 0);
+      expect(sumaReporte).toBe(Number(real.total));
+    });
+
+    it("el Excel tampoco lo repite", async () => {
+      await seedPagoConDosSuscripciones("charge-doble-link-xls@test.com");
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${REPORTS_URL}/charges/export?search=Vinculo`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+
+      const wb = new Workbook();
+      await wb.xlsx.load(res.rawPayload);
+      const sheet = wb.getWorksheet("Cobros");
+      expect(sheet).toBeDefined();
+      if (!sheet) return;
+
+      const headers: string[] = [];
+      sheet.getRow(1).eachCell((cell) => headers.push(cell.text));
+      const colMonto = headers.indexOf("Monto") + 1;
+      const colPlan = headers.indexOf("Plan") + 1;
+
+      const filas: Array<{ plan: string }> = [];
+      for (let i = 2; i <= sheet.rowCount; i++) {
+        const row = sheet.getRow(i);
+        if (Number(row.getCell(colMonto).value) === 12345) {
+          filas.push({ plan: row.getCell(colPlan).text });
+        }
+      }
+      expect(filas).toEqual([{ plan: "Plan Deuda A + Plan Deuda B" }]);
+    });
+
+    it("un cobro sin link a suscripción sigue sin aparecer", async () => {
+      const member = await createMember({
+        email: "charge-sin-link@test.com",
+        firstName: "Sin",
+        lastName: "Vinculo",
+      });
+      const today = new Date().toISOString().split("T")[0];
+      const txnId = await insertChargeTxn({
+        memberId: member.id,
+        subId: 0,
+        amount: 4321,
+        paymentMethod: "cash",
+        date: today,
+        links: [],
+      });
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${REPORTS_URL}/charges?search=Vinculo&limit=100`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body) as {
+        total: number;
+        rows: Array<{ id: number }>;
+      };
+      expect(body.rows.find((r) => r.id === txnId)).toBeUndefined();
+      expect(body.total).toBe(body.rows.length);
     });
   });
 
