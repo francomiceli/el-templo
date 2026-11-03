@@ -105,7 +105,7 @@
 import { computed, reactive, ref, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
-import { extractError } from 'src/utils/extract-error';
+import { extractError, isExpectedClientError } from 'src/utils/extract-error';
 import {
   useOfficeApi,
   type OfficeStaff,
@@ -206,9 +206,9 @@ async function onSubmit(): Promise<void> {
     emit('saved', saved);
     close();
   } catch (err: unknown) {
-    log.error('No se pudo guardar el tema', {
-      error: err instanceof Error ? err.message : 'desconocido',
-    });
+    const context = { error: err instanceof Error ? err.message : 'desconocido' };
+    if (isExpectedClientError(err)) log.warn('No se pudo guardar el tema', context);
+    else log.error('No se pudo guardar el tema', context);
     $q.notify({ type: 'negative', message: extractError(err, 'No pudimos guardar el tema') });
   } finally {
     saving.value = false;

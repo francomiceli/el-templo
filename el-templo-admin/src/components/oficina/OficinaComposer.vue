@@ -18,6 +18,7 @@
         outlined
         dense
         maxlength="4000"
+        aria-label="Escribir comentario"
         input-style="max-height: 180px; min-height: 40px"
         placeholder="Escribí algo para el equipo… usá @ para mencionar"
         :disable="disabled"
@@ -122,6 +123,15 @@ const mentionOptions = computed<OfficeStaff[]>(() => {
     .slice(0, MAX_MENTION_OPTIONS);
 });
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** `@Ana` no cuenta dentro de `@Analía`: el token tiene que terminar en límite de palabra. */
+function hasMention(body: string, token: string): boolean {
+  return new RegExp(`${escapeRegExp(token)}(?![\\p{L}\\d])`, 'u').test(body);
+}
+
 function nativeEl(): HTMLInputElement | HTMLTextAreaElement | null {
   return inputRef.value?.nativeEl ?? null;
 }
@@ -132,6 +142,8 @@ function refreshMention(): void {
   if (!el || props.disabled) return closeMention();
   const cursor = el.selectionStart ?? text.value.length;
   const before = text.value.slice(0, cursor);
+  // Recién se insertó una mención (`@Nombre Apellido `): el nombre con espacio no es una consulta nueva.
+  if (mentions.value.some((m) => before.endsWith(`${m.token} `))) return closeMention();
   const match = new RegExp(`(?:^|\\s)@([^\\n@]{0,${MAX_MENTION_QUERY}})$`).exec(before);
   if (!match) return closeMention();
   mentionQuery.value = match[1];
@@ -207,13 +219,17 @@ function send(): void {
   if (props.disabled || props.busy || body === '') return;
   const ids = new Set<number>();
   for (const mention of mentions.value) {
-    if (text.value.includes(mention.token)) ids.add(mention.id);
+    if (hasMention(text.value, mention.token)) ids.add(mention.id);
   }
   emit('send', { body, mentionUserIds: [...ids] });
 }
 
-/** Lo llama el padre cuando la API confirmó el comentario. */
-function clear(): void {
+/**
+ * Lo llama el padre cuando la API confirmó el comentario. Con `sentBody` solo vacía si el
+ * texto sigue siendo el que se envió (si se siguió escribiendo mientras tanto, se conserva).
+ */
+function clear(sentBody?: string): void {
+  if (sentBody !== undefined && text.value.trim() !== sentBody.trim()) return;
   text.value = '';
   mentions.value = [];
   closeMention();

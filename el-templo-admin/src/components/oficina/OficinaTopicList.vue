@@ -58,7 +58,7 @@
               dense
               size="sm"
               color="warning"
-              text-color="white"
+              text-color="grey-10"
             >
               Hasta {{ shortDate(topic.snoozedUntil) }}
             </q-chip>

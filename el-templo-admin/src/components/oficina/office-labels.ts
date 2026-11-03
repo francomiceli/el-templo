@@ -24,6 +24,13 @@ export const STATUS_COLORS: Record<OfficeTopicStatus, string> = {
   cerrado: 'grey-7',
 };
 
+/** Texto de los chips de estado: `warning` es claro y pide texto oscuro para el contraste. */
+export const STATUS_TEXT_COLORS: Record<OfficeTopicStatus, string> = {
+  abierto: 'white',
+  dormido: 'grey-10',
+  cerrado: 'white',
+};
+
 export const ORIGIN_LABELS: Record<OfficeTopicOrigin, string> = {
   manual: 'Manual',
   sistema: 'Del sistema',

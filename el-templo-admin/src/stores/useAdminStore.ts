@@ -85,8 +85,7 @@ export const useAdminStore = defineStore('admin', () => {
       );
       oficinaBadgeCount.value = data.count;
     } catch {
-      // Silently fail - badge will show nothing
-      oficinaBadgeCount.value = 0;
+      // Fallo transitorio: se conserva el valor anterior para no apagar la pelotita.
     }
   }
 

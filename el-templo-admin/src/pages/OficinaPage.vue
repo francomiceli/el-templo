@@ -48,6 +48,8 @@
           outlined
           clearable
           debounce="300"
+          maxlength="200"
+          aria-label="Buscar temas"
           placeholder="Buscar por título o contenido"
         >
           <template #prepend>
@@ -107,7 +109,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
-import { extractError } from 'src/utils/extract-error';
+import { extractError, isExpectedClientError } from 'src/utils/extract-error';
 import { useAuthStore } from 'src/stores/useAuthStore';
 import { useAdminStore } from 'src/stores/useAdminStore';
 import {
@@ -186,6 +188,14 @@ const emptyMessage = computed(() => {
 // ── Carga ─────────────────────────────────────────────────────────
 
 let listSeq = 0;
+let detailSeq = 0;
+
+/** Un 4xx esperado (validación, permisos) no es un error del sistema: va como warning. */
+function logFailure(message: string, err: unknown): void {
+  const context = { error: err instanceof Error ? err.message : 'desconocido' };
+  if (isExpectedClientError(err)) log.warn(message, context);
+  else log.error(message, context);
+}
 
 async function loadTopics(opts: { background?: boolean } = {}): Promise<void> {
   const seq = ++listSeq;
@@ -200,9 +210,7 @@ async function loadTopics(opts: { background?: boolean } = {}): Promise<void> {
     topics.value = [...list].sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt));
   } catch (err: unknown) {
     if (seq !== listSeq) return;
-    log.error('No se pudo cargar la lista de temas', {
-      error: err instanceof Error ? err.message : 'desconocido',
-    });
+    logFailure('No se pudo cargar la lista de temas', err);
     if (!opts.background) {
       $q.notify({ type: 'negative', message: extractError(err, 'No pudimos cargar los temas') });
     }
@@ -236,19 +244,18 @@ async function markSeen(id: number): Promise<void> {
 }
 
 async function loadDetail(id: number, opts: { background?: boolean } = {}): Promise<void> {
+  const seq = ++detailSeq;
   if (!opts.background) loadingDetail.value = true;
   try {
     const loaded = await officeApi.getTopic(id);
-    if (selectedId.value !== id) return; // cambió la selección mientras cargaba
+    if (selectedId.value !== id || seq !== detailSeq) return; // selección cambiada o respuesta vieja
     const changed =
       detail.value?.id !== id || detail.value.lastActivityAt !== loaded.lastActivityAt;
     detail.value = loaded;
     if (!opts.background || changed) await markSeen(id);
   } catch (err: unknown) {
-    if (selectedId.value !== id) return;
-    log.error('No se pudo cargar el tema', {
-      error: err instanceof Error ? err.message : 'desconocido',
-    });
+    if (selectedId.value !== id || seq !== detailSeq) return;
+    logFailure('No se pudo cargar el tema', err);
     if (!opts.background) {
       $q.notify({ type: 'negative', message: extractError(err, 'No pudimos cargar el tema') });
       clearSelection();
@@ -312,14 +319,13 @@ async function onPatch(input: PatchTopicInput): Promise<void> {
   const current = detail.value;
   if (!current || busy.value) return;
   busy.value = true;
+  detailSeq++; // invalida refrescos en vuelo: traerían el tema sin este cambio
   try {
     detail.value = await officeApi.patchTopic(current.id, input);
     void loadTopics({ background: true });
     void adminStore.fetchOficinaBadge();
   } catch (err: unknown) {
-    log.error('No se pudo actualizar el tema', {
-      error: err instanceof Error ? err.message : 'desconocido',
-    });
+    logFailure('No se pudo actualizar el tema', err);
     $q.notify({ type: 'negative', message: extractError(err, 'No pudimos actualizar el tema') });
     // Puede haber cambiado desde otra pantalla: se vuelve a leer para mostrar lo real.
     void loadDetail(current.id, { background: true });
@@ -332,15 +338,14 @@ async function onComment(payload: { body: string; mentionUserIds: number[] }): P
   const current = detail.value;
   if (!current || busy.value) return;
   busy.value = true;
+  detailSeq++; // invalida refrescos en vuelo: traerían el tema sin este comentario
   try {
     detail.value = await officeApi.addComment(current.id, payload.body, payload.mentionUserIds);
-    detailRef.value?.clearComposer();
+    detailRef.value?.clearComposer(payload.body);
     void loadTopics({ background: true });
     void adminStore.fetchOficinaBadge();
   } catch (err: unknown) {
-    log.error('No se pudo publicar el comentario', {
-      error: err instanceof Error ? err.message : 'desconocido',
-    });
+    logFailure('No se pudo publicar el comentario', err);
     // El borrador queda en el compositor para reintentar.
     $q.notify({
       type: 'negative',
@@ -399,11 +404,18 @@ async function onDialogSaved(saved: OfficeTopicDetail): Promise<void> {
 const BACKGROUND_REFRESH_MS = 60_000;
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
 
+let refreshing = false;
+
 async function backgroundRefresh(): Promise<void> {
-  if (document.hidden || busy.value || dialogOpen.value) return;
-  if (selectedId.value !== null) await loadDetail(selectedId.value, { background: true });
-  await loadTopics({ background: true });
-  void adminStore.fetchOficinaBadge();
+  if (refreshing || document.hidden || busy.value || dialogOpen.value) return;
+  refreshing = true;
+  try {
+    if (selectedId.value !== null) await loadDetail(selectedId.value, { background: true });
+    await loadTopics({ background: true });
+    void adminStore.fetchOficinaBadge();
+  } finally {
+    refreshing = false;
+  }
 }
 
 function onVisibilityChange(): void {

@@ -35,7 +35,12 @@
         </div>
 
         <div class="row items-center q-gutter-sm q-mt-xs">
-          <q-chip dense square :color="STATUS_COLORS[topic.status]" text-color="white">
+          <q-chip
+            dense
+            square
+            :color="STATUS_COLORS[topic.status]"
+            :text-color="STATUS_TEXT_COLORS[topic.status]"
+          >
             {{ statusChipLabel }}
           </q-chip>
           <q-chip dense square outline color="grey-8">
@@ -275,7 +280,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useQuasar, type QMenu } from 'quasar';
 import type { OfficeStaff, OfficeTopicDetail, PatchTopicInput } from 'src/composables/useOfficeApi';
 import { relativeTime } from 'src/utils/relative-time';
@@ -284,6 +289,7 @@ import {
   ORIGIN_LABELS,
   STATUS_COLORS,
   STATUS_LABELS,
+  STATUS_TEXT_COLORS,
   TARGET_KIND_ICONS,
   TARGET_KIND_LABELS,
   eventLine,
@@ -453,7 +459,8 @@ const mentionRegex = computed<RegExp | null>(() => {
     .filter((name) => name !== '')
     .sort((a, b) => b.length - a.length);
   if (names.length === 0) return null;
-  return new RegExp(`(@(?:${names.map(escapeRegExp).join('|')}))`);
+  // Límite de palabra: `@Ana` no se resalta dentro de `@Analía`.
+  return new RegExp(`(@(?:${names.map(escapeRegExp).join('|')})(?![\\p{L}\\d]))`, 'u');
 });
 
 function commentParts(body: string | null): CommentPart[] {
@@ -486,6 +493,10 @@ function scrollToBottom(): void {
   if (el) el.scrollTop = el.scrollHeight;
 }
 
+// La página desmonta y remonta el detalle al cambiar de tema, así que el watcher de abajo no
+// corre al abrir: al montar también se baja a lo último.
+onMounted(() => void nextTick(scrollToBottom));
+
 // Cambia de tema: arranca desde lo último. Llegan novedades del mismo tema: baja solo si
 // ya estabas leyendo lo último (no te arrastra si estás releyendo algo más arriba).
 watch(
@@ -493,6 +504,13 @@ watch(
   () => {
     nearBottom = true;
     void nextTick(scrollToBottom);
+  }
+);
+// Cada recarga del tema refresca los "hace N min".
+watch(
+  () => props.topic,
+  () => {
+    now.value = new Date();
   }
 );
 watch(
@@ -505,8 +523,8 @@ watch(
 );
 
 defineExpose({
-  /** Vacía el compositor (el padre lo llama cuando la API confirmó el comentario). */
-  clearComposer: () => composerRef.value?.clear(),
+  /** Vacía el compositor (el padre lo llama cuando la API confirmó el comentario enviado). */
+  clearComposer: (sentBody?: string) => composerRef.value?.clear(sentBody),
   focusComposer: () => composerRef.value?.focus(),
 });
 </script>

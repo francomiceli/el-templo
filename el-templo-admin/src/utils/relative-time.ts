@@ -3,9 +3,9 @@
  * (fase 205 D-21): "recién", "hace 5 min", "hace 2 h", "ayer", "hace 3 días" y,
  * pasada la semana, fecha corta (`dd/mm`, con año si es de otro año).
  *
- * "Ayer" se decide por día calendario en hora local del navegador (no por 24 h),
- * así un mensaje de las 23:50 se ve "ayer" a las 00:10 y no "hace 20 min" por error
- * de redondeo ni "hace 1 día".
+ * "Ayer" se decide por día calendario en hora local del navegador (no por 24 h). El atajo
+ * por minutos va primero: un mensaje de las 23:50 visto a las 00:10 dice "hace 20 min"
+ * (no "ayer"); pasada la hora, el cambio de día calendario manda y se ve "ayer".
  */
 
 const MINUTE_MS = 60_000;
