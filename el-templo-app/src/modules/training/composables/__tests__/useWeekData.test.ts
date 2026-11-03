@@ -171,4 +171,62 @@ describe('useWeekData (fase 203, D-09)', () => {
     void fetchWeekSessions(['2026-10-19', '2026-10-20'])
     expect(sessions.value.size).toBe(0)
   })
+
+  // Reporte 2026-11-03 (iPhone): useTrainingWeek deja de esperar un pedido colgado y pide de nuevo.
+  // Si el viejo responde tarde no tiene que pisar al nuevo.
+  it('una respuesta tardía de un pedido viejo no pisa la semana pedida después', async () => {
+    const { fetchWeekSessions, sessions, completedDates, loading } = useWeekData()
+
+    let resolveOld!: (v: unknown) => void
+    vi.mocked(api.get).mockReturnValueOnce(
+      new Promise((res) => {
+        resolveOld = res
+      }) as never,
+    )
+    const old = fetchWeekSessions(WEEK)
+
+    let resolveNew!: (v: unknown) => void
+    vi.mocked(api.get).mockReturnValueOnce(
+      new Promise((res) => {
+        resolveNew = res
+      }) as never,
+    )
+    const fresh = fetchWeekSessions(['2026-10-19', '2026-10-20'])
+
+    // El viejo responde primero: no escribe ni apaga el loading del nuevo
+    resolveOld({ data: { sessions: { '2026-10-12': null }, completedDates: ['2026-10-13'] } })
+    await old
+    expect(sessions.value.has('2026-10-12')).toBe(false)
+    expect(completedDates.value).toEqual([])
+    expect(loading.value).toBe(true)
+
+    resolveNew({ data: { sessions: { '2026-10-19': null }, completedDates: ['2026-10-20'] } })
+    await fresh
+    expect(sessions.value.has('2026-10-19')).toBe(true)
+    expect(completedDates.value).toEqual(['2026-10-20'])
+    expect(loading.value).toBe(false)
+  })
+
+  it('un pedido viejo que falla tarde no pone un error encima del dato nuevo', async () => {
+    const { fetchWeekSessions, sessions, error } = useWeekData()
+
+    let rejectOld!: (e: unknown) => void
+    vi.mocked(api.get).mockReturnValueOnce(
+      new Promise((_, rej) => {
+        rejectOld = rej
+      }) as never,
+    )
+    const old = fetchWeekSessions(WEEK)
+    vi.mocked(api.get).mockResolvedValueOnce({
+      data: { sessions: { '2026-10-12': null } },
+    } as never)
+    const fresh = fetchWeekSessions(WEEK)
+    await fresh
+
+    // El viejo falla tarde: no pone un error encima del dato bueno
+    rejectOld(new Error('Network Error'))
+    await old
+    expect(error.value).toBeNull()
+    expect(sessions.value.has('2026-10-12')).toBe(true)
+  })
 })

@@ -4,6 +4,7 @@ import { AxiosError } from 'axios'
 import { api } from 'src/boot/axios'
 import { createLogger } from 'src/utils/logger'
 import { shareInFlight } from 'src/utils/share-in-flight'
+import { NETWORK_WAIT_MS, withTimeout } from 'src/utils/with-timeout'
 import { useLevelSelectionStorage } from 'src/composables/useLevelSelectionStorage'
 import { isTrainingLevel, type Level } from 'src/modules/training/level-display'
 import { fullLineLabel, sameSpecialLine } from 'src/utils/special-line'
@@ -176,6 +177,8 @@ export const useUserStore = defineStore('user', () => {
   // perfil rico). El router reintenta `retryProfileLoad()` en la primera
   // navegación mientras esto sea true.
   const profileStale = ref(false)
+  // Hay un reintento de `/auth/me` en vuelo (Entrenar muestra el loader mientras tanto)
+  const profileRetrying = ref(false)
   const subscription = ref<MemberSubscription | null>(null)
   const subscriptionLoading = ref(false)
   // Fase 199: `subscription === null` significa a la vez "no tiene" y "todavía no
@@ -460,8 +463,6 @@ export const useUserStore = defineStore('user', () => {
     profileStale.value = true
   }
 
-  let profileRetryInFlight = false
-
   /**
    * Reintenta cargar `/auth/me` cuando el boot arrancó de forma optimista
    * (sin red). Disparado desde el router en la primera navegación
@@ -470,12 +471,17 @@ export const useUserStore = defineStore('user', () => {
    * queda en true para el próximo intento. El interceptor de axios (D-c/D-d
    * de createAuthErrorHandler) ya decide si el fallo amerita desloguear
    * (401/403) o no (red) — acá no se duplica esa decisión, solo se loguea.
+   *
+   * Sin perfil también reintenta aunque `profileStale` no esté marcado (el "Reintentar" de
+   * Entrenar). Con tope (`NETWORK_WAIT_MS`): en nativo CapacitorHttp ignora el timeout de axios,
+   * y un `/auth/me` colgado (iOS espera 600 s) dejaba el intento "en vuelo" bloqueando todos los
+   * reintentos siguientes, con Entrenar cargando para siempre (reporte 2026-11-03, iPhone).
    */
   async function retryProfileLoad(): Promise<void> {
-    if (!profileStale.value || profileRetryInFlight) return
-    profileRetryInFlight = true
+    if ((!profileStale.value && profile.value !== null) || profileRetrying.value) return
+    profileRetrying.value = true
     try {
-      const response = await api.get<UserProfile>('/auth/me')
+      const response = await withTimeout(api.get<UserProfile>('/auth/me'), NETWORK_WAIT_MS)
       setProfile(response.data)
       profileStale.value = false
       await hydrateSelection()
@@ -485,7 +491,7 @@ export const useUserStore = defineStore('user', () => {
         message: err instanceof Error ? err.message : String(err),
       })
     } finally {
-      profileRetryInFlight = false
+      profileRetrying.value = false
     }
   }
 
@@ -1000,6 +1006,7 @@ export const useUserStore = defineStore('user', () => {
     showProgramSelector,
     // App 1.7.9: boot optimista
     profileStale,
+    profileRetrying,
     // Actions
     setProfile,
     markOnboardingComplete,

@@ -7,6 +7,7 @@ import { useCardHadContentStore } from 'stores/useCardHadContentStore'
 import { api, runRefresh, isSessionRejectedStatus } from './axios'
 import { useTokenStorage } from 'src/composables/useTokenStorage'
 import { createLogger } from 'src/utils/logger'
+import { NETWORK_WAIT_MS, withTimeout } from 'src/utils/with-timeout'
 
 const log = createLogger('boot/auth')
 
@@ -87,7 +88,7 @@ function decodeAuthUser(token: string): AuthUser | null {
  * límite). Con mala señal el boot quedaba colgado minutos — reporte 2026-10-21
  * ("abren la app y queda en blanco"), sin requests al server ni eventos en Sentry.
  */
-export const BOOT_NETWORK_TIMEOUT_MS = 8000
+export const BOOT_NETWORK_TIMEOUT_MS = NETWORK_WAIT_MS
 
 export class BootTimeoutError extends Error {
   constructor() {
@@ -105,11 +106,7 @@ export class BootTimeoutError extends Error {
  * esperan ese mismo refresh en vez de mandar el token viejo.
  */
 function withBootTimeout<T>(promise: Promise<T>): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new BootTimeoutError()), BOOT_NETWORK_TIMEOUT_MS)
-  })
-  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer))
+  return withTimeout(promise, BOOT_NETWORK_TIMEOUT_MS, () => new BootTimeoutError())
 }
 
 /**

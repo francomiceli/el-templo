@@ -1,12 +1,29 @@
 <template>
   <q-page class="training-index">
     <!-- SPEC "Empezá acá" C — tip de primera vez en Entrenar. -->
-    <FirstVisitTipBanner v-if="view !== 'loading'" tip-id="entrenar-bloques" />
+    <FirstVisitTipBanner
+      v-if="view === 'vidriera' || view === 'entrenar'"
+      tip-id="entrenar-bloques"
+    />
 
     <!-- Loading: hasta que llegan perfil, suscripción, programa e inscripciones (D-09). Entrenar
          no elige entre la vidriera y EntrenarView con datos a medias. -->
     <div v-if="view === 'loading'" class="training-index__loading">
       <TemploLoader size="lg" />
+    </div>
+
+    <!-- Sin perfil pasado el tope (boot sin red y el reintento falló o se colgó): error con
+         "Reintentar" en vez de un loader eterno. Sin perfil no se decide nada (D-08). -->
+    <div v-else-if="view === 'sin-perfil'" class="training-index__error">
+      <q-banner class="bg-negative text-white" rounded>
+        <template #avatar>
+          <q-icon name="wifi_off" />
+        </template>
+        No pudimos cargar tus datos. Revisá tu conexión.
+        <template #action>
+          <q-btn flat label="Reintentar" @click="retryProfile" />
+        </template>
+      </q-banner>
     </div>
 
     <!-- No presencial plan AND no active program enrollment — vidriera (fase 197 D-06): Entrenar
@@ -51,6 +68,7 @@ const canEnterTraining = computed(() => {
 const view = computed(() =>
   resolveTrainingIndexView({
     profileLoaded: userStore.profile !== null,
+    profileRetrying: userStore.profileRetrying,
     memberStateLoaded: userStore.memberStateLoaded,
     subscriptionFailed: userStore.subscriptionFailed,
     programFailed: userStore.programFailed,
@@ -65,6 +83,10 @@ onMounted(() => {
   void userStore.ensureMemberState({ maxAgeMs: MEMBER_STATE_MAX_AGE_MS })
 })
 
+function retryProfile(): void {
+  void userStore.retryProfileLoad()
+}
+
 onBeforeUnmount(() => deadline.cleanup())
 </script>
 
@@ -72,6 +94,10 @@ onBeforeUnmount(() => deadline.cleanup())
 .training-index {
   background-color: transparent; // D-16: la foto de fondo se ve detrás
   min-height: var(--app-vh);
+}
+
+.training-index__error {
+  padding: 16px;
 }
 
 /* Loading state */
