@@ -1088,6 +1088,28 @@ Plans:
 - [x] 204-15-PLAN.md — Admin: diálogo Unir con alumno existente (D-21)
 - [x] 204-16-PLAN.md — Admin: pestaña Reportes › Wellhub + filtro Wellhub del log de accesos
 
+### Phase 206: Tablero semanal de gerencia (fuera del milestone v6.1)
+
+**Estado (2026-11-03)**: definiciones cerradas con Nacho (`.docs/tablero-semanal-respuestas-fran.md`), dato de renovación tardía sacado de prod. Rama `feat/tablero-semanal` (worktree `et-tablero`, base `origin/master` `17aad07d0`). Numerada 206 porque la 205 (Oficina) vive en `feat/oficina`.
+
+**Goal**: La gerencia ve en una sola pantalla del admin (`/tablero`), los lunes, los números clave de la semana por sede en columnas (embudo de prueba, renovaciones, caja/deuda, alumnos activos) con la semana anterior y ▲▼, en lugar de cargarlos a mano en la pestaña Tablero de la planilla
+**Depends on**: nada. Reusa los cálculos existentes de Reportes › Sesiones de prueba, Reportes › Renovaciones, Caja y Deudas. Decisiones en `206-CONTEXT.md`
+**Success Criteria** (what must be TRUE):
+
+1. `/tablero` está en el menú para owner/admin/gestion (y es su pantalla de inicio); admin_sede ve solo la columna de su sede
+2. Selector de semana (lunes a domingo, hora de Argentina): por defecto la semana en curso, con semanas anteriores
+3. Columnas: una por sede argentina + Total (solo AR, en pesos) + Semana anterior + ▲▼; Barcelona aparte en euros
+4. Bloques: Embudo (leads manuales, reservas, asistieron, compraron, 4 %), Renovaciones (vencimientos, renovaron, no renueva, volvió tarde, sin contactar en rojo si > 0, % renovación, vencen la semana que viene), Caja (cobrado, deuda cobrable, deuda > 10 días, incobrable) y Alumnos (activos y variación)
+5. Los números coinciden con las pantallas de origen para la misma semana y sede
+6. Cierre automático el domingo a la noche: las semanas pasadas quedan congeladas; el bloque Renovaciones se congela una semana después (margen de renovación tardía)
+7. Los leads se cargan a mano por sede y por semana desde el mismo Tablero
+8. Tests de integración cubren el armado por sede, el cierre, el margen de Renovaciones, los leads manuales, los roles y el aislamiento por tenant
+
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (correr /gsd:plan-phase 206)
+
 ---
 
 _Unificado el 2026-10-28 (rescate de docs del master local): sobre el ROADMAP de origin/master se sumaron las fases 188.1, 192.1-192.3, 193, 195, 196 (archivada), 198 y 199, 203, con su estado real. Textos de fase tomados de master local (193, 199), `origin/staging` (195), `feat/203-carga-sin-parpadeos` (203), `archive/196-personalizados` (196, 198) y el tren `feat/v6.1-gimnasio` / `feat/192.3-workout-engine` (188.1, 192.x)._
