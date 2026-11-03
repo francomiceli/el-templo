@@ -15,7 +15,7 @@
  *     `seedBoardBranches` debe llamar a `cleanupBoardBranches` en su `afterAll`
  *     (despues de `cleanAllTestData`, para que no queden FKs apuntando).
  */
-import { and, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import * as schema from "../../src/db/schema";
 import { addDays } from "../../src/modules/shared/date-utils";
@@ -378,6 +378,7 @@ export interface SeedExpiringMembershipOpts {
 async function seedMembershipPlan(
   app: FastifyInstance,
   tenantId: number,
+  category: "presencial" | "especial" = "presencial",
 ): Promise<number> {
   const [row] = await app.db
     .insert(schema.subscriptionPlans)
@@ -388,11 +389,15 @@ async function seedMembershipPlan(
           name: `Tablero Foundation ${suffix()}`,
           planTier: "flex" as const,
           bookingMode: "flexible" as const,
-          planCategory: "presencial" as const,
+          planCategory: category,
           priceRegular: 15000,
           priceZero: 10000,
           durationDays: 30,
-          classesPerWeek: 3,
+          // El pase `especial` no tiene frecuencia semanal: lleva un cupo mensual.
+          classesPerWeek: category === "especial" ? null : 3,
+          ...(category === "especial"
+            ? { monthlyClassBudget: 2, requiresPresencial: false }
+            : {}),
           country: "AR",
           currency: "ARS" as const,
         },
@@ -461,4 +466,261 @@ export async function seedExpiringMembership(
     );
   }
   return { userId, subscriptionId: sub.id, planId };
+}
+
+// ─── Socios sueltos ─────────────────────────────────────────────────────────
+
+/**
+ * Un socio activo en la sede indicada (`users.branch_id`), sin suscripcion.
+ * Devuelve su id.
+ */
+export async function seedBoardMember(
+  app: FastifyInstance,
+  opts: { branchId: number; tenantId?: number },
+): Promise<number> {
+  return seedMemberRow(app, {
+    tenantId: opts.tenantId ?? TENANT_TEMPLO,
+    branchId: opts.branchId,
+    status: "activo",
+  });
+}
+
+// ─── Caja (cobrado) ─────────────────────────────────────────────────────────
+
+/** Estado del ingreso: `firme` cuenta en Caja, los otros dos no. */
+export type IncomeState = "firme" | "anulado" | "pendiente";
+
+export interface SeedIncomeOpts {
+  /** Alumno que paga. `null` = ingreso sin alumno (cae en la sede del cobro). */
+  memberId: number | null;
+  /** Sede de la CAJA donde se cobro (`financial_transactions.branch_id`). */
+  cobroBranchId: number;
+  amount: number;
+  currency: "ARS" | "EUR";
+  /** Fecha del cobro (YYYY-MM-DD), p. ej. `addDays(boardWeeks().last, 1)`. */
+  transactionDate: string;
+  state: IncomeState;
+  /** Default `plan_charge`. `cash_transfer` = pata de un movimiento entre cajas. */
+  kind?: "plan_charge" | "debt_settlement" | "cash_transfer";
+  tenantId?: number;
+  /** Quien registra. Default: `admin@test.com` de El Templo (sobrevive a la limpieza). */
+  recordedBy?: number;
+}
+
+async function temploAdminId(app: FastifyInstance): Promise<number> {
+  const [admin] = await app.db
+    .select({ id: schema.users.id })
+    .from(schema.users)
+    .where(
+      and(
+        tenantWhere(schema.users, { tenantId: TENANT_TEMPLO }),
+        eq(schema.users.email, "admin@test.com"),
+      ),
+    )
+    .limit(1);
+  if (!admin) throw new Error("Falta admin@test.com en la base de test");
+  return admin.id;
+}
+
+/**
+ * Un ingreso (`inflow`) por transferencia, sin caja fisica asociada. Los
+ * estados `anulado` y `pendiente` son los que Caja NO cuenta como plata firme.
+ */
+export async function seedIncome(
+  app: FastifyInstance,
+  opts: SeedIncomeOpts,
+): Promise<number> {
+  const tenantId = opts.tenantId ?? TENANT_TEMPLO;
+  const recordedBy = opts.recordedBy ?? (await temploAdminId(app));
+  const [row] = await app.db
+    .insert(schema.financialTransactions)
+    .values(
+      tenantValues(
+        { tenantId },
+        {
+          memberId: opts.memberId,
+          kind: opts.kind ?? ("plan_charge" as const),
+          direction: "inflow" as const,
+          amount: opts.amount,
+          currency: opts.currency,
+          paymentMethod: "transfer" as const,
+          transactionDate: opts.transactionDate,
+          effectiveDate: opts.transactionDate,
+          branchId: opts.cobroBranchId,
+          recordedBy,
+          validationStatus:
+            opts.state === "pendiente"
+              ? ("pendiente" as const)
+              : ("validado" as const),
+          voidedAt: opts.state === "anulado" ? new Date() : null,
+          voidedBy: opts.state === "anulado" ? recordedBy : null,
+        },
+      ),
+    )
+    .$returningId();
+  return row.id;
+}
+
+// ─── Deuda ──────────────────────────────────────────────────────────────────
+
+export interface SeedDebtOpts {
+  memberId: number;
+  /** `subscription` = deuda de membresia (aparece en Deudas). `debt_balance` = deuda suelta. */
+  kind: "subscription" | "debt_balance";
+  /** Sede de la suscripcion (solo `subscription`). Default: la sede del alumno. */
+  subBranchId?: number;
+  /** Sede del alumno, para ubicar la suscripcion si no se pasa `subBranchId`. */
+  memberBranchId?: number;
+  amount: number;
+  currency: "ARS" | "EUR";
+  /** Antiguedad de la deuda: se mueve `balances.created_at` con `NOW() - INTERVAL n DAY`. */
+  daysAgo: number;
+  /** Estado de gestion. Sin fila en `debt_management` = `activa` (default). */
+  status?: "activa" | "incobrable" | "cobrada";
+  tenantId?: number;
+}
+
+/**
+ * Una deuda (`balances` con saldo) con la antiguedad y el estado de gestion
+ * pedidos. `created_at` se mueve con SQL relativo al reloj de MySQL, nunca con
+ * una fecha fija. Para `subscription` crea una suscripcion vencida propia
+ * (un plan de membresia por llamada), asi que dos deudas del mismo alumno no
+ * chocan con el unico `(member, target_kind, target_id, currency)`.
+ */
+export async function seedDebt(
+  app: FastifyInstance,
+  opts: SeedDebtOpts,
+): Promise<{ balanceId: number; subscriptionId: number | null }> {
+  const tenantId = opts.tenantId ?? TENANT_TEMPLO;
+  const scope = { tenantId };
+
+  let targetId = opts.memberId;
+  let subscriptionId: number | null = null;
+  if (opts.kind === "subscription") {
+    const subBranchId = opts.subBranchId ?? opts.memberBranchId;
+    if (subBranchId === undefined) {
+      throw new Error(
+        "seedDebt(subscription) necesita subBranchId o memberBranchId",
+      );
+    }
+    const planId = await seedMembershipPlan(app, tenantId);
+    const base = currentWeekStart();
+    const [sub] = await app.db
+      .insert(schema.subscriptions)
+      .values(
+        tenantValues(scope, {
+          userId: opts.memberId,
+          planId,
+          branchId: subBranchId,
+          status: "expired" as const,
+          startDate: addDays(base, -90),
+          endDate: addDays(base, -60),
+          pricePaid: opts.amount,
+          currency: opts.currency,
+          priceTypeApplied: "regular" as const,
+        }),
+      )
+      .$returningId();
+    targetId = sub.id;
+    subscriptionId = sub.id;
+  }
+
+  const [bal] = await app.db
+    .insert(schema.balances)
+    .values(
+      tenantValues(scope, {
+        memberId: opts.memberId,
+        targetKind: opts.kind,
+        targetId,
+        currency: opts.currency,
+        amount: opts.amount,
+      }),
+    )
+    .$returningId();
+
+  await app.db
+    .update(schema.balances)
+    .set({ createdAt: sql`NOW() - INTERVAL ${opts.daysAgo} DAY` })
+    .where(
+      and(tenantWhere(schema.balances, scope), eq(schema.balances.id, bal.id)),
+    );
+
+  if (opts.status !== undefined && opts.status !== "activa") {
+    await app.db.insert(schema.debtManagement).values(
+      tenantValues(scope, {
+        balanceId: bal.id,
+        status: opts.status,
+      }),
+    );
+  }
+  return { balanceId: bal.id, subscriptionId };
+}
+
+/**
+ * Borra `debt_management` de los gimnasios indicados. `cleanAllTestData` no la
+ * incluye: llamar ANTES de `cleanAllTestData` (los `balances` se borran ahi).
+ */
+export async function clearDebtManagement(
+  app: FastifyInstance,
+  tenantIds: number[] = [TENANT_TEMPLO],
+): Promise<void> {
+  for (const tenantId of tenantIds) {
+    await app.db
+      .delete(schema.debtManagement)
+      .where(tenantWhere(schema.debtManagement, { tenantId }));
+  }
+}
+
+// ─── Alumnos activos ────────────────────────────────────────────────────────
+
+export interface SeedActiveMemberOpts {
+  /** Sede asignada del alumno (`users.branch_id`). */
+  branchId: number;
+  /**
+   * `pago` = plan presencial vigente, tipo `paga` (cuenta).
+   * `especial` = solo un pase `especial` vigente (no cuenta).
+   * `bonificada` = plan presencial vigente pero tipo `bonificada` (no cuenta).
+   */
+  kind: "pago" | "especial" | "bonificada";
+  tenantId?: number;
+}
+
+/**
+ * Un alumno con UNA suscripcion vigente del tipo pedido. La vigencia no depende
+ * de la hora: empezo hace 60 dias y no tiene fecha de fin.
+ */
+export async function seedActiveMember(
+  app: FastifyInstance,
+  opts: SeedActiveMemberOpts,
+): Promise<number> {
+  const tenantId = opts.tenantId ?? TENANT_TEMPLO;
+  const scope = { tenantId };
+  const userId = await seedMemberRow(app, {
+    tenantId,
+    branchId: opts.branchId,
+    status: "activo",
+  });
+  const planId = await seedMembershipPlan(
+    app,
+    tenantId,
+    opts.kind === "especial" ? "especial" : "presencial",
+  );
+  await app.db.insert(schema.subscriptions).values(
+    tenantValues(scope, {
+      userId,
+      planId,
+      branchId: opts.branchId,
+      status: "active" as const,
+      startDate: addDays(currentWeekStart(), -60),
+      endDate: null,
+      pricePaid: 15000,
+      currency: "ARS" as const,
+      priceTypeApplied: "regular" as const,
+      membershipKind:
+        opts.kind === "bonificada"
+          ? ("bonificada" as const)
+          : ("paga" as const),
+    }),
+  );
+  return userId;
 }
