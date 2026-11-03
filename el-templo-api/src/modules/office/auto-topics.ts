@@ -110,6 +110,8 @@ async function loadActiveBranches(
       and(
         tenantWhere(schema.branches, ctx),
         eq(schema.branches.isActive, true),
+        // Las sedes virtuales (online) no tienen jornadas ni clases con profe.
+        eq(schema.branches.isVirtual, false),
       ),
     )
     .orderBy(asc(schema.branches.id));
@@ -213,7 +215,10 @@ export async function syncWellhubErrors(
             ),
           )
           .limit(1);
-        if (row?.status === "error") {
+        if (row === undefined) {
+          return "El evento ya no figura en este gimnasio";
+        }
+        if (row.status === "error") {
           return `El error tiene más de ${WELLHUB_WINDOW_DAYS} días: se cierra solo`;
         }
       }
@@ -387,10 +392,12 @@ async function findClassesWithoutCoach(
       slot: schema.classCoachAssignments.slot,
       coachId: schema.classCoachAssignments.coachId,
     })
-    .from(schema.classCoachAssignments)
+    .from(
+      /* tenant-safe: el roster se escribe sin tenant_id (ratings/service.ts) y se ancla por branch_id, que ya viene filtrado por tenant */
+      schema.classCoachAssignments,
+    )
     .where(
       and(
-        tenantWhere(schema.classCoachAssignments, ctx),
         eq(schema.classCoachAssignments.branchId, branch.id),
         eq(schema.classCoachAssignments.dayOfWeek, dayOfWeek),
         lte(schema.classCoachAssignments.weekStartDate, isoWeekStart(date)),
@@ -488,7 +495,9 @@ export async function syncClassesWithoutCoach(
     stillValid,
     (ref) => {
       const date = ref.sourceKey.slice(ref.sourceKey.lastIndexOf(":") + 1);
-      return date < earliestToday ? "Pasó la fecha" : "Se asignó profe";
+      return date < earliestToday
+        ? "Pasó la fecha"
+        : "Ya tiene profe o la clase dejó de estar programada";
     },
   );
 }

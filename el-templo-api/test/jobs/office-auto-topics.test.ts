@@ -402,6 +402,11 @@ describe("job temas automáticos de Oficina", () => {
     }
 
     beforeEach(async () => {
+      // cleanAllTestData no limpia el roster y la unique (sede, semana, día,
+      // turno) chocaría entre casos: se limpia acá.
+      await app.db
+        .delete(schema.classCoachAssignments)
+        .where(tenantWhere(schema.classCoachAssignments, TEMPLO_CTX));
       tomorrow = addDays(todayInTz(timezone, now), 1);
       seq += 1;
       coachId = await createStaffUser(app, {
@@ -447,7 +452,9 @@ describe("job temas automáticos de Oficina", () => {
       expect(closed.status).toBe("cerrado");
       const events = await eventsOf(closed.id);
       expect(events.map((e) => e.type)).toEqual(["creado", "sistema"]);
-      expect(events[1].body).toBe("Se asignó profe");
+      expect(events[1].body).toBe(
+        "Ya tiene profe o la clase dejó de estar programada",
+      );
     });
 
     it("no abre tema si el roster cubre el turno, si el horario tiene profe propio o si la clase está cancelada ese día", async () => {
