@@ -25,3 +25,8 @@ Se pasan en el prompt de cada plan. Heredan las lecciones de la fase 204 (`../20
 - Commits atómicos por tarea: `feat(205-NN): ...` / `test(205-NN): ...`, con línea final `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`.
 - Escribir `.planning/phases/205-oficina/205-NN-SUMMARY.md` (desvíos, bugs encontrados, dudas para Franco con la opción conservadora tomada) y commitearlo.
 - Dejar el worktree limpio (`git status --short` vacío).
+
+## Lecciones acumuladas de esta fase
+- **(plan 01)** `npx tsc --noEmit` en `el-templo-api` está VERDE desde el 2026-11-03 (el orquestador re-apuntó `node_modules`). Si da errores, son tuyos: arreglarlos, no justificarlos.
+- **(plan 01)** `tenant-lint-allowlist.json` vive en la raíz de `el-templo-api/`. `schema/index.ts` no está ordenado: el export de `./office` quedó al final.
+- **(plan 01)** `office_topic_reads` tiene `id` autoincremental propio además de la unique (tenant_id, topic_id, user_id): el upsert va por `onDuplicateKeyUpdate` sobre esa unique.
