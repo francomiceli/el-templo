@@ -104,6 +104,14 @@ export const CAJA_ROLES = [
   ...ADMIN_ROLES,
 ] as const;
 
+/**
+ * Fase 205 (Oficina, D-10): roles que ven la central de temas de gestión
+ * (`/api/admin/office`). Gestión central: `admin_sede` y `recepcion` quedan
+ * afuera en v1. Literal propio (no `CAJA_ROLES`) para que abrir o cerrar
+ * Oficina sea una decisión de este módulo y no un efecto de reportes.
+ */
+export const OFFICE_ROLES = ["owner", "admin", "gestion"] as const;
+
 /** Roles that can read the operational analytics endpoints surfaced inside
  *  Reportes — attendance, unique members, check-in adoption, and engagement
  *  (Phase 117). Mirrors the Reportes route access (gestion + admin + owner).
