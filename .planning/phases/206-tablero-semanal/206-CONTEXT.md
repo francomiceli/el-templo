@@ -66,6 +66,13 @@ Una pantalla nueva del admin, `/tablero`, que reemplaza la pestaña **Tablero** 
 - Si el endpoint arma todas las sedes en una sola llamada con queries agrupadas por sede (preferido: evitar N llamadas por sede y N+1) o reusa los servicios por sede.
 - Diseño visual dentro de la paleta de la marca (cálida, sin azul), tabla densa tipo planilla, filas agrupadas por bloque. Español rioplatense en la UI.
 - Cómo marcar "provisorio" y "sin foto".
+### Enmiendas del orquestador tras la investigación (Franco ausente, opción recomendada; revisar al volver)
+- **D-24 (enmienda D-04/D-08):** los **leads no se copian a la foto**. Viven en su propia tabla y se pueden editar en la semana en curso y en la anterior, porque Nacho los carga en la reunión del lunes, después del cierre de las 00:05. El Tablero los lee siempre de esa tabla.
+- **D-25 (enmienda D-14/D-15):** los alumnos online están en la sede virtual, así que el Total AR de las sedes físicas da menos que Caja AR. Se suma una **columna informativa "Online"** (sedes virtuales activas del país), que **no suma al Total**. La nota de Cobrado dice: "Total de sedes físicas, sin Online".
+- **D-26 (enmienda D-17):** las fórmulas del Embudo son **exactamente las de la pantalla Sesiones de prueba** (denominador de clases ya ocurridas; cierre = compraron con asistencia / asistieron). Los porcentajes del Total se recalculan desde los conteos crudos, nunca promediando porcentajes.
+- **D-27 (enmienda D-16):** se respeta el **alcance por país** del rol: un admin o gestion de Argentina no ve el grupo Barcelona; el owner ve todo (sin forzarle `scope.country`).
+- **D-28 (enmienda D-01):** en el menú va una **categoría nueva "Gerencia"** al tope, con la entrada Tablero, en lugar del primer lugar de "Gestión" (donde va a estar Oficina).
+- **D-29 (enmienda D-23):** tercera excepción a la coincidencia: Renovaciones por sede puede diferir de la pantalla de Renovaciones, porque el Tablero agrupa por la sede del alumno y la pantalla por la sede de la membresía que vence (las vencidas no se resincronizan cuando la sede del alumno cambia después).
 </decisions>
 
 <canonical_refs>
