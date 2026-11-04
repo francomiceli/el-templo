@@ -42,6 +42,7 @@ export const TARGET_KIND_LABELS: Record<OfficeTargetKind, string> = {
   wellhub_evento: 'Wellhub',
   horario: 'Horario',
   caja: 'Caja',
+  sede: 'Sede',
 };
 
 export const TARGET_KIND_ICONS: Record<OfficeTargetKind, string> = {
@@ -50,6 +51,7 @@ export const TARGET_KIND_ICONS: Record<OfficeTargetKind, string> = {
   wellhub_evento: 'cloud_sync',
   horario: 'schedule',
   caja: 'point_of_sale',
+  sede: 'store',
 };
 
 /** Ruta del admin a la que lleva el vínculo de un tema; null si no hay pantalla. */
@@ -64,6 +66,10 @@ export function targetRoute(kind: OfficeTargetKind, id: number | null): string |
     // Los arqueos se ven en Caja › Retiros (CAJA_TABS.retiros), que abre por ?tab=.
     case 'caja':
       return '/caja?tab=retiros';
+    // Wellhub sin publicar: las clases (y su marca "Wellhub") se arreglan en Horarios;
+    // el reporte Wellhub de Reportes es de visitas de socios, no de publicación.
+    case 'sede':
+      return '/horarios';
     case 'wellhub_evento':
       return null;
     default:

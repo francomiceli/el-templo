@@ -2,8 +2,8 @@
  * Job de temas automáticos de Oficina (src/jobs/office-auto-topics.ts, fase 205-03).
  *
  * Testea runOfficeAutoTopics contra MySQL real: abre temas del sistema para las
- * cuatro señales (Wellhub con error, jornada sin cerrar, clase de mañana sin
- * profe, arqueo con diferencia), no duplica, los cierra solos cuando la condición desaparece, respeta
+ * cinco señales (Wellhub con error, jornada sin cerrar, clase de mañana sin
+ * profe, arqueo con diferencia, clases de Wellhub sin publicar), no duplica, los cierra solos cuando la condición desaparece, respeta
  * el cierre manual (D-04) y despierta los dormidos vencidos (D-09).
  *
  * Reloj: el job recibe `now` por parámetro, así que no hay fake timers. `NOW` es
@@ -61,6 +61,8 @@ describe("job temas automáticos de Oficina", () => {
   let ownerId: number;
   let now: Date;
   let seq = 0;
+  let country: string;
+  let branchName: string;
 
   /** "Ahora" real, corrido de a un día hasta que mañana no sea domingo. */
   function pickNow(tz: string): Date {
@@ -158,6 +160,8 @@ describe("job temas automáticos de Oficina", () => {
       .select({
         id: schema.branches.id,
         timezone: schema.branches.timezone,
+        country: schema.branches.country,
+        name: schema.branches.name,
       })
       .from(schema.branches)
       .where(
@@ -168,6 +172,8 @@ describe("job temas automáticos de Oficina", () => {
       );
     branchId = branch.id;
     timezone = branch.timezone;
+    country = branch.country;
+    branchName = branch.name;
   });
 
   afterAll(async () => {
@@ -1057,6 +1063,444 @@ describe("job temas automáticos de Oficina", () => {
       expect(
         await topicBySource(cashKey(cajaTemplo, countTemplo), DOS_CTX),
       ).toHaveLength(0);
+    });
+  });
+
+  // ─────────────────────────── 7. Wellhub: clases sin publicar ───────────────────────────
+
+  describe("Wellhub: clases de mañana sin publicar", () => {
+    const HOUR_MS = 60 * 60 * 1000;
+    const PREFIX = "wellhub_sin_publicar:";
+    let tomorrow: string;
+    let gymId: number;
+    let classSeq = 0;
+
+    async function setGymId(
+      id: number | null,
+      ctx: TenantContext = TEMPLO_CTX,
+      onBranch: number = branchId,
+    ): Promise<void> {
+      await app.db
+        .update(schema.branches)
+        .set({ wellhubGymId: id })
+        .where(
+          and(
+            tenantWhere(schema.branches, ctx),
+            eq(schema.branches.id, onBranch),
+          ),
+        );
+    }
+
+    async function createWellhubSchedule(opts: {
+      startTime: string;
+      name?: string;
+      activityId?: number;
+      wellhubEnabled?: boolean;
+      isSpecial?: boolean;
+      isActive?: boolean;
+      createdAt?: Date;
+      date?: string;
+      ctx?: TenantContext;
+      onBranch?: number;
+    }): Promise<{ scheduleId: number; activityId: number }> {
+      const ctx = opts.ctx ?? TEMPLO_CTX;
+      let activityId = opts.activityId;
+      if (activityId === undefined) {
+        const [activity] = await app.db
+          .insert(schema.activities)
+          .values(
+            tenantValues(ctx, {
+              name: opts.name ?? "General",
+              isActive: true,
+              wellhubEnabled: opts.wellhubEnabled ?? true,
+              isSpecial: opts.isSpecial ?? false,
+            }),
+          )
+          .$returningId();
+        activityId = activity.id;
+      }
+      const [schedule] = await app.db
+        .insert(schema.schedules)
+        .values(
+          tenantValues(ctx, {
+            branchId: opts.onBranch ?? branchId,
+            activityId,
+            dayOfWeek: isoDayOfWeek(opts.date ?? tomorrow),
+            startTime: opts.startTime,
+            endTime: "23:59",
+            isActive: opts.isActive ?? true,
+            // Explícito (reloj JS): el default del DB corre con el reloj de la
+            // sesión MySQL y `now` del job es inyectable, no el real.
+            createdAt: opts.createdAt ?? new Date(now.getTime() - 5 * HOUR_MS),
+          }),
+        )
+        .$returningId();
+      return { scheduleId: schedule.id, activityId };
+    }
+
+    /** Marca el (horario, mañana) como publicado en Wellhub. */
+    async function publish(
+      scheduleId: number,
+      activityId: number,
+      date: string = tomorrow,
+    ): Promise<void> {
+      classSeq += 1;
+      let [wellhubClass] = await app.db
+        .select({ id: schema.wellhubClasses.id })
+        .from(schema.wellhubClasses)
+        .where(
+          and(
+            tenantWhere(schema.wellhubClasses, TEMPLO_CTX),
+            eq(schema.wellhubClasses.branchId, branchId),
+            eq(schema.wellhubClasses.activityId, activityId),
+          ),
+        );
+      if (!wellhubClass) {
+        [wellhubClass] = await app.db
+          .insert(schema.wellhubClasses)
+          .values(
+            tenantValues(TEMPLO_CTX, {
+              branchId,
+              activityId,
+              wellhubClassId: gymId * 1000 + classSeq,
+              wellhubProductId: 1,
+            }),
+          )
+          .$returningId();
+      }
+      await app.db.insert(schema.wellhubSlots).values(
+        tenantValues(TEMPLO_CTX, {
+          wellhubClassRowId: wellhubClass.id,
+          scheduleId,
+          sessionDate: date,
+          wellhubSlotId: gymId * 1000 + 500 + classSeq,
+          totalCapacity: 20,
+          totalBooked: 0,
+        }),
+      );
+    }
+
+    async function wellhubTopics(ctx: TenantContext = TEMPLO_CTX) {
+      return (await allTopics(ctx)).filter((t) =>
+        t.sourceKey?.startsWith(PREFIX),
+      );
+    }
+
+    const titleOf = (n: number, name: string = branchName) =>
+      `Wellhub: ${n} ${n === 1 ? "clase" : "clases"} de mañana sin publicar en ${name}`;
+
+    beforeAll(() => {
+      process.env.WELLHUB_API_KEY = "test-api-key";
+      process.env.WELLHUB_WEBHOOK_SECRET = "test-webhook-secret";
+    });
+
+    afterAll(() => {
+      delete process.env.WELLHUB_API_KEY;
+      delete process.env.WELLHUB_WEBHOOK_SECRET;
+    });
+
+    beforeEach(async () => {
+      tomorrow = addDays(todayInTz(timezone, now), 1);
+      gymId = 900_000_000 + Math.floor(Math.random() * 1_000_000);
+      await setGymId(gymId);
+    });
+
+    afterEach(async () => {
+      await setGymId(null);
+    });
+
+    it("abre un tema agregado por sede y fecha con la lista de clases, y no lo duplica", async () => {
+      const a = await createWellhubSchedule({
+        startTime: "07:00",
+        name: "Técnica",
+      });
+      await createWellhubSchedule({ startTime: "09:30", name: "General" });
+      const sourceKey = `${PREFIX}${branchId}:${tomorrow}`;
+
+      await run();
+
+      const topics = await wellhubTopics();
+      expect(topics).toHaveLength(1);
+      const [topic] = topics;
+      expect(topic.sourceKey).toBe(sourceKey);
+      expect(topic.origin).toBe("sistema");
+      expect(topic.status).toBe("abierto");
+      expect(topic.title).toBe(titleOf(2));
+      expect(topic.body).toBe("Técnica 07:00\nGeneral 09:30");
+      expect(topic.targetKind).toBe("sede");
+      expect(topic.targetId).toBe(branchId);
+      expect(topic.targetLabel).toBe(branchName);
+      expect(topic.branchId).toBe(branchId);
+      expect((await eventsOf(topic.id)).map((e) => e.type)).toEqual(["creado"]);
+      expect(a.scheduleId).toBeGreaterThan(0);
+
+      await run();
+      expect(await wellhubTopics()).toHaveLength(1);
+    });
+
+    it("no abre tema si el slot ya está publicado", async () => {
+      const { scheduleId, activityId } = await createWellhubSchedule({
+        startTime: "08:00",
+      });
+      await publish(scheduleId, activityId);
+
+      await run();
+
+      expect(await wellhubTopics()).toHaveLength(0);
+    });
+
+    it("no abre tema si la sede no tiene wellhub_gym_id", async () => {
+      await createWellhubSchedule({ startTime: "08:00" });
+      await setGymId(null);
+
+      await run();
+
+      expect(await wellhubTopics()).toHaveLength(0);
+    });
+
+    it("no hace nada si Wellhub no está configurado (el sync no corre)", async () => {
+      await createWellhubSchedule({ startTime: "08:00" });
+      delete process.env.WELLHUB_API_KEY;
+      try {
+        await run();
+        expect(await wellhubTopics()).toHaveLength(0);
+      } finally {
+        process.env.WELLHUB_API_KEY = "test-api-key";
+      }
+    });
+
+    it("respeta el criterio del sync: actividad no habilitada, especial, horario inactivo y excepción de fecha no cuentan", async () => {
+      const elegible = await createWellhubSchedule({
+        startTime: "10:00",
+        name: "Elegible",
+      });
+      await createWellhubSchedule({
+        startTime: "11:00",
+        name: "Sin Wellhub",
+        wellhubEnabled: false,
+      });
+      await createWellhubSchedule({
+        startTime: "12:00",
+        name: "Especial",
+        isSpecial: true,
+      });
+      await createWellhubSchedule({
+        startTime: "13:00",
+        name: "Inactivo",
+        isActive: false,
+      });
+      const cancelada = await createWellhubSchedule({
+        startTime: "14:00",
+        name: "Cancelada",
+      });
+      await app.db.insert(schema.scheduleExceptions).values(
+        tenantValues(TEMPLO_CTX, {
+          scheduleId: cancelada.scheduleId,
+          exceptionDate: tomorrow,
+          reason: "Cerrado",
+        }),
+      );
+
+      await run();
+
+      const [topic] = await wellhubTopics();
+      expect(topic.title).toBe(titleOf(1));
+      expect(topic.body).toBe("Elegible 10:00");
+      expect(elegible.scheduleId).toBeGreaterThan(0);
+    });
+
+    it("no abre tema si mañana es feriado en el país de la sede", async () => {
+      await createWellhubSchedule({ startTime: "08:00" });
+      await app.db.insert(schema.holidays).values(
+        tenantValues(TEMPLO_CTX, {
+          country,
+          date: tomorrow,
+          name: "Feriado de prueba",
+        }),
+      );
+
+      await run();
+
+      expect(await wellhubTopics()).toHaveLength(0);
+    });
+
+    it("un horario creado hace menos de 2 horas no cuenta todavía", async () => {
+      await createWellhubSchedule({
+        startTime: "08:00",
+        name: "Nueva",
+        createdAt: new Date(now.getTime() - 30 * 60 * 1000),
+      });
+      await run();
+      expect(await wellhubTopics()).toHaveLength(0);
+
+      // Con uno viejo al lado, solo cuenta el viejo.
+      await createWellhubSchedule({ startTime: "09:00", name: "Vieja" });
+      await run();
+      const [topic] = await wellhubTopics();
+      expect(topic.title).toBe(titleOf(1));
+      expect(topic.body).toBe("Vieja 09:00");
+    });
+
+    it("se cierra solo cuando aparece el slot", async () => {
+      const { scheduleId, activityId } = await createWellhubSchedule({
+        startTime: "08:00",
+      });
+      await run();
+      const [topic] = await wellhubTopics();
+      expect(topic.status).toBe("abierto");
+
+      await publish(scheduleId, activityId);
+      await run();
+
+      const [closed] = await wellhubTopics();
+      expect(closed.status).toBe("cerrado");
+      expect(closed.closedBy).toBeNull();
+      const events = await eventsOf(closed.id);
+      expect(events.map((e) => e.type)).toEqual(["creado", "sistema"]);
+      expect(events[1].body).toBe(
+        "Wellhub ya tiene todas las clases publicadas",
+      );
+    });
+
+    it("se cierra con 'Pasó la fecha' cuando la fecha ya pasó sin publicarse", async () => {
+      await createWellhubSchedule({ startTime: "08:00" });
+      await run();
+      expect((await wellhubTopics())[0].status).toBe("abierto");
+
+      await run(new Date(now.getTime() + 3 * DAY_MS));
+
+      const [closed] = await wellhubTopics();
+      expect(closed.status).toBe("cerrado");
+      const events = await eventsOf(closed.id);
+      expect(events[events.length - 1].body).toBe("Pasó la fecha");
+    });
+
+    it("si cambia la cantidad actualiza el título del mismo tema sin abrir otro", async () => {
+      const first = await createWellhubSchedule({
+        startTime: "08:00",
+        name: "Uno",
+      });
+      await run();
+      expect((await wellhubTopics())[0].title).toBe(titleOf(1));
+
+      const second = await createWellhubSchedule({
+        startTime: "09:00",
+        name: "Dos",
+      });
+      await run();
+      let topics = await wellhubTopics();
+      expect(topics).toHaveLength(1);
+      expect(topics[0].title).toBe(titleOf(2));
+      expect(topics[0].body).toBe("Uno 08:00\nDos 09:00");
+
+      await publish(first.scheduleId, first.activityId);
+      await run();
+      topics = await wellhubTopics();
+      expect(topics).toHaveLength(1);
+      expect(topics[0].status).toBe("abierto");
+      expect(topics[0].title).toBe(titleOf(1));
+      expect(topics[0].body).toBe("Dos 09:00");
+      // El texto cambió sin sumar eventos al tema.
+      expect((await eventsOf(topics[0].id)).map((e) => e.type)).toEqual([
+        "creado",
+      ]);
+      expect(second.scheduleId).toBeGreaterThan(0);
+    });
+
+    it("un tema cerrado a mano no se reabre aunque sigan faltando clases", async () => {
+      await createWellhubSchedule({ startTime: "08:00" });
+      await run();
+      const [topic] = await wellhubTopics();
+      const service = new OfficeService(app.db, app.log);
+      await service.patchTopic(TEMPLO_CTX, ownerId, topic.id, {
+        status: "cerrado",
+      });
+
+      await createWellhubSchedule({ startTime: "09:00" });
+      await run();
+
+      const topics = await wellhubTopics();
+      expect(topics).toHaveLength(1);
+      expect(topics[0].status).toBe("cerrado");
+    });
+
+    it("lista a lo sumo 20 clases y resume el resto con 'y N más'", async () => {
+      const { activityId } = await createWellhubSchedule({
+        startTime: "06:00",
+        name: "Masiva",
+      });
+      for (let i = 1; i < 22; i += 1) {
+        const hh = String(6 + Math.floor(i / 2)).padStart(2, "0");
+        const mm = i % 2 === 0 ? "00" : "30";
+        await createWellhubSchedule({
+          startTime: `${hh}:${mm}`,
+          activityId,
+        });
+      }
+
+      await run();
+
+      const [topic] = await wellhubTopics();
+      expect(topic.title).toBe(titleOf(22));
+      const lines = (topic.body ?? "").split("\n");
+      expect(lines).toHaveLength(21);
+      expect(lines[20]).toBe("y 2 más");
+    });
+
+    it("cada gimnasio recibe solo el tema de su propia sede", async () => {
+      const gym2 = await seedSecondTenant(app);
+      await setGymId(gymId + 1, DOS_CTX, gym2.branchId);
+      await app.db
+        .update(schema.activities)
+        .set({ wellhubEnabled: true })
+        .where(
+          and(
+            tenantWhere(schema.activities, DOS_CTX),
+            eq(schema.activities.id, gym2.activityId),
+          ),
+        );
+      const [sedeDos] = await app.db
+        .select({
+          name: schema.branches.name,
+          timezone: schema.branches.timezone,
+        })
+        .from(schema.branches)
+        .where(
+          and(
+            tenantWhere(schema.branches, DOS_CTX),
+            eq(schema.branches.id, gym2.branchId),
+          ),
+        );
+      // El horario base del fixture (lunes 10:00, creado "ahora") no debe sumar.
+      await app.db
+        .update(schema.schedules)
+        .set({ isActive: false })
+        .where(
+          and(
+            tenantWhere(schema.schedules, DOS_CTX),
+            eq(schema.schedules.id, gym2.scheduleId),
+          ),
+        );
+      const tomorrowDos = addDays(todayInTz(sedeDos.timezone, now), 1);
+      await createWellhubSchedule({
+        startTime: "08:00",
+        activityId: gym2.activityId,
+        date: tomorrowDos,
+        ctx: DOS_CTX,
+        onBranch: gym2.branchId,
+      });
+      await createWellhubSchedule({ startTime: "09:00" });
+
+      await run();
+
+      const templo = await wellhubTopics();
+      expect(templo).toHaveLength(1);
+      expect(templo[0].targetId).toBe(branchId);
+      const dos = await wellhubTopics(DOS_CTX);
+      expect(dos).toHaveLength(1);
+      expect(dos[0].targetId).toBe(gym2.branchId);
+      expect(dos[0].sourceKey).toBe(`${PREFIX}${gym2.branchId}:${tomorrowDos}`);
+      expect(dos[0].title).toBe(titleOf(1, sedeDos.name));
     });
   });
 });

@@ -2,11 +2,12 @@
  * Temas automáticos de Oficina (Fase 205, plan 03) — detectores del job
  * `office-auto-topics`.
  *
- * Cuatro señales que hoy se pierden se convierten en temas del sistema:
+ * Cinco señales que hoy se pierden se convierten en temas del sistema:
  *   1. Webhook de Wellhub con error  (`wellhub_event:<id>`)             — D-11
  *   2. Jornada de staff sin cerrar   (`staff_shift:<id>`)                — D-12
  *   3. Clase de mañana sin profe     (`clase_sin_profe:<schedule>:<día>`) — D-13
  *   4. Arqueo de caja con diferencia (`arqueo_dif:<caja>:<arqueo>`)      — D-23
+ *   5. Wellhub: clases sin publicar  (`wellhub_sin_publicar:<sede>:<día>`) — D-24
  *
  * Cada `syncX` hace lo mismo (ver `reconcile`): detecta lo que está mal ahora,
  * abre un tema por cada hallazgo y cierra los temas del sistema abiertos cuya
@@ -23,6 +24,7 @@ import {
   eq,
   gte,
   inArray,
+  isNotNull,
   isNull,
   lt,
   lte,
@@ -35,6 +37,7 @@ import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import {
   addDays,
+  buildClassDateTime,
   DEFAULT_TENANT_TIMEZONE,
   todayInTz,
 } from "../shared/date-utils";
@@ -45,6 +48,11 @@ import {
   RosterAttributionIndex,
   type RosterChangePoint,
 } from "../ratings/roster-attribution";
+import { getWellhubConfig } from "../wellhub/config";
+import {
+  loadPublishableSchedules,
+  loadSkippedDates,
+} from "../wellhub/eligibility";
 import type { OfficeService } from "./service";
 import type { CreateSystemTopicInput, OfficeSystemTopicRef } from "./types";
 
@@ -57,9 +65,13 @@ export const WELLHUB_PREFIX = "wellhub_event:";
 export const STAFF_SHIFT_PREFIX = "staff_shift:";
 export const CLASS_NO_COACH_PREFIX = "clase_sin_profe:";
 export const CASH_DIFF_PREFIX = "arqueo_dif:";
+export const WELLHUB_UNPUBLISHED_PREFIX = "wellhub_sin_publicar:";
 
 const CASH_COUNT_WINDOW_DAYS = 30;
 const CASH_NOTES_MAX = 500;
+/** Horarios más nuevos que esto no cuentan: el sync (cada 30 min) todavía no los vio. */
+const WELLHUB_GRACE_HOURS = 2;
+const WELLHUB_MAX_LINES = 20;
 
 /** Resultado de un `syncX`: cuántos temas abrió y cuántos cerró. */
 export interface SyncResult {
@@ -792,11 +804,204 @@ export async function syncCashCountDifferences(
   return result;
 }
 
+// ───────────────────────────── 5. Wellhub sin publicar ─────────────────────────────
+
+interface UnpublishedClass {
+  scheduleId: number;
+  activityName: string;
+  startTime: string;
+}
+
+/**
+ * Horarios de una sede que el sync de Wellhub DEBERÍA haber publicado para
+ * `date` y no tienen fila en `wellhub_slots`. El criterio de elegibilidad es el
+ * del sync (`wellhub/eligibility.ts`): actividad activa + `wellhub_enabled` +
+ * no especial, horario activo, sin excepción ni feriado. Se descartan los
+ * horarios creados hace menos de 2 h y, para hoy, los que ya empezaron (el sync
+ * no publica clases pasadas).
+ */
+async function findUnpublishedClasses(
+  db: Db,
+  ctx: TenantContext,
+  branch: { id: number; timezone: string; country: string },
+  date: string,
+  now: Date,
+): Promise<UnpublishedClass[]> {
+  const dayOfWeek = isoDayOfWeek(date);
+  const schedules = (await loadPublishableSchedules(db, ctx, branch.id)).filter(
+    (s) => s.dayOfWeek === dayOfWeek,
+  );
+  if (schedules.length === 0) return [];
+
+  const { exceptionKeys, holidayDates } = await loadSkippedDates(
+    db,
+    ctx,
+    schedules.map((s) => s.id),
+    branch.country,
+    date,
+    date,
+  );
+  if (holidayDates.has(date)) return [];
+
+  const graceEnd = now.getTime() - WELLHUB_GRACE_HOURS * 60 * 60 * 1000;
+  const wanted = schedules.filter(
+    (s) =>
+      !exceptionKeys.has(`${s.id}:${date}`) &&
+      s.createdAt.getTime() <= graceEnd &&
+      buildClassDateTime(date, s.startTime, branch.timezone).getTime() >
+        now.getTime(),
+  );
+  if (wanted.length === 0) return [];
+
+  const published = await db
+    .select({ scheduleId: schema.wellhubSlots.scheduleId })
+    .from(schema.wellhubSlots)
+    .where(
+      and(
+        tenantWhere(schema.wellhubSlots, ctx),
+        eq(schema.wellhubSlots.sessionDate, date),
+        inArray(
+          schema.wellhubSlots.scheduleId,
+          wanted.map((s) => s.id),
+        ),
+      ),
+    );
+  const publishedIds = new Set(published.map((p) => p.scheduleId));
+
+  return wanted
+    .filter((s) => !publishedIds.has(s.id))
+    .sort((a, b) =>
+      a.startTime === b.startTime
+        ? a.id - b.id
+        : a.startTime < b.startTime
+          ? -1
+          : 1,
+    )
+    .map((s) => ({
+      scheduleId: s.id,
+      activityName: s.activityName,
+      startTime: s.startTime,
+    }));
+}
+
+function unpublishedText(
+  list: UnpublishedClass[],
+  branchName: string,
+  when: "mañana" | "hoy",
+): { title: string; body: string } {
+  const n = list.length;
+  const lines = list
+    .slice(0, WELLHUB_MAX_LINES)
+    .map((c) => `${c.activityName} ${c.startTime}`);
+  if (n > WELLHUB_MAX_LINES) lines.push(`y ${n - WELLHUB_MAX_LINES} más`);
+  return {
+    title: `Wellhub: ${n} ${n === 1 ? "clase" : "clases"} de ${when} sin publicar en ${branchName}`,
+    body: lines.join("\n"),
+  };
+}
+
+/**
+ * D-24: por sede con `wellhub_gym_id` (y Wellhub configurado, igual que el cron
+ * de sync), las clases de MAÑANA que el sync debería haber publicado y no
+ * están en `wellhub_slots`. UN tema por sede y fecha; si la cantidad cambia se
+ * reescribe el título (no se abre otro). Se cierra cuando quedan todas
+ * publicadas o cuando la fecha pasó.
+ *
+ * Un tema abierto ayer para una clase de HOY sigue vigente mientras falten
+ * clases por empezar, aunque solo se abran temas nuevos para mañana.
+ */
+export async function syncWellhubUnpublished(
+  db: Db,
+  service: OfficeService,
+  ctx: TenantContext,
+  now: Date,
+): Promise<SyncResult> {
+  // Sin credenciales el cron de sync está apagado: "no publicado" no sería una falla.
+  if (getWellhubConfig() === null) return { ...EMPTY_SYNC };
+
+  const branches = await db
+    .select({
+      id: schema.branches.id,
+      name: schema.branches.name,
+      timezone: schema.branches.timezone,
+      country: schema.branches.country,
+    })
+    .from(schema.branches)
+    .where(
+      and(
+        tenantWhere(schema.branches, ctx),
+        isNotNull(schema.branches.wellhubGymId),
+        eq(schema.branches.isActive, true),
+      ),
+    )
+    .orderBy(asc(schema.branches.id));
+
+  const detected: CreateSystemTopicInput[] = [];
+  const stillValid = new Set<string>();
+  const texts = new Map<string, { title: string; body: string }>();
+  const todayByBranch = new Map<number, string>();
+
+  for (const branch of branches) {
+    const today = todayInTz(branch.timezone, now);
+    const tomorrow = addDays(today, 1);
+    todayByBranch.set(branch.id, today);
+
+    for (const [date, when] of [
+      [today, "hoy"],
+      [tomorrow, "mañana"],
+    ] as const) {
+      const missing = await findUnpublishedClasses(db, ctx, branch, date, now);
+      if (missing.length === 0) continue;
+      const sourceKey = `${WELLHUB_UNPUBLISHED_PREFIX}${branch.id}:${date}`;
+      const text = unpublishedText(missing, branch.name, when);
+      stillValid.add(sourceKey);
+      texts.set(sourceKey, text);
+      if (date !== tomorrow) continue;
+      detected.push({
+        sourceKey,
+        title: text.title,
+        body: text.body,
+        targetKind: "sede",
+        targetId: branch.id,
+        targetLabel: branch.name,
+        branchId: branch.id,
+      });
+    }
+  }
+
+  const result = await reconcile(
+    service,
+    ctx,
+    WELLHUB_UNPUBLISHED_PREFIX,
+    detected,
+    stillValid,
+    (ref) => {
+      const [branchPart, date] = ref.sourceKey
+        .slice(WELLHUB_UNPUBLISHED_PREFIX.length)
+        .split(":");
+      const today = todayByBranch.get(Number(branchPart));
+      if (today === undefined) {
+        return "La sede dejó de sincronizar con Wellhub";
+      }
+      return date < today
+        ? "Pasó la fecha"
+        : "Wellhub ya tiene todas las clases publicadas";
+    },
+  );
+
+  // La cantidad cambió entre corridas (o el tema de ayer pasó a ser "de hoy"):
+  // se actualiza el texto del tema abierto, sin abrir otro.
+  for (const [sourceKey, text] of texts) {
+    await service.updateSystemTopicText(ctx, sourceKey, text.title, text.body);
+  }
+  return result;
+}
+
 // ───────────────────────────── Runner ─────────────────────────────
 
 /**
  * Corrida completa para UN gimnasio: despierta los dormidos vencidos (D-09) y
- * sincroniza las cuatro señales. Cada paso está aislado: si uno falla se loguea
+ * sincroniza las cinco señales. Cada paso está aislado: si uno falla se loguea
  * (llega a Sentry) y los demás siguen.
  */
 export async function runOfficeAutoTopicsForTenant(
@@ -830,6 +1035,10 @@ export async function runOfficeAutoTopicsForTenant(
     {
       name: "arqueo_diferencia",
       run: () => syncCashCountDifferences(db, service, ctx, now),
+    },
+    {
+      name: "wellhub_sin_publicar",
+      run: () => syncWellhubUnpublished(db, service, ctx, now),
     },
   ];
   for (const step of steps) {

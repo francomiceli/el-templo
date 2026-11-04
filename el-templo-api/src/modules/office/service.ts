@@ -601,6 +601,49 @@ export class OfficeService {
     });
   }
 
+  /**
+   * Reescribe título y cuerpo de un tema del sistema que sigue abierto o
+   * dormido (p. ej. "N clases sin publicar" cuando N cambia entre corridas).
+   * No agrega evento ni toca `last_activity_at`: un número que se mueve no es
+   * actividad que haya que volver a mirar. Devuelve `true` si cambió algo.
+   */
+  async updateSystemTopicText(
+    ctx: TenantContext,
+    sourceKey: string,
+    title: string,
+    body: string | null,
+  ): Promise<boolean> {
+    const nextTitle = title.trim().slice(0, 160);
+    const nextBody = cleanText(body);
+    const [row] = await this.db
+      .select({
+        id: schema.officeTopics.id,
+        title: schema.officeTopics.title,
+        body: schema.officeTopics.body,
+      })
+      .from(schema.officeTopics)
+      .where(
+        and(
+          tenantWhere(schema.officeTopics, ctx),
+          eq(schema.officeTopics.sourceKey, sourceKey),
+          ne(schema.officeTopics.status, "cerrado"),
+        ),
+      )
+      .limit(1);
+    if (!row) return false;
+    if (row.title === nextTitle && row.body === nextBody) return false;
+    await this.db
+      .update(schema.officeTopics)
+      .set({ title: nextTitle, body: nextBody })
+      .where(
+        and(
+          tenantWhere(schema.officeTopics, ctx),
+          eq(schema.officeTopics.id, row.id),
+        ),
+      );
+    return true;
+  }
+
   async addComment(
     ctx: TenantContext,
     actorId: number,
@@ -1113,7 +1156,7 @@ export class OfficeService {
     }
     if (kind === null || id === null) return null;
     if (kind !== "socio") {
-      // Los demás vínculos (jornada, wellhub_evento, horario, caja) los crea solo el
+      // Los demás vínculos (jornada, wellhub_evento, horario, caja, sede) los crea solo el
       // job con ids ya verificados por tenant. Desde la API manual, solo socio.
       throw new BadRequestError("Desde acá solo se puede vincular un socio");
     }
