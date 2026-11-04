@@ -135,12 +135,26 @@ describe("job temas automáticos de Oficina", () => {
     return rows;
   }
 
-  async function allTopics(ctx: TenantContext = TEMPLO_CTX) {
+  /** Todos los temas del gimnasio, crudos (incluye los del Tablero). */
+  async function rawTopics(ctx: TenantContext = TEMPLO_CTX) {
     return app.db
       .select()
       .from(schema.officeTopics)
       .where(tenantWhere(schema.officeTopics, ctx))
       .orderBy(asc(schema.officeTopics.id));
+  }
+
+  /**
+   * Temas del gimnasio SIN los del detector de leads del Tablero. Ese detector
+   * corre con el reloj real (`now` = hoy) y abre un tema de martes a domingo si
+   * la base de test no tiene los leads de la semana anterior, así que ensuciaría
+   * los conteos de los demás detectores (y solo los lunes pasarían). Sus propios
+   * tests miran `tableroTopics()`, que parte de `rawTopics()`.
+   */
+  async function allTopics(ctx: TenantContext = TEMPLO_CTX) {
+    return (await rawTopics(ctx)).filter(
+      (t) => !t.sourceKey?.startsWith("tablero_leads:"),
+    );
   }
 
   async function eventsOf(topicId: number, ctx: TenantContext = TEMPLO_CTX) {
@@ -1562,7 +1576,7 @@ describe("job temas automáticos de Oficina", () => {
     }
 
     async function tableroTopics(ctx: TenantContext = TEMPLO_CTX) {
-      return (await allTopics(ctx)).filter((t) =>
+      return (await rawTopics(ctx)).filter((t) =>
         t.sourceKey?.startsWith(PREFIX),
       );
     }
