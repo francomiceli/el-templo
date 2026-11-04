@@ -41,6 +41,7 @@ export const TARGET_KIND_LABELS: Record<OfficeTargetKind, string> = {
   jornada: 'Jornada',
   wellhub_evento: 'Wellhub',
   horario: 'Horario',
+  caja: 'Caja',
 };
 
 export const TARGET_KIND_ICONS: Record<OfficeTargetKind, string> = {
@@ -48,6 +49,7 @@ export const TARGET_KIND_ICONS: Record<OfficeTargetKind, string> = {
   jornada: 'badge',
   wellhub_evento: 'cloud_sync',
   horario: 'schedule',
+  caja: 'point_of_sale',
 };
 
 /** Ruta del admin a la que lleva el vínculo de un tema; null si no hay pantalla. */
@@ -59,6 +61,9 @@ export function targetRoute(kind: OfficeTargetKind, id: number | null): string |
       return '/check-in';
     case 'horario':
       return '/horarios';
+    // Los arqueos se ven en Caja › Retiros (CAJA_TABS.retiros), que abre por ?tab=.
+    case 'caja':
+      return '/caja?tab=retiros';
     case 'wellhub_evento':
       return null;
     default:

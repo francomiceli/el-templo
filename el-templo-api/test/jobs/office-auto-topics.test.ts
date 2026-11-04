@@ -2,8 +2,8 @@
  * Job de temas automáticos de Oficina (src/jobs/office-auto-topics.ts, fase 205-03).
  *
  * Testea runOfficeAutoTopics contra MySQL real: abre temas del sistema para las
- * tres señales (Wellhub con error, jornada sin cerrar, clase de mañana sin
- * profe), no duplica, los cierra solos cuando la condición desaparece, respeta
+ * cuatro señales (Wellhub con error, jornada sin cerrar, clase de mañana sin
+ * profe, arqueo con diferencia), no duplica, los cierra solos cuando la condición desaparece, respeta
  * el cierre manual (D-04) y despierta los dormidos vencidos (D-09).
  *
  * Reloj: el job recibe `now` por parámetro, así que no hay fake timers. `NOW` es
@@ -13,10 +13,23 @@
  * `todayInTz`/`addDays`. El despertar de dormidos usa el reloj real (el
  * servicio no recibe `now`), por eso ese caso calcula "ayer" con la hora real.
  */
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+import {
+  describe,
+  it,
+  expect,
+  beforeAll,
+  afterAll,
+  beforeEach,
+  afterEach,
+} from "vitest";
 import type { FastifyInstance } from "fastify";
 import { and, asc, eq } from "drizzle-orm";
-import { createTestApp, cleanAllTestData, createStaffUser } from "../helpers";
+import {
+  createTestApp,
+  cleanAllTestData,
+  createStaffUser,
+  ensureEfectivoCaja,
+} from "../helpers";
 import * as schema from "../../src/db/schema";
 import {
   tenantValues,
@@ -617,5 +630,433 @@ describe("job temas automáticos de Oficina", () => {
     expect(
       await topicBySource(`wellhub_event:${evTemplo.id}`, DOS_CTX),
     ).toHaveLength(0);
+  });
+  // ─────────────────────────── 6. Arqueo con diferencia ───────────────────────────
+
+  describe("arqueo con diferencia", () => {
+    const EXPECTED = 10000;
+    const HOUR_MS = 60 * 60 * 1000;
+    let cajaIds: number[] = [];
+
+    async function makeCaja(
+      name: string,
+      ctx: TenantContext = TEMPLO_CTX,
+      cajaBranchId: number | null = branchId,
+    ): Promise<number> {
+      seq += 1;
+      const [row] = await app.db
+        .insert(schema.cashRegisters)
+        .values(
+          tenantValues(ctx, {
+            name: `${name} ${seq}`,
+            type: "efectivo" as const,
+            branchId: cajaBranchId,
+            currency: "ARS",
+            cutoffDate: "2020-01-01",
+          }),
+        )
+        .$returningId();
+      if (ctx.tenantId === TENANT_TEMPLO) cajaIds.push(row.id);
+      return row.id;
+    }
+
+    async function cajaName(id: number, ctx: TenantContext = TEMPLO_CTX) {
+      const [row] = await app.db
+        .select({ name: schema.cashRegisters.name })
+        .from(schema.cashRegisters)
+        .where(
+          and(
+            tenantWhere(schema.cashRegisters, ctx),
+            eq(schema.cashRegisters.id, id),
+          ),
+        );
+      return row.name;
+    }
+
+    /** Arqueo de `hoursAgo` horas antes de `now`: contado = esperado + diferencia. */
+    async function insertCount(opts: {
+      cajaId: number;
+      difference: number;
+      hoursAgo: number;
+      notes?: string | null;
+      ctx?: TenantContext;
+      countedBy?: number;
+    }): Promise<number> {
+      const [row] = await app.db
+        .insert(schema.cashCounts)
+        .values(
+          tenantValues(opts.ctx ?? TEMPLO_CTX, {
+            cashRegisterId: opts.cajaId,
+            countedBy: opts.countedBy ?? ownerId,
+            countedAt: new Date(now.getTime() - opts.hoursAgo * HOUR_MS),
+            changeFund: 0,
+            firmeAmount: EXPECTED,
+            pendienteAmount: 0,
+            expectedAmount: EXPECTED,
+            countedAmount: EXPECTED + opts.difference,
+            difference: opts.difference,
+            notes: opts.notes ?? null,
+          }),
+        )
+        .$returningId();
+      return row.id;
+    }
+
+    const cashKey = (cajaId: number, countId: number) =>
+      `arqueo_dif:${cajaId}:${countId}`;
+
+    afterEach(async () => {
+      await app.db
+        .delete(schema.cashCounts)
+        .where(tenantWhere(schema.cashCounts, TEMPLO_CTX));
+      for (const id of cajaIds) {
+        await app.db
+          .delete(schema.cashRegisters)
+          .where(
+            and(
+              tenantWhere(schema.cashRegisters, TEMPLO_CTX),
+              eq(schema.cashRegisters.id, id),
+            ),
+          );
+      }
+      cajaIds = [];
+    });
+
+    it("abre un tema con la caja, el monto, quién contó y la nota, y no lo duplica en otra corrida", async () => {
+      const cajaId = await makeCaja("Caja Arqueo");
+      const note = "x".repeat(600);
+      const countId = await insertCount({
+        cajaId,
+        difference: -2500,
+        hoursAgo: 3,
+        notes: note,
+      });
+      const [owner] = await app.db
+        .select({
+          firstName: schema.users.firstName,
+          lastName: schema.users.lastName,
+        })
+        .from(schema.users)
+        .where(
+          and(
+            tenantWhere(schema.users, TEMPLO_CTX),
+            eq(schema.users.id, ownerId),
+          ),
+        );
+      const ownerName = [owner.firstName, owner.lastName]
+        .filter((p) => p)
+        .join(" ");
+
+      await run();
+
+      const name = await cajaName(cajaId);
+      const [topic] = await topicBySource(cashKey(cajaId, countId));
+      expect(topic).toBeDefined();
+      expect(topic.origin).toBe("sistema");
+      expect(topic.status).toBe("abierto");
+      expect(topic.title).toBe(`Arqueo con diferencia: ${name} (-$ 2.500)`);
+      expect(topic.targetKind).toBe("caja");
+      expect(topic.targetId).toBe(cajaId);
+      expect(topic.targetLabel).toBe(name);
+      expect(topic.branchId).toBe(branchId);
+      expect(topic.body).toContain(`hecho por ${ownerName}`);
+      expect(topic.body).toContain("Esperado: $ 10.000");
+      expect(topic.body).toContain("Contado: $ 7.500");
+      expect(topic.body).toContain("Diferencia: -$ 2.500");
+      expect(topic.body).toContain(`Nota: ${"x".repeat(500)}`);
+      expect(topic.body).not.toContain("x".repeat(501));
+
+      await run();
+      expect(await allTopics()).toHaveLength(1);
+    });
+
+    it("una diferencia a favor también abre tema, con signo +", async () => {
+      const cajaId = await makeCaja("Caja Sobrante");
+      const countId = await insertCount({
+        cajaId,
+        difference: 800,
+        hoursAgo: 2,
+        notes: "Sobró",
+      });
+
+      await run();
+
+      const [topic] = await topicBySource(cashKey(cajaId, countId));
+      expect(topic.title).toContain("(+$ 800)");
+    });
+
+    it("no abre tema si el arqueo dio 0", async () => {
+      const cajaId = await makeCaja("Caja Justa");
+      await insertCount({ cajaId, difference: 0, hoursAgo: 2 });
+
+      await run();
+
+      expect(await allTopics()).toHaveLength(0);
+    });
+
+    it("un arqueo posterior con diferencia agrega UN evento al mismo tema y correr dos veces no lo duplica", async () => {
+      const cajaId = await makeCaja("Caja Repetida");
+      const first = await insertCount({
+        cajaId,
+        difference: -500,
+        hoursAgo: 6,
+        notes: "Faltó",
+      });
+      await run();
+      const [topic] = await topicBySource(cashKey(cajaId, first));
+      expect((await eventsOf(topic.id)).map((e) => e.type)).toEqual(["creado"]);
+
+      const second = await insertCount({
+        cajaId,
+        difference: -700,
+        hoursAgo: 3,
+        notes: "Sigue faltando",
+      });
+      await run();
+      await run();
+
+      // Sigue habiendo UN solo tema (la caja no abre otro dentro del episodio).
+      expect(await allTopics()).toHaveLength(1);
+      const events = await eventsOf(topic.id);
+      expect(events.map((e) => e.type)).toEqual(["creado", "sistema"]);
+      expect(events[1].actorId).toBeNull();
+      expect(events[1].body).toContain("Nuevo arqueo");
+      expect(events[1].body).toContain("diferencia -$ 700");
+      expect(events[1].payload).toMatchObject({ cashCountId: second });
+
+      // Un tercero suma su propio evento, uno solo.
+      const third = await insertCount({
+        cajaId,
+        difference: -900,
+        hoursAgo: 1,
+        notes: "Idem",
+      });
+      await run();
+      await run();
+      const after = (await eventsOf(topic.id)).filter(
+        (e) => e.type === "sistema",
+      );
+      expect(after).toHaveLength(2);
+      expect(after[1].payload).toMatchObject({ cashCountId: third });
+      const [refreshed] = await topicBySource(cashKey(cajaId, first));
+      expect(refreshed.lastActivityAt.getTime()).toBeGreaterThanOrEqual(
+        topic.lastActivityAt.getTime(),
+      );
+    });
+
+    it("se cierra solo cuando el último arqueo de la caja da 0", async () => {
+      const cajaId = await makeCaja("Caja Que Cierra");
+      const countId = await insertCount({
+        cajaId,
+        difference: -300,
+        hoursAgo: 6,
+        notes: "Faltó",
+      });
+      await run();
+      await insertCount({ cajaId, difference: 0, hoursAgo: 2 });
+      await run();
+
+      const [closed] = await topicBySource(cashKey(cajaId, countId));
+      expect(closed.status).toBe("cerrado");
+      expect(closed.closedBy).toBeNull();
+      const events = await eventsOf(closed.id);
+      expect(events.map((e) => e.type)).toEqual(["creado", "sistema"]);
+      expect(events[1].body).toBe("El último arqueo dio sin diferencia");
+    });
+
+    it("un tema cerrado a mano no se reabre ni recibe eventos mientras sigue el mismo episodio", async () => {
+      const cajaId = await makeCaja("Caja Cerrada A Mano");
+      const first = await insertCount({
+        cajaId,
+        difference: -400,
+        hoursAgo: 6,
+        notes: "Faltó",
+      });
+      await run();
+      const [topic] = await topicBySource(cashKey(cajaId, first));
+      const service = new OfficeService(app.db, app.log);
+      await service.patchTopic(TEMPLO_CTX, ownerId, topic.id, {
+        status: "cerrado",
+        note: "Ya lo hablé con la profe",
+      });
+
+      // La diferencia sigue en el arqueo siguiente (nadie ajustó el ledger).
+      await insertCount({
+        cajaId,
+        difference: -400,
+        hoursAgo: 2,
+        notes: "Sigue",
+      });
+      await run();
+
+      expect(await allTopics()).toHaveLength(1);
+      const [same] = await topicBySource(cashKey(cajaId, first));
+      expect(same.status).toBe("cerrado");
+      expect((await eventsOf(topic.id)).map((e) => e.type)).toEqual([
+        "creado",
+        "cerrado",
+      ]);
+    });
+
+    it("un arqueo en 0 seguido de otro con diferencia arranca un episodio nuevo con otro tema", async () => {
+      const cajaId = await makeCaja("Caja Dos Episodios");
+      const first = await insertCount({
+        cajaId,
+        difference: -100,
+        hoursAgo: 10,
+        notes: "Faltó",
+      });
+      await run();
+      const [topic1] = await topicBySource(cashKey(cajaId, first));
+      const service = new OfficeService(app.db, app.log);
+      await service.patchTopic(TEMPLO_CTX, ownerId, topic1.id, {
+        status: "cerrado",
+      });
+
+      await insertCount({ cajaId, difference: 0, hoursAgo: 6 });
+      await run();
+      expect(await allTopics()).toHaveLength(1);
+
+      const second = await insertCount({
+        cajaId,
+        difference: -200,
+        hoursAgo: 2,
+        notes: "Otra vez",
+      });
+      await run();
+
+      const topics = await allTopics();
+      expect(topics).toHaveLength(2);
+      const [topic2] = await topicBySource(cashKey(cajaId, second));
+      expect(topic2.status).toBe("abierto");
+      expect(topics.filter((t) => t.status !== "cerrado")).toHaveLength(1);
+    });
+
+    it("abre un tema por caja, no uno por arqueo", async () => {
+      const a = await makeCaja("Caja A");
+      const b = await makeCaja("Caja B");
+      await insertCount({
+        cajaId: a,
+        difference: -10,
+        hoursAgo: 5,
+        notes: "a",
+      });
+      await insertCount({
+        cajaId: b,
+        difference: -20,
+        hoursAgo: 4,
+        notes: "b",
+      });
+      await insertCount({
+        cajaId: a,
+        difference: -30,
+        hoursAgo: 3,
+        notes: "a",
+      });
+
+      await run();
+
+      const topics = await allTopics();
+      expect(topics).toHaveLength(2);
+      expect(topics.map((t) => t.targetId).sort()).toEqual([a, b].sort());
+    });
+
+    it("ignora los arqueos de más de 30 días y cierra el tema que quedó fuera de la ventana", async () => {
+      const vieja = await makeCaja("Caja Vieja");
+      await insertCount({
+        cajaId: vieja,
+        difference: -999,
+        hoursAgo: 40 * 24,
+        notes: "Muy viejo",
+      });
+      await run();
+      expect(await allTopics()).toHaveLength(0);
+
+      // Un arqueo reciente abre tema; 31 días después, sin arqueos nuevos, se cierra solo.
+      const cajaId = await makeCaja("Caja Que Envejece");
+      const countId = await insertCount({
+        cajaId,
+        difference: -50,
+        hoursAgo: 24,
+        notes: "Faltó",
+      });
+      await run();
+      expect((await topicBySource(cashKey(cajaId, countId)))[0].status).toBe(
+        "abierto",
+      );
+
+      await run(new Date(now.getTime() + 31 * DAY_MS));
+
+      const [closed] = await topicBySource(cashKey(cajaId, countId));
+      expect(closed.status).toBe("cerrado");
+      const events = await eventsOf(closed.id);
+      expect(events[events.length - 1].body).toContain("más de 30 días");
+    });
+
+    it("si la racha de diferencias empezó antes de la ventana, el episodio sigue identificado por el arqueo que la abrió", async () => {
+      const cajaId = await makeCaja("Caja Racha Larga");
+      const opener = await insertCount({
+        cajaId,
+        difference: -60,
+        hoursAgo: 40 * 24,
+        notes: "Desde hace rato",
+      });
+      await insertCount({
+        cajaId,
+        difference: -60,
+        hoursAgo: 2 * 24,
+        notes: "Sigue igual",
+      });
+
+      await run();
+
+      const topics = await allTopics();
+      expect(topics).toHaveLength(1);
+      expect(topics[0].sourceKey).toBe(cashKey(cajaId, opener));
+    });
+
+    it("cada gimnasio recibe solo los arqueos de sus propias cajas", async () => {
+      const gym2 = await seedSecondTenant(app);
+      await ensureEfectivoCaja(app, gym2.branchId, "ARS", TENANT_DOS);
+      const [cajaDos] = await app.db
+        .select({ id: schema.cashRegisters.id })
+        .from(schema.cashRegisters)
+        .where(
+          and(
+            tenantWhere(schema.cashRegisters, DOS_CTX),
+            eq(schema.cashRegisters.branchId, gym2.branchId),
+          ),
+        );
+      const cajaTemplo = await makeCaja("Caja Templo");
+      const countTemplo = await insertCount({
+        cajaId: cajaTemplo,
+        difference: -111,
+        hoursAgo: 3,
+        notes: "t",
+      });
+      const countDos = await insertCount({
+        cajaId: cajaDos.id,
+        difference: -222,
+        hoursAgo: 3,
+        notes: "d",
+        ctx: DOS_CTX,
+        countedBy: gym2.adminId,
+      });
+
+      await run();
+
+      expect(
+        await topicBySource(cashKey(cajaTemplo, countTemplo)),
+      ).toHaveLength(1);
+      expect(await topicBySource(cashKey(cajaDos.id, countDos))).toHaveLength(
+        0,
+      );
+      expect(
+        await topicBySource(cashKey(cajaDos.id, countDos), DOS_CTX),
+      ).toHaveLength(1);
+      expect(
+        await topicBySource(cashKey(cajaTemplo, countTemplo), DOS_CTX),
+      ).toHaveLength(0);
+    });
   });
 });

@@ -2,10 +2,11 @@
  * Temas automáticos de Oficina (Fase 205, plan 03) — detectores del job
  * `office-auto-topics`.
  *
- * Tres señales que hoy se pierden se convierten en temas del sistema:
+ * Cuatro señales que hoy se pierden se convierten en temas del sistema:
  *   1. Webhook de Wellhub con error  (`wellhub_event:<id>`)             — D-11
  *   2. Jornada de staff sin cerrar   (`staff_shift:<id>`)                — D-12
  *   3. Clase de mañana sin profe     (`clase_sin_profe:<schedule>:<día>`) — D-13
+ *   4. Arqueo de caja con diferencia (`arqueo_dif:<caja>:<arqueo>`)      — D-23
  *
  * Cada `syncX` hace lo mismo (ver `reconcile`): detecta lo que está mal ahora,
  * abre un tema por cada hallazgo y cierra los temas del sistema abiertos cuya
@@ -18,10 +19,12 @@
 import {
   and,
   asc,
+  desc,
   eq,
   gte,
   inArray,
   isNull,
+  lt,
   lte,
   or,
   gt,
@@ -53,6 +56,10 @@ const WELLHUB_ERROR_MAX = 500;
 export const WELLHUB_PREFIX = "wellhub_event:";
 export const STAFF_SHIFT_PREFIX = "staff_shift:";
 export const CLASS_NO_COACH_PREFIX = "clase_sin_profe:";
+export const CASH_DIFF_PREFIX = "arqueo_dif:";
+
+const CASH_COUNT_WINDOW_DAYS = 30;
+const CASH_NOTES_MAX = 500;
 
 /** Resultado de un `syncX`: cuántos temas abrió y cuántos cerró. */
 export interface SyncResult {
@@ -503,11 +510,293 @@ export async function syncClassesWithoutCoach(
   );
 }
 
+// ───────────────────────────── 4. Arqueo con diferencia ─────────────────────────────
+
+/** "+$ 2.000" / "-$ 2.000" (con signo) o "$ 10.000" en la moneda de la caja, sin decimales. */
+function formatMoney(
+  amount: number,
+  currency: string,
+  signed: boolean,
+): string {
+  try {
+    return new Intl.NumberFormat("es-AR", {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 0,
+      signDisplay: signed ? "always" : "auto",
+    })
+      .format(amount)
+      .replace(/ /g, " ");
+  } catch {
+    // Código de moneda que Intl no conoce: mejor un texto simple que romper el detector.
+    return `${signed && amount > 0 ? "+" : ""}${amount} ${currency}`;
+  }
+}
+
+/** "03/11 18:40" de un instante en la zona horaria dada. */
+function dateTimeInTz(instant: Date, tz: string): string {
+  return `${shortDate(todayInTz(tz, instant))} ${timeInTz(instant, tz)}`;
+}
+
+interface CashCountRow {
+  id: number;
+  cashRegisterId: number;
+  countedAt: Date;
+  difference: number;
+  expectedAmount: number;
+  countedAmount: number;
+  notes: string | null;
+  cajaName: string;
+  currency: string;
+  branchId: number | null;
+  timezone: string;
+  counterName: string | null;
+}
+
+/**
+ * Id del arqueo que abrió el episodio cuando la racha de diferencias empezó
+ * ANTES de la ventana de 30 días: el primer arqueo posterior al último arqueo
+ * en 0 anterior a la ventana (o el primero de la caja si nunca hubo uno en 0).
+ * Sin esto, una diferencia que nadie ajusta (se repite arqueo tras arqueo)
+ * cambiaría de `source_key` cuando el arqueo que la abrió sale de la ventana y
+ * un tema cerrado a mano se reabriría.
+ */
+async function findEpisodeOpenerBefore(
+  db: Db,
+  ctx: TenantContext,
+  cashRegisterId: number,
+  since: Date,
+): Promise<number | null> {
+  const [lastZero] = await db
+    .select({
+      id: schema.cashCounts.id,
+      countedAt: schema.cashCounts.countedAt,
+    })
+    .from(schema.cashCounts)
+    .where(
+      and(
+        tenantWhere(schema.cashCounts, ctx),
+        eq(schema.cashCounts.cashRegisterId, cashRegisterId),
+        eq(schema.cashCounts.difference, 0),
+        lt(schema.cashCounts.countedAt, since),
+      ),
+    )
+    .orderBy(desc(schema.cashCounts.countedAt), desc(schema.cashCounts.id))
+    .limit(1);
+
+  // Posteriores al último arqueo en 0 (si no hubo ninguno, desde el principio).
+  const afterLastZero: SQL | undefined = lastZero
+    ? or(
+        gt(schema.cashCounts.countedAt, lastZero.countedAt),
+        and(
+          eq(schema.cashCounts.countedAt, lastZero.countedAt),
+          gt(schema.cashCounts.id, lastZero.id),
+        ),
+      )
+    : undefined;
+  const [opener] = await db
+    .select({ id: schema.cashCounts.id })
+    .from(schema.cashCounts)
+    .where(
+      and(
+        tenantWhere(schema.cashCounts, ctx),
+        eq(schema.cashCounts.cashRegisterId, cashRegisterId),
+        lt(schema.cashCounts.countedAt, since),
+        afterLastZero,
+      ),
+    )
+    .orderBy(asc(schema.cashCounts.countedAt), asc(schema.cashCounts.id))
+    .limit(1);
+  return opener?.id ?? null;
+}
+
+function cashCountBody(row: CashCountRow): string {
+  const who = row.counterName ?? "alguien del equipo";
+  const lines = [
+    `Arqueo del ${dateTimeInTz(row.countedAt, row.timezone)} hecho por ${who}.`,
+    `Esperado: ${formatMoney(row.expectedAmount, row.currency, false)} · Contado: ${formatMoney(row.countedAmount, row.currency, false)} · Diferencia: ${formatMoney(row.difference, row.currency, true)}.`,
+  ];
+  const note = row.notes?.trim();
+  if (note) lines.push(`Nota: ${note.slice(0, CASH_NOTES_MAX)}`);
+  return lines.join("\n");
+}
+
+/**
+ * D-23: arqueos de caja (últimos 30 días) con `difference != 0`. A lo sumo UN
+ * tema abierto por caja: el episodio arranca en el primer arqueo con diferencia
+ * después de un arqueo en 0 (o del primero que vemos) y su id va en el
+ * `source_key`. Los arqueos siguientes con diferencia dentro del episodio
+ * agregan un evento `sistema` (una vez por arqueo) al tema abierto. Se cierra
+ * solo cuando el último arqueo de la caja da 0. Un tema cerrado a mano no se
+ * reabre mientras dure el episodio (D-04).
+ *
+ * `difference` = contado − esperado, y el esperado sale del saldo del ledger
+ * (cash-count-service.ts), que un arqueo NO modifica: si la diferencia no se
+ * ajusta con un movimiento manual, el arqueo siguiente vuelve a dar la misma
+ * diferencia. Por eso un episodio puede durar muchos arqueos.
+ */
+export async function syncCashCountDifferences(
+  db: Db,
+  service: OfficeService,
+  ctx: TenantContext,
+  now: Date,
+): Promise<SyncResult> {
+  const since = new Date(
+    now.getTime() - CASH_COUNT_WINDOW_DAYS * 24 * 60 * 60 * 1000,
+  );
+  const raw = await db
+    .select({
+      id: schema.cashCounts.id,
+      cashRegisterId: schema.cashCounts.cashRegisterId,
+      countedAt: schema.cashCounts.countedAt,
+      difference: schema.cashCounts.difference,
+      expectedAmount: schema.cashCounts.expectedAmount,
+      countedAmount: schema.cashCounts.countedAmount,
+      notes: schema.cashCounts.notes,
+      cajaName: schema.cashRegisters.name,
+      currency: schema.cashRegisters.currency,
+      branchId: schema.cashRegisters.branchId,
+      timezone: schema.branches.timezone,
+      firstName: schema.users.firstName,
+      lastName: schema.users.lastName,
+    })
+    .from(schema.cashCounts)
+    .innerJoin(
+      schema.cashRegisters,
+      and(
+        tenantWhere(schema.cashRegisters, ctx),
+        eq(schema.cashRegisters.id, schema.cashCounts.cashRegisterId),
+        eq(schema.cashRegisters.isActive, true),
+      ),
+    )
+    .leftJoin(
+      schema.branches,
+      and(
+        tenantWhere(schema.branches, ctx),
+        eq(schema.branches.id, schema.cashRegisters.branchId),
+      ),
+    )
+    .leftJoin(
+      schema.users,
+      and(
+        tenantWhere(schema.users, ctx),
+        eq(schema.users.id, schema.cashCounts.countedBy),
+      ),
+    )
+    .where(
+      and(
+        tenantWhere(schema.cashCounts, ctx),
+        gte(schema.cashCounts.countedAt, since),
+      ),
+    )
+    .orderBy(
+      asc(schema.cashCounts.cashRegisterId),
+      asc(schema.cashCounts.countedAt),
+      asc(schema.cashCounts.id),
+    );
+
+  const byCaja = new Map<number, CashCountRow[]>();
+  for (const r of raw) {
+    const row: CashCountRow = {
+      id: r.id,
+      cashRegisterId: r.cashRegisterId,
+      countedAt: r.countedAt,
+      difference: r.difference,
+      expectedAmount: r.expectedAmount,
+      countedAmount: r.countedAmount,
+      notes: r.notes,
+      cajaName: r.cajaName,
+      currency: r.currency,
+      branchId: r.branchId,
+      timezone: r.timezone ?? DEFAULT_TENANT_TIMEZONE,
+      counterName: personName(r.firstName, r.lastName),
+    };
+    const list = byCaja.get(row.cashRegisterId);
+    if (list) list.push(row);
+    else byCaja.set(row.cashRegisterId, [row]);
+  }
+
+  interface Episode {
+    sourceKey: string;
+    /** Arqueos de la racha dentro de la ventana, del más viejo al más nuevo. */
+    run: CashCountRow[];
+    /** Arqueo con el que se abre el tema (el que arranca la racha en la ventana). */
+    first: CashCountRow;
+  }
+  const episodes: Episode[] = [];
+  const lastDiffByCaja = new Map<number, number>();
+
+  for (const [cajaId, rows] of byCaja) {
+    const last = rows[rows.length - 1];
+    lastDiffByCaja.set(cajaId, last.difference);
+    if (last.difference === 0) continue;
+
+    let start = rows.length - 1;
+    while (start > 0 && rows[start - 1].difference !== 0) start -= 1;
+    const run = rows.slice(start);
+
+    let openerId = run[0].id;
+    if (start === 0) {
+      openerId =
+        (await findEpisodeOpenerBefore(db, ctx, cajaId, since)) ?? openerId;
+    }
+    episodes.push({
+      sourceKey: `${CASH_DIFF_PREFIX}${cajaId}:${openerId}`,
+      run,
+      first: run[0],
+    });
+  }
+
+  const detected: CreateSystemTopicInput[] = episodes.map((e) => ({
+    sourceKey: e.sourceKey,
+    title: `Arqueo con diferencia: ${e.first.cajaName} (${formatMoney(e.first.difference, e.first.currency, true)})`,
+    body: cashCountBody(e.first),
+    targetKind: "caja",
+    targetId: e.first.cashRegisterId,
+    targetLabel: e.first.cajaName,
+    branchId: e.first.branchId,
+  }));
+
+  const result = await reconcile(
+    service,
+    ctx,
+    CASH_DIFF_PREFIX,
+    detected,
+    new Set(detected.map((d) => d.sourceKey)),
+    (ref) => {
+      const cajaId = Number(ref.sourceKey.split(":")[1]);
+      const lastDiff = lastDiffByCaja.get(cajaId);
+      if (lastDiff === undefined) {
+        return `El último arqueo tiene más de ${CASH_COUNT_WINDOW_DAYS} días: se cierra solo`;
+      }
+      return lastDiff === 0
+        ? "El último arqueo dio sin diferencia"
+        : "Hubo un arqueo sin diferencia después de este tema: lo reemplaza uno nuevo";
+    },
+  );
+
+  // Arqueos posteriores del mismo episodio: un evento por arqueo (idempotente
+  // por `cashCountId`; si el tema está cerrado no inserta nada).
+  for (const e of episodes) {
+    for (const row of e.run) {
+      if (row.id === e.first.id) continue; // ese ya es el cuerpo del tema
+      await service.addSystemEventOnce(
+        ctx,
+        e.sourceKey,
+        `Nuevo arqueo (${dateTimeInTz(row.countedAt, row.timezone)}): diferencia ${formatMoney(row.difference, row.currency, true)}`,
+        { cashCountId: row.id, difference: row.difference },
+        "cashCountId",
+      );
+    }
+  }
+  return result;
+}
+
 // ───────────────────────────── Runner ─────────────────────────────
 
 /**
  * Corrida completa para UN gimnasio: despierta los dormidos vencidos (D-09) y
- * sincroniza las tres señales. Cada paso está aislado: si uno falla se loguea
+ * sincroniza las cuatro señales. Cada paso está aislado: si uno falla se loguea
  * (llega a Sentry) y los demás siguen.
  */
 export async function runOfficeAutoTopicsForTenant(
@@ -537,6 +826,10 @@ export async function runOfficeAutoTopicsForTenant(
     {
       name: "clase_sin_profe",
       run: () => syncClassesWithoutCoach(db, service, ctx, now),
+    },
+    {
+      name: "arqueo_diferencia",
+      run: () => syncCashCountDifferences(db, service, ctx, now),
     },
   ];
   for (const step of steps) {

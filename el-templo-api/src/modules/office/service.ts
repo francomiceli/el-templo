@@ -542,6 +542,65 @@ export class OfficeService {
     return refs;
   }
 
+  /**
+   * Agrega un evento `sistema` (firmado por el sistema, actor NULL) a un tema
+   * del sistema que sigue abierto o dormido y deja `last_activity_at = ahora`.
+   * Idempotente por `payload[onceKey]`: si ya hay un evento `sistema` del tema
+   * con el mismo valor en esa clave no inserta nada (el job corre cada 30 min
+   * y mira los mismos hechos varias veces). Devuelve `true` si insertó.
+   */
+  async addSystemEventOnce(
+    ctx: TenantContext,
+    sourceKey: string,
+    body: string,
+    payload: Record<string, unknown>,
+    onceKey: string,
+  ): Promise<boolean> {
+    return this.db.transaction(async (tx: TxHandle) => {
+      const [row] = await tx
+        .select({ id: schema.officeTopics.id })
+        .from(schema.officeTopics)
+        .where(
+          and(
+            tenantWhere(schema.officeTopics, ctx),
+            eq(schema.officeTopics.sourceKey, sourceKey),
+            ne(schema.officeTopics.status, "cerrado"),
+          ),
+        )
+        .limit(1)
+        .for("update");
+      if (!row) return false;
+
+      const previous = await tx
+        .select({ payload: schema.officeTopicEvents.payload })
+        .from(schema.officeTopicEvents)
+        .where(
+          and(
+            tenantWhere(schema.officeTopicEvents, ctx),
+            eq(schema.officeTopicEvents.topicId, row.id),
+            eq(schema.officeTopicEvents.type, "sistema"),
+          ),
+        );
+      if (previous.some((e) => e.payload?.[onceKey] === payload[onceKey])) {
+        return false;
+      }
+
+      const at = nowSeconds();
+      await this.insertEvent(
+        tx,
+        ctx,
+        row.id,
+        null,
+        "sistema",
+        body,
+        payload,
+        at,
+      );
+      await this.bumpActivity(tx, ctx, row.id, at, {});
+      return true;
+    });
+  }
+
   async addComment(
     ctx: TenantContext,
     actorId: number,
@@ -1054,7 +1113,7 @@ export class OfficeService {
     }
     if (kind === null || id === null) return null;
     if (kind !== "socio") {
-      // Los demás vínculos (jornada, wellhub_evento, horario) los crea solo el
+      // Los demás vínculos (jornada, wellhub_evento, horario, caja) los crea solo el
       // job con ids ya verificados por tenant. Desde la API manual, solo socio.
       throw new BadRequestError("Desde acá solo se puede vincular un socio");
     }
