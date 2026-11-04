@@ -1300,7 +1300,7 @@ describe("Oficina API (central de temas de gestión)", () => {
       TEMPLO_CTX,
       "staff_shift:",
     );
-    expect(abiertos).toEqual([{ id, sourceKey: "staff_shift:4242" }]);
+    expect(abiertos).toEqual([{ id, sourceKey: "staff_shift:4242", branchId }]);
     expect(
       await service.listOpenSystemTopics(TEMPLO_CTX, "wellhub_event:"),
     ).toEqual([]);

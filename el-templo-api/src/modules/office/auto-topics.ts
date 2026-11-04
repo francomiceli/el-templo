@@ -15,6 +15,13 @@
  * condición ya no se cumple. La unique (tenant, source_key) del servicio hace
  * que un tema cerrado a mano NO se reabra mientras la condición persista (D-04).
  *
+ * Avisos automáticos (mig 0321): la gerencia puede apagar cada detector para
+ * todo el gimnasio o por sede (`office_auto_topic_mutes`). La detección corre
+ * igual (es barata) para que los temas abiertos de lo silenciado se cierren
+ * con el motivo "Aviso desactivado…" y no con el de "se resolvió". Al volver a
+ * activar un aviso, un tema ya cerrado NO se reabre (misma unique de
+ * `source_key`, D-04): solo abren los episodios nuevos.
+ *
  * "Hoy" y "mañana" se calculan SIEMPRE en la zona horaria de cada sede
  * (`todayInTz`), nunca con la del servidor. Toda lectura lleva `tenantWhere`.
  */
@@ -61,6 +68,23 @@ import {
   loadSkippedDates,
 } from "../wellhub/eligibility";
 import type { OfficeService } from "./service";
+import {
+  AUTO_TOPIC_MUTED_REASON,
+  CASH_DIFF_PREFIX,
+  CLASS_NO_COACH_PREFIX,
+  OFFICE_AUTO_DETECTOR_KEYS,
+  STAFF_SHIFT_PREFIX,
+  TABLERO_LEADS_PREFIX,
+  TABLERO_MUTED_BRANCHES_REASON,
+  WELLHUB_PREFIX,
+  WELLHUB_UNPUBLISHED_PREFIX,
+  type OfficeAutoDetectorKey,
+} from "./auto-topics-catalog";
+import {
+  loadAutoTopicMutes,
+  NO_AUTO_TOPIC_MUTES,
+  type AutoTopicMutes,
+} from "./auto-topics-mutes";
 import type { CreateSystemTopicInput, OfficeSystemTopicRef } from "./types";
 
 type Db = MySql2Database<typeof schema>;
@@ -68,12 +92,14 @@ type Db = MySql2Database<typeof schema>;
 const WELLHUB_WINDOW_DAYS = 7;
 const WELLHUB_ERROR_MAX = 500;
 
-export const WELLHUB_PREFIX = "wellhub_event:";
-export const STAFF_SHIFT_PREFIX = "staff_shift:";
-export const CLASS_NO_COACH_PREFIX = "clase_sin_profe:";
-export const CASH_DIFF_PREFIX = "arqueo_dif:";
-export const WELLHUB_UNPUBLISHED_PREFIX = "wellhub_sin_publicar:";
-export const TABLERO_LEADS_PREFIX = "tablero_leads:";
+export {
+  WELLHUB_PREFIX,
+  STAFF_SHIFT_PREFIX,
+  CLASS_NO_COACH_PREFIX,
+  CASH_DIFF_PREFIX,
+  WELLHUB_UNPUBLISHED_PREFIX,
+  TABLERO_LEADS_PREFIX,
+};
 
 const CASH_COUNT_WINDOW_DAYS = 30;
 const CASH_NOTES_MAX = 500;
@@ -122,8 +148,8 @@ function timeInTz(instant: Date, tz: string): string {
   }).format(instant);
 }
 
-/** Sedes activas del gimnasio con su zona horaria. */
-async function loadActiveBranches(
+/** Sedes activas y físicas del gimnasio con su zona horaria. */
+export async function loadActiveBranches(
   db: Db,
   ctx: TenantContext,
 ): Promise<Array<{ id: number; name: string; timezone: string }>> {
@@ -146,9 +172,15 @@ async function loadActiveBranches(
 }
 
 /**
- * Corazón común de los tres sync: abre un tema por hallazgo (ignora los que ya
+ * Corazón común de los sync: abre un tema por hallazgo (ignora los que ya
  * existían, en cualquier estado) y cierra los temas del sistema abiertos con
  * ese prefijo cuyo `source_key` ya no está en `stillValid`.
+ *
+ * `isBranchMuted` (avisos automáticos, mig 0321) recibe la sede de un tema
+ * (null = sin sede) y dice si ese aviso está apagado ahí: los hallazgos
+ * silenciados no abren tema, y un tema abierto que SIGUE vigente pero quedó
+ * silenciado se cierra con el motivo de "Aviso desactivado". Si la condición
+ * ya se había resuelto, gana el motivo normal.
  */
 async function reconcile(
   service: OfficeService,
@@ -157,9 +189,11 @@ async function reconcile(
   detected: CreateSystemTopicInput[],
   stillValid: Set<string>,
   closeReason: (ref: OfficeSystemTopicRef) => Promise<string> | string,
+  isBranchMuted: (branchId: number | null) => boolean = () => false,
 ): Promise<SyncResult> {
   let opened = 0;
   for (const input of detected) {
+    if (isBranchMuted(input.branchId)) continue;
     const id = await service.createSystemTopic(ctx, input);
     if (id !== null) opened += 1;
   }
@@ -167,8 +201,9 @@ async function reconcile(
   let closed = 0;
   const open = await service.listOpenSystemTopics(ctx, prefix);
   for (const ref of open) {
-    if (stillValid.has(ref.sourceKey)) continue;
-    const reason = await closeReason(ref);
+    const valid = stillValid.has(ref.sourceKey);
+    if (valid && !isBranchMuted(ref.branchId)) continue;
+    const reason = valid ? AUTO_TOPIC_MUTED_REASON : await closeReason(ref);
     if (await service.closeSystemTopic(ctx, ref.sourceKey, reason)) closed += 1;
   }
   return { opened, closed };
@@ -192,6 +227,7 @@ export async function syncWellhubErrors(
   service: OfficeService,
   ctx: TenantContext,
   now: Date,
+  mutes: AutoTopicMutes = NO_AUTO_TOPIC_MUTES,
 ): Promise<SyncResult> {
   const since = new Date(
     now.getTime() - WELLHUB_WINDOW_DAYS * 24 * 60 * 60 * 1000,
@@ -252,6 +288,7 @@ export async function syncWellhubErrors(
       }
       return "Wellhub lo reprocesó bien";
     },
+    (branchId) => mutes.isMuted("wellhub_error", branchId),
   );
 }
 
@@ -267,6 +304,7 @@ export async function syncStaleShifts(
   service: OfficeService,
   ctx: TenantContext,
   now: Date,
+  mutes: AutoTopicMutes = NO_AUTO_TOPIC_MUTES,
 ): Promise<SyncResult> {
   const rows = await db
     .select({
@@ -334,6 +372,7 @@ export async function syncStaleShifts(
     detected,
     new Set(detected.map((d) => d.sourceKey)),
     () => "Se cerró la jornada",
+    (branchId) => mutes.isMuted("jornada_abierta", branchId),
   );
 }
 
@@ -474,6 +513,7 @@ export async function syncClassesWithoutCoach(
   service: OfficeService,
   ctx: TenantContext,
   now: Date,
+  mutes: AutoTopicMutes = NO_AUTO_TOPIC_MUTES,
 ): Promise<SyncResult> {
   const branches = await loadActiveBranches(db, ctx);
 
@@ -528,6 +568,7 @@ export async function syncClassesWithoutCoach(
         ? "Pasó la fecha"
         : "Ya tiene profe o la clase dejó de estar programada";
     },
+    (branchId) => mutes.isMuted("clase_sin_profe", branchId),
   );
 }
 
@@ -661,6 +702,7 @@ export async function syncCashCountDifferences(
   service: OfficeService,
   ctx: TenantContext,
   now: Date,
+  mutes: AutoTopicMutes = NO_AUTO_TOPIC_MUTES,
 ): Promise<SyncResult> {
   const since = new Date(
     now.getTime() - CASH_COUNT_WINDOW_DAYS * 24 * 60 * 60 * 1000,
@@ -794,11 +836,13 @@ export async function syncCashCountDifferences(
         ? "El último arqueo dio sin diferencia"
         : "Hubo un arqueo sin diferencia después de este tema: lo reemplaza uno nuevo";
     },
+    (branchId) => mutes.isMuted("arqueo_diferencia", branchId),
   );
 
   // Arqueos posteriores del mismo episodio: un evento por arqueo (idempotente
   // por `cashCountId`; si el tema está cerrado no inserta nada).
   for (const e of episodes) {
+    if (mutes.isMuted("arqueo_diferencia", e.first.branchId)) continue;
     for (const row of e.run) {
       if (row.id === e.first.id) continue; // ese ya es el cuerpo del tema
       await service.addSystemEventOnce(
@@ -910,25 +954,17 @@ function unpublishedText(
 }
 
 /**
- * D-24: por sede con `wellhub_gym_id` (y Wellhub configurado, igual que el cron
- * de sync), las clases de MAÑANA que el sync debería haber publicado y no
- * están en `wellhub_slots`. UN tema por sede y fecha; si la cantidad cambia se
- * reescribe el título (no se abre otro). Se cierra cuando quedan todas
- * publicadas o cuando la fecha pasó.
- *
- * Un tema abierto ayer para una clase de HOY sigue vigente mientras falten
- * clases por empezar, aunque solo se abran temas nuevos para mañana.
+ * Sedes que sincronizan con Wellhub (`wellhub_gym_id` cargado y activas): las
+ * que mira el detector de clases sin publicar y las que el panel de Avisos
+ * automáticos ofrece para ese aviso.
  */
-export async function syncWellhubUnpublished(
+export async function loadWellhubBranches(
   db: Db,
-  service: OfficeService,
   ctx: TenantContext,
-  now: Date,
-): Promise<SyncResult> {
-  // Sin credenciales el cron de sync está apagado: "no publicado" no sería una falla.
-  if (getWellhubConfig() === null) return { ...EMPTY_SYNC };
-
-  const branches = await db
+): Promise<
+  Array<{ id: number; name: string; timezone: string; country: string }>
+> {
+  return db
     .select({
       id: schema.branches.id,
       name: schema.branches.name,
@@ -944,6 +980,29 @@ export async function syncWellhubUnpublished(
       ),
     )
     .orderBy(asc(schema.branches.id));
+}
+
+/**
+ * D-24: por sede con `wellhub_gym_id` (y Wellhub configurado, igual que el cron
+ * de sync), las clases de MAÑANA que el sync debería haber publicado y no
+ * están en `wellhub_slots`. UN tema por sede y fecha; si la cantidad cambia se
+ * reescribe el título (no se abre otro). Se cierra cuando quedan todas
+ * publicadas o cuando la fecha pasó.
+ *
+ * Un tema abierto ayer para una clase de HOY sigue vigente mientras falten
+ * clases por empezar, aunque solo se abran temas nuevos para mañana.
+ */
+export async function syncWellhubUnpublished(
+  db: Db,
+  service: OfficeService,
+  ctx: TenantContext,
+  now: Date,
+  mutes: AutoTopicMutes = NO_AUTO_TOPIC_MUTES,
+): Promise<SyncResult> {
+  // Sin credenciales el cron de sync está apagado: "no publicado" no sería una falla.
+  if (getWellhubConfig() === null) return { ...EMPTY_SYNC };
+
+  const branches = await loadWellhubBranches(db, ctx);
 
   const detected: CreateSystemTopicInput[] = [];
   const stillValid = new Set<string>();
@@ -996,11 +1055,17 @@ export async function syncWellhubUnpublished(
         ? "Pasó la fecha"
         : "Wellhub ya tiene todas las clases publicadas";
     },
+    (branchId) => mutes.isMuted("wellhub_sin_publicar", branchId),
   );
 
   // La cantidad cambió entre corridas (o el tema de ayer pasó a ser "de hoy"):
   // se actualiza el texto del tema abierto, sin abrir otro.
   for (const [sourceKey, text] of texts) {
+    // Sede silenciada: el tema ya se cerró arriba, no hay texto que reescribir.
+    const branchPart = Number(
+      sourceKey.slice(WELLHUB_UNPUBLISHED_PREFIX.length).split(":")[0],
+    );
+    if (mutes.isMuted("wellhub_sin_publicar", branchPart)) continue;
     await service.updateSystemTopicText(ctx, sourceKey, text.title, text.body);
   }
   return result;
@@ -1046,13 +1111,17 @@ export async function syncTableroLeads(
   service: OfficeService,
   ctx: TenantContext,
   now: Date,
+  mutes: AutoTopicMutes = NO_AUTO_TOPIC_MUTES,
 ): Promise<SyncResult> {
   const today = todayInTz(BOARD_TZ, now);
   const current = currentWeekStart(now);
   const week = addDays(current, -7);
 
   const branches = await loadLeadsBranches(db, ctx);
-  let missing: Array<{ id: number; name: string }> = [];
+  // Faltantes sin mirar los avisos silenciados, y los que SÍ se avisan: una
+  // sede silenciada sale de la lista, y si solo faltan sedes silenciadas el
+  // tema no se abre (o se cierra con su propio motivo).
+  let missingAll: Array<{ id: number; name: string }> = [];
   if (branches.length > 0 && isLeadsEditableWeek(week, current)) {
     const loaded = await db
       .select({ branchId: schema.weeklyBoardLeads.branchId })
@@ -1064,8 +1133,11 @@ export async function syncTableroLeads(
         ),
       );
     const loadedIds = new Set(loaded.map((l) => l.branchId));
-    missing = branches.filter((b) => !loadedIds.has(b.id));
+    missingAll = branches.filter((b) => !loadedIds.has(b.id));
   }
+  const missing = missingAll.filter(
+    (b) => !mutes.isMuted("tablero_leads", b.id),
+  );
 
   const sourceKey = `${TABLERO_LEADS_PREFIX}${week}`;
   const stillValid = new Set<string>();
@@ -1098,6 +1170,12 @@ export async function syncTableroLeads(
       if (!isLeadsEditableWeek(topicWeek, current)) {
         return "Se cerró la ventana de carga de esa semana";
       }
+      if (missingAll.length > 0) {
+        // Faltan sedes pero todas tienen el aviso apagado.
+        return mutes.isMutedForAll("tablero_leads")
+          ? AUTO_TOPIC_MUTED_REASON
+          : TABLERO_MUTED_BRANCHES_REASON;
+      }
       return branches.length > 0
         ? "Ya están cargados los leads de todas las sedes"
         : "El gimnasio ya no tiene sedes que carguen leads";
@@ -1112,10 +1190,43 @@ export async function syncTableroLeads(
 
 // ───────────────────────────── Runner ─────────────────────────────
 
+type DetectorRunner = (
+  db: Db,
+  service: OfficeService,
+  ctx: TenantContext,
+  now: Date,
+  mutes: AutoTopicMutes,
+) => Promise<SyncResult>;
+
+const DETECTOR_RUNNERS: Record<OfficeAutoDetectorKey, DetectorRunner> = {
+  wellhub_error: syncWellhubErrors,
+  jornada_abierta: syncStaleShifts,
+  clase_sin_profe: syncClassesWithoutCoach,
+  arqueo_diferencia: syncCashCountDifferences,
+  wellhub_sin_publicar: syncWellhubUnpublished,
+  tablero_leads: syncTableroLeads,
+};
+
+/**
+ * Corre UN detector para un gimnasio con los avisos silenciados de ese momento.
+ * Lo usa el panel de Avisos automáticos para que al apagar un aviso sus temas
+ * abiertos se cierren ya, sin esperar al cron.
+ */
+export async function runOfficeAutoDetectorForTenant(
+  db: Db,
+  service: OfficeService,
+  ctx: TenantContext,
+  now: Date,
+  detector: OfficeAutoDetectorKey,
+): Promise<SyncResult> {
+  const mutes = await loadAutoTopicMutes(db, ctx);
+  return DETECTOR_RUNNERS[detector](db, service, ctx, now, mutes);
+}
+
 /**
  * Corrida completa para UN gimnasio: despierta los dormidos vencidos (D-09) y
  * sincroniza las seis señales. Cada paso está aislado: si uno falla se loguea
- * (llega a Sentry) y los demás siguen.
+ * (llega a Sentry) y los demás siguen. Los avisos silenciados se leen UNA vez.
  */
 export async function runOfficeAutoTopicsForTenant(
   db: Db,
@@ -1135,37 +1246,27 @@ export async function runOfficeAutoTopicsForTenant(
     );
   }
 
-  const steps: Array<{
-    name: string;
-    run: () => Promise<SyncResult>;
-  }> = [
-    { name: "wellhub", run: () => syncWellhubErrors(db, service, ctx, now) },
-    { name: "jornadas", run: () => syncStaleShifts(db, service, ctx, now) },
-    {
-      name: "clase_sin_profe",
-      run: () => syncClassesWithoutCoach(db, service, ctx, now),
-    },
-    {
-      name: "arqueo_diferencia",
-      run: () => syncCashCountDifferences(db, service, ctx, now),
-    },
-    {
-      name: "wellhub_sin_publicar",
-      run: () => syncWellhubUnpublished(db, service, ctx, now),
-    },
-    {
-      name: "tablero_leads",
-      run: () => syncTableroLeads(db, service, ctx, now),
-    },
-  ];
-  for (const step of steps) {
+  let mutes: AutoTopicMutes;
+  try {
+    mutes = await loadAutoTopicMutes(db, ctx);
+  } catch (err: unknown) {
+    // Sin saber qué está silenciado, correr los detectores podría reabrir ruido
+    // que la gerencia apagó: se salta la corrida (el próximo cron reintenta).
+    log.error(
+      { err, tenantId: ctx.tenantId },
+      "office auto-topics: no se pudieron leer los avisos silenciados",
+    );
+    return total;
+  }
+
+  for (const detector of OFFICE_AUTO_DETECTOR_KEYS) {
     try {
-      const r = await step.run();
+      const r = await DETECTOR_RUNNERS[detector](db, service, ctx, now, mutes);
       total.opened += r.opened;
       total.closed += r.closed;
     } catch (err: unknown) {
       log.error(
-        { err, tenantId: ctx.tenantId, signal: step.name },
+        { err, tenantId: ctx.tenantId, signal: detector },
         "office auto-topics: falló un detector",
       );
     }

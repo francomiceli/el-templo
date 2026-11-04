@@ -13,6 +13,18 @@
           <div class="text-caption text-grey-7">Los temas que la gerencia tiene entre manos</div>
         </div>
         <q-btn
+          flat
+          round
+          dense
+          color="grey-8"
+          icon="tune"
+          class="q-mr-sm"
+          aria-label="Avisos automáticos"
+          @click="autoDialogOpen = true"
+        >
+          <q-tooltip>Avisos automáticos</q-tooltip>
+        </q-btn>
+        <q-btn
           color="primary"
           icon="add"
           label="Nuevo tema"
@@ -101,6 +113,8 @@
       :staff="staff"
       @saved="onDialogSaved"
     />
+
+    <OficinaAutoTopicsDialog v-model="autoDialogOpen" @changed="onAutoTopicsChanged" />
   </q-page>
 </template>
 
@@ -124,6 +138,7 @@ import {
 import OficinaTopicList from 'src/components/oficina/OficinaTopicList.vue';
 import OficinaTopicDetail from 'src/components/oficina/OficinaTopicDetail.vue';
 import OficinaTopicDialog from 'src/components/oficina/OficinaTopicDialog.vue';
+import OficinaAutoTopicsDialog from 'src/components/oficina/OficinaAutoTopicsDialog.vue';
 
 const log = createLogger('OficinaPage');
 const $q = useQuasar();
@@ -163,6 +178,7 @@ const busy = ref(false);
 
 const dialogOpen = ref(false);
 const dialogMode = ref<'create' | 'edit'>('create');
+const autoDialogOpen = ref(false);
 
 const detailRef = ref<InstanceType<typeof OficinaTopicDetail> | null>(null);
 
@@ -366,6 +382,11 @@ function openEdit(): void {
   if (!detail.value) return;
   dialogMode.value = 'edit';
   dialogOpen.value = true;
+}
+
+/** Apagar un aviso cierra sus temas abiertos: la lista y el tema abierto se vuelven a leer. */
+function onAutoTopicsChanged(): void {
+  void backgroundRefresh();
 }
 
 async function onDialogSaved(saved: OfficeTopicDetail): Promise<void> {

@@ -280,6 +280,70 @@ export const officeStaffSchema = {
   },
 } as const;
 
+const autoDetectorSchema = {
+  type: "object",
+  properties: {
+    key: { type: "string" },
+    label: { type: "string" },
+    description: { type: "string" },
+    perBranch: { type: "boolean" },
+    disabledAll: { type: "boolean" },
+    disabledBranchIds: { type: "array", items: { type: "integer" } },
+    branches: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: { id: { type: "integer" }, name: { type: "string" } },
+      },
+    },
+  },
+} as const;
+
+export const officeAutoSettingsSchema = {
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        detectors: { type: "array", items: autoDetectorSchema },
+      },
+    },
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+export const officeSaveAutoSettingsSchema = {
+  params: {
+    type: "object",
+    required: ["detector"],
+    properties: { detector: { type: "string", maxLength: 40 } },
+  },
+  body: {
+    type: "object",
+    required: ["disabledAll", "disabledBranchIds"],
+    properties: {
+      disabledAll: { type: "boolean" },
+      disabledBranchIds: {
+        type: "array",
+        items: { type: "integer", minimum: 1 },
+        maxItems: 200,
+      },
+    },
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: { detector: autoDetectorSchema },
+    },
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
 // ── Tipos de request ────────────────────────────────────────────────
 
 export type OfficeListQuery = ListTopicsQuery;
@@ -295,4 +359,13 @@ export type OfficePatchBody = PatchTopicInput;
 export interface OfficeCommentBody {
   body: string;
   mentionUserIds?: number[];
+}
+
+export interface OfficeAutoSettingsParams {
+  detector: string;
+}
+
+export interface OfficeSaveAutoSettingsBody {
+  disabledAll: boolean;
+  disabledBranchIds: number[];
 }

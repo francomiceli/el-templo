@@ -6,23 +6,31 @@
  */
 import { FastifyPluginAsync } from "fastify";
 import { OfficeService } from "./service";
+import {
+  getAutoTopicSettings,
+  saveAutoTopicSettings,
+} from "./auto-topics-settings";
 import { handleServiceError } from "../shared/error-handler";
 import { OFFICE_ROLES } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
 import { assertTenant } from "../shared/tenant";
 import {
   officeAddCommentSchema,
+  officeAutoSettingsSchema,
   officeBadgeSchema,
   officeCreateTopicSchema,
   officeGetTopicSchema,
   officeListTopicsSchema,
   officePatchTopicSchema,
+  officeSaveAutoSettingsSchema,
   officeSeenSchema,
   officeStaffSchema,
   type OfficeCommentBody,
+  type OfficeAutoSettingsParams,
   type OfficeCreateBody,
   type OfficeListQuery,
   type OfficePatchBody,
+  type OfficeSaveAutoSettingsBody,
   type OfficeTopicParams,
 } from "./schemas";
 
@@ -179,6 +187,54 @@ export const officeRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.send({ staff });
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "office staff");
+      }
+    },
+  );
+
+  // GET /auto-topics/settings — qué avisos automáticos están activos, por sede.
+  fastify.get(
+    "/auto-topics/settings",
+    { schema: officeAutoSettingsSchema },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(request.scope, "office.autoSettings");
+        const detectors = await getAutoTopicSettings(fastify.db, ctx);
+        return reply.send({ detectors });
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "office auto settings");
+      }
+    },
+  );
+
+  // PUT /auto-topics/settings/:detector — reemplaza los silenciados de un
+  // aviso y lo vuelve a correr ya (los temas abiertos de lo apagado se cierran).
+  fastify.put<{
+    Params: OfficeAutoSettingsParams;
+    Body: OfficeSaveAutoSettingsBody;
+  }>(
+    "/auto-topics/settings/:detector",
+    { schema: officeSaveAutoSettingsSchema },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(request.scope, "office.autoSettingsSave");
+        const detector = await saveAutoTopicSettings(
+          fastify.db,
+          service,
+          ctx,
+          request.user.userId,
+          request.params.detector,
+          request.body,
+          new Date(),
+          request.log,
+        );
+        return reply.send({ detector });
+      } catch (err: unknown) {
+        handleServiceError(
+          err,
+          reply,
+          request.log,
+          "office save auto settings",
+        );
       }
     },
   );
