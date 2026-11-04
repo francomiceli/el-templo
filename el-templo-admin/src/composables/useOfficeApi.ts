@@ -11,7 +11,13 @@ import { extractError } from 'src/utils/extract-error';
 export type OfficeTopicStatus = 'abierto' | 'dormido' | 'cerrado';
 export type OfficeTopicOrigin = 'manual' | 'sistema';
 export type OfficeTargetKind =
-  'socio' | 'jornada' | 'wellhub_evento' | 'horario' | 'caja' | 'sede' | 'tablero';
+  | 'socio'
+  | 'jornada'
+  | 'wellhub_evento'
+  | 'horario'
+  | 'caja'
+  | 'sede'
+  | 'tablero';
 export type OfficeEventType =
   | 'creado'
   | 'comentario'
@@ -120,6 +126,26 @@ export interface PatchTopicInput {
   status?: 'abierto' | 'cerrado';
   snoozedUntil?: string | null;
   note?: string | null;
+}
+
+/** Un aviso automático (detector del job de temas del sistema) y su estado actual. */
+export interface OfficeAutoDetector {
+  key: string;
+  label: string;
+  description: string;
+  /** `true` si se puede apagar para una sede puntual. */
+  perBranch: boolean;
+  /** Apagado para todo el gimnasio. */
+  disabledAll: boolean;
+  /** Sedes con el aviso apagado (se conservan aunque el apagado general esté prendido). */
+  disabledBranchIds: number[];
+  /** Sedes a las que aplica el aviso (vacío si no se apaga por sede). */
+  branches: Array<{ id: number; name: string }>;
+}
+
+export interface SaveAutoDetectorInput {
+  disabledAll: boolean;
+  disabledBranchIds: number[];
 }
 
 export function useOfficeApi() {
@@ -247,6 +273,40 @@ export function useOfficeApi() {
     }
   }
 
+  async function getAutoTopicSettings(): Promise<OfficeAutoDetector[]> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<{ detectors: OfficeAutoDetector[] }>(
+        '/admin/office/auto-topics/settings'
+      );
+      return data.detectors;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'No pudimos cargar los avisos automáticos');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /** Guarda un aviso y la API lo vuelve a correr ya: los temas abiertos de lo apagado se cierran. */
+  async function saveAutoTopicSetting(
+    key: string,
+    input: SaveAutoDetectorInput
+  ): Promise<OfficeAutoDetector> {
+    error.value = null;
+    try {
+      const { data } = await api.put<{ detector: OfficeAutoDetector }>(
+        `/admin/office/auto-topics/settings/${key}`,
+        input
+      );
+      return data.detector;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'No pudimos guardar el aviso');
+      throw err;
+    }
+  }
+
   function cleanup() {
     loading.value = false;
     error.value = null;
@@ -263,6 +323,8 @@ export function useOfficeApi() {
     markSeen,
     fetchBadge,
     listStaff,
+    getAutoTopicSettings,
+    saveAutoTopicSetting,
     cleanup,
   };
 }
