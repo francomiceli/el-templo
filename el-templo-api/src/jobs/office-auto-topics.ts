@@ -2,11 +2,12 @@
  * Temas automáticos de Oficina — job cada 30 minutos (Fase 205, plan 03).
  *
  * Por gimnasio activo: despierta los temas dormidos vencidos (D-09) y abre /
- * cierra los temas del sistema para cinco señales que antes se perdían:
+ * cierra los temas del sistema para seis señales que antes se perdían:
  * webhooks de Wellhub con error, jornadas de staff sin cerrar de días
- * anteriores, clases de mañana sin profe, arqueos con diferencia y clases de
- * Wellhub sin publicar (D-11, D-12, D-13, D-23, D-24). La lógica vive en
- * `modules/office/auto-topics.ts`; acá solo está el barrido y el cron.
+ * anteriores, clases de mañana sin profe, arqueos con diferencia, clases de
+ * Wellhub sin publicar y leads del Tablero sin cargar (D-11, D-12, D-13, D-23,
+ * D-24, D-25). La lógica vive en `modules/office/auto-topics.ts`; acá solo
+ * está el barrido y el cron.
  *
  * Idempotente: cada tema del sistema lleva un `source_key` único por gimnasio,
  * así que correr dos veces no duplica y un tema cerrado a mano no se reabre.

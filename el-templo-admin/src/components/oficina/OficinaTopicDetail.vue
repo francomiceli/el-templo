@@ -296,6 +296,7 @@
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useQuasar, type QMenu } from 'quasar';
 import type { OfficeStaff, OfficeTopicDetail, PatchTopicInput } from 'src/composables/useOfficeApi';
+import { useAuthStore } from 'src/stores/useAuthStore';
 import { relativeTime } from 'src/utils/relative-time';
 import OficinaComposer from 'src/components/oficina/OficinaComposer.vue';
 import {
@@ -332,6 +333,7 @@ const emit = defineEmits<{
 }>();
 
 const $q = useQuasar();
+const authStore = useAuthStore();
 
 const timelineRef = ref<HTMLElement | null>(null);
 const composerRef = ref<InstanceType<typeof OficinaComposer> | null>(null);
@@ -350,8 +352,11 @@ const statusChipLabel = computed(() => {
   return STATUS_LABELS[topic.status];
 });
 
+// El rol define si el vínculo es clickeable: gestion ve Oficina pero no el Tablero.
 const linkRoute = computed(() =>
-  props.topic?.targetKind ? targetRoute(props.topic.targetKind, props.topic.targetId) : null
+  props.topic?.targetKind
+    ? targetRoute(props.topic.targetKind, props.topic.targetId, authStore.user?.role)
+    : null
 );
 
 const linkLabel = computed(() => {

@@ -11,6 +11,8 @@ import type {
   OfficeTopicOrigin,
   OfficeTopicStatus,
 } from 'src/composables/useOfficeApi';
+import { TABLERO_ROLES } from 'src/config/templo-config';
+import type { AdminRole } from 'src/types/admin';
 
 export const STATUS_LABELS: Record<OfficeTopicStatus, string> = {
   abierto: 'Abierto',
@@ -43,6 +45,7 @@ export const TARGET_KIND_LABELS: Record<OfficeTargetKind, string> = {
   horario: 'Horario',
   caja: 'Caja',
   sede: 'Sede',
+  tablero: 'Tablero',
 };
 
 export const TARGET_KIND_ICONS: Record<OfficeTargetKind, string> = {
@@ -52,10 +55,19 @@ export const TARGET_KIND_ICONS: Record<OfficeTargetKind, string> = {
   horario: 'schedule',
   caja: 'point_of_sale',
   sede: 'store',
+  tablero: 'dashboard',
 };
 
-/** Ruta del admin a la que lleva el vínculo de un tema; null si no hay pantalla. */
-export function targetRoute(kind: OfficeTargetKind, id: number | null): string | null {
+/**
+ * Ruta del admin a la que lleva el vínculo de un tema; null si no hay pantalla.
+ * `role` solo importa para los vínculos a pantallas con menos audiencia que
+ * Oficina: el Tablero es de `TABLERO_ROLES` y `gestion` ve el tema sin link.
+ */
+export function targetRoute(
+  kind: OfficeTargetKind,
+  id: number | null,
+  role?: AdminRole | null
+): string | null {
   switch (kind) {
     case 'socio':
       return id !== null ? `/alumnos/${id}` : null;
@@ -70,6 +82,10 @@ export function targetRoute(kind: OfficeTargetKind, id: number | null): string |
     // el reporte Wellhub de Reportes es de visitas de socios, no de publicación.
     case 'sede':
       return '/horarios';
+    // Leads del Tablero sin cargar: el Tablero no lo ve `gestion` (TABLERO_ROLES), y un link
+    // a una pantalla que lo rebota con 403 es peor que ninguno.
+    case 'tablero':
+      return role && TABLERO_ROLES.includes(role) ? '/tablero' : null;
     case 'wellhub_evento':
       return null;
     default:

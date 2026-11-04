@@ -8,7 +8,14 @@ import { extractError } from 'src/utils/extract-error';
 
 export type OfficeTopicStatus = 'abierto' | 'dormido' | 'cerrado';
 export type OfficeTopicOrigin = 'manual' | 'sistema';
-export type OfficeTargetKind = 'socio' | 'jornada' | 'wellhub_evento' | 'horario' | 'caja' | 'sede';
+export type OfficeTargetKind =
+  | 'socio'
+  | 'jornada'
+  | 'wellhub_evento'
+  | 'horario'
+  | 'caja'
+  | 'sede'
+  | 'tablero';
 export type OfficeEventType =
   | 'creado'
   | 'comentario'

@@ -51,6 +51,7 @@ import {
   type PointInTime,
   type WeekFlows,
 } from "./calculator";
+import { isLeadsBranch } from "./leads-branches";
 import { buildBoardMetrics, type FrozenBlocks } from "./matrix";
 import type {
   BoardBlockInfo,
@@ -606,7 +607,7 @@ export class WeeklyBoardService {
       )
       .limit(1);
     if (!branch) throw new NotFoundError("Sede no encontrada");
-    if (!branch.isActive || branch.isVirtual) {
+    if (!isLeadsBranch(branch)) {
       throw new BadRequestError("Los leads se cargan en sedes físicas activas");
     }
 

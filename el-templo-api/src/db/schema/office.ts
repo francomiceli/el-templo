@@ -36,9 +36,10 @@ export const OFFICE_TARGET_KINDS = [
   "jornada",
   "wellhub_evento",
   "horario",
-  // 205 (D-23/D-24): vínculos que solo crea el job de temas automáticos.
+  // 205 (D-23/D-24/D-25): vínculos que solo crea el job de temas automáticos.
   "caja",
   "sede",
+  "tablero",
 ] as const;
 export type OfficeTargetKind = (typeof OFFICE_TARGET_KINDS)[number];
 

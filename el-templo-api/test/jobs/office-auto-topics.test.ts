@@ -2,8 +2,9 @@
  * Job de temas automáticos de Oficina (src/jobs/office-auto-topics.ts, fase 205-03).
  *
  * Testea runOfficeAutoTopics contra MySQL real: abre temas del sistema para las
- * cinco señales (Wellhub con error, jornada sin cerrar, clase de mañana sin
- * profe, arqueo con diferencia, clases de Wellhub sin publicar), no duplica, los cierra solos cuando la condición desaparece, respeta
+ * seis señales (Wellhub con error, jornada sin cerrar, clase de mañana sin
+ * profe, arqueo con diferencia, clases de Wellhub sin publicar, leads del
+ * Tablero sin cargar), no duplica, los cierra solos cuando la condición desaparece, respeta
  * el cierre manual (D-04) y despierta los dormidos vencidos (D-09).
  *
  * Reloj: el job recibe `now` por parámetro, así que no hay fake timers. `NOW` es
@@ -37,6 +38,10 @@ import {
   type TenantContext,
 } from "../../src/modules/shared/tenant";
 import { addDays, todayInTz } from "../../src/modules/shared/date-utils";
+import {
+  currentWeekStart,
+  instantAtAr,
+} from "../../src/modules/weekly-board/week";
 import {
   isoDayOfWeek,
   isoWeekStart,
@@ -1501,6 +1506,325 @@ describe("job temas automáticos de Oficina", () => {
       expect(dos[0].targetId).toBe(gym2.branchId);
       expect(dos[0].sourceKey).toBe(`${PREFIX}${gym2.branchId}:${tomorrowDos}`);
       expect(dos[0].title).toBe(titleOf(1, sedeDos.name));
+    });
+  });
+  // ─────────────────────────── 6. Tablero: leads sin cargar ───────────────────────────
+
+  describe("Tablero: leads sin cargar", () => {
+    const PREFIX = "tablero_leads:";
+    /** Lunes de W+1 (la semana en curso del Tablero, en Argentina) y la semana W que terminó. */
+    let monday: string;
+    let week: string;
+    let extraBranchId: number;
+    const EXTRA_NAME = "OAT sede de leads";
+
+    const at = (date: string, hhmm: string): Date => instantAtAr(date, hhmm);
+    const shortOf = (d: string): string => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
+    const titleOf = (n: number, weekStart: string = week): string =>
+      `Tablero: faltan los leads de la semana del ${shortOf(weekStart)} (${n} ${n === 1 ? "sede" : "sedes"})`;
+
+    /** Sedes activas y físicas del gimnasio (las que cargan leads), por nombre. */
+    async function leadsBranches(
+      ctx: TenantContext = TEMPLO_CTX,
+    ): Promise<Array<{ id: number; name: string }>> {
+      return app.db
+        .select({ id: schema.branches.id, name: schema.branches.name })
+        .from(schema.branches)
+        .where(
+          and(
+            tenantWhere(schema.branches, ctx),
+            eq(schema.branches.isActive, true),
+            eq(schema.branches.isVirtual, false),
+          ),
+        )
+        .orderBy(asc(schema.branches.name), asc(schema.branches.id));
+    }
+
+    async function loadLeads(
+      branchIdToLoad: number,
+      weekStart: string = week,
+      ctx: TenantContext = TEMPLO_CTX,
+    ): Promise<void> {
+      await app.db.insert(schema.weeklyBoardLeads).values(
+        tenantValues(ctx, {
+          branchId: branchIdToLoad,
+          weekStart,
+          leads: 7,
+        }),
+      );
+    }
+
+    /** Carga los leads de la semana W de todas las sedes menos las indicadas. */
+    async function loadAllExcept(skip: number[]): Promise<void> {
+      for (const b of await leadsBranches()) {
+        if (!skip.includes(b.id)) await loadLeads(b.id);
+      }
+    }
+
+    async function tableroTopics(ctx: TenantContext = TEMPLO_CTX) {
+      return (await allTopics(ctx)).filter((t) =>
+        t.sourceKey?.startsWith(PREFIX),
+      );
+    }
+
+    async function removeExtraBranch(): Promise<void> {
+      await app.db
+        .delete(schema.weeklyBoardLeads)
+        .where(
+          and(
+            tenantWhere(schema.weeklyBoardLeads, TEMPLO_CTX),
+            eq(schema.weeklyBoardLeads.branchId, extraBranchId),
+          ),
+        );
+      await app.db
+        .delete(schema.branches)
+        .where(
+          and(
+            tenantWhere(schema.branches, TEMPLO_CTX),
+            eq(schema.branches.code, "OATL"),
+          ),
+        );
+    }
+
+    beforeEach(async () => {
+      monday = currentWeekStart(new Date());
+      week = addDays(monday, -7);
+      await app.db
+        .delete(schema.branches)
+        .where(
+          and(
+            tenantWhere(schema.branches, TEMPLO_CTX),
+            eq(schema.branches.code, "OATL"),
+          ),
+        );
+      const [extra] = await app.db
+        .insert(schema.branches)
+        .values(
+          tenantValues(TEMPLO_CTX, {
+            name: EXTRA_NAME,
+            code: "OATL",
+            country: "AR",
+            isVirtual: false,
+            isActive: true,
+          }),
+        )
+        .$returningId();
+      extraBranchId = extra.id;
+    });
+
+    afterEach(async () => {
+      await removeExtraBranch();
+    });
+
+    it("abre el martes de W+1 un tema agregado con las sedes que faltan", async () => {
+      await loadAllExcept([extraBranchId]);
+
+      await run(at(addDays(monday, 1), "10:00"));
+
+      const topics = await tableroTopics();
+      expect(topics).toHaveLength(1);
+      const [topic] = topics;
+      expect(topic.sourceKey).toBe(`${PREFIX}${week}`);
+      expect(topic.origin).toBe("sistema");
+      expect(topic.status).toBe("abierto");
+      expect(topic.title).toBe(titleOf(1));
+      expect(topic.body).toBe(EXTRA_NAME);
+      expect(topic.targetKind).toBe("tablero");
+      expect(topic.targetId).toBe(Number(week.replaceAll("-", "")));
+      expect(topic.targetLabel).toBe(`Semana del ${shortOf(week)}`);
+      expect(topic.branchId).toBeNull();
+      expect((await eventsOf(topic.id)).map((e) => e.type)).toEqual(["creado"]);
+    });
+
+    it("no abre el lunes de W+1, ni a la noche del lunes en Argentina (martes en UTC)", async () => {
+      await loadAllExcept([extraBranchId]);
+
+      await run(at(monday, "10:00"));
+      expect(await tableroTopics()).toHaveLength(0);
+
+      // 23:30 AR del lunes = 02:30 UTC del martes: sigue siendo lunes para el Tablero.
+      await run(at(monday, "23:30"));
+      expect(await tableroTopics()).toHaveLength(0);
+
+      // 00:30 AR del martes: ahora sí.
+      await run(at(addDays(monday, 1), "00:30"));
+      expect(await tableroTopics()).toHaveLength(1);
+    });
+
+    it("no abre nada si todas las sedes cargaron los leads de W", async () => {
+      await loadAllExcept([]);
+
+      await run(at(addDays(monday, 1), "10:00"));
+
+      expect(await tableroTopics()).toHaveLength(0);
+    });
+
+    it("solo cuenta la semana W: los leads de la semana en curso no sirven", async () => {
+      for (const b of await leadsBranches()) await loadLeads(b.id, monday);
+
+      await run(at(addDays(monday, 1), "10:00"));
+
+      const [topic] = await tableroTopics();
+      expect(topic).toBeDefined();
+      expect(topic.title).toBe(titleOf((await leadsBranches()).length));
+    });
+
+    it("las sedes inactivas no cuentan", async () => {
+      await loadAllExcept([extraBranchId]);
+      await app.db
+        .update(schema.branches)
+        .set({ isActive: false })
+        .where(
+          and(
+            tenantWhere(schema.branches, TEMPLO_CTX),
+            eq(schema.branches.id, extraBranchId),
+          ),
+        );
+
+      await run(at(addDays(monday, 1), "10:00"));
+
+      expect(await tableroTopics()).toHaveLength(0);
+    });
+
+    it("el título refleja N y se reescribe al cargar una sede, sin evento nuevo ni mover la actividad", async () => {
+      const all = await leadsBranches();
+      expect(all.length).toBeGreaterThanOrEqual(2);
+      const tuesday = at(addDays(monday, 1), "10:00");
+
+      await run(tuesday);
+      const [before] = await tableroTopics();
+      expect(before.title).toBe(titleOf(all.length));
+      const bodyBefore = (before.body ?? "").split("\n");
+      expect(bodyBefore).toEqual(all.map((b) => b.name));
+
+      const loaded = all[0];
+      await loadLeads(loaded.id);
+      await run(at(addDays(monday, 1), "11:00"));
+
+      const topics = await tableroTopics();
+      expect(topics).toHaveLength(1);
+      const [after] = topics;
+      expect(after.id).toBe(before.id);
+      expect(after.status).toBe("abierto");
+      expect(after.title).toBe(titleOf(all.length - 1));
+      expect(after.body).not.toContain(loaded.name);
+      expect((after.body ?? "").split("\n")).toHaveLength(all.length - 1);
+      expect((await eventsOf(after.id)).map((e) => e.type)).toEqual(["creado"]);
+      expect(after.lastActivityAt.getTime()).toBe(
+        before.lastActivityAt.getTime(),
+      );
+    });
+
+    it("se cierra solo cuando todas las sedes cargaron", async () => {
+      await loadAllExcept([extraBranchId]);
+      await run(at(addDays(monday, 1), "10:00"));
+      expect(await tableroTopics()).toHaveLength(1);
+
+      await loadLeads(extraBranchId);
+      await run(at(addDays(monday, 1), "11:00"));
+
+      const [closed] = await tableroTopics();
+      expect(closed.status).toBe("cerrado");
+      expect(closed.closedBy).toBeNull();
+      const events = await eventsOf(closed.id);
+      expect(events.map((e) => e.type)).toEqual(["creado", "sistema"]);
+      expect(events[1].body).toBe(
+        "Ya están cargados los leads de todas las sedes",
+      );
+    });
+
+    it("se cierra solo cuando vence la ventana de carga de esa semana", async () => {
+      await loadAllExcept([extraBranchId]);
+      const lastSunday = at(addDays(monday, 6), "22:00");
+      await run(at(addDays(monday, 1), "10:00"));
+      await run(lastSunday);
+      // Todavía editable (domingo de W+1): sigue abierto.
+      expect((await tableroTopics())[0].status).toBe("abierto");
+
+      // Lunes de W+2: W ya no se puede editar.
+      await run(at(addDays(monday, 7), "10:00"));
+
+      const topics = await tableroTopics();
+      expect(topics).toHaveLength(1);
+      expect(topics[0].status).toBe("cerrado");
+      const events = await eventsOf(topics[0].id);
+      expect(events.map((e) => e.type)).toEqual(["creado", "sistema"]);
+      expect(events[1].body).toBe("Se cerró la ventana de carga de esa semana");
+
+      // El martes de W+2 se abre el tema de la semana siguiente, con otra key.
+      await run(at(addDays(monday, 8), "10:00"));
+      const next = await tableroTopics();
+      expect(next).toHaveLength(2);
+      expect(next.map((t) => t.sourceKey)).toContain(`${PREFIX}${monday}`);
+    });
+
+    it("correr dos veces no duplica el tema", async () => {
+      await loadAllExcept([extraBranchId]);
+      const tuesday = at(addDays(monday, 1), "10:00");
+
+      await run(tuesday);
+      await run(tuesday);
+      await run(at(addDays(monday, 2), "10:00"));
+
+      const topics = await tableroTopics();
+      expect(topics).toHaveLength(1);
+      expect((await eventsOf(topics[0].id)).map((e) => e.type)).toEqual([
+        "creado",
+      ]);
+    });
+
+    it("un tema cerrado a mano no se reabre mientras falten sedes", async () => {
+      await loadAllExcept([extraBranchId]);
+      await run(at(addDays(monday, 1), "10:00"));
+      const [topic] = await tableroTopics();
+
+      const service = new OfficeService(app.db, app.log);
+      await service.patchTopic(TEMPLO_CTX, ownerId, topic.id, {
+        status: "cerrado",
+        note: "Se los pido a Nacho el jueves",
+      });
+
+      await run(at(addDays(monday, 2), "10:00"));
+
+      const topics = await tableroTopics();
+      expect(topics).toHaveLength(1);
+      expect(topics[0].status).toBe("cerrado");
+      expect(topics[0].closedBy).toBe(ownerId);
+      const types = (await eventsOf(topic.id)).map((e) => e.type);
+      expect(types).toEqual(["creado", "cerrado"]);
+    });
+
+    it("cada gimnasio recibe solo el tema de sus propias sedes", async () => {
+      const gym2 = await seedSecondTenant(app);
+      const [sedeDos] = await app.db
+        .select({ name: schema.branches.name })
+        .from(schema.branches)
+        .where(
+          and(
+            tenantWhere(schema.branches, DOS_CTX),
+            eq(schema.branches.id, gym2.branchId),
+          ),
+        );
+      const tuesday = at(addDays(monday, 1), "10:00");
+
+      // Falta todo en los dos gimnasios: cada uno ve solo sus sedes.
+      await run(tuesday);
+      const templo = await tableroTopics();
+      const dos = await tableroTopics(DOS_CTX);
+      expect(templo).toHaveLength(1);
+      expect(dos).toHaveLength(1);
+      expect(dos[0].title).toBe(titleOf(1));
+      expect(dos[0].body).toBe(sedeDos.name);
+      expect(templo[0].body).not.toContain(sedeDos.name);
+      expect(templo[0].title).toBe(titleOf((await leadsBranches()).length));
+
+      // El gimnasio 2 carga lo suyo: el suyo se cierra, el de El Templo sigue igual.
+      await loadLeads(gym2.branchId, week, DOS_CTX);
+      await run(at(addDays(monday, 1), "11:00"));
+      expect((await tableroTopics(DOS_CTX))[0].status).toBe("cerrado");
+      const temploAfter = await tableroTopics();
+      expect(temploAfter[0].status).toBe("abierto");
+      expect(temploAfter[0].title).toBe(templo[0].title);
     });
   });
 });

@@ -1156,7 +1156,7 @@ export class OfficeService {
     }
     if (kind === null || id === null) return null;
     if (kind !== "socio") {
-      // Los demás vínculos (jornada, wellhub_evento, horario, caja, sede) los crea solo el
+      // Los demás vínculos (jornada, wellhub_evento, horario, caja, sede, tablero) los crea solo el
       // job con ids ya verificados por tenant. Desde la API manual, solo socio.
       throw new BadRequestError("Desde acá solo se puede vincular un socio");
     }

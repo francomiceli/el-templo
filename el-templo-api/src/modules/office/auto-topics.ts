@@ -2,12 +2,13 @@
  * Temas automáticos de Oficina (Fase 205, plan 03) — detectores del job
  * `office-auto-topics`.
  *
- * Cinco señales que hoy se pierden se convierten en temas del sistema:
+ * Seis señales que hoy se pierden se convierten en temas del sistema:
  *   1. Webhook de Wellhub con error  (`wellhub_event:<id>`)             — D-11
  *   2. Jornada de staff sin cerrar   (`staff_shift:<id>`)                — D-12
  *   3. Clase de mañana sin profe     (`clase_sin_profe:<schedule>:<día>`) — D-13
  *   4. Arqueo de caja con diferencia (`arqueo_dif:<caja>:<arqueo>`)      — D-23
  *   5. Wellhub: clases sin publicar  (`wellhub_sin_publicar:<sede>:<día>`) — D-24
+ *   6. Tablero: leads sin cargar     (`tablero_leads:<lunes de la semana>`) — D-25
  *
  * Cada `syncX` hace lo mismo (ver `reconcile`): detecta lo que está mal ahora,
  * abre un tema por cada hallazgo y cierra los temas del sistema abiertos cuya
@@ -48,6 +49,12 @@ import {
   RosterAttributionIndex,
   type RosterChangePoint,
 } from "../ratings/roster-attribution";
+import {
+  currentWeekStart,
+  BOARD_TZ,
+  isLeadsEditableWeek,
+} from "../weekly-board/week";
+import { loadLeadsBranches } from "../weekly-board/leads-branches";
 import { getWellhubConfig } from "../wellhub/config";
 import {
   loadPublishableSchedules,
@@ -66,12 +73,14 @@ export const STAFF_SHIFT_PREFIX = "staff_shift:";
 export const CLASS_NO_COACH_PREFIX = "clase_sin_profe:";
 export const CASH_DIFF_PREFIX = "arqueo_dif:";
 export const WELLHUB_UNPUBLISHED_PREFIX = "wellhub_sin_publicar:";
+export const TABLERO_LEADS_PREFIX = "tablero_leads:";
 
 const CASH_COUNT_WINDOW_DAYS = 30;
 const CASH_NOTES_MAX = 500;
 /** Horarios más nuevos que esto no cuentan: el sync (cada 30 min) todavía no los vio. */
 const WELLHUB_GRACE_HOURS = 2;
-const WELLHUB_MAX_LINES = 20;
+/** Máximo de líneas de la lista en el cuerpo de un tema (Wellhub, Tablero). */
+const MAX_BODY_LINES = 20;
 
 /** Resultado de un `syncX`: cuántos temas abrió y cuántos cerró. */
 export interface SyncResult {
@@ -891,9 +900,9 @@ function unpublishedText(
 ): { title: string; body: string } {
   const n = list.length;
   const lines = list
-    .slice(0, WELLHUB_MAX_LINES)
+    .slice(0, MAX_BODY_LINES)
     .map((c) => `${c.activityName} ${c.startTime}`);
-  if (n > WELLHUB_MAX_LINES) lines.push(`y ${n - WELLHUB_MAX_LINES} más`);
+  if (n > MAX_BODY_LINES) lines.push(`y ${n - MAX_BODY_LINES} más`);
   return {
     title: `Wellhub: ${n} ${n === 1 ? "clase" : "clases"} de ${when} sin publicar en ${branchName}`,
     body: lines.join("\n"),
@@ -997,11 +1006,115 @@ export async function syncWellhubUnpublished(
   return result;
 }
 
+// ───────────────────────────── 6. Tablero: leads sin cargar ─────────────────────────────
+
+/** "2026-10-26" -> 20261026: id neutro del vínculo `tablero` (no es id de ninguna tabla). */
+function weekAsTargetId(weekStart: string): number {
+  return Number(weekStart.replaceAll("-", ""));
+}
+
+function tableroLeadsText(
+  weekStart: string,
+  missing: Array<{ name: string }>,
+): { title: string; body: string } {
+  const n = missing.length;
+  const lines = missing.slice(0, MAX_BODY_LINES).map((b) => b.name);
+  if (n > MAX_BODY_LINES) lines.push(`y ${n - MAX_BODY_LINES} más`);
+  return {
+    title: `Tablero: faltan los leads de la semana del ${shortDate(weekStart)} (${n} ${n === 1 ? "sede" : "sedes"})`,
+    body: lines.join("\n"),
+  };
+}
+
+/**
+ * D-25: leads del Tablero sin cargar. Desde el martes de la semana W+1 (en la
+ * zona del Tablero, `BOARD_TZ`: Argentina, fija), si alguna sede que carga leads
+ * (activa y física, `loadLeadsBranches`) no tiene fila en `weekly_board_leads`
+ * para la semana W (la que terminó), se abre UN tema agregado por semana con las
+ * sedes faltantes por su nombre. Si la cantidad cambia entre corridas se
+ * reescribe título y cuerpo (sin evento, sin tocar `last_activity_at`).
+ *
+ * Se cierra solo cuando todas las sedes están cargadas o cuando la semana W deja
+ * de ser editable (`isLeadsEditableWeek`: el lunes de W+2). Un tema cerrado a
+ * mano no se reabre (unique del `source_key`, D-04).
+ *
+ * Solo se mira la semana inmediata anterior: las más viejas ya no se pueden
+ * cargar, no hay nada que pedirle a nadie.
+ */
+export async function syncTableroLeads(
+  db: Db,
+  service: OfficeService,
+  ctx: TenantContext,
+  now: Date,
+): Promise<SyncResult> {
+  const today = todayInTz(BOARD_TZ, now);
+  const current = currentWeekStart(now);
+  const week = addDays(current, -7);
+
+  const branches = await loadLeadsBranches(db, ctx);
+  let missing: Array<{ id: number; name: string }> = [];
+  if (branches.length > 0 && isLeadsEditableWeek(week, current)) {
+    const loaded = await db
+      .select({ branchId: schema.weeklyBoardLeads.branchId })
+      .from(schema.weeklyBoardLeads)
+      .where(
+        and(
+          tenantWhere(schema.weeklyBoardLeads, ctx),
+          eq(schema.weeklyBoardLeads.weekStart, week),
+        ),
+      );
+    const loadedIds = new Set(loaded.map((l) => l.branchId));
+    missing = branches.filter((b) => !loadedIds.has(b.id));
+  }
+
+  const sourceKey = `${TABLERO_LEADS_PREFIX}${week}`;
+  const stillValid = new Set<string>();
+  const detected: CreateSystemTopicInput[] = [];
+  const text = tableroLeadsText(week, missing);
+  if (missing.length > 0) {
+    stillValid.add(sourceKey);
+    // El lunes (reunión de carga) todavía no se avisa: se abre desde el martes.
+    if (today > current) {
+      detected.push({
+        sourceKey,
+        title: text.title,
+        body: text.body,
+        targetKind: "tablero",
+        targetId: weekAsTargetId(week),
+        targetLabel: `Semana del ${shortDate(week)}`,
+        branchId: null,
+      });
+    }
+  }
+
+  const result = await reconcile(
+    service,
+    ctx,
+    TABLERO_LEADS_PREFIX,
+    detected,
+    stillValid,
+    (ref) => {
+      const topicWeek = ref.sourceKey.slice(TABLERO_LEADS_PREFIX.length);
+      if (!isLeadsEditableWeek(topicWeek, current)) {
+        return "Se cerró la ventana de carga de esa semana";
+      }
+      return branches.length > 0
+        ? "Ya están cargados los leads de todas las sedes"
+        : "El gimnasio ya no tiene sedes que carguen leads";
+    },
+  );
+
+  if (missing.length > 0) {
+    await service.updateSystemTopicText(ctx, sourceKey, text.title, text.body);
+  }
+  return result;
+}
+
 // ───────────────────────────── Runner ─────────────────────────────
 
 /**
  * Corrida completa para UN gimnasio: despierta los dormidos vencidos (D-09) y
- * sincroniza las cinco señales. Cada paso está aislado: si uno falla se loguea
+ * sincroniza las seis señales. Cada paso está aislado: si uno falla se loguea
  * (llega a Sentry) y los demás siguen.
  */
 export async function runOfficeAutoTopicsForTenant(
@@ -1039,6 +1152,10 @@ export async function runOfficeAutoTopicsForTenant(
     {
       name: "wellhub_sin_publicar",
       run: () => syncWellhubUnpublished(db, service, ctx, now),
+    },
+    {
+      name: "tablero_leads",
+      run: () => syncTableroLeads(db, service, ctx, now),
     },
   ];
   for (const step of steps) {
