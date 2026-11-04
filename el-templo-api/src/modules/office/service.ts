@@ -1012,7 +1012,9 @@ export class OfficeService {
         ),
       );
     if (rows.length !== userIds.length) {
-      throw new BadRequestError("La persona elegida no puede ser responsable: solo owner y admin");
+      throw new BadRequestError(
+        "La persona elegida no puede ser responsable: solo owner y admin",
+      );
     }
     return rows.sort(byName);
   }
