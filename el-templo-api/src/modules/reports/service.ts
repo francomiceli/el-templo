@@ -729,58 +729,61 @@ export class ReportsService {
     const limit = filters.limit ?? 20;
     const offset = (page - 1) * limit;
 
-    const memberAlias = schema.users;
+    // UNA FILA POR COBRO (hotfix 2026-11-03). Un pago de deuda puede cancelar
+    // deudas de varias suscripciones a la vez: tiene un transaction_link por
+    // cada una. Antes este listado hacía JOIN a transaction_links y repetía el
+    // cobro una vez por link con el monto COMPLETO en cada fila, así que el
+    // reporte sumaba de más contra Analítica (Alberti oct-2026: 9.014.000 vs
+    // 8.885.500, dos debt_settlement con dos links cada uno). Ahora el link se
+    // exige con EXISTS y los planes van juntos en una sola celda.
+    //
+    // Phase 105 D-01: revenue rows are financial_transactions with kind IN
+    // ('plan_charge','debt_settlement') AND direction='inflow' AND firm money.
+    // financial_transactions has no subscription_id column: the subscription
+    // comes through the transaction_links pivot (SPEC §2).
+    //
+    // El conteo y las filas comparten el MISMO FROM/WHERE para que el total
+    // del paginado no pueda desfasarse de las filas.
+    const linkedPlans = sql`
+      FROM transaction_links tl
+      INNER JOIN subscriptions s ON s.id = tl.target_id
+      INNER JOIN subscription_plans sp ON sp.id = s.plan_id
+      WHERE tl.tenant_id = ${ctx.tenantId}
+        AND tl.transaction_id = ft.id
+        AND tl.target_kind = 'subscription'`;
 
-    // El filtro de gimnasio sobre financial_transactions viaja adentro de
-    // `conditions` (primer término del WHERE); transaction_links lleva el suyo
-    // en el ON del join de acá abajo.
-    const conditions = this.buildChargeConditions(ctx, filters);
+    const fromWhere = sql`
+      FROM financial_transactions ft
+      INNER JOIN users m ON m.id = ft.member_id
+      INNER JOIN branches b ON b.id = m.branch_id
+      -- Sede donde se registró el cobro. LEFT: financial_transactions.branch_id
+      -- es NULLABLE, y el filtro de sede sigue yendo por la sede del alumno (b).
+      LEFT JOIN branches fb ON fb.id = ft.branch_id
+      INNER JOIN users r ON r.id = ft.recorded_by
+      WHERE ft.tenant_id = ${ctx.tenantId}
+        AND ft.kind IN ('plan_charge', 'debt_settlement')
+        AND ft.direction = 'inflow'
+        AND ${sql.raw(firmMoneySqlFor("ft"))}
+        AND EXISTS (SELECT 1 ${linkedPlans})
+        AND ${this.buildChargeConditionsRaw(filters)}`;
 
-    // Count total — join branches so country filter in buildChargeConditions
-    // resolves without reference errors. Phase 105 D-01: revenue rows are
-    // financial_transactions with kind IN ('plan_charge','debt_settlement')
-    // AND direction='inflow' AND voided_at IS NULL. The transaction_links join
-    // is required because financial_transactions has no subscription_id column
-    // (links go through the pivot, see SPEC §2).
-    const [countResult] = await this.db
-      .select({ count: sql<number>`COUNT(*)` })
-      .from(schema.financialTransactions)
-      .innerJoin(
-        schema.transactionLinks,
-        and(
-          tenantWhere(schema.transactionLinks, ctx),
-          eq(
-            schema.transactionLinks.transactionId,
-            schema.financialTransactions.id,
-          ),
-          eq(schema.transactionLinks.targetKind, "subscription"),
-        ),
-      )
-      .innerJoin(
-        schema.subscriptions,
-        eq(schema.subscriptions.id, schema.transactionLinks.targetId),
-      )
-      .innerJoin(
-        memberAlias,
-        eq(memberAlias.id, schema.financialTransactions.memberId),
-      )
-      .innerJoin(schema.branches, eq(schema.branches.id, memberAlias.branchId))
-      .where(and(...conditions));
+    const countRows = await this.db.execute(sql`
+      SELECT COUNT(*) AS total ${fromWhere}
+    `);
+    const countResult = (
+      countRows as unknown as [Array<Record<string, unknown>>]
+    )[0]?.[0];
+    const total = Number(countResult?.total ?? 0);
 
-    const total = Number(countResult?.count ?? 0);
-
-    // Fetch rows — use raw SQL for recorder self-join since drizzle doesn't support
-    // multiple aliases on the same table easily. Alias `branches b` so the raw
-    // `b.country = ?` predicate from buildChargeConditionsRaw resolves.
     // Column alias `paymentDate` preserved (sourced from ft.transaction_date)
-    // so the ChargeReportRow mapper at L204+ stays unchanged.
+    // so the ChargeReportRow mapper below stays unchanged.
     const rows = await this.db.execute(sql`
       SELECT
         ft.id,
         ft.transaction_date AS paymentDate,
         CONCAT(COALESCE(m.first_name, ''), ' ', COALESCE(m.last_name, '')) AS memberName,
         ft.member_id AS memberId,
-        sp.name AS planName,
+        (SELECT GROUP_CONCAT(sp.name ORDER BY s.id SEPARATOR ' + ') ${linkedPlans}) AS planName,
         ft.amount,
         ft.currency,
         ft.payment_method AS paymentMethod,
@@ -788,24 +791,8 @@ export class ReportsService {
         ft.voided_at AS voidedAt,
         fb.name AS chargeBranchName,
         b.name AS memberBranchName
-      FROM financial_transactions ft
-      INNER JOIN transaction_links tl
-        ON tl.transaction_id = ft.id AND tl.target_kind = 'subscription'
-        AND tl.tenant_id = ${ctx.tenantId}
-      INNER JOIN subscriptions s ON s.id = tl.target_id
-      INNER JOIN users m ON m.id = ft.member_id
-      INNER JOIN branches b ON b.id = m.branch_id
-      -- Sede donde se registró el cobro. LEFT: financial_transactions.branch_id
-      -- es NULLABLE, y el filtro de sede sigue yendo por la sede del alumno (b).
-      LEFT JOIN branches fb ON fb.id = ft.branch_id
-      INNER JOIN subscription_plans sp ON sp.id = s.plan_id
-      INNER JOIN users r ON r.id = ft.recorded_by
-      WHERE ft.tenant_id = ${ctx.tenantId}
-        AND ft.kind IN ('plan_charge', 'debt_settlement')
-        AND ft.direction = 'inflow'
-        AND ${sql.raw(firmMoneySqlFor("ft"))}
-        AND ${this.buildChargeConditionsRaw(filters)}
-      ORDER BY ft.transaction_date DESC, ft.created_at DESC
+      ${fromWhere}
+      ORDER BY ft.transaction_date DESC, ft.created_at DESC, ft.id DESC
       LIMIT ${limit} OFFSET ${offset}
     `);
 
@@ -3494,7 +3481,7 @@ export class ReportsService {
   ): ReturnType<typeof sql>[] {
     // Fase 173 (ADO-02): `users` entra a `TENANT_STRICT_MODULES` en esta
     // fase — el filtro de gimnasio va PRIMERO, mismo criterio que
-    // `buildChargeConditions` (línea de arriba en este archivo).
+    // el `WHERE ft.tenant_id` de `getChargeHistory` (arriba en este archivo).
     const conditions: ReturnType<typeof sql>[] = [
       tenantWhere(schema.users, ctx),
     ];
@@ -3534,71 +3521,6 @@ export class ReportsService {
       // El `push` es un STATEMENT APARTE del array de arriba (el lint razona
       // por statement, hallazgo 172-02/173): el `tenantWhere` del elemento
       // [0] no lo cubre, así que va INLINE acá también.
-      conditions.push(
-        sql`(${tenantWhere(schema.users, ctx)} AND (CONCAT(COALESCE(${schema.users.firstName}, ''), ' ', COALESCE(${schema.users.lastName}, '')) LIKE ${searchTerm} OR ${schema.users.dni} LIKE ${searchTerm}))`,
-      );
-    }
-
-    return conditions;
-  }
-
-  private buildChargeConditions(
-    ctx: TenantContext,
-    filters: ChargeReportFilters,
-  ): ReturnType<typeof sql>[] {
-    // Phase 105 D-01: revenue == financial_transactions where kind is a real
-    // cash inflow (plan_charge, debt_settlement) and the row is not voided.
-    // direction='inflow' excludes refunds. These three conditions belong on
-    // every charge-history listing.
-    //
-    // Fase 172 — TODA referencia a `financial_transactions` vive en ESTE
-    // statement, que es el que nombra el gimnasio. Los filtros opcionales que
-    // antes se agregaban con `conditions.push(...)` entran acá con spread
-    // condicional: un `push` es un statement aparte y un fragmento sobre una
-    // tabla del módulo migrado que no nombra el tenant es exactamente el
-    // agujero que este archivo viene a cerrar (mismo criterio que
-    // `buildOutstandingScope`). El orden dentro del AND es irrelevante.
-    const conditions: ReturnType<typeof sql>[] = [
-      tenantWhere(schema.financialTransactions, ctx),
-      sql`1 = 1`,
-      sql`${schema.financialTransactions.kind} IN ('plan_charge', 'debt_settlement')`,
-      eq(schema.financialTransactions.direction, "inflow"),
-      isNull(schema.financialTransactions.voidedAt),
-      // Phase 137 (VAL-05): firm money counts only validated rows.
-      eq(schema.financialTransactions.validationStatus, "validado"),
-      ...(filters.dateFrom
-        ? [
-            sql`${schema.financialTransactions.transactionDate} >= ${filters.dateFrom}`,
-          ]
-        : []),
-      ...(filters.dateTo
-        ? [
-            sql`${schema.financialTransactions.transactionDate} <= ${filters.dateTo}`,
-          ]
-        : []),
-      ...(filters.paymentMethod
-        ? [
-            eq(
-              schema.financialTransactions.paymentMethod,
-              filters.paymentMethod,
-            ),
-          ]
-        : []),
-    ];
-
-    if (filters.branchId !== undefined) {
-      conditions.push(eq(schema.users.branchId, filters.branchId));
-    }
-
-    if (filters.country !== undefined) {
-      conditions.push(eq(schema.branches.country, filters.country));
-    }
-
-    if (filters.search) {
-      const searchTerm = `%${filters.search}%`;
-      // El `push` es un STATEMENT APARTE (mismo hallazgo que
-      // `buildAccessConditions`, arriba): el `tenantWhere` de `financial_transactions`
-      // del elemento [0] no cubre a `users`, así que va INLINE acá también.
       conditions.push(
         sql`(${tenantWhere(schema.users, ctx)} AND (CONCAT(COALESCE(${schema.users.firstName}, ''), ' ', COALESCE(${schema.users.lastName}, '')) LIKE ${searchTerm} OR ${schema.users.dni} LIKE ${searchTerm}))`,
       );
