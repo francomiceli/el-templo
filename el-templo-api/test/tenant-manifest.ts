@@ -674,6 +674,22 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     categoria: "tenant-scoped",
   },
 
+  // ── Oficina (fase 205, prefijo admin/office) ──────────────────────────────
+  // Fase 205 (Oficina): central de temas de gestión (owner/admin/gestion). Las 8
+  // tenant-scoped: leen/escriben `office_topics`/`office_topic_events`/
+  // `office_topic_reads`/`office_mentions` (gym-owned, módulo strict) y leen
+  // `users`/`branches` del gimnasio — el tenant sale SIEMPRE de
+  // `assertTenant(request.scope, …)`, nunca del body/query. Un tema de otro
+  // gimnasio da 404, igual que uno inexistente.
+  "GET /api/admin/office/topics": { categoria: "tenant-scoped" },
+  "POST /api/admin/office/topics": { categoria: "tenant-scoped" },
+  "GET /api/admin/office/topics/:id": { categoria: "tenant-scoped" },
+  "PATCH /api/admin/office/topics/:id": { categoria: "tenant-scoped" },
+  "POST /api/admin/office/topics/:id/comments": { categoria: "tenant-scoped" },
+  "POST /api/admin/office/topics/:id/seen": { categoria: "tenant-scoped" },
+  "GET /api/admin/office/badge": { categoria: "tenant-scoped" },
+  "GET /api/admin/office/staff": { categoria: "tenant-scoped" },
+
   // ── /api/admin/ratings ────────────────────────────────────────────────────
   // D-04 veredicto (caso 6): confirmadas `tenant-scoped` (core). "Rating de clase"
   // suena a feature Templo, pero `coach_ratings` es tabla core y la usa cualquier

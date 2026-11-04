@@ -29,7 +29,7 @@
  * número publicado cambió.
  */
 
-import { and, eq, gte, inArray, isNotNull, lte, sql } from "drizzle-orm";
+import { and, eq, gte, isNotNull, lte, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
@@ -41,6 +41,11 @@ import {
   tenantWhere,
   type TenantContext,
 } from "../shared/tenant";
+import {
+  loadPublishableSchedules,
+  loadSkippedDates,
+  publishableActivity,
+} from "./eligibility";
 import { WellhubApiError } from "./client";
 import type { WellhubClient } from "./client";
 import type { WellhubSlot, WellhubSlotPayload } from "./types";
@@ -53,18 +58,6 @@ const CANCEL_MARGIN_MINUTES = 20;
 const PENDING_EXPIRY_MINUTES = 20;
 
 const DEFAULT_HORIZON_DAYS = 7;
-
-/**
- * Actividades que se publican en Wellhub: activas, marcadas wellhub_enabled
- * y no especiales. Única fuente del filtro para classes y slots, así una
- * actividad que se desmarca deja de tener slots válidos y la limpieza de
- * syncSlots los despublica.
- */
-const publishableActivity = and(
-  eq(schema.activities.isActive, true),
-  eq(schema.activities.wellhubEnabled, true),
-  eq(schema.activities.isSpecial, false),
-);
 
 /** Wellhub devuelve fechas estilo Java ("2026-07-22T20:00:00Z[UTC]"). */
 function parseWellhubDate(value: string): Date {
@@ -325,66 +318,22 @@ export class WellhubSyncService {
       );
     const classByActivity = new Map(classes.map((c) => [c.activityId, c]));
 
-    // Horarios activos publicables de la sede.
-    const scheduleRows = await this.db
-      .select({
-        id: schema.schedules.id,
-        activityId: schema.schedules.activityId,
-        dayOfWeek: schema.schedules.dayOfWeek,
-        startTime: schema.schedules.startTime,
-        endTime: schema.schedules.endTime,
-        activityCapacity: schema.activities.maxCapacity,
-        activityActive: schema.activities.isActive,
-        activitySpecial: schema.activities.isSpecial,
-      })
-      .from(schema.schedules)
-      .innerJoin(
-        schema.activities,
-        eq(schema.schedules.activityId, schema.activities.id),
-      )
-      .where(
-        and(
-          tenantWhere(schema.schedules, ctx),
-          eq(schema.schedules.branchId, branch.id),
-          eq(schema.schedules.isActive, true),
-          publishableActivity,
-        ),
-      );
-    const scheduleIds = scheduleRows.map((s) => s.id);
-
-    // Excepciones y feriados del horizonte.
-    const exceptions = scheduleIds.length
-      ? await this.db
-          .select({
-            scheduleId: schema.scheduleExceptions.scheduleId,
-            exceptionDate: schema.scheduleExceptions.exceptionDate,
-          })
-          .from(schema.scheduleExceptions)
-          .where(
-            and(
-              tenantWhere(schema.scheduleExceptions, ctx),
-              inArray(schema.scheduleExceptions.scheduleId, scheduleIds),
-              gte(schema.scheduleExceptions.exceptionDate, today),
-              lte(schema.scheduleExceptions.exceptionDate, endDate),
-            ),
-          )
-      : [];
-    const exceptionKeys = new Set(
-      exceptions.map((e) => `${e.scheduleId}:${e.exceptionDate}`),
+    // Horarios activos publicables de la sede, con excepciones y feriados del
+    // horizonte (criterio compartido con el detector de Oficina: eligibility.ts).
+    const scheduleRows = await loadPublishableSchedules(
+      this.db,
+      ctx,
+      branch.id,
     );
-
-    const holidays = await this.db
-      .select({ date: schema.holidays.date })
-      .from(schema.holidays)
-      .where(
-        and(
-          tenantWhere(schema.holidays, ctx),
-          eq(schema.holidays.country, branch.country),
-          gte(schema.holidays.date, today),
-          lte(schema.holidays.date, endDate),
-        ),
-      );
-    const holidayDates = new Set(holidays.map((h) => h.date));
+    const scheduleIds = scheduleRows.map((s) => s.id);
+    const { exceptionKeys, holidayDates } = await loadSkippedDates(
+      this.db,
+      ctx,
+      scheduleIds,
+      branch.country,
+      today,
+      endDate,
+    );
 
     // Slots ya publicados del horizonte (para diff y limpieza).
     const publishedSlots = await this.db

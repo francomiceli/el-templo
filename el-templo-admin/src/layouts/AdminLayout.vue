@@ -68,6 +68,7 @@ import { useAdminStore } from 'src/stores/useAdminStore';
 import { canAccessTraining } from 'src/utils/trainingAccess';
 import {
   CONQUER_MANAGER_ROLES,
+  OFICINA_ROLES,
   NAV_MODEL,
   isNavCategoryVisible,
   isNavItemVisible,
@@ -112,6 +113,8 @@ function badgeCount(item: NavItem): number {
       return adminStore.landingInbox.franchise;
     case 'conquer':
       return adminStore.conquerRequestsCount + adminStore.conquerCorrectionsCount;
+    case 'oficina':
+      return adminStore.oficinaBadgeCount;
     default:
       return 0;
   }
@@ -142,6 +145,12 @@ const canSeeConquer = computed(() => {
   return role !== undefined && CONQUER_MANAGER_ROLES.includes(role);
 });
 
+// Quiénes ven Oficina (y por ende su pelotita): owner/admin (igual que el Tablero), fase 205 D-10.
+const canSeeOficina = computed(() => {
+  const role = authStore.user?.role;
+  return role !== undefined && OFICINA_ROLES.includes(role);
+});
+
 async function handleLogout() {
   await authStore.logout();
   router.push('/login');
@@ -163,6 +172,9 @@ onMounted(() => {
     adminStore.fetchConquerRequestsCount();
     adminStore.fetchConquerCorrectionsCount();
   }
+  if (canSeeOficina.value) {
+    adminStore.fetchOficinaBadge();
+  }
 });
 
 // Refresh pending count on route change (only for training viewers)
@@ -181,6 +193,9 @@ watch(
     if (canSeeConquer.value) {
       adminStore.fetchConquerRequestsCount();
       adminStore.fetchConquerCorrectionsCount();
+    }
+    if (canSeeOficina.value) {
+      adminStore.fetchOficinaBadge();
     }
   }
 );

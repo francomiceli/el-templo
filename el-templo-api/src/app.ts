@@ -37,6 +37,7 @@ import { analyticsRoutes } from "./modules/analytics";
 import { reportsRoutes } from "./modules/reports";
 import { attributionReportRoutes } from "./modules/marketing/report-routes";
 import { renewalsRoutes } from "./modules/renewals";
+import { officeRoutes } from "./modules/office";
 import { weeklyBoardRoutes } from "./modules/weekly-board";
 import { coachRoutes } from "./modules/coach";
 import { ratingsAdminRoutes, ratingsMemberRoutes } from "./modules/ratings";
@@ -317,6 +318,11 @@ export async function buildApp(opts: BuildAppOptions = {}) {
   // de vencimientos, reemplaza el Excel semanal.
   await app.register(renewalsRoutes, {
     prefix: "/api/admin/renewals",
+  });
+
+  // Oficina (Fase 205): central de temas de gestión (owner/admin/gestion).
+  await app.register(officeRoutes, {
+    prefix: "/api/admin/office",
   });
 
   // Fase 206: Tablero semanal de gerencia (matriz por sede + carga de leads).

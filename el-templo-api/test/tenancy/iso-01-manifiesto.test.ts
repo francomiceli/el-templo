@@ -420,7 +420,9 @@ import {
 // `tenant-scoped`).
 // 2026-11-03: 542 -> 544 por el Tablero semanal (fase 206): GET
 // /api/admin/weekly-board y PUT /api/admin/weekly-board/leads, `tenant-scoped`.
-const ENTRADAS_BASELINE = 544;
+// 2026-11-03: 544 -> 552 por las 8 rutas de Oficina (fase 205), bajo
+// /api/admin/office, `tenant-scoped`.
+const ENTRADAS_BASELINE = 552;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -563,7 +565,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 544 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 552 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(

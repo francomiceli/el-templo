@@ -180,6 +180,14 @@ export const ANALITICAS_ROLES: AdminRole[] = ['admin', 'owner', 'admin_sede'];
 export const PARTNERS_ROLES: AdminRole[] = ['gestion', 'admin', 'owner'];
 
 /**
+ * Oficina (fase 205, D-10): central de temas de gestión. Espeja OFFICE_ROLES del
+ * API y es el mismo set que el Tablero (TABLERO_ROLES): solo owner/admin. También
+ * define quién puede ser responsable de un tema o mencionado. El gate REAL es el API
+ * (403); este set solo decide nav + `meta.allowedRoles` + opciones de personas.
+ */
+export const OFICINA_ROLES: AdminRole[] = ['admin', 'owner'];
+
+/**
  * Televisores de sucursal (fase 164): Dueño + coach + cuenta tv (incidente
  * 2026-09: la tele quedaba logueada con la cuenta de un coach y un cambio de
  * sedes la dejaba en 403 silencioso — la cuenta `tv` es dedicada, ve TODAS las
@@ -262,6 +270,7 @@ export interface NavItem {
    *   público todavía en estado "new" (grupo Landing).
    * - 'conquer': pedidos de desbloqueo sin activar (fase 201 D-12) + correcciones con video sin
    *   responder (fase 202 D-26).
+   * - 'oficina': menciones sin leer + temas donde soy responsable con novedades (fase 205 D-08).
    */
   badge?: NavBadge;
 }
@@ -272,7 +281,8 @@ export type NavBadge =
   | 'landing-academy'
   | 'landing-labs'
   | 'landing-franquicias'
-  | 'conquer';
+  | 'conquer'
+  | 'oficina';
 
 export interface NavCategory {
   header: string;
@@ -291,9 +301,16 @@ export interface NavCategory {
 export const NAV_MODEL: NavCategory[] = [
   {
     // Gerencia (fase 206, D-01/D-28): categoría propia al tope del menú, NO dentro de
-    // Reportes ni de Gestión/Oficina. Genérica (sin `templo`): la ve cualquier gimnasio.
+    // Reportes ni de Gestión. Genérica (sin `templo`): la ve cualquier gimnasio.
     header: 'Gerencia',
-    items: [{ path: '/tablero', label: 'Tablero', icon: 'dashboard', roles: TABLERO_ROLES }],
+    items: [
+      { path: '/tablero', label: 'Tablero', icon: 'dashboard', roles: TABLERO_ROLES },
+      // Oficina (fase 205 D-15): vive en Gerencia, después de Tablero. La categoría se muestra
+      // con que UN ítem sea visible, así que `gestion` (que no ve Tablero) la ve igual. La
+      // pelotita cuenta menciones sin leer y temas donde el usuario es responsable con actividad
+      // nueva. Es genérica (no `templo`).
+      { path: '/oficina', label: 'Oficina', icon: 'forum', roles: OFICINA_ROLES, badge: 'oficina' },
+    ],
   },
   {
     // Entrenamiento (revisión v5.4): la capa de entrenamiento del Templo, arriba de todo.

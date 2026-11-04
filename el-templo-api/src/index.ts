@@ -26,6 +26,7 @@ import { startNotificationRulesJob } from "./jobs/notification-rules";
 import { startMarketingGoogleJob } from "./jobs/marketing-google";
 import { startWeeklyBoardCloseJob } from "./jobs/weekly-board-close";
 import { startMarketingMetaJob } from "./jobs/marketing-meta";
+import { startOfficeAutoTopicsJob } from "./jobs/office-auto-topics";
 
 async function start() {
   const app = await buildApp();
@@ -64,6 +65,9 @@ async function start() {
     // Fase 195 (plan 09): Search Console semanal + sync de fichas de GBP diario
     // (apagados sin credenciales; GBP además arranca en GBP_SYNC_MODE=off).
     startMarketingGoogleJob(app.db);
+    // Fase 205 (plan 03): temas automáticos de Oficina cada 30 min (Wellhub con
+    // error, jornadas sin cerrar, clases de mañana sin profe) + despertar dormidos.
+    startOfficeAutoTopicsJob(app.db);
     // Fase 206 (plan 07): cierre semanal del Tablero de gerencia (cron horario).
     startWeeklyBoardCloseJob(app.db);
     await startMarkNoShowsJob(app.db);

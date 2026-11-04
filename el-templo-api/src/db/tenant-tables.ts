@@ -149,6 +149,12 @@ export const GYM_OWNED_TABLES = [
   // strict (ver TENANT_STRICT_MODULES["communications"] más abajo).
   "novedad_views",
   "novedades",
+  // Fase 205 Oficina (0320): nacen con tenant_id y strict (módulo `office`).
+  "office_mentions",
+  "office_topic_assignees",
+  "office_topic_events",
+  "office_topic_reads",
+  "office_topics",
   "onboarding_analytics",
   "partner_commissions",
   "partner_referrals",
@@ -706,6 +712,14 @@ export const TENANT_STRICT_MODULES: Record<string, readonly string[]> = {
   // Fase 197: el módulo nace strict, no hay deuda previa que tolerar.
   "free-blocks": ["extra_blocks_completed"],
   "improvement-proposals": ["improvement_proposals"],
+  // Fase 205 (Oficina): el módulo nace strict, no hay deuda previa que tolerar.
+  office: [
+    "office_mentions",
+    "office_topic_assignees",
+    "office_topic_events",
+    "office_topic_reads",
+    "office_topics",
+  ],
   notifications: [
     "device_tokens",
     "notification_preferences",

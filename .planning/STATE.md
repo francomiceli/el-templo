@@ -4,8 +4,8 @@ milestone: v6.1
 milestone_name: Módulo Gimnasio
 status: executing
 stopped_at: Rescate de docs del master local (2026-10-28) — ver Current Position
-last_updated: "2026-10-28T12:00:00.000Z"
-last_activity: 2026-10-28 -- ROADMAP/STATE unificados (rescate de docs del master local divergido)
+last_updated: "2026-11-03T18:00:00.000Z"
+last_activity: 2026-11-03 -- Fase 205 Oficina ejecutada (5/5) en `feat/oficina`, sin push
 progress:
   total_phases: 12
   completed_phases: 1
@@ -28,12 +28,13 @@ See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 Phase: varias en paralelo (ver estado real abajo). Milestone v6.1 (181-192.3): 181 en master; 182-192.2 en el tren `feat/v6.1-gimnasio` (SIN PUSH); 192.3 en `feat/192.3-workout-engine`, por integrar.
 Plan: —
 Status: Sin fase única en ejecución. Fuera de v6.1 la última entrega es 203 Carga sin parpadeos (master 2026-10-28, app 1.9.2).
-Last activity: 2026-10-28 -- Rescate de docs: ROADMAP.md y STATE.md unificados con el master local (que había divergido) y recuperadas las carpetas de fases/sketches/research que nunca llegaron a origin.
+Last activity: 2026-11-03 -- Fase 205 Oficina (central de temas de gestión del admin) ejecutada 5/5 en el worktree `et-oficina`, rama `feat/oficina` sobre `origin/master` `9b5f64784` (mig 0316, módulo `office`, job cada 30 min). Pendiente: CI (tests de integración), push a staging, UAT con gerencia. Decisiones en `.planning/phases/205-oficina/205-CONTEXT.md`.
 
 **Estado real al 2026-10-28** (detalle fase por fase en `ROADMAP.md`, tabla Progress):
 
 - **En master/prod:** 193 Comunicaciones (UAT del plan 17 pendiente), 194 Invitaciones, 197 Entrenar (tabs/Libre/Desafíos OCULTOS por flag, solo Semana), 199 Rediseño Mi Templo, 200 Anatomía, 201 Conquer v2 (tab OCULTA), 202 Conquer tutoriales/correcciones, 204 Usuarios Wellhub.
 - **En staging, no en master:** 195 Web SEO local + AEO + atribución (14/14, `human_needed`, staging `68a9dd86f`).
+- **Código listo, sin push (2026-11-03):** 205 Oficina (`feat/oficina`, worktree `et-oficina`).
 - **En master 2026-10-28:** 203 Carga sin parpadeos (app 1.9.2; 02 cancelado; UAT aprobado por uso en staging, checklist no corrido; pendiente builds de tiendas 1.9.2).
 - **Sin subir, en el tren `feat/v6.1-gimnasio`:** 182-192.2 (incl. 188.1, 192.1, 192.2); 192.3 Workout Engine ejecutada aparte, a integrar (renumerar mig 0253).
 - **Archivada:** 196 Personalizados + Conquer v1, reemplazada por 201 (tag `archive/196-personalizados`).

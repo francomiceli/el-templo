@@ -1,0 +1,199 @@
+/**
+ * Etiquetas, colores y textos de eventos de Oficina (fase 205). Un solo lugar para
+ * que lista, detalle y diálogo hablen igual.
+ */
+import type {
+  OfficeEvent,
+  OfficeEventType,
+  OfficePerson,
+  OfficeTargetKind,
+  OfficeTopicListItem,
+  OfficeTopicOrigin,
+  OfficeTopicStatus,
+} from 'src/composables/useOfficeApi';
+import { TABLERO_ROLES } from 'src/config/templo-config';
+import type { AdminRole } from 'src/types/admin';
+
+export const STATUS_LABELS: Record<OfficeTopicStatus, string> = {
+  abierto: 'Abierto',
+  dormido: 'Dormido',
+  cerrado: 'Cerrado',
+};
+
+export const STATUS_COLORS: Record<OfficeTopicStatus, string> = {
+  abierto: 'primary',
+  dormido: 'warning',
+  cerrado: 'grey-7',
+};
+
+/** Texto de los chips de estado: `warning` es claro y pide texto oscuro para el contraste. */
+export const STATUS_TEXT_COLORS: Record<OfficeTopicStatus, string> = {
+  abierto: 'white',
+  dormido: 'grey-10',
+  cerrado: 'white',
+};
+
+export const ORIGIN_LABELS: Record<OfficeTopicOrigin, string> = {
+  manual: 'Manual',
+  sistema: 'Del sistema',
+};
+
+export const TARGET_KIND_LABELS: Record<OfficeTargetKind, string> = {
+  socio: 'Socio',
+  jornada: 'Jornada',
+  wellhub_evento: 'Wellhub',
+  horario: 'Horario',
+  caja: 'Caja',
+  sede: 'Sede',
+  tablero: 'Tablero',
+};
+
+export const TARGET_KIND_ICONS: Record<OfficeTargetKind, string> = {
+  socio: 'person',
+  jornada: 'badge',
+  wellhub_evento: 'cloud_sync',
+  horario: 'schedule',
+  caja: 'point_of_sale',
+  sede: 'store',
+  tablero: 'dashboard',
+};
+
+/**
+ * Ruta del admin a la que lleva el vínculo de un tema; null si no hay pantalla.
+ * `role` solo importa para los vínculos a pantallas con menos audiencia que
+ * Oficina: el Tablero es de `TABLERO_ROLES` (hoy el mismo set que Oficina, el gate queda por si divergen).
+ */
+export function targetRoute(
+  kind: OfficeTargetKind,
+  id: number | null,
+  role?: AdminRole | null
+): string | null {
+  switch (kind) {
+    case 'socio':
+      return id !== null ? `/alumnos/${id}` : null;
+    case 'jornada':
+      return '/check-in';
+    case 'horario':
+      return '/horarios';
+    // Los arqueos se ven en Caja › Retiros (CAJA_TABS.retiros), que abre por ?tab=.
+    case 'caja':
+      return '/caja?tab=retiros';
+    // Wellhub sin publicar: las clases (y su marca "Wellhub") se arreglan en Horarios;
+    // el reporte Wellhub de Reportes es de visitas de socios, no de publicación.
+    case 'sede':
+      return '/horarios';
+    // Leads del Tablero sin cargar: el Tablero es de TABLERO_ROLES (hoy igual que Oficina), y un
+    // link a una pantalla que rebota con 403 es peor que ninguno.
+    case 'tablero':
+      return role && TABLERO_ROLES.includes(role) ? '/tablero' : null;
+    case 'wellhub_evento':
+      return null;
+    default:
+      return null;
+  }
+}
+
+export function personName(person: OfficePerson | null | undefined): string {
+  if (!person) return '';
+  return [person.firstName, person.lastName].filter(Boolean).join(' ').trim();
+}
+
+export function personInitials(person: OfficePerson | null | undefined): string {
+  if (!person) return '?';
+  const first = person.firstName?.trim()[0] ?? '';
+  const last = person.lastName?.trim()[0] ?? '';
+  const initials = `${first}${last}`.toUpperCase();
+  return initials || '?';
+}
+
+/** "dd/mm" desde un YYYY-MM-DD, sin pasar por Date (evita corrimientos de zona). */
+export function shortDate(ymd: string): string {
+  const [, month, day] = ymd.split('-');
+  return month && day ? `${day}/${month}` : ymd;
+}
+
+function payloadString(payload: Record<string, unknown> | null, key: string): string | null {
+  const value = payload?.[key];
+  return typeof value === 'string' && value !== '' ? value : null;
+}
+
+function payloadStrings(payload: Record<string, unknown> | null, key: string): string[] {
+  const value = payload?.[key];
+  if (!Array.isArray(value)) return [];
+  return value.filter((v): v is string => typeof v === 'string' && v.trim() !== '');
+}
+
+/** "Ana", "Ana y Juan", "Ana, Juan y Sol". */
+export function joinNames(names: string[]): string {
+  if (names.length <= 1) return names[0] ?? '';
+  return `${names.slice(0, -1).join(', ')} y ${names[names.length - 1]}`;
+}
+
+/**
+ * Qué pasó, en pasado y sin actor ("abrió el tema", "durmió el tema hasta 12/11").
+ * Los eventos `sistema` traen su propio texto en `body`.
+ */
+export function eventText(
+  type: OfficeEventType,
+  body: string | null,
+  payload: Record<string, unknown> | null
+): string {
+  switch (type) {
+    case 'creado':
+      return 'abrió el tema';
+    case 'comentario':
+      return body ?? '';
+    case 'tomado':
+      return 'tomó el tema';
+    case 'asignado': {
+      const names = joinNames(payloadStrings(payload, 'assigneeNames'));
+      return names ? `asignó a ${names}` : 'asignó el tema';
+    }
+    case 'desasignado': {
+      const names = joinNames(payloadStrings(payload, 'assigneeNames'));
+      return names ? `quitó a ${names}` : 'quitó un responsable';
+    }
+    case 'dormido': {
+      const until = payloadString(payload, 'until');
+      return until ? `durmió el tema hasta el ${shortDate(until)}` : 'durmió el tema';
+    }
+    case 'cerrado':
+      return body ? `cerró el tema: ${body}` : 'cerró el tema';
+    case 'reabierto':
+      return payload?.auto === true ? 'el tema se despertó solo' : 'reabrió el tema';
+    case 'editado':
+      return 'editó el tema';
+    case 'sistema':
+      return body ?? 'novedad del sistema';
+    default:
+      return '';
+  }
+}
+
+/** Línea completa de un evento que no es comentario: "Ana tomó el tema". */
+export function eventLine(ev: OfficeEvent): string {
+  // Los eventos `sistema` traen una frase entera en el body: se leen solos.
+  if (ev.type === 'sistema') return eventText(ev.type, ev.body, ev.payload);
+  // El despertar automático de un tema dormido no tiene sujeto humano.
+  if (ev.type === 'reabierto' && ev.payload?.auto === true) return 'El tema se despertó solo';
+  const text = eventText(ev.type, ev.body, ev.payload);
+  const actor = ev.actor ? personName(ev.actor) || 'Alguien' : 'El sistema';
+  return `${actor} ${text}`.trim();
+}
+
+/** Resumen de una línea del último movimiento de un tema, para la lista. */
+export function lastEventLine(last: OfficeTopicListItem['lastEvent']): string {
+  if (!last) return '';
+  const actor = last.actorFirstName ?? '';
+  switch (last.type) {
+    case 'comentario':
+      return actor ? `${actor}: ${last.body ?? ''}` : (last.body ?? '');
+    case 'sistema':
+      return last.body ?? 'Novedad del sistema';
+    case 'reabierto':
+      if (!actor) return 'El tema se despertó solo';
+      return `${actor} reabrió el tema`;
+    default:
+      return `${actor || 'El sistema'} ${eventText(last.type, last.body, null)}`.trim();
+  }
+}

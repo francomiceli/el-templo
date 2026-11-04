@@ -23,6 +23,8 @@ export const useAdminStore = defineStore('admin', () => {
   const conquerRequestsCount = ref(0);
   // Correcciones con video sin responder (fase 202 D-26). Suma a la pelotita de Conquer (DA-46).
   const conquerCorrectionsCount = ref(0);
+  // Pelotita de Oficina (fase 205 D-08): menciones sin leer + temas asignados con novedades.
+  const oficinaBadgeCount = ref(0);
 
   async function fetchPendingCount() {
     try {
@@ -76,6 +78,17 @@ export const useAdminStore = defineStore('admin', () => {
     }
   }
 
+  async function fetchOficinaBadge() {
+    try {
+      const { data } = await api.get<{ count: number; mentions: number; assigned: number }>(
+        '/admin/office/badge'
+      );
+      oficinaBadgeCount.value = data.count;
+    } catch {
+      // Fallo transitorio: se conserva el valor anterior para no apagar la pelotita.
+    }
+  }
+
   async function checkSessionCoverage() {
     try {
       const { data } = await api.get<{
@@ -101,11 +114,13 @@ export const useAdminStore = defineStore('admin', () => {
     landingInbox,
     conquerRequestsCount,
     conquerCorrectionsCount,
+    oficinaBadgeCount,
     fetchPendingCount,
     fetchAppTrialsPendingCount,
     fetchLandingInbox,
     fetchConquerRequestsCount,
     fetchConquerCorrectionsCount,
+    fetchOficinaBadge,
     checkSessionCoverage,
   };
 });
