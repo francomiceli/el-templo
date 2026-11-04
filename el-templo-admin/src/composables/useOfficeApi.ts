@@ -2,6 +2,7 @@
  * Oficina API composable (fase 205) — central de temas de gestión.
  * Contrato: `el-templo-api/src/modules/office/types.ts` (prefijo `/api/admin/office`).
  */
+// deploy: el primer push de Oficina murió en CI (tests), este fuerza el build del admin.
 import { ref } from 'vue';
 import { api } from 'src/boot/axios';
 import { OFICINA_ROLES } from 'src/config/templo-config';
