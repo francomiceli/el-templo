@@ -52,3 +52,8 @@
 
 - vue-tsc: `node /home/franco/projects/el-templo-test-gsd/node_modules/vue-tsc/bin/vue-tsc.js --noEmit -p tsconfig.json` (desde `el-templo-admin/`)
 - La consulta de renovación tardía (prod, n=1812) ya está resuelta y no hay que rehacerla. La regla es `LEAST(start_date, created_at local)`.
+
+## Cambio de alcance 2026-11-04 (antes del push)
+
+- Por decisión de Franco, el Tablero es **solo de owner y admin** por ahora: API `WEEKLY_BOARD_ROLES = ADMIN_ROLES` y admin `TABLERO_ROLES = ['admin', 'owner']`. gestion y admin_sede reciben 403 y no ven el ítem del menú.
+- Esto deja en suspenso D-01 y D-02. La lógica de "admin_sede ve solo su sede" sigue en el servicio. Para abrirlo: volver a `CAJA_ROLES` en los dos lados y recuperar los tests de admin_sede y gestion de `weekly-board-access.test.ts` (commit `5bc7671aa`).

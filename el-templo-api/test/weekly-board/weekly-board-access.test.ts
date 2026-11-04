@@ -162,11 +162,13 @@ describe("Tablero semanal — roles, alcance y aislamiento", () => {
 
   // ─── Roles ──────────────────────────────────────────────────────────────
 
-  it("sin token es 401 y coach y recepcion reciben 403 en GET y en PUT /leads", async () => {
+  it("sin token es 401; gestion, admin_sede, coach y recepcion reciben 403 en GET y en PUT /leads", async () => {
     const anon = await app.inject({ method: "GET", url: BASE });
     expect(anon.statusCode).toBe(401);
 
-    for (const key of ["coach", "recepcion"]) {
+    // 2026-11-04: el Tablero es solo de owner y admin por ahora. gestion y
+    // admin_sede (D-01/D-02) se abren más adelante.
+    for (const key of ["gestionAr", "adminSede", "coach", "recepcion"]) {
       const get = await getAs(tokens[key]);
       expect(get.status, `GET como ${key}`).toBe(403);
       expect(await putAs(tokens[key], branches.arA.id), `PUT como ${key}`).toBe(
@@ -176,76 +178,38 @@ describe("Tablero semanal — roles, alcance y aislamiento", () => {
     expect(await countLeads(TEMPLO_CTX, [branches.arA.id])).toBe(0);
   });
 
-  // ─── admin_sede ─────────────────────────────────────────────────────────
+  // ─── admin por país ─────────────────────────────────────────────────────
 
-  it("admin_sede ve una sola columna, sin Total ni Online", async () => {
-    const { status, body } = await getAs(tokens.adminSede);
-    expect(status).toBe(200);
+  it("un admin de Argentina ve AR (con Online) y no ve España ni puede cargar sus leads", async () => {
+    const key = "adminAr";
+    const { status, body } = await getAs(tokens[key]);
+    expect(status, `GET como ${key}`).toBe(200);
 
-    expect(body.groups).toHaveLength(1);
-    const [group] = body.groups;
-    expect(group.country).toBe("AR");
-    expect(group.branches.map((b) => b.id)).toEqual([branches.arA.id]);
-    expect(group.hasTotal).toBe(false);
-    expect(group.online).toBeNull();
+    expect(body.groups.map((g) => g.country)).toEqual(["AR"]);
+    const ar = body.groups[0];
+    const ids = ar.branches.map((b) => b.id);
+    expect(ids).toContain(branches.arA.id);
+    expect(ids).toContain(branches.arB.id);
+    expect(ids).not.toContain(branches.es.id);
+    expect(ar.hasTotal).toBe(true);
+    expect(ar.online?.branchIds).toContain(branches.virtualAr.id);
 
-    expect(body.metrics.length).toBeGreaterThan(0);
+    const keys = branchKeys(body.metrics);
+    expect(keys.has(String(branches.es.id)), `${key} ve la sede ES`).toBe(
+      false,
+    );
     for (const m of body.metrics) {
-      expect(Object.keys(m.totalByCountry), `Total de ${m.key}`).toEqual([]);
-      expect(Object.keys(m.onlineByCountry), `Online de ${m.key}`).toEqual([]);
-    }
-    expect([...branchKeys(body.metrics)]).toEqual([String(branches.arA.id)]);
-  });
-
-  it("admin_sede carga leads en su sede (200) pero no en otra (403)", async () => {
-    try {
-      expect(await putAs(tokens.adminSede, branches.arA.id, 9)).toBe(200);
-      expect(await countLeads(TEMPLO_CTX, [branches.arA.id])).toBe(1);
-
-      expect(await putAs(tokens.adminSede, branches.arB.id, 9)).toBe(403);
-      expect(await countLeads(TEMPLO_CTX, [branches.arB.id])).toBe(0);
-      // Tampoco la sede virtual del país (el atajo "virtual = global" no le aplica).
-      expect(await putAs(tokens.adminSede, branches.virtualAr.id, 9)).toBe(403);
-      expect(await countLeads(TEMPLO_CTX, [branches.virtualAr.id])).toBe(0);
-    } finally {
-      await clearLeads();
-    }
-  });
-
-  // ─── admin / gestion por país ───────────────────────────────────────────
-
-  it("admin y gestion de Argentina ven AR (con Online) y no ven España ni pueden cargar sus leads", async () => {
-    for (const key of ["adminAr", "gestionAr"]) {
-      const { status, body } = await getAs(tokens[key]);
-      expect(status, `GET como ${key}`).toBe(200);
-
-      expect(body.groups.map((g) => g.country)).toEqual(["AR"]);
-      const ar = body.groups[0];
-      const ids = ar.branches.map((b) => b.id);
-      expect(ids).toContain(branches.arA.id);
-      expect(ids).toContain(branches.arB.id);
-      expect(ids).not.toContain(branches.es.id);
-      expect(ar.hasTotal).toBe(true);
-      expect(ar.online?.branchIds).toContain(branches.virtualAr.id);
-
-      const keys = branchKeys(body.metrics);
-      expect(keys.has(String(branches.es.id)), `${key} ve la sede ES`).toBe(
-        false,
+      expect(Object.keys(m.totalByCountry), `Total de ${m.key}`).not.toContain(
+        "ES",
       );
-      for (const m of body.metrics) {
-        expect(
-          Object.keys(m.totalByCountry),
-          `Total de ${m.key}`,
-        ).not.toContain("ES");
-      }
-      const cobrado = body.metrics.find((m) => m.key === "cobrado");
-      expect(Object.keys(cobrado?.totalByCountry ?? {})).toEqual(["AR"]);
-
-      expect(
-        await putAs(tokens[key], branches.es.id, 4),
-        `PUT ES como ${key}`,
-      ).toBe(403);
     }
+    const cobrado = body.metrics.find((m) => m.key === "cobrado");
+    expect(Object.keys(cobrado?.totalByCountry ?? {})).toEqual(["AR"]);
+
+    expect(
+      await putAs(tokens[key], branches.es.id, 4),
+      `PUT ES como ${key}`,
+    ).toBe(403);
     expect(await countLeads(TEMPLO_CTX, [branches.es.id])).toBe(0);
   });
 

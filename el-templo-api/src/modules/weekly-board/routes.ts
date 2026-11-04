@@ -7,9 +7,11 @@
  *   - `PUT /leads`   carga (o borra, con `null`) los leads de una sede física
  *                    para la semana en curso o la anterior (D-04, D-24).
  *
- * Guard de rol: `CAJA_ROLES` (owner/admin/gestion + admin_sede, D-01/D-02),
- * que cubre a toda la audiencia de la pantalla (FA-12). coach y recepción
- * reciben 403.
+ * Guard de rol: `ADMIN_ROLES` (owner/admin). Decisión 2026-11-04: por ahora
+ * el Tablero es solo de owner y admin; gestion y admin_sede (D-01/D-02) se
+ * suman más adelante. El servicio ya resuelve el alcance de admin_sede (su
+ * sede sola), así que abrirlo es cambiar `WEEKLY_BOARD_ROLES`. El resto de los
+ * roles recibe 403.
  *
  * El GET NO usa `enforceBranchScope`: ese helper inyecta un único `branchId`
  * y está pensado para pantallas de una sola sede. El alcance del Tablero lo
@@ -26,7 +28,7 @@ import type { FastifyPluginAsync } from "fastify";
 import { handleServiceError } from "../shared/error-handler";
 import { requireBranchAccess } from "../shared/branch-access";
 import { attachCountryScope } from "../shared/country-scope";
-import { ADMIN_SEDE_ROLE, CAJA_ROLES } from "../shared/permissions";
+import { ADMIN_ROLES, ADMIN_SEDE_ROLE } from "../shared/permissions";
 import { assertTenant } from "../shared/tenant";
 import {
   weeklyBoardGetSchema,
@@ -37,11 +39,12 @@ import {
 import { WeeklyBoardService } from "./service";
 
 /**
- * Audiencia del Tablero: owner/admin/gestion y admin_sede. Se define acá y no
- * en `permissions.ts` para no chocar con la rama `feat/oficina`, que también
- * toca ese archivo.
+ * Audiencia del Tablero: owner y admin (2026-11-04). Para abrirlo a gestion y
+ * admin_sede, usar `CAJA_ROLES` (y lo mismo en `TABLERO_ROLES` del admin). Se
+ * define acá y no en `permissions.ts` para no chocar con la rama
+ * `feat/oficina`, que también toca ese archivo.
  */
-const WEEKLY_BOARD_ROLES = CAJA_ROLES;
+const WEEKLY_BOARD_ROLES = ADMIN_ROLES;
 
 export const weeklyBoardRoutes: FastifyPluginAsync = async (fastify) => {
   const service = new WeeklyBoardService(fastify.db, fastify.log);
