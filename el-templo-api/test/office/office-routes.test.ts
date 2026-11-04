@@ -211,8 +211,8 @@ describe("Oficina API (central de temas de gestión)", () => {
 
   // ─────────────────────────────── 1. Roles ───────────────────────────────
 
-  it("rechaza con 403 a coach, recepcion y admin_sede, y deja pasar a owner, admin y gestion", async () => {
-    for (const role of ["coach", "recepcion", "admin_sede"]) {
+  it("rechaza con 403 a coach, recepcion, admin_sede y gestion, y deja pasar a owner y admin (igual que el Tablero)", async () => {
+    for (const role of ["coach", "recepcion", "admin_sede", "gestion"]) {
       const actor = await staff(role);
       const topics = await call(actor.token, "GET", "/topics");
       expect(topics.statusCode).toBe(403);
@@ -221,11 +221,7 @@ describe("Oficina API (central de temas de gestión)", () => {
       expect(bdg.statusCode).toBe(403);
     }
 
-    for (const token of [
-      owner.token,
-      (await staff("admin")).token,
-      (await staff("gestion")).token,
-    ]) {
+    for (const token of [owner.token, (await staff("admin")).token]) {
       expect((await call(token, "GET", "/topics")).statusCode).toBe(200);
       expect((await call(token, "GET", "/badge")).statusCode).toBe(200);
     }
@@ -234,7 +230,7 @@ describe("Oficina API (central de temas de gestión)", () => {
   // ──────────────────────── 2. Crear + D-07 (visto) ────────────────────────
 
   it("crea un tema manual: abierto, con evento creado, visto para quien lo creó y nuevo para el resto", async () => {
-    const gestion = await staff("gestion");
+    const segundo = await staff("admin", "segundo");
     const topic = await createTopic(owner.token, {
       title: "Revisar el alquiler de Moreno",
       body: "Vence a fin de mes",
@@ -255,9 +251,9 @@ describe("Oficina API (central de temas de gestión)", () => {
     expect(delOwner[0].unseen).toBe(false);
     expect(delOwner[0].lastEvent?.type).toBe("creado");
 
-    const deGestion = await list(gestion.token);
-    expect(deGestion).toHaveLength(1);
-    expect(deGestion[0].unseen).toBe(true);
+    const deSegundo = await list(segundo.token);
+    expect(deSegundo).toHaveLength(1);
+    expect(deSegundo[0].unseen).toBe(true);
   });
 
   it("rechaza un título vacío o solo espacios con 400", async () => {
@@ -308,8 +304,8 @@ describe("Oficina API (central de temas de gestión)", () => {
 
   // ────────────────────── 4. Menciones + badge (D-06, D-08) ──────────────────────
 
-  it("crea menciones solo para staff ajeno al autor y las cuenta en el badge hasta que se marcan vistas", async () => {
-    const gestion = await staff("gestion");
+  it("crea menciones solo para owner/admin ajenos al autor y las cuenta en el badge hasta que se marcan vistas", async () => {
+    const segundo = await staff("admin", "segundo");
     const member = await createTestMember(app);
     const topic = await createTopic(owner.token, {
       title: "Tema con menciones",
@@ -320,8 +316,8 @@ describe("Oficina API (central de temas de gestión)", () => {
       "POST",
       `/topics/${topic.id}/comments`,
       {
-        body: "@Nombregestion Oficina fijate esto",
-        mentionUserIds: [gestion.id, owner.id, member.id],
+        body: "@Nombresegundo Oficina fijate esto",
+        mentionUserIds: [segundo.id, owner.id, member.id],
       },
     );
     expect(res.statusCode).toBe(201);
@@ -340,10 +336,10 @@ describe("Oficina API (central de temas de gestión)", () => {
       );
     // Ni el autor mencionándose a sí mismo ni un socio generan fila.
     expect(mentions).toHaveLength(1);
-    expect(mentions[0].userId).toBe(gestion.id);
+    expect(mentions[0].userId).toBe(segundo.id);
     expect(mentions[0].readAt).toBeNull();
 
-    expect(await badge(gestion.token)).toEqual({
+    expect(await badge(segundo.token)).toEqual({
       count: 1,
       mentions: 1,
       assigned: 0,
@@ -354,9 +350,9 @@ describe("Oficina API (central de temas de gestión)", () => {
       assigned: 0,
     });
 
-    const seen = await call(gestion.token, "POST", `/topics/${topic.id}/seen`);
+    const seen = await call(segundo.token, "POST", `/topics/${topic.id}/seen`);
     expect(seen.statusCode).toBe(204);
-    expect(await badge(gestion.token)).toEqual({
+    expect(await badge(segundo.token)).toEqual({
       count: 0,
       mentions: 0,
       assigned: 0,
@@ -374,23 +370,58 @@ describe("Oficina API (central de temas de gestión)", () => {
     expect(after[0].readAt).not.toBeNull();
   });
 
-  it("una acción propia (comentar) deja leídas mis menciones sin pasar por /seen", async () => {
+  it("descarta en silencio las menciones a gestion y coach: sin fila en office_mentions y sin badge que aplique", async () => {
     const gestion = await staff("gestion");
-    const topic = await createTopic(owner.token, { title: "Respondé esto" });
-    await call(owner.token, "POST", `/topics/${topic.id}/comments`, {
-      body: "@Nombregestion Oficina ¿lo viste?",
-      mentionUserIds: [gestion.id],
-    });
-    expect((await badge(gestion.token)).mentions).toBe(1);
+    const coach = await staff("coach");
+    const segundo = await staff("admin", "segundo");
+    const topic = await createTopic(owner.token, { title: "Solo admins" });
 
     const res = await call(
-      gestion.token,
+      owner.token,
+      "POST",
+      `/topics/${topic.id}/comments`,
+      {
+        body: "@Nombregestion Oficina @Nombrecoach Oficina @Nombresegundo Oficina",
+        mentionUserIds: [gestion.id, coach.id, segundo.id],
+      },
+    );
+    // El comentario se crea igual: lo descartado son las menciones, no el pedido.
+    expect(res.statusCode).toBe(201);
+
+    const mentions = await app.db
+      .select({ userId: schema.officeMentions.userId })
+      .from(schema.officeMentions)
+      .where(
+        and(
+          tenantWhere(schema.officeMentions, TEMPLO_CTX),
+          eq(schema.officeMentions.topicId, topic.id),
+        ),
+      );
+    expect(mentions.map((m) => m.userId)).toEqual([segundo.id]);
+
+    // Quienes no son owner/admin ni siquiera pueden pedir el badge (403).
+    expect((await call(gestion.token, "GET", "/badge")).statusCode).toBe(403);
+    expect((await call(coach.token, "GET", "/badge")).statusCode).toBe(403);
+    expect((await badge(segundo.token)).mentions).toBe(1);
+  });
+
+  it("una acción propia (comentar) deja leídas mis menciones sin pasar por /seen", async () => {
+    const segundo = await staff("admin", "segundo");
+    const topic = await createTopic(owner.token, { title: "Respondé esto" });
+    await call(owner.token, "POST", `/topics/${topic.id}/comments`, {
+      body: "@Nombresegundo Oficina ¿lo viste?",
+      mentionUserIds: [segundo.id],
+    });
+    expect((await badge(segundo.token)).mentions).toBe(1);
+
+    const res = await call(
+      segundo.token,
       "POST",
       `/topics/${topic.id}/comments`,
       { body: "Sí, lo veo ahora" },
     );
     expect(res.statusCode).toBe(201);
-    expect(await badge(gestion.token)).toEqual({
+    expect(await badge(segundo.token)).toEqual({
       count: 0,
       mentions: 0,
       assigned: 0,
@@ -407,21 +438,21 @@ describe("Oficina API (central de temas de gestión)", () => {
   });
 
   it("no cuenta las menciones de un tema cerrado en el badge", async () => {
-    const gestion = await staff("gestion");
+    const segundo = await staff("admin", "segundo");
     const topic = await createTopic(owner.token, {
       title: "Se cierra enseguida",
     });
     await call(owner.token, "POST", `/topics/${topic.id}/comments`, {
-      body: "@Nombregestion Oficina mirá",
-      mentionUserIds: [gestion.id],
+      body: "@Nombresegundo Oficina mirá",
+      mentionUserIds: [segundo.id],
     });
-    expect((await badge(gestion.token)).mentions).toBe(1);
+    expect((await badge(segundo.token)).mentions).toBe(1);
 
     const cerrar = await call(owner.token, "PATCH", `/topics/${topic.id}`, {
       status: "cerrado",
     });
     expect(cerrar.statusCode).toBe(200);
-    expect((await badge(gestion.token)).mentions).toBe(0);
+    expect((await badge(segundo.token)).mentions).toBe(0);
   });
 
   // ───────────────────────────── 5. Asignación ─────────────────────────────
@@ -444,18 +475,18 @@ describe("Oficina API (central de temas de gestión)", () => {
   }
 
   it("crea con dos responsables: un evento asignado con ambos y la respuesta ordenada por nombre", async () => {
-    const gestion = await staff("gestion");
+    const segundo = await staff("admin", "segundo");
     const admin = await staff("admin");
     const topic = await createTopic(owner.token, {
       title: "Nace con dos responsables",
-      assigneeIds: [gestion.id, admin.id],
+      assigneeIds: [segundo.id, admin.id],
     });
     expect(topic.events.map((e) => e.type)).toEqual(["creado", "asignado"]);
-    // "Nombreadmin" < "Nombregestion", sin importar el orden en que llegaron.
-    expect(topic.assignees.map((a) => a.id)).toEqual([admin.id, gestion.id]);
+    // "Nombreadmin" < "Nombresegundo", sin importar el orden en que llegaron.
+    expect(topic.assignees.map((a) => a.id)).toEqual([admin.id, segundo.id]);
     const evento = ultimo(topic, "asignado");
     expect([...(evento?.payload?.assigneeIds as number[])].sort()).toEqual(
-      [admin.id, gestion.id].sort(),
+      [admin.id, segundo.id].sort(),
     );
     expect(evento?.payload?.assigneeNames).toHaveLength(2);
 
@@ -463,7 +494,7 @@ describe("Oficina API (central de temas de gestión)", () => {
     const [enListado] = await list(owner.token);
     expect(enListado.assignees.map((a) => a.id)).toEqual([
       admin.id,
-      gestion.id,
+      segundo.id,
     ]);
   });
 
@@ -481,7 +512,7 @@ describe("Oficina API (central de temas de gestión)", () => {
   });
 
   it("el parche REEMPLAZA el conjunto: agregar emite asignado, quitar emite desasignado y tomar emite tomado", async () => {
-    const gestion = await staff("gestion");
+    const segundo = await staff("admin", "segundo");
     const admin = await staff("admin");
     const topic = await createTopic(owner.token, { title: "Asignaciones" });
 
@@ -491,21 +522,21 @@ describe("Oficina API (central de temas de gestión)", () => {
     expect(tomado.events.at(-1)?.type).toBe("tomado");
     expect(tomado.events.at(-1)?.payload?.assigneeIds).toEqual([owner.id]);
 
-    // Suma a gestion (el actor ya estaba): asignado con SOLO el agregado.
+    // Suma a segundo (el actor ya estaba): asignado con SOLO el agregado.
     const asignado = await patchAsignados(owner.token, topic.id, [
       owner.id,
-      gestion.id,
+      segundo.id,
     ]);
     expect(asignado.assignees.map((a) => a.id).sort()).toEqual(
-      [owner.id, gestion.id].sort(),
+      [owner.id, segundo.id].sort(),
     );
     expect(asignado.events.at(-1)?.type).toBe("asignado");
-    expect(asignado.events.at(-1)?.payload?.assigneeIds).toEqual([gestion.id]);
+    expect(asignado.events.at(-1)?.payload?.assigneeIds).toEqual([segundo.id]);
     expect(asignado.events.at(-1)?.payload?.assigneeNames).toEqual([
-      "Nombregestion Oficina",
+      "Nombresegundo Oficina",
     ]);
 
-    // Reemplazo: sale gestion, entra admin => asignado(admin) + desasignado(gestion).
+    // Reemplazo: sale segundo, entra admin => asignado(admin) + desasignado(segundo).
     const reemplazado = await patchAsignados(owner.token, topic.id, [
       owner.id,
       admin.id,
@@ -514,7 +545,7 @@ describe("Oficina API (central de temas de gestión)", () => {
     expect(tipos.slice(-2)).toEqual(["asignado", "desasignado"]);
     expect(reemplazado.events.at(-2)?.payload?.assigneeIds).toEqual([admin.id]);
     expect(reemplazado.events.at(-1)?.payload?.assigneeIds).toEqual([
-      gestion.id,
+      segundo.id,
     ]);
     expect(reemplazado.assignees.map((a) => a.id).sort()).toEqual(
       [owner.id, admin.id].sort(),
@@ -528,21 +559,21 @@ describe("Oficina API (central de temas de gestión)", () => {
   });
 
   it("un parche sin cambios en los responsables no genera evento ni mueve la actividad", async () => {
-    const gestion = await staff("gestion");
+    const segundo = await staff("admin", "segundo");
     const topic = await createTopic(owner.token, {
       title: "Sin cambios",
-      assigneeIds: [gestion.id],
+      assigneeIds: [segundo.id],
     });
     const eventosAntes = topic.events.length;
 
     // Mismo conjunto (y repetido: el servidor deduplica).
     const igual = await patchAsignados(owner.token, topic.id, [
-      gestion.id,
-      gestion.id,
+      segundo.id,
+      segundo.id,
     ]);
     expect(igual.events).toHaveLength(eventosAntes);
     expect(igual.lastActivityAt).toBe(topic.lastActivityAt);
-    expect(igual.assignees.map((a) => a.id)).toEqual([gestion.id]);
+    expect(igual.assignees.map((a) => a.id)).toEqual([segundo.id]);
 
     // Sin la clave `assigneeIds` tampoco se tocan los responsables.
     const soloTitulo = await call(owner.token, "PATCH", `/topics/${topic.id}`, {
@@ -552,32 +583,32 @@ describe("Oficina API (central de temas de gestión)", () => {
       soloTitulo
         .json<{ topic: OfficeTopicDetail }>()
         .topic.assignees.map((a) => a.id),
-    ).toEqual([gestion.id]);
+    ).toEqual([segundo.id]);
   });
 
   it("un arreglo vacío deja el tema sin responsables", async () => {
-    const gestion = await staff("gestion");
+    const segundo = await staff("admin", "segundo");
     const admin = await staff("admin");
     const topic = await createTopic(owner.token, {
       title: "Se vacía",
-      assigneeIds: [gestion.id, admin.id],
+      assigneeIds: [segundo.id, admin.id],
     });
     const vacio = await patchAsignados(owner.token, topic.id, []);
     expect(vacio.assignees).toEqual([]);
     const quitado = ultimo(vacio, "desasignado");
     expect([...(quitado?.payload?.assigneeIds as number[])].sort()).toEqual(
-      [gestion.id, admin.id].sort(),
+      [segundo.id, admin.id].sort(),
     );
-    expect(await list(gestion.token, "?view=mios")).toHaveLength(0);
+    expect(await list(segundo.token, "?view=mios")).toHaveLength(0);
   });
 
   it("deduplica ids repetidos al crear y rechaza más de 20 responsables", async () => {
-    const gestion = await staff("gestion");
+    const segundo = await staff("admin", "segundo");
     const topic = await createTopic(owner.token, {
       title: "Repetidos",
-      assigneeIds: [gestion.id, gestion.id, gestion.id],
+      assigneeIds: [segundo.id, segundo.id, segundo.id],
     });
-    expect(topic.assignees.map((a) => a.id)).toEqual([gestion.id]);
+    expect(topic.assignees.map((a) => a.id)).toEqual([segundo.id]);
     const filas = await app.db
       .select({ id: schema.officeTopicAssignees.id })
       .from(schema.officeTopicAssignees)
@@ -591,37 +622,103 @@ describe("Oficina API (central de temas de gestión)", () => {
     expect(demasiados.statusCode).toBe(400);
   });
 
-  it("rechaza con 400 asignar a quien no es staff (socio) sin tocar el conjunto", async () => {
-    const gestion = await staff("gestion");
+  it("rechaza con 400 asignar a quien no es owner/admin (socio) sin tocar el conjunto", async () => {
+    const segundo = await staff("admin", "segundo");
     const member = await createTestMember(app);
     const topic = await createTopic(owner.token, {
-      title: "Solo staff",
-      assigneeIds: [gestion.id],
+      title: "Solo owner y admin",
+      assigneeIds: [segundo.id],
     });
 
     const aSocio = await call(owner.token, "PATCH", `/topics/${topic.id}`, {
-      assigneeIds: [gestion.id, member.id],
+      assigneeIds: [segundo.id, member.id],
     });
     expect(aSocio.statusCode).toBe(400);
 
     const creaConSocio = await call(owner.token, "POST", "/topics", {
       title: "Con socio",
-      assigneeIds: [gestion.id, member.id],
+      assigneeIds: [segundo.id, member.id],
     });
     expect(creaConSocio.statusCode).toBe(400);
 
     const intacto = await call(owner.token, "GET", `/topics/${topic.id}`);
     const detalle = intacto.json<{ topic: OfficeTopicDetail }>().topic;
-    expect(detalle.assignees.map((a) => a.id)).toEqual([gestion.id]);
+    expect(detalle.assignees.map((a) => a.id)).toEqual([segundo.id]);
     expect(detalle.events.map((e) => e.type)).toEqual(["creado", "asignado"]);
   });
 
-  it("quien ya era responsable y se deshabilitó no bloquea el parche, y se lo puede quitar", async () => {
+  it("rechaza con 400 asignar a gestion o a coach (solo owner y admin), al crear y al editar", async () => {
     const gestion = await staff("gestion");
+    const coach = await staff("coach");
+    const segundo = await staff("admin", "segundo");
+    const topic = await createTopic(owner.token, {
+      title: "Solo owner y admin 2",
+      assigneeIds: [segundo.id],
+    });
+
+    for (const intruso of [gestion, coach]) {
+      const crea = await call(owner.token, "POST", "/topics", {
+        title: "Con intruso",
+        assigneeIds: [segundo.id, intruso.id],
+      });
+      expect(crea.statusCode).toBe(400);
+
+      const edita = await call(owner.token, "PATCH", `/topics/${topic.id}`, {
+        assigneeIds: [segundo.id, intruso.id],
+      });
+      expect(edita.statusCode).toBe(400);
+    }
+
+    // Ni el tema "Con intruso" se creó, ni el conjunto del otro cambió.
+    const todos = await list(owner.token, "?view=todos");
+    expect(todos.map((t) => t.title)).toEqual(["Solo owner y admin 2"]);
+    const intacto = await call(owner.token, "GET", `/topics/${topic.id}`);
+    const detalle = intacto.json<{ topic: OfficeTopicDetail }>().topic;
+    expect(detalle.assignees.map((a) => a.id)).toEqual([segundo.id]);
+  });
+
+  it("quien ya era responsable y dejó de ser admin no bloquea el parche, y se lo puede quitar", async () => {
+    const exAdmin = await staff("admin", "exadmin");
+    const admin = await staff("admin");
+    const topic = await createTopic(owner.token, {
+      title: "Cambió de rol",
+      assigneeIds: [exAdmin.id],
+    });
+    await app.db
+      .update(schema.users)
+      .set({ role: "coach" })
+      .where(
+        and(
+          tenantWhere(schema.users, TEMPLO_CTX),
+          eq(schema.users.id, exAdmin.id),
+        ),
+      );
+
+    // Mantiene al ex admin y suma a otro: solo se valida al agregado.
+    const suma = await patchAsignados(owner.token, topic.id, [
+      exAdmin.id,
+      admin.id,
+    ]);
+    expect(suma.assignees.map((a) => a.id).sort()).toEqual(
+      [exAdmin.id, admin.id].sort(),
+    );
+
+    // Y se lo puede quitar (200).
+    const saca = await call(owner.token, "PATCH", `/topics/${topic.id}`, {
+      assigneeIds: [admin.id],
+    });
+    expect(saca.statusCode).toBe(200);
+    const detalle = saca.json<{ topic: OfficeTopicDetail }>().topic;
+    expect(detalle.assignees.map((a) => a.id)).toEqual([admin.id]);
+    expect(detalle.events.at(-1)?.type).toBe("desasignado");
+  });
+
+  it("quien ya era responsable y se deshabilitó no bloquea el parche, y se lo puede quitar", async () => {
+    const segundo = await staff("admin", "segundo");
     const admin = await staff("admin");
     const topic = await createTopic(owner.token, {
       title: "Se fue de baja",
-      assigneeIds: [gestion.id],
+      assigneeIds: [segundo.id],
     });
     await app.db
       .update(schema.users)
@@ -629,17 +726,17 @@ describe("Oficina API (central de temas de gestión)", () => {
       .where(
         and(
           tenantWhere(schema.users, TEMPLO_CTX),
-          eq(schema.users.id, gestion.id),
+          eq(schema.users.id, segundo.id),
         ),
       );
 
     // Mantiene al deshabilitado y suma a otro: no se revalida al que ya estaba.
     const suma = await patchAsignados(owner.token, topic.id, [
-      gestion.id,
+      segundo.id,
       admin.id,
     ]);
     expect(suma.assignees.map((a) => a.id).sort()).toEqual(
-      [gestion.id, admin.id].sort(),
+      [segundo.id, admin.id].sort(),
     );
 
     // Y se lo puede sacar.
@@ -649,15 +746,15 @@ describe("Oficina API (central de temas de gestión)", () => {
   });
 
   it("filtra 'mios' por responsable (ambos lo ven, un tercero no) y excluye los cerrados", async () => {
-    const gestion = await staff("gestion");
+    const segundo = await staff("admin", "segundo");
     const admin = await staff("admin");
     await createTopic(owner.token, {
       title: "Mío abierto",
-      assigneeIds: [gestion.id, admin.id],
+      assigneeIds: [segundo.id, admin.id],
     });
     const cerrado = await createTopic(owner.token, {
       title: "Mío cerrado",
-      assigneeIds: [gestion.id],
+      assigneeIds: [segundo.id],
     });
     await createTopic(owner.token, { title: "De nadie" });
     await call(owner.token, "PATCH", `/topics/${cerrado.id}`, {
@@ -665,7 +762,7 @@ describe("Oficina API (central de temas de gestión)", () => {
     });
 
     expect(
-      (await list(gestion.token, "?view=mios")).map((t) => t.title),
+      (await list(segundo.token, "?view=mios")).map((t) => t.title),
     ).toEqual(["Mío abierto"]);
     expect((await list(admin.token, "?view=mios")).map((t) => t.title)).toEqual(
       ["Mío abierto"],
@@ -677,32 +774,32 @@ describe("Oficina API (central de temas de gestión)", () => {
   // ───────────────── 6. Badge de asignados + acción propia (D-07, D-08) ─────────────────
 
   it("el badge de asignados baja al ver, sube con actividad ajena y una acción propia cuenta como vista", async () => {
-    const gestion = await staff("gestion");
+    const segundo = await staff("admin", "segundo");
     const topic = await createTopic(owner.token, {
       title: "Para gestión",
-      assigneeIds: [gestion.id],
+      assigneeIds: [segundo.id],
     });
 
     // Nunca visto por la persona asignada.
-    expect(await badge(gestion.token)).toEqual({
+    expect(await badge(segundo.token)).toEqual({
       count: 1,
       mentions: 0,
       assigned: 1,
     });
 
-    await call(gestion.token, "POST", `/topics/${topic.id}/seen`);
-    expect((await badge(gestion.token)).assigned).toBe(0);
+    await call(segundo.token, "POST", `/topics/${topic.id}/seen`);
+    expect((await badge(segundo.token)).assigned).toBe(0);
 
     // Actividad de otra persona en un segundo posterior a la vista.
     await esperar(1100);
     await call(owner.token, "POST", `/topics/${topic.id}/comments`, {
       body: "Novedades por acá",
     });
-    expect((await badge(gestion.token)).assigned).toBe(1);
+    expect((await badge(segundo.token)).assigned).toBe(1);
 
     // Comentar uno mismo cuenta como vista: no queda "nuevo" para el autor.
     const propio = await call(
-      gestion.token,
+      segundo.token,
       "POST",
       `/topics/${topic.id}/comments`,
       {
@@ -713,28 +810,28 @@ describe("Oficina API (central de temas de gestión)", () => {
     expect(propio.json<{ topic: OfficeTopicDetail }>().topic.unseen).toBe(
       false,
     );
-    expect((await badge(gestion.token)).assigned).toBe(0);
+    expect((await badge(segundo.token)).assigned).toBe(0);
   });
 
   it("el badge de asignados cuenta para cada responsable y cada uno baja al ver lo suyo", async () => {
-    const gestion = await staff("gestion");
+    const segundo = await staff("admin", "segundo");
     const admin = await staff("admin");
     const topic = await createTopic(owner.token, {
       title: "Para dos",
-      assigneeIds: [gestion.id, admin.id],
+      assigneeIds: [segundo.id, admin.id],
     });
 
-    expect((await badge(gestion.token)).assigned).toBe(1);
+    expect((await badge(segundo.token)).assigned).toBe(1);
     expect((await badge(admin.token)).assigned).toBe(1);
     // Quien creó el tema sin ser responsable no recibe aviso de asignación.
     expect((await badge(owner.token)).assigned).toBe(0);
 
-    await call(gestion.token, "POST", `/topics/${topic.id}/seen`);
-    expect((await badge(gestion.token)).assigned).toBe(0);
+    await call(segundo.token, "POST", `/topics/${topic.id}/seen`);
+    expect((await badge(segundo.token)).assigned).toBe(0);
     expect((await badge(admin.token)).assigned).toBe(1);
 
     // Si se lo quita del conjunto, el tema deja de contarle.
-    await patchAsignados(owner.token, topic.id, [gestion.id]);
+    await patchAsignados(owner.token, topic.id, [segundo.id]);
     expect((await badge(admin.token)).assigned).toBe(0);
   });
 
@@ -1050,11 +1147,12 @@ describe("Oficina API (central de temas de gestión)", () => {
 
   // ──────────────────────────────── 11. Staff ────────────────────────────────
 
-  it("lista solo staff activo: sin socios, sin cuentas de TV y sin deshabilitados", async () => {
+  it("lista solo owner/admin activos: sin gestion ni coach, sin socios, sin cuentas de TV y sin deshabilitados", async () => {
     const coach = await staff("coach");
     const gestion = await staff("gestion");
+    const segundo = await staff("admin", "segundo");
     const tv = await staff("tv");
-    const deshabilitado = await staff("recepcion");
+    const deshabilitado = await staff("admin", "deshabilitado");
     const member = await createTestMember(app);
     await app.db
       .update(schema.users)
@@ -1071,12 +1169,14 @@ describe("Oficina API (central de temas de gestión)", () => {
     const lista = res.json<{ staff: OfficeStaff[] }>().staff;
     const ids = lista.map((s) => s.id);
     expect(ids).toContain(owner.id);
-    expect(ids).toContain(coach.id);
-    expect(ids).toContain(gestion.id);
+    expect(ids).toContain(segundo.id);
+    expect(ids).not.toContain(coach.id);
+    expect(ids).not.toContain(gestion.id);
     expect(ids).not.toContain(tv.id);
     expect(ids).not.toContain(deshabilitado.id);
     expect(ids).not.toContain(member.id);
-    expect(lista.find((s) => s.id === coach.id)?.role).toBe("coach");
+    expect(lista.find((s) => s.id === segundo.id)?.role).toBe("admin");
+    expect(lista.find((s) => s.id === owner.id)).toBeDefined();
   });
 
   // ───────────────────────────────── 12. Filtros ─────────────────────────────────

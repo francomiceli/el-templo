@@ -181,10 +181,11 @@ export const PARTNERS_ROLES: AdminRole[] = ['gestion', 'admin', 'owner'];
 
 /**
  * Oficina (fase 205, D-10): central de temas de gestión. Espeja OFFICE_ROLES del
- * API (owner/admin/gestion). `admin_sede` y `recepcion` quedan afuera en v1 (gestión
- * central). El gate REAL es el API (403); este set solo decide nav + `meta.allowedRoles`.
+ * API y es el mismo set que el Tablero (TABLERO_ROLES): solo owner/admin. También
+ * define quién puede ser responsable de un tema o mencionado. El gate REAL es el API
+ * (403); este set solo decide nav + `meta.allowedRoles` + opciones de personas.
  */
-export const OFICINA_ROLES: AdminRole[] = ['gestion', 'admin', 'owner'];
+export const OFICINA_ROLES: AdminRole[] = ['admin', 'owner'];
 
 /**
  * Televisores de sucursal (fase 164): Dueño + coach + cuenta tv (incidente

@@ -352,7 +352,7 @@ const statusChipLabel = computed(() => {
   return STATUS_LABELS[topic.status];
 });
 
-// El rol define si el vínculo es clickeable: gestion ve Oficina pero no el Tablero.
+// El rol define si el vínculo es clickeable (el Tablero tiene el mismo set de roles que Oficina).
 const linkRoute = computed(() =>
   props.topic?.targetKind
     ? targetRoute(props.topic.targetKind, props.topic.targetId, authStore.user?.role)

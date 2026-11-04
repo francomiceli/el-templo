@@ -40,7 +40,6 @@ import {
   like,
   max,
   ne,
-  notInArray,
   or,
   sql,
   type SQL,
@@ -63,6 +62,7 @@ import {
   tenantWhere,
   type TenantContext,
 } from "../shared/tenant";
+import { OFFICE_ROLES } from "../shared/permissions";
 import { isDuplicateKeyError } from "../shared/sql-errors";
 import { readAffectedRows } from "../shared/affected-rows";
 import { todayInTz } from "../shared/date-utils";
@@ -87,9 +87,6 @@ const DEFAULT_TIMEZONE = "America/Argentina/Buenos_Aires";
 const DEFAULT_LIMIT = 200;
 const MAX_LIMIT = 500;
 const TARGET_LABEL_MAX = 160;
-
-/** Roles que NO son staff: socios y la cuenta de los televisores. */
-const NON_STAFF_ROLES: ("member" | "tv")[] = ["member", "tv"];
 
 /** `now` truncado a segundos (ver docblock del archivo). */
 function nowSeconds(): Date {
@@ -757,8 +754,8 @@ export class OfficeService {
       }
 
       // 2) Responsables: `assigneeIds` REEMPLAZA el conjunto completo. Solo se
-      // valida como staff a los que se agregan: quien ya era responsable y
-      // después se deshabilitó no bloquea el resto del parche.
+      // valida como owner/admin a los que se agregan: quien ya era responsable y
+      // después se deshabilitó o dejó de ser owner/admin no bloquea el resto del parche.
       if (wantedAssigneeIds !== null) {
         const current = await this.loadAssigneeRefs(tx, ctx, [topicId]);
         const currentIds = new Set(current.map((a) => a.id));
@@ -974,20 +971,23 @@ export class OfficeService {
   // ───────────────────────────── Privados ─────────────────────────────
 
   /**
-   * Condiciones de "staff activo" (no socio, no TV, no deshabilitado, no
-   * borrado). NO incluye el filtro de gimnasio: cada query suma su propio
-   * `tenantWhere(schema.users, ctx)`, que es lo que lee el lint de tenancy.
+   * Condiciones de "persona de Oficina" (D-10): rol de `OFFICE_ROLES` (owner o
+   * admin, los mismos que entran a Oficina y al Tablero), no deshabilitado, no
+   * borrado. Es la única regla de quién puede ser responsable, recibir una
+   * mención o aparecer en `/staff`. NO incluye el filtro de gimnasio: cada
+   * query suma su propio `tenantWhere(schema.users, ctx)`, que es lo que lee
+   * el lint de tenancy.
    */
   private staffFilters(): SQL[] {
     return [
-      notInArray(schema.users.role, NON_STAFF_ROLES),
+      inArray(schema.users.role, [...OFFICE_ROLES]),
       eq(schema.users.staffDisabled, false),
       isNull(schema.users.deletedAt),
     ];
   }
 
   /**
-   * Valida en lote que cada id sea staff activo de ESTE gimnasio (400 si
+   * Valida en lote que cada id sea owner/admin activo de ESTE gimnasio (400 si
    * alguno no lo es: un id de otro gimnasio es indistinguible de uno inexistente)
    * y devuelve las personas ordenadas por nombre.
    */
@@ -1012,7 +1012,7 @@ export class OfficeService {
         ),
       );
     if (rows.length !== userIds.length) {
-      throw new BadRequestError("La persona elegida no es parte del staff");
+      throw new BadRequestError("La persona elegida no puede ser responsable: solo owner y admin");
     }
     return rows.sort(byName);
   }
@@ -1294,7 +1294,7 @@ export class OfficeService {
 
   /**
    * D-06: una fila en `office_mentions` por (evento, usuario). Se filtra a
-   * staff activo del gimnasio, se ignora al propio actor y se deduplica.
+   * owner/admin activos del gimnasio (el resto se descarta en silencio), se ignora al propio actor y se deduplica.
    */
   private async insertMentions(
     tx: TxHandle,

@@ -61,7 +61,7 @@ export const TARGET_KIND_ICONS: Record<OfficeTargetKind, string> = {
 /**
  * Ruta del admin a la que lleva el vínculo de un tema; null si no hay pantalla.
  * `role` solo importa para los vínculos a pantallas con menos audiencia que
- * Oficina: el Tablero es de `TABLERO_ROLES` y `gestion` ve el tema sin link.
+ * Oficina: el Tablero es de `TABLERO_ROLES` (hoy el mismo set que Oficina, el gate queda por si divergen).
  */
 export function targetRoute(
   kind: OfficeTargetKind,
@@ -82,8 +82,8 @@ export function targetRoute(
     // el reporte Wellhub de Reportes es de visitas de socios, no de publicación.
     case 'sede':
       return '/horarios';
-    // Leads del Tablero sin cargar: el Tablero no lo ve `gestion` (TABLERO_ROLES), y un link
-    // a una pantalla que lo rebota con 403 es peor que ninguno.
+    // Leads del Tablero sin cargar: el Tablero es de TABLERO_ROLES (hoy igual que Oficina), y un
+    // link a una pantalla que rebota con 403 es peor que ninguno.
     case 'tablero':
       return role && TABLERO_ROLES.includes(role) ? '/tablero' : null;
     case 'wellhub_evento':

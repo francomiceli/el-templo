@@ -1,8 +1,8 @@
 /**
  * Rutas del módulo Oficina (prefijo `/api/admin/office`), Fase 205.
  *
- * Guard de rol: `OFFICE_ROLES` (owner/admin/gestion, D-10). El resto del staff
- * (coach, recepcion, admin_sede…) recibe 403.
+ * Guard de rol: `OFFICE_ROLES` (owner/admin, D-10: espejo del Tablero). El resto
+ * del staff (gestion, coach, recepcion, admin_sede…) recibe 403.
  */
 import { FastifyPluginAsync } from "fastify";
 import { OfficeService } from "./service";

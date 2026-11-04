@@ -145,7 +145,7 @@ const canSeeConquer = computed(() => {
   return role !== undefined && CONQUER_MANAGER_ROLES.includes(role);
 });
 
-// Quiénes ven Oficina (y por ende su pelotita): owner/admin/gestión, fase 205 D-10.
+// Quiénes ven Oficina (y por ende su pelotita): owner/admin (igual que el Tablero), fase 205 D-10.
 const canSeeOficina = computed(() => {
   const role = authStore.user?.role;
   return role !== undefined && OFICINA_ROLES.includes(role);

@@ -4,6 +4,7 @@
  */
 import { ref } from 'vue';
 import { api } from 'src/boot/axios';
+import { OFICINA_ROLES } from 'src/config/templo-config';
 import { extractError } from 'src/utils/extract-error';
 
 export type OfficeTopicStatus = 'abierto' | 'dormido' | 'cerrado';
@@ -242,7 +243,9 @@ export function useOfficeApi() {
   async function listStaff(): Promise<OfficeStaff[]> {
     try {
       const { data } = await api.get<{ staff: OfficeStaff[] }>('/admin/office/staff');
-      return data.staff;
+      // El API ya devuelve solo owner/admin; el filtro por OFICINA_ROLES es la misma
+      // regla del lado del admin (responsables y @menciones).
+      return data.staff.filter((person) => (OFICINA_ROLES as string[]).includes(person.role));
     } catch (err: unknown) {
       error.value = extractError(err, 'No pudimos cargar el equipo');
       throw err;

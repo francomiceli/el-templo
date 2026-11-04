@@ -1188,7 +1188,7 @@ const isLifecycleRole = computed(() => {
 
 const canDeleteMember = computed(() => isLifecycleRole.value);
 
-// Fase 205 (D-20): espejo de OFFICE_ROLES en la API (owner/admin/gestion). Solo oculta la pestaña.
+// Fase 205 (D-20): espejo de OFFICE_ROLES en la API (owner/admin). Solo oculta la pestaña.
 const canSeeOficina = computed(() => {
   const role = currentUser.value?.role;
   return role !== undefined && OFICINA_ROLES.includes(role);
