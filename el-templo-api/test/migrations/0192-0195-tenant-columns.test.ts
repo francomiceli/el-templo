@@ -166,7 +166,7 @@ describe("Migraciones 0192-0195 — tenant_id en las 87 tablas gym-owned", () =>
   });
 
   // ─── 2. Cobertura ───────────────────────────────────────────────────────
-  it("Test 2: la verificacion cubre las 121 tablas gym-owned, no un subconjunto", () => {
+  it("Test 2: la verificacion cubre las 123 tablas gym-owned, no un subconjunto", () => {
     // 87 de la tanda C (fase 167) + session_week_regime (fase 159, SEM-05)
     // + 3 tablas de partners (referral_partners/partner_referrals/
     // partner_commissions, fase 179, tenancy-native en la 0215)
@@ -188,7 +188,8 @@ describe("Migraciones 0192-0195 — tenant_id en las 87 tablas gym-owned", () =>
     // + signup_attributions (fase 195-07, 0272) = 118.
     // + meta_capi_events y ad_spend_daily (fase 195-08, 0273) = 120.
     // + search_console_stats (fase 195-09, 0274) = 121.
-    expect(report.gymOwnedChecked).toBe(121);
+    // + weekly_board_snapshots/weekly_board_leads (fase 206, 0319) = 123.
+    expect(report.gymOwnedChecked).toBe(123);
   });
 
   // ─── 3. Exclusiones de diseño ───────────────────────────────────────────

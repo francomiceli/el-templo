@@ -58,7 +58,9 @@ import type {
   ChargeReportPaymentMethod,
   ChargeReportRow,
   DebtBucket,
+  DebtManagementStatus,
   DebtManagementUpdateInput,
+  DebtTotalsByStatus,
   DebtManagementView,
   ExpiredMemberRow,
   ExpiredMembersFilters,
@@ -78,6 +80,7 @@ import type {
   TrialLostReason,
   TrialRescheduleLinkedSession,
   TrialSessionKpis,
+  TrialSessionTally,
   TrialSessionsFilters,
   TrialSessionsReport,
   TrialSessionsRow,
@@ -196,6 +199,19 @@ function toDateOrNull(v: string | Date | null): Date | null {
 function computeTrialSessionKpis(
   rows: TrialSessionRowInternal[],
 ): TrialSessionKpis {
+  return kpisFromTally(tallyTrialSessions(rows));
+}
+
+/**
+ * Cuenta crudo el embudo de Sesiones de Prueba (primera mitad de
+ * `computeTrialSessionKpis`, ver ahí las reglas de grano y de "clase ya
+ * ocurrida"). Separado para que el Tablero semanal (fase 206) pueda sumar
+ * conteos de varias sedes y recalcular los porcentajes con
+ * {@link kpisFromTally}.
+ */
+function tallyTrialSessions(
+  rows: TrialSessionRowInternal[],
+): TrialSessionTally {
   let reservations = 0;
   let occurred = 0;
   let attended = 0;
@@ -221,17 +237,35 @@ function computeTrialSessionKpis(
     }
   }
 
+  return {
+    pendingThisShift,
+    reservations,
+    occurred,
+    attended,
+    purchased,
+    purchasedOccurred,
+    purchasedAttended,
+  };
+}
+
+/**
+ * Deriva los KPIs (con los porcentajes) desde conteos crudos. Única copia de
+ * las fórmulas del embudo (D-26): % Asistencia = asistieron / ocurridas,
+ * % Cierre = compraron con asistencia / asistieron, % Conversión total =
+ * compraron (ocurridas) / ocurridas. `null` si el denominador es 0.
+ */
+export function kpisFromTally(t: TrialSessionTally): TrialSessionKpis {
   const pct = (num: number, den: number): number | null =>
     den === 0 ? null : (num / den) * 100;
 
   return {
-    pendingThisShift,
-    reservations,
-    attended,
-    purchased,
-    attendanceRate: pct(attended, occurred),
-    closeRate: pct(purchasedAttended, attended),
-    totalConversionRate: pct(purchasedOccurred, occurred),
+    pendingThisShift: t.pendingThisShift,
+    reservations: t.reservations,
+    attended: t.attended,
+    purchased: t.purchased,
+    attendanceRate: pct(t.attended, t.occurred),
+    closeRate: pct(t.purchasedAttended, t.attended),
+    totalConversionRate: pct(t.purchasedOccurred, t.occurred),
   };
 }
 
@@ -314,6 +348,18 @@ function computeBucketOB(ageInDays: number): DebtBucket {
   if (ageInDays <= 10) return "6-10";
   if (ageInDays <= 15) return "11-15";
   return "15+";
+}
+
+/**
+ * Estado efectivo de una gestión de deuda en JS: una deuda sin fila en
+ * `debt_management` (LEFT JOIN -> NULL) es 'activa'. Es la MISMA regla que
+ * `ReportsService.effectiveDebtStatusSQL` (`COALESCE(status, 'activa')`): si
+ * una cambia, la otra tiene que cambiar con ella.
+ */
+function effectiveDebtStatus(
+  dmStatus: DebtManagementStatus | null,
+): DebtManagementStatus {
+  return dmStatus ?? "activa";
 }
 
 function emptyBucketTotals(): BucketTotals {
@@ -1418,7 +1464,7 @@ export class ReportsService {
         ageInDays,
         bucket,
         balanceId: r.balanceId,
-        status: r.dmStatus ?? "activa",
+        status: effectiveDebtStatus(r.dmStatus),
         promisedPaymentDate: r.dmPromisedPaymentDate ?? null,
         managementNotes: r.dmNotes ?? null,
         lastAttendanceAt:
@@ -1653,6 +1699,101 @@ export class ReportsService {
     }
 
     return { rows: mapped, total, page, limit, bucketTotals, statusTotals };
+  }
+
+  /**
+   * Tablero semanal (fase 206, D-12/D-20): deuda viva por SEDE DEL ALUMNO
+   * (`users.branch_id`) y moneda, en la foto del momento (hoy).
+   *
+   * Mismo universo que `statusTotals` de `getOutstandingBalances` sin filtros
+   * (todo el gimnasio): `balances` con `amount > 0` + `buildOutstandingBaseConds`
+   * con filtros vacios, LEFT JOIN a `debt_management` (tenant en el ON) para el
+   * estado efectivo. Los joins a `subscriptions`/`branches`/`last_attendance`
+   * de la pantalla solo los usan filtros que aca no se pasan, y se resuelven
+   * por clave primaria (no cambian la cantidad de filas), asi que se omiten.
+   *
+   * Por fila: 'activa' suma a `cobrable` y, si tiene mas de 10 dias de
+   * antiguedad (tramos "11-15" y "15+", `computeBucketOB` sobre la fecha de
+   * creacion, igual que `bucketTotals`), tambien a `mas10`. 'incobrable' suma a
+   * `incobrable`. 'cobrada' con saldo se ignora, como en la pantalla.
+   *
+   * A diferencia de Deudas (que filtra por la sede de la membresia y deja
+   * afuera las `debt_balance`), las deudas sueltas entran aca en la sede del
+   * alumno (punto 5 de Nacho).
+   *
+   * Devuelve branchId -> moneda -> totales; las sedes sin deuda NO aparecen
+   * (clave ausente = ceros). Nunca se suman monedas distintas.
+   */
+  async getDebtTotalsByMemberBranch(
+    ctx: TenantContext,
+  ): Promise<Map<number, Map<string, DebtTotalsByStatus>>> {
+    const cols = this.buildOutstandingScope(ctx);
+    const lastAtt = this.buildLastAttendanceSubquery();
+    const baseConds = this.buildOutstandingBaseConds(ctx, {}, lastAtt, cols);
+
+    const rows = await this.db
+      .select({
+        balanceId: schema.balances.id,
+        amount: schema.balances.amount,
+        currency: schema.balances.currency,
+        createdAt: schema.balances.createdAt,
+        dmStatus: schema.debtManagement.status,
+        memberBranchId: schema.users.branchId,
+      })
+      .from(schema.balances)
+      .leftJoin(
+        schema.users,
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.balances.memberId),
+        ),
+      )
+      .leftJoin(
+        // tenantWhere en el ON y no en el WHERE: el LEFT JOIN tiene que seguir
+        // devolviendo las deudas sin fila de gestion (ver buildOutstandingScope).
+        schema.debtManagement,
+        and(
+          tenantWhere(schema.debtManagement, ctx),
+          eq(schema.debtManagement.balanceId, schema.balances.id),
+        ),
+      )
+      .where(and(gt(schema.balances.amount, 0), ...baseConds));
+
+    const byBranch = new Map<number, Map<string, DebtTotalsByStatus>>();
+    for (const r of rows) {
+      if (r.memberBranchId === null) {
+        // Defensivo: balances.member_id es FK y users.branch_id NOT NULL.
+        this.log.warn(
+          { balanceId: r.balanceId },
+          "Deuda sin sede de alumno: se omite del Tablero",
+        );
+        continue;
+      }
+      const status = effectiveDebtStatus(r.dmStatus);
+      if (status === "cobrada") continue;
+      const amount = Number(r.amount);
+
+      let byCurrency = byBranch.get(r.memberBranchId);
+      if (!byCurrency) {
+        byCurrency = new Map<string, DebtTotalsByStatus>();
+        byBranch.set(r.memberBranchId, byCurrency);
+      }
+      let totals = byCurrency.get(r.currency);
+      if (!totals) {
+        totals = { cobrable: 0, mas10: 0, incobrable: 0 };
+        byCurrency.set(r.currency, totals);
+      }
+      if (status === "incobrable") {
+        totals.incobrable += amount;
+        continue;
+      }
+      totals.cobrable += amount;
+      const bucket = computeBucketOB(
+        computeAgeInDaysOB(debtCreationDateOB(r.createdAt)),
+      );
+      if (bucket === "11-15" || bucket === "15+") totals.mas10 += amount;
+    }
+    return byBranch;
   }
 
   // ─── Expired members / "Vencidos" (DEUDA-04, Phase 153-02) ───────────────
@@ -2235,6 +2376,55 @@ export class ReportsService {
       .map(({ isPendingThisShift: _p, ...row }) => row);
 
     return { rows, total, page, limit, kpis };
+  }
+
+  /**
+   * Conteos crudos del embudo por SEDE DE LA CLASE (D-13), en una sola pasada
+   * por tenant. Método del Tablero semanal (fase 206): coincide, sede por
+   * sede, con `getTrialSessionsReport({ branchId, dateFrom, dateTo }).kpis`
+   * porque reusa los mismos helpers (`buildTrialSessionsConditions`,
+   * `fetchTrialSessionRawRows`, `buildTrialSessionRows`) y el mismo conteo
+   * (`tallyTrialSessions`). Las sedes sin sesiones en el rango no aparecen en
+   * el mapa. Alcance por país/sede: lo resuelve el caller sobre las claves.
+   */
+  async getTrialSessionTalliesByBranch(
+    ctx: TenantContext,
+    range: { dateFrom: string; dateTo: string },
+  ): Promise<Map<number, TrialSessionTally>> {
+    const conds = this.buildTrialSessionsConditions({
+      dateFrom: range.dateFrom,
+      dateTo: range.dateTo,
+    });
+    const dbRows = await this.fetchTrialSessionRawRows(
+      ctx,
+      conds,
+      TRIAL_SESSIONS_FETCH_CAP,
+    );
+    if (dbRows.length >= TRIAL_SESSIONS_FETCH_CAP) {
+      this.log.warn(
+        {
+          tenantId: ctx.tenantId,
+          cap: TRIAL_SESSIONS_FETCH_CAP,
+          dateFrom: range.dateFrom,
+          dateTo: range.dateTo,
+        },
+        "weekly board trial tallies: fetch cap reached, results may be truncated",
+      );
+    }
+    const allRows = await this.buildTrialSessionRows(ctx, dbRows);
+
+    const byBranch = new Map<number, TrialSessionRowInternal[]>();
+    for (const row of allRows) {
+      const group = byBranch.get(row.branchId);
+      if (group) group.push(row);
+      else byBranch.set(row.branchId, [row]);
+    }
+
+    const result = new Map<number, TrialSessionTally>();
+    for (const [branchId, rows] of byBranch) {
+      result.set(branchId, tallyTrialSessions(rows));
+    }
+    return result;
   }
 
   /**

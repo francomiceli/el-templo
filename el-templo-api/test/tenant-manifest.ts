@@ -737,6 +737,14 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "POST /api/admin/renewals/reasons": { categoria: "tenant-scoped" },
   "PATCH /api/admin/renewals/reasons/:id": { categoria: "tenant-scoped" },
 
+  // ── /api/admin/weekly-board ───────────────────────────────────────────────
+  // Tablero semanal de gerencia (fase 206). Las 2 tenant-scoped: leen/escriben
+  // `weekly_board_snapshots`/`weekly_board_leads` (gym-owned, módulo strict) y
+  // las fuentes del gimnasio (cobros, deuda, suscripciones, pruebas). El tenant
+  // sale SIEMPRE de `assertTenant(request.scope, …)`, nunca del body/query.
+  "GET /api/admin/weekly-board": { categoria: "tenant-scoped" },
+  "PUT /api/admin/weekly-board/leads": { categoria: "tenant-scoped" },
+
   // ── /api/admin/reports ────────────────────────────────────────────────────
   // Fase 195 (plan 10): origen de altas (owner/admin), `tenant-scoped`.
   "GET /api/admin/reports/attribution": { categoria: "tenant-scoped" },

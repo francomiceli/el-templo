@@ -205,6 +205,9 @@ export const GYM_OWNED_TABLES = [
   "user_sepa_details",
   "user_status_history",
   "users",
+  // fase 206, mig 0319, nacen strict en `weekly-board`
+  "weekly_board_leads",
+  "weekly_board_snapshots",
   "weekly_rotator",
   "wellhub_bookings",
   "wellhub_classes",
@@ -745,6 +748,8 @@ export const TENANT_STRICT_MODULES: Record<string, readonly string[]> = {
     "wellhub_events",
     "wellhub_slots",
   ],
+  // Fase 206 (Tablero semanal, mig 0319): el módulo nace strict.
+  "weekly-board": ["weekly_board_leads", "weekly_board_snapshots"],
 };
 
 const STRICT_SET: ReadonlySet<string> = new Set(

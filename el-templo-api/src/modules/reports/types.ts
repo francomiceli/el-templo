@@ -386,6 +386,28 @@ export interface TrialFollowupSummary {
   lostNote: string | null;
 }
 
+/**
+ * Conteos crudos del embudo de Sesiones de Prueba, antes de derivar los
+ * porcentajes. El Tablero semanal (fase 206) los suma por país y recalcula los
+ * % con `kpisFromTally`: nunca se promedian porcentajes (D-26).
+ */
+export interface TrialSessionTally {
+  /** Sesiones cuyo mensaje vence en el turno actual-o-próximo. */
+  pendingThisShift: number;
+  /** Personas con sesión en el período (excluye ancestros de una reagenda). */
+  reservations: number;
+  /** Reservas cuya clase ya terminó (denominador de asistencia y conversión). */
+  occurred: number;
+  /** De las ocurridas, las que asistieron. */
+  attended: number;
+  /** Reservas ganadas (lead que compró), ocurridas o no. */
+  purchased: number;
+  /** Ganadas con clase ya terminada. */
+  purchasedOccurred: number;
+  /** Ganadas con asistencia. */
+  purchasedAttended: number;
+}
+
 export interface TrialSessionKpis {
   /** Sesiones cuyo mensaje vence en el turno actual-o-próximo (toggle "Pendientes de este turno"). */
   pendingThisShift: number;
@@ -602,6 +624,16 @@ export interface OutstandingBalancesResult {
     cobrable: Record<string, number>;
     incobrable: Record<string, number>;
   };
+}
+
+/**
+ * Tablero semanal (fase 206): deuda de una sede en una moneda. `mas10` es el
+ * subconjunto de `cobrable` con mas de 10 dias (tramos 11-15 y 15+).
+ */
+export interface DebtTotalsByStatus {
+  cobrable: number;
+  mas10: number;
+  incobrable: number;
 }
 
 /** Resultado del PATCH de gestión de una deuda (upsert sobre debt_management). */

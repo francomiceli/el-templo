@@ -2727,6 +2727,82 @@ export class TransactionService {
   }
 
   /**
+   * Tablero semanal (fase 206, D-12/D-14/D-19): cobrado firme por SEDE DEL
+   * ALUMNO (`users.branch_id`) y moneda, para un rango de fechas de cobro.
+   *
+   * Universo IDENTICO al de Caja: las mismas `buildRevenueConditions` y el
+   * mismo INNER JOIN a `branches` por la sede del cobro que
+   * `getIncomeByBranch`. Solo cambia el agrupamiento: un alumno de la sede A
+   * que paga en la caja de la sede B cuenta aca en A (y en Caja en B). La suma
+   * entre sedes de una moneda coincide con la de Caja (D-14: el total cierra,
+   * la sede no).
+   *
+   * Un ingreso sin alumno (`member_id` NULL) cae en la sede del cobro
+   * (supuesto A1 de la research). Sin `transaction_links`: joinearlo duplica
+   * el monto de un pago que cancela deudas de dos subs (doble conteo del
+   * commit 42cce5f9b).
+   *
+   * Devuelve branchId -> moneda -> monto. Las sedes sin cobros en el rango NO
+   * aparecen en el mapa: quien lo consuma debe tratar la clave ausente como 0.
+   * Incluye sedes virtuales si tienen cobrado (columna "Online", D-25).
+   */
+  async getIncomeByMemberBranch(
+    ctx: TenantContext,
+    range: { dateFrom: string; dateTo: string },
+  ): Promise<Map<number, Map<string, number>>> {
+    const conds = this.buildRevenueConditions(ctx, {
+      dateFrom: range.dateFrom,
+      dateTo: range.dateTo,
+    });
+    // FA-01: columnas planas en el SELECT (nada de COALESCE sin calificar con
+    // el JOIN); la regla `alumno ?? cobro` se aplica en JS.
+    const rows = await this.db
+      .select({
+        memberBranchId: schema.users.branchId,
+        cobroBranchId: schema.financialTransactions.branchId,
+        currency: schema.financialTransactions.currency,
+        total: sql<number>`CAST(SUM(${schema.financialTransactions.amount}) AS SIGNED)`,
+      })
+      .from(schema.financialTransactions)
+      .innerJoin(
+        schema.branches,
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.financialTransactions.branchId),
+        ),
+      )
+      .leftJoin(
+        schema.users,
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.financialTransactions.memberId),
+        ),
+      )
+      .where(and(...conds))
+      .groupBy(
+        schema.users.branchId,
+        schema.financialTransactions.branchId,
+        schema.financialTransactions.currency,
+      );
+
+    const byBranch = new Map<number, Map<string, number>>();
+    for (const r of rows) {
+      const branchId = r.memberBranchId ?? r.cobroBranchId;
+      if (branchId === null) continue;
+      let byCurrency = byBranch.get(branchId);
+      if (!byCurrency) {
+        byCurrency = new Map<string, number>();
+        byBranch.set(branchId, byCurrency);
+      }
+      byCurrency.set(
+        r.currency,
+        (byCurrency.get(r.currency) ?? 0) + Number(r.total),
+      );
+    }
+    return byBranch;
+  }
+
+  /**
    * Phase 109 D-15 — Excel export of the CajaPage transaction list.
    *
    * Mirrors the same filter semantics as `list()` (branchId, country,
