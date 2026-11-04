@@ -394,6 +394,11 @@
                   @click="onResetPasswordClick"
                 />
               </div>
+              <div v-else-if="showStaffPasswordHint" class="col-12 col-sm-6">
+                <div class="text-caption text-grey-7 q-pt-sm">
+                  Es una cuenta de staff: la contraseña se la cambia el owner desde Usuarios.
+                </div>
+              </div>
             </div>
 
             <!-- Sede y Nivel -->
@@ -650,14 +655,28 @@ const resettingPassword = ref(false);
 
 const isEditMode = computed(() => !!props.member);
 
-// MEMBER_LIFECYCLE_ROLES (owner | admin | gestion) — mirrors the backend
-// guard on PUT /admin/members/:userId/password. The button is hidden in
+// MEMBER_LIFECYCLE_ROLES (owner | admin | gestion | admin_sede) — mirrors the
+// backend guard on PUT /admin/members/:userId/password. The button is hidden in
 // create mode (no user yet) and for roles outside the allowlist.
-const canResetPassword = computed(() => {
+const actorCanResetPasswords = computed(() => {
   if (!isEditMode.value) return false;
   const role = authStore.user?.role;
   return role === 'owner' || role === 'admin' || role === 'gestion' || role === 'admin_sede';
 });
+
+// Espejo de TEMP_PASSWORD_RESETTABLE_ROLES en la API: solo alumnos y profes
+// (hay profes que también entrenan). El resto del staff lo resetea el owner
+// desde Usuarios — el backend responde 400 si se intenta.
+const TEMP_PASSWORD_RESETTABLE_ROLES: readonly string[] = ['member', 'coach'];
+const targetIsResettable = computed(() =>
+  TEMP_PASSWORD_RESETTABLE_ROLES.includes(props.member?.role ?? ''),
+);
+const canResetPassword = computed(
+  () => actorCanResetPasswords.value && targetIsResettable.value,
+);
+const showStaffPasswordHint = computed(
+  () => actorCanResetPasswords.value && !targetIsResettable.value,
+);
 
 async function onResetPasswordClick(): Promise<void> {
   if (!props.member) return;
@@ -668,7 +687,7 @@ async function onResetPasswordClick(): Promise<void> {
         props.member.lastName ?? ''
       }`.trim() +
       '. La nueva contraseña va a ser <b>eltemplo2026</b>. ' +
-      'El alumno la tendrá que cambiar luego desde el perfil.',
+      'La tendrá que cambiar luego desde el perfil.',
     html: true,
     cancel: { label: 'Cancelar', flat: true },
     ok: { label: 'Resetear', color: 'primary' },

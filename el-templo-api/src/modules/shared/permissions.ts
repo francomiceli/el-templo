@@ -352,6 +352,17 @@ export const MEMBER_LIFECYCLE_ROLES = [
 ] as const;
 
 /**
+ * Roles DESTINO cuya contraseña se puede resetear a la temporal desde la ficha
+ * (PUT /admin/members/:userId/password). Todos están por DEBAJO de
+ * MEMBER_LIFECYCLE_ROLES, así que el reset no permite escalar privilegios:
+ * quien resetea ya tiene más permisos que la cuenta que podría usar.
+ * `coach` entra porque hay profes que también entrenan como alumnos (caso
+ * Patricio Duran, 2026-11-04). El resto del staff (recepcion, gestion,
+ * admin_sede, admin, owner, tv) solo lo cambia el owner desde Usuarios.
+ */
+export const TEMP_PASSWORD_RESETTABLE_ROLES = ["member", "coach"] as const;
+
+/**
  * Fase 194: roles que operan las invitaciones desde la ficha del alumno — ver
  * la pestaña Invitaciones, crear una invitación EN NOMBRE de un socio (canal
  * asistido D-16: ficha del invitado y alta "Nuevo en Prueba"), cargar quién lo

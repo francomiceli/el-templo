@@ -1122,6 +1122,104 @@ describe("Members Management Routes", () => {
       expect(book.status).toBe("cancelado");
     });
 
+    it("refuses to delete a coach (400) WITHOUT cancelling its subscription or future bookings", async () => {
+      // Regresión 2026-11-04 (Patricio Duran, sub 10040): la cascada corría
+      // antes del chequeo de rol — el 400 llegaba con el plan ya cancelado.
+      const coachId = await createStaffUser(app, {
+        email: "coach-with-plan-delete@test-members.com",
+        password: "coachpass123",
+        firstName: "Profe",
+        lastName: "ConPlan",
+        role: "coach",
+        branchId: 1,
+      });
+      const today = new Date().toISOString().split("T")[0];
+      const nextYear = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .split("T")[0];
+      const [subIns] = await app.db
+        .insert(subscriptions)
+        .values(
+          tenantValues(TEMPLO_CTX, {
+            userId: coachId,
+            planId: testPlanId,
+            branchId: 1,
+            status: "active",
+            startDate: today,
+            endDate: nextYear,
+            pricePaid: 0,
+            priceTypeApplied: "regular",
+          }),
+        )
+        .$returningId();
+
+      const [actIns] = await app.db
+        .insert(activities)
+        .values({ name: "Test Activity Coach Delete" })
+        .$returningId();
+      const [schedIns] = await app.db
+        .insert(schedules)
+        .values({
+          tenantId: TENANT_TEMPLO,
+          branchId: 1,
+          activityId: actIns.id,
+          dayOfWeek: 1,
+          startTime: "10:00",
+          endTime: "11:00",
+          maxCapacity: 10,
+        })
+        .$returningId();
+      const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000)
+        .toISOString()
+        .split("T")[0];
+      await app.db.insert(bookings).values({
+        tenantId: TENANT_TEMPLO,
+        memberId: coachId,
+        scheduleId: schedIns.id,
+        bookingDate: tomorrow,
+        status: "reservado",
+      });
+
+      const delRes = await app.inject({
+        method: "DELETE",
+        url: `/api/admin/members/${coachId}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(delRes.statusCode).toBe(400);
+      expect(JSON.parse(delRes.body).message).toBe(
+        "Solo se pueden eliminar alumnos",
+      );
+
+      const [sub] = await app.db
+        .select({
+          status: subscriptions.status,
+          cancelledAt: subscriptions.cancelledAt,
+        })
+        .from(subscriptions)
+        .where(
+          and(
+            tenantWhere(subscriptions, TEMPLO_CTX),
+            eq(subscriptions.id, subIns.id),
+          ),
+        );
+      expect(sub.status).toBe("active");
+      expect(sub.cancelledAt).toBeNull();
+
+      const [book] = await app.db
+        .select({ status: bookings.status })
+        .from(bookings)
+        .where(
+          and(tenantWhere(bookings, TEMPLO_CTX), eq(bookings.memberId, coachId)),
+        );
+      expect(book.status).toBe("reservado");
+
+      const [row] = await app.db
+        .select({ deletedAt: users.deletedAt })
+        .from(users)
+        .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, coachId)));
+      expect(row.deletedAt).toBeNull();
+    });
+
     it("refuses delete with 400 SUB_HAS_ACTIVE_TRANSACTIONS when sub has non-voided charges", async () => {
       // Phase 111 REQ-3: cancelSubscription throws when there are active
       // charge transactions on the sub. The DELETE route surfaces this as a
@@ -2166,32 +2264,99 @@ describe("Members Management Routes", () => {
       expect(res.statusCode).toBe(403);
     });
 
-    it("refuses to reset a non-member row (target=coach) — 400", async () => {
-      await createStaffUser(app, {
-        email: "protected-coach-pwd@test.com",
-        password: "coachpass123",
-        firstName: "Protected",
-        lastName: "Coach",
-        role: "coach",
+    /** Crea un staff con password conocida y devuelve su id (sin hardcodear ids). */
+    async function createStaffTarget(
+      role: "coach" | "recepcion" | "gestion" | "admin_sede" | "admin" | "owner",
+      email: string,
+      password: string,
+    ): Promise<number> {
+      return createStaffUser(app, {
+        email,
+        password,
+        firstName: "Target",
+        lastName: role,
+        role,
         branchId: 1,
       });
-      const [row] = await app.db
-        .select({ id: users.id })
-        .from(users)
-        .where(
-          and(
-            tenantWhere(users, TEMPLO_CTX),
-            eq(users.email, "protected-coach-pwd@test.com"),
-          ),
-        );
+    }
+
+    it("gestion resets a coach's password (profe que también es alumno); coach logs in with eltemplo2026", async () => {
+      const coachId = await createStaffTarget(
+        "coach",
+        "resettable-coach-pwd@test.com",
+        "coachpass123",
+      );
+      await createStaffUser(app, {
+        email: "gestion-pwd-coach@test.com",
+        password: "gestionpass123",
+        firstName: "Mica",
+        lastName: "Gestion",
+        role: "gestion",
+        branchId: 1,
+      });
+      const gestionToken = await getAuthToken(
+        app,
+        "gestion-pwd-coach@test.com",
+        "gestionpass123",
+      );
 
       const res = await app.inject({
         method: "PUT",
-        url: `/api/admin/members/${row.id}/password`,
-        headers: { authorization: `Bearer ${adminToken}` },
+        url: `/api/admin/members/${coachId}/password`,
+        headers: { authorization: `Bearer ${gestionToken}` },
       });
-      expect(res.statusCode).toBe(400);
+      expect(res.statusCode).toBe(204);
+
+      // La temporal funciona y la vieja ya no.
+      const token = await getAuthToken(
+        app,
+        "resettable-coach-pwd@test.com",
+        "eltemplo2026",
+      );
+      expect(token.length).toBeGreaterThan(0);
+      const oldLogin = await app.inject({
+        method: "POST",
+        url: "/api/auth/login",
+        payload: {
+          email: "resettable-coach-pwd@test.com",
+          password: "coachpass123",
+        },
+      });
+      expect(oldLogin.statusCode).not.toBe(200);
+
+      // El rol no cambia: sigue siendo coach.
+      const [after] = await app.db
+        .select({ role: users.role })
+        .from(users)
+        .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, coachId)));
+      expect(after.role).toBe("coach");
     });
+
+    it.each(["recepcion", "gestion", "admin_sede", "admin", "owner"] as const)(
+      "refuses to reset a %s account (400) and leaves its password untouched",
+      async (role) => {
+        const email = `protected-${role}-pwd@test.com`;
+        const targetId = await createStaffTarget(role, email, "staffpass123");
+
+        const res = await app.inject({
+          method: "PUT",
+          url: `/api/admin/members/${targetId}/password`,
+          headers: { authorization: `Bearer ${adminToken}` },
+        });
+        expect(res.statusCode).toBe(400);
+        expect(JSON.parse(res.body).message).toContain("alumnos y profes");
+
+        // La password original sigue andando y la temporal no.
+        const token = await getAuthToken(app, email, "staffpass123");
+        expect(token.length).toBeGreaterThan(0);
+        const tempLogin = await app.inject({
+          method: "POST",
+          url: "/api/auth/login",
+          payload: { email, password: "eltemplo2026" },
+        });
+        expect(tempLogin.statusCode).not.toBe(200);
+      },
+    );
 
     it("returns 404 for non-existent member id", async () => {
       const res = await app.inject({
