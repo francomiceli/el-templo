@@ -269,7 +269,7 @@ export interface NavItem {
    *   público todavía en estado "new" (grupo Landing).
    * - 'conquer': pedidos de desbloqueo sin activar (fase 201 D-12) + correcciones con video sin
    *   responder (fase 202 D-26).
-   * - 'oficina': menciones sin leer + temas asignados a mí con novedades (fase 205 D-08).
+   * - 'oficina': menciones sin leer + temas donde soy responsable con novedades (fase 205 D-08).
    */
   badge?: NavBadge;
 }
@@ -300,9 +300,16 @@ export interface NavCategory {
 export const NAV_MODEL: NavCategory[] = [
   {
     // Gerencia (fase 206, D-01/D-28): categoría propia al tope del menú, NO dentro de
-    // Reportes ni de Gestión/Oficina. Genérica (sin `templo`): la ve cualquier gimnasio.
+    // Reportes ni de Gestión. Genérica (sin `templo`): la ve cualquier gimnasio.
     header: 'Gerencia',
-    items: [{ path: '/tablero', label: 'Tablero', icon: 'dashboard', roles: TABLERO_ROLES }],
+    items: [
+      { path: '/tablero', label: 'Tablero', icon: 'dashboard', roles: TABLERO_ROLES },
+      // Oficina (fase 205 D-15): vive en Gerencia, después de Tablero. La categoría se muestra
+      // con que UN ítem sea visible, así que `gestion` (que no ve Tablero) la ve igual. La
+      // pelotita cuenta menciones sin leer y temas donde el usuario es responsable con actividad
+      // nueva. Es genérica (no `templo`).
+      { path: '/oficina', label: 'Oficina', icon: 'forum', roles: OFICINA_ROLES, badge: 'oficina' },
+    ],
   },
   {
     // Entrenamiento (revisión v5.4): la capa de entrenamiento del Templo, arriba de todo.
@@ -341,9 +348,6 @@ export const NAV_MODEL: NavCategory[] = [
     // Templo-only vía `templo: true` a nivel ítem.
     header: 'Gestión',
     items: [
-      // Oficina (fase 205 D-15): primera de Gestión; la pelotita cuenta menciones sin leer y
-      // temas asignados al usuario con actividad nueva. Es genérica (no `templo`).
-      { path: '/oficina', label: 'Oficina', icon: 'forum', roles: OFICINA_ROLES, badge: 'oficina' },
       { path: '/alumnos', label: 'Alumnos', icon: 'people', roles: ALL_STAFF_ROLES },
       { path: '/horarios', label: 'Horarios', icon: 'calendar_month', roles: ALL_STAFF_ROLES },
       {
