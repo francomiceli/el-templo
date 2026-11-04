@@ -15,16 +15,17 @@ import {
   JORNADA_ROLES,
   ANALITICAS_ROLES,
   OFICINA_ROLES,
+  TABLERO_ROLES,
 } from 'src/config/templo-config';
 
 /**
  * Landing por rol al entrar en '/' (D-14). Orden CRÍTICO (Pitfall 2):
  * canAccessTraining devuelve true para CUALQUIER owner, por eso el coach
  * exclusivo (Fran) se resuelve ANTES del bloque dueño — así el owner NO cae
- * en /sessions sino en /alumnos.
+ * en /sessions sino en /tablero.
  *   1. tv                        → /tv/control (cuenta dedicada del televisor)
  *   2. coach + canAccessTraining → /sessions (sólo Fran, no el owner)
- *   3. owner/admin               → /alumnos  (dueño)
+ *   3. owner/admin               → /tablero  (dueño, fase 206)
  *   4. coach_actividad (profe de yoga, sin plata) → /horarios
  *   5. resto (coach no-Fran/gestion/recepcion) → /cobros (empleado)
  */
@@ -38,7 +39,7 @@ export function landingForRole(): string {
     return '/sessions';
   }
   if (user && DUENO_ROLES.includes(user.role)) {
-    return '/alumnos';
+    return '/tablero';
   }
   // El admin_sede de sucursal aterriza en Caja: es la razón por la que entra
   // (saldos, movimientos y retiros de SU sede).
@@ -188,6 +189,13 @@ const routes: RouteRecordRaw[] = [
         path: 'partners',
         component: () => import('pages/PartnersPage.vue'),
         meta: { allowedRoles: PARTNERS_ROLES },
+      },
+      {
+        // Fase 206: Tablero semanal de gerencia. El guard solo oculta: el gate real
+        // es el API (CAJA_ROLES en weekly-board/routes.ts).
+        path: 'tablero',
+        component: () => import('pages/TableroPage.vue'),
+        meta: { allowedRoles: TABLERO_ROLES },
       },
       {
         path: 'caja',

@@ -222,6 +222,8 @@ export const chargeReportSchema = {
               },
               recorderName: { type: "string" },
               voidedAt: { type: ["string", "null"] },
+              chargeBranchName: { type: ["string", "null"] },
+              memberBranchName: { type: "string" },
             },
           },
         },

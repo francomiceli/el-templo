@@ -1,6 +1,7 @@
 import { computed, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { createLogger } from 'src/utils/logger'
 import { DEFAULT_BRANCH_TZ, todayInTz } from 'src/utils/tz'
+import { NETWORK_WAIT_MS, withTimeout } from 'src/utils/with-timeout'
 import { useUserStore } from 'src/stores/useUserStore'
 import { useWeekStore } from '../stores/weekStore'
 import { useSessionPlayerStore } from '../stores/sessionPlayerStore'
@@ -130,7 +131,11 @@ export function useTrainingWeek(): UseTrainingWeekReturn {
 
   async function run(request: number, target: string, keepSelection: boolean): Promise<void> {
     error.value = null
-    await weekData.fetchWeekSessions(weekDatesFrom(target))
+    // Con tope: en nativo CapacitorHttp ignora el timeout de axios y un `/sessions/weekly`
+    // colgado (iOS espera 600 s) dejaba Entrenar cargando para siempre y la cola trabada (ni
+    // "Reintentar" ni cambiar de semana corrían). Vencido, cae al catch de `enqueue`: error con
+    // "Reintentar" (reporte 2026-11-03, iPhone).
+    await withTimeout(weekData.fetchWeekSessions(weekDatesFrom(target)), NETWORK_WAIT_MS)
     // Llegó otra navegación mientras tanto: esa carga es la que manda
     if (request !== latestRequest) return
 

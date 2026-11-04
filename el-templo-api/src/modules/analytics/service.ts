@@ -27,10 +27,7 @@ import {
   activePayingNonEspecialMemberExists,
   activeSubOfKindExists,
 } from "../shared/active-member";
-import {
-  membershipPlanCondition,
-  notTrialPlanSql,
-} from "../shared/membership";
+import { membershipPlanCondition, notTrialPlanSql } from "../shared/membership";
 import { firmMoneySqlFor } from "../finance/firm-money";
 import { resolveEffectiveCapacity } from "../scheduling/capacity";
 import { applyScope } from "./scope";
@@ -362,6 +359,44 @@ export class AnalyticsService {
     return { paying, staff, bonificada, onlyEspecial, totalActive };
   }
 
+  /**
+   * Tablero semanal (fase 206, D-12/D-21): alumnos activos por SEDE DEL ALUMNO
+   * (`users.branch_id`). Es la query de `paying` de `countActiveMembersBreakdown`
+   * (el valor del KPI "Alumnos activos" de Analiticas): mismo INNER JOIN a
+   * `branches`, mismo `role = 'member'`, mismo
+   * `activePayingNonEspecialMemberExists`; sin filtros de sede/pais y con
+   * `GROUP BY` por columna plana (el aviso de `countActiveMembersBreakdown`
+   * es contra agrupar por un CASE con subqueries).
+   *
+   * Foto del momento: la vigencia usa `CURDATE()` del servidor MySQL. Las
+   * sedes sin activos NO aparecen (clave ausente = 0); incluye sedes virtuales.
+   */
+  async countActivePayingMembersByBranch(
+    ctx: TenantContext,
+  ): Promise<Map<number, number>> {
+    const rows = await this.db
+      .select({
+        branchId: schema.users.branchId,
+        count: sql<number>`COUNT(*)`,
+      })
+      .from(schema.users)
+      .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
+      .where(
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.role, "member"),
+          activePayingNonEspecialMemberExists(schema.users.id, ctx),
+        ),
+      )
+      .groupBy(schema.users.branchId);
+
+    const byBranch = new Map<number, number>();
+    for (const r of rows) {
+      byBranch.set(r.branchId, Number(r.count));
+    }
+    return byBranch;
+  }
+
   private async countActiveMembers(
     ctx: TenantContext,
     branchId: number | undefined,
@@ -671,7 +706,10 @@ export class AnalyticsService {
     // falso positivo de columna interpolada (statement propio, sin el
     // `tenantWhere` del join de abajo).
     const conditions: SQL[] = [
-      inArray(schema.subscriptions.status, ["active", "paused"]) as unknown as SQL,
+      inArray(schema.subscriptions.status, [
+        "active",
+        "paused",
+      ]) as unknown as SQL,
       eq(schema.subscriptionPlans.isArchived, false) as unknown as SQL,
       // D-11: el pase especial tiene su propia línea en analíticas ("Especiales");
       // no se mezcla en la distribución de planes de membresía.
@@ -1015,7 +1053,9 @@ export class AnalyticsService {
           schema.branches,
           eq(schema.branches.id, schema.subscriptions.branchId),
         )
-        .where(and(tenantWhere(schema.subscriptions, ctx), ...endingConditions));
+        .where(
+          and(tenantWhere(schema.subscriptions, ctx), ...endingConditions),
+        );
 
       const ending = Number(endingResult?.ending ?? 0);
       if (ending === 0) return 0;
@@ -1140,7 +1180,10 @@ export class AnalyticsService {
         .select({ maxCapacity: schema.branches.maxCapacity })
         .from(schema.branches)
         .where(
-          and(tenantWhere(schema.branches, ctx), eq(schema.branches.id, branchId)),
+          and(
+            tenantWhere(schema.branches, ctx),
+            eq(schema.branches.id, branchId),
+          ),
         );
       if (branch) maxCapacity = branch.maxCapacity;
     }
@@ -1237,7 +1280,10 @@ export class AnalyticsService {
         .select({ maxCapacity: schema.branches.maxCapacity })
         .from(schema.branches)
         .where(
-          and(tenantWhere(schema.branches, ctx), eq(schema.branches.id, branchId)),
+          and(
+            tenantWhere(schema.branches, ctx),
+            eq(schema.branches.id, branchId),
+          ),
         );
       if (branch) maxCapacity = branch.maxCapacity;
     }

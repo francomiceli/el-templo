@@ -133,6 +133,15 @@ export const DEUDAS_DETAIL_ROLES: AdminRole[] = ['gestion', 'admin', 'owner', 'a
 export const REPORTES_ROLES: AdminRole[] = ['gestion', 'admin', 'owner', 'admin_sede'];
 
 /**
+ * Tablero semanal de gerencia (fase 206): por ahora solo admin y owner
+ * (2026-11-04). Espejo exacto de `WEEKLY_BOARD_ROLES` del API
+ * (`weekly-board/routes.ts`). Para abrirlo a gestion y admin_sede hay que
+ * cambiar los dos (admin_sede ve solo la columna de su sede, lo fuerza el API).
+ * Esto solo OCULTA: el gate real es el API.
+ */
+export const TABLERO_ROLES: AdminRole[] = ['admin', 'owner'];
+
+/**
  * Planes (read-only for the employee surface): all staff. Mirrors PLANES_READ_ROLES
  * (= SUBSCRIPTION_ROLES) of the API. Edition is hidden in PlanesPage (Plan 04).
  */
@@ -283,11 +292,18 @@ export interface NavCategory {
 
 /**
  * Categorías del drawer, en orden de arriba hacia abajo (revisión v5.4):
- * Entrenamiento / Gestión / Planes / Finanzas / Configuración / Landing.
+ * Gerencia / Entrenamiento / Gestión / Planes / Finanzas / Configuración / Landing
+ * (Gerencia, fase 206, D-28: categoría propia al tope).
  * Los paths reflejan las rutas del router. Un header solo se muestra si ≥1 de sus
  * ítems es visible para el usuario (isNavCategoryVisible — Pitfall 4: sin headers vacíos).
  */
 export const NAV_MODEL: NavCategory[] = [
+  {
+    // Gerencia (fase 206, D-01/D-28): categoría propia al tope del menú, NO dentro de
+    // Reportes ni de Gestión/Oficina. Genérica (sin `templo`): la ve cualquier gimnasio.
+    header: 'Gerencia',
+    items: [{ path: '/tablero', label: 'Tablero', icon: 'dashboard', roles: TABLERO_ROLES }],
+  },
   {
     // Entrenamiento (revisión v5.4): la capa de entrenamiento del Templo, arriba de todo.
     // Toda la categoría es Templo (`templo: true`) → un white-label sin Templo no la ve.

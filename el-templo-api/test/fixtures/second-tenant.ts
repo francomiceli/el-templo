@@ -390,6 +390,13 @@ export async function limpiarSegundoGimnasio(
   await app.db.execute(
     sql`DELETE FROM audit_log WHERE tenant_id = ${TENANT_DOS}`,
   );
+  // Tablero semanal (0319, fase 206): FK a branches y users, salen antes de ambas.
+  await app.db.execute(
+    sql`DELETE FROM weekly_board_leads WHERE tenant_id = ${TENANT_DOS}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM weekly_board_snapshots WHERE tenant_id = ${TENANT_DOS}`,
+  );
   await app.db.execute(
     sql`DELETE FROM schedules WHERE tenant_id = ${TENANT_DOS}`,
   );

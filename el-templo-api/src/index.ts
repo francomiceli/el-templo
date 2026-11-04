@@ -24,6 +24,7 @@ import { startWellhubSyncJob } from "./jobs/wellhub-sync";
 import { startTenureMilestonesJob } from "./jobs/tenure-milestones";
 import { startNotificationRulesJob } from "./jobs/notification-rules";
 import { startMarketingGoogleJob } from "./jobs/marketing-google";
+import { startWeeklyBoardCloseJob } from "./jobs/weekly-board-close";
 import { startMarketingMetaJob } from "./jobs/marketing-meta";
 import { startOfficeAutoTopicsJob } from "./jobs/office-auto-topics";
 
@@ -67,6 +68,8 @@ async function start() {
     // Fase 205 (plan 03): temas automáticos de Oficina cada 30 min (Wellhub con
     // error, jornadas sin cerrar, clases de mañana sin profe) + despertar dormidos.
     startOfficeAutoTopicsJob(app.db);
+    // Fase 206 (plan 07): cierre semanal del Tablero de gerencia (cron horario).
+    startWeeklyBoardCloseJob(app.db);
     await startMarkNoShowsJob(app.db);
     await startNotificationJobs(app.db);
   } catch (err: unknown) {

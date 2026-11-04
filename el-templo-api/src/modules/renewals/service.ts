@@ -146,6 +146,12 @@ interface ExpiringRow {
   lastName: string | null;
   phone: string | null;
   branchId: number;
+  /**
+   * Sede ASIGNADA del alumno (`users.branch_id`, NOT NULL). Solo la usa el
+   * Tablero semanal (`computeKpisByMemberBranch`, D-12): `deriveRow` NO la
+   * copia, la fila pública (`RenewalRow`) no cambia.
+   */
+  memberBranchId: number;
   branchName: string;
   branchCountry: "AR" | "ES";
   branchTimezone: string;
@@ -324,6 +330,21 @@ function deriveRow(
   };
 }
 
+/**
+ * % Renovación = renovó / (renovó + no renueva + volvió tarde), en %. `null`
+ * si no hay ninguna sub gestionada. Única copia de la fórmula: la usan
+ * `computeKpis` y el Tablero semanal (fase 206) para recalcular el % del
+ * Total desde conteos crudos, sin promediar porcentajes (D-26).
+ */
+export function renewalRateFrom(c: {
+  renovo: number;
+  noRenovo: number;
+  volvioTarde: number;
+}): number | null {
+  const gestionados = c.renovo + c.noRenovo + c.volvioTarde;
+  return gestionados === 0 ? null : (c.renovo / gestionados) * 100;
+}
+
 /** KPIs sobre las filas ya derivadas (SPEC §"KPIs"). */
 function computeKpis(rows: RenewalRow[]): RenewalKpis {
   let renovo = 0;
@@ -365,8 +386,7 @@ function computeKpis(rows: RenewalRow[]): RenewalKpis {
     if (r.paraCerrar) paraCerrar += 1;
   }
 
-  const gestionados = renovo + noRenovo + volvioTarde;
-  const renewalRate = gestionados === 0 ? null : (renovo / gestionados) * 100;
+  const renewalRate = renewalRateFrom({ renovo, noRenovo, volvioTarde });
 
   const newPlanDistribution: RenewalPlanDistributionEntry[] = [
     ...planCounts.entries(),
@@ -454,6 +474,54 @@ export class RenewalsService {
     };
   }
 
+  /**
+   * KPIs de Renovaciones por SEDE DEL ALUMNO (`users.branch_id`, D-12), en una
+   * sola pasada por tenant. Método del Tablero semanal (fase 206): reusa
+   * `fetchExpiringRows` + `fetchNextSubCandidates` + `deriveRow` +
+   * `computeKpis`, con el tipo de actividad "membresía" (el default de la
+   * pantalla Renovaciones) y la ventana de 5 días.
+   *
+   * Coincide con `listRenewals({ branchId, activityType: "membresia" }).kpis`
+   * salvo en multisucursales reasignados (D-29): la pantalla filtra por la
+   * sede de la sub que vence (`subscriptions.branch_id`), que no se
+   * resincroniza cuando cambia la sede del alumno; acá cuenta la sede actual
+   * del alumno. Sin `fetchLastNotes`: `computeKpis` no usa `lastNote`.
+   * Las sedes sin vencimientos en el rango no aparecen en el mapa.
+   */
+  async computeKpisByMemberBranch(
+    ctx: TenantContext,
+    range: { dateFrom: string; dateTo: string },
+  ): Promise<Map<number, RenewalKpis>> {
+    if (range.dateFrom > range.dateTo) {
+      throw new BadRequestError("dateFrom no puede ser posterior a dateTo");
+    }
+
+    const eRows = await this.fetchExpiringRows(ctx, {
+      dateFrom: range.dateFrom,
+      dateTo: range.dateTo,
+      activityType: "membresia",
+    });
+    const result = new Map<number, RenewalKpis>();
+    if (eRows.length === 0) return result;
+
+    const userIds = [...new Set(eRows.map((r) => r.userId))];
+    const candidates = await this.fetchNextSubCandidates(ctx, userIds);
+
+    const byBranch = new Map<number, RenewalRow[]>();
+    for (const e of eRows) {
+      const nextSub = pickNextSubscription(candidates, e);
+      const row = deriveRow(e, nextSub, null, RENEWAL_FOLLOWUP_WINDOW_DAYS);
+      const group = byBranch.get(e.memberBranchId);
+      if (group) group.push(row);
+      else byBranch.set(e.memberBranchId, [row]);
+    }
+
+    for (const [branchId, rows] of byBranch) {
+      result.set(branchId, computeKpis(rows));
+    }
+    return result;
+  }
+
   /** El universo de subs que vencen en el rango, con su followup manual (si existe). */
   private async fetchExpiringRows(
     ctx: TenantContext,
@@ -494,6 +562,7 @@ export class RenewalsService {
         lastName: schema.users.lastName,
         phone: schema.users.phone,
         branchId: schema.subscriptions.branchId,
+        memberBranchId: schema.users.branchId,
         branchName: schema.branches.name,
         branchCountry: schema.branches.country,
         branchTimezone: schema.branches.timezone,

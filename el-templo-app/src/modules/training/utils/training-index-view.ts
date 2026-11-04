@@ -9,9 +9,10 @@
  * llegados y sin ninguna falla. Un socio solo-online jamás la ve un instante.
  *
  * Precedencia (en este orden):
- *  1. Perfil primero, espera SIEMPRE. D-08 manda sobre D-07 para el perfil: sin perfil no hay
- *     sede ni zona horaria ni nada con qué decidir, así que 'loading' aunque haya vencido el
- *     tope (lo resuelve `retryProfileLoad`).
+ *  1. Perfil primero. D-08 manda sobre D-07 para el perfil: sin perfil no hay sede ni zona
+ *     horaria ni nada con qué decidir, así que nunca se muestra Entrenar ni la vidriera. Espera
+ *     hasta el tope y mientras haya un reintento en vuelo; vencido el tope y sin reintento,
+ *     'sin-perfil' (error con "Reintentar"): nunca un loader eterno (reporte 2026-11-03, iPhone).
  *  2. Estado del socio (suscripción, programa, inscripciones): espera hasta el tope (D-07). Pasado
  *     el tope se muestra Entrenar, nunca la vidriera: EntrenarView pide `/sessions/weekly`, que el
  *     server gatea, así que no se expone nada sin permiso.
@@ -23,11 +24,13 @@
  * tras una falla alcanza para afirmar que entra.
  */
 
-export type TrainingIndexView = 'loading' | 'vidriera' | 'entrenar'
+export type TrainingIndexView = 'loading' | 'sin-perfil' | 'vidriera' | 'entrenar'
 
 export interface TrainingIndexViewInput {
   /** `userStore.profile !== null`. */
   profileLoaded: boolean
+  /** `userStore.profileRetrying`: hay un reintento de `/auth/me` en vuelo. */
+  profileRetrying: boolean
   /** `userStore.memberStateLoaded`: respondieron las fuentes de la carga del socio. */
   memberStateLoaded: boolean
   /** `userStore.subscriptionFailed`: falló la suscripción con algo distinto de 404. */
@@ -41,8 +44,9 @@ export interface TrainingIndexViewInput {
 }
 
 export function resolveTrainingIndexView(i: TrainingIndexViewInput): TrainingIndexView {
-  // 1. Sin perfil: espera siempre, con o sin tope (D-08 manda sobre D-07).
-  if (!i.profileLoaded) return 'loading'
+  // 1. Sin perfil: nunca decide (D-08 manda sobre D-07). Espera hasta el tope o mientras se
+  //    reintenta; después, error con "Reintentar".
+  if (!i.profileLoaded) return i.deadlinePassed && !i.profileRetrying ? 'sin-perfil' : 'loading'
 
   // 2. Estado del socio sin llegar: espera hasta el tope; vencido, Entrenar (nunca la vidriera).
   if (!i.memberStateLoaded) return i.deadlinePassed ? 'entrenar' : 'loading'

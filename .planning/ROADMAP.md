@@ -1090,6 +1090,37 @@ Plans:
 - [x] 204-15-PLAN.md — Admin: diálogo Unir con alumno existente (D-21)
 - [x] 204-16-PLAN.md — Admin: pestaña Reportes › Wellhub + filtro Wellhub del log de accesos
 
+### Phase 206: Tablero semanal de gerencia (fuera del milestone v6.1)
+
+**Estado (2026-11-03)**: 10/10 planes ejecutados en `feat/tablero-semanal` (worktree `et-tablero`, base `origin/master` `17aad07d0`), mig **0319**, SIN PUSH. Revisión de código: 1 bloqueante + 2 advertencias corregidas (`8811232d7`). Tests de integración SIN CORRER (los corre CI). Pendiente: push a staging (OK de Franco), CI, UAT con gerencia, confirmar D-03/D-10/D-24/D-25/D-27/D-28. Numerada 206 porque la 205 (Oficina) vive en `feat/oficina`.
+
+**Goal**: La gerencia ve en una sola pantalla del admin (`/tablero`), los lunes, los números clave de la semana por sede en columnas (embudo de prueba, renovaciones, caja/deuda, alumnos activos) con la semana anterior y ▲▼, en lugar de cargarlos a mano en la pestaña Tablero de la planilla
+**Depends on**: nada. Reusa los cálculos existentes de Reportes › Sesiones de prueba, Reportes › Renovaciones, Caja y Deudas. Decisiones en `206-CONTEXT.md`
+**Success Criteria** (what must be TRUE):
+
+1. `/tablero` está en el menú (categoría "Gerencia") para owner/admin/gestion y es la pantalla de inicio de owner y admin (gestion sigue en `/cobros`, D-03); admin_sede ve solo la columna de su sede
+2. Selector de semana (lunes a domingo, hora de Argentina): por defecto la semana en curso, con semanas anteriores
+3. Columnas: una por sede argentina + Total (solo AR, en pesos) + Semana anterior + ▲▼; Barcelona aparte en euros
+4. Bloques: Embudo (leads manuales, reservas, asistieron, compraron, 4 %), Renovaciones (vencimientos, renovaron, no renueva, volvió tarde, sin contactar en rojo si > 0, % renovación, vencen la semana que viene), Caja (cobrado, deuda cobrable, deuda > 10 días, incobrable) y Alumnos (activos y variación)
+5. Los números coinciden con las pantallas de origen para la misma semana y sede
+6. Cierre automático el domingo a la noche: las semanas pasadas quedan congeladas; los bloques Renovaciones y Embudo se congelan 4 días después (el jueves siguiente, margen de renovación tardía)
+7. Los leads se cargan a mano por sede y por semana desde el mismo Tablero
+8. Tests de integración cubren el armado por sede, el cierre, el margen de Renovaciones, los leads manuales, los roles y el aislamiento por tenant
+
+**Plans:** 10 plans (secuenciales, una wave cada uno)
+
+Plans:
+- [x] 206-01-PLAN.md — Esquema: `weekly_board_snapshots` + `weekly_board_leads`, migración 0319, 5 conteos de tenancy
+- [x] 206-02-PLAN.md — Calendario del Tablero (semana AR, cierres lunes/viernes, estados, ventana de leads) + moneda por país (TDD)
+- [x] 206-03-PLAN.md — Fuentes por sede 1: Embudo (sede de la clase) y Renovaciones (sede del alumno) + tests de coincidencia
+- [x] 206-04-PLAN.md — Fuentes por sede 2: Cobrado, Deuda y Alumnos activos por sede del alumno + tests de coincidencia
+- [x] 206-05-PLAN.md — Contrato, armado puro de la matriz (Total por país, Online, %), calculadora y servicio (foto vs vivo, leads)
+- [x] 206-06-PLAN.md — Rutas GET/PUT leads, manifiesto ISO-01 y tests de integración (armado, fotos, leads, roles, tenant)
+- [x] 206-07-PLAN.md — Cierre automático: `closeDue` + job horario, CON-04 y tests del cierre
+- [x] 206-08-PLAN.md — Admin: tipos espejo, composable y util de formato/deltas/semanas
+- [x] 206-09-PLAN.md — Admin: pantalla `/tablero` (matriz por país, Online, leads editables, estados de bloque)
+- [x] 206-10-PLAN.md — Admin: categoría "Gerencia" en el menú, ruta, landing owner/admin y checklist de UAT
+
 ---
 
 ### Phase 205: Oficina — central de temas de gestión (fuera del milestone v6.1)

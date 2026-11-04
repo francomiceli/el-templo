@@ -93,3 +93,4 @@ export * from "./meta-capi-events";
 export * from "./ad-spend-daily";
 export * from "./search-console-stats";
 export * from "./office";
+export * from "./weekly-board";
