@@ -450,6 +450,10 @@ export async function limpiarSegundoGimnasio(
   await app.db.execute(
     sql`DELETE FROM office_topics WHERE tenant_id = ${TENANT_DOS}`,
   );
+  // 0321: avisos automáticos silenciados (FK a `users` y a `tenants`).
+  await app.db.execute(
+    sql`DELETE FROM office_auto_topic_mutes WHERE tenant_id = ${TENANT_DOS}`,
+  );
   // Patrocinadores (0279): las vistas por socio (gym-owned) tienen FK a `users` y
   // tienen que salir ANTES del `DELETE FROM users`. `sponsor_brands` no se limpia
   // acá: es de plataforma y no tiene tenant.

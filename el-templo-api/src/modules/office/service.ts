@@ -519,6 +519,7 @@ export class OfficeService {
       .select({
         id: schema.officeTopics.id,
         sourceKey: schema.officeTopics.sourceKey,
+        branchId: schema.officeTopics.branchId,
       })
       .from(schema.officeTopics)
       .where(
@@ -534,7 +535,9 @@ export class OfficeService {
       );
     const refs: OfficeSystemTopicRef[] = [];
     for (const r of rows) {
-      if (r.sourceKey !== null) refs.push({ id: r.id, sourceKey: r.sourceKey });
+      if (r.sourceKey !== null) {
+        refs.push({ id: r.id, sourceKey: r.sourceKey, branchId: r.branchId });
+      }
     }
     return refs;
   }

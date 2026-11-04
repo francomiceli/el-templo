@@ -132,4 +132,6 @@ export interface PatchTopicInput {
 export interface OfficeSystemTopicRef {
   id: number;
   sourceKey: string;
+  /** Sede del tema (null = sin sede). */
+  branchId: number | null;
 }

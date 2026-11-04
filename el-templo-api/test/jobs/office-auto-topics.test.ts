@@ -7,6 +7,10 @@
  * Tablero sin cargar), no duplica, los cierra solos cuando la condición desaparece, respeta
  * el cierre manual (D-04) y despierta los dormidos vencidos (D-09).
  *
+ * Avisos automáticos (mig 0321): también cubre los detectores silenciados por
+ * gimnasio o por sede (`office_auto_topic_mutes`), que no abren temas, cierran
+ * los abiertos con el motivo "Aviso desactivado…" y no se reabren al reactivar.
+ *
  * Reloj: el job recibe `now` por parámetro, así que no hay fake timers. `NOW` es
  * "ahora" real corrido a lo sumo un día para que MAÑANA (en la zona de la sede)
  * nunca caiga domingo: el domingo no hay horarios ni roster y el caso de clase
@@ -30,6 +34,7 @@ import {
   cleanAllTestData,
   createStaffUser,
   ensureEfectivoCaja,
+  getAuthToken,
 } from "../helpers";
 import * as schema from "../../src/db/schema";
 import {
@@ -48,6 +53,7 @@ import {
 } from "../../src/modules/ratings/roster-attribution";
 import { OfficeService } from "../../src/modules/office/service";
 import { runOfficeAutoTopics } from "../../src/jobs/office-auto-topics";
+import { AUTO_TOPIC_MUTED_REASON } from "../../src/modules/office/auto-topics-catalog";
 import {
   TENANT_DOS,
   TENANT_TEMPLO,
@@ -171,6 +177,27 @@ describe("job temas automáticos de Oficina", () => {
         asc(schema.officeTopicEvents.createdAt),
         asc(schema.officeTopicEvents.id),
       );
+  }
+
+  /** Silencia un aviso (`onBranch = 0` = todo el gimnasio). */
+  async function mute(
+    detector: string,
+    onBranch = 0,
+    ctx: TenantContext = TEMPLO_CTX,
+  ): Promise<void> {
+    await app.db.insert(schema.officeAutoTopicMutes).values(
+      tenantValues(ctx, {
+        detector,
+        branchId: onBranch,
+        createdBy: ownerId,
+      }),
+    );
+  }
+
+  async function clearMutes(ctx: TenantContext = TEMPLO_CTX): Promise<void> {
+    await app.db
+      .delete(schema.officeAutoTopicMutes)
+      .where(tenantWhere(schema.officeAutoTopicMutes, ctx));
   }
 
   beforeAll(async () => {
@@ -400,6 +427,7 @@ describe("job temas automáticos de Oficina", () => {
       startTime: string;
       coachUserId?: number;
       name?: string;
+      onBranch?: number;
     }): Promise<number> {
       const [activity] = await app.db
         .insert(schema.activities)
@@ -414,7 +442,7 @@ describe("job temas automáticos de Oficina", () => {
         .insert(schema.schedules)
         .values(
           tenantValues(TEMPLO_CTX, {
-            branchId,
+            branchId: opts.onBranch ?? branchId,
             activityId: activity.id,
             dayOfWeek: isoDayOfWeek(tomorrow),
             startTime: opts.startTime,
@@ -540,6 +568,162 @@ describe("job temas automáticos de Oficina", () => {
       }
     });
 
+    describe("avisos silenciados", () => {
+      const OTHER_CODE = "OATM";
+      let otherBranchId = -1;
+
+      async function dropOtherBranch(): Promise<void> {
+        await app.db
+          .delete(schema.schedules)
+          .where(
+            and(
+              tenantWhere(schema.schedules, TEMPLO_CTX),
+              eq(schema.schedules.branchId, otherBranchId),
+            ),
+          );
+        await app.db
+          .delete(schema.branches)
+          .where(
+            and(
+              tenantWhere(schema.branches, TEMPLO_CTX),
+              eq(schema.branches.code, OTHER_CODE),
+            ),
+          );
+      }
+
+      beforeEach(async () => {
+        otherBranchId = -1;
+        await dropOtherBranch();
+        const [other] = await app.db
+          .insert(schema.branches)
+          .values(
+            tenantValues(TEMPLO_CTX, {
+              name: "OAT otra sede",
+              code: OTHER_CODE,
+              country: "AR",
+              timezone,
+              isVirtual: false,
+              isActive: true,
+            }),
+          )
+          .$returningId();
+        otherBranchId = other.id;
+      });
+
+      afterEach(async () => {
+        await dropOtherBranch();
+      });
+
+      it("la sede silenciada no abre tema y la otra sí", async () => {
+        const enSilenciada = await createSchedule({ startTime: "10:00" });
+        const enOtra = await createSchedule({
+          startTime: "11:00",
+          onBranch: otherBranchId,
+        });
+        await mute("clase_sin_profe", branchId);
+
+        await run();
+
+        const topics = await allTopics();
+        expect(topics.map((t) => t.sourceKey)).toEqual([
+          `clase_sin_profe:${enOtra}:${tomorrow}`,
+        ]);
+        expect(topics[0].branchId).toBe(otherBranchId);
+        expect(
+          await topicBySource(`clase_sin_profe:${enSilenciada}:${tomorrow}`),
+        ).toHaveLength(0);
+      });
+
+      it("silenciar un aviso de otro detector no afecta a este", async () => {
+        const scheduleId = await createSchedule({ startTime: "10:00" });
+        await mute("jornada_abierta", branchId);
+        await mute("wellhub_sin_publicar", branchId);
+
+        await run();
+
+        expect(
+          await topicBySource(`clase_sin_profe:${scheduleId}:${tomorrow}`),
+        ).toHaveLength(1);
+      });
+
+      it("el apagado general no abre tema en ninguna sede", async () => {
+        await createSchedule({ startTime: "10:00" });
+        await createSchedule({ startTime: "11:00", onBranch: otherBranchId });
+        await mute("clase_sin_profe");
+
+        await run();
+
+        expect(await allTopics()).toHaveLength(0);
+      });
+
+      it("silenciar la sede cierra el tema abierto con el motivo de aviso desactivado y reactivar no lo reabre", async () => {
+        const scheduleId = await createSchedule({ startTime: "10:00" });
+        const sourceKey = `clase_sin_profe:${scheduleId}:${tomorrow}`;
+        await run();
+        expect((await topicBySource(sourceKey))[0].status).toBe("abierto");
+
+        await mute("clase_sin_profe", branchId);
+        await run();
+
+        const [closed] = await topicBySource(sourceKey);
+        expect(closed.status).toBe("cerrado");
+        expect(closed.closedBy).toBeNull();
+        const events = await eventsOf(closed.id);
+        expect(events.map((e) => e.type)).toEqual(["creado", "sistema"]);
+        expect(events[1].body).toBe(AUTO_TOPIC_MUTED_REASON);
+
+        // Reactivar: la clase sigue sin profe, pero el tema ya cerrado queda
+        // cerrado (D-04). Una clase nueva sin profe sí abre.
+        await clearMutes();
+        await run();
+        const again = await topicBySource(sourceKey);
+        expect(again).toHaveLength(1);
+        expect(again[0].status).toBe("cerrado");
+        const nueva = await createSchedule({ startTime: "12:00" });
+        await run();
+        expect(
+          await topicBySource(`clase_sin_profe:${nueva}:${tomorrow}`),
+        ).toHaveLength(1);
+      });
+
+      it("silenciar una sede no toca los temas abiertos de la otra", async () => {
+        const enUna = await createSchedule({ startTime: "10:00" });
+        const enOtra = await createSchedule({
+          startTime: "11:00",
+          onBranch: otherBranchId,
+        });
+        await run();
+
+        await mute("clase_sin_profe", otherBranchId);
+        await run();
+
+        const [propia] = await topicBySource(
+          `clase_sin_profe:${enUna}:${tomorrow}`,
+        );
+        const [ajena] = await topicBySource(
+          `clase_sin_profe:${enOtra}:${tomorrow}`,
+        );
+        expect(propia.status).toBe("abierto");
+        expect(ajena.status).toBe("cerrado");
+      });
+
+      it("si la clase ya tenía profe, el cierre conserva el motivo normal aunque la sede esté silenciada", async () => {
+        const scheduleId = await createSchedule({ startTime: "10:00" });
+        const sourceKey = `clase_sin_profe:${scheduleId}:${tomorrow}`;
+        await run();
+        await assignRoster("morning", addDays(isoWeekStart(tomorrow), -14));
+        await mute("clase_sin_profe", branchId);
+
+        await run();
+
+        const [closed] = await topicBySource(sourceKey);
+        expect(closed.status).toBe("cerrado");
+        expect((await eventsOf(closed.id))[1].body).toBe(
+          "Ya tiene profe o la clase dejó de estar programada",
+        );
+      });
+    });
+
     it("el roster de un turno no cubre al otro turno del mismo día", async () => {
       await assignRoster("morning");
       const tarde = await createSchedule({ startTime: "18:00" });
@@ -656,6 +840,109 @@ describe("job temas automáticos de Oficina", () => {
       await topicBySource(`wellhub_event:${evTemplo.id}`, DOS_CTX),
     ).toHaveLength(0);
   });
+  // ─────────────────────────── Avisos silenciados: Wellhub con error ───────────────────────────
+
+  it("con el aviso de Wellhub apagado para todo el gimnasio no abre tema, y al reactivarlo abre", async () => {
+    const ev = await insertWellhubEvent({ status: "error" });
+    await mute("wellhub_error");
+
+    await run();
+    expect(await topicBySource(`wellhub_event:${ev.id}`)).toHaveLength(0);
+
+    await clearMutes();
+    await run();
+    expect(await topicBySource(`wellhub_event:${ev.id}`)).toHaveLength(1);
+  });
+
+  it("una sede silenciada no apaga el aviso de Wellhub: sus temas no tienen sede, solo les aplica el apagado general", async () => {
+    const ev = await insertWellhubEvent({ status: "error" });
+    await mute("wellhub_error", branchId);
+
+    await run();
+    expect(await topicBySource(`wellhub_event:${ev.id}`)).toHaveLength(1);
+  });
+
+  it("apagar el aviso de Wellhub cierra el tema abierto con el motivo de aviso desactivado y reactivarlo no lo reabre", async () => {
+    const ev = await insertWellhubEvent({ status: "error" });
+    const sourceKey = `wellhub_event:${ev.id}`;
+    await run();
+    const [open] = await topicBySource(sourceKey);
+    expect(open.status).toBe("abierto");
+
+    await mute("wellhub_error");
+    await run();
+
+    const [closed] = await topicBySource(sourceKey);
+    expect(closed.status).toBe("cerrado");
+    expect(closed.closedBy).toBeNull();
+    const events = await eventsOf(closed.id);
+    expect(events.map((e) => e.type)).toEqual(["creado", "sistema"]);
+    expect(events[1].body).toBe(AUTO_TOPIC_MUTED_REASON);
+
+    // Reactivar: el mismo evento sigue en error, pero el tema ya cerrado no
+    // se reabre (unique de source_key, D-04). Solo abren los episodios nuevos.
+    await clearMutes();
+    await run();
+    const topics = await topicBySource(sourceKey);
+    expect(topics).toHaveLength(1);
+    expect(topics[0].status).toBe("cerrado");
+    const nuevo = await insertWellhubEvent({ status: "error" });
+    await run();
+    expect(await topicBySource(`wellhub_event:${nuevo.id}`)).toHaveLength(1);
+  });
+
+  it("si el evento ya se había resuelto, el cierre conserva el motivo normal aunque el aviso esté apagado", async () => {
+    const ev = await insertWellhubEvent({ status: "error" });
+    await run();
+    await setWellhubStatus(ev.id, "processed");
+    await mute("wellhub_error");
+
+    await run();
+
+    const [closed] = await topicBySource(`wellhub_event:${ev.id}`);
+    expect(closed.status).toBe("cerrado");
+    const events = await eventsOf(closed.id);
+    expect(events[1].body).toBe("Wellhub lo reprocesó bien");
+  });
+
+  it("los avisos apagados de un gimnasio no afectan al otro", async () => {
+    await seedSecondTenant(app);
+    const evTemplo = await insertWellhubEvent({ status: "error" });
+    const evDos = await insertWellhubEvent({
+      status: "error",
+      tenantCtx: DOS_CTX,
+    });
+    await mute("wellhub_error");
+
+    await run();
+
+    expect(await topicBySource(`wellhub_event:${evTemplo.id}`)).toHaveLength(0);
+    expect(
+      await topicBySource(`wellhub_event:${evDos.id}`, DOS_CTX),
+    ).toHaveLength(1);
+  });
+
+  it("guardar el aviso apagado desde el panel cierra ya el tema abierto, sin esperar al cron", async () => {
+    const ev = await insertWellhubEvent({ status: "error" });
+    const sourceKey = `wellhub_event:${ev.id}`;
+    await run();
+    expect((await topicBySource(sourceKey))[0].status).toBe("abierto");
+
+    const token = await getAuthToken(app, "admin@test.com", "adminpass123");
+    const res = await app.inject({
+      method: "PUT",
+      url: "/api/admin/office/auto-topics/settings/wellhub_error",
+      headers: { Authorization: `Bearer ${token}` },
+      payload: { disabledAll: true, disabledBranchIds: [] },
+    });
+    expect(res.statusCode).toBe(200);
+
+    const [closed] = await topicBySource(sourceKey);
+    expect(closed.status).toBe("cerrado");
+    const events = await eventsOf(closed.id);
+    expect(events.at(-1)?.body).toBe(AUTO_TOPIC_MUTED_REASON);
+  });
+
   // ─────────────────────────── 6. Arqueo con diferencia ───────────────────────────
 
   describe("arqueo con diferencia", () => {
@@ -957,6 +1244,47 @@ describe("job temas automáticos de Oficina", () => {
       expect(topics.filter((t) => t.status !== "cerrado")).toHaveLength(1);
     });
 
+    it("una caja de una sede silenciada no abre tema, y al reactivar abre", async () => {
+      const cajaId = await makeCaja("Caja Silenciada");
+      const countId = await insertCount({
+        cajaId,
+        difference: -1000,
+        hoursAgo: 2,
+      });
+      await mute("arqueo_diferencia", branchId);
+
+      await run();
+      expect(await topicBySource(cashKey(cajaId, countId))).toHaveLength(0);
+
+      await clearMutes();
+      await run();
+      expect(await topicBySource(cashKey(cajaId, countId))).toHaveLength(1);
+    });
+
+    it("una caja sin sede ignora el apagado por sede: solo la alcanza el apagado general, que cierra el tema con su motivo", async () => {
+      const cajaId = await makeCaja("Caja Sin Sede", TEMPLO_CTX, null);
+      const countId = await insertCount({
+        cajaId,
+        difference: 500,
+        hoursAgo: 2,
+      });
+      await mute("arqueo_diferencia", branchId);
+
+      await run();
+      const [open] = await topicBySource(cashKey(cajaId, countId));
+      expect(open.status).toBe("abierto");
+      expect(open.branchId).toBeNull();
+
+      await mute("arqueo_diferencia");
+      await run();
+
+      const [closed] = await topicBySource(cashKey(cajaId, countId));
+      expect(closed.status).toBe("cerrado");
+      expect((await eventsOf(closed.id)).at(-1)?.body).toBe(
+        AUTO_TOPIC_MUTED_REASON,
+      );
+    });
+
     it("abre un tema por caja, no uno por arqueo", async () => {
       const a = await makeCaja("Caja A");
       const b = await makeCaja("Caja B");
@@ -1255,6 +1583,34 @@ describe("job temas automáticos de Oficina", () => {
 
       await run();
       expect(await wellhubTopics()).toHaveLength(1);
+    });
+
+    it("la sede silenciada no abre tema, y al reactivar abre", async () => {
+      await createWellhubSchedule({ startTime: "08:00" });
+      await mute("wellhub_sin_publicar", branchId);
+
+      await run();
+      expect(await wellhubTopics()).toHaveLength(0);
+
+      await clearMutes();
+      await run();
+      expect(await wellhubTopics()).toHaveLength(1);
+    });
+
+    it("silenciar la sede cierra el tema abierto con el motivo de aviso desactivado", async () => {
+      await createWellhubSchedule({ startTime: "08:00" });
+      await run();
+      const [open] = await wellhubTopics();
+      expect(open.status).toBe("abierto");
+
+      await mute("wellhub_sin_publicar", branchId);
+      await run();
+
+      const [closed] = await wellhubTopics();
+      expect(closed.status).toBe("cerrado");
+      expect((await eventsOf(closed.id)).at(-1)?.body).toBe(
+        AUTO_TOPIC_MUTED_REASON,
+      );
     });
 
     it("no abre tema si el slot ya está publicado", async () => {
@@ -1806,6 +2162,84 @@ describe("job temas automáticos de Oficina", () => {
       expect(topics[0].closedBy).toBe(ownerId);
       const types = (await eventsOf(topic.id)).map((e) => e.type);
       expect(types).toEqual(["creado", "cerrado"]);
+    });
+
+    it("una sede silenciada sale de la lista de faltantes y el tema sigue abierto por las demás", async () => {
+      await loadAllExcept([extraBranchId, branchId]);
+      const tuesday = at(addDays(monday, 1), "10:00");
+
+      await run(tuesday);
+      const [before] = await tableroTopics();
+      expect(before.title).toBe(titleOf(2));
+
+      await mute("tablero_leads", extraBranchId);
+      await run(at(addDays(monday, 1), "11:00"));
+
+      const topics = await tableroTopics();
+      expect(topics).toHaveLength(1);
+      expect(topics[0].id).toBe(before.id);
+      expect(topics[0].status).toBe("abierto");
+      expect(topics[0].title).toBe(titleOf(1));
+      expect(topics[0].body).toBe(branchName);
+      expect(topics[0].body).not.toContain(EXTRA_NAME);
+    });
+
+    it("una sede silenciada no entra en la lista al abrir el tema", async () => {
+      await loadAllExcept([extraBranchId, branchId]);
+      await mute("tablero_leads", extraBranchId);
+
+      await run(at(addDays(monday, 1), "10:00"));
+
+      const [topic] = await tableroTopics();
+      expect(topic.title).toBe(titleOf(1));
+      expect(topic.body).toBe(branchName);
+    });
+
+    it("si todas las sedes que faltan están silenciadas no abre tema", async () => {
+      await loadAllExcept([extraBranchId, branchId]);
+      await mute("tablero_leads", extraBranchId);
+      await mute("tablero_leads", branchId);
+
+      await run(at(addDays(monday, 1), "10:00"));
+
+      expect(await tableroTopics()).toHaveLength(0);
+    });
+
+    it("si silenciás la última sede que falta, cierra el tema con el motivo de las sedes desactivadas", async () => {
+      await loadAllExcept([extraBranchId]);
+      await run(at(addDays(monday, 1), "10:00"));
+      expect((await tableroTopics())[0].status).toBe("abierto");
+
+      await mute("tablero_leads", extraBranchId);
+      await run(at(addDays(monday, 1), "11:00"));
+
+      const [closed] = await tableroTopics();
+      expect(closed.status).toBe("cerrado");
+      expect((await eventsOf(closed.id)).at(-1)?.body).toBe(
+        "Las sedes que faltan tienen el aviso desactivado",
+      );
+
+      // Reactivar: la semana sigue incompleta pero el tema cerrado no se reabre.
+      await clearMutes();
+      await run(at(addDays(monday, 1), "12:00"));
+      const topics = await tableroTopics();
+      expect(topics).toHaveLength(1);
+      expect(topics[0].status).toBe("cerrado");
+    });
+
+    it("el apagado general del Tablero no abre tema y cierra el abierto con el motivo de aviso desactivado", async () => {
+      await loadAllExcept([extraBranchId]);
+      await run(at(addDays(monday, 1), "10:00"));
+      expect((await tableroTopics())[0].status).toBe("abierto");
+
+      await mute("tablero_leads");
+      await run(at(addDays(monday, 1), "11:00"));
+
+      const [closed] = await tableroTopics();
+      expect(closed.status).toBe("cerrado");
+      expect((await eventsOf(closed.id)).at(-1)?.body).toBe(
+        AUTO_TOPIC_MUTED_REASON,
+      );
     });
 
     it("cada gimnasio recibe solo el tema de sus propias sedes", async () => {

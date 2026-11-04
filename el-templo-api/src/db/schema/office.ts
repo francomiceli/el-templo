@@ -223,6 +223,33 @@ export const officeMentions = mysqlTable(
   ],
 );
 
+/**
+ * Avisos automáticos silenciados (migración 0321). Fila presente = el detector
+ * `detector` está apagado para el gimnasio entero (`branchId = 0`) o para una
+ * sede; ausencia = activo. `branch_id = 0` es "todo el gimnasio", por eso no
+ * lleva FK a `branches`. La unique empieza por `tenantId`.
+ */
+export const officeAutoTopicMutes = mysqlTable(
+  "office_auto_topic_mutes",
+  {
+    id: int("id").primaryKey().autoincrement(),
+    tenantId: tenantIdColumn(),
+    detector: varchar("detector", { length: 40 }).notNull(),
+    branchId: int("branch_id").default(0).notNull(),
+    createdBy: int("created_by").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("uq_office_auto_topic_mutes_tenant_detector_branch").on(
+      table.tenantId,
+      table.detector,
+      table.branchId,
+    ),
+  ],
+);
+
 // ── Relations ───────────────────────────────────────────────────────
 
 export const officeTopicsRelations = relations(
@@ -273,3 +300,4 @@ export type OfficeTopicAssigneeRow = typeof officeTopicAssignees.$inferSelect;
 export type OfficeTopicEventRow = typeof officeTopicEvents.$inferSelect;
 export type OfficeTopicReadRow = typeof officeTopicReads.$inferSelect;
 export type OfficeMentionRow = typeof officeMentions.$inferSelect;
+export type OfficeAutoTopicMuteRow = typeof officeAutoTopicMutes.$inferSelect;

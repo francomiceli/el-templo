@@ -680,7 +680,9 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   // `office_topic_reads`/`office_mentions` (gym-owned, módulo strict) y leen
   // `users`/`branches` del gimnasio — el tenant sale SIEMPRE de
   // `assertTenant(request.scope, …)`, nunca del body/query. Un tema de otro
-  // gimnasio da 404, igual que uno inexistente.
+  // gimnasio da 404, igual que uno inexistente. Las 2 de `auto-topics/settings`
+  // (avisos automáticos, 0321) leen/escriben `office_auto_topic_mutes` y leen
+  // `branches` del gimnasio, con el mismo origen del tenant.
   "GET /api/admin/office/topics": { categoria: "tenant-scoped" },
   "POST /api/admin/office/topics": { categoria: "tenant-scoped" },
   "GET /api/admin/office/topics/:id": { categoria: "tenant-scoped" },
@@ -689,6 +691,12 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "POST /api/admin/office/topics/:id/seen": { categoria: "tenant-scoped" },
   "GET /api/admin/office/badge": { categoria: "tenant-scoped" },
   "GET /api/admin/office/staff": { categoria: "tenant-scoped" },
+  "GET /api/admin/office/auto-topics/settings": {
+    categoria: "tenant-scoped",
+  },
+  "PUT /api/admin/office/auto-topics/settings/:detector": {
+    categoria: "tenant-scoped",
+  },
 
   // ── /api/admin/ratings ────────────────────────────────────────────────────
   // D-04 veredicto (caso 6): confirmadas `tenant-scoped` (core). "Rating de clase"

@@ -287,6 +287,7 @@ const TABLES_TO_CLEAN = [
   schema.referralCtaClicks,
   schema.memberNotes,
   // Fase 205 Oficina (hijas primero)
+  schema.officeAutoTopicMutes,
   schema.officeMentions,
   schema.officeTopicAssignees,
   schema.officeTopicReads,
