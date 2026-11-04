@@ -1545,6 +1545,17 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: "No encontrado", message: "Miembro no encontrado" });
       }
 
+      // Validar el rol ANTES de la cascada. softDeleteMember rechaza staff
+      // (not_member), pero corría después de cancelar la suscripción y las
+      // reservas: un intento de baja de un profe le cancelaba el plan y
+      // respondía 400 (Patricio Duran, sub 10040, 2026-11-04).
+      if (target.role !== "member") {
+        return reply.code(400).send({
+          error: "Solicitud invalida",
+          message: "Solo se pueden eliminar alumnos",
+        });
+      }
+
       // Cancel any active/paused subscription and the future bookings it
       // owns. cancelSubscription also nukes the scheduled successor (if any)
       // and calls BookingService.cancelFutureBookings for fixed-plan subs

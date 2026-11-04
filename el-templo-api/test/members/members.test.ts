@@ -1122,6 +1122,104 @@ describe("Members Management Routes", () => {
       expect(book.status).toBe("cancelado");
     });
 
+    it("refuses to delete a coach (400) WITHOUT cancelling its subscription or future bookings", async () => {
+      // Regresión 2026-11-04 (Patricio Duran, sub 10040): la cascada corría
+      // antes del chequeo de rol — el 400 llegaba con el plan ya cancelado.
+      const coachId = await createStaffUser(app, {
+        email: "coach-with-plan-delete@test-members.com",
+        password: "coachpass123",
+        firstName: "Profe",
+        lastName: "ConPlan",
+        role: "coach",
+        branchId: 1,
+      });
+      const today = new Date().toISOString().split("T")[0];
+      const nextYear = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .split("T")[0];
+      const [subIns] = await app.db
+        .insert(subscriptions)
+        .values(
+          tenantValues(TEMPLO_CTX, {
+            userId: coachId,
+            planId: testPlanId,
+            branchId: 1,
+            status: "active",
+            startDate: today,
+            endDate: nextYear,
+            pricePaid: 0,
+            priceTypeApplied: "regular",
+          }),
+        )
+        .$returningId();
+
+      const [actIns] = await app.db
+        .insert(activities)
+        .values({ name: "Test Activity Coach Delete" })
+        .$returningId();
+      const [schedIns] = await app.db
+        .insert(schedules)
+        .values({
+          tenantId: TENANT_TEMPLO,
+          branchId: 1,
+          activityId: actIns.id,
+          dayOfWeek: 1,
+          startTime: "10:00",
+          endTime: "11:00",
+          maxCapacity: 10,
+        })
+        .$returningId();
+      const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000)
+        .toISOString()
+        .split("T")[0];
+      await app.db.insert(bookings).values({
+        tenantId: TENANT_TEMPLO,
+        memberId: coachId,
+        scheduleId: schedIns.id,
+        bookingDate: tomorrow,
+        status: "reservado",
+      });
+
+      const delRes = await app.inject({
+        method: "DELETE",
+        url: `/api/admin/members/${coachId}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(delRes.statusCode).toBe(400);
+      expect(JSON.parse(delRes.body).message).toBe(
+        "Solo se pueden eliminar alumnos",
+      );
+
+      const [sub] = await app.db
+        .select({
+          status: subscriptions.status,
+          cancelledAt: subscriptions.cancelledAt,
+        })
+        .from(subscriptions)
+        .where(
+          and(
+            tenantWhere(subscriptions, TEMPLO_CTX),
+            eq(subscriptions.id, subIns.id),
+          ),
+        );
+      expect(sub.status).toBe("active");
+      expect(sub.cancelledAt).toBeNull();
+
+      const [book] = await app.db
+        .select({ status: bookings.status })
+        .from(bookings)
+        .where(
+          and(tenantWhere(bookings, TEMPLO_CTX), eq(bookings.memberId, coachId)),
+        );
+      expect(book.status).toBe("reservado");
+
+      const [row] = await app.db
+        .select({ deletedAt: users.deletedAt })
+        .from(users)
+        .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, coachId)));
+      expect(row.deletedAt).toBeNull();
+    });
+
     it("refuses delete with 400 SUB_HAS_ACTIVE_TRANSACTIONS when sub has non-voided charges", async () => {
       // Phase 111 REQ-3: cancelSubscription throws when there are active
       // charge transactions on the sub. The DELETE route surfaces this as a
