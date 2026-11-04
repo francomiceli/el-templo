@@ -2,7 +2,8 @@
  * OfficeService — Oficina, central de temas de gestión (Fase 205).
  *
  * Un tema es algo que la gerencia está atendiendo: título, contexto, vínculo
- * opcional a una cosa del sistema, responsable opcional, estado
+ * opcional a una cosa del sistema, responsables opcionales (varios, tabla
+ * `office_topic_assignees`), estado
  * (abierto / dormido / cerrado) y un hilo de eventos. El hilo ES la tabla
  * `office_topic_events` (D-05): no se escribe en `audit_log`.
  *
@@ -12,8 +13,9 @@
  *     cerrar, editar) upsertea la lectura del actor con el MISMO timestamp que
  *     el evento. Así un comentario propio nunca aparece como "nuevo" para uno
  *     mismo. `unseen` es "sin lectura o actividad estrictamente posterior".
- *   - D-08: badge = menciones sin leer en temas no cerrados + temas asignados
- *     a mí, no cerrados, con actividad posterior a mi última vista.
+ *   - D-08: badge = menciones sin leer en temas no cerrados + temas donde soy
+ *     uno de los responsables, no cerrados, con actividad posterior a mi última
+ *     vista.
  *   - D-09: los dormidos vencidos se despiertan solos (job cada 30 min y, de
  *     forma perezosa, el listado). "Hoy" es el de la sede del tema, o el de la
  *     primera sede activa si el tema no tiene sede.
@@ -116,6 +118,27 @@ function fullName(firstName: string | null, lastName: string | null): string {
     .join(" ");
 }
 
+/** Persona mínima para armar los eventos de asignación. */
+interface PersonRef {
+  id: number;
+  firstName: string | null;
+  lastName: string | null;
+}
+
+/** Orden estable por nombre: nombre, apellido, id. */
+function byName(a: PersonRef, b: PersonRef): number {
+  return (
+    (a.firstName ?? "").localeCompare(b.firstName ?? "", "es") ||
+    (a.lastName ?? "").localeCompare(b.lastName ?? "", "es") ||
+    a.id - b.id
+  );
+}
+
+/** Ids únicos conservando el primer orden. */
+function uniqueIds(ids: number[] | undefined): number[] {
+  return [...new Set(ids ?? [])];
+}
+
 /** Escapa los comodines de LIKE para que `q` se busque literal. */
 function escapeLike(value: string): string {
   return value.replace(/[\\%_]/g, (c) => `\\${c}`);
@@ -162,7 +185,7 @@ export class OfficeService {
     } else if (view === "cerrados") {
       conditions.push(eq(schema.officeTopics.status, "cerrado"));
     } else if (view === "mios") {
-      conditions.push(eq(schema.officeTopics.assigneeId, actorId));
+      conditions.push(this.assignedToCondition(ctx, actorId));
       conditions.push(ne(schema.officeTopics.status, "cerrado"));
     }
 
@@ -285,7 +308,7 @@ export class OfficeService {
       .where(
         and(
           tenantWhere(schema.officeTopics, ctx),
-          eq(schema.officeTopics.assigneeId, actorId),
+          this.assignedToCondition(ctx, actorId),
           ne(schema.officeTopics.status, "cerrado"),
           or(
             isNull(schema.officeTopicReads.id),
@@ -337,10 +360,10 @@ export class OfficeService {
     if (input.branchId !== undefined && input.branchId !== null) {
       await this.assertBranch(ctx, input.branchId);
     }
-    const assignee =
-      input.assigneeId !== undefined && input.assigneeId !== null
-        ? await this.assertStaff(ctx, input.assigneeId)
-        : null;
+    const assignees = await this.assertStaffBatch(
+      ctx,
+      uniqueIds(input.assigneeIds),
+    );
 
     const topicId = await this.db.transaction(async (tx: TxHandle) => {
       const at = nowSeconds();
@@ -351,7 +374,6 @@ export class OfficeService {
         sourceKey: null,
         target,
         branchId: input.branchId ?? null,
-        assigneeId: assignee ? assignee.id : null,
         createdBy: actorId,
         at,
       });
@@ -373,21 +395,8 @@ export class OfficeService {
         input.mentionUserIds,
         actorId,
       );
-      if (assignee) {
-        await this.insertEvent(
-          tx,
-          ctx,
-          id,
-          actorId,
-          assignee.id === actorId ? "tomado" : "asignado",
-          null,
-          {
-            assigneeId: assignee.id,
-            assigneeName: fullName(assignee.firstName, assignee.lastName),
-          },
-          at,
-        );
-      }
+      await this.insertAssignees(tx, ctx, id, assignees);
+      await this.recordAssigneeEvents(tx, ctx, id, actorId, assignees, [], at);
       await this.touchRead(tx, ctx, actorId, id, at);
       return id;
     });
@@ -437,7 +446,6 @@ export class OfficeService {
           sourceKey: input.sourceKey,
           target,
           branchId: input.branchId,
-          assigneeId: null,
           createdBy: null,
           at,
         });
@@ -607,10 +615,8 @@ export class OfficeService {
         throw new BadRequestError("El título no puede estar vacío");
       }
     }
-    const assignee =
-      input.assigneeId !== undefined && input.assigneeId !== null
-        ? await this.assertStaff(ctx, input.assigneeId)
-        : null;
+    const wantedAssigneeIds =
+      input.assigneeIds !== undefined ? uniqueIds(input.assigneeIds) : null;
 
     await this.db.transaction(async (tx: TxHandle) => {
       const row = await this.lockTopic(tx, ctx, topicId);
@@ -648,40 +654,41 @@ export class OfficeService {
         touched = true;
       }
 
-      // 2) Responsable.
-      if (input.assigneeId === null) {
-        if (row.assigneeId !== null) {
-          set.assigneeId = null;
-          await this.insertEvent(
+      // 2) Responsables: `assigneeIds` REEMPLAZA el conjunto completo. Solo se
+      // valida como staff a los que se agregan: quien ya era responsable y
+      // después se deshabilitó no bloquea el resto del parche.
+      if (wantedAssigneeIds !== null) {
+        const current = await this.loadAssigneeRefs(tx, ctx, [topicId]);
+        const currentIds = new Set(current.map((a) => a.id));
+        const wanted = new Set(wantedAssigneeIds);
+        const addedIds = wantedAssigneeIds.filter((id) => !currentIds.has(id));
+        const removed = current.filter((a) => !wanted.has(a.id));
+        const added = await this.assertStaffBatch(ctx, addedIds, tx);
+        if (added.length > 0 || removed.length > 0) {
+          await this.insertAssignees(tx, ctx, topicId, added);
+          if (removed.length > 0) {
+            await tx.delete(schema.officeTopicAssignees).where(
+              and(
+                tenantWhere(schema.officeTopicAssignees, ctx),
+                eq(schema.officeTopicAssignees.topicId, topicId),
+                inArray(
+                  schema.officeTopicAssignees.userId,
+                  removed.map((a) => a.id),
+                ),
+              ),
+            );
+          }
+          await this.recordAssigneeEvents(
             tx,
             ctx,
             topicId,
             actorId,
-            "desasignado",
-            null,
-            {
-              previousAssigneeId: row.assigneeId,
-            },
+            added,
+            removed,
             at,
           );
           touched = true;
         }
-      } else if (assignee && assignee.id !== row.assigneeId) {
-        set.assigneeId = assignee.id;
-        await this.insertEvent(
-          tx,
-          ctx,
-          topicId,
-          actorId,
-          assignee.id === actorId ? "tomado" : "asignado",
-          null,
-          {
-            assigneeId: assignee.id,
-            assigneeName: fullName(assignee.firstName, assignee.lastName),
-          },
-          at,
-        );
-        touched = true;
       }
 
       // 3) Dormir / quitar el sueño.
@@ -877,15 +884,18 @@ export class OfficeService {
     ];
   }
 
-  private async assertStaff(
+  /**
+   * Valida en lote que cada id sea staff activo de ESTE gimnasio (400 si
+   * alguno no lo es: un id de otro gimnasio es indistinguible de uno inexistente)
+   * y devuelve las personas ordenadas por nombre.
+   */
+  private async assertStaffBatch(
     ctx: TenantContext,
-    userId: number,
-  ): Promise<{
-    id: number;
-    firstName: string | null;
-    lastName: string | null;
-  }> {
-    const [row] = await this.db
+    userIds: number[],
+    handle: Pick<MySql2Database<typeof schema>, "select"> = this.db,
+  ): Promise<PersonRef[]> {
+    if (userIds.length === 0) return [];
+    const rows = await handle
       .select({
         id: schema.users.id,
         firstName: schema.users.firstName,
@@ -896,14 +906,119 @@ export class OfficeService {
         and(
           tenantWhere(schema.users, ctx),
           ...this.staffFilters(),
-          eq(schema.users.id, userId),
+          inArray(schema.users.id, userIds),
         ),
-      )
-      .limit(1);
-    if (!row) {
+      );
+    if (rows.length !== userIds.length) {
       throw new BadRequestError("La persona elegida no es parte del staff");
     }
-    return row;
+    return rows.sort(byName);
+  }
+
+  /** Condición "el actor es uno de los responsables del tema" (sobre `office_topics`). */
+  private assignedToCondition(ctx: TenantContext, actorId: number): SQL {
+    return inArray(
+      schema.officeTopics.id,
+      this.db
+        .select({ topicId: schema.officeTopicAssignees.topicId })
+        .from(schema.officeTopicAssignees)
+        .where(
+          and(
+            tenantWhere(schema.officeTopicAssignees, ctx),
+            eq(schema.officeTopicAssignees.userId, actorId),
+          ),
+        ),
+    );
+  }
+
+  /** Responsables de los temas dados, ordenados por nombre (una sola consulta). */
+  private async loadAssigneeRefs(
+    handle: Pick<MySql2Database<typeof schema>, "select">,
+    ctx: TenantContext,
+    topicIds: number[],
+  ): Promise<(PersonRef & { topicId: number })[]> {
+    if (topicIds.length === 0) return [];
+    const rows = await handle
+      .select({
+        topicId: schema.officeTopicAssignees.topicId,
+        id: schema.users.id,
+        firstName: schema.users.firstName,
+        lastName: schema.users.lastName,
+      })
+      .from(schema.officeTopicAssignees)
+      .innerJoin(
+        schema.users,
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.officeTopicAssignees.userId),
+        ),
+      )
+      .where(
+        and(
+          tenantWhere(schema.officeTopicAssignees, ctx),
+          inArray(schema.officeTopicAssignees.topicId, topicIds),
+        ),
+      );
+    return rows.sort(byName);
+  }
+
+  private async insertAssignees(
+    tx: TxHandle,
+    ctx: TenantContext,
+    topicId: number,
+    people: PersonRef[],
+  ): Promise<void> {
+    if (people.length === 0) return;
+    await tx
+      .insert(schema.officeTopicAssignees)
+      .values(people.map((p) => tenantValues(ctx, { topicId, userId: p.id })));
+  }
+
+  /**
+   * Eventos de un cambio del conjunto de responsables. Sin cambios no hay
+   * evento. Si lo único que pasó es que el actor se agregó a sí mismo es
+   * `tomado`. Si hay agregados, `asignado` (con los agregados). Si hay quitados,
+   * `desasignado` (con los quitados). Payload: `{ assigneeIds, assigneeNames }`.
+   */
+  private async recordAssigneeEvents(
+    tx: TxHandle,
+    ctx: TenantContext,
+    topicId: number,
+    actorId: number,
+    added: PersonRef[],
+    removed: PersonRef[],
+    at: Date,
+  ): Promise<void> {
+    const payloadOf = (people: PersonRef[]): Record<string, unknown> => ({
+      assigneeIds: people.map((p) => p.id),
+      assigneeNames: people.map((p) => fullName(p.firstName, p.lastName)),
+    });
+    if (added.length > 0) {
+      const onlySelf =
+        removed.length === 0 && added.length === 1 && added[0].id === actorId;
+      await this.insertEvent(
+        tx,
+        ctx,
+        topicId,
+        actorId,
+        onlySelf ? "tomado" : "asignado",
+        null,
+        payloadOf(added),
+        at,
+      );
+    }
+    if (removed.length > 0) {
+      await this.insertEvent(
+        tx,
+        ctx,
+        topicId,
+        actorId,
+        "desasignado",
+        null,
+        payloadOf(removed),
+        at,
+      );
+    }
   }
 
   private async assertBranch(
@@ -976,7 +1091,6 @@ export class OfficeService {
         label: string | null;
       } | null;
       branchId: number | null;
-      assigneeId: number | null;
       createdBy: number | null;
       at: Date;
     },
@@ -992,7 +1106,6 @@ export class OfficeService {
         targetId: v.target ? v.target.id : null,
         targetLabel: v.target ? v.target.label : null,
         branchId: v.branchId,
-        assigneeId: v.assigneeId,
         createdBy: v.createdBy,
         lastActivityAt: v.at,
         createdAt: v.at,
@@ -1170,8 +1283,8 @@ export class OfficeService {
 
   /**
    * Query principal del listado y del detalle: una sola consulta sobre
-   * `office_topics` (con assignee, creador, sede y la lectura del actor) más
-   * tres agregadas por lote (comentarios, último evento y su autor).
+   * `office_topics` (con creador, sede y la lectura del actor) más
+   * cuatro consultas por lote (responsables, comentarios, último evento y su autor).
    */
   private async queryTopics(
     ctx: TenantContext,
@@ -1179,7 +1292,6 @@ export class OfficeService {
     extraWhere: SQL[],
     limit: number,
   ): Promise<InternalTopic[]> {
-    const assignee = alias(schema.users, "office_assignee");
     const creator = alias(schema.users, "office_creator");
 
     const rows = await this.db
@@ -1194,9 +1306,6 @@ export class OfficeService {
         targetLabel: schema.officeTopics.targetLabel,
         branchId: schema.officeTopics.branchId,
         branchName: schema.branches.name,
-        assigneeId: schema.officeTopics.assigneeId,
-        assigneeFirstName: assignee.firstName,
-        assigneeLastName: assignee.lastName,
         createdById: schema.officeTopics.createdBy,
         creatorFirstName: creator.firstName,
         creatorLastName: creator.lastName,
@@ -1213,13 +1322,6 @@ export class OfficeService {
         and(
           tenantWhere(schema.branches, ctx),
           eq(schema.branches.id, schema.officeTopics.branchId),
-        ),
-      )
-      .leftJoin(
-        assignee,
-        and(
-          tenantWhere(assignee, ctx),
-          eq(assignee.id, schema.officeTopics.assigneeId),
         ),
       )
       .leftJoin(
@@ -1246,6 +1348,14 @@ export class OfficeService {
 
     if (rows.length === 0) return [];
     const ids = rows.map((r) => r.id);
+
+    // Responsables de todos los temas, en UNA consulta (sin N+1).
+    const assigneesByTopic = new Map<number, OfficePerson[]>();
+    for (const a of await this.loadAssigneeRefs(this.db, ctx, ids)) {
+      const list = assigneesByTopic.get(a.topicId) ?? [];
+      list.push({ id: a.id, firstName: a.firstName, lastName: a.lastName });
+      assigneesByTopic.set(a.topicId, list);
+    }
 
     // Comentarios por tema.
     const commentRows = await this.db
@@ -1341,11 +1451,7 @@ export class OfficeService {
           targetLabel: r.targetLabel,
           branchId: r.branchId,
           branchName: r.branchName,
-          assignee: personOf(
-            r.assigneeId,
-            r.assigneeFirstName,
-            r.assigneeLastName,
-          ),
+          assignees: assigneesByTopic.get(r.id) ?? [],
           createdBy: personOf(
             r.createdById,
             r.creatorFirstName,

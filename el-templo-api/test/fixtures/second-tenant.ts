@@ -432,11 +432,14 @@ export async function limpiarSegundoGimnasio(
   await app.db.execute(
     sql`DELETE FROM novedades WHERE tenant_id = ${TENANT_DOS}`,
   );
-  // Oficina (fase 205, 0316): las cuatro tablas tienen FK a `users` y a
+  // Oficina (fase 205, 0320): las cinco tablas tienen FK a `users` y a
   // `tenants`. Hijas antes que padres (menciones -> eventos -> temas) y todas
   // ANTES del `DELETE FROM users` y del `DELETE FROM tenants` finales.
   await app.db.execute(
     sql`DELETE FROM office_mentions WHERE tenant_id = ${TENANT_DOS}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM office_topic_assignees WHERE tenant_id = ${TENANT_DOS}`,
   );
   await app.db.execute(
     sql`DELETE FROM office_topic_reads WHERE tenant_id = ${TENANT_DOS}`,

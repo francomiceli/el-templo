@@ -426,68 +426,251 @@ describe("Oficina API (central de temas de gestión)", () => {
 
   // ───────────────────────────── 5. Asignación ─────────────────────────────
 
-  it("asigna, toma, desasigna y rechaza asignar a quien no es staff", async () => {
+  /** Último evento de un tipo en el hilo de un tema (null si no hay). */
+  function ultimo(topic: OfficeTopicDetail, type: string) {
+    return topic.events.filter((e) => e.type === type).at(-1) ?? null;
+  }
+
+  async function patchAsignados(
+    token: string,
+    topicId: number,
+    assigneeIds: number[],
+  ): Promise<OfficeTopicDetail> {
+    const res = await call(token, "PATCH", `/topics/${topicId}`, {
+      assigneeIds,
+    });
+    expect(res.statusCode).toBe(200);
+    return res.json<{ topic: OfficeTopicDetail }>().topic;
+  }
+
+  it("crea con dos responsables: un evento asignado con ambos y la respuesta ordenada por nombre", async () => {
     const gestion = await staff("gestion");
-    const member = await createTestMember(app);
+    const admin = await staff("admin");
+    const topic = await createTopic(owner.token, {
+      title: "Nace con dos responsables",
+      assigneeIds: [gestion.id, admin.id],
+    });
+    expect(topic.events.map((e) => e.type)).toEqual(["creado", "asignado"]);
+    // "Nombreadmin" < "Nombregestion", sin importar el orden en que llegaron.
+    expect(topic.assignees.map((a) => a.id)).toEqual([admin.id, gestion.id]);
+    const evento = ultimo(topic, "asignado");
+    expect([...(evento?.payload?.assigneeIds as number[])].sort()).toEqual(
+      [admin.id, gestion.id].sort(),
+    );
+    expect(evento?.payload?.assigneeNames).toHaveLength(2);
+
+    // El listado trae los mismos responsables (consulta por lote).
+    const [enListado] = await list(owner.token);
+    expect(enListado.assignees.map((a) => a.id)).toEqual([
+      admin.id,
+      gestion.id,
+    ]);
+  });
+
+  it("crear con el actor como único responsable emite tomado, y sin responsables no emite nada", async () => {
+    const propio = await createTopic(owner.token, {
+      title: "Lo tomo yo",
+      assigneeIds: [owner.id],
+    });
+    expect(propio.events.map((e) => e.type)).toEqual(["creado", "tomado"]);
+    expect(propio.assignees.map((a) => a.id)).toEqual([owner.id]);
+
+    const sinNadie = await createTopic(owner.token, { title: "Sin nadie" });
+    expect(sinNadie.events.map((e) => e.type)).toEqual(["creado"]);
+    expect(sinNadie.assignees).toEqual([]);
+  });
+
+  it("el parche REEMPLAZA el conjunto: agregar emite asignado, quitar emite desasignado y tomar emite tomado", async () => {
+    const gestion = await staff("gestion");
+    const admin = await staff("admin");
     const topic = await createTopic(owner.token, { title: "Asignaciones" });
 
-    const tomar = await call(owner.token, "PATCH", `/topics/${topic.id}`, {
-      assigneeId: owner.id,
-    });
-    expect(tomar.statusCode).toBe(200);
-    const tomado = tomar.json<{ topic: OfficeTopicDetail }>().topic;
-    expect(tomado.assignee?.id).toBe(owner.id);
+    // Tomar = el cliente manda el conjunto actual + él mismo.
+    const tomado = await patchAsignados(owner.token, topic.id, [owner.id]);
+    expect(tomado.assignees.map((a) => a.id)).toEqual([owner.id]);
     expect(tomado.events.at(-1)?.type).toBe("tomado");
+    expect(tomado.events.at(-1)?.payload?.assigneeIds).toEqual([owner.id]);
 
-    const asignar = await call(owner.token, "PATCH", `/topics/${topic.id}`, {
-      assigneeId: gestion.id,
-    });
-    const asignado = asignar.json<{ topic: OfficeTopicDetail }>().topic;
-    expect(asignado.assignee?.id).toBe(gestion.id);
+    // Suma a gestion (el actor ya estaba): asignado con SOLO el agregado.
+    const asignado = await patchAsignados(owner.token, topic.id, [
+      owner.id,
+      gestion.id,
+    ]);
+    expect(asignado.assignees.map((a) => a.id).sort()).toEqual(
+      [owner.id, gestion.id].sort(),
+    );
     expect(asignado.events.at(-1)?.type).toBe("asignado");
-    expect(asignado.events.at(-1)?.payload?.assigneeId).toBe(gestion.id);
+    expect(asignado.events.at(-1)?.payload?.assigneeIds).toEqual([gestion.id]);
+    expect(asignado.events.at(-1)?.payload?.assigneeNames).toEqual([
+      "Nombregestion Oficina",
+    ]);
 
-    const quitar = await call(owner.token, "PATCH", `/topics/${topic.id}`, {
-      assigneeId: null,
+    // Reemplazo: sale gestion, entra admin => asignado(admin) + desasignado(gestion).
+    const reemplazado = await patchAsignados(owner.token, topic.id, [
+      owner.id,
+      admin.id,
+    ]);
+    const tipos = reemplazado.events.map((e) => e.type);
+    expect(tipos.slice(-2)).toEqual(["asignado", "desasignado"]);
+    expect(reemplazado.events.at(-2)?.payload?.assigneeIds).toEqual([admin.id]);
+    expect(reemplazado.events.at(-1)?.payload?.assigneeIds).toEqual([
+      gestion.id,
+    ]);
+    expect(reemplazado.assignees.map((a) => a.id).sort()).toEqual(
+      [owner.id, admin.id].sort(),
+    );
+
+    // Soltar (el actor se saca a sí mismo): desasignado con él.
+    const suelto = await patchAsignados(owner.token, topic.id, [admin.id]);
+    expect(suelto.events.at(-1)?.type).toBe("desasignado");
+    expect(suelto.events.at(-1)?.payload?.assigneeIds).toEqual([owner.id]);
+    expect(suelto.assignees.map((a) => a.id)).toEqual([admin.id]);
+  });
+
+  it("un parche sin cambios en los responsables no genera evento ni mueve la actividad", async () => {
+    const gestion = await staff("gestion");
+    const topic = await createTopic(owner.token, {
+      title: "Sin cambios",
+      assigneeIds: [gestion.id],
     });
-    const quitado = quitar.json<{ topic: OfficeTopicDetail }>().topic;
-    expect(quitado.assignee).toBeNull();
-    expect(quitado.events.at(-1)?.type).toBe("desasignado");
+    const eventosAntes = topic.events.length;
+
+    // Mismo conjunto (y repetido: el servidor deduplica).
+    const igual = await patchAsignados(owner.token, topic.id, [
+      gestion.id,
+      gestion.id,
+    ]);
+    expect(igual.events).toHaveLength(eventosAntes);
+    expect(igual.lastActivityAt).toBe(topic.lastActivityAt);
+    expect(igual.assignees.map((a) => a.id)).toEqual([gestion.id]);
+
+    // Sin la clave `assigneeIds` tampoco se tocan los responsables.
+    const soloTitulo = await call(owner.token, "PATCH", `/topics/${topic.id}`, {
+      title: "Sin cambios (renombrado)",
+    });
+    expect(
+      soloTitulo
+        .json<{ topic: OfficeTopicDetail }>()
+        .topic.assignees.map((a) => a.id),
+    ).toEqual([gestion.id]);
+  });
+
+  it("un arreglo vacío deja el tema sin responsables", async () => {
+    const gestion = await staff("gestion");
+    const admin = await staff("admin");
+    const topic = await createTopic(owner.token, {
+      title: "Se vacía",
+      assigneeIds: [gestion.id, admin.id],
+    });
+    const vacio = await patchAsignados(owner.token, topic.id, []);
+    expect(vacio.assignees).toEqual([]);
+    const quitado = ultimo(vacio, "desasignado");
+    expect([...(quitado?.payload?.assigneeIds as number[])].sort()).toEqual(
+      [gestion.id, admin.id].sort(),
+    );
+    expect(await list(gestion.token, "?view=mios")).toHaveLength(0);
+  });
+
+  it("deduplica ids repetidos al crear y rechaza más de 20 responsables", async () => {
+    const gestion = await staff("gestion");
+    const topic = await createTopic(owner.token, {
+      title: "Repetidos",
+      assigneeIds: [gestion.id, gestion.id, gestion.id],
+    });
+    expect(topic.assignees.map((a) => a.id)).toEqual([gestion.id]);
+    const filas = await app.db
+      .select({ id: schema.officeTopicAssignees.id })
+      .from(schema.officeTopicAssignees)
+      .where(tenantWhere(schema.officeTopicAssignees, TEMPLO_CTX));
+    expect(filas).toHaveLength(1);
+
+    const demasiados = await call(owner.token, "POST", "/topics", {
+      title: "Demasiados",
+      assigneeIds: Array.from({ length: 21 }, (_, i) => i + 1),
+    });
+    expect(demasiados.statusCode).toBe(400);
+  });
+
+  it("rechaza con 400 asignar a quien no es staff (socio) sin tocar el conjunto", async () => {
+    const gestion = await staff("gestion");
+    const member = await createTestMember(app);
+    const topic = await createTopic(owner.token, {
+      title: "Solo staff",
+      assigneeIds: [gestion.id],
+    });
 
     const aSocio = await call(owner.token, "PATCH", `/topics/${topic.id}`, {
-      assigneeId: member.id,
+      assigneeIds: [gestion.id, member.id],
     });
     expect(aSocio.statusCode).toBe(400);
 
-    // Crear con responsable emite creado + asignado en el mismo pedido.
-    const conResponsable = await createTopic(owner.token, {
-      title: "Nace asignado",
-      assigneeId: gestion.id,
+    const creaConSocio = await call(owner.token, "POST", "/topics", {
+      title: "Con socio",
+      assigneeIds: [gestion.id, member.id],
     });
-    expect(conResponsable.events.map((e) => e.type)).toEqual([
-      "creado",
-      "asignado",
-    ]);
-    expect(conResponsable.assignee?.id).toBe(gestion.id);
+    expect(creaConSocio.statusCode).toBe(400);
+
+    const intacto = await call(owner.token, "GET", `/topics/${topic.id}`);
+    const detalle = intacto.json<{ topic: OfficeTopicDetail }>().topic;
+    expect(detalle.assignees.map((a) => a.id)).toEqual([gestion.id]);
+    expect(detalle.events.map((e) => e.type)).toEqual(["creado", "asignado"]);
   });
 
-  it("filtra 'mios' por responsable y excluye los cerrados", async () => {
+  it("quien ya era responsable y se deshabilitó no bloquea el parche, y se lo puede quitar", async () => {
     const gestion = await staff("gestion");
+    const admin = await staff("admin");
+    const topic = await createTopic(owner.token, {
+      title: "Se fue de baja",
+      assigneeIds: [gestion.id],
+    });
+    await app.db
+      .update(schema.users)
+      .set({ staffDisabled: true })
+      .where(
+        and(
+          tenantWhere(schema.users, TEMPLO_CTX),
+          eq(schema.users.id, gestion.id),
+        ),
+      );
+
+    // Mantiene al deshabilitado y suma a otro: no se revalida al que ya estaba.
+    const suma = await patchAsignados(owner.token, topic.id, [
+      gestion.id,
+      admin.id,
+    ]);
+    expect(suma.assignees.map((a) => a.id).sort()).toEqual(
+      [gestion.id, admin.id].sort(),
+    );
+
+    // Y se lo puede sacar.
+    const saca = await patchAsignados(owner.token, topic.id, [admin.id]);
+    expect(saca.assignees.map((a) => a.id)).toEqual([admin.id]);
+    expect(saca.events.at(-1)?.type).toBe("desasignado");
+  });
+
+  it("filtra 'mios' por responsable (ambos lo ven, un tercero no) y excluye los cerrados", async () => {
+    const gestion = await staff("gestion");
+    const admin = await staff("admin");
     await createTopic(owner.token, {
       title: "Mío abierto",
-      assigneeId: gestion.id,
+      assigneeIds: [gestion.id, admin.id],
     });
     const cerrado = await createTopic(owner.token, {
       title: "Mío cerrado",
-      assigneeId: gestion.id,
+      assigneeIds: [gestion.id],
     });
     await createTopic(owner.token, { title: "De nadie" });
     await call(owner.token, "PATCH", `/topics/${cerrado.id}`, {
       status: "cerrado",
     });
 
-    const mios = await list(gestion.token, "?view=mios");
-    expect(mios.map((t) => t.title)).toEqual(["Mío abierto"]);
+    expect(
+      (await list(gestion.token, "?view=mios")).map((t) => t.title),
+    ).toEqual(["Mío abierto"]);
+    expect((await list(admin.token, "?view=mios")).map((t) => t.title)).toEqual(
+      ["Mío abierto"],
+    );
+    // El tercero (owner, que no es responsable de ninguno) no ve nada.
     expect(await list(owner.token, "?view=mios")).toHaveLength(0);
   });
 
@@ -497,7 +680,7 @@ describe("Oficina API (central de temas de gestión)", () => {
     const gestion = await staff("gestion");
     const topic = await createTopic(owner.token, {
       title: "Para gestión",
-      assigneeId: gestion.id,
+      assigneeIds: [gestion.id],
     });
 
     // Nunca visto por la persona asignada.
@@ -531,6 +714,28 @@ describe("Oficina API (central de temas de gestión)", () => {
       false,
     );
     expect((await badge(gestion.token)).assigned).toBe(0);
+  });
+
+  it("el badge de asignados cuenta para cada responsable y cada uno baja al ver lo suyo", async () => {
+    const gestion = await staff("gestion");
+    const admin = await staff("admin");
+    const topic = await createTopic(owner.token, {
+      title: "Para dos",
+      assigneeIds: [gestion.id, admin.id],
+    });
+
+    expect((await badge(gestion.token)).assigned).toBe(1);
+    expect((await badge(admin.token)).assigned).toBe(1);
+    // Quien creó el tema sin ser responsable no recibe aviso de asignación.
+    expect((await badge(owner.token)).assigned).toBe(0);
+
+    await call(gestion.token, "POST", `/topics/${topic.id}/seen`);
+    expect((await badge(gestion.token)).assigned).toBe(0);
+    expect((await badge(admin.token)).assigned).toBe(1);
+
+    // Si se lo quita del conjunto, el tema deja de contarle.
+    await patchAsignados(owner.token, topic.id, [gestion.id]);
+    expect((await badge(admin.token)).assigned).toBe(0);
   });
 
   // ──────────────────────────── 7. Cerrar y reabrir ────────────────────────────
@@ -802,9 +1007,22 @@ describe("Oficina API (central de temas de gestión)", () => {
       });
 
       const asignar = await call(owner.token, "PATCH", `/topics/${topic.id}`, {
-        assigneeId: gym2.adminId,
+        assigneeIds: [gym2.adminId],
       });
       expect(asignar.statusCode).toBe(400);
+
+      // Mezclado con staff propio también se rechaza todo el pedido.
+      const mezclado = await call(owner.token, "POST", "/topics", {
+        title: "Mezcla de gimnasios",
+        assigneeIds: [owner.id, gym2.adminId],
+      });
+      expect(mezclado.statusCode).toBe(400);
+      expect(await eventTypes(topic.id)).toEqual(["creado"]);
+      const asignadosAjenos = await app.db
+        .select({ id: schema.officeTopicAssignees.id })
+        .from(schema.officeTopicAssignees)
+        .where(tenantWhere(schema.officeTopicAssignees, DOS_CTX));
+      expect(asignadosAjenos).toHaveLength(0);
 
       const vincular = await call(owner.token, "POST", "/topics", {
         title: "Socio ajeno",

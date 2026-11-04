@@ -58,7 +58,7 @@ const topicListItemProperties = {
   targetLabel: { type: ["string", "null"] },
   branchId: { type: ["integer", "null"] },
   branchName: { type: ["string", "null"] },
-  assignee: personSchema,
+  assignees: { type: "array", items: personSchema },
   createdBy: personSchema,
   snoozedUntil: { type: ["string", "null"] },
   lastActivityAt: { type: "string" },
@@ -100,6 +100,12 @@ const idParamsSchema = {
   type: "object",
   required: ["id"],
   properties: { id: { type: "integer" } },
+} as const;
+
+const assigneeIdsSchema = {
+  type: "array",
+  items: { type: "integer" },
+  maxItems: 20,
 } as const;
 
 const mentionUserIdsSchema = {
@@ -149,7 +155,7 @@ export const officeCreateTopicSchema = {
       targetId: { type: ["integer", "null"] },
       targetLabel: { type: ["string", "null"], maxLength: 160 },
       branchId: { type: ["integer", "null"] },
-      assigneeId: { type: ["integer", "null"] },
+      assigneeIds: assigneeIdsSchema,
       mentionUserIds: mentionUserIdsSchema,
     },
   },
@@ -181,7 +187,7 @@ export const officePatchTopicSchema = {
     properties: {
       title: { type: "string", minLength: 1, maxLength: 160 },
       body: { type: ["string", "null"], maxLength: 4000 },
-      assigneeId: { type: ["integer", "null"] },
+      assigneeIds: assigneeIdsSchema,
       status: { type: "string", enum: ["abierto", "cerrado"] },
       snoozedUntil: {
         type: ["string", "null"],

@@ -375,7 +375,7 @@ async function onDialogSaved(saved: OfficeTopicDetail): Promise<void> {
     return;
   }
   // Un tema recién creado tiene que verse: si los filtros actuales lo esconden, se limpian.
-  const ownsIt = saved.assignee?.id === currentUserId.value;
+  const ownsIt = saved.assignees.some((a) => a.id === currentUserId.value);
   const viewHides =
     view.value === 'cerrados' || view.value === 'dormidos' || (view.value === 'mios' && !ownsIt);
   const originHides = origin.value === 'sistema';

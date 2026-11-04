@@ -86,16 +86,18 @@
       <!-- Acciones -->
       <div class="row items-center q-gutter-sm q-pa-md oficina-detail__actions">
         <q-select
-          :model-value="topic.assignee?.id ?? null"
+          :model-value="assigneeIds"
           :options="assigneeOptions"
           option-value="value"
           option-label="label"
           emit-value
           map-options
+          multiple
+          use-chips
           dense
           outlined
           clearable
-          label="Responsable"
+          label="Responsables"
           class="oficina-detail__assignee"
           :disable="busy"
           @update:model-value="onAssigneeChange"
@@ -113,7 +115,18 @@
           label="Tomar"
           no-caps
           :disable="busy"
-          @click="emit('patch', { assigneeId: currentUserId })"
+          @click="emit('patch', { assigneeIds: [...assigneeIds, currentUserId] })"
+        />
+
+        <q-btn
+          v-else
+          flat
+          color="primary"
+          icon="logout"
+          label="Soltar"
+          no-caps
+          :disable="busy"
+          @click="emit('patch', { assigneeIds: assigneeIds.filter((id) => id !== currentUserId) })"
         />
 
         <q-btn
@@ -362,18 +375,21 @@ const assigneeOptions = computed(() => {
     value: person.id,
     label: personName(person) || `Usuario ${person.id}`,
   }));
-  // Si el responsable ya no figura en el equipo (se deshabilitó), igual se muestra su nombre.
-  const assignee = props.topic?.assignee;
-  if (assignee && !options.some((o) => o.value === assignee.id)) {
-    options.push({ value: assignee.id, label: personName(assignee) || `Usuario ${assignee.id}` });
+  // Si un responsable ya no figura en el equipo (se deshabilitó), igual se muestra su nombre.
+  for (const assignee of props.topic?.assignees ?? []) {
+    if (!options.some((o) => o.value === assignee.id)) {
+      options.push({ value: assignee.id, label: personName(assignee) || `Usuario ${assignee.id}` });
+    }
   }
   return options;
 });
 
-const isMine = computed(() => props.topic?.assignee?.id === props.currentUserId);
+const assigneeIds = computed(() => (props.topic?.assignees ?? []).map((a) => a.id));
 
-function onAssigneeChange(value: number | null): void {
-  emit('patch', { assigneeId: value ?? null });
+const isMine = computed(() => assigneeIds.value.includes(props.currentUserId));
+
+function onAssigneeChange(value: number[] | null): void {
+  emit('patch', { assigneeIds: value ?? [] });
 }
 
 // ── Dormir ────────────────────────────────────────────────────────

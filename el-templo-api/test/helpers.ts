@@ -288,6 +288,7 @@ const TABLES_TO_CLEAN = [
   schema.memberNotes,
   // Fase 205 Oficina (hijas primero)
   schema.officeMentions,
+  schema.officeTopicAssignees,
   schema.officeTopicReads,
   schema.officeTopicEvents,
   schema.officeTopics,

@@ -15,7 +15,7 @@ import { branches } from "./branches";
 import { tenantIdColumn } from "./tenant-column";
 
 /**
- * Fase 205 (Oficina), migración 0316. Cuatro tablas gym-owned que nacen strict
+ * Fase 205 (Oficina), migración 0320. Cinco tablas gym-owned que nacen strict
  * (módulo `office`): tenant_id NOT NULL DEFAULT 1 + FK, y todo UNIQUE empieza
  * por `tenantId`.
  *
@@ -79,9 +79,6 @@ export const officeTopics = mysqlTable(
     branchId: int("branch_id").references(() => branches.id, {
       onDelete: "set null",
     }),
-    assigneeId: int("assignee_id").references(() => users.id, {
-      onDelete: "set null",
-    }),
     createdBy: int("created_by").references(() => users.id, {
       onDelete: "set null",
     }),
@@ -109,10 +106,32 @@ export const officeTopics = mysqlTable(
       table.targetKind,
       table.targetId,
     ),
-    index("idx_office_topics_tenant_assignee").on(
+  ],
+);
+
+// Responsables del tema: varios por tema (conjunto), sin orden propio.
+export const officeTopicAssignees = mysqlTable(
+  "office_topic_assignees",
+  {
+    id: int("id").primaryKey().autoincrement(),
+    tenantId: tenantIdColumn(),
+    topicId: int("topic_id")
+      .references(() => officeTopics.id, { onDelete: "cascade" })
+      .notNull(),
+    userId: int("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("uq_office_topic_assignees_tenant_topic_user").on(
       table.tenantId,
-      table.assigneeId,
-      table.status,
+      table.topicId,
+      table.userId,
+    ),
+    index("idx_office_topic_assignees_tenant_user").on(
+      table.tenantId,
+      table.userId,
     ),
   ],
 );
@@ -205,17 +224,27 @@ export const officeMentions = mysqlTable(
 export const officeTopicsRelations = relations(
   officeTopics,
   ({ one, many }) => ({
-    assignee: one(users, {
-      fields: [officeTopics.assigneeId],
-      references: [users.id],
-      relationName: "officeTopicAssignee",
-    }),
     creator: one(users, {
       fields: [officeTopics.createdBy],
       references: [users.id],
       relationName: "officeTopicCreator",
     }),
     events: many(officeTopicEvents),
+    assignees: many(officeTopicAssignees),
+  }),
+);
+
+export const officeTopicAssigneesRelations = relations(
+  officeTopicAssignees,
+  ({ one }) => ({
+    topic: one(officeTopics, {
+      fields: [officeTopicAssignees.topicId],
+      references: [officeTopics.id],
+    }),
+    user: one(users, {
+      fields: [officeTopicAssignees.userId],
+      references: [users.id],
+    }),
   }),
 );
 
@@ -236,6 +265,7 @@ export const officeTopicEventsRelations = relations(
 // ── Tipos inferidos ─────────────────────────────────────────────────
 
 export type OfficeTopicRow = typeof officeTopics.$inferSelect;
+export type OfficeTopicAssigneeRow = typeof officeTopicAssignees.$inferSelect;
 export type OfficeTopicEventRow = typeof officeTopicEvents.$inferSelect;
 export type OfficeTopicReadRow = typeof officeTopicReads.$inferSelect;
 export type OfficeMentionRow = typeof officeMentions.$inferSelect;

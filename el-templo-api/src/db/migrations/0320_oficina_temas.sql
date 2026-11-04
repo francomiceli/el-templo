@@ -1,14 +1,15 @@
--- 0316_oficina_temas.sql
+-- 0320_oficina_temas.sql
 -- Fase 205 Oficina (D-01..D-07): central de temas de gestion del admin.
 --
--- Cuatro tablas gym-owned que nacen strict (modulo `office`): office_topics
--- (el tema), office_topic_events (el hilo: comentarios y cambios de estado),
+-- Cinco tablas gym-owned que nacen strict (modulo `office`): office_topics
+-- (el tema), office_topic_assignees (los responsables del tema, varios por
+-- tema), office_topic_events (el hilo: comentarios y cambios de estado),
 -- office_topic_reads (visto por persona) y office_mentions (menciones por
 -- evento y usuario). Llevan tenant_id NOT NULL DEFAULT 1 y su FK a tenants
 -- desde el primer dia. Todo UNIQUE empieza por tenant_id.
 --
--- Orden de creacion segun las FK: office_topics, office_topic_events,
--- office_topic_reads, office_mentions.
+-- Orden de creacion segun las FK: office_topics, office_topic_assignees,
+-- office_topic_events, office_topic_reads, office_mentions.
 --
 -- status y origin son varchar (no enum) con uniones en TypeScript, igual que
 -- el resto de los estados nuevos. snoozed_until es un YYYY-MM-DD en texto.
@@ -36,7 +37,6 @@ CREATE TABLE `office_topics` (
   `target_id` int NULL,
   `target_label` varchar(160) NULL,
   `branch_id` int NULL,
-  `assignee_id` int NULL,
   `created_by` int NULL,
   `closed_by` int NULL,
   `closed_at` timestamp NULL,
@@ -48,12 +48,24 @@ CREATE TABLE `office_topics` (
   UNIQUE KEY `uq_office_topics_tenant_source` (`tenant_id`, `source_key`),
   KEY `idx_office_topics_tenant_status_activity` (`tenant_id`, `status`, `last_activity_at`),
   KEY `idx_office_topics_tenant_target` (`tenant_id`, `target_kind`, `target_id`),
-  KEY `idx_office_topics_tenant_assignee` (`tenant_id`, `assignee_id`, `status`),
   CONSTRAINT `fk_office_topics_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`id`),
   CONSTRAINT `office_topics_branch_id_branches_id_fk` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `office_topics_assignee_id_users_id_fk` FOREIGN KEY (`assignee_id`) REFERENCES `users` (`id`) ON DELETE SET NULL,
   CONSTRAINT `office_topics_created_by_users_id_fk` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
   CONSTRAINT `office_topics_closed_by_users_id_fk` FOREIGN KEY (`closed_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+);
+--> statement-breakpoint
+CREATE TABLE `office_topic_assignees` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `tenant_id` int NOT NULL DEFAULT 1,
+  `topic_id` int NOT NULL,
+  `user_id` int NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_office_topic_assignees_tenant_topic_user` (`tenant_id`, `topic_id`, `user_id`),
+  KEY `idx_office_topic_assignees_tenant_user` (`tenant_id`, `user_id`),
+  CONSTRAINT `fk_office_topic_assignees_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`id`),
+  CONSTRAINT `office_topic_assignees_topic_id_office_topics_id_fk` FOREIGN KEY (`topic_id`) REFERENCES `office_topics` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `office_topic_assignees_user_id_users_id_fk` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 );
 --> statement-breakpoint
 CREATE TABLE `office_topic_events` (

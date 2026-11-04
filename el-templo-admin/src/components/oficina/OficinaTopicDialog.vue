@@ -70,16 +70,17 @@
 
           <q-select
             v-if="mode === 'create'"
-            v-model="form.assigneeId"
+            v-model="form.assigneeIds"
             :options="assigneeOptions"
             option-value="value"
             option-label="label"
             emit-value
             map-options
+            multiple
+            use-chips
             outlined
             dense
-            clearable
-            label="Responsable (opcional)"
+            label="Responsables (opcional)"
             :disable="saving"
           />
         </q-form>
@@ -142,8 +143,8 @@ const form = reactive<{
   title: string;
   body: string;
   memberId: number | null;
-  assigneeId: number | null;
-}>({ title: '', body: '', memberId: null, assigneeId: null });
+  assigneeIds: number[];
+}>({ title: '', body: '', memberId: null, assigneeIds: [] });
 
 const assigneeOptions = computed(() =>
   props.staff.map((person) => ({
@@ -158,7 +159,7 @@ function resetForm(): void {
   form.title = props.mode === 'edit' ? (props.topic?.title ?? '') : '';
   form.body = props.mode === 'edit' ? (props.topic?.body ?? '') : '';
   form.memberId = null;
-  form.assigneeId = null;
+  form.assigneeIds = [];
   memberSelect.value?.reset();
 }
 
@@ -199,7 +200,7 @@ async function onSubmit(): Promise<void> {
         body: body === '' ? null : body,
         ...(memberId !== null ? { targetKind: 'socio' as const, targetId: memberId } : {}),
         ...(props.presetTarget ? { targetLabel: props.presetTarget.label } : {}),
-        assigneeId: form.assigneeId,
+        ...(form.assigneeIds.length > 0 ? { assigneeIds: form.assigneeIds } : {}),
       });
       $q.notify({ type: 'positive', message: 'Tema creado' });
     }

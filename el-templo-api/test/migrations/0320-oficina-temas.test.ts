@@ -1,7 +1,7 @@
 /**
- * Fase 205 Plan 01: migracion 0316 (Oficina, central de temas de gestion).
+ * Fase 205 Plan 01: migracion 0320 (Oficina, central de temas de gestion).
  *
- *  - D-01: cuatro tablas gym-owned `office_*` que nacen strict.
+ *  - D-01: cinco tablas gym-owned `office_*` que nacen strict.
  *  - D-04: `office_topics.source_key` unico por tenant.
  *  - D-05: `office_topic_events.payload` es JSON.
  *  - D-06: `office_mentions` cuelga de `office_topic_events` con CASCADE.
@@ -17,6 +17,7 @@ import { createTestApp } from "../helpers";
 
 const OFFICE_TABLES = [
   "office_mentions",
+  "office_topic_assignees",
   "office_topic_events",
   "office_topic_reads",
   "office_topics",
@@ -41,7 +42,7 @@ interface FkRow extends RowDataPacket {
   referencedTable: string;
 }
 
-describe("Migracion 0316 — tablas office_*", () => {
+describe("Migracion 0320 — tablas office_*", () => {
   let app: FastifyInstance;
 
   beforeAll(async () => {
@@ -52,7 +53,7 @@ describe("Migracion 0316 — tablas office_*", () => {
     await app.close();
   });
 
-  it("0316: las 4 tablas existen y tienen tenant_id NOT NULL", async () => {
+  it("0320: las 5 tablas existen y tienen tenant_id NOT NULL", async () => {
     const [rows] = (await app.dbPool.query(
       `SELECT TABLE_NAME AS tableName,
               COLUMN_NAME AS columnName,
@@ -60,7 +61,7 @@ describe("Migracion 0316 — tablas office_*", () => {
               DATA_TYPE AS dataType
          FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_SCHEMA = DATABASE()
-          AND TABLE_NAME IN ('office_mentions', 'office_topic_events', 'office_topic_reads', 'office_topics')
+          AND TABLE_NAME IN ('office_mentions', 'office_topic_assignees', 'office_topic_events', 'office_topic_reads', 'office_topics')
           AND COLUMN_NAME = 'tenant_id'`,
     )) as [ColumnRow[], unknown];
     expect(rows.map((r) => r.tableName).sort()).toEqual(OFFICE_TABLES);
@@ -69,7 +70,7 @@ describe("Migracion 0316 — tablas office_*", () => {
     }
   });
 
-  it("0316: uq_office_topics_tenant_source es unica y arranca por tenant_id", async () => {
+  it("0320: uq_office_topics_tenant_source es unica y arranca por tenant_id", async () => {
     const [rows] = (await app.dbPool.query(
       `SELECT INDEX_NAME AS indexName,
               NON_UNIQUE AS nonUnique,
@@ -86,7 +87,7 @@ describe("Migracion 0316 — tablas office_*", () => {
     expect(rows.map((r) => r.columnName)).toEqual(["tenant_id", "source_key"]);
   });
 
-  it("0316: toda UNIQUE de las 4 tablas arranca por tenant_id", async () => {
+  it("0320: toda UNIQUE de las 5 tablas arranca por tenant_id", async () => {
     const [rows] = (await app.dbPool.query(
       `SELECT TABLE_NAME AS tableName,
               INDEX_NAME AS indexName,
@@ -95,13 +96,13 @@ describe("Migracion 0316 — tablas office_*", () => {
               COLUMN_NAME AS columnName
          FROM INFORMATION_SCHEMA.STATISTICS
         WHERE TABLE_SCHEMA = DATABASE()
-          AND TABLE_NAME IN ('office_mentions', 'office_topic_events', 'office_topic_reads', 'office_topics')
+          AND TABLE_NAME IN ('office_mentions', 'office_topic_assignees', 'office_topic_events', 'office_topic_reads', 'office_topics')
           AND NON_UNIQUE = 0
           AND INDEX_NAME <> 'PRIMARY'
           AND SEQ_IN_INDEX = 1`,
     )) as [(IndexRow & { tableName: string })[], unknown];
-    // topics (source), reads (topic+user), mentions (event+user).
-    expect(rows.length).toBe(3);
+    // topics (source), assignees (topic+user), reads (topic+user), mentions (event+user).
+    expect(rows.length).toBe(4);
     for (const row of rows) {
       expect(row.columnName, `${row.tableName}.${row.indexName}`).toBe(
         "tenant_id",
@@ -109,7 +110,7 @@ describe("Migracion 0316 — tablas office_*", () => {
     }
   });
 
-  it("0316: office_topic_events.payload es json", async () => {
+  it("0320: office_topic_events.payload es json", async () => {
     const [rows] = (await app.dbPool.query(
       `SELECT TABLE_NAME AS tableName,
               COLUMN_NAME AS columnName,
@@ -125,7 +126,7 @@ describe("Migracion 0316 — tablas office_*", () => {
     expect(rows[0].isNullable).toBe("YES");
   });
 
-  it("0316: office_mentions tiene FK a office_topic_events con DELETE CASCADE", async () => {
+  it("0320: office_mentions tiene FK a office_topic_events con DELETE CASCADE", async () => {
     const [rows] = (await app.dbPool.query(
       `SELECT DELETE_RULE AS deleteRule,
               REFERENCED_TABLE_NAME AS referencedTable
@@ -136,5 +137,52 @@ describe("Migracion 0316 — tablas office_*", () => {
     )) as [FkRow[], unknown];
     expect(rows.length).toBe(1);
     expect(rows[0].deleteRule).toBe("CASCADE");
+  });
+
+  it("0320: office_topics ya no tiene assignee_id (los responsables viven en office_topic_assignees)", async () => {
+    const [rows] = (await app.dbPool.query(
+      `SELECT COLUMN_NAME AS columnName
+         FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'office_topics'
+          AND COLUMN_NAME = 'assignee_id'`,
+    )) as [ColumnRow[], unknown];
+    expect(rows.length).toBe(0);
+  });
+
+  it("0320: office_topic_assignees es unica por tema y persona (con tenant_id primero) y cae en cascada con el tema y el usuario", async () => {
+    const [idx] = (await app.dbPool.query(
+      `SELECT INDEX_NAME AS indexName,
+              NON_UNIQUE AS nonUnique,
+              SEQ_IN_INDEX AS seqInIndex,
+              COLUMN_NAME AS columnName
+         FROM INFORMATION_SCHEMA.STATISTICS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'office_topic_assignees'
+          AND INDEX_NAME = 'uq_office_topic_assignees_tenant_topic_user'
+        ORDER BY SEQ_IN_INDEX`,
+    )) as [IndexRow[], unknown];
+    expect(idx.map((r) => r.columnName)).toEqual([
+      "tenant_id",
+      "topic_id",
+      "user_id",
+    ]);
+    expect(idx.every((r) => Number(r.nonUnique) === 0)).toBe(true);
+
+    const [fks] = (await app.dbPool.query(
+      `SELECT DELETE_RULE AS deleteRule,
+              REFERENCED_TABLE_NAME AS referencedTable
+         FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS
+        WHERE CONSTRAINT_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'office_topic_assignees'
+          AND REFERENCED_TABLE_NAME IN ('office_topics', 'users')`,
+    )) as [FkRow[], unknown];
+    expect(fks.map((r) => r.referencedTable).sort()).toEqual([
+      "office_topics",
+      "users",
+    ]);
+    for (const fk of fks) {
+      expect(fk.deleteRule, fk.referencedTable).toBe("CASCADE");
+    }
   });
 });

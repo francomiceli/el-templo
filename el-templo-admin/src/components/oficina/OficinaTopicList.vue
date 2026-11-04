@@ -75,18 +75,28 @@
             <q-icon v-if="topic.origin === 'sistema'" name="smart_toy" size="18px" color="grey-6">
               <q-tooltip>Lo abrió el sistema</q-tooltip>
             </q-icon>
-            <q-avatar
-              v-if="topic.assignee"
-              size="24px"
-              color="primary"
-              text-color="white"
-              font-size="11px"
+            <div
+              v-if="topic.assignees.length > 0"
+              class="row items-center no-wrap oficina-list__avatars"
             >
-              {{ personInitials(topic.assignee) }}
-              <q-tooltip>Responsable: {{ personName(topic.assignee) }}</q-tooltip>
-            </q-avatar>
+              <q-avatar
+                v-for="person in topic.assignees.slice(0, MAX_AVATARS)"
+                :key="person.id"
+                size="24px"
+                color="primary"
+                text-color="white"
+                font-size="11px"
+                class="oficina-list__avatar"
+              >
+                {{ personInitials(person) }}
+              </q-avatar>
+              <span v-if="topic.assignees.length > MAX_AVATARS" class="text-caption text-grey-8">
+                +{{ topic.assignees.length - MAX_AVATARS }}
+              </span>
+              <q-tooltip>Responsables: {{ assigneeNames(topic.assignees) }}</q-tooltip>
+            </div>
             <q-icon v-else name="person_outline" size="22px" color="grey-5">
-              <q-tooltip>Sin responsable</q-tooltip>
+              <q-tooltip>Sin responsables</q-tooltip>
             </q-icon>
           </div>
         </q-item-section>
@@ -96,16 +106,24 @@
 </template>
 
 <script setup lang="ts">
-import type { OfficeTopicListItem } from 'src/composables/useOfficeApi';
+import type { OfficePerson, OfficeTopicListItem } from 'src/composables/useOfficeApi';
 import { relativeTime } from 'src/utils/relative-time';
 import {
   TARGET_KIND_ICONS,
   TARGET_KIND_LABELS,
   lastEventLine,
+  joinNames,
   personInitials,
   personName,
   shortDate,
 } from 'src/components/oficina/office-labels';
+
+/** Cuántos avatares se muestran antes del "+N". */
+const MAX_AVATARS = 3;
+
+function assigneeNames(people: OfficePerson[]): string {
+  return joinNames(people.map((p) => personName(p) || `Usuario ${p.id}`));
+}
 
 withDefaults(
   defineProps<{
@@ -145,6 +163,15 @@ function hasMeta(topic: OfficeTopicListItem): boolean {
   margin-top: 5px;
   border-radius: 50%;
   background: var(--q-primary);
+}
+
+.oficina-list__avatar + .oficina-list__avatar {
+  margin-left: -6px;
+  border: 2px solid white;
+}
+
+.oficina-list__avatars > .text-caption {
+  margin-left: 4px;
 }
 
 .oficina-list__side {

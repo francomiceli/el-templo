@@ -96,7 +96,7 @@ describe("tenant-tables — clasificación canónica de tablas (COL-01)", () => 
     ).toEqual([]);
   });
 
-  it("los conteos son 127 gym-owned + 5 exentas y cubren las 132 tablas del schema", () => {
+  it("los conteos son 128 gym-owned + 5 exentas y cubren las 133 tablas del schema", () => {
     // Fase 159 (SEM-05) sumó `session_week_regime` a GYM_OWNED_TABLES (era 87,
     // ver el comentario de src/db/tenant-tables.ts:32-41): 87 -> 88, 91 -> 92.
     // Fase 179 sumó `referral_partners`, `partner_referrals`,
@@ -139,14 +139,14 @@ describe("tenant-tables — clasificación canónica de tablas (COL-01)", () => 
     // 2026-11-03 sumó `weekly_board_snapshots` y `weekly_board_leads` (fase 206,
     // mig 0319, nacen strict en `weekly-board`): 121 -> 123, 126 -> 128.
     
-    // 2026-11-03: +4 office_* (fase 205, 0316) nacen tenancy-native en el módulo
-    // nuevo `office`: 123 -> 127, 128 -> 132.
-    expect(GYM_OWNED_TABLES.length).toBe(127);
+    // 2026-11-03: +5 office_* (fase 205, 0320) nacen tenancy-native en el módulo
+    // nuevo `office`: 123 -> 128, 128 -> 133.
+    expect(GYM_OWNED_TABLES.length).toBe(128);
     expect(TENANT_EXEMPT_TABLES.length).toBe(5);
     // Sin duplicados dentro de cada lista.
     expect(gymOwned.size).toBe(GYM_OWNED_TABLES.length);
     expect(exempt.size).toBe(TENANT_EXEMPT_TABLES.length);
-    expect(schemaTables.size).toBe(132);
+    expect(schemaTables.size).toBe(133);
     expect(gymOwned.size + exempt.size).toBe(schemaTables.size);
   });
 
@@ -496,6 +496,7 @@ describe("TENANT_STRICT_MODULES (fase 170, D-05/D-06)", () => {
     // Fase 205 (Oficina): el módulo nace strict.
     office: [
       "office_mentions",
+      "office_topic_assignees",
       "office_topic_events",
       "office_topic_reads",
       "office_topics",

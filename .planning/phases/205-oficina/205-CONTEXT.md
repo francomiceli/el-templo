@@ -9,7 +9,7 @@
 
 Una sección nueva del admin, **Oficina** (`/oficina`), visible para `owner`, `admin` y `gestion`, que concentra los **temas de gestión** del templo en un solo lugar y permite que el staff de gerencia converse sobre ellos.
 
-Qué es un tema: algo que la gerencia está atendiendo. Tiene título, contexto, un vínculo opcional a una cosa del sistema (socio, jornada, evento Wellhub, horario), un responsable opcional, un estado binario (abierto / cerrado) más "dormido hasta fecha", y un hilo de comentarios cortos con menciones.
+Qué es un tema: algo que la gerencia está atendiendo. Tiene título, contexto, un vínculo opcional a una cosa del sistema (socio, jornada, evento Wellhub, horario), responsables opcionales (varios), un estado binario (abierto / cerrado) más "dormido hasta fecha", y un hilo de comentarios cortos con menciones.
 
 Dos orígenes:
 - **manual**: lo crea una persona desde Oficina o desde la ficha del socio.
@@ -27,14 +27,14 @@ Por qué ahora: la gerencia no tiene centro de operaciones. El admin tiene nueve
 ## Implementation Decisions (tomadas por el orquestador, Franco no estaba)
 
 ### Modelo
-- **D-01** Cuatro tablas gym-owned nuevas (módulo `office`, strict desde el nacimiento): `office_topics`, `office_topic_events`, `office_topic_reads`, `office_mentions`. Migración **0316** a mano.
+- **D-01** Cinco tablas gym-owned nuevas (módulo `office`, strict desde el nacimiento): `office_topics`, `office_topic_assignees` (responsables, varios por tema: UNIQUE `(tenant_id, topic_id, user_id)`, CASCADE con el tema y el usuario), `office_topic_events`, `office_topic_reads`, `office_mentions`. Migración **0320** a mano (renumerada desde la 0316 porque master ocupó 0317-0319 antes de que esta saliera del local). `office_topics` NO tiene `assignee_id`.
 - **D-02** `status` ∈ `abierto | dormido | cerrado`. `origin` ∈ `manual | sistema`. Columnas varchar (no `mysqlEnum`) con uniones TS, igual que `conquer_alerts`.
 - **D-03** Vínculo polimórfico opcional: `target_kind` ∈ `socio | jornada | wellhub_evento | horario`, `target_id`, `target_label` (texto congelado al crear, para no joinear cuatro tablas al listar). `branch_id` opcional.
 - **D-04** Los temas del sistema llevan `source_key` único por tenant (`wellhub_event:<id>`, `staff_shift:<id>`, `clase_sin_profe:<scheduleId>:<YYYY-MM-DD>`). Si el staff cerró a mano un tema del sistema, el job NO lo reabre aunque la condición siga (la unique lo impide y es deseado).
 - **D-05** El hilo es la tabla de eventos. `type` ∈ `creado | comentario | asignado | tomado | desasignado | dormido | cerrado | reabierto | editado | sistema`. `actor_id` NULL = sistema. No se escribe en `audit_log` (los eventos son el log).
 - **D-06** Menciones explícitas: el cliente manda `mentionUserIds` junto al texto (el texto lleva `@Nombre Apellido` plano). El servidor filtra los ids a staff activo del tenant y crea una fila en `office_mentions` por (evento, usuario).
 - **D-07** "Visto" por persona: `office_topic_reads (topic_id, user_id, last_seen_at)`. **Cualquier acción propia sobre un tema cuenta como vista** (crear, comentar, asignar, cerrar: se upsertea la lectura del actor con el mismo timestamp del evento). Así un comentario propio nunca aparece como "nuevo" para uno mismo.
-- **D-08** Badge del menú = menciones sin leer en temas no cerrados + temas asignados a mí, no cerrados, con actividad posterior a mi última vista (o nunca vistos).
+- **D-08** Badge del menú = menciones sin leer en temas no cerrados + temas donde soy uno de los responsables, no cerrados, con actividad posterior a mi última vista (o nunca vistos).
 - **D-09** Dormido: `snoozed_until` (YYYY-MM-DD, tiene que ser > hoy). Se despierta solo cuando `snoozed_until <= hoy` (hoy en la tz de la sede del tema, o la de la primera sede activa del tenant si el tema no tiene sede). Lo despiertan el job cada 30 min y, de forma perezosa, el listado. Al despertar: status `abierto` + evento `reabierto` con payload `{ auto: true }`.
 - **D-10** Roles: `OFFICE_ROLES = owner | admin | gestion` en API y admin. `admin_sede` y `recepcion` quedan afuera en v1 (gestión central). Fácil de abrir después.
 
@@ -45,10 +45,10 @@ Por qué ahora: la gerencia no tiene centro de operaciones. El admin tiene nueve
 - **D-14** "Cobro rechazado" NO existe como dato (no hay pasarela: los cobros son manuales). Queda afuera. Documentado para Franco.
 
 ### Admin
-- **D-15** Ítem "Oficina" en la categoría Gestión del menú, icono `forum`, con badge (clave `oficina`). Rutas `/oficina` y `/oficina/:topicId`.
+- **D-15** Ítem "Oficina" en la categoría **Gerencia** del menú (después de Tablero; la categoría se muestra a `gestion` aunque no vea Tablero), icono `forum`, con badge (clave `oficina`). Rutas `/oficina` y `/oficina/:topicId`.
 - **D-16** Pantalla única, dos columnas en escritorio (lista izquierda, detalle derecha, patrón `row no-wrap` de Cobros). En móvil (`$q.screen.lt.md`) la lista ocupa todo y al tocar un tema el detalle reemplaza la lista con botón volver.
 - **D-17** Filtros: vista (`Abiertos` por defecto, `Míos`, `Dormidos`, `Cerrados`), origen (`Todos` / `Manuales` / `Del sistema`), búsqueda por texto. Lista ordenada por `lastActivityAt` desc. Punto de "nuevo" cuando `unseen`.
-- **D-18** Detalle: título, chips de estado/origen, vínculo clickeable (socio → `/alumnos/:id`, jornada → `/check-in`, horario → `/horarios`), responsable (select de staff), acciones `Tomar`, `Dormir hasta…` (q-date en popup), `Cerrar` / `Reabrir`, `Editar`. Línea de tiempo: comentarios como burbujas con iniciales, eventos no-comentario como líneas discretas. Compositor con menciones `@` (menú de staff al tipear `@`).
+- **D-18** Detalle: título, chips de estado/origen, vínculo clickeable (socio → `/alumnos/:id`, jornada → `/check-in`, horario → `/horarios`), responsables (select múltiple de staff con chips), acciones `Tomar` (me suma al conjunto) / `Soltar` (me saca), `Dormir hasta…` (q-date en popup), `Cerrar` / `Reabrir`, `Editar`. Línea de tiempo: comentarios como burbujas con iniciales, eventos no-comentario como líneas discretas. Compositor con menciones `@` (menú de staff al tipear `@`).
 - **D-19** Polling de 60 s con `visibilitychange`, igual que Renovaciones. Sin websockets.
 - **D-20** Ficha del socio: pestaña "Oficina" (gateada por rol) con los temas vinculados a ese socio y botón "Nuevo tema" que abre el diálogo con el socio ya vinculado.
 - **D-21** Util nuevo `relativeTime(iso, now)` ("recién", "hace 5 min", "hace 2 h", "ayer", "hace 3 días", fecha corta) con test unitario.
@@ -71,7 +71,7 @@ interface OfficeTopicListItem {
   id: number; title: string; status: OfficeTopicStatus; origin: OfficeTopicOrigin;
   targetKind: OfficeTargetKind | null; targetId: number | null; targetLabel: string | null;
   branchId: number | null; branchName: string | null;
-  assignee: OfficePerson | null; createdBy: OfficePerson | null;
+  assignees: OfficePerson[]; /* ordenados por nombre */ createdBy: OfficePerson | null;
   snoozedUntil: string | null; lastActivityAt: string; createdAt: string; closedAt: string | null;
   commentCount: number;
   lastEvent: { type: OfficeEventType; body: string | null; actorFirstName: string | null; createdAt: string } | null;
@@ -83,11 +83,11 @@ interface OfficeBadge { count: number; mentions: number; assigned: number }
 ```
 
 Rutas (8):
-1. `GET /topics?view=abiertos|mios|dormidos|cerrados|todos&origin=manual|sistema&q=&targetKind=&targetId=&limit=` → `{ topics: OfficeTopicListItem[] }`. `view` default `abiertos`. `mios` = asignados a mí con status ≠ cerrado. `limit` default 200, máx 500. Antes de listar despierta los dormidos vencidos (D-09).
-2. `POST /topics` body `{ title, body?, targetKind?, targetId?, targetLabel?, branchId?, assigneeId?, mentionUserIds? }` → 201 `{ topic: OfficeTopicDetail }`. `title` 1..160, `body` ≤ 4000. Si `targetKind='socio'` y falta `targetLabel`, se resuelve "Nombre Apellido" desde `users` (404 si el socio no es del tenant). `targetKind` y `targetId` van juntos (400 si viene uno solo).
+1. `GET /topics?view=abiertos|mios|dormidos|cerrados|todos&origin=manual|sistema&q=&targetKind=&targetId=&limit=` → `{ topics: OfficeTopicListItem[] }`. `view` default `abiertos`. `mios` = temas con status ≠ cerrado donde estoy entre los responsables. `limit` default 200, máx 500. Antes de listar despierta los dormidos vencidos (D-09).
+2. `POST /topics` body `{ title, body?, targetKind?, targetId?, targetLabel?, branchId?, assigneeIds?: number[] (máx 20, se deduplica), mentionUserIds? }` → 201 `{ topic: OfficeTopicDetail }`. `title` 1..160, `body` ≤ 4000. Si `targetKind='socio'` y falta `targetLabel`, se resuelve "Nombre Apellido" desde `users` (404 si el socio no es del tenant). `targetKind` y `targetId` van juntos (400 si viene uno solo).
 3. `GET /topics/:id` → `{ topic: OfficeTopicDetail }` (eventos ascendentes por fecha). 404 si no existe o es de otro tenant.
-4. `PATCH /topics/:id` body `{ title?, body?, assigneeId?: number | null, status?: 'abierto' | 'cerrado', snoozedUntil?: string | null, note? }` → `{ topic: OfficeTopicDetail }`.
-   - `assigneeId` número → evento `tomado` si es el propio actor, si no `asignado` (payload `{ assigneeId }`). `null` → `desasignado`. 400 si no es staff del tenant.
+4. `PATCH /topics/:id` body `{ title?, body?, assigneeIds?: number[], status?: 'abierto' | 'cerrado', snoozedUntil?: string | null, note? }` → `{ topic: OfficeTopicDetail }`.
+   - `assigneeIds` REEMPLAZA el conjunto completo de responsables (`[]` = sin responsables; ausente = no se toca). Se deduplica en el servidor. 400 si algún id AGREGADO no es staff activo del tenant (los que ya eran responsables no se revalidan). "Tomar" no tiene endpoint: el cliente manda el conjunto actual + él mismo. Eventos según viejo vs nuevo: solo el actor se agregó a sí mismo → `tomado`; hay agregados → `asignado`; hay quitados → `desasignado`; payload `{ assigneeIds: number[], assigneeNames: string[] }` (los agregados / los quitados). Sin cambios no hay evento. Al crear con responsables: `tomado` si es solo el actor, si no `asignado` con todos.
    - `status: 'cerrado'` → `closed_at/closed_by`, evento `cerrado` con body = `note`. `status: 'abierto'` desde cerrado o dormido → evento `reabierto`, limpia `snoozed_until` y `closed_*`.
    - `snoozedUntil: 'YYYY-MM-DD'` (> hoy, si no 400) → status `dormido`, evento `dormido` payload `{ until }`. 409 si el tema está cerrado.
    - `title`/`body` → evento `editado` payload `{ fields: [...] }`.

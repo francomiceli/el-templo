@@ -32,7 +32,7 @@ export interface OfficeEvent {
   type: OfficeEventType;
   body: string | null;
   /**
-   * asignado/tomado `{ assigneeId, assigneeName }`, desasignado `{ previousAssigneeId }`,
+   * asignado/tomado/desasignado `{ assigneeIds, assigneeNames }` (los agregados o los quitados),
    * dormido `{ until }`, editado `{ fields }`, reabierto automático `{ auto: true }`.
    */
   payload: Record<string, unknown> | null;
@@ -51,7 +51,8 @@ export interface OfficeTopicListItem {
   targetLabel: string | null;
   branchId: number | null;
   branchName: string | null;
-  assignee: OfficePerson | null;
+  /** Responsables del tema, ordenados por nombre. */
+  assignees: OfficePerson[];
   createdBy: OfficePerson | null;
   snoozedUntil: string | null;
   lastActivityAt: string;
@@ -104,14 +105,15 @@ export interface CreateTopicInput {
   targetId?: number | null;
   targetLabel?: string | null;
   branchId?: number | null;
-  assigneeId?: number | null;
+  assigneeIds?: number[];
   mentionUserIds?: number[];
 }
 
 export interface PatchTopicInput {
   title?: string;
   body?: string | null;
-  assigneeId?: number | null;
+  /** REEMPLAZA el conjunto completo de responsables (`[]` = sin responsables). */
+  assigneeIds?: number[];
   status?: 'abierto' | 'cerrado';
   snoozedUntil?: string | null;
   note?: string | null;

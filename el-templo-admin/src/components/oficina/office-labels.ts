@@ -90,6 +90,18 @@ function payloadString(payload: Record<string, unknown> | null, key: string): st
   return typeof value === 'string' && value !== '' ? value : null;
 }
 
+function payloadStrings(payload: Record<string, unknown> | null, key: string): string[] {
+  const value = payload?.[key];
+  if (!Array.isArray(value)) return [];
+  return value.filter((v): v is string => typeof v === 'string' && v.trim() !== '');
+}
+
+/** "Ana", "Ana y Juan", "Ana, Juan y Sol". */
+export function joinNames(names: string[]): string {
+  if (names.length <= 1) return names[0] ?? '';
+  return `${names.slice(0, -1).join(', ')} y ${names[names.length - 1]}`;
+}
+
 /**
  * Qué pasó, en pasado y sin actor ("abrió el tema", "durmió el tema hasta 12/11").
  * Los eventos `sistema` traen su propio texto en `body`.
@@ -107,11 +119,13 @@ export function eventText(
     case 'tomado':
       return 'tomó el tema';
     case 'asignado': {
-      const name = payloadString(payload, 'assigneeName');
-      return name ? `asignó el tema a ${name}` : 'asignó el tema';
+      const names = joinNames(payloadStrings(payload, 'assigneeNames'));
+      return names ? `asignó a ${names}` : 'asignó el tema';
     }
-    case 'desasignado':
-      return 'quitó el responsable';
+    case 'desasignado': {
+      const names = joinNames(payloadStrings(payload, 'assigneeNames'));
+      return names ? `quitó a ${names}` : 'quitó un responsable';
+    }
     case 'dormido': {
       const until = payloadString(payload, 'until');
       return until ? `durmió el tema hasta el ${shortDate(until)}` : 'durmió el tema';
