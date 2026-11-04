@@ -1700,6 +1700,8 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
   // shared temp password ("eltemplo2026"). Operational use case: members
   // forget their password and Mica/Fer need to unblock them without going
   // through the self-serve forgot-password flow. MEMBER_LIFECYCLE_ROLES only.
+  // Targets: TEMP_PASSWORD_RESETTABLE_ROLES (member + coach — never staff with
+  // more permissions than the actor; those go through the owner's Usuarios).
   fastify.put<{ Params: { userId: number } }>(
     "/:userId/password",
     { schema: resetMemberPasswordSchema },
@@ -1765,10 +1767,11 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       );
 
       if (!result.ok) {
-        if (result.reason === "not_member") {
+        if (result.reason === "role_not_resettable") {
           return reply.code(400).send({
             error: "Solicitud invalida",
-            message: "Solo se puede resetear la contraseña de alumnos",
+            message:
+              "Solo se puede resetear la contraseña de alumnos y profes. Al resto del staff se la cambia el owner desde Usuarios",
           });
         }
         return reply

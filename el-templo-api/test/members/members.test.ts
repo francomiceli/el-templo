@@ -2166,32 +2166,99 @@ describe("Members Management Routes", () => {
       expect(res.statusCode).toBe(403);
     });
 
-    it("refuses to reset a non-member row (target=coach) — 400", async () => {
-      await createStaffUser(app, {
-        email: "protected-coach-pwd@test.com",
-        password: "coachpass123",
-        firstName: "Protected",
-        lastName: "Coach",
-        role: "coach",
+    /** Crea un staff con password conocida y devuelve su id (sin hardcodear ids). */
+    async function createStaffTarget(
+      role: "coach" | "recepcion" | "gestion" | "admin_sede" | "admin" | "owner",
+      email: string,
+      password: string,
+    ): Promise<number> {
+      return createStaffUser(app, {
+        email,
+        password,
+        firstName: "Target",
+        lastName: role,
+        role,
         branchId: 1,
       });
-      const [row] = await app.db
-        .select({ id: users.id })
-        .from(users)
-        .where(
-          and(
-            tenantWhere(users, TEMPLO_CTX),
-            eq(users.email, "protected-coach-pwd@test.com"),
-          ),
-        );
+    }
+
+    it("gestion resets a coach's password (profe que también es alumno); coach logs in with eltemplo2026", async () => {
+      const coachId = await createStaffTarget(
+        "coach",
+        "resettable-coach-pwd@test.com",
+        "coachpass123",
+      );
+      await createStaffUser(app, {
+        email: "gestion-pwd-coach@test.com",
+        password: "gestionpass123",
+        firstName: "Mica",
+        lastName: "Gestion",
+        role: "gestion",
+        branchId: 1,
+      });
+      const gestionToken = await getAuthToken(
+        app,
+        "gestion-pwd-coach@test.com",
+        "gestionpass123",
+      );
 
       const res = await app.inject({
         method: "PUT",
-        url: `/api/admin/members/${row.id}/password`,
-        headers: { authorization: `Bearer ${adminToken}` },
+        url: `/api/admin/members/${coachId}/password`,
+        headers: { authorization: `Bearer ${gestionToken}` },
       });
-      expect(res.statusCode).toBe(400);
+      expect(res.statusCode).toBe(204);
+
+      // La temporal funciona y la vieja ya no.
+      const token = await getAuthToken(
+        app,
+        "resettable-coach-pwd@test.com",
+        "eltemplo2026",
+      );
+      expect(token.length).toBeGreaterThan(0);
+      const oldLogin = await app.inject({
+        method: "POST",
+        url: "/api/auth/login",
+        payload: {
+          email: "resettable-coach-pwd@test.com",
+          password: "coachpass123",
+        },
+      });
+      expect(oldLogin.statusCode).not.toBe(200);
+
+      // El rol no cambia: sigue siendo coach.
+      const [after] = await app.db
+        .select({ role: users.role })
+        .from(users)
+        .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, coachId)));
+      expect(after.role).toBe("coach");
     });
+
+    it.each(["recepcion", "gestion", "admin_sede", "admin", "owner"] as const)(
+      "refuses to reset a %s account (400) and leaves its password untouched",
+      async (role) => {
+        const email = `protected-${role}-pwd@test.com`;
+        const targetId = await createStaffTarget(role, email, "staffpass123");
+
+        const res = await app.inject({
+          method: "PUT",
+          url: `/api/admin/members/${targetId}/password`,
+          headers: { authorization: `Bearer ${adminToken}` },
+        });
+        expect(res.statusCode).toBe(400);
+        expect(JSON.parse(res.body).message).toContain("alumnos y profes");
+
+        // La password original sigue andando y la temporal no.
+        const token = await getAuthToken(app, email, "staffpass123");
+        expect(token.length).toBeGreaterThan(0);
+        const tempLogin = await app.inject({
+          method: "POST",
+          url: "/api/auth/login",
+          payload: { email, password: "eltemplo2026" },
+        });
+        expect(tempLogin.statusCode).not.toBe(200);
+      },
+    );
 
     it("returns 404 for non-existent member id", async () => {
       const res = await app.inject({

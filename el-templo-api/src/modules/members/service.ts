@@ -61,6 +61,7 @@ import {
   NotFoundError,
 } from "../shared/errors";
 import { isDuplicateKeyError } from "../shared/sql-errors";
+import { TEMP_PASSWORD_RESETTABLE_ROLES } from "../shared/permissions";
 import { ReferralService } from "../referrals/service";
 import { referralCopyVariant } from "../referrals/ab-variant";
 import { isValidIban, normalizeIban } from "../shared/iban";
@@ -2215,20 +2216,21 @@ export class MemberService {
   }
 
   /**
-   * Reset a member's password to MEMBER_TEMP_PASSWORD ("eltemplo2026").
-   * Refuses non-members and soft-deleted rows.
+   * Reset a member's (or coach's) password to MEMBER_TEMP_PASSWORD ("eltemplo2026").
+   * Refuses roles outside TEMP_PASSWORD_RESETTABLE_ROLES and soft-deleted rows.
    *
    * Returns:
    *   - { ok: true }
    *   - { ok: false, reason: "not_found" }
-   *   - { ok: false, reason: "not_member" } — refuses staff
+   *   - { ok: false, reason: "role_not_resettable" } — refuses staff above coach
    *   - { ok: false, reason: "deleted" }    — refuses soft-deleted rows
    */
   async resetMemberPassword(
     ctx: TenantContext,
     id: number,
   ): Promise<
-    { ok: true } | { ok: false; reason: "not_found" | "not_member" | "deleted" }
+    | { ok: true }
+    | { ok: false; reason: "not_found" | "role_not_resettable" | "deleted" }
   > {
     // Fase 173 (T-173-18-03, EoP más grave del plan): `tenantWhere` inline —
     // sin él, un `id` de OTRO gimnasio permite tomar control de esa cuenta
@@ -2245,7 +2247,13 @@ export class MemberService {
 
     if (!existing) return { ok: false, reason: "not_found" };
     if (existing.deletedAt) return { ok: false, reason: "deleted" };
-    if (existing.role !== "member") return { ok: false, reason: "not_member" };
+    if (
+      !(TEMP_PASSWORD_RESETTABLE_ROLES as readonly string[]).includes(
+        existing.role,
+      )
+    ) {
+      return { ok: false, reason: "role_not_resettable" };
+    }
 
     const passwordHash = await argon2.hash(MEMBER_TEMP_PASSWORD);
 

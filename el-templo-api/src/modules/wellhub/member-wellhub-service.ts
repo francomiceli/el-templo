@@ -452,7 +452,13 @@ export class MemberWellhubService {
         { userId, reason: reset.reason },
         "Acceso a la app: el reset de contraseña fue rechazado",
       );
-      return { ok: false, reason: reset.reason };
+      // `role_not_resettable` no debería llegar acá (ya filtramos role !== member
+      // arriba); si pasa por una carrera, se informa como el `not_member` de siempre.
+      return {
+        ok: false,
+        reason:
+          reset.reason === "role_not_resettable" ? "not_member" : reset.reason,
+      };
     }
 
     return {
