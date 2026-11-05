@@ -156,7 +156,9 @@ describe("dirección del socio — GET /me + PUT /me/address", () => {
     expect(await addressEnDb(otro.id)).toBe("Gascón 3000");
   });
 
-  it("PUT: un userId en el body se rechaza (additionalProperties) y no toca a nadie", async () => {
+  it("PUT: un userId en el body se descarta (removeAdditional de Fastify) y solo toca al dueño del token", async () => {
+    // Fastify usa Ajv con `removeAdditional: true`: la clave extra se borra antes del handler en vez
+    // de dar 400. Lo que importa es que nunca se pueda escribir la dirección de otro socio.
     const yo = await createTestMember(app, { branchId: mdpBranchId });
     const otro = await createTestMember(app, { branchId: mdpBranchId });
 
@@ -164,16 +166,23 @@ describe("dirección del socio — GET /me + PUT /me/address", () => {
       address: "Alem 3958",
       userId: otro.id,
     });
-    expect(res.statusCode, res.body).toBe(400);
-    expect(await addressEnDb(yo.id)).toBeNull();
+    expect(res.statusCode, res.body).toBe(200);
+    expect(await addressEnDb(yo.id)).toBe("Alem 3958");
     expect(await addressEnDb(otro.id)).toBeNull();
+  });
+
+  it("PUT: un número se convierte a texto (coerceTypes de Fastify)", async () => {
+    const socio = await createTestMember(app, { branchId: mdpBranchId });
+    const res = await putAddress(socio.token, { address: 2450 });
+    expect(res.statusCode, res.body).toBe(200);
+    expect(await addressEnDb(socio.id)).toBe("2450");
   });
 
   it.each([
     ["string vacío", { address: "" }],
     ["solo espacios", { address: "    " }],
     ["sin la clave address", {}],
-    ["número en vez de string", { address: 2450 }],
+    ["un objeto en vez de string", { address: { calle: "Jujuy" } }],
     ["más de 500 caracteres", { address: "a".repeat(501) }],
   ])("PUT: %s → 400 y la dirección no cambia", async (_caso, payload) => {
     const socio = await createTestMember(app, { branchId: mdpBranchId });

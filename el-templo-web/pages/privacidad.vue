@@ -1,4 +1,5 @@
 <script setup lang="ts">
+// deploy: política con la dirección del socio, redeploy tras fix de tests me-address (paths-filter, 2026-11-05)
 useHead({
   title: "Política de Privacidad | El Templo",
   meta: [
