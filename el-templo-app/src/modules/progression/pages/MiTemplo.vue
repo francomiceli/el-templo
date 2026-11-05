@@ -152,7 +152,7 @@
 </template>
 
 <script setup lang="ts">
-// deploy: release a master de Mis invitados + Conquer solo staging + fix intro-stories (paths-filter, 2026-10-29)
+// deploy: 1.9.4 dirección del socio, redeploy tras fix de tests me-address (paths-filter, 2026-11-05)
 /**
  * MiTemplo page — personalized daily briefing ("Tu Dia").
  *
