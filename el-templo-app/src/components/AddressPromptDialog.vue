@@ -1,6 +1,6 @@
 <template>
-  <!-- Pop-up ÚNICO de dirección (calle y altura). Salteable: "Ahora no" o tocar afuera lo cierra
-       y no vuelve; el dato queda editable en Perfil. -->
+  <!-- Pop-up de dirección (calle y altura). Salteable: "Ahora no" o tocar afuera lo cierra. Si no
+       guardó, vuelve UNA sola vez a los 14 días y después nunca más; el dato queda en Perfil. -->
   <q-dialog v-model="show">
     <PremiumDialogCard kicker="La comunidad" icon="home">
       <h3 class="pd-title">¿Desde dónde venís a entrenar?</h3>
@@ -50,13 +50,14 @@ import { Preferences } from '@capacitor/preferences'
 import { useAuthStore } from 'stores/useAuthStore'
 import { useUserStore } from 'stores/useUserStore'
 import { useAvisosStore } from 'src/stores/useAvisosStore'
-import { useTipsSeenStorage } from 'src/composables/useTipsSeenStorage'
+import { useAddressPromptStorage } from 'src/composables/useAddressPromptStorage'
 import { createLogger } from 'src/utils/logger'
 import { extractError } from 'src/utils/extract-error'
 import { PUSH_PERMISSION_ASKED_KEY } from 'src/utils/push-permission-key'
 import {
-  ADDRESS_PROMPT_SEEN_ID,
+  canShowAddressPrompt,
   composeAddress,
+  recordAddressPromptShown,
   shouldAskAddress,
 } from 'src/utils/member-address'
 import PremiumDialogCard from 'src/components/PremiumDialogCard.vue'
@@ -68,7 +69,7 @@ const route = useRoute()
 const authStore = useAuthStore()
 const userStore = useUserStore()
 const avisosStore = useAvisosStore()
-const tipsSeen = useTipsSeenStorage()
+const promptStorage = useAddressPromptStorage()
 
 /** Respiro para que Mi Templo termine de dibujarse antes de abrir el pop-up. */
 const SHOW_DELAY_MS = 1500
@@ -105,7 +106,9 @@ async function decide(): Promise<void> {
   const userId = userStore.profile?.id
   if (userId === undefined) return
 
-  if (await tipsSeen.hasSeen(userId, ADDRESS_PROMPT_SEEN_ID)) return
+  // Cadencia: primera vez, y una segunda a los 14 días si no guardó (utils/member-address.ts).
+  const state = await promptStorage.read(userId)
+  if (!canShowAddressPrompt(state, new Date())) return
 
   // Primera apertura en el teléfono: el pre-pedido de notificaciones tiene prioridad (va por
   // fuera de la cola de avisos). Se pide la dirección recién en una apertura posterior.
@@ -122,10 +125,11 @@ async function decide(): Promise<void> {
       return
     }
     show.value = true
-    // Único: se marca al MOSTRARLO (no al cerrarlo), así un cierre por app en segundo plano
-    // tampoco lo vuelve a abrir.
-    void tipsSeen.markSeen(userId, ADDRESS_PROMPT_SEEN_ID)
-    log.info('Address prompt shown')
+    // Se cuenta al MOSTRARLO (no al cerrarlo): un cierre por app en segundo plano también cuenta
+    // como una de las dos veces.
+    const next = recordAddressPromptShown(state, new Date())
+    void promptStorage.write(userId, next)
+    log.info('Address prompt shown', { shows: next.shows })
   }, SHOW_DELAY_MS)
 }
 

@@ -1,7 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import {
   ADDRESS_PROMPT_LOCALITY,
+  ADDRESS_PROMPT_MAX_SHOWS,
+  canShowAddressPrompt,
   composeAddress,
+  parseAddressPromptState,
+  recordAddressPromptShown,
   shouldAskAddress,
   splitAddress,
 } from '../member-address'
@@ -99,5 +103,77 @@ describe('shouldAskAddress', () => {
 
   it.each(['coach', 'admin', 'superadmin'] as const)('rol %s → no', (role) => {
     expect(shouldAskAddress({ ...BASE, role })).toBe(false)
+  })
+})
+
+describe('cadencia del pop-up: primera vez + una segunda a los 14 días, después nunca', () => {
+  const FIRST = new Date('2026-11-05T12:00:00.000Z')
+  const DAY = 24 * 60 * 60 * 1000
+  const at = (days: number) => new Date(FIRST.getTime() + days * DAY)
+
+  it('nunca se mostró → sí', () => {
+    expect(canShowAddressPrompt(null, FIRST)).toBe(true)
+  })
+
+  it('recién mostrado una vez → no, hasta cumplir 14 días', () => {
+    const once = recordAddressPromptShown(null, FIRST)
+    expect(once).toEqual({ shows: 1, lastShownAt: FIRST.toISOString() })
+    expect(canShowAddressPrompt(once, at(0))).toBe(false)
+    expect(canShowAddressPrompt(once, at(13))).toBe(false)
+    expect(canShowAddressPrompt(once, new Date(at(14).getTime() - 1))).toBe(false)
+  })
+
+  it('a los 14 días exactos (o después) → sí, la segunda vez', () => {
+    const once = recordAddressPromptShown(null, FIRST)
+    expect(canShowAddressPrompt(once, at(14))).toBe(true)
+    expect(canShowAddressPrompt(once, at(90))).toBe(true)
+  })
+
+  it('después de la segunda vez → nunca más, pase el tiempo que pase', () => {
+    const twice = recordAddressPromptShown(recordAddressPromptShown(null, FIRST), at(14))
+    expect(twice.shows).toBe(ADDRESS_PROMPT_MAX_SHOWS)
+    expect(canShowAddressPrompt(twice, at(28))).toBe(false)
+    expect(canShowAddressPrompt(twice, at(400))).toBe(false)
+  })
+
+  it('reloj del teléfono atrasado (última vez "en el futuro") → no', () => {
+    const once = recordAddressPromptShown(null, FIRST)
+    expect(canShowAddressPrompt(once, at(-30))).toBe(false)
+  })
+
+  it('fecha guardada ilegible → no', () => {
+    expect(canShowAddressPrompt({ shows: 1, lastShownAt: 'basura' }, at(30))).toBe(false)
+  })
+
+  it('shows 0 → sí (equivale a nunca)', () => {
+    expect(canShowAddressPrompt({ shows: 0, lastShownAt: '' }, FIRST)).toBe(true)
+  })
+})
+
+describe('parseAddressPromptState', () => {
+  it('null → null (nunca se mostró)', () => {
+    expect(parseAddressPromptState(null)).toBeNull()
+  })
+
+  it('JSON válido → el estado', () => {
+    const raw = JSON.stringify({ shows: 1, lastShownAt: '2026-11-05T12:00:00.000Z' })
+    expect(parseAddressPromptState(raw)).toEqual({
+      shows: 1,
+      lastShownAt: '2026-11-05T12:00:00.000Z',
+    })
+  })
+
+  it.each([
+    ['JSON roto', '{shows:'],
+    ['no es objeto', '"1"'],
+    ['null literal', 'null'],
+    ['sin lastShownAt', JSON.stringify({ shows: 1 })],
+    ['shows negativo', JSON.stringify({ shows: -1, lastShownAt: '' })],
+    ['shows decimal', JSON.stringify({ shows: 1.5, lastShownAt: '' })],
+    ['shows string', JSON.stringify({ shows: '1', lastShownAt: '' })],
+  ])('%s → agotado (ante la duda, no insistir)', (_caso, raw) => {
+    const state = parseAddressPromptState(raw)
+    expect(state?.shows).toBe(ADDRESS_PROMPT_MAX_SHOWS)
+    expect(canShowAddressPrompt(state, new Date())).toBe(false)
   })
 })
