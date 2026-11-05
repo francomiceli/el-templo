@@ -65,6 +65,12 @@ export interface UserProfile {
   // Fecha de alta (users.created_at, ISO) — gatea el sello de veterano (1+ año).
   // Opcional: un API viejo sin el campo simplemente oculta el sello.
   memberSince?: string
+  // Dirección del socio (calle y altura). `null` = todavía no la cargó;
+  // `undefined` = API vieja sin el campo (la app NO pide la dirección).
+  address?: string | null
+  // Ciudad de la sede (`branches.locality`, ej. "Mar del Plata"). Gatea el
+  // pop-up de dirección (ver utils/member-address.ts).
+  branchLocality?: string | null
 }
 
 export interface MemberSubscription {
@@ -418,6 +424,18 @@ export const useUserStore = defineStore('user', () => {
   }) {
     if (profile.value) {
       profile.value = { ...profile.value, ...progress }
+    }
+  }
+
+  /**
+   * Carga, cambia o borra (`null`) la dirección del socio y refleja en el
+   * perfil en memoria lo que el servidor guardó (normalizado). Propaga el
+   * error: el diálogo que llama muestra el mensaje y queda abierto.
+   */
+  async function saveAddress(address: string | null): Promise<void> {
+    const { data } = await api.put<{ address: string | null }>('/auth/me/address', { address })
+    if (profile.value) {
+      profile.value = { ...profile.value, address: data.address }
     }
   }
 
@@ -1011,6 +1029,7 @@ export const useUserStore = defineStore('user', () => {
     setProfile,
     markOnboardingComplete,
     setIntroStoriesProgress,
+    saveAddress,
     clearProfile,
     markProfileStale,
     retryProfileLoad,

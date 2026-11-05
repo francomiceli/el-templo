@@ -38,6 +38,27 @@
               <span v-else class="profile-row__value">{{ userStore.branchDisplayName }}</span>
             </div>
           </div>
+          <!-- Dirección (calle y altura): la pide una vez el pop-up de Mi Templo; acá se carga,
+               cambia o borra. Visible para socios de MdP y para quien ya la tenga cargada. -->
+          <button
+            v-if="showAddressRow"
+            type="button"
+            class="profile-row profile-row--link"
+            @click="openAddressDialog"
+          >
+            <q-icon name="home" size="22px" class="profile-row__icon" aria-hidden="true" />
+            <div class="profile-row__text profile-row__value--grow">
+              <span class="profile-row__label">Dirección</span>
+              <span v-if="currentAddress" class="profile-row__value">{{ currentAddress }}</span>
+              <span v-else class="profile-row__value profile-row__value--muted">Agregar</span>
+            </div>
+            <q-icon
+              name="chevron_right"
+              size="22px"
+              class="profile-row__chevron"
+              aria-hidden="true"
+            />
+          </button>
           <!-- Plan: solo el nombre y un link; fechas y días viven en Planes (sketch 028) -->
           <router-link to="/planes" class="profile-row profile-row--link">
             <q-icon
@@ -158,6 +179,58 @@
       </div>
     </div>
 
+    <!-- Dirección: mismo par de campos que el pop-up de Mi Templo, en el diálogo claro de trámites. -->
+    <q-dialog v-model="showAddressDialog">
+      <PremiumDialogCard tone="light">
+        <h3 class="pd-title">Tu dirección</h3>
+        <p class="pd-text">
+          Con la calle y la altura alcanza. Nos ayuda a decidir dónde abrir nuevas sedes y qué
+          horarios sumar.
+        </p>
+        <AddressFields
+          v-model:street="addressStreet"
+          v-model:number="addressNumber"
+          autofocus
+          @submit="saveAddressFromProfile"
+        />
+        <p v-if="addressError" class="pd-help profile-address__error" role="alert">
+          {{ addressError }}
+        </p>
+        <p class="pd-help">
+          Es opcional. Solo la ve el equipo de El Templo y no la compartimos con nadie.
+        </p>
+        <div class="pd-acts">
+          <q-btn
+            unelevated
+            no-caps
+            class="pd-cta"
+            label="Guardar"
+            :disable="!canSaveAddress"
+            :loading="addressSaving === 'save'"
+            @click="saveAddressFromProfile"
+          />
+          <q-btn
+            v-if="currentAddress"
+            flat
+            no-caps
+            dense
+            class="pd-skip"
+            label="Borrar mi dirección"
+            :loading="addressSaving === 'clear'"
+            @click="clearAddressFromProfile"
+          />
+          <q-btn
+            flat
+            no-caps
+            dense
+            class="pd-skip"
+            label="Cancelar"
+            @click="showAddressDialog = false"
+          />
+        </div>
+      </PremiumDialogCard>
+    </q-dialog>
+
     <!-- Delete Account Dialog (sketch 012 A: destructivo en rojo, sin destello) -->
     <q-dialog v-model="showDeleteDialog" persistent>
       <PremiumDialogCard tone="light">
@@ -204,6 +277,12 @@ import { useLoadDeadline } from 'src/composables/useLoadDeadline'
 import { resolveProfileSubscriptionView } from 'src/utils/profile-subscription-view'
 import TemploLoader from 'src/components/TemploLoader.vue'
 import PremiumDialogCard from 'src/components/PremiumDialogCard.vue'
+import AddressFields from 'src/components/AddressFields.vue'
+import {
+  ADDRESS_PROMPT_LOCALITY,
+  composeAddress,
+  splitAddress,
+} from 'src/utils/member-address'
 
 const log = createLogger('ProfilePage')
 const router = useRouter()
@@ -293,6 +372,59 @@ async function togglePreference(key: string, value: boolean) {
       error: err instanceof Error ? err.message : String(err),
     })
   }
+}
+
+// Dirección (calle y altura). PII: nunca va al log.
+const currentAddress = computed(() => userStore.profile?.address ?? null)
+const showAddressRow = computed(() => {
+  const p = userStore.profile
+  if (!p || p.role !== 'member') return false
+  // `undefined` = API vieja sin el campo: no se ofrece algo que no se puede leer ni guardar.
+  if (p.address === undefined) return false
+  return p.branchLocality === ADDRESS_PROMPT_LOCALITY || p.address !== null
+})
+const showAddressDialog = ref(false)
+const addressStreet = ref('')
+const addressNumber = ref('')
+const addressSaving = ref<'save' | 'clear' | null>(null)
+const addressError = ref('')
+const composedAddress = computed(() =>
+  composeAddress({ street: addressStreet.value, number: addressNumber.value }),
+)
+const canSaveAddress = computed(
+  () => composedAddress.value !== null && composedAddress.value !== currentAddress.value,
+)
+
+function openAddressDialog() {
+  const parts = splitAddress(currentAddress.value)
+  addressStreet.value = parts.street
+  addressNumber.value = parts.number
+  addressError.value = ''
+  showAddressDialog.value = true
+}
+
+async function persistAddress(address: string | null, mode: 'save' | 'clear') {
+  if (addressSaving.value) return
+  addressSaving.value = mode
+  addressError.value = ''
+  try {
+    await userStore.saveAddress(address)
+    showAddressDialog.value = false
+  } catch (err: unknown) {
+    log.warn('Address save failed', { error: err instanceof Error ? err.message : String(err) })
+    addressError.value = extractError(err, 'No pudimos guardarla. Probá de nuevo.')
+  } finally {
+    addressSaving.value = null
+  }
+}
+
+function saveAddressFromProfile() {
+  if (!canSaveAddress.value) return
+  void persistAddress(composedAddress.value, 'save')
+}
+
+function clearAddressFromProfile() {
+  void persistAddress(null, 'clear')
 }
 
 // Delete account
@@ -511,5 +643,10 @@ onBeforeUnmount(() => deadline.cleanup())
       color: $pd-neg-title;
     }
   }
+}
+
+// Error del diálogo de dirección: doble clase para ganarle al `:slotted(.pd-help)` del marco.
+.pd-help.profile-address__error {
+  color: $pd-neg-title;
 }
 </style>

@@ -44,10 +44,12 @@ import { useAuthStore } from 'stores/useAuthStore'
 import { useNotificationStore } from 'src/stores/useNotificationStore'
 import { usePushNotifications } from 'src/composables/usePushNotifications'
 import { createLogger } from 'src/utils/logger'
+import { PUSH_PERMISSION_ASKED_KEY } from 'src/utils/push-permission-key'
 
 // Versioned key so we can re-ask on a future release if the pre-prompt copy
-// or product intent changes. Bump to `_v2` to re-trigger for all users.
-const ASKED_KEY = 'push_permission_asked_v1'
+// or product intent changes. Bump to `_v2` (in utils/push-permission-key.ts)
+// to re-trigger for all users.
+const ASKED_KEY = PUSH_PERMISSION_ASKED_KEY
 
 const log = createLogger('PushPermissionDialog')
 const authStore = useAuthStore()

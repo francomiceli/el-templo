@@ -424,7 +424,10 @@ import {
 // /api/admin/office, `tenant-scoped`.
 // 2026-11-04: 552 -> 554 por los avisos automáticos de Oficina (fase 205): GET y
 // PUT /api/admin/office/auto-topics/settings, `tenant-scoped`.
-const ENTRADAS_BASELINE = 554;
+// 2026-11-05: 554 -> 555 por la dirección del socio (pop-up de Mi Templo):
+// `PUT /api/auth/me/address`, `tenant-scoped` (pre-scope por diseño, mismo
+// criterio que sus hermanas de /api/auth/me).
+const ENTRADAS_BASELINE = 555;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -567,7 +570,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 554 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 555 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(
