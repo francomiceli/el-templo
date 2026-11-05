@@ -214,6 +214,10 @@
     <!-- Aviso genérico creado por el staff (D-06/D-07: gana su turno cuando
          no compite con ninguno de los 3 anteriores). -->
     <AvisoPromptDialog />
+
+    <!-- Pop-up único de dirección (socios de sedes de Mar del Plata sin dirección cargada): solo
+         en Mi Templo y solo si en esta apertura no salió ninguno de los anteriores. -->
+    <AddressPromptDialog />
   </q-layout>
 </template>
 
@@ -235,6 +239,7 @@ import ImprovementPromptDialog from 'src/components/ImprovementPromptDialog.vue'
 import RatingPromptDialog from 'src/components/RatingPromptDialog.vue'
 import PlanExpiryDialog from 'src/components/PlanExpiryDialog.vue'
 import AvisoPromptDialog from 'src/components/AvisoPromptDialog.vue'
+import AddressPromptDialog from 'src/components/AddressPromptDialog.vue'
 import HeaderLevelDropdown from 'src/modules/training/components/HeaderLevelDropdown.vue'
 import VeteranSeal from 'src/components/VeteranSeal.vue'
 import { useTipsSeenStorage } from 'src/composables/useTipsSeenStorage'

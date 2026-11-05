@@ -158,6 +158,30 @@ function postComo(
   });
 }
 
+function putComo(
+  url: string,
+  token: string,
+  payload: Record<string, unknown>,
+) {
+  return app.inject({
+    method: "PUT",
+    url,
+    headers: { authorization: `Bearer ${token}` },
+    payload,
+  });
+}
+
+/**
+ * `users.address` por PK — evidencia del caso PUT /me/address. Mismo criterio
+ * CROSS-TENANT que `filaUsuario`.
+ */
+async function direccionDe(id: number) {
+  const resultado = (await app.db.execute(
+    sql`SELECT /* tenant-safe: releer por PK ES la evidencia de a que fila (y tenant) le escribio el PUT; filtrar por ctx aca volveria el caso tautologico */ tenant_id AS tenantId, address FROM users WHERE id = ${id} LIMIT 1`,
+  )) as unknown as [Array<{ tenantId: number; address: string | null }>];
+  return resultado[0]?.[0] ?? null;
+}
+
 function postPublico(url: string, payload: Record<string, unknown>) {
   return app.inject({ method: "POST", url, payload });
 }
@@ -243,16 +267,17 @@ function porQueImportaElAislamiento(ruta: string, detalle: string): string {
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe("precondiciones de la batería", () => {
-  it("las 5 rutas tenant-scoped de /api/auth coinciden con las 5 de este archivo (login/refresh/logout son global, fuera de alcance)", () => {
+  it("las 6 rutas tenant-scoped de /api/auth coinciden con las 6 de este archivo (login/refresh/logout son global, fuera de alcance)", () => {
     const RUTAS_MANIFIESTO = [
       "GET /api/auth/me",
+      "PUT /api/auth/me/address",
       "POST /api/auth/me/change-password",
       "POST /api/auth/me/delete-account",
       "POST /api/auth/me/intro-stories",
       "POST /api/auth/register",
     ];
-    expect(RUTAS_MANIFIESTO.length).toBe(5);
-    expect(new Set(RUTAS_MANIFIESTO).size).toBe(5);
+    expect(RUTAS_MANIFIESTO.length).toBe(6);
+    expect(new Set(RUTAS_MANIFIESTO).size).toBe(6);
   });
 });
 
@@ -399,6 +424,54 @@ describe("historias de bienvenida — POST /api/auth/me/intro-stories", () => {
       porQueImportaElAislamiento(
         RUTA,
         "se creó/estampó una fila member_profiles del gimnasio 2 por un POST de El Templo",
+      ),
+    ).toBeNull();
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PUT /api/auth/me/address — pre-scope por diseño (dirección del socio)
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("dirección del socio — PUT /api/auth/me/address", () => {
+  const RUTA = "PUT /api/auth/me/address";
+
+  it("aislamiento: el socio del gimnasio 2 solo escribe SU dirección, la de El Templo queda intacta", async () => {
+    const res = await putComo("/api/auth/me/address", dos.token, {
+      address: "Calle del gimnasio 2 100",
+    });
+    expect(res.statusCode, `${RUTA} falló: ${res.body}`).toBe(200);
+
+    const filaDos = await direccionDe(dos.id);
+    expect(filaDos?.tenantId).toBe(TENANT_DOS);
+    expect(filaDos?.address).toBe("Calle del gimnasio 2 100");
+
+    const filaTemplo = await direccionDe(templo.id);
+    expect(
+      filaTemplo?.address,
+      porQueImportaElAislamiento(
+        RUTA,
+        "un PUT del gimnasio 2 escribió la dirección de un socio de El Templo",
+      ),
+    ).toBeNull();
+  });
+
+  it("control: el socio de El Templo solo escribe SU dirección, el gimnasio 2 queda intacto", async () => {
+    const res = await putComo("/api/auth/me/address", templo.token, {
+      address: "Jujuy 1000",
+    });
+    expect(res.statusCode, `${RUTA} falló: ${res.body}`).toBe(200);
+
+    const filaTemplo = await direccionDe(templo.id);
+    expect(filaTemplo?.tenantId).toBe(TENANT_TEMPLO);
+    expect(filaTemplo?.address).toBe("Jujuy 1000");
+
+    const filaDos = await direccionDe(dos.id);
+    expect(
+      filaDos?.address,
+      porQueImportaElAislamiento(
+        RUTA,
+        "un PUT de El Templo escribió la dirección de un socio del gimnasio 2",
       ),
     ).toBeNull();
   });

@@ -21,7 +21,7 @@
         </button>
       </div>
 
-      <CardSkeleton v-else dark :height="200" label="Cargando planes" />
+      <TuPlanCardSkeleton v-else />
 
       <!-- Planes por objetivos -->
       <section v-if="view.objetivos === 'show'" class="planes-section">
@@ -130,6 +130,7 @@ import { DEFAULT_BRANCH_TZ, todayInTz } from 'src/utils/tz'
 import { useProgramsApi } from 'src/modules/programs/composables/useProgramsApi'
 import type { MemberProgramCatalogItem } from 'src/modules/programs/types'
 import TuPlanCard from '../components/TuPlanCard.vue'
+import TuPlanCardSkeleton from '../components/TuPlanCardSkeleton.vue'
 import PlanHistoryCard from '../components/PlanHistoryCard.vue'
 import { fetchPlanSummary, markPlanSummarySeen } from '../api'
 import { buildPlanTimeline } from '../utils/plan-timeline'

@@ -22,6 +22,10 @@ const DENY_URLS = [
   /^chrome-extension:\/\//i,
   /^moz-extension:\/\//i,
   /^safari-extension:\/\//i,
+  // Scripts que inyecta el navegador interno de Instagram/Facebook al abrir un
+  // link (p.ej. iabjs://navigation_performance_logger_android tira "Java object
+  // is gone" al cerrar la vista). No es código nuestro.
+  /^iabjs:\/\//i,
 ]
 
 function shouldDropEvent(event: Sentry.ErrorEvent): boolean {

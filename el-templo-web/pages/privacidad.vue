@@ -25,7 +25,7 @@ useHead({
   <main class="privacy">
     <div class="privacy__container">
       <h1 class="privacy__title">Política de Privacidad</h1>
-      <p class="privacy__updated">Última actualización: 15 de abril de 2026</p>
+      <p class="privacy__updated">Última actualización: 5 de noviembre de 2026</p>
 
       <section class="privacy__section">
         <h2>Quiénes somos</h2>
@@ -50,7 +50,17 @@ useHead({
           objetivos.
         </p>
         <p>
-          La app usa la cámara solo para escanear códigos QR de check-in.
+          Si querés, podés indicarnos tu calle y altura (sin piso ni
+          departamento). Es opcional y la podés cambiar o borrar cuando quieras
+          desde Mi Perfil.
+        </p>
+        <p>
+          La app usa la cámara para escanear códigos QR de check-in y, si
+          participás de Conquer, para las fotos de tu control físico y los
+          videos que subís para pedir correcciones. Esas fotos y videos se
+          guardan en un almacenamiento privado, sin enlaces públicos.
+        </p>
+        <p>
           También usamos herramientas de diagnóstico para detectar errores
           técnicos, sin recopilar datos personales.
         </p>
@@ -64,8 +74,14 @@ useHead({
           progreso y detectar errores técnicos en la app.
         </p>
         <p>
-          No recopilamos ubicación, contactos del dispositivo, fotos, audio ni
-          video. No usamos publicidad ni rastreo publicitario.
+          Si nos indicás tu calle y altura, la usamos solo para conocer mejor a
+          la comunidad: saber desde dónde vienen a entrenar nos ayuda a decidir
+          dónde abrir sedes y qué horarios sumar.
+        </p>
+        <p>
+          No accedemos a la ubicación de tu teléfono (GPS) ni a tus contactos.
+          Solo guardamos las fotos y videos que vos elegís subir en Conquer. No
+          usamos publicidad ni rastreo publicitario.
         </p>
       </section>
 
@@ -124,7 +140,7 @@ useHead({
         </p>
         <p>
           Al procesar tu solicitud, eliminamos de forma permanente: datos
-          personales (nombre, email, teléfono, DNI), historial de reservas y
+          personales (nombre, email, teléfono, DNI, dirección), historial de reservas y
           asistencia, sesiones de entrenamiento, progreso y preferencias.
         </p>
         <p>

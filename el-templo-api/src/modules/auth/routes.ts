@@ -955,6 +955,9 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           barChallengeSeconds: users.barChallengeSeconds,
           barChallengeAttemptedAt: users.barChallengeAttemptedAt,
           createdAt: users.createdAt,
+          // Dirección del socio (calle y altura): la carga él mismo desde el
+          // pop-up / Perfil (PUT /me/address) o recepción desde el admin.
+          address: users.address,
         })
         .from(users)
         .where(and(tenantWhere(users, ctx), eq(users.id, userId)))
@@ -976,6 +979,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           isVirtual: branches.isVirtual,
           country: branches.country,
           timezone: branches.timezone,
+          locality: branches.locality,
         })
         .from(branches)
         .where(
@@ -989,6 +993,10 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       // Fase 199 (D-04): siempre presente; la app arma el perfil con setProfile desde esta respuesta (zona de la sede).
       const branchTimezone =
         branchResults[0]?.timezone ?? DEFAULT_TENANT_TIMEZONE;
+      // Ciudad de la sede (`branches.locality`, ej. "Mar del Plata"). La app
+      // la usa para pedir la dirección solo a socios de sedes de Mar del
+      // Plata. null si la sede no la tiene cargada (Online, Chapadmalal).
+      const branchLocality = branchResults[0]?.locality ?? null;
 
       // Segment calculation + login tracking for members only (per D-05)
       let segment: string | null = null;
@@ -1077,6 +1085,10 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         branchIsVirtual,
         branchCountry,
         branchTimezone,
+        branchLocality,
+        // null = el socio todavía no la cargó (la app decide si muestra el
+        // pop-up de dirección). Siempre presente en la respuesta.
+        address: user.address,
         gender: user.gender,
         dateOfBirth: user.dateOfBirth,
         segment,
@@ -1098,6 +1110,77 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         memberSince: user.createdAt.toISOString(),
         enabledModules,
       };
+    },
+  );
+
+  // PUT /me/address — el socio carga, cambia o borra su dirección (calle y
+  // altura, sin piso ni depto). La pide el pop-up único de Mi Templo y el
+  // Perfil de la app. Finalidad declarada en eltemplo.org/privacidad:
+  // conocer desde dónde vienen a entrenar para planificar sedes y horarios.
+  // Es opcional y `null` la borra (Ley 25.326: el titular puede rectificar y
+  // suprimir). Pre-scope por diseño, MISMO criterio T-175-03 que sus hermanas
+  // de /me (userId sale SIEMPRE de `request.user`, el JWT — ver
+  // test/tenancy/iso-03-auth.test.ts). La dirección es PII: no se loguea.
+  fastify.put<{ Body: { address: string | null } }>(
+    "/me/address",
+    {
+      onRequest: [fastify.authenticate],
+      schema: {
+        body: {
+          type: "object",
+          required: ["address"],
+          properties: {
+            address: { type: ["string", "null"], maxLength: 500 },
+          },
+          additionalProperties: false,
+        },
+      },
+    },
+    async (request, reply) => {
+      const { userId } = request.user;
+
+      await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(request.scope, "auth.me-address");
+
+      // Espacios colapsados: "  Av.  Colón   2450 " → "Av. Colón 2450".
+      // Un string que queda vacío no es "borrar" (eso es null explícito):
+      // es un error del cliente.
+      const raw = request.body.address;
+      const address = raw === null ? null : raw.trim().replace(/\s+/g, " ");
+      if (address === "") {
+        return reply.code(400).send({
+          error: "Solicitud invalida",
+          message: "La dirección no puede estar vacía",
+        });
+      }
+
+      const [existing] = await fastify.db
+        .select({ id: users.id })
+        .from(users)
+        .where(
+          and(
+            tenantWhere(users, ctx),
+            eq(users.id, userId),
+            isNull(users.deletedAt),
+          ),
+        )
+        .limit(1);
+      if (!existing) {
+        return reply
+          .code(404)
+          .send({ error: "No encontrado", message: "Usuario no encontrado" });
+      }
+
+      await fastify.db
+        .update(users)
+        .set({ address })
+        .where(and(tenantWhere(users, ctx), eq(users.id, userId)));
+
+      request.log.info(
+        { userId, cleared: address === null },
+        "Member address updated",
+      );
+      return { address };
     },
   );
 

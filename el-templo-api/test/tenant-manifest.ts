@@ -433,6 +433,7 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   // arriba — self-scoped por el token del portador, userId sale SIEMPRE de
   // request.user.
   "POST /api/auth/me/intro-stories": { categoria: "tenant-scoped" },
+  "PUT /api/auth/me/address": { categoria: "tenant-scoped" },
 
   // ── /api/admin/analytics ──────────────────────────────────────────────────
   "GET /api/admin/analytics": { categoria: "tenant-scoped" },
