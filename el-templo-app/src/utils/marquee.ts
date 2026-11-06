@@ -55,11 +55,22 @@ export interface WrappedTextBox {
 }
 
 /**
+ * Cuántas líneas ocupa un texto partido, a partir del alto que mide el motor. Se redondea a la
+ * línea entera: cada motor redondea el alto de las cajas de línea a su manera (WebKit da 63 px
+ * donde Chrome da 62 para dos líneas de 30.8), y una tolerancia fija de 1 px no alcanza para
+ * absorberlo. Siempre al menos 1.
+ */
+export function wrappedLineCount(scrollHeightPx: number, lineHeightPx: number): number {
+  if (!(lineHeightPx > 0)) return 1
+  return Math.max(1, Math.round(scrollHeightPx / lineHeightPx))
+}
+
+/**
  * ¿El texto partido en líneas entra en `maxLines` sin cortar palabras? No entra si alguna palabra
- * sola es más ancha que la caja (desborda a lo ancho) o si hacen falta más líneas. Misma
- * tolerancia de subpíxel que `horizontalOverflowPx`.
+ * sola es más ancha que la caja (desborda a lo ancho) o si hacen falta más líneas. A lo ancho usa
+ * la tolerancia de `horizontalOverflowPx`; a lo alto cuenta líneas enteras (`wrappedLineCount`).
  */
 export function fitsInLines(box: WrappedTextBox, lineHeightPx: number, maxLines: number): boolean {
   if (horizontalOverflowPx(box.scrollWidth, box.clientWidth) > 0) return false
-  return box.scrollHeight <= lineHeightPx * maxLines + OVERFLOW_TOLERANCE_PX
+  return wrappedLineCount(box.scrollHeight, lineHeightPx) <= maxLines
 }

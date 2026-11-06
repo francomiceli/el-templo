@@ -19,6 +19,12 @@ import {
 //
 // Con `lines` > 1 primero prueba partir el texto en palabras hasta esas líneas (quieto); solo si
 // no entra (más líneas o una palabra más ancha que la caja) vuelve a una línea que se desplaza.
+//
+// La medición es SIEMPRE la misma, decida lo que decida (`data-measuring` neutraliza los estilos
+// de `--run` mientras se mide) y solo se repite si cambió el texto o el ancho. Sin eso, en WebKit
+// el alto de dos líneas cambiaba 1 px según el `inner` fuera inline o inline-block (lo que decide
+// `running`), la decisión se daba vuelta en cada medición y `onUpdated -> measure` quedaba en un
+// bucle de microtareas que congelaba la app entera (Entrenar en iPhone, reporte 2026-11-06).
 const props = withDefaults(
   defineProps<{
     /** Etiqueta de la raíz (h1, span, p…) */
@@ -37,6 +43,9 @@ let animation: Animation | null = null
 let resizeObserver: ResizeObserver | null = null
 let motionQuery: MediaQueryList | null = null
 let fontsCancelled = false
+// Texto de la última medición: `onUpdated` solo vuelve a medir si el slot cambió de verdad (un
+// re-render por el propio `running` no cuenta; los cambios de ancho los ve el ResizeObserver).
+let measuredText: string | null = null
 
 function stopAnimation(): void {
   animation?.cancel()
@@ -47,14 +56,22 @@ function measure(): void {
   const root = rootEl.value
   const inner = innerEl.value
   if (!root || !inner) return
-  if (props.lines > 1 && fitsWrapped(root)) {
-    running.value = false
-    stopAnimation()
-    return
+  measuredText = inner.textContent
+  // Estado canónico mientras se mide: ni `--run` ni la animación cambian lo que se lee.
+  root.dataset.measuring = ''
+  let overflow = 0
+  try {
+    if (props.lines > 1 && fitsWrapped(root)) {
+      running.value = false
+      stopAnimation()
+      return
+    }
+    root.dataset.mode = 'line'
+    overflow = horizontalOverflowPx(inner.offsetWidth, root.clientWidth)
+  } finally {
+    delete root.dataset.measuring
   }
-  root.dataset.mode = 'line'
   const reduced = motionQuery?.matches ?? false
-  const overflow = horizontalOverflowPx(inner.offsetWidth, root.clientWidth)
   const shouldRun = overflow > 0 && !reduced && typeof inner.animate === 'function'
   running.value = shouldRun
   stopAnimation()
@@ -72,7 +89,11 @@ function fitsWrapped(root: HTMLElement): boolean {
   const style = getComputedStyle(root)
   const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.2
   return fitsInLines(
-    { scrollWidth: root.scrollWidth, clientWidth: root.clientWidth, scrollHeight: root.scrollHeight },
+    {
+      scrollWidth: root.scrollWidth,
+      clientWidth: root.clientWidth,
+      scrollHeight: root.scrollHeight,
+    },
     lineHeight,
     props.lines,
   )
@@ -107,9 +128,12 @@ onMounted(() => {
   })
 })
 
-// El texto del slot cambió (otro día, otro bloque): se vuelve a medir con el DOM ya actualizado
+// El texto del slot cambió (otro día, otro bloque): se vuelve a medir con el DOM ya actualizado.
+// Un re-render que no cambió el texto (el de `running`, por ejemplo) no mide de nuevo.
 onUpdated(() => {
-  void nextTick(measure)
+  void nextTick(() => {
+    if (innerEl.value && innerEl.value.textContent !== measuredText) measure()
+  })
 })
 
 onBeforeUnmount(cleanup)
@@ -130,6 +154,16 @@ onBeforeUnmount(cleanup)
     overflow-wrap: normal;
     word-break: normal;
     text-overflow: clip;
+  }
+
+  // Mientras se mide: el mismo layout esté o no corriendo (pisa a `--run`, ver el script)
+  &[data-measuring] {
+    text-overflow: clip;
+  }
+
+  &[data-measuring] &__inner {
+    display: inline;
+    will-change: auto;
   }
 
   // Solo se anima si el usuario no pidió menos movimiento (si no, queda la elipsis)

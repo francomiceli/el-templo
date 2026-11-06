@@ -5,6 +5,7 @@ import {
   MARQUEE_RETURN_MS,
   fitsInLines,
   horizontalOverflowPx,
+  wrappedLineCount,
   marqueeCycleMs,
   marqueeKeyframes,
 } from '../marquee'
@@ -88,5 +89,28 @@ describe('fitsInLines', () => {
 
   it('ignora el redondeo de subpíxel en ancho y alto', () => {
     expect(fitsInLines(box(151, 62.6), 30.8, 2)).toBe(true)
+  })
+
+  it('dos líneas entran aunque el motor las mida 1 px más altas (63 px en WebKit, 62 en Chrome)', () => {
+    // Reporte 2026-11-06 (Entrenar colgado en iPhone): 63 > 30.8 * 2 + 1 hacía que WebKit
+    // alternara "no entra" (inline) / "entra" (inline-block) y MarqueeText quedara en bucle.
+    expect(fitsInLines(box(150, 63), 30.8, 2)).toBe(true)
+    expect(fitsInLines(box(150, 62), 30.8, 2)).toBe(true)
+  })
+})
+
+describe('wrappedLineCount', () => {
+  it('redondea a la línea entera', () => {
+    expect(wrappedLineCount(31, 30.8)).toBe(1)
+    expect(wrappedLineCount(62, 30.8)).toBe(2)
+    expect(wrappedLineCount(63, 30.8)).toBe(2)
+    expect(wrappedLineCount(92, 30.8)).toBe(3)
+    expect(wrappedLineCount(93, 30.8)).toBe(3)
+  })
+
+  it('nunca menos de una línea, ni con alto 0 o line-height inválido', () => {
+    expect(wrappedLineCount(0, 30.8)).toBe(1)
+    expect(wrappedLineCount(40, 0)).toBe(1)
+    expect(wrappedLineCount(40, Number.NaN)).toBe(1)
   })
 })
