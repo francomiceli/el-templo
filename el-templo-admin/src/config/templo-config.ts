@@ -133,13 +133,13 @@ export const DEUDAS_DETAIL_ROLES: AdminRole[] = ['gestion', 'admin', 'owner', 'a
 export const REPORTES_ROLES: AdminRole[] = ['gestion', 'admin', 'owner', 'admin_sede'];
 
 /**
- * Tablero semanal de gerencia (fase 206): por ahora solo admin y owner
- * (2026-11-04). Espejo exacto de `WEEKLY_BOARD_ROLES` del API
- * (`weekly-board/routes.ts`). Para abrirlo a gestion y admin_sede hay que
- * cambiar los dos (admin_sede ve solo la columna de su sede, lo fuerza el API).
- * Esto solo OCULTA: el gate real es el API.
+ * Tablero semanal de gerencia (fase 206): admin, owner y admin_sede
+ * (2026-11-06, D-02). Espejo exacto de `WEEKLY_BOARD_ROLES` del API
+ * (`weekly-board/routes.ts`): cambiar los dos. admin_sede ve solo la columna
+ * de su sede, sin Total ni Online, y eso lo fuerza el API. gestion (D-01)
+ * queda para más adelante. Esto solo OCULTA: el gate real es el API.
  */
-export const TABLERO_ROLES: AdminRole[] = ['admin', 'owner'];
+export const TABLERO_ROLES: AdminRole[] = ['admin', 'owner', 'admin_sede'];
 
 /**
  * Planes (read-only for the employee surface): all staff. Mirrors PLANES_READ_ROLES
