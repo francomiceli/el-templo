@@ -7,11 +7,10 @@
  *   - `PUT /leads`   carga (o borra, con `null`) los leads de una sede física
  *                    para la semana en curso o la anterior (D-04, D-24).
  *
- * Guard de rol: `ADMIN_ROLES` (owner/admin). Decisión 2026-11-04: por ahora
- * el Tablero es solo de owner y admin; gestion y admin_sede (D-01/D-02) se
- * suman más adelante. El servicio ya resuelve el alcance de admin_sede (su
- * sede sola), así que abrirlo es cambiar `WEEKLY_BOARD_ROLES`. El resto de los
- * roles recibe 403.
+ * Guard de rol: owner, admin y admin_sede (2026-11-06, D-02). admin_sede ve
+ * solo las sedes de `user_branches`, sin Total ni Online: lo resuelve el
+ * servicio. gestion (D-01) queda para más adelante; abrirlo es sumarlo a
+ * `WEEKLY_BOARD_ROLES`. El resto de los roles recibe 403.
  *
  * El GET NO usa `enforceBranchScope`: ese helper inyecta un único `branchId`
  * y está pensado para pantallas de una sola sede. El alcance del Tablero lo
@@ -39,12 +38,11 @@ import {
 import { WeeklyBoardService } from "./service";
 
 /**
- * Audiencia del Tablero: owner y admin (2026-11-04). Para abrirlo a gestion y
- * admin_sede, usar `CAJA_ROLES` (y lo mismo en `TABLERO_ROLES` del admin). Se
- * define acá y no en `permissions.ts` para no chocar con la rama
- * `feat/oficina`, que también toca ese archivo.
+ * Audiencia del Tablero: owner, admin y admin_sede (2026-11-06). Espejo exacto
+ * de `TABLERO_ROLES` del admin (`config/templo-config.ts`): cambiar los dos.
+ * Para abrir gestion (D-01) usar `CAJA_ROLES`.
  */
-const WEEKLY_BOARD_ROLES = ADMIN_ROLES;
+const WEEKLY_BOARD_ROLES = [...ADMIN_ROLES, ADMIN_SEDE_ROLE] as const;
 
 export const weeklyBoardRoutes: FastifyPluginAsync = async (fastify) => {
   const service = new WeeklyBoardService(fastify.db, fastify.log);

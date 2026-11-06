@@ -162,13 +162,13 @@ describe("Tablero semanal — roles, alcance y aislamiento", () => {
 
   // ─── Roles ──────────────────────────────────────────────────────────────
 
-  it("sin token es 401; gestion, admin_sede, coach y recepcion reciben 403 en GET y en PUT /leads", async () => {
+  it("sin token es 401; gestion, coach y recepcion reciben 403 en GET y en PUT /leads", async () => {
     const anon = await app.inject({ method: "GET", url: BASE });
     expect(anon.statusCode).toBe(401);
 
-    // 2026-11-04: el Tablero es solo de owner y admin por ahora. gestion y
-    // admin_sede (D-01/D-02) se abren más adelante.
-    for (const key of ["gestionAr", "adminSede", "coach", "recepcion"]) {
+    // 2026-11-06: el Tablero es de owner, admin y admin_sede. gestion (D-01) se
+    // abre más adelante.
+    for (const key of ["gestionAr", "coach", "recepcion"]) {
       const get = await getAs(tokens[key]);
       expect(get.status, `GET como ${key}`).toBe(403);
       expect(await putAs(tokens[key], branches.arA.id), `PUT como ${key}`).toBe(
@@ -176,6 +176,46 @@ describe("Tablero semanal — roles, alcance y aislamiento", () => {
       );
     }
     expect(await countLeads(TEMPLO_CTX, [branches.arA.id])).toBe(0);
+  });
+
+  // ─── admin_sede ─────────────────────────────────────────────────────────
+
+  it("admin_sede ve una sola columna (su sede), sin la otra sede de su país, sin Total ni Online", async () => {
+    const { status, body } = await getAs(tokens.adminSede);
+    expect(status).toBe(200);
+
+    expect(body.groups).toHaveLength(1);
+    const [group] = body.groups;
+    expect(group.country).toBe("AR");
+    expect(group.branches.map((b) => b.id)).toEqual([branches.arA.id]);
+    expect(group.hasTotal).toBe(false);
+    expect(group.online).toBeNull();
+
+    // El cálculo corre sobre todo el gimnasio y se filtra después: ninguna
+    // fila puede traer la otra sede de AR, la de ES, la virtual, ni totales.
+    expect(body.metrics.length).toBeGreaterThan(0);
+    for (const m of body.metrics) {
+      expect(Object.keys(m.totalByCountry), `Total de ${m.key}`).toEqual([]);
+      expect(Object.keys(m.onlineByCountry), `Online de ${m.key}`).toEqual([]);
+    }
+    expect([...branchKeys(body.metrics)]).toEqual([String(branches.arA.id)]);
+  });
+
+  it("admin_sede carga leads en su sede (200) pero no en otra (403)", async () => {
+    try {
+      expect(await putAs(tokens.adminSede, branches.arA.id, 9)).toBe(200);
+      expect(await countLeads(TEMPLO_CTX, [branches.arA.id])).toBe(1);
+
+      expect(await putAs(tokens.adminSede, branches.arB.id, 9)).toBe(403);
+      expect(await countLeads(TEMPLO_CTX, [branches.arB.id])).toBe(0);
+      // Tampoco la sede virtual del país (el atajo "virtual = global" no le aplica).
+      expect(await putAs(tokens.adminSede, branches.virtualAr.id, 9)).toBe(403);
+      expect(await countLeads(TEMPLO_CTX, [branches.virtualAr.id])).toBe(0);
+      expect(await putAs(tokens.adminSede, branches.es.id, 9)).toBe(403);
+      expect(await countLeads(TEMPLO_CTX, [branches.es.id])).toBe(0);
+    } finally {
+      await clearLeads();
+    }
   });
 
   // ─── admin por país ─────────────────────────────────────────────────────
