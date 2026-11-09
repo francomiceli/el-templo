@@ -106,6 +106,10 @@ export interface BuildAppOptions {
 export async function buildApp(opts: BuildAppOptions = {}) {
   const app = Fastify({
     logger: process.env.NODE_ENV === "test" ? { level: "silent" } : true,
+    // Un solo proxy delante (nginx). Con `true` el cliente podría falsear la IP
+    // por X-Forwarded-For; con `1` se toma la IP que agregó nginx (el último
+    // salto de la cadena). `request.ip` alimenta el rate limit por IP.
+    trustProxy: 1,
   });
 
   // Seam del inventario de rutas (fase 171, ISO-01). Va PRIMERO: un hook
@@ -162,12 +166,17 @@ export async function buildApp(opts: BuildAppOptions = {}) {
   });
 
   // Rate limit por IP, OPT-IN por ruta (`global: false`): solo las rutas que
-  // declaran `config.rateLimit` lo pagan. Hoy: /auth/forgot-password y
-  // /auth/reset-password (código de 6 dígitos por mail, 2026-09-15). Va
+  // declaran `config.rateLimit` lo pagan (tabla en `shared/rate-limits.ts`):
+  // login, register, canje de campañas, formularios públicos, forgot/reset
+  // password y site-data. La IP sale de `request.ip` (trustProxy: 1). Va
   // antes de todo `register` de rutas: el plugin engancha `onRoute` y solo
   // ve las rutas registradas después.
   await app.register(rateLimit, {
     global: false,
+    // En tests, los pedidos sin `remoteAddress` salen de 127.0.0.1 y comparten
+    // contador; los tests de 429 mandan `remoteAddress` propio. El plugin
+    // mezcla esta opción global en el `config.rateLimit` de cada ruta.
+    allowList: process.env.NODE_ENV === "test" ? ["127.0.0.1"] : [],
     errorResponseBuilder: (_request, context) => ({
       statusCode: 429,
       error: "Demasiados intentos",

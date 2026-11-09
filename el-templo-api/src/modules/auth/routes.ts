@@ -56,6 +56,7 @@ import {
 import { enabledModulesFor } from "../shared/module-flags";
 import { recordRegisterAttribution } from "../marketing/attribution-service";
 import type { SignupAttributionBody } from "../marketing/attribution-service";
+import { RATE_LIMITS } from "../shared/rate-limits";
 
 interface RegisterBody {
   email: string;
@@ -88,7 +89,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
   // POST /register
   fastify.post<{ Body: RegisterBody }>(
     "/register",
-    { schema: registerSchema },
+    { schema: registerSchema, config: { rateLimit: RATE_LIMITS.register } },
     async (request, reply) => {
       const {
         email,
@@ -646,7 +647,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
   // POST /login
   fastify.post<{ Body: LoginBody }>(
     "/login",
-    { schema: loginSchema },
+    { schema: loginSchema, config: { rateLimit: RATE_LIMITS.login } },
     async (request, reply) => {
       const { email, password } = request.body;
 
@@ -1219,7 +1220,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     "/forgot-password",
     {
       schema: forgotPasswordSchema,
-      config: { rateLimit: { max: 5, timeWindow: "15 minutes" } },
+      config: { rateLimit: RATE_LIMITS.forgotPassword },
     },
     async (request) => {
       const service = new PasswordResetService(fastify.db, request.log);
@@ -1252,7 +1253,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     "/reset-password",
     {
       schema: resetPasswordSchema,
-      config: { rateLimit: { max: 10, timeWindow: "15 minutes" } },
+      config: { rateLimit: RATE_LIMITS.resetPassword },
     },
     async (request, reply) => {
       const { email, code, newPassword } = request.body;

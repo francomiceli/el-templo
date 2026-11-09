@@ -28,6 +28,7 @@ interface IdParams {
 }
 
 import { OWNER_ROLES } from "../shared/permissions";
+import { RATE_LIMITS } from "../shared/rate-limits";
 
 const waitlistSchema = {
   body: {
@@ -124,7 +125,7 @@ export const appLandingRoutes: FastifyPluginAsync = async (fastify) => {
   // POST /waitlist — submit waitlist entry
   fastify.post<{ Body: WaitlistBody }>(
     "/waitlist",
-    { schema: waitlistSchema },
+    { schema: waitlistSchema, config: { rateLimit: RATE_LIMITS.publicForm } },
     async (request, reply) => {
       const result = await service.submitWaitlist(request.body);
 
@@ -138,7 +139,10 @@ export const appLandingRoutes: FastifyPluginAsync = async (fastify) => {
   // POST /labs-inquiry — submit Labs inquiry
   fastify.post<{ Body: LabsInquiryBody }>(
     "/labs-inquiry",
-    { schema: labsInquirySchema },
+    {
+      schema: labsInquirySchema,
+      config: { rateLimit: RATE_LIMITS.publicForm },
+    },
     async (request, reply) => {
       const result = await service.submitLabsInquiry(request.body);
 

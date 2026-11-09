@@ -23,6 +23,7 @@ interface IdParams {
 }
 
 import { OWNER_ROLES } from "../shared/permissions";
+import { RATE_LIMITS } from "../shared/rate-limits";
 
 const statusUpdateSchema = {
   body: {
@@ -118,7 +119,7 @@ export const academyRoutes: FastifyPluginAsync = async (fastify) => {
   // POST /inquire — submit academy inquiry
   fastify.post<{ Body: InquireBody }>(
     "/inquire",
-    { schema: inquireSchema },
+    { schema: inquireSchema, config: { rateLimit: RATE_LIMITS.publicForm } },
     async (request, reply) => {
       const result = await service.submitInquiry(request.body);
 
