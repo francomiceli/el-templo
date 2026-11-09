@@ -18,6 +18,16 @@ const STATUS_LABELS: Record<number, string> = {
 };
 
 /**
+ * Cuerpo genérico de todo 500: nunca lleva SQL, stack ni el mensaje del error
+ * original (eso queda en el log y en Sentry). Lo usan `handleServiceError` y el
+ * `setErrorHandler` global de `app.ts`.
+ */
+export const INTERNAL_ERROR_BODY = {
+  error: "Error del servidor",
+  message: "Error interno del servidor",
+} as const;
+
+/**
  * Map a service-layer error to an HTTP response.
  *
  * - AppError subclasses (BadRequestError, NotFoundError, ConflictError, etc.)
@@ -40,8 +50,5 @@ export function handleServiceError(
     return;
   }
   log.error({ err }, `Error in ${context}`);
-  reply.code(500).send({
-    error: "Error del servidor",
-    message: "Error interno del servidor",
-  });
+  reply.code(500).send(INTERNAL_ERROR_BODY);
 }
