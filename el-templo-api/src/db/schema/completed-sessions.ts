@@ -6,6 +6,7 @@ import {
   json,
   text,
   index,
+  uniqueIndex,
   mysqlEnum,
 } from "drizzle-orm/mysql-core";
 import { users } from "./users";
@@ -57,5 +58,8 @@ export const completedSessions = mysqlTable(
     index("completed_sessions_user_idx").on(table.userId),
     index("completed_sessions_date_idx").on(table.date),
     index("completed_sessions_branch_idx").on(table.branchId),
+    // Tanda 2 (#4), mig 0322: una fila por (socio, dia de sesion). Cierra la
+    // carrera SELECT -> INSERT de los POST de completar.
+    uniqueIndex("completed_sessions_user_day_uq").on(table.userId, table.dayId),
   ],
 );

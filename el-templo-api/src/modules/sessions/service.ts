@@ -5,7 +5,7 @@
  * daily sessions with 5 blocks (or 4 if DEUTEROS_2 is null).
  *
  * Also handles session persistence via saveSession, getSessionByDayId,
- * and getSessionWithDetails methods.
+ * and approvedSessionExists methods.
  *
  * Logging:
  * - Uses Pino for structured JSON logging
@@ -453,12 +453,8 @@ export class SessionGeneratorService {
         levelGroup: session.levelGroup,
         blockCount: session.blocks.length,
         traceJson: session.trace,
-        ...(session.goalPlanType
-          ? { goalPlanType: session.goalPlanType }
-          : {}),
-        ...(session.sessionMode
-          ? { sessionMode: session.sessionMode }
-          : {}),
+        ...(session.goalPlanType ? { goalPlanType: session.goalPlanType } : {}),
+        ...(session.sessionMode ? { sessionMode: session.sessionMode } : {}),
       });
 
       const newSessionId = sessionResult.insertId;
@@ -760,23 +756,22 @@ export class SessionGeneratorService {
   }
 
   /**
-   * Get session with full details by numeric ID
-   *
-   * @param sessionId - Database session ID
-   * @returns DaySession if found, null otherwise
+   * True si existe una sesion APROBADA con ese dayId. Un SELECT liviano de `id`
+   * (sin reconstruir bloques): lo usan los POST de "completar" para rechazar
+   * dayIds inventados.
    */
-  async getSessionWithDetails(sessionId: number): Promise<DaySession | null> {
-    // Query session
-    const [session] = await this.db
-      .select()
+  async approvedSessionExists(dayId: string): Promise<boolean> {
+    const [row] = await this.db
+      .select({ id: schema.sessions.id })
       .from(schema.sessions)
-      .where(eq(schema.sessions.id, sessionId));
-
-    if (!session) {
-      return null;
-    }
-
-    return this.reconstructSession(session);
+      .where(
+        and(
+          eq(schema.sessions.dayId, dayId),
+          eq(schema.sessions.status, "approved"),
+        ),
+      )
+      .limit(1);
+    return row !== undefined;
   }
 
   /**

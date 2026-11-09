@@ -1,8 +1,13 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import * as schema from "../../src/db/schema";
-import { createTestApp, getAuthToken, registerUser } from "../helpers";
+import {
+  createTestApp,
+  getAuthToken,
+  registerUser,
+  seedApprovedSession,
+} from "../helpers";
 import {
   tenantWhere,
   type TenantContext,
@@ -149,6 +154,30 @@ describe("Session Routes", () => {
   // POST /api/sessions/complete
   // ---------------------------------------------------------------
   describe("POST /api/sessions/complete", () => {
+    // Tanda 2 / #4: completar exige un dayId aprobado en `sessions`.
+    const SEEDED_DAY_IDS = [
+      "W1-lunes-alfa",
+      "W3-lunes-alfa",
+      "W3-martes-sigma",
+    ];
+
+    beforeAll(async () => {
+      for (const dayId of SEEDED_DAY_IDS) {
+        await seedApprovedSession(app, dayId);
+      }
+    });
+
+    afterAll(async () => {
+      await app.db
+        .delete(schema.sessions)
+        .where(
+          and(
+            tenantWhere(schema.sessions, CTX_TEMPLO),
+            inArray(schema.sessions.dayId, SEEDED_DAY_IDS),
+          ),
+        );
+    });
+
     it("returns 401 without authentication", async () => {
       const res = await app.inject({
         method: "POST",

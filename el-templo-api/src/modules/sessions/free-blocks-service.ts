@@ -20,8 +20,11 @@ import type { FastifyBaseLogger } from "fastify";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../db/schema";
 import type { AuraService } from "../aura/service";
-import { DEFAULT_TENANT_TIMEZONE, todayInTz } from "../shared/date-utils";
-import { isDuplicateKeyError } from "../shared/sql-errors";
+import { todayInTz } from "../shared/date-utils";
+import {
+  awardOncePerLocalDay,
+  resolveBranchTimezone,
+} from "../aura/daily-award";
 import {
   tenantValues,
   tenantWhere,
@@ -230,20 +233,7 @@ export class FreeBlocksService {
     const basketLevel = isKairos(memberLevel) ? "alfa" : memberLevel;
     const romLevel = effectiveLevelForDay(memberLevel, true);
 
-    let timezone = DEFAULT_TENANT_TIMEZONE;
-    if (user.branchId !== null) {
-      const [branch] = await this.db
-        .select({ timezone: schema.branches.timezone })
-        .from(schema.branches)
-        .where(
-          and(
-            tenantWhere(schema.branches, ctx),
-            eq(schema.branches.id, user.branchId),
-          ),
-        )
-        .limit(1);
-      timezone = branch?.timezone || DEFAULT_TENANT_TIMEZONE;
-    }
+    const timezone = await resolveBranchTimezone(this.db, ctx, user.branchId);
 
     return {
       kind: "ok",
@@ -549,27 +539,14 @@ export class FreeBlocksService {
     member: FreeBlocksMember,
     row: { completionId: number; localDate: string },
   ): Promise<boolean> {
-    try {
-      await this.auraService.award({
-        userId: member.userId,
-        sourceType: "extra_block",
-        referenceType: "extra_block_day",
-        referenceId: Number(row.localDate.replace(/-/g, "")),
-        description: "Bloque libre del día",
-      });
-    } catch (err: unknown) {
-      const { isDuplicate, detail } = isDuplicateKeyError(err);
-      const logCtx = { userId: member.userId, localDate: row.localDate };
-      if (isDuplicate) {
-        this.log.info(logCtx, "AURA del bloque libre ya cobrada hoy");
-      } else {
-        this.log.warn(
-          { ...logCtx, detail },
-          "No se pudo acreditar la AURA del bloque libre",
-        );
-      }
-      return false;
-    }
+    const acreditada = await awardOncePerLocalDay(this.auraService, this.log, {
+      userId: member.userId,
+      sourceType: "extra_block",
+      referenceType: "extra_block_day",
+      localDate: row.localDate,
+      description: "Bloque libre del día",
+    });
+    if (!acreditada) return false;
 
     try {
       await this.db

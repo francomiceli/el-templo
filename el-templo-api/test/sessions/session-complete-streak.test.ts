@@ -19,7 +19,9 @@ import {
   getAuthToken,
   registerUser,
   cleanAllTestData,
+  seedApprovedSession,
 } from "../helpers";
+import { todayInTz } from "../../src/modules/shared/date-utils";
 import * as schema from "../../src/db/schema";
 
 // Archivo single-tenant (solo El Templo): filtro preciso, no exencion.
@@ -36,6 +38,11 @@ describe("Session Complete → AURA + Streak E2E", () => {
 
   beforeEach(async () => {
     await cleanAllTestData(app);
+
+    // Tanda 2 / #4: completar exige un dayId aprobado (cleanAllTestData vacia
+    // `sessions`, se siembra por test).
+    await seedApprovedSession(app, "W1-lunes-alfa");
+    await seedApprovedSession(app, "W1-martes-alfa");
 
     // Clean and re-seed AURA config for this test suite
     await app.db.delete(schema.auraConfig);
@@ -116,8 +123,21 @@ describe("Session Complete → AURA + Streak E2E", () => {
     );
     expect(trainingTx).toBeDefined();
     expect(trainingTx!.amount).toBe(10);
-    expect(trainingTx!.referenceType).toBe("completed_session");
-    expect(trainingTx!.referenceId).toBe(completeBody.completedSessionId);
+    // Tanda 2 / #4: premio por dia local de la sede (tope diario), ya no por
+    // fila de completed_sessions.
+    expect(trainingTx!.referenceType).toBe("training_day");
+    const [branch] = await app.db
+      .select({ timezone: schema.branches.timezone })
+      .from(schema.branches)
+      .where(
+        and(
+          tenantWhere(schema.branches, CTX_TEMPLO),
+          eq(schema.branches.id, 1),
+        ),
+      );
+    expect(trainingTx!.referenceId).toBe(
+      Number(todayInTz(branch!.timezone).replace(/-/g, "")),
+    );
 
     // Step 3: Verify member_profiles.currentStreak was updated
     const [profile] = await app.db

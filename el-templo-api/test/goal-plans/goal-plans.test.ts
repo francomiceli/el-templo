@@ -13,6 +13,7 @@ import {
   cleanAllTestData,
   dateOffsetStr,
   todayStr,
+  seedApprovedSession,
 } from "../helpers";
 
 const SUBSCRIPTIONS_URL = "/api/admin/subscriptions";
@@ -469,6 +470,13 @@ describe("Goal Plan Routes", () => {
   // POST /api/goal-plans/complete
   // ---------------------------------------------------------------
   describe("POST /api/goal-plans/complete", () => {
+    // Tanda 2 / #4: completar exige un dayId aprobado en `sessions`.
+    beforeAll(async () => {
+      await seedApprovedSession(app, "GP-tren_superior-W1-lunes-alfa", {
+        goalPlanType: "tren_superior",
+      });
+    });
+
     it("records a goal plan session completion", async () => {
       const res = await app.inject({
         method: "POST",
@@ -921,6 +929,11 @@ describe("Goal Plan Routes", () => {
         .from(schema.programEnrollments)
         .where(eq(schema.programEnrollments.userId, mId));
       expect(enrollBefore!.currentWeek).toBe(3);
+
+      // Tanda 2 / #4: el dayId tiene que existir aprobado en `sessions`.
+      await seedApprovedSession(app, "GP-empuje-W3-lunes-omega", {
+        goalPlanType: "empuje",
+      });
 
       // Complete a W3 OMEGA session (cross-level — user is sigma)
       const completeRes = await app.inject({
