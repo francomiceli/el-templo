@@ -208,10 +208,6 @@
       "table": "attendance"
     },
     {
-      "file": "el-templo-api/src/modules/attendance/service.ts",
-      "table": "completed_sessions"
-    },
-    {
       "file": "el-templo-api/src/modules/aura/service.ts",
       "table": "aura_balances"
     },

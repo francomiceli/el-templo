@@ -315,6 +315,60 @@ describe("Notification Module", () => {
       expect(body.success).toBe(true);
     });
 
+    it("opened de una notificacion AJENA devuelve 200 pero NO incrementa opened_count (tanda 2)", async () => {
+      const service = new NotificationService(app.db, app.log, true);
+      await service.registerToken(
+        memberId,
+        "fcm-opened-ownership-token-abcdef12345678901234567890123456",
+        "android",
+      );
+      const notificationId = await service.queueNotification({
+        userId: memberId,
+        templateKey: "morning_energy",
+      });
+      expect(notificationId).toBeGreaterThan(0);
+
+      const leerOpenedCount = async (): Promise<number> => {
+        const [row] = await app.db
+          .select({ openedCount: schema.notificationTemplates.openedCount })
+          .from(schema.notificationTemplates)
+          .where(
+            and(
+              tenantWhere(schema.notificationTemplates, CTX),
+              eq(schema.notificationTemplates.templateKey, "morning_energy"),
+            ),
+          );
+        return row.openedCount;
+      };
+
+      // Socio B (otro usuario del mismo gimnasio) intenta marcarla como abierta.
+      const otro = await registerUser(app, {
+        email: `notif-otro-${timestamp}@test.com`,
+        password: "member-pass-123",
+        branchId: 1,
+      });
+      const antes = await leerOpenedCount();
+
+      const resAjena = await app.inject({
+        method: "POST",
+        url: `/api/notifications/${notificationId}/opened`,
+        headers: { authorization: `Bearer ${otro.token}` },
+      });
+      expect(resAjena.statusCode).toBe(200);
+      expect(JSON.parse(resAjena.body)).toEqual({ success: true });
+      expect(await leerOpenedCount()).toBe(antes);
+
+      // Control: el dueno de la notificacion si incrementa, una vez por llamada.
+      const resPropia = await app.inject({
+        method: "POST",
+        url: `/api/notifications/${notificationId}/opened`,
+        headers: { authorization: `Bearer ${memberToken}` },
+      });
+      expect(resPropia.statusCode).toBe(200);
+      expect(JSON.parse(resPropia.body)).toEqual({ success: true });
+      expect(await leerOpenedCount()).toBe(antes + 1);
+    });
+
     it("POST /api/notifications/:id/opened without auth returns 401", async () => {
       const res = await app.inject({
         method: "POST",

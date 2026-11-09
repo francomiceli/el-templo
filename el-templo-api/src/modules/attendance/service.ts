@@ -10,7 +10,11 @@ import { MySql2Database } from "drizzle-orm/mysql2";
 import { eq, and, sql, desc, inArray, lt, isNotNull } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
-import { BadRequestError, ConflictError } from "../shared/errors";
+import {
+  BadRequestError,
+  ConflictError,
+  NotFoundError,
+} from "../shared/errors";
 import {
   getWeekRange,
   todayInTz,
@@ -493,6 +497,24 @@ export class AttendanceService {
   }
 
   /**
+   * Seguridad (tanda 2): el `memberId` que llega por payload (o heredado de una
+   * fila) tiene que ser un usuario del gimnasio del actor. Modelo:
+   * `BookingService.adminAddBooking` (T-174.1-08-04). Un socio de otro gimnasio
+   * es indistinguible de uno inexistente: 404.
+   */
+  private async assertMemberDelGimnasio(
+    ctx: TenantContext,
+    memberId: number,
+  ): Promise<void> {
+    const [memberRow] = await this.db
+      .select({ id: schema.users.id })
+      .from(schema.users)
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, memberId)))
+      .limit(1);
+    if (!memberRow) throw new NotFoundError("Alumno no encontrado");
+  }
+
+  /**
    * Force check-in by admin/coach.
    *
    * Bypasses all enforcement (subscription, overdue, weekly, monthly).
@@ -509,6 +531,12 @@ export class AttendanceService {
     adminId: number,
   ): Promise<AttendanceRecord> {
     const { memberId, branchId, reason } = input;
+
+    // Seguridad (tanda 2): el socio tiene que ser del gimnasio del actor ANTES
+    // de cualquier escritura (attendance, AURA, clases, completed_sessions).
+    // La sede ya la valida `requireBranchAccess` en la ruta, que filtra por
+    // gimnasio (`canAccessBranch` → `resolveBranchDelGimnasio`).
+    await this.assertMemberDelGimnasio(ctx, memberId);
 
     // Insert attendance record
     const todayStr = new Date().toISOString().split("T")[0];
@@ -895,6 +923,10 @@ export class AttendanceService {
       throw new BadRequestError("Horario no encontrado");
     }
 
+    // Seguridad (tanda 2): el socio tiene que ser del gimnasio del actor antes
+    // de tocar nada (guard de duplicado, attendance, AURA, clases).
+    await this.assertMemberDelGimnasio(ctx, memberId);
+
     // Fase 204 (D-19): ¿la reserva de este (socio, horario, fecha) entró por
     // Wellhub? Si sí, el presente a mano es una visita Wellhub "a mano": no
     // toca el plan del socio (sin AURA, sin clases, sin completed_sessions).
@@ -1175,6 +1207,11 @@ export class AttendanceService {
       throw new BadRequestError("Registro de asistencia no encontrado");
     }
 
+    // Seguridad (tanda 2): una fila heredada con `member_id` de otro gimnasio
+    // no debe disparar `spend`/deletes/restauración de clases sobre un usuario
+    // ajeno.
+    await this.assertMemberDelGimnasio(ctx, attRecord.memberId);
+
     // Fase 204 (D-18 #6 / T-204-12): una visita validada por Wellhub está
     // facturada, no se deshace desde acá.
     if (attRecord.source === "wellhub") {
@@ -1224,7 +1261,12 @@ export class AttendanceService {
     // Delete the attendance record
     await this.db
       .delete(schema.attendance)
-      .where(eq(schema.attendance.id, attendanceId));
+      .where(
+        and(
+          tenantWhere(schema.attendance, ctx),
+          eq(schema.attendance.id, attendanceId),
+        ),
+      );
 
     // Restore classesRemaining +1.
     // Fase 161 (GATE-02): restaurar la clase a la sub correcta según si la
@@ -1295,6 +1337,7 @@ export class AttendanceService {
       .delete(schema.completedSessions)
       .where(
         and(
+          tenantWhere(schema.completedSessions, ctx),
           eq(schema.completedSessions.userId, attRecord.memberId),
           eq(schema.completedSessions.date, dateStr),
           eq(schema.completedSessions.goalPlanType, "presencial"),

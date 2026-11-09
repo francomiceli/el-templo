@@ -5,7 +5,7 @@
  * Token format: base64url(payload).base64url(signature)
  */
 
-import { createHmac } from "crypto";
+import { createHmac, timingSafeEqual } from "crypto";
 
 export interface QrPayload {
   branchId: number;
@@ -42,7 +42,11 @@ export function validateQrToken(token: string): QrPayload | null {
     .update(payloadB64)
     .digest("base64url");
 
-  if (providedSignature !== expectedSignature) return null;
+  // Comparación en tiempo constante (timingSafeEqual exige mismo largo).
+  const providedBuf = Buffer.from(providedSignature);
+  const expectedBuf = Buffer.from(expectedSignature);
+  if (providedBuf.length !== expectedBuf.length) return null;
+  if (!timingSafeEqual(providedBuf, expectedBuf)) return null;
 
   try {
     const payloadStr = Buffer.from(payloadB64, "base64url").toString("utf-8");

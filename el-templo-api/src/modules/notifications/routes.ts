@@ -105,7 +105,8 @@ async function validateRuleCondition(
       };
     }
     if (
-      (trigger.minValue !== undefined && input.triggerValue < trigger.minValue) ||
+      (trigger.minValue !== undefined &&
+        input.triggerValue < trigger.minValue) ||
       (trigger.maxValue !== undefined && input.triggerValue > trigger.maxValue)
     ) {
       return {
@@ -284,7 +285,10 @@ const ruleConditionProperties = {
   // `null` explícito = "sin parámetro" (al cambiar a un trigger que no lo
   // lleva, el editor lo manda en null para limpiar el valor guardado).
   triggerValue: { type: ["integer", "null"], minimum: 0, maximum: 365 },
-  triggerSegment: { type: ["string", "null"], enum: [...MEMBER_SEGMENT_VALUES, null] },
+  triggerSegment: {
+    type: ["string", "null"],
+    enum: [...MEMBER_SEGMENT_VALUES, null],
+  },
   // `null` explícito = "todas" (permite VACIAR un alcance ya guardado al
   // editar; omitir el campo = sin cambios). Mismo contrato que los avisos.
   scopeBranchIds: {
@@ -520,7 +524,7 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
       },
     },
     async (request) => {
-      await service.recordOpened(request.params.id);
+      await service.recordOpened(request.params.id, request.user.userId);
       return { success: true };
     },
   );
@@ -682,10 +686,12 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
         });
       }
 
-      if (containsForbiddenLink(request.body.title) ||
+      if (
+        containsForbiddenLink(request.body.title) ||
         containsForbiddenLink(request.body.body) ||
         containsForbiddenLink(request.body.titleFemale) ||
-        containsForbiddenLink(request.body.bodyFemale)) {
+        containsForbiddenLink(request.body.bodyFemale)
+      ) {
         return reply.code(400).send({
           error: "Solicitud invalida",
           message: "El título y el cuerpo no pueden contener links",
@@ -713,7 +719,10 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
         if (!destinationResult.ok) {
           return reply
             .code(400)
-            .send({ error: "Destino inválido", message: destinationResult.reason });
+            .send({
+              error: "Destino inválido",
+              message: destinationResult.reason,
+            });
         }
         const destination: Destination = destinationResult.value;
         updates.route = fallbackRouteFor(destination);
@@ -896,7 +905,10 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
       if (!destinationResult.ok) {
         return reply
           .code(400)
-          .send({ error: "Destino inválido", message: destinationResult.reason });
+          .send({
+            error: "Destino inválido",
+            message: destinationResult.reason,
+          });
       }
       const destination: Destination = destinationResult.value;
 
@@ -918,30 +930,33 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
 
       const templateKey = `custom_${randomBytes(8).toString("hex")}`;
 
-      const [result] = await fastify.db.insert(schema.notificationTemplates).values(
-        tenantValues(ctx, {
-          templateKey,
-          kind: "custom",
-          name: request.body.name,
-          category: request.body.category,
-          title: request.body.title,
-          body: request.body.body,
-          titleFemale: request.body.titleFemale ?? null,
-          bodyFemale: request.body.bodyFemale ?? null,
-          route: fallbackRouteFor(destination),
-          destinationType: destination.type,
-          destinationSection: destination.section,
-          whatsappText: destination.whatsappText,
-          isEnabled: request.body.isEnabled ?? true,
-          triggerType: request.body.triggerType as RuleTriggerType,
-          triggerValue: request.body.triggerValue ?? null,
-          triggerSegment: (request.body.triggerSegment as MemberSegment) ?? null,
-          scopeBranchIds: request.body.scopeBranchIds ?? null,
-          scopeCountries: request.body.scopeCountries ?? null,
-          cooldownDays: request.body.cooldownDays ?? 30,
-          createdBy: request.user.userId,
-        }),
-      );
+      const [result] = await fastify.db
+        .insert(schema.notificationTemplates)
+        .values(
+          tenantValues(ctx, {
+            templateKey,
+            kind: "custom",
+            name: request.body.name,
+            category: request.body.category,
+            title: request.body.title,
+            body: request.body.body,
+            titleFemale: request.body.titleFemale ?? null,
+            bodyFemale: request.body.bodyFemale ?? null,
+            route: fallbackRouteFor(destination),
+            destinationType: destination.type,
+            destinationSection: destination.section,
+            whatsappText: destination.whatsappText,
+            isEnabled: request.body.isEnabled ?? true,
+            triggerType: request.body.triggerType as RuleTriggerType,
+            triggerValue: request.body.triggerValue ?? null,
+            triggerSegment:
+              (request.body.triggerSegment as MemberSegment) ?? null,
+            scopeBranchIds: request.body.scopeBranchIds ?? null,
+            scopeCountries: request.body.scopeCountries ?? null,
+            cooldownDays: request.body.cooldownDays ?? 30,
+            createdBy: request.user.userId,
+          }),
+        );
 
       const insertId = Number(result.insertId);
       const [created] = await fastify.db
@@ -1082,7 +1097,10 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
       if (!destinationResult.ok) {
         return reply
           .code(400)
-          .send({ error: "Destino inválido", message: destinationResult.reason });
+          .send({
+            error: "Destino inválido",
+            message: destinationResult.reason,
+          });
       }
 
       const [member] = await fastify.db
@@ -1151,10 +1169,7 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       await attachCountryScope(request, fastify.db);
-      const ctx = assertTenant(
-        request.scope,
-        "notifications.previewAudience",
-      );
+      const ctx = assertTenant(request.scope, "notifications.previewAudience");
 
       const condition = {
         triggerType: request.body.triggerType as RuleTriggerType,
@@ -1214,8 +1229,7 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
       await attachCountryScope(request, fastify.db);
       const ctx = assertTenant(request.scope, "notifications.sendSegment");
 
-      const { title, body, segmentIds, titleFemale, bodyFemale } =
-        request.body;
+      const { title, body, segmentIds, titleFemale, bodyFemale } = request.body;
 
       // Fase 193 (D-01/D-05): destino validado contra la lista curada —
       // nunca una ruta de texto libre (T-193-21). `destination` es opcional
@@ -1234,7 +1248,10 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
       if (!destinationResult.ok) {
         return reply
           .code(400)
-          .send({ error: "Destino inválido", message: destinationResult.reason });
+          .send({
+            error: "Destino inválido",
+            message: destinationResult.reason,
+          });
       }
       const destination: Destination = destinationResult.value;
 
