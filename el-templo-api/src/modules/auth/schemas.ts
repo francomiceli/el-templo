@@ -7,7 +7,7 @@ export const registerSchema = {
     properties: {
       // maxLength = largo de la columna de `users` (email 255, firstName/lastName
       // 100, dni 20, phone 30). Sin tope, un valor largo llegaba al INSERT y
-      // MySQL lo rechazaba con un 500. password 128: tope razonable para bcrypt.
+      // MySQL lo rechazaba con un 500. password 128: tope razonable para argon2.
       email: { type: "string", format: "email", maxLength: 255 },
       password: { type: "string", minLength: 8, maxLength: 128 },
       branchId: { type: "integer" },
