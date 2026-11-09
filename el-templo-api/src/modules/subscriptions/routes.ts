@@ -378,6 +378,9 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     "/members/:userId/subscription/assign",
     { schema: assignPlanSchema },
     async (request, reply) => {
+      // El schema cerrado (additionalProperties:false) es lo que protege los
+      // campos solo-server del spread: recorderRole, idempotencyKey,
+      // cashRegisterIdOverride, createdMemberId y endDateOverride.
       try {
         const ctx = assertTenant(request.scope, "subscriptions.assign");
         const subscription = await subscriptionService.assignPlan(
@@ -433,6 +436,9 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     "/members/:userId/subscription/change-plan",
     { schema: changePlanSchema },
     async (request, reply) => {
+      // El schema cerrado (additionalProperties:false) es lo que protege los
+      // campos solo-server del spread: recorderRole, idempotencyKey,
+      // cashRegisterIdOverride y createdMemberId.
       try {
         const ctx = assertTenant(request.scope, "subscriptions.changePlan");
         const subscription = await subscriptionService.changePlan(
@@ -658,6 +664,8 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     "/members/:userId/subscription/renew",
     { schema: renewSubscriptionSchema },
     async (request, reply) => {
+      // El schema cerrado (additionalProperties:false) es lo que protege los
+      // campos solo-server del body (cashRegisterIdOverride, branchId, etc.).
       try {
         const ctx = assertTenant(request.scope, "subscriptions.renew");
         const sub = await subscriptionService.renewSubscription(

@@ -523,6 +523,10 @@ export const assignPlanSchema = {
   },
   body: {
     type: "object",
+    // Cerrado: Ajv (removeAdditional) descarta en silencio las claves que no
+    // están declaradas, así recorderRole/idempotencyKey/cashRegisterIdOverride/
+    // createdMemberId (solo server) no pueden llegar del body.
+    additionalProperties: false,
     required: [
       "planId",
       "branchId",
@@ -582,6 +586,10 @@ export const changePlanSchema = {
   },
   body: {
     type: "object",
+    // Cerrado: Ajv (removeAdditional) descarta en silencio las claves que no
+    // están declaradas, así recorderRole/idempotencyKey/cashRegisterIdOverride/
+    // createdMemberId (solo server) no pueden llegar del body.
+    additionalProperties: false,
     required: [
       "planId",
       "branchId",
@@ -636,6 +644,10 @@ export const renewSubscriptionSchema = {
   },
   body: {
     type: "object",
+    // Cerrado: Ajv (removeAdditional) descarta en silencio las claves que no
+    // están declaradas, así recorderRole/idempotencyKey/cashRegisterIdOverride/
+    // createdMemberId (solo server) no pueden llegar del body.
+    additionalProperties: false,
     required: ["paymentMethod"],
     properties: {
       paymentMethod: {

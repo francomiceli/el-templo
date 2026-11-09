@@ -18,6 +18,7 @@ import {
   type SQL,
 } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
+import { csvEscape } from "../shared/csv";
 import * as schema from "../../db/schema";
 import { firmMoneySqlFor } from "../finance/firm-money";
 import { buildMemberNameSearchCondition } from "../shared/member-search";
@@ -420,19 +421,6 @@ function isoWeekRange(iso: string): string {
   const monday = new Date(d.getTime() + offsetToMon * MS_PER_DAY_TS);
   const sunday = new Date(monday.getTime() + 6 * MS_PER_DAY_TS);
   return `${monday.toISOString().slice(0, 10)} --- ${sunday.toISOString().slice(0, 10)}`;
-}
-
-/** RFC 4180 CSV escape: wrap fields with `,`, `"`, CR, or LF in quotes; double quotes. */
-function csvEscape(s: string): string {
-  if (
-    s.includes(",") ||
-    s.includes('"') ||
-    s.includes("\n") ||
-    s.includes("\r")
-  ) {
-    return `"${s.replace(/"/g, '""')}"`;
-  }
-  return s;
 }
 
 /** D-05 — DD/MM/YYYY from a YYYY-MM-DD ISO string. */
