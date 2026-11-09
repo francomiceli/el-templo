@@ -10,6 +10,7 @@ import { AppError } from "./errors";
 
 const STATUS_LABELS: Record<number, string> = {
   400: "Solicitud invalida",
+  401: "No autorizado",
   403: "Acceso denegado",
   404: "No encontrado",
   409: "Conflicto",

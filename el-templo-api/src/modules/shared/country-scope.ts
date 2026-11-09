@@ -9,6 +9,7 @@ import {
   TV_ACCOUNT_ROLE,
 } from "./permissions";
 import { AppError } from "./errors";
+import { accountBlockReason, ACCOUNT_BLOCK_MESSAGES } from "./account-gate";
 import { tenantWhere, type TenantContext } from "./tenant";
 
 export type CountryCode = "AR" | "ES";
@@ -24,6 +25,17 @@ export type CountryCode = "AR" | "ES";
  * (no filtramos por HTTP si la baja del gimnasio es reversible o definitiva).
  */
 export const TENANT_SUSPENDED = "TENANT_SUSPENDED";
+
+/**
+ * Códigos estables de los 401 que corta `attachScope` cuando la sesión (un
+ * access token todavía vigente) ya no corresponde a la cuenta real:
+ * - `ACCOUNT_BLOCKED`: cuenta borrada o staff deshabilitado desde que se firmó
+ *   el token (misma regla que /login y /refresh, ver `shared/account-gate.ts`).
+ * - `ROLE_CHANGED`: el rol del token difiere del de la DB. El cliente debe
+ *   hacer /refresh, que firma con el rol actual.
+ */
+export const ACCOUNT_BLOCKED = "ACCOUNT_BLOCKED";
+export const ROLE_CHANGED = "ROLE_CHANGED";
 
 export interface CountryScope {
   /**
@@ -160,12 +172,49 @@ export async function attachScope(
         branchId: schema.users.branchId,
         tenantId: schema.users.tenantId,
         tenantStatus: schema.tenants.status,
+        deletedAt: schema.users.deletedAt,
+        staffDisabled: schema.users.staffDisabled,
+        dbRole: schema.users.role,
       })
       .from(schema.users)
       .leftJoin(schema.tenants, eq(schema.users.tenantId, schema.tenants.id))
       .where(eq(schema.users.id, userId))
       .limit(1);
     if (row) {
+      // Gate de cuenta por pedido: el access token vive 30 min y no sabe de
+      // bajas ni de deshabilitaciones. Va ANTES del chequeo de tenant (una
+      // cuenta bloqueada no debe llegar a tocar ni el estado del gimnasio).
+      const blockReason = accountBlockReason({
+        deletedAt: row.deletedAt,
+        role: row.dbRole,
+        staffDisabled: row.staffDisabled,
+      });
+      if (blockReason) {
+        request.log.warn(
+          { userId, role, reason: blockReason },
+          ACCOUNT_BLOCKED,
+        );
+        throw new AppError(
+          ACCOUNT_BLOCK_MESSAGES[blockReason],
+          401,
+          ACCOUNT_BLOCKED,
+        );
+      }
+      // Rol cambiado desde que se firmó el token: forzar /refresh, que firma
+      // con el rol actual de la DB (evita que un token viejo conserve permisos
+      // de un rol anterior hasta 30 min).
+      if (row.dbRole !== role) {
+        request.log.warn(
+          { userId, tokenRole: role, dbRole: row.dbRole },
+          ROLE_CHANGED,
+        );
+        throw new AppError(
+          "Sesion desactualizada, volve a iniciar sesion",
+          401,
+          ROLE_CHANGED,
+        );
+      }
+
       // Fase 166 (FUND-03/FUND-04, D-03): el gimnasio se resuelve y se
       // enforcea PRIMERO — antes de country, de branchIds y de cualquier
       // query adicional. Criterio de la fase: un gimnasio no activo no llega

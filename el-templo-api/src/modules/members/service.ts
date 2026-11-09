@@ -23,6 +23,7 @@ import type { FastifyBaseLogger } from "fastify";
 import argon2 from "argon2";
 import * as schema from "../../db/schema";
 import type { TxHandle } from "../finance/balance-service";
+import { revokeAllRefreshTokensFor } from "../auth/refresh-token-service";
 
 /** Temporary password assigned by admin-driven member creation and password reset. */
 export const MEMBER_TEMP_PASSWORD = "eltemplo2026";
@@ -214,6 +215,9 @@ export async function softDeleteMemberTx(
       dni: null,
     })
     .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, id)));
+
+  // La baja corta las sesiones abiertas (el refresh de 30 días seguía vivo).
+  await revokeAllRefreshTokensFor(executor, id);
 }
 
 export class MemberService {
@@ -2261,6 +2265,10 @@ export class MemberService {
       .update(schema.users)
       .set({ passwordHash })
       .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, id)));
+
+    // Clave reseteada a la temporal: la sesión anterior ya no es de quien
+    // tenía la clave vieja.
+    await revokeAllRefreshTokensFor(this.db, id);
 
     return { ok: true };
   }
