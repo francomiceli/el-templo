@@ -1148,3 +1148,73 @@ Plans:
 - [x] 205-05-PLAN.md — Admin: pestaña Oficina en la ficha del socio
 
 _Unificado el 2026-10-28 (rescate de docs del master local): sobre el ROADMAP de origin/master se sumaron las fases 188.1, 192.1-192.3, 193, 195, 196 (archivada), 198 y 199, 203, con su estado real. Textos de fase tomados de master local (193, 199), `origin/staging` (195), `feat/203-carga-sin-parpadeos` (203), `archive/196-personalizados` (196, 198) y el tren `feat/v6.1-gimnasio` / `feat/192.3-workout-engine` (188.1, 192.x)._
+
+---
+
+## Milestone: Egresos y rendiciones (fases 207-212, fuera de v6.1)
+
+Pedido de administración del 2026-11-10. Decisiones D-01..D-22 en `.planning/egresos-rendiciones/DECISIONES.md`; método y alcance en `.planning/egresos-rendiciones/MILESTONE.md`. Rama `feat/egresos-rendiciones` (worktree `et-egresos`), fases secuenciales.
+
+### Phase 207: Centavos en el sistema de plata + sede del alumno en cada cobro
+
+**Goal**: El ledger y las cajas guardan importes con centavos exactos de punta a punta, y cada cobro guarda la sede del alumno al momento del pago
+**Depends on**: nada. Decisiones en `207-CONTEXT.md`
+**Success Criteria**:
+1. Cobros, traslados, ajustes, retiros, arqueos y saldos aceptan y muestran centavos (hasta 2 decimales) en ARS y EUR
+2. Con datos enteros, Caja, Reportes, Analíticas y Tablero dan exactamente lo mismo que antes
+3. Cada cobro nuevo guarda la sede del alumno en ese momento; los históricos se completan con la sede actual; cambiar la sede de un alumno no altera los cobros pasados
+4. Tablero y Reportes → Cobros usan la sede guardada en el cobro
+5. Tests de integración cubren centavos, validación de 2 decimales, snapshot de sede y no-regresión
+
+### Phase 208: Cuentas — USD, Tesoro, cheque, retiro con destino
+
+**Goal**: Las cuentas reflejan dónde está la plata: cuentas en dólares, Tesoro como efectivo sin sede, cheque como medio, y los retiros de sede entran a Caja central o Tesoro
+**Depends on**: 207
+**Success Criteria**:
+1. Se pueden crear cajas/cuentas en USD; los saldos y reportes por moneda incluyen USD
+2. Se puede crear el Tesoro (efectivo sin sede, una por moneda) con saldo de apertura
+3. Cheque existe como medio; hay una regla única de coherencia medio↔cuenta (efectivo solo desde efectivo/Tesoro; transferencia/débito/tarjeta/cheque solo desde banco)
+4. Un retiro nuevo exige destino (Caja central o Tesoro) y se guarda como traslado: la sede baja y el destino sube; se conservan responsable, conteo y resumen; los retiros viejos no cambian
+5. Central y Tesoro pueden arrancar con un arqueo de apertura del efectivo real
+
+### Phase 209: Egresos — gasto, reparto y pagos
+
+**Goal**: Administración registra gastos con reparto entre sedes/Casa Matriz y uno o varios pagos desde distintas cuentas, y ve lo pagado y lo imputado por mes, en una sección propia del admin
+**Depends on**: 207, 208
+**Success Criteria**:
+1. Sección "Egresos" en Finanzas (Gastos, Por pagar, Resumen, Repartos, Rubros); "Egreso" sale del diálogo de Caja
+2. Gasto: concepto/beneficiario, rubro, mes de imputación, importe, moneda, estimado/confirmado con historial de correcciones, links de comprobante, observaciones
+3. Reparto directo/partes iguales/montos/porcentajes y repartos guardados; suma exacta al centavo; Casa Matriz como destino
+4. Pagos parciales desde varias cuentas, con fecha, medio, TC (BNA vendedor por API con fallback) ; estado pendiente/parcial/pagado y saldo pendiente; cada pago baja el saldo de su cuenta
+5. Resumen por sede: pagado en el mes / costo del mes (incluye estimados y pendientes) / pendiente, con detalle por rubro y concepto y export Excel
+6. Cerrar mes bloquea gastos y pagos del mes; owner/admin reabren con motivo
+7. Importación de la planilla de noviembre
+
+### Phase 210: Caja — extracto por cuenta, por conciliar y cambio de moneda
+
+**Goal**: Cada cuenta se puede conciliar contra el efectivo o el extracto bancario, y los cambios de moneda quedan registrados con su comisión
+**Depends on**: 209
+**Success Criteria**:
+1. Extracto por cuenta y período: apertura, cobros, pagos, traslados recibidos/enviados, ajustes, saldo final, con drill-down a cada movimiento y quién lo registró/corrigió y por qué
+2. "Cobros por conciliar" visible en el extracto y el Resumen, con acceso a la bandeja
+3. Cambio de moneda: entregado, recibido, comisión (gasto automático "Gastos bancarios" a Casa Matriz), cotización real a la vista
+
+### Phase 211: Resultado por sede y consolidado
+
+**Goal**: Owner/admin leen, por mes, el resultado y margen de cada sede y el consolidado argentino
+**Depends on**: 209
+**Success Criteria**:
+1. Por sede: cobros a sus alumnos (sede guardada en el cobro), costos asignados por rubro, resultado, margen ("sin base de cálculo" si no hubo cobros)
+2. Casa Matriz con sus costos; consolidado AR descuenta Casa Matriz una vez; Barcelona aparte en EUR
+3. Solo owner/admin
+
+### Phase 212: Rendiciones a inversores
+
+**Goal**: Administración prepara, compara, aprueba y emite la rendición mensual de cada sede con inversores, y registra sus pagos
+**Depends on**: 211
+**Success Criteria**:
+1. Acuerdo por sede con vigencia: participación, beneficiarios, impuestos pactados con fórmula de piezas fijas
+2. Borrador mensual con inclusión/exclusión de cada gasto con motivo y variantes comparables
+3. Aprobar congela los números (snapshot) y genera la versión breve en PDF
+4. Pagos al inversor vinculados a la rendición que cancelan, fuera de la base de la siguiente
+5. Solo owner/admin
