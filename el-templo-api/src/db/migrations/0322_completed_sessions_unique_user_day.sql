@@ -10,6 +10,8 @@ DELETE c1 FROM completed_sessions c1
 JOIN completed_sessions c2
   ON c1.user_id = c2.user_id AND c1.day_id = c2.day_id AND c1.id < c2.id;
 
--- 2) Unique que cierra la carrera.
+-- 2) Unique que cierra la carrera. Arranca con tenant_id porque completed_sessions es
+-- gym-owned (gate de la 0196). Un socio pertenece a un solo gimnasio, asi que sigue
+-- siendo una fila por (socio, dia).
 ALTER TABLE completed_sessions
-  ADD UNIQUE INDEX completed_sessions_user_day_uq (user_id, day_id);
+  ADD UNIQUE INDEX completed_sessions_user_day_uq (tenant_id, user_id, day_id);

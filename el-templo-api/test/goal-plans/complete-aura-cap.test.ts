@@ -5,7 +5,7 @@
  *   - el dayId tiene que existir en `sessions` y estar `approved` (400);
  *   - el dayId tiene que empezar con `GP-<goalPlanType del plan activo>-` (400);
  *   - la AURA es UN premio por dia local (tope diario);
- *   - UNIQUE (user_id, day_id) en completed_sessions (mig 0322): dos POST
+ *   - UNIQUE (tenant_id, user_id, day_id) en completed_sessions (mig 0322): dos POST
  *     concurrentes del mismo dayId no duplican la fila ni rompen con 500.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
