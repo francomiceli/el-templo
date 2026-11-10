@@ -1359,7 +1359,8 @@ describe("alta de alumno con plan — POST /api/admin/finance/coach-load/alta (a
         filaCharge?.tenant_id,
         filaCharge?.validation_status,
         filaCharge?.cash_register_id,
-        filaCharge?.amount,
+        // Fase 207: `amount` es DECIMAL(14,2) y el SQL crudo lo devuelve como string.
+        Number(filaCharge?.amount),
       ],
       `El charge del alta propia del gimnasio ${TENANT_DOS} no quedo con [gimnasio, estado, caja, ` +
         `importe] consistentes. Respuesta: ${res.body}`,
