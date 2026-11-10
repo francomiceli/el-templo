@@ -44,6 +44,7 @@ import {
   WELLHUB_TEST_SECRET,
   WELLHUB_WEBHOOK_URL,
   checkinPayload,
+  createWellhubVisitor,
   postWellhubWebhook,
   signWellhub,
   stubValidateFetch,
@@ -432,6 +433,131 @@ describe("Wellhub webhook — check-in", () => {
         ),
       );
     expect(rows).toHaveLength(1);
+  });
+
+  // ─── "Ya validado" (prod 2026-11: Moreno y avisos duplicados) ────────────
+
+  const ALREADY_VALIDATED_BODY = {
+    metadata: { total: 0, errors: 1 },
+    errors: [
+      {
+        message: "Check-In already validated",
+        key: "checkin.already.validated",
+      },
+    ],
+  };
+
+  async function visitorAttendance(token: string) {
+    const [visitor] = await app.db
+      .select({ id: schema.users.id })
+      .from(schema.users)
+      .where(
+        and(
+          tenantWhere(schema.users, CTX_TEMPLO),
+          eq(schema.users.gympassId, token),
+        ),
+      );
+    expect(visitor).toBeDefined();
+    return app.db
+      .select()
+      .from(schema.attendance)
+      .where(eq(schema.attendance.memberId, visitor.id));
+  }
+
+  it("validate 400 checkin.already.validated → processed y la visita se registra como validada", async () => {
+    const { calls } = stubValidateFetch(400, ALREADY_VALIDATED_BODY);
+    const token = uniqueToken();
+    const raw = checkinPayload({ token, gymId });
+
+    const res = await postWellhubWebhook(app, raw, signWellhub(raw));
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body).outcome).toBe("processed");
+    expect(calls).toHaveLength(1);
+
+    const rows = await visitorAttendance(token);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].source).toBe("wellhub");
+    expect(rows[0].branchId).toBe(branchId);
+
+    const [event] = await app.db
+      .select()
+      .from(schema.wellhubEvents)
+      .where(
+        sql`/* tenant-safe: aserción sobre datos propios de este test, sin fixture de 2do tenant */ ${schema.wellhubEvents.eventType} = 'checkin'`,
+      );
+    expect(event.status).toBe("processed");
+  });
+
+  it("otro 400 de validate (sin la key de ya validado) sigue siendo ticket inválido", async () => {
+    stubValidateFetch(400, {
+      metadata: { total: 0, errors: 1 },
+      errors: [{ message: "Invalid token", key: "checkin.not.found" }],
+    });
+    const token = uniqueToken();
+    const raw = checkinPayload({ token, gymId });
+
+    const res = await postWellhubWebhook(app, raw, signWellhub(raw));
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body).outcome).toBe("skipped");
+    expect(await visitorAttendance(token)).toHaveLength(0);
+  });
+
+  it("checkin + checkin-booking-occurred en paralelo (OK + ya validado) → UNA sola visita", async () => {
+    // Visitante ya existente: el doble aviso solo llega cuando hubo reserva,
+    // y la reserva crea al visitante antes.
+    const visitor = await createWellhubVisitor(app, { branchId });
+
+    // El primer validate que llega a Wellhub valida; el segundo encuentra el
+    // ticket ya validado (lo que se ve en los logs de prod).
+    const calls: string[] = [];
+    vi.stubGlobal("fetch", async (url: string | URL): Promise<Response> => {
+      calls.push(String(url));
+      const first = calls.length === 1;
+      return new Response(
+        JSON.stringify(
+          first
+            ? {
+                metadata: { total: 1, errors: 0 },
+                results: { validated_at: "2026-11-06T20:55:04Z" },
+              }
+            : ALREADY_VALIDATED_BODY,
+        ),
+        {
+          status: first ? 200 : 400,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+    });
+
+    const ts = Date.now();
+    const rawCheckin = checkinPayload({
+      token: visitor.gympassId,
+      gymId,
+      timestamp: ts,
+    });
+    const rawOccurred = JSON.stringify({
+      ...(JSON.parse(rawCheckin) as Record<string, unknown>),
+      event_type: "checkin-booking-occurred",
+    });
+
+    const [a, b] = await Promise.all([
+      postWellhubWebhook(app, rawCheckin, signWellhub(rawCheckin)),
+      postWellhubWebhook(app, rawOccurred, signWellhub(rawOccurred)),
+    ]);
+    expect(a.statusCode).toBe(200);
+    expect(b.statusCode).toBe(200);
+    const outcomes = [
+      JSON.parse(a.body).outcome as string,
+      JSON.parse(b.body).outcome as string,
+    ].sort();
+    expect(outcomes).toEqual(["already_checked_in", "processed"]);
+
+    const rows = await app.db
+      .select()
+      .from(schema.attendance)
+      .where(eq(schema.attendance.memberId, visitor.id));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].source).toBe("wellhub");
   });
 
   it("vincula por email a un usuario existente en vez de duplicarlo", async () => {

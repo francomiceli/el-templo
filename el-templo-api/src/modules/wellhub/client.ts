@@ -39,6 +39,37 @@ export class WellhubApiError extends Error {
   }
 }
 
+/**
+ * `true` si Wellhub rechazó la validación porque el check-in YA estaba
+ * validado (400 con `errors[].key = "checkin.already.validated"`).
+ *
+ * No es un ticket inválido: el check-in es bueno y ya cuenta para el pago.
+ * Pasa en dos casos vistos en producción (2026-11):
+ *  - Wellhub manda `checkin` y `checkin-booking-occurred` del mismo check-in
+ *    casi en el mismo segundo; el segundo aviso encuentra el ticket validado
+ *    por el primero.
+ *  - La unidad de Wellhub de la sede valida sola (Moreno, gym 856836): el
+ *    "ya validado" llega en el primer y único aviso.
+ */
+export function isCheckinAlreadyValidated(err: unknown): boolean {
+  if (!(err instanceof WellhubApiError) || err.status !== 400) return false;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(err.responseBody);
+  } catch {
+    return false;
+  }
+  if (typeof parsed !== "object" || parsed === null) return false;
+  const errors = (parsed as { errors?: unknown }).errors;
+  if (!Array.isArray(errors)) return false;
+  return errors.some(
+    (e: unknown) =>
+      typeof e === "object" &&
+      e !== null &&
+      (e as { key?: unknown }).key === "checkin.already.validated",
+  );
+}
+
 interface RequestOptions {
   headers?: Record<string, string>;
   body?: unknown;
