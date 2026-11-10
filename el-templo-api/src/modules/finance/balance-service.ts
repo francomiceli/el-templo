@@ -23,6 +23,7 @@ import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { BadRequestError } from "../shared/errors";
+import { compareMoney, roundMoney } from "../shared/money";
 import {
   tenantValues,
   tenantWhere,
@@ -135,7 +136,7 @@ export class BalanceService {
         transaction.direction === "inflow"
           ? -link.allocatedAmount
           : +link.allocatedAmount;
-      const delta = sign * baseDelta;
+      const delta = roundMoney(sign * baseDelta);
 
       // Look up existing row by the UNIQUE composite key.
       // Fase 172: la unique de `balances` lleva `tenant_id` (fase 168), así que
@@ -179,8 +180,10 @@ export class BalanceService {
         // pago, y un void que la re-abre (> 0) la devuelve a 'activa'.
         // 'incobrable' con saldo > 0 no se toca. Same-tx: atómico con el
         // update del cache. Sin fila de gestión no hay nada que sincronizar.
-        const newAmount = Number(row.amount) + delta;
-        if (newAmount <= 0) {
+        // Fase 207: en centavos. Con floats un saldo de 1e-14 dejaría la deuda
+        // en 'activa' después de pagarla completa.
+        const newAmount = roundMoney(Number(row.amount) + delta);
+        if (compareMoney(newAmount, 0) <= 0) {
           await tx
             .update(schema.debtManagement)
             .set({ status: "cobrada" })
@@ -251,7 +254,7 @@ export class BalanceService {
       // For target_kind='debt_balance': seedAmount stays 0 — caller must
       // have seeded the row already if it represents a positive obligation.
 
-      const finalAmount = seedAmount + delta;
+      const finalAmount = roundMoney(seedAmount + delta);
       // El gimnasio se estampa DESPUÉS del literal: `tenantValues` gana sobre
       // cualquier `tenantId` que viniera del objeto, y la fila nueva nace en el
       // gimnasio del cobro y no en el DEFAULT de la columna.
@@ -292,7 +295,7 @@ export class BalanceService {
     const rows = await this.db
       .select({
         currency: schema.balances.currency,
-        amount: sql<number>`CAST(SUM(${schema.balances.amount}) AS SIGNED)`,
+        amount: sql<number>`COALESCE(SUM(${schema.balances.amount}), 0)`,
       })
       .from(schema.balances)
       .innerJoin(
@@ -325,7 +328,7 @@ export class BalanceService {
 
     return rows.map((r) => ({
       currency: r.currency,
-      amount: Number(r.amount),
+      amount: roundMoney(Number(r.amount)),
     }));
   }
 

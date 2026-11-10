@@ -63,6 +63,13 @@ import {
   NotFoundError,
 } from "../shared/errors";
 import { buildMemberNameSearchCondition } from "../shared/member-search";
+import {
+  assertMoneyAmount,
+  fromCents,
+  moneyEquals,
+  sumMoney,
+  toCents,
+} from "../shared/money";
 import { notTrialPlanSql } from "../shared/membership";
 import {
   WithdrawalService,
@@ -221,10 +228,27 @@ export class TransactionService {
           this.db.transaction(cb);
 
     return await runner<TransactionDetail>(async (txHandle) => {
+      // Fase 207: red de seguridad central de importes. Todos los caminos de
+      // alta (REST, PoS profe, ficha, traslados, retiros, correct) pasan por
+      // acá: un importe con 3 decimales o con basura de float se corta con 400
+      // en vez de llegar redondeado en silencio a la DECIMAL(14,2).
+      assertMoneyAmount(input.amount, { label: "El monto", allowZero: true });
+      for (const l of input.links) {
+        assertMoneyAmount(l.allocatedAmount, {
+          label: "El monto asignado",
+          allowZero: true,
+        });
+      }
+
       // 1a. Σ allocated_amount === amount when links non-empty (TXN-06).
+      // Se compara en centavos enteros: con floats 0.1 + 0.2 !== 0.3.
       if (input.links.length > 0) {
-        const sum = input.links.reduce((acc, l) => acc + l.allocatedAmount, 0);
-        if (sum !== input.amount) {
+        if (
+          !moneyEquals(
+            sumMoney(input.links.map((l) => l.allocatedAmount)),
+            input.amount,
+          )
+        ) {
           throw new BadRequestError(
             "La suma de los montos asignados no coincide con el monto de la transaccion",
           );
@@ -2702,6 +2726,10 @@ export class TransactionService {
       direct_debit: 0,
     });
     const byKey = new Map<string, IncomeByBranchRow>();
+    const centsByKey = new Map<
+      string,
+      { byMethod: Record<PaymentMethod, number>; total: number }
+    >();
     for (const r of rows) {
       if (r.branchId === null) continue;
       const key = `${r.branchId}:${r.currency}`;
@@ -2715,10 +2743,22 @@ export class TransactionService {
           total: 0,
         };
         byKey.set(key, row);
+        centsByKey.set(key, { byMethod: emptyByMethod(), total: 0 });
       }
-      const amount = Number(r.total);
-      row.byMethod[r.paymentMethod] += amount;
-      row.total += amount;
+      // Fase 207: se acumula en centavos enteros y se divide al final.
+      const cents = toCents(Number(r.total));
+      const acc = centsByKey.get(key)!;
+      acc.byMethod[r.paymentMethod] += cents;
+      acc.total += cents;
+    }
+    for (const [key, row] of byKey) {
+      const acc = centsByKey.get(key)!;
+      row.total = fromCents(acc.total);
+      for (const m of Object.keys(acc.byMethod) as Array<
+        keyof typeof acc.byMethod
+      >) {
+        row.byMethod[m] = fromCents(acc.byMethod[m]);
+      }
     }
     return Array.from(byKey.values()).sort(
       (a, b) =>
