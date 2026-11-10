@@ -56,6 +56,7 @@ import {
   requireBranchAccess,
 } from "../shared/branch-access";
 import { isDuplicateKeyError } from "../shared/sql-errors";
+import { MONEY_NON_NEGATIVE_SCHEMA } from "../shared/money";
 import * as schema from "../../db/schema";
 import type { PaymentMethod, TransactionDetail } from "./types";
 
@@ -1287,7 +1288,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
           additionalProperties: false,
           properties: {
             branchId: { type: "integer", minimum: 1 },
-            countedAmount: { type: "integer", minimum: 0 },
+            countedAmount: MONEY_NON_NEGATIVE_SCHEMA,
             notes: { type: ["string", "null"], maxLength: 2000 },
             staffShiftId: { type: "integer", minimum: 1 },
           },

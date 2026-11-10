@@ -762,7 +762,7 @@ export const createEfectivoCajaSchema = {
     properties: {
       branchId: { type: "integer", minimum: 1 },
       currency: { type: "string", minLength: 3, maxLength: 3 },
-      openingBalance: { type: "integer", minimum: 0 },
+      openingBalance: MONEY_NON_NEGATIVE_SCHEMA,
     },
   },
   response: {
@@ -1218,7 +1218,7 @@ export const registerCashCountSchema = {
     required: ["cajaId", "countedAmount"],
     properties: {
       cajaId: { type: "integer", minimum: 1 },
-      countedAmount: { type: "integer", minimum: 0 },
+      countedAmount: MONEY_NON_NEGATIVE_SCHEMA,
       notes: { type: ["string", "null"], maxLength: 2000 },
       staffShiftId: { type: "integer", minimum: 1 },
     },
@@ -1254,7 +1254,7 @@ export const setChangeFundSchema = {
   body: {
     type: "object",
     required: ["amount"],
-    properties: { amount: { type: "integer", minimum: 0 } },
+    properties: { amount: MONEY_NON_NEGATIVE_SCHEMA },
     additionalProperties: false,
   },
   response: { 400: errorSchema, 401: errorSchema, 403: errorSchema, 404: errorSchema, 500: errorSchema },
