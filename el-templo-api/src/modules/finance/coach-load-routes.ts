@@ -56,7 +56,11 @@ import {
   requireBranchAccess,
 } from "../shared/branch-access";
 import { isDuplicateKeyError } from "../shared/sql-errors";
-import { MONEY_NON_NEGATIVE_SCHEMA } from "../shared/money";
+import {
+  compareMoney,
+  MONEY_NON_NEGATIVE_SCHEMA,
+  roundMoney,
+} from "../shared/money";
 import * as schema from "../../db/schema";
 import type { PaymentMethod, TransactionDetail } from "./types";
 
@@ -130,7 +134,7 @@ interface CoachAltaBody {
   // apaga). Solo alta.
   prorateToMonthEnd?: boolean;
   priceOverrideAmount?: number;
-  // Monto recibido (cents). < precio → deja deuda (assignPlan lo soporta).
+  // Monto recibido en pesos/euros con hasta 2 decimales. < precio → deja deuda (assignPlan lo soporta).
   amountReceived?: number;
   // Solo planes fixed: assignPlan valida length === plan.classesPerWeek.
   scheduleIds?: number[];
@@ -164,7 +168,8 @@ const coachPayPlanSchema = {
     additionalProperties: false,
     properties: {
       userId: { type: "integer", minimum: 1 },
-      amountReceived: { type: "integer", minimum: 0 },
+      amountReceived: MONEY_NON_NEGATIVE_SCHEMA,
+      // Precio de catálogo: entero (DI-03); el monto recibido sí lleva centavos (fase 207).
       // Precio acordado (2026-09-07): renovación a precio distinto del de
       // lista, con motivo. Sin deuda. Ver CoachPayPlanBody.
       priceOverrideAmount: { type: "integer", minimum: 0 },
@@ -197,7 +202,7 @@ const coachMiscLoadSchema = {
     additionalProperties: false,
     properties: {
       memberId: { type: "integer", minimum: 1 },
-      amount: { type: "integer", minimum: 0 },
+      amount: MONEY_NON_NEGATIVE_SCHEMA,
       concepto: { type: "string", minLength: 1, maxLength: 500 },
       paymentMethod: { type: "string", enum: PAYMENT_METHOD_ENUM },
       currency: { type: "string", minLength: 1, maxLength: 8 },
@@ -240,7 +245,7 @@ const coachAltaSchema = {
       prorateToMonthEnd: { type: "boolean" },
       priceOverrideAmount: { type: "integer", minimum: 0 },
       paymentMethod: { type: "string", enum: PAYMENT_METHOD_ENUM },
-      amountReceived: { type: "integer", minimum: 0 },
+      amountReceived: MONEY_NON_NEGATIVE_SCHEMA,
       scheduleIds: {
         type: "array",
         items: { type: "integer", minimum: 1 },
@@ -324,7 +329,8 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         sub.id,
         sub.currency,
       );
-      if (row && row.amount > 0) return { sub, outstanding: row.amount };
+      if (row && compareMoney(row.amount, 0) > 0)
+        return { sub, outstanding: row.amount };
     }
     return null;
   }
@@ -606,7 +612,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         const sub = settle?.sub ?? null;
         const outstanding = settle?.outstanding ?? 0;
 
-        if (sub && outstanding > 0) {
+        if (sub && compareMoney(outstanding, 0) > 0) {
           // ── SETTLE the existing debt — no new period (the plan is already
           // assigned/active; the profe is just collecting what's owed). ──
           if (priceOverrideAmount !== undefined || prorateToMonthEnd) {
@@ -614,20 +620,20 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
             // saldo: aplicarlos acá dejaría la deuda vieja "descontada" sin rastro.
             return reply.code(400).send({
               error: "Solicitud invalida",
-              message: `El socio tiene saldo pendiente ($${outstanding}): primero se cobra la deuda, el precio acordado o el prorrateo aplican a la renovación`,
+              message: `El socio tiene saldo pendiente ($${roundMoney(outstanding)}): primero se cobra la deuda, el precio acordado o el prorrateo aplican a la renovación`,
             });
           }
           const amount = amountReceived ?? outstanding;
-          if (amount <= 0) {
+          if (compareMoney(amount, 0) <= 0) {
             return reply.code(400).send({
               error: "Solicitud invalida",
               message: "El monto debe ser mayor a cero",
             });
           }
-          if (amount > outstanding) {
+          if (compareMoney(amount, outstanding) > 0) {
             return reply.code(400).send({
               error: "Solicitud invalida",
-              message: `El monto no puede exceder la deuda ($${outstanding})`,
+              message: `El monto no puede exceder la deuda ($${roundMoney(outstanding)})`,
             });
           }
           const today = new Date().toISOString().split("T")[0];
@@ -1155,11 +1161,11 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
           planName: shown.planName,
           // Pre-fill the debt when there is one, else the renewal price.
           amount:
-            outstanding > 0
+            compareMoney(outstanding, 0) > 0
               ? outstanding
               : await renewAmountFor(ctx, request.params.userId, sub.pricePaid),
           currency: shown.currency,
-          intent: outstanding > 0 ? "settle" : "renew",
+          intent: compareMoney(outstanding, 0) > 0 ? "settle" : "renew",
           outstanding,
           // Vencimiento de la sub vigente (UAT caja/cobros 2026-07-21). La PoS lo
           // usa para explicitar que renovar ANTES del vencimiento no pisa el
