@@ -808,6 +808,52 @@ export async function seedAuraBalance(
 }
 
 /**
+ * Siembra una sesion en `sessions` (sin bloques) para que los POST de "completar"
+ * la acepten: Tanda 2 / #4 exige que el dayId exista y este `approved`.
+ * Idempotente por dayId (borra y re-inserta). Deriva week/day/levelGroup del
+ * dayId (`W3-lunes-alfa` o `GP-tren_superior-W1-lunes-alfa`).
+ *
+ * @returns id de la fila sembrada.
+ */
+export async function seedApprovedSession(
+  app: FastifyInstance,
+  dayId: string,
+  extras: {
+    status?: string;
+    sessionMode?: string;
+    goalPlanType?: string | null;
+  } = {},
+): Promise<number> {
+  const match = /(?:^|-)W(\d+)-([a-z]+)-([a-z]+)$/.exec(dayId);
+  if (!match) throw new Error(`seedApprovedSession: dayId invalido ${dayId}`);
+  const [, week, day, level] = match;
+  const levelGroup =
+    level === "sigma" ? "sigma" : level === "omega" ? "omega" : "alfa_delta";
+  const ctx = { tenantId: 1 };
+  await app.db
+    .delete(schema.sessions)
+    .where(
+      and(tenantWhere(schema.sessions, ctx), eq(schema.sessions.dayId, dayId)),
+    );
+  const [row] = await app.db
+    .insert(schema.sessions)
+    .values(
+      tenantValues(ctx, {
+        dayId,
+        week: Number(week),
+        day,
+        levelGroup,
+        blockCount: 0,
+        status: extras.status ?? "approved",
+        sessionMode: extras.sessionMode ?? "regular",
+        goalPlanType: extras.goalPlanType ?? null,
+      }),
+    )
+    .$returningId();
+  return row.id;
+}
+
+/**
  * Create a staff user directly in the database (bypasses API auth).
  * Returns the created user's ID.
  *

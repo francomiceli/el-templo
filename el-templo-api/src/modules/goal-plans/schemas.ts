@@ -156,9 +156,9 @@ export const completeGoalPlanSchema = {
     type: "object",
     required: ["dayId", "date", "startedAt", "blocksCompleted"],
     properties: {
-      dayId: { type: "string" },
+      dayId: { type: "string", maxLength: 50 },
       date: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
-      startedAt: { type: "string" },
+      startedAt: { type: "string", maxLength: 40 },
       blocksCompleted: {
         type: "array",
         items: { type: "string" },
@@ -171,7 +171,7 @@ export const completeGoalPlanSchema = {
         },
       },
       rpe: { type: ["integer", "null"], minimum: 1, maximum: 10 },
-      notes: { type: ["string", "null"] },
+      notes: { type: ["string", "null"], maxLength: 2000 },
     },
   },
   response: {
@@ -193,6 +193,7 @@ export const completeGoalPlanSchema = {
       type: "object",
       properties: {
         error: { type: "string" },
+        message: { type: "string" },
       },
     },
   },

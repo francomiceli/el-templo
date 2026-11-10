@@ -34,7 +34,10 @@ import { TRAINING_ROLES, MEMBER_ROLES } from "../shared/permissions";
 import { parseDayId, isTrainingLevel } from "../shared/training-constants";
 import type { ExerciseLevel } from "../sessions/types";
 import { attachCountryScope } from "../shared/country-scope";
-import { assertTenant, tenantWhere } from "../shared/tenant";
+import { assertTenant, tenantValues, tenantWhere } from "../shared/tenant";
+import { isDuplicateKeyError } from "../shared/sql-errors";
+import { awardOncePerLocalDay, localDateForBranch } from "../aura/daily-award";
+import { SessionGeneratorService } from "../sessions/service";
 
 /**
  * Convert a goal plan DaySession to API response format.
@@ -102,6 +105,7 @@ function goalPlanSessionToResponse(session: DaySession) {
 export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
   const goalPlanService = new GoalPlanService(fastify.db);
   const auraService = new AuraService(fastify.db);
+  const sessionGeneratorService = new SessionGeneratorService(fastify.db);
 
   // =========================================================================
   // Member Endpoints (require authentication)
@@ -296,6 +300,15 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: "dayId invalido: nivel no reconocido" });
       }
 
+      // Tanda 2 / #4: el dayId tiene que ser una sesion real y aprobada. Sin
+      // filtro de tenant, igual que /daily (seguimiento para el tren 192).
+      if (!(await sessionGeneratorService.approvedSessionExists(dayId))) {
+        return reply.status(400).send({
+          error: "Solicitud invalida",
+          message: "dayId invalido: la sesion no existe o no esta aprobada",
+        });
+      }
+
       // Get user info
       const [user] = await fastify.db
         .select({ branchId: schema.users.branchId })
@@ -319,6 +332,14 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
         });
       }
 
+      // Tanda 2 / #4: el dayId tiene que pertenecer al plan activo del socio.
+      if (!dayId.startsWith(`GP-${activeGoalPlan.goalPlanType}-`)) {
+        return reply.status(400).send({
+          error: "Solicitud invalida",
+          message: "dayId invalido: no corresponde a tu plan por objetivos",
+        });
+      }
+
       try {
         // Record completion in completed_sessions with goal plan metadata
         const [existing] = await fastify.db
@@ -326,58 +347,89 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
           .from(schema.completedSessions)
           .where(
             and(
+              tenantWhere(schema.completedSessions, ctx),
               eq(schema.completedSessions.userId, userId),
               eq(schema.completedSessions.dayId, dayId),
             ),
           );
 
-        let completionId: number;
+        const startedAtDate = new Date(startedAt);
+        const completedAt = new Date();
+        // Campos que se actualizan cuando la sesion ya estaba completada.
+        const updateFields = {
+          date,
+          startedAt: startedAtDate,
+          completedAt,
+          rpe: rpe ?? null,
+          notes: notes ?? null,
+          blocksCompleted,
+          exercisesCompleted: exercisesCompleted ?? null,
+          goalPlanType: activeGoalPlan.goalPlanType,
+          sessionLevel,
+        };
         if (existing) {
-          completionId = existing.id;
           await fastify.db
             .update(schema.completedSessions)
-            .set({
-              date,
-              startedAt: new Date(startedAt),
-              completedAt: new Date(),
-              rpe: rpe ?? null,
-              notes: notes ?? null,
-              blocksCompleted,
-              exercisesCompleted: exercisesCompleted ?? null,
-              goalPlanType: activeGoalPlan.goalPlanType,
-              sessionLevel,
-            })
-            .where(eq(schema.completedSessions.id, existing.id));
+            .set(updateFields)
+            .where(
+              and(
+                tenantWhere(schema.completedSessions, ctx),
+                eq(schema.completedSessions.id, existing.id),
+              ),
+            );
         } else {
-          const result = await fastify.db
-            .insert(schema.completedSessions)
-            .values({
-              userId,
-              dayId,
-              date,
-              branchId: user.branchId,
-              startedAt: new Date(startedAt),
-              completedAt: new Date(),
-              rpe: rpe ?? null,
-              notes: notes ?? null,
-              blocksCompleted,
-              exercisesCompleted: exercisesCompleted ?? null,
-              goalPlanType: activeGoalPlan.goalPlanType,
-              sessionLevel,
-            });
-          completionId = Number(result[0].insertId);
+          try {
+            await fastify.db.insert(schema.completedSessions).values(
+              tenantValues(ctx, {
+                userId,
+                dayId,
+                branchId: user.branchId,
+                ...updateFields,
+              }),
+            );
+          } catch (insertErr: unknown) {
+            // Carrera con otro POST del mismo (userId, dayId): el unique
+            // (user_id, day_id) rechaza el segundo INSERT. Se relee la fila
+            // ganadora y se actualiza.
+            if (!isDuplicateKeyError(insertErr).isDuplicate) throw insertErr;
+            const [winner] = await fastify.db
+              .select({ id: schema.completedSessions.id })
+              .from(schema.completedSessions)
+              .where(
+                and(
+                  tenantWhere(schema.completedSessions, ctx),
+                  eq(schema.completedSessions.userId, userId),
+                  eq(schema.completedSessions.dayId, dayId),
+                ),
+              );
+            if (!winner) throw insertErr;
+            await fastify.db
+              .update(schema.completedSessions)
+              .set(updateFields)
+              .where(
+                and(
+                  tenantWhere(schema.completedSessions, ctx),
+                  eq(schema.completedSessions.id, winner.id),
+                ),
+              );
+          }
         }
 
-        // Award AURA for goal plan completion
+        // AURA por sesion de plan por objetivos, con tope diario (Tanda 2 /
+        // #4): un solo premio por dia local del socio. Nunca rompe el cierre.
         try {
-          await auraService.award({
+          const localDate = await localDateForBranch(
+            fastify.db,
+            ctx,
+            user.branchId,
+          );
+          await awardOncePerLocalDay(auraService, request.log, {
             userId,
             sourceType: "goal_plan_completion",
-            referenceType: "goal_plan_session",
-            referenceId: completionId,
+            referenceType: "goal_plan_day",
+            localDate,
           });
         } catch (auraErr: unknown) {
-          // Log but don't fail the completion if AURA award fails (e.g., duplicate)
           request.log.warn(
             { err: auraErr, userId, dayId },
             "AURA award failed for goal plan completion",

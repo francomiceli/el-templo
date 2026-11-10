@@ -998,7 +998,7 @@ export const uploadPhotoUrlSchema = {
     type: "object",
     required: ["filename"],
     properties: {
-      filename: { type: "string", minLength: 1 },
+      filename: { type: "string", minLength: 1, maxLength: 255 },
     },
   },
   response: {

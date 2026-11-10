@@ -25,6 +25,7 @@ import {
   getAuthToken,
   registerUser,
   cleanAllTestData,
+  seedApprovedSession,
 } from "../helpers";
 import * as schema from "../../src/db/schema";
 import {
@@ -39,6 +40,18 @@ import { setModuleFlag, restoreTemploFlags } from "../fixtures/module-flags";
 // Archivo single-tenant (solo El Templo): filtro preciso, no exencion.
 const CTX_TEMPLO: TenantContext = { tenantId: 1 };
 
+// Tanda 2 / #4: completar exige un dayId aprobado en `sessions`. El nivel es
+// siempre "alfa"; los 7 se usan para llegar al milestone de racha 7 el mismo dia.
+const SEVEN_DAY_IDS = [
+  "W1-lunes-alfa",
+  "W1-martes-alfa",
+  "W1-miercoles-alfa",
+  "W1-jueves-alfa",
+  "W1-viernes-alfa",
+  "W1-sabado-alfa",
+  "W2-lunes-alfa",
+];
+
 describe("Streak Service Integration", () => {
   let app: FastifyInstance;
   let memberToken: string;
@@ -50,6 +63,11 @@ describe("Streak Service Integration", () => {
 
   beforeEach(async () => {
     await cleanAllTestData(app);
+
+    // cleanAllTestData vacia `sessions`: se siembran por test.
+    for (const dayId of SEVEN_DAY_IDS) {
+      await seedApprovedSession(app, dayId);
+    }
 
     // Clean and re-seed AURA config for this test suite
     await app.db.delete(schema.auraConfig);
@@ -224,7 +242,7 @@ describe("Streak Service Integration", () => {
     );
     expect(trainingTx).toBeDefined();
     expect(trainingTx!.amount).toBe(10);
-    expect(trainingTx!.referenceType).toBe("completed_session");
+    expect(trainingTx!.referenceType).toBe("training_day");
 
     // Check balance
     const [balance] = await app.db
@@ -246,18 +264,9 @@ describe("Streak Service Integration", () => {
    * `templo-gamification` apagado no se otorga AURA por racha).
    */
   describe("streak.milestone — event del módulo", () => {
-    // 7 dayIds distintos (mismo nivel "alfa", parseDayId no valida que el
-    // dia/semana existan de verdad) para completar 7 sesiones el mismo dia
-    // y llegar al milestone de racha 7 sin depender del calendario real.
-    const SEVEN_DAY_IDS = [
-      "W1-lunes-alfa",
-      "W1-martes-alfa",
-      "W1-miercoles-alfa",
-      "W1-jueves-alfa",
-      "W1-viernes-alfa",
-      "W1-sabado-alfa",
-      "W2-lunes-alfa",
-    ];
+    // Se completan 7 sesiones el mismo dia (SEVEN_DAY_IDS, sembradas en el
+    // beforeEach) para llegar al milestone de racha 7 sin depender del
+    // calendario real.
 
     afterEach(async () => {
       // Idempotente por (modulo, key): esto deja el registry de proceso

@@ -427,7 +427,9 @@ import {
 // 2026-11-05: 554 -> 555 por la dirección del socio (pop-up de Mi Templo):
 // `PUT /api/auth/me/address`, `tenant-scoped` (pre-scope por diseño, mismo
 // criterio que sus hermanas de /api/auth/me).
-const ENTRADAS_BASELINE = 555;
+// 2026-11-09: 555 -> 554 por la Tanda 2 de seguridad (hallazgo #19): se borra
+// `GET /api/sessions/:id` (sin clientes) junto con su línea del manifiesto.
+const ENTRADAS_BASELINE = 554;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -570,7 +572,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 555 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 554 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(

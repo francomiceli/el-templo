@@ -36,6 +36,9 @@ export type AuditAction =
   | "subscription_cancelled"
   | "transaction_voided"
   | "plan_assigned"
+  // Renovación manual de una suscripción (hotfix seguridad tanda 2): mismo
+  // rastro forense que plan_assigned, sobre la sub NUEVA del período.
+  | "subscription_renewed"
   | "reconciliation"
   | "days_compensated"
   // Phase 137 (D-08): validation state machine transitions reuse audit-log

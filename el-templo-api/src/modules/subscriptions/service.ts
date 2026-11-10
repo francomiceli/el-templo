@@ -6448,6 +6448,27 @@ export class SubscriptionService {
         userId,
       );
 
+      // Rastro forense de la renovación (mismo patrón que plan_assigned): en la
+      // MISMA tx, así que si el cobro o la sub fallan la fila desaparece con ellos.
+      await auditLog.write(ctx, tx, {
+        actorId: adminId,
+        action: "subscription_renewed",
+        targetKind: "subscription",
+        targetId: subId,
+        payload: {
+          subId,
+          previousSubscriptionId: currentSub.id,
+          targetUserId: userId,
+          planId: plan.id,
+          branchId: renewBranchId,
+          pricePaid: renewalPrice,
+          paymentMethod: input.paymentMethod,
+          startDate: newStartDate,
+          endDate: newEndDate,
+          status: newStatus,
+        },
+      });
+
       return { newSubscriptionId: subId };
     });
 
