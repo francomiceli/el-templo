@@ -1169,7 +1169,7 @@ Pedido de administración del 2026-11-10. Decisiones D-01..D-22 en `.planning/eg
 **Plans:** 12 plans (secuenciales, una wave cada uno)
 
 Plans:
-- [ ] 207-01-PLAN.md — Base: migraciones 0327 (15 columnas a DECIMAL(14,2) + `member_branch_id`) y 0328 (backfill), schemas Drizzle, helper `shared/money.ts` y keyword Ajv `moneyTwoDecimals`
+- [x] 207-01-PLAN.md — Base: migraciones 0327 (15 columnas a DECIMAL(14,2) + `member_branch_id`) y 0328 (backfill), schemas Drizzle, helper `shared/money.ts` y keyword Ajv `moneyTwoDecimals`
 - [ ] 207-02-PLAN.md — Ledger: `TransactionService`/`BalanceService` en centavos y schemas de las rutas de transacciones (body y respuesta)
 - [ ] 207-03-PLAN.md — Cajas I: saldos, saldo inicial, fondo de cambio, arqueos (gestión y cierre de jornada) y guard de efectivo
 - [ ] 207-04-PLAN.md — Cajas II: traslados, egresos y retiros (ajustes por conteo al centavo)
