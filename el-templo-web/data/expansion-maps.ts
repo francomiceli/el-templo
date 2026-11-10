@@ -1,3 +1,4 @@
+// deploy: redeploy tras CI rojo por test de lifecycle (2026-11-10)
 /**
  * Expansion map configuration — GPS coordinates for all sedes
  * and Leaflet map configs for the FranExpansion 3-column layout.

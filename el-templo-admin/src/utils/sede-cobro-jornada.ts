@@ -1,3 +1,4 @@
+// deploy: redeploy tras CI rojo por test de lifecycle (2026-11-10)
 /**
  * Aviso "sede del cobro ≠ sede donde estás" en la PoS (Cobros).
  *
