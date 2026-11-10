@@ -49,7 +49,10 @@ import {
 } from "../shared/errors";
 import { sameActivityKindSql, specialLineLabel } from "./special-line";
 import { categoryGroup, isInvitationPlan } from "../subscriptions/types";
-import { BOOKING_CANCEL_WINDOW_MINUTES } from "./booking-constants";
+import {
+  effectiveBookingCloseMinutes,
+  effectiveCancelCloseMinutes,
+} from "./booking-constants";
 import { getEffectiveCapacity as resolveSlotCapacity } from "./capacity";
 import { getScheduleException } from "./schedule-exceptions";
 import {
@@ -590,22 +593,28 @@ export class BookingService {
       throw new BadRequestError("Esta reserva ya fue cancelada");
     }
 
-    // 3. Validate cancellation window (at least 20 min before class)
+    // 3. Validate cancellation window: corte de la actividad
+    //    (activities.cancel_close_minutes) o el default global de 20 min.
     const scheduleRow = await this.getScheduleSlotRaw(
       ctx,
       bookingRow.scheduleId,
     );
-    if (
-      scheduleRow &&
-      !this.isWithinCancelWindow(
-        scheduleRow.startTime,
-        bookingRow.bookingDate,
-        scheduleRow.branchTimezone,
-      )
-    ) {
-      throw new BadRequestError(
-        `No se puede cancelar menos de ${BOOKING_CANCEL_WINDOW_MINUTES} minutos antes`,
+    if (scheduleRow) {
+      const cancelCloseMinutes = effectiveCancelCloseMinutes(
+        scheduleRow.cancelCloseMinutes,
       );
+      if (
+        !this.isBeforeCutoff(
+          scheduleRow.startTime,
+          bookingRow.bookingDate,
+          scheduleRow.branchTimezone,
+          cancelCloseMinutes,
+        )
+      ) {
+        throw new BadRequestError(
+          `No se puede cancelar menos de ${cancelCloseMinutes} minutos antes`,
+        );
+      }
     }
 
     const previousStatus = bookingRow.status;
@@ -2165,7 +2174,7 @@ export class BookingService {
    * Shared date-window validation for member reservations (+2d) and trials
    * (+30d). Runs four checks in order, all branch-timezone aware:
    *   - date within [today, today + windowDays]
-   *   - the slot hasn't already passed today (isWithinBookingWindow)
+   *   - now is before the activity's booking cutoff (isBeforeCutoff)
    *   - the date's dayOfWeek matches the schedule's dayOfWeek
    *   - the date is not a holiday in the branch's country
    * The subscription check is intentionally NOT here — callers add it as needed.
@@ -2177,6 +2186,7 @@ export class BookingService {
       branchTimezone: string;
       startTime: string;
       dayOfWeek: number;
+      bookingCloseMinutes: number | null;
     },
     date: string,
     windowDays: number,
@@ -2197,8 +2207,27 @@ export class BookingService {
       );
     }
 
-    if (!this.isWithinBookingWindow(scheduleRow.startTime, date, tz)) {
-      throw new BadRequestError("Este horario ya paso");
+    // Corte de reserva: el de la actividad (activities.booking_close_minutes)
+    // o el default global de 5 min. Con corte propio el mensaje lo dice, así
+    // el socio entiende por qué no puede reservar una clase que todavía no
+    // empezó. Sin corte propio se mantiene el mensaje de siempre.
+    const bookingCloseMinutes = effectiveBookingCloseMinutes(
+      scheduleRow.bookingCloseMinutes,
+    );
+    if (
+      !this.isBeforeCutoff(scheduleRow.startTime, date, tz, bookingCloseMinutes)
+    ) {
+      const classStarted = !this.isBeforeCutoff(
+        scheduleRow.startTime,
+        date,
+        tz,
+        0,
+      );
+      throw new BadRequestError(
+        scheduleRow.bookingCloseMinutes === null || classStarted
+          ? "Este horario ya paso"
+          : `Las reservas de esta clase cierran ${bookingCloseMinutes} minutos antes del inicio`,
+      );
     }
 
     // dayOfWeek match (noon UTC to avoid timezone shifts)
@@ -2255,34 +2284,21 @@ export class BookingService {
   }
 
   /**
-   * Check if now is within booking window (up to 5 min before class).
+   * True while "now" is at least `minutesBefore` minutes before the class start.
+   * Shared by the booking cutoff (activity's booking_close_minutes, default 5)
+   * and the cancellation cutoff (cancel_close_minutes, default 20).
    * `tz` is the branch's IANA timezone — required for DST-correct cutoffs
    * across branches in different regions.
    */
-  private isWithinBookingWindow(
+  private isBeforeCutoff(
     scheduleStartTime: string,
     bookingDate: string,
     tz: string,
+    minutesBefore: number,
   ): boolean {
     const now = new Date();
     const classTime = buildClassDateTime(bookingDate, scheduleStartTime, tz);
-    const cutoff = new Date(classTime.getTime() - 5 * 60 * 1000);
-    return now <= cutoff;
-  }
-
-  /**
-   * Check if now is within cancellation window (at least 20 min before class).
-   */
-  private isWithinCancelWindow(
-    scheduleStartTime: string,
-    bookingDate: string,
-    tz: string,
-  ): boolean {
-    const now = new Date();
-    const classTime = buildClassDateTime(bookingDate, scheduleStartTime, tz);
-    const cutoff = new Date(
-      classTime.getTime() - BOOKING_CANCEL_WINDOW_MINUTES * 60 * 1000,
-    );
+    const cutoff = new Date(classTime.getTime() - minutesBefore * 60 * 1000);
     return now <= cutoff;
   }
 
@@ -2759,6 +2775,9 @@ export class BookingService {
     isSpecial: boolean;
     // Línea del pase especial (2026-09-29), también resuelta server-side.
     specialLine: string | null;
+    // Cortes por actividad (0326). NULL = default global (booking-constants).
+    bookingCloseMinutes: number | null;
+    cancelCloseMinutes: number | null;
   } | null> {
     const [row] = await this.db
       .select({
@@ -2773,6 +2792,8 @@ export class BookingService {
         inactiveReason: schema.schedules.inactiveReason,
         isSpecial: schema.activities.isSpecial,
         specialLine: schema.activities.specialLine,
+        bookingCloseMinutes: schema.activities.bookingCloseMinutes,
+        cancelCloseMinutes: schema.activities.cancelCloseMinutes,
       })
       .from(schema.schedules)
       .innerJoin(

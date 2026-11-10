@@ -29,6 +29,8 @@ export function useSchedulingApi() {
     maxCapacity?: number | null;
     isSpecial?: boolean;
     specialLine?: string | null;
+    bookingCloseMinutes?: number | null;
+    cancelCloseMinutes?: number | null;
   }): Promise<ActivityRecord> {
     loading.value = true;
     error.value = null;
@@ -68,6 +70,8 @@ export function useSchedulingApi() {
       maxCapacity?: number | null;
       isSpecial?: boolean;
       specialLine?: string | null;
+      bookingCloseMinutes?: number | null;
+      cancelCloseMinutes?: number | null;
     }
   ): Promise<ActivityRecord> {
     loading.value = true;

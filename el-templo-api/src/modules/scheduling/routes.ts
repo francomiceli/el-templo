@@ -309,6 +309,8 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
       maxCapacity?: number | null;
       isSpecial?: boolean;
       specialLine?: string | null;
+      bookingCloseMinutes?: number | null;
+      cancelCloseMinutes?: number | null;
     };
   }>(
     "/activities",
@@ -318,11 +320,7 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
         const ctx = assertTenant(request.scope, "scheduling.createActivity");
         const activity = await activityService.createActivity(
           ctx,
-          request.body.name,
-          request.body.description,
-          request.body.maxCapacity,
-          request.body.isSpecial,
-          request.body.specialLine,
+          request.body,
         );
         return reply.code(201).send(activity);
       } catch (err: unknown) {
@@ -352,6 +350,8 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
       maxCapacity?: number | null;
       isSpecial?: boolean;
       specialLine?: string | null;
+      bookingCloseMinutes?: number | null;
+      cancelCloseMinutes?: number | null;
     };
   }>(
     "/activities/:activityId",
