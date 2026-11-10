@@ -7,6 +7,7 @@
 
 import {
   MONEY_NON_NEGATIVE_SCHEMA,
+  MONEY_POSITIVE_SCHEMA,
   MONEY_RESPONSE_SCHEMA,
 } from "../shared/money";
 
@@ -617,10 +618,10 @@ export const registerMovementSchema = {
     properties: {
       origenCajaId: { type: "integer", minimum: 1 },
       destinoCajaId: { type: "integer", minimum: 1 },
-      amount: { type: "integer", minimum: 1 },
+      amount: MONEY_POSITIVE_SCHEMA,
       // D-04: conteo físico de la caja origen al momento. Cero es válido (caja
       // vacía contada). Omitido = sin ajuste de reconciliación.
-      countedAmount: { type: "integer", minimum: 0 },
+      countedAmount: MONEY_NON_NEGATIVE_SCHEMA,
       notes: { type: ["string", "null"], maxLength: 2000 },
     },
     additionalProperties: false,
@@ -644,7 +645,7 @@ export const registerExpenseSchema = {
     required: ["cajaId", "amount", "costCenterId"],
     properties: {
       cajaId: { type: "integer", minimum: 1 },
-      amount: { type: "integer", minimum: 1 },
+      amount: MONEY_POSITIVE_SCHEMA,
       costCenterId: { type: "integer", minimum: 1 },
       notes: { type: ["string", "null"], maxLength: 2000 },
     },
@@ -751,7 +752,8 @@ export const pendingTrayExportSchema = {
 /**
  * POST /cash-registers/efectivo — abrir la caja de efectivo de una sucursal
  * (UAT caja/cobros 2026-07-21). `openingBalance` es el arqueo inicial en
- * centavos/unidad mínima, igual que el resto del ledger; opcional, default 0.
+ * pesos/euros con hasta 2 decimales, igual que el resto del ledger; opcional,
+ * default 0.
  * La unicidad por (sucursal, moneda) la valida el service.
  */
 export const createEfectivoCajaSchema = {
@@ -1132,8 +1134,8 @@ export const registerWithdrawalSchema = {
       responsibleName: { type: "string", minLength: 1, maxLength: 120 },
       transactionDate: { type: "string", format: "date" },
       notes: { type: ["string", "null"], maxLength: 2000 },
-      amount: { type: "integer", minimum: 1 },
-      countedAmount: { type: "integer", minimum: 0 },
+      amount: MONEY_POSITIVE_SCHEMA,
+      countedAmount: MONEY_NON_NEGATIVE_SCHEMA,
     },
     additionalProperties: false,
   },
@@ -1208,7 +1210,13 @@ export const cashCountExpectedSchema = {
     properties: { cashRegisterId: { type: "integer", minimum: 1 } },
     additionalProperties: false,
   },
-  response: { 400: errorSchema, 401: errorSchema, 403: errorSchema, 404: errorSchema, 500: errorSchema },
+  response: {
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
+    500: errorSchema,
+  },
 } as const;
 
 /** POST /cash-counts (gestión) — el esperado se recalcula en el server. */
@@ -1224,7 +1232,13 @@ export const registerCashCountSchema = {
     },
     additionalProperties: false,
   },
-  response: { 400: errorSchema, 401: errorSchema, 403: errorSchema, 404: errorSchema, 500: errorSchema },
+  response: {
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
+    500: errorSchema,
+  },
 } as const;
 
 /** GET /cash-counts — historial de arqueos. */
@@ -1257,5 +1271,11 @@ export const setChangeFundSchema = {
     properties: { amount: MONEY_NON_NEGATIVE_SCHEMA },
     additionalProperties: false,
   },
-  response: { 400: errorSchema, 401: errorSchema, 403: errorSchema, 404: errorSchema, 500: errorSchema },
+  response: {
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
+    500: errorSchema,
+  },
 } as const;
