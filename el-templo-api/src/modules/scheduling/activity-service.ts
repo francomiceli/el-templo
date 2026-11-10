@@ -25,15 +25,30 @@ export class ActivityService {
    *
    * Fase 174 (D-02, plan 174-04): `ctx` PRIMERO, filtra el chequeo de
    * colisión de nombre y estampa `tenantId` en el insert.
+   * 2026-11-10: los campos van en un objeto (eran 5 posicionales y con los
+   * cortes por actividad pasaban a 7).
    */
   async createActivity(
     ctx: TenantContext,
-    name: string,
-    description?: string,
-    maxCapacity?: number | null,
-    isSpecial?: boolean,
-    specialLine?: string | null,
+    data: {
+      name: string;
+      description?: string;
+      maxCapacity?: number | null;
+      isSpecial?: boolean;
+      specialLine?: string | null;
+      bookingCloseMinutes?: number | null;
+      cancelCloseMinutes?: number | null;
+    },
   ): Promise<ActivityRecord> {
+    const {
+      name,
+      description,
+      maxCapacity,
+      isSpecial,
+      specialLine,
+      bookingCloseMinutes,
+      cancelCloseMinutes,
+    } = data;
     // Phase 113 (D-16): reject duplicate name across ACTIVE activities.
     // Inactive activities don't block reuse — admins can recreate by name
     // after soft-delete. Comparison is the DB collation default (MySQL
@@ -65,6 +80,9 @@ export class ActivityService {
         isSpecial: isSpecial ?? false,
         // Línea del pase (2026-09-29): solo en especiales, NULL = Aura.
         specialLine: isSpecial ? normalizeSpecialLine(specialLine) : null,
+        // Cortes por actividad (0326): NULL cuando no se envía → default global.
+        bookingCloseMinutes: bookingCloseMinutes ?? null,
+        cancelCloseMinutes: cancelCloseMinutes ?? null,
       }),
     );
 
@@ -107,6 +125,8 @@ export class ActivityService {
       maxCapacity?: number | null;
       isSpecial?: boolean;
       specialLine?: string | null;
+      bookingCloseMinutes?: number | null;
+      cancelCloseMinutes?: number | null;
     },
   ): Promise<ActivityRecord> {
     const existing = await this.getActivity(ctx, id);
@@ -201,6 +221,13 @@ export class ActivityService {
       updateData.specialLine = normalizeSpecialLine(data.specialLine);
     }
 
+    // Cortes por actividad (0326): `null` explícito vuelve al default global,
+    // ausencia de la key deja el valor intacto (mismo patrón que maxCapacity).
+    if (data.bookingCloseMinutes !== undefined)
+      updateData.bookingCloseMinutes = data.bookingCloseMinutes;
+    if (data.cancelCloseMinutes !== undefined)
+      updateData.cancelCloseMinutes = data.cancelCloseMinutes;
+
     if (Object.keys(updateData).length > 0) {
       await this.db
         .update(schema.activities)
@@ -245,6 +272,8 @@ export class ActivityService {
       maxCapacity: row.maxCapacity,
       isSpecial: row.isSpecial,
       specialLine: row.specialLine ?? null,
+      bookingCloseMinutes: row.bookingCloseMinutes ?? null,
+      cancelCloseMinutes: row.cancelCloseMinutes ?? null,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };
