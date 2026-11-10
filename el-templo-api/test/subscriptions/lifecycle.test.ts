@@ -1039,12 +1039,15 @@ describe("Subscriptions API — Lifecycle", () => {
 
       it("recorre cadenas de varios cambios (A → B → C) y conserva el saldo a favor", async () => {
         const planA = await createPlan(app, adminToken, {
+          name: "Cadena larga A",
           priceRegular: 30000,
         });
         const planB = await createPlan(app, adminToken, {
+          name: "Cadena larga B",
           priceRegular: 40000,
         });
         const planC = await createPlan(app, adminToken, {
+          name: "Cadena larga C",
           priceRegular: 50000,
         });
         const member = await createMember(app);

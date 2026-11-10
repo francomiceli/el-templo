@@ -202,6 +202,7 @@ const RENEWAL_PREVIEW_OVERRIDE_REASON = "preview";
  * solo acota una cadena corrupta.
  */
 const MAX_CHANGED_PREDECESSOR_HOPS = 10;
+// deploy: fix de test de la cadena de cambios de plan (2026-11-10)
 
 /**
  * Throws BadRequestError if startDate is outside the allowed window
