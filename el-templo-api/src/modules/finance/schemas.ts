@@ -5,6 +5,11 @@
  * reports/schemas.ts. NO Zod (project does not use Zod in API modules).
  */
 
+import {
+  MONEY_NON_NEGATIVE_SCHEMA,
+  MONEY_RESPONSE_SCHEMA,
+} from "../shared/money";
+
 // -- Shared fragments -------------------------------------------------------
 
 const errorSchema = {
@@ -71,7 +76,8 @@ export const createTransactionSchema = {
       memberId: { type: "integer", minimum: 1 },
       kind: { type: "string", enum: KIND_ENUM },
       direction: { type: "string", enum: DIRECTION_ENUM },
-      amount: { type: "integer", minimum: 0 },
+      // fase 207: importe de 2 decimales máximo (keyword moneyTwoDecimals)
+      amount: MONEY_NON_NEGATIVE_SCHEMA,
       currency: { type: "string", minLength: 1, maxLength: 8 },
       paymentMethod: { type: "string", enum: PAYMENT_METHOD_ENUM },
       transactionDate: { type: "string", format: "date" },
@@ -86,7 +92,8 @@ export const createTransactionSchema = {
           properties: {
             targetKind: { type: "string", enum: TARGET_KIND_ENUM },
             targetId: { type: "integer", minimum: 1 },
-            allocatedAmount: { type: "integer", minimum: 0 },
+            // fase 207: importe de 2 decimales máximo (keyword moneyTwoDecimals)
+            allocatedAmount: MONEY_NON_NEGATIVE_SCHEMA,
           },
           additionalProperties: false,
         },
@@ -206,7 +213,8 @@ export const correctTransactionSchema = {
         type: "object",
         minProperties: 1,
         properties: {
-          amount: { type: "integer", minimum: 0 },
+          // fase 207: importe de 2 decimales máximo (keyword moneyTwoDecimals)
+          amount: MONEY_NON_NEGATIVE_SCHEMA,
           memberId: { type: "integer", minimum: 1 },
           paymentMethod: { type: "string", enum: PAYMENT_METHOD_ENUM },
         },
@@ -265,7 +273,8 @@ const transactionListItemProperties = {
   memberName: { type: "string" },
   kind: { type: "string", enum: KIND_ENUM },
   direction: { type: "string", enum: DIRECTION_ENUM },
-  amount: { type: "integer" },
+  // fase 207: importe con 2 decimales — `integer` en respuesta truncaría los centavos
+  amount: MONEY_RESPONSE_SCHEMA,
   currency: { type: "string" },
   paymentMethod: { type: "string", enum: PAYMENT_METHOD_ENUM },
   branchId: { type: "integer" },
@@ -294,7 +303,8 @@ const transactionListItemProperties = {
       properties: {
         targetKind: { type: "string", enum: TARGET_KIND_ENUM },
         targetId: { type: "integer" },
-        allocatedAmount: { type: "integer" },
+        // fase 207: importe con 2 decimales — `integer` en respuesta truncaría los centavos
+        allocatedAmount: MONEY_RESPONSE_SCHEMA,
       },
     },
   },
@@ -372,16 +382,18 @@ export const transactionsSummarySchema = {
     200: {
       type: "object",
       properties: {
-        monthlyRevenue: { type: "integer" },
+        // fase 207: importe con 2 decimales — `integer` en respuesta truncaría los centavos
+        monthlyRevenue: MONEY_RESPONSE_SCHEMA,
         revenueByMethod: {
           type: "object",
           properties: {
-            cash: { type: "integer" },
-            transfer: { type: "integer" },
-            card: { type: "integer" },
-            aura_credit: { type: "integer" },
-            internal: { type: "integer" },
-            direct_debit: { type: "integer" },
+            // fase 207: importe con 2 decimales — `integer` en respuesta truncaría los centavos
+            cash: MONEY_RESPONSE_SCHEMA,
+            transfer: MONEY_RESPONSE_SCHEMA,
+            card: MONEY_RESPONSE_SCHEMA,
+            aura_credit: MONEY_RESPONSE_SCHEMA,
+            internal: MONEY_RESPONSE_SCHEMA,
+            direct_debit: MONEY_RESPONSE_SCHEMA,
           },
         },
         revenueByBranch: {
@@ -391,7 +403,8 @@ export const transactionsSummarySchema = {
             properties: {
               branchId: { type: "integer" },
               branchName: { type: "string" },
-              revenue: { type: "integer" },
+              // fase 207: importe con 2 decimales — `integer` en respuesta truncaría los centavos
+              revenue: MONEY_RESPONSE_SCHEMA,
             },
           },
         },
@@ -402,15 +415,16 @@ export const transactionsSummarySchema = {
         revenueByKind: {
           type: "object",
           properties: {
-            plan_charge: { type: "integer" },
-            debt_settlement: { type: "integer" },
-            refund: { type: "integer" },
-            adjustment: { type: "integer" },
-            advance_payment: { type: "integer" },
+            // fase 207: importe con 2 decimales — `integer` en respuesta truncaría los centavos
+            plan_charge: MONEY_RESPONSE_SCHEMA,
+            debt_settlement: MONEY_RESPONSE_SCHEMA,
+            refund: MONEY_RESPONSE_SCHEMA,
+            adjustment: MONEY_RESPONSE_SCHEMA,
+            advance_payment: MONEY_RESPONSE_SCHEMA,
             // Phase 139: the 2 new kinds. Always 0 (getSummary excludes them via
             // MUST-FIX A) but present so the response shape matches RevenueByKind.
-            cash_transfer: { type: "integer" },
-            expense: { type: "integer" },
+            cash_transfer: MONEY_RESPONSE_SCHEMA,
+            expense: MONEY_RESPONSE_SCHEMA,
           },
         },
       },
@@ -471,7 +485,8 @@ export const financialHistorySchema = {
                   properties: {
                     targetKind: { type: "string", enum: TARGET_KIND_ENUM },
                     targetId: { type: "integer" },
-                    allocatedAmount: { type: "integer" },
+                    // fase 207: importe con 2 decimales — `integer` en respuesta truncaría los centavos
+                    allocatedAmount: MONEY_RESPONSE_SCHEMA,
                     conceptLabel: { type: "string" },
                   },
                 },
@@ -537,7 +552,8 @@ export const outstandingConceptsSchema = {
               targetId: { type: "integer", minimum: 1 },
               description: { type: "string" },
               currency: { type: "string" },
-              balance: { type: "integer", minimum: 1 },
+              // fase 207: importe con 2 decimales — `integer` en respuesta truncaría los centavos
+              balance: MONEY_RESPONSE_SCHEMA,
               ageInDays: { type: "integer", minimum: 0 },
               effectiveDate: { type: "string", format: "date" },
             },
