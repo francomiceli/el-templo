@@ -1166,6 +1166,22 @@ Pedido de administración del 2026-11-10. Decisiones D-01..D-22 en `.planning/eg
 4. Tablero y Reportes → Cobros usan la sede guardada en el cobro
 5. Tests de integración cubren centavos, validación de 2 decimales, snapshot de sede y no-regresión
 
+**Plans:** 12 plans (secuenciales, una wave cada uno)
+
+Plans:
+- [ ] 207-01-PLAN.md — Base: migraciones 0327 (15 columnas a DECIMAL(14,2) + `member_branch_id`) y 0328 (backfill), schemas Drizzle, helper `shared/money.ts` y keyword Ajv `moneyTwoDecimals`
+- [ ] 207-02-PLAN.md — Ledger: `TransactionService`/`BalanceService` en centavos y schemas de las rutas de transacciones (body y respuesta)
+- [ ] 207-03-PLAN.md — Cajas I: saldos, saldo inicial, fondo de cambio, arqueos (gestión y cierre de jornada) y guard de efectivo
+- [ ] 207-04-PLAN.md — Cajas II: traslados, egresos y retiros (ajustes por conteo al centavo)
+- [ ] 207-05-PLAN.md — Cobros: PoS del profe y ficha del admin (monto recibido con centavos, precios enteros)
+- [ ] 207-06-PLAN.md — Sede del alumno: snapshot en `create()`/`correct()` y lectores (Tablero, Reportes → Cobros)
+- [ ] 207-07-PLAN.md — Lectores: Deudas, Alumnos, Tablero, Oficina y panel del profe sin CAST ni `integer`
+- [ ] 207-08-PLAN.md — Excel: formato `#,##0.00` en las 7 exportaciones del circuito de caja
+- [ ] 207-09-PLAN.md — Admin base: `utils/money.ts`, regla de `formatPrice` (admin + app), `MoneyInput.vue`
+- [ ] 207-10-PLAN.md — Admin: inputs de la PoS y la ficha (Cobros, Asignar plan, Renovar, Registrar pago)
+- [ ] 207-11-PLAN.md — Admin: inputs de Caja (Cerrar caja, Retiro, Traslado/Egreso, Bandeja, caja efectivo, fondo de cambio)
+- [ ] 207-12-PLAN.md — Cierre: auditoría de Analíticas, guard estático del contrato de plata y no-regresión con enteros + punta a punta
+
 ### Phase 208: Cuentas — USD, Tesoro, cheque, retiro con destino
 
 **Goal**: Las cuentas reflejan dónde está la plata: cuentas en dólares, Tesoro como efectivo sin sede, cheque como medio, y los retiros de sede entran a Caja central o Tesoro
