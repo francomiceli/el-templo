@@ -7,6 +7,10 @@
 import { Workbook } from "exceljs";
 import type { FastifyReply } from "fastify";
 
+// Seguridad (H11): NO se sanean las celdas acá. exceljs guarda los strings como
+// celdas de texto tipadas y Excel no las evalúa como fórmula. El CSV sí se
+// sanea (shared/csv.ts), porque ahí no hay tipos de celda.
+
 /**
  * Style the header row with bold font and gray fill.
  */

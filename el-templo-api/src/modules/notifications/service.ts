@@ -923,14 +923,21 @@ export class NotificationService {
    * T-175-03: pre-scope genuino — `POST /:id/opened` (routes.ts) solo recibe
    * el `id` de la notificación, sin ctx. `notificationId` es la PK propia de
    * la fila que se marca abierta.
+   *
+   * Seguridad (tanda 2): la fila tiene que ser del usuario autenticado
+   * (`userId`). Si no matchea se devuelve en silencio (la ruta responde 200,
+   * el app la llama fire-and-forget) sin tocar el contador del template.
    */
-  async recordOpened(notificationId: number): Promise<void> {
-    /* tenant-safe: notificationId es la PK propia de la fila, pre-scope — no hay ctx en esta ruta pública (T-175-03) */
+  async recordOpened(notificationId: number, userId: number): Promise<void> {
+    /* tenant-safe: notificationId es la PK de la fila y se exige que sea del usuario autenticado (userId) — pre-scope, no hay ctx en esta ruta (T-175-03) */
     const [notification] = await this.db
       .select({ templateId: schema.pendingNotifications.templateId })
       .from(schema.pendingNotifications)
       .where(
-        sql`/* tenant-safe: notificationId es la PK propia de la fila, pre-scope — no hay ctx en esta ruta pública (T-175-03) */ ${schema.pendingNotifications.id} = ${notificationId}`,
+        and(
+          sql`/* tenant-safe: notificationId es la PK de la fila y se exige que sea del usuario autenticado (userId) — pre-scope, no hay ctx en esta ruta (T-175-03) */ ${schema.pendingNotifications.id} = ${notificationId}`,
+          eq(schema.pendingNotifications.userId, userId),
+        ),
       )
       .limit(1);
 
@@ -1029,7 +1036,10 @@ export class NotificationService {
     const inserted = keys.length;
     const skipped = TEMPLATE_SEEDS.length - inserted;
     if (inserted > 0) {
-      this.log.info({ inserted, skipped, keys }, "Notification templates seeded");
+      this.log.info(
+        { inserted, skipped, keys },
+        "Notification templates seeded",
+      );
     } else {
       this.log.info(
         { total: TEMPLATE_SEEDS.length },

@@ -53,20 +53,6 @@ export interface GenerateSessionInput {
   memberLevel?: "kairos" | "alfa" | "delta" | "sigma" | "omega" | "spartan";
 }
 
-export const getSessionByIdSchema = {
-  params: {
-    type: "object",
-    required: ["id"],
-    properties: {
-      id: { type: "integer" },
-    },
-  },
-};
-
-export interface GetSessionByIdParams {
-  id: number;
-}
-
 export const getWeeklySessionsSchema = {
   querystring: {
     type: "object",
@@ -123,10 +109,6 @@ const notFoundResponseSchema = {
 };
 
 export const sessionResponse = { 200: sessionResponseSchema };
-export const sessionWithNotFound = {
-  200: sessionResponseSchema,
-  404: errorResponseSchema,
-};
 // Phase 104 R8: include `view` field alongside session payload. Sibling
 // (flat) shape chosen over nesting to minimize consumer breakage — existing
 // clients destructuring `dayId`, `blocks`, etc. continue to work unchanged.
@@ -155,7 +137,13 @@ export const completeSessionResponse = {
       totalDaysTrained: { type: "integer" },
     },
   },
-  400: errorResponseSchema,
+  400: {
+    type: "object",
+    properties: {
+      error: { type: "string" },
+      message: { type: "string" },
+    },
+  },
   404: errorResponseSchema,
 };
 export const weeklySessionsResponse = {
@@ -342,11 +330,11 @@ export const completeSessionSchema = {
     type: "object",
     required: ["dayId", "date", "startedAt", "blocksCompleted"],
     properties: {
-      dayId: { type: "string" },
+      dayId: { type: "string", maxLength: 50 },
       date: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
-      startedAt: { type: "string" },
+      startedAt: { type: "string", maxLength: 40 },
       rpe: { type: ["integer", "null"], minimum: 1, maximum: 10 },
-      notes: { type: ["string", "null"] },
+      notes: { type: ["string", "null"], maxLength: 2000 },
       blocksCompleted: {
         type: "array",
         items: { type: "string" },

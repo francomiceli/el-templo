@@ -9,6 +9,7 @@ import { handleServiceError } from "../shared/error-handler";
 import { DEFAULT_PUBLIC_TENANT_ID } from "../shared/modules";
 import { siteDataSchema } from "./schemas";
 import { WebPublicService } from "./service";
+import { RATE_LIMITS } from "../shared/rate-limits";
 
 export const webPublicRoutes: FastifyPluginAsync = async (fastify) => {
   const service = new WebPublicService(fastify.db, fastify.log);
@@ -18,7 +19,7 @@ export const webPublicRoutes: FastifyPluginAsync = async (fastify) => {
     {
       schema: siteDataSchema,
       // 1-3 requests por build de la web: el tope solo frena abuso (T-195-07).
-      config: { rateLimit: { max: 60, timeWindow: "1 minute" } },
+      config: { rateLimit: RATE_LIMITS.siteData },
     },
     async (request, reply) => {
       try {

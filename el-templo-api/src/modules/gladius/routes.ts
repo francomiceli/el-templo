@@ -27,6 +27,7 @@ interface SlugParams {
 
 import { OWNER_ROLES } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
+import { RATE_LIMITS } from "../shared/rate-limits";
 
 const inquireSchema = {
   body: {
@@ -150,7 +151,7 @@ export const gladiusRoutes: FastifyPluginAsync = async (fastify) => {
   // POST /inquire — submit inquiry
   fastify.post<{ Body: InquireBody }>(
     "/inquire",
-    { schema: inquireSchema },
+    { schema: inquireSchema, config: { rateLimit: RATE_LIMITS.publicForm } },
     async (request, reply) => {
       const result = await service.submitInquiry(request.body);
 

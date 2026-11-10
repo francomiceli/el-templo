@@ -307,15 +307,19 @@ export class VideoService {
   // =========================================================================
 
   private async probeVideo(filePath: string): Promise<VideoMetadata> {
-    const { stdout } = await execFileAsync("ffprobe", [
-      "-v",
-      "quiet",
-      "-print_format",
-      "json",
-      "-show_format",
-      "-show_streams",
-      filePath,
-    ]);
+    const { stdout } = await execFileAsync(
+      "ffprobe",
+      [
+        "-v",
+        "quiet",
+        "-print_format",
+        "json",
+        "-show_format",
+        "-show_streams",
+        filePath,
+      ],
+      { timeout: FFMPEG_TIMEOUT_MS },
+    );
 
     const data = JSON.parse(stdout) as {
       streams?: Array<{
@@ -389,20 +393,24 @@ export class VideoService {
     outputPath: string,
     timestamp: number,
   ): Promise<void> {
-    await execFileAsync("ffmpeg", [
-      "-y",
-      "-ss",
-      String(timestamp),
-      "-i",
-      inputPath,
-      "-vframes",
-      "1",
-      "-q:v",
-      "5",
-      "-vf",
-      "scale=320:-2",
-      outputPath,
-    ]);
+    await execFileAsync(
+      "ffmpeg",
+      [
+        "-y",
+        "-ss",
+        String(timestamp),
+        "-i",
+        inputPath,
+        "-vframes",
+        "1",
+        "-q:v",
+        "5",
+        "-vf",
+        "scale=320:-2",
+        outputPath,
+      ],
+      { timeout: FFMPEG_TIMEOUT_MS },
+    );
   }
 
   // =========================================================================

@@ -1301,10 +1301,6 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "PUT /spom/week": { categoria: "templo-module", modulo: "templo-training" },
 
   // ── templo-training · /api/sessions ───────────────────────────────────────
-  "GET /api/sessions/:id": {
-    categoria: "templo-module",
-    modulo: "templo-training",
-  },
   "GET /api/sessions/daily": {
     categoria: "templo-module",
     modulo: "templo-training",

@@ -2064,13 +2064,11 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: "No encontrado", message: "Miembro no encontrado" });
       }
 
-      if (!fastify.r2) {
-        return reply.code(503).send({
-          error: "Servicio no disponible",
-          message: "Almacenamiento de imagenes no configurado",
-        });
-      }
-
+      // Solo imagenes (H12): la extension sale del filename del cliente. Antes una
+      // extension fuera de la lista igual terminaba en la key de R2 (`...-123.html`)
+      // con ContentType image/jpeg firmado. Se valida ANTES de firmar la URL y de
+      // guardar el photo_url, y ANTES del 503 de storage (es un error del input,
+      // no de disponibilidad; el socio ya se resolvio arriba, no filtra nada).
       const sanitized = request.body.filename
         .toLowerCase()
         .replace(/[^a-z0-9._-]/g, "-")
@@ -2082,8 +2080,22 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         png: "image/png",
         webp: "image/webp",
       };
-      const contentType = MIME_MAP[ext] ?? "image/jpeg";
-      const key = `members/photos/${request.params.userId}-${Date.now()}.${ext || "jpg"}`;
+      const contentType = MIME_MAP[ext];
+      if (contentType === undefined) {
+        return reply.code(400).send({
+          error: "Solicitud invalida",
+          message: "Formato de imagen no permitido (jpg, jpeg, png, webp)",
+        });
+      }
+
+      if (!fastify.r2) {
+        return reply.code(503).send({
+          error: "Servicio no disponible",
+          message: "Almacenamiento de imagenes no configurado",
+        });
+      }
+
+      const key = `members/photos/${request.params.userId}-${Date.now()}.${ext}`;
 
       const command = new PutObjectCommand({
         Bucket: fastify.r2Bucket,

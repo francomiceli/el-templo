@@ -17,6 +17,7 @@
 
 import mjml2html from "mjml";
 import type { TrialCampaignVars } from "./types";
+import { escapeHtml } from "../shared/html";
 
 /** Subject line — copy is user-supplied (UI-SPEC). Placeholder until provided. */
 export const TRIAL_CAMPAIGN_SUBJECT =
@@ -38,20 +39,6 @@ const EMAIL_IMAGE_BASE = "https://eltemplo.org/email";
 const SERIF_STACK = "Georgia, 'Times New Roman', serif";
 const SANS_STACK = "Arial, Helvetica, sans-serif";
 
-/**
- * Escape a string for safe interpolation into HTML/attribute context.
- * Merge vars (headline/body/addresses/URLs) originate from the DB and admin
- * input — escaping prevents broken markup and HTML injection in the email.
- */
-function esc(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
 /** Convert plain-text body (with blank-line paragraphs) into <p> blocks. */
 function bodyToParagraphs(body: string): string {
   return body
@@ -60,7 +47,7 @@ function bodyToParagraphs(body: string): string {
     .filter((p) => p.length > 0)
     .map(
       (p) =>
-        `<p style="margin: 0 0 16px 0;">${esc(p).replace(/\n/g, "<br />")}</p>`,
+        `<p style="margin: 0 0 16px 0;">${escapeHtml(p).replace(/\n/g, "<br />")}</p>`,
     )
     .join("");
 }
@@ -78,13 +65,13 @@ function sedeRow(sede: {
   mapsUrl?: string;
 }): string {
   const mapsLink = sede.mapsUrl
-    ? `<br /><a href="${esc(sede.mapsUrl)}" style="color: ${TERRACOTTA}; font-family: ${SANS_STACK}; font-size: 14px; text-decoration: underline;">Cómo llegar</a>`
+    ? `<br /><a href="${escapeHtml(sede.mapsUrl)}" style="color: ${TERRACOTTA}; font-family: ${SANS_STACK}; font-size: 14px; text-decoration: underline;">Cómo llegar</a>`
     : "";
   return `
     <tr>
       <td style="padding: 8px 0; border-bottom: 1px solid ${WARM_STONE};">
-        <span style="font-family: ${SERIF_STACK}; font-size: 16px; font-weight: 700; color: ${DEEP_CHARCOAL};">${esc(sede.name)}</span><br />
-        <span style="font-family: ${SANS_STACK}; font-size: 14px; color: ${OLIVE_STONE};">${esc(sede.address)}</span>
+        <span style="font-family: ${SERIF_STACK}; font-size: 16px; font-weight: 700; color: ${DEEP_CHARCOAL};">${escapeHtml(sede.name)}</span><br />
+        <span style="font-family: ${SANS_STACK}; font-size: 14px; color: ${OLIVE_STONE};">${escapeHtml(sede.address)}</span>
         ${mapsLink}
       </td>
     </tr>`;
@@ -102,8 +89,8 @@ function bulletproofButton(opts: {
   textColor: string;
 }): string {
   const { href, label, bgColor, textColor } = opts;
-  const safeHref = esc(href);
-  const safeLabel = esc(label);
+  const safeHref = escapeHtml(href);
+  const safeLabel = escapeHtml(label);
   return `
     <!--[if mso]>
     <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${safeHref}" style="height:48px;v-text-anchor:middle;width:280px;" arcsize="9%" strokecolor="${bgColor}" fillcolor="${bgColor}">
@@ -138,7 +125,7 @@ export async function trialCampaignHtml(
   // CR-02: use the admin-supplied hero when present; otherwise the default
   // self-hosted asset (D-27 — no CDN, the URL is escaped before interpolation).
   const heroSrc = heroImageUrl
-    ? esc(heroImageUrl)
+    ? escapeHtml(heroImageUrl)
     : `${EMAIL_IMAGE_BASE}/hero.png`;
 
   const sedeRows = sedes.map(sedeRow).join("");
@@ -183,7 +170,7 @@ export async function trialCampaignHtml(
 
     <!-- 1. Tracking pixel (first element) -->
     <mj-raw>
-      <img src="${esc(trackingPixelUrl)}" alt="" width="1" height="1" style="display:block;border:0;outline:none;text-decoration:none;height:1px;width:1px;" />
+      <img src="${escapeHtml(trackingPixelUrl)}" alt="" width="1" height="1" style="display:block;border:0;outline:none;text-decoration:none;height:1px;width:1px;" />
     </mj-raw>
 
     <!-- 2. Hero: self-hosted logo + hero image (NO CDN, D-27) -->
@@ -198,10 +185,10 @@ export async function trialCampaignHtml(
     <mj-section background-color="${MARBLE_CREAM}" padding="16px 24px 0 24px">
       <mj-column>
         <mj-text css-class="et-text" font-family="${SERIF_STACK}" font-size="28px" font-weight="700" line-height="1.25" color="${DEEP_CHARCOAL}" align="center">
-          ${esc(headline)}
+          ${escapeHtml(headline)}
         </mj-text>
         <mj-text css-class="et-text" font-family="${SERIF_STACK}" font-size="20px" font-weight="400" line-height="1.3" color="${DEEP_CHARCOAL}" align="center" padding="8px 0 0 0">
-          ${esc(subheadline)}
+          ${escapeHtml(subheadline)}
         </mj-text>
         <mj-divider border-color="${TERRACOTTA}" border-width="2px" width="64px" padding="16px 0 0 0" />
       </mj-column>
@@ -248,7 +235,7 @@ export async function trialCampaignHtml(
         <mj-text font-family="${SANS_STACK}" font-size="12px" line-height="1.4" color="${OLIVE_STONE}" align="center">
           El Templo — Mar del Plata, Argentina · Barcelona, España.<br />
           Recibís este correo porque sos parte de la comunidad de El Templo.<br />
-          <a href="${esc(unsubscribeUrl)}" style="color:${OLIVE_STONE};text-decoration:underline;">¿No querés recibir más novedades? Darte de baja</a>
+          <a href="${escapeHtml(unsubscribeUrl)}" style="color:${OLIVE_STONE};text-decoration:underline;">¿No querés recibir más novedades? Darte de baja</a>
         </mj-text>
       </mj-column>
     </mj-section>

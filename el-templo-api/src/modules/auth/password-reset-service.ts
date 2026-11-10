@@ -38,6 +38,7 @@ import * as schema from "../../db/schema";
 import { users } from "../../db/schema/users";
 import { tenantWhere, type TenantContext } from "../shared/tenant";
 import { RefreshTokenService } from "./refresh-token-service";
+import { accountBlockReason } from "../shared/account-gate";
 
 /** Vida del código desde que se emite. */
 export const PASSWORD_RESET_CODE_TTL_MS = 15 * 60 * 1000;
@@ -111,17 +112,6 @@ export class PasswordResetService {
     return rows[0] ?? null;
   }
 
-  /** Mismos gates que el login: cuenta eliminada o staff desactivado no entra. */
-  private canLogin(user: {
-    deletedAt: Date | null;
-    role: string;
-    staffDisabled: boolean | null;
-  }): boolean {
-    if (user.deletedAt) return false;
-    if (user.role !== "member" && user.staffDisabled === true) return false;
-    return true;
-  }
-
   /**
    * Paso 1. Devuelve el código en claro (para el mail) o `null` cuando no
    * corresponde mandar nada: email inexistente, cuenta que no puede loguear,
@@ -130,7 +120,7 @@ export class PasswordResetService {
    */
   async requestCode(email: string): Promise<ResetCodeIssued | null> {
     const user = await this.findByEmail(email);
-    if (!user || !user.email || !this.canLogin(user)) {
+    if (!user || !user.email || accountBlockReason(user) !== null) {
       this.log.info("Password reset requested for unknown or blocked account");
       return null;
     }
@@ -179,7 +169,7 @@ export class PasswordResetService {
     newPassword: string,
   ): Promise<ResetOutcome> {
     const user = await this.findByEmail(email);
-    if (!user || !this.canLogin(user)) return "invalid";
+    if (!user || accountBlockReason(user) !== null) return "invalid";
     if (!user.passwordResetCodeHash || !user.passwordResetExpiresAt) {
       return "invalid";
     }

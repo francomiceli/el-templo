@@ -16,7 +16,10 @@ import { and, eq } from "drizzle-orm";
 import { createTestApp, cleanAllTestData, createTestMember } from "../helpers";
 import { branches } from "../../src/db/schema/branches";
 import { users } from "../../src/db/schema/users";
-import { tenantWhere, type TenantContext } from "../../src/modules/shared/tenant";
+import {
+  tenantWhere,
+  type TenantContext,
+} from "../../src/modules/shared/tenant";
 import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 
 const TEMPLO_CTX: TenantContext = { tenantId: TENANT_TEMPLO };
@@ -76,7 +79,11 @@ describe("dirección del socio — GET /me + PUT /me/address", () => {
 
   beforeAll(async () => {
     app = await createTestApp();
-    mdpBranchId = await upsertBranch(MDP_CODE, "Sede MdP dirección", "Mar del Plata");
+    mdpBranchId = await upsertBranch(
+      MDP_CODE,
+      "Sede MdP dirección",
+      "Mar del Plata",
+    );
     sinCiudadBranchId = await upsertBranch(
       SIN_CIUDAD_CODE,
       "Sede sin ciudad dirección",
@@ -115,7 +122,9 @@ describe("dirección del socio — GET /me + PUT /me/address", () => {
   it("PUT: guarda la dirección normalizada (trim + espacios colapsados) y GET /me la devuelve", async () => {
     const socio = await createTestMember(app, { branchId: mdpBranchId });
 
-    const res = await putAddress(socio.token, { address: "  Av.  Colón   2450 " });
+    const res = await putAddress(socio.token, {
+      address: "  Av.  Colón   2450 ",
+    });
     expect(res.statusCode, res.body).toBe(200);
     expect(JSON.parse(res.body)).toEqual({ address: "Av. Colón 2450" });
 
@@ -206,7 +215,7 @@ describe("dirección del socio — GET /me + PUT /me/address", () => {
     expect(res.statusCode).toBe(401);
   });
 
-  it("PUT: cuenta eliminada → 404 (no se reescribe PII anonimizada)", async () => {
+  it("PUT: cuenta eliminada → 401 (el gate de cuenta corta antes; no se reescribe PII anonimizada)", async () => {
     const socio = await createTestMember(app, { branchId: mdpBranchId });
     await app.db
       .update(users)
@@ -214,7 +223,10 @@ describe("dirección del socio — GET /me + PUT /me/address", () => {
       .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, socio.id)));
 
     const res = await putAddress(socio.token, { address: "Jujuy 1000" });
-    expect(res.statusCode, res.body).toBe(404);
+    expect(res.statusCode, res.body).toBe(401);
+    expect(res.json<{ message: string }>().message).toBe(
+      "Esta cuenta fue eliminada",
+    );
     expect(await addressEnDb(socio.id)).toBeNull();
   });
 });

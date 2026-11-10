@@ -13,6 +13,7 @@ import argon2 from "argon2";
 import * as schema from "../../db/schema";
 import type { StaffUser, CreateStaffInput, UpdateStaffInput } from "./types";
 import { isCoachLikeRole } from "../shared/permissions";
+import { revokeAllRefreshTokensFor } from "../auth/refresh-token-service";
 import {
   tenantWhere,
   tenantValues,
@@ -273,6 +274,9 @@ export class UserService {
               eq(schema.users.id, existing.id),
             ),
           );
+        // Se sobrescribieron contraseña y rol: las sesiones viejas del socio no
+        // deben sobrevivir (ni heredar el rol de staff al refrescar).
+        await revokeAllRefreshTokensFor(tx, existing.id);
         userId = existing.id;
         // Replace any prior user_branches rows for the promoted user.
         await tx
@@ -512,6 +516,14 @@ export class UserService {
         return null;
       }
 
+      // Cambio de contraseña desde admin: cerrar las sesiones abiertas. Se hace
+      // recién acá (fila del gimnasio confirmada) para que un `userId` ajeno no
+      // pueda revocar sesiones de otro gimnasio. El cambio de rol solo NO
+      // revoca: el gate de `attachScope` fuerza /refresh, que firma el rol nuevo.
+      if (input.password) {
+        await revokeAllRefreshTokensFor(tx, userId);
+      }
+
       const ubRows = await tx
         .select({ branchId: schema.userBranches.branchId })
         .from(schema.userBranches)
@@ -588,6 +600,12 @@ export class UserService {
       .update(schema.users)
       .set({ staffDisabled: disabled })
       .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)));
+
+    // Deshabilitar corta las sesiones ya abiertas: /refresh y el gate de
+    // `attachScope` ya rechazan la cuenta, esto además deja los tokens muertos.
+    if (disabled) {
+      await revokeAllRefreshTokensFor(this.db, userId);
+    }
 
     this.log.info(
       { staffId: userId, staffDisabled: disabled },

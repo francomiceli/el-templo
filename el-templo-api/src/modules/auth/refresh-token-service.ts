@@ -64,6 +64,33 @@ export class RefreshTokenError extends Error {
 
 type RefreshTokenRow = typeof schema.refreshTokens.$inferSelect;
 
+/** El db o la transacción de quien llama (mismo shape que `TxHandle` de finance). */
+type DbOrTx =
+  | MySql2Database<typeof schema>
+  | Parameters<Parameters<MySql2Database<typeof schema>["transaction"]>[0]>[0];
+
+/**
+ * Revoca todos los refresh tokens activos de un usuario. Función suelta y no
+ * método para poder correrla dentro de la transacción de quien cambia
+ * credenciales o estado (baja, reseteo de clave, promoción a staff).
+ */
+export async function revokeAllRefreshTokensFor(
+  executor: DbOrTx,
+  userId: number,
+): Promise<void> {
+  /* tenant-safe: filtro por userId propio del dueño de la sesion — acota a las filas de un solo usuario sin ambiguedad, userId ya resuelve el gimnasio (mismo criterio que getUserPreferences en notifications/service.ts) */
+  await executor
+    .update(schema.refreshTokens)
+    .set({ revokedAt: sql`NOW()` })
+    .where(
+      and(
+        sql`/* tenant-safe: filtro por userId propio del dueño de la sesion — acota a las filas de un solo usuario sin ambiguedad, userId ya resuelve el gimnasio (mismo criterio que getUserPreferences en notifications/service.ts) */ 1 = 1`,
+        eq(schema.refreshTokens.userId, userId),
+        isNull(schema.refreshTokens.revokedAt),
+      ),
+    );
+}
+
 export class RefreshTokenService {
   constructor(
     private db: MySql2Database<typeof schema>,
@@ -356,16 +383,6 @@ export class RefreshTokenService {
    * (D-01) and delete-account (D-05).
    */
   async revokeAllForUser(userId: number): Promise<void> {
-    /* tenant-safe: filtro por userId propio del dueño de la sesion — acota a las filas de un solo usuario sin ambiguedad, userId ya resuelve el gimnasio (mismo criterio que getUserPreferences en notifications/service.ts) */
-    await this.db
-      .update(schema.refreshTokens)
-      .set({ revokedAt: sql`NOW()` })
-      .where(
-        and(
-          sql`/* tenant-safe: filtro por userId propio del dueño de la sesion — acota a las filas de un solo usuario sin ambiguedad, userId ya resuelve el gimnasio (mismo criterio que getUserPreferences en notifications/service.ts) */ 1 = 1`,
-          eq(schema.refreshTokens.userId, userId),
-          isNull(schema.refreshTokens.revokedAt),
-        ),
-      );
+    await revokeAllRefreshTokensFor(this.db, userId);
   }
 }

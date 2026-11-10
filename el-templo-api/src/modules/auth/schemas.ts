@@ -5,13 +5,16 @@ export const registerSchema = {
     type: "object",
     required: ["email", "password", "firstName", "lastName", "gender"],
     properties: {
-      email: { type: "string", format: "email" },
-      password: { type: "string", minLength: 8 },
+      // maxLength = largo de la columna de `users` (email 255, firstName/lastName
+      // 100, dni 20, phone 30). Sin tope, un valor largo llegaba al INSERT y
+      // MySQL lo rechazaba con un 500. password 128: tope razonable para argon2.
+      email: { type: "string", format: "email", maxLength: 255 },
+      password: { type: "string", minLength: 8, maxLength: 128 },
       branchId: { type: "integer" },
-      firstName: { type: "string", minLength: 1 },
-      lastName: { type: "string", minLength: 1 },
-      dni: { type: "string" },
-      phone: { type: "string" },
+      firstName: { type: "string", minLength: 1, maxLength: 100 },
+      lastName: { type: "string", minLength: 1, maxLength: 100 },
+      dni: { type: "string", maxLength: 20 },
+      phone: { type: "string", maxLength: 30 },
       gender: {
         type: "string",
         enum: ["male", "female", "other", "unspecified"],

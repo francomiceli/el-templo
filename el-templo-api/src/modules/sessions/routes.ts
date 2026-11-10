@@ -14,17 +14,14 @@ import { dateToWeekNumber, dateToDayName } from "../shared/week-dates";
 import {
   getDailySessionSchema,
   generateSessionSchema,
-  getSessionByIdSchema,
   getWeeklySessionsSchema,
   completeSessionSchema,
   dailySessionResponse,
   weeklySessionsResponse,
   generateSessionResponse,
-  sessionWithNotFound,
   completeSessionResponse,
   type GetDailySessionInput,
   type GenerateSessionInput,
-  type GetSessionByIdParams,
   type GetWeeklySessionsInput,
   type CompleteSessionInput,
 } from "./schemas";
@@ -41,7 +38,9 @@ import { StreakService } from "../streaks";
 import { ProgramsService } from "../programs/service";
 import { NotificationService } from "../notifications/service";
 import { attachCountryScope } from "../shared/country-scope";
-import { assertTenant, tenantWhere } from "../shared/tenant";
+import { assertTenant, tenantValues, tenantWhere } from "../shared/tenant";
+import { isDuplicateKeyError } from "../shared/sql-errors";
+import { awardOncePerLocalDay, localDateForBranch } from "../aura/daily-award";
 
 export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
   const sessionService = new SessionGeneratorService(fastify.db);
@@ -396,28 +395,6 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
-  // GET /sessions/:id - Get session by ID with full details
-  fastify.get<{ Params: GetSessionByIdParams }>(
-    "/:id",
-    {
-      onRequest: [fastify.authenticate],
-      schema: {
-        ...getSessionByIdSchema,
-        response: sessionWithNotFound,
-      },
-    },
-    async (request, reply) => {
-      const { id } = request.params;
-
-      const session = await sessionService.getSessionWithDetails(id);
-      if (!session) {
-        return reply.status(404).send({ error: "Sesion no encontrada" });
-      }
-
-      return sessionToResponse(session, formatDescriptions);
-    },
-  );
-
   // POST /sessions/complete - Record completed session (upsert by dayId+userId)
   fastify.post<{ Body: CompleteSessionInput }>(
     "/complete",
@@ -456,6 +433,17 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: "dayId invalido: nivel no reconocido" });
       }
 
+      // Tanda 2 / #4: el dayId tiene que ser una sesion real y aprobada. Antes
+      // bastaba un string con un nivel valido para fabricar completados (y
+      // AURA). Sin filtro de tenant, igual que /daily (las sesiones son
+      // compartidas hoy: seguimiento para el tren 192).
+      if (!(await sessionService.approvedSessionExists(dayId))) {
+        return reply.status(400).send({
+          error: "Solicitud invalida",
+          message: "dayId invalido: la sesion no existe o no esta aprobada",
+        });
+      }
+
       // Get user's branchId
       const [user] = await fastify.db
         .select({ branchId: schema.users.branchId })
@@ -474,6 +462,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
         .from(schema.completedSessions)
         .where(
           and(
+            tenantWhere(schema.completedSessions, ctx),
             eq(schema.completedSessions.userId, userId),
             eq(schema.completedSessions.dayId, dayId),
           ),
@@ -490,42 +479,70 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
         Math.floor((completedAt.getTime() - startedAtDate.getTime()) / 1000),
       );
 
+      // Campos que se actualizan cuando la sesion ya estaba completada.
+      const updateFields = {
+        date,
+        startedAt: startedAtDate,
+        completedAt,
+        duration: durationSec,
+        rpe,
+        notes,
+        blocksCompleted,
+        exercisesCompleted: exercisesCompleted ?? null,
+        sessionLevel,
+      };
+
       if (existing) {
-        // Update existing record
         await fastify.db
           .update(schema.completedSessions)
-          .set({
-            date,
-            startedAt: startedAtDate,
-            completedAt,
-            duration: durationSec,
-            rpe,
-            notes,
-            blocksCompleted,
-            exercisesCompleted: exercisesCompleted ?? null,
-            sessionLevel,
-          })
-          .where(eq(schema.completedSessions.id, existing.id));
+          .set(updateFields)
+          .where(
+            and(
+              tenantWhere(schema.completedSessions, ctx),
+              eq(schema.completedSessions.id, existing.id),
+            ),
+          );
         completedSessionId = existing.id;
       } else {
-        // Insert new record
-        const [result] = await fastify.db
-          .insert(schema.completedSessions)
-          .values({
-            userId,
-            dayId,
-            date,
-            branchId: user.branchId,
-            startedAt: startedAtDate,
-            completedAt,
-            duration: durationSec,
-            rpe,
-            notes,
-            blocksCompleted,
-            exercisesCompleted: exercisesCompleted ?? null,
-            sessionLevel,
-          });
-        completedSessionId = result.insertId;
+        try {
+          const [result] = await fastify.db
+            .insert(schema.completedSessions)
+            .values(
+              tenantValues(ctx, {
+                userId,
+                dayId,
+                branchId: user.branchId,
+                ...updateFields,
+              }),
+            );
+          completedSessionId = result.insertId;
+        } catch (insertErr: unknown) {
+          // Carrera con otro POST del mismo (userId, dayId): el unique
+          // (user_id, day_id) rechaza el segundo INSERT. Se relee la fila
+          // ganadora y se actualiza (mismo resultado que el camino "existing").
+          if (!isDuplicateKeyError(insertErr).isDuplicate) throw insertErr;
+          const [winner] = await fastify.db
+            .select({ id: schema.completedSessions.id })
+            .from(schema.completedSessions)
+            .where(
+              and(
+                tenantWhere(schema.completedSessions, ctx),
+                eq(schema.completedSessions.userId, userId),
+                eq(schema.completedSessions.dayId, dayId),
+              ),
+            );
+          if (!winner) throw insertErr;
+          await fastify.db
+            .update(schema.completedSessions)
+            .set(updateFields)
+            .where(
+              and(
+                tenantWhere(schema.completedSessions, ctx),
+                eq(schema.completedSessions.id, winner.id),
+              ),
+            );
+          completedSessionId = winner.id;
+        }
       }
 
       // Query total days trained (unique dates with completed sessions)
@@ -534,13 +551,20 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
         .from(schema.completedSessions)
         .where(eq(schema.completedSessions.userId, userId));
 
-      // Award 10 AURA for session completion (D-11)
+      // AURA por sesion completada (D-11), con tope diario (Tanda 2 / #4): un
+      // solo premio por dia local del socio, sin importar cuantas sesiones
+      // cierre. Nunca rompe el cierre.
       try {
-        await auraService.award({
+        const localDate = await localDateForBranch(
+          fastify.db,
+          ctx,
+          user.branchId,
+        );
+        await awardOncePerLocalDay(auraService, request.log, {
           userId,
           sourceType: "training_completion",
-          referenceType: "completed_session",
-          referenceId: completedSessionId,
+          referenceType: "training_day",
+          localDate,
         });
       } catch (auraErr: unknown) {
         request.log.warn(

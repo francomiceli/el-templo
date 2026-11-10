@@ -41,6 +41,7 @@ interface GenerateAiBody {
 // ---------- Role guard ----------
 
 import { OWNER_ROLES } from "../shared/permissions";
+import { RATE_LIMITS } from "../shared/rate-limits";
 
 // ---------- JSON Schemas ----------
 
@@ -168,7 +169,7 @@ export const franchiseRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post<{ Body: ApplyBody }>(
     "/apply",
-    { schema: applySchema },
+    { schema: applySchema, config: { rateLimit: RATE_LIMITS.publicForm } },
     async (request, reply) => {
       const result = await service.submitApplication(request.body);
 

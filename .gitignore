@@ -35,3 +35,8 @@ tools/ios-signing/
 # (mirrors the Android google-services.json pattern)
 el-templo-app/src-capacitor/ios/App/App/GoogleService-Info.plist
 el-templo-app/src-capacitor/android/app/google-services.json
+# Secretos que no deben entrar nunca al repo (auditoría seguridad 2026-11)
+*.keystore
+*.base64.txt
+*adminsdk*.json
+tools/GoogleService-Info.plist
