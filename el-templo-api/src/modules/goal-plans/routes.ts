@@ -389,7 +389,7 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
             );
           } catch (insertErr: unknown) {
             // Carrera con otro POST del mismo (userId, dayId): el unique
-            // (user_id, day_id) rechaza el segundo INSERT. Se relee la fila
+            // (tenant_id, user_id, day_id) rechaza el segundo INSERT. Se relee la fila
             // ganadora y se actualiza.
             if (!isDuplicateKeyError(insertErr).isDuplicate) throw insertErr;
             const [winner] = await fastify.db

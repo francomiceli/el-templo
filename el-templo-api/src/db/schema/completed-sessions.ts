@@ -59,7 +59,12 @@ export const completedSessions = mysqlTable(
     index("completed_sessions_date_idx").on(table.date),
     index("completed_sessions_branch_idx").on(table.branchId),
     // Tanda 2 (#4), mig 0322: una fila por (socio, dia de sesion). Cierra la
-    // carrera SELECT -> INSERT de los POST de completar.
-    uniqueIndex("completed_sessions_user_day_uq").on(table.userId, table.dayId),
+    // carrera SELECT -> INSERT de los POST de completar. Prefijo tenant_id: tabla
+    // gym-owned (gate 0196), un socio vive en un solo gimnasio.
+    uniqueIndex("completed_sessions_user_day_uq").on(
+      table.tenantId,
+      table.userId,
+      table.dayId,
+    ),
   ],
 );

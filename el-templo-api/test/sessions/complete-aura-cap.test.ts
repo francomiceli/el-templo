@@ -6,7 +6,7 @@
  * la fila). Ahora:
  *   - el dayId tiene que existir en `sessions` y estar `approved` (si no, 400);
  *   - la AURA es UN premio por dia local del socio (tope diario);
- *   - `completed_sessions` tiene UNIQUE (user_id, day_id) (mig 0322): dos POST
+ *   - `completed_sessions` tiene UNIQUE (tenant_id, user_id, day_id) (mig 0322): dos POST
  *     concurrentes del mismo dayId no duplican la fila ni rompen con 500.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
@@ -233,7 +233,7 @@ describe("POST /api/sessions/complete — dayId aprobado y tope diario de AURA",
     expect(await auraBalance()).toBe(saldoAntes);
   });
 
-  it("el unique (user_id, day_id) rechaza un INSERT duplicado directo", async () => {
+  it("el unique (tenant_id, user_id, day_id) rechaza un INSERT duplicado directo", async () => {
     const [existente] = await app.db
       .select()
       .from(schema.completedSessions)
