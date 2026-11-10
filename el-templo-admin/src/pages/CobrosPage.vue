@@ -671,6 +671,33 @@
                     <q-icon name="place" color="primary" />
                   </template>
                 </q-select>
+                <!-- Caso Pato 2026-11-07: jornada en una sede, cobro cargado en
+                     otra (la del alumno) → la plata queda en una caja y el
+                     sistema la cuenta en otra. -->
+                <q-banner
+                  v-if="sedeCobroFueraDeJornada && jornadaSede"
+                  dense
+                  rounded
+                  class="bg-yellow-1 q-mb-md"
+                >
+                  <template #avatar>
+                    <q-icon name="warning" color="warning" />
+                  </template>
+                  <div class="text-body2">
+                    Estás en jornada en <strong>{{ jornadaSede.branchName }}</strong>, pero este
+                    cobro se carga en <strong>{{ resumenSede ?? 'otra sede' }}</strong>. Si la plata
+                    queda en {{ jornadaSede.branchName }}, cambiá la sede del cobro.
+                  </div>
+                  <template v-if="puedeCobrarEnSedeDeJornada" #action>
+                    <q-btn
+                      flat
+                      no-caps
+                      color="primary"
+                      :label="`Cobrar en ${jornadaSede.branchName}`"
+                      @click="usarSedeDeJornada"
+                    />
+                  </template>
+                </q-banner>
 
                 <div class="q-gutter-sm">
                   <q-btn
@@ -999,7 +1026,9 @@ import { extractError, isExpectedClientError } from 'src/utils/extract-error';
 import { showTrialBookingChanges, type TrialBookingChange } from 'src/utils/trial-booking-changes';
 import { formatPrice } from 'src/utils/format-price';
 import { formatDate } from 'src/utils/format-date';
-import { ZERO_PRICE_LABEL } from 'src/config/templo-config';
+import { JORNADA_ROLES, ZERO_PRICE_LABEL } from 'src/config/templo-config';
+import { useStaffAttendanceApi } from 'src/composables/useStaffAttendanceApi';
+import { sedeCobroDistintaDeJornada, type JornadaSede } from 'src/utils/sede-cobro-jornada';
 import { useMembersApi } from 'src/composables/useMembersApi';
 import { usePricingSettingsApi } from 'src/composables/usePricingSettingsApi';
 import {
@@ -1029,6 +1058,7 @@ const membersApi = useMembersApi();
 const financeApi = useFinanceLoadApi();
 const subsApi = useSubscriptionsApi();
 const pricingApi = usePricingSettingsApi();
+const attendanceApi = useStaffAttendanceApi();
 const authStore = useAuthStore();
 
 // El "modo" antiguo pasa a ser la ASOCIACIÓN elegida en el paso 2 (D-01, sin
@@ -1411,6 +1441,52 @@ function onSedeCobroChange() {
   currentIdempotencyKey.value = null;
 }
 
+// ─── Aviso: sede del cobro ≠ sede de la jornada abierta ─────────────────────
+// Caso Pato 2026-11-07 (ver utils/sede-cobro-jornada.ts): la referencia es la
+// jornada abierta de quien cobra, no su sede de alta. Solo roles con jornada
+// (JORNADA_ROLES): gestión no ficha y cobra a distancia → sin aviso.
+const jornadaSede = ref<JornadaSede | null>(null);
+
+async function loadJornadaSede() {
+  const role = authStore.user?.role;
+  if (!role || !JORNADA_ROLES.includes(role)) {
+    jornadaSede.value = null;
+    return;
+  }
+  try {
+    const me = await attendanceApi.getMe();
+    jornadaSede.value = me.open
+      ? { branchId: me.open.branchId, branchName: me.open.branchName }
+      : null;
+  } catch (err: unknown) {
+    // El aviso es una ayuda: si falla, la PoS sigue igual que antes.
+    log.warn('No se pudo leer la jornada abierta', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    jornadaSede.value = null;
+  }
+}
+
+// Solo renovación/cobro suelto: el alta elige la sede del ALUMNO en el paso 2
+// (define dónde entrena, no solo la caja) — ahí no se sugiere cambiarla.
+const sedeCobroFueraDeJornada = computed(
+  () =>
+    (mode.value === 'renew' || mode.value === 'misc') &&
+    sedeCobroDistintaDeJornada(jornadaSede.value, sucursalId.value)
+);
+
+const puedeCobrarEnSedeDeJornada = computed(
+  () =>
+    jornadaSede.value != null &&
+    branchOptions.value.some((b) => b.id === jornadaSede.value?.branchId)
+);
+
+function usarSedeDeJornada() {
+  if (!jornadaSede.value) return;
+  sucursalId.value = jornadaSede.value.branchId;
+  onSedeCobroChange();
+}
+
 // Cargar cuentas al elegir transferencia/tarjeta/domiciliación; la caja al elegir efectivo.
 watch(paymentMethod, (m) => {
   if (m === 'transfer' || m === 'card') void loadBankAccounts();
@@ -1600,6 +1676,9 @@ function cancelAbandon() {
 function startCobro() {
   slideDir.value = 'forward';
   currentStep.value = 1;
+  // Se relee en cada cobro: la jornada puede haberse abierto/cerrado/cambiado
+  // de sede desde que se abrió la página.
+  void loadJornadaSede();
 }
 function goNext() {
   if (currentStep.value >= 4) return;
@@ -2563,6 +2642,8 @@ async function applyMemberDeepLink() {
 onMounted(() => {
   void loadCardSurchargeRule();
   void loadZeroPriceRule();
+  // El deep link (?member=) entra al flujo sin pasar por startCobro().
+  void loadJornadaSede();
   void applyMemberDeepLink();
 });
 
