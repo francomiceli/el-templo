@@ -442,4 +442,45 @@ describe("Fase 204 D-19: presente a mano en reservas Wellhub", () => {
     expect(rows[0].checkedInAt.getTime()).toBe(antes.checkedInAt.getTime());
     expect(await bookingStatus(bookingId)).toBe("confirmado");
   });
+
+  it("presente a mano + check-in que Wellhub ya había validado (sede que valida sola) → pasa a validada", async () => {
+    // Caso real Moreno 2026-11-06: el staff lo marcó a mano y el aviso de
+    // Wellhub llegó con el check-in ya validado del lado de Wellhub.
+    const visitor = await createWellhubVisitor(app, { branchId: BRANCH_ID });
+    const { scheduleId } = await insertActivityWithSchedule(app, {
+      branchId: BRANCH_ID,
+    });
+    const bookingId = await insertBooking(app, {
+      memberId: visitor.id,
+      scheduleId,
+      bookingDate: today,
+      status: "reservado",
+      source: "wellhub",
+    });
+
+    const marcado = await coachCheckIn(scheduleId, visitor.id);
+    expect(marcado.statusCode).toBe(201);
+    const [antes] = await attendanceRows(visitor.id);
+    expect(antes.source).toBe("wellhub_manual");
+
+    stubValidateFetch(400, {
+      metadata: { total: 0, errors: 1 },
+      errors: [
+        {
+          message: "Check-In already validated",
+          key: "checkin.already.validated",
+        },
+      ],
+    });
+    const raw = checkinPayload({ token: visitor.gympassId, gymId });
+    const res = await postWellhubWebhook(app, raw, signWellhub(raw));
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body).outcome).toBe("processed");
+
+    const rows = await attendanceRows(visitor.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].id).toBe(antes.id);
+    expect(rows[0].source).toBe("wellhub");
+    expect(await bookingStatus(bookingId)).toBe("confirmado");
+  });
 });
