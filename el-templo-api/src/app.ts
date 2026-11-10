@@ -69,6 +69,7 @@ import { tvControlRoutes } from "./modules/tv";
 import { staffAttendanceRoutes } from "./modules/staff-attendance";
 import { moduleScope } from "./modules/shared/module-registry";
 import { AppError } from "./modules/shared/errors";
+import { ajvMoneyPlugin } from "./modules/shared/money";
 import { INTERNAL_ERROR_BODY } from "./modules/shared/error-handler";
 import { registerModules } from "./modules-boot";
 
@@ -112,6 +113,9 @@ export async function buildApp(opts: BuildAppOptions = {}) {
     // por X-Forwarded-For; con `1` se toma la IP que agregó nginx (el último
     // salto de la cadena). `request.ip` alimenta el rate limit por IP.
     trustProxy: 1,
+    // Fase 207: keyword Ajv de importes con 2 decimales, ver shared/money.ts.
+    // Agregar plugins no apaga ajv-formats (salvo que se llame formatsPlugin).
+    ajv: { plugins: [ajvMoneyPlugin] },
   });
 
   // Seam del inventario de rutas (fase 171, ISO-01). Va PRIMERO: un hook
