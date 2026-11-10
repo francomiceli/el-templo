@@ -46,12 +46,17 @@ import {
 } from "../shared/tenant";
 import { attachCountryScope } from "../shared/country-scope";
 import {
+  accountBlockReason,
+  ACCOUNT_BLOCK_MESSAGES,
+} from "../shared/account-gate";
+import {
   RefreshTokenService,
   RefreshTokenError,
 } from "./refresh-token-service";
 import { enabledModulesFor } from "../shared/module-flags";
 import { recordRegisterAttribution } from "../marketing/attribution-service";
 import type { SignupAttributionBody } from "../marketing/attribution-service";
+import { RATE_LIMITS } from "../shared/rate-limits";
 
 interface RegisterBody {
   email: string;
@@ -84,7 +89,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
   // POST /register
   fastify.post<{ Body: RegisterBody }>(
     "/register",
-    { schema: registerSchema },
+    { schema: registerSchema, config: { rateLimit: RATE_LIMITS.register } },
     async (request, reply) => {
       const {
         email,
@@ -642,7 +647,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
   // POST /login
   fastify.post<{ Body: LoginBody }>(
     "/login",
-    { schema: loginSchema },
+    { schema: loginSchema, config: { rateLimit: RATE_LIMITS.login } },
     async (request, reply) => {
       const { email, password } = request.body;
 
@@ -862,7 +867,13 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       // la misma exención se repite embebida en el SQL del `where` de abajo.
       /* tenant-safe: userId server-resuelto desde el refresh token opaco, no hay ctx previo posible — ver comentario arriba */
       const [u] = await fastify.db
-        .select({ id: users.id, email: users.email, role: users.role })
+        .select({
+          id: users.id,
+          email: users.email,
+          role: users.role,
+          deletedAt: users.deletedAt,
+          staffDisabled: users.staffDisabled,
+        })
         .from(users)
         .where(
           sql`/* tenant-safe: userId server-resuelto desde el refresh token opaco, no hay ctx previo posible — ver comentario arriba */ ${eq(users.id, rotated.userId)}`,
@@ -879,6 +890,22 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         return reply
           .code(401)
           .send({ error: "No autorizado", message: "Refresh invalido" });
+      }
+
+      // Mismos gates que /login (cuenta borrada / staff deshabilitado). Se
+      // revocan TODAS las sesiones del usuario, incluido el token que acaba de
+      // emitir rotate(): sin esto una baja no cortaba la sesión hasta 30 días.
+      const blockReason = accountBlockReason(u);
+      if (blockReason) {
+        await refreshTokenService.revokeAllForUser(u.id);
+        request.log.warn(
+          { userId: u.id, reason: blockReason },
+          "Refresh rechazado: cuenta bloqueada, sesiones revocadas",
+        );
+        return reply.code(401).send({
+          error: "No autorizado",
+          message: ACCOUNT_BLOCK_MESSAGES[blockReason],
+        });
       }
 
       const accessToken = fastify.jwt.sign(
@@ -1193,7 +1220,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     "/forgot-password",
     {
       schema: forgotPasswordSchema,
-      config: { rateLimit: { max: 5, timeWindow: "15 minutes" } },
+      config: { rateLimit: RATE_LIMITS.forgotPassword },
     },
     async (request) => {
       const service = new PasswordResetService(fastify.db, request.log);
@@ -1226,7 +1253,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     "/reset-password",
     {
       schema: resetPasswordSchema,
-      config: { rateLimit: { max: 10, timeWindow: "15 minutes" } },
+      config: { rateLimit: RATE_LIMITS.resetPassword },
     },
     async (request, reply) => {
       const { email, code, newPassword } = request.body;

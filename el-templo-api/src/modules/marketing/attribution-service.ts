@@ -40,11 +40,7 @@ export interface SignupAttributionBody {
 }
 
 export type AttributionPlatform =
-  | "web"
-  | "android"
-  | "ios"
-  | "admin"
-  | "unknown";
+  "web" | "android" | "ios" | "admin" | "unknown";
 
 export interface RecordSignupAttributionInput {
   userId: number;
@@ -241,7 +237,8 @@ export async function recordRegisterAttribution(
     capturedVia: "register",
     platform: body?.platform ?? "unknown",
     body,
-    // La API no tiene trustProxy: la IP real llega en x-real-ip (nginx).
+    // La API tiene trustProxy: 1; se mantiene x-real-ip porque
+    // `test/marketing/attribution.test.ts` y los datos históricos dependen de ese header.
     clientIp: request.headers["x-real-ip"],
     userAgent: request.headers["user-agent"],
   });

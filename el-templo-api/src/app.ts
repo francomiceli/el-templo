@@ -68,6 +68,8 @@ import { wellhubOccupancyListener } from "./modules/wellhub/occupancy-listener";
 import { tvControlRoutes } from "./modules/tv";
 import { staffAttendanceRoutes } from "./modules/staff-attendance";
 import { moduleScope } from "./modules/shared/module-registry";
+import { AppError } from "./modules/shared/errors";
+import { INTERNAL_ERROR_BODY } from "./modules/shared/error-handler";
 import { registerModules } from "./modules-boot";
 
 /**
@@ -106,6 +108,10 @@ export interface BuildAppOptions {
 export async function buildApp(opts: BuildAppOptions = {}) {
   const app = Fastify({
     logger: process.env.NODE_ENV === "test" ? { level: "silent" } : true,
+    // Un solo proxy delante (nginx). Con `true` el cliente podría falsear la IP
+    // por X-Forwarded-For; con `1` se toma la IP que agregó nginx (el último
+    // salto de la cadena). `request.ip` alimenta el rate limit por IP.
+    trustProxy: 1,
   });
 
   // Seam del inventario de rutas (fase 171, ISO-01). Va PRIMERO: un hook
@@ -162,12 +168,17 @@ export async function buildApp(opts: BuildAppOptions = {}) {
   });
 
   // Rate limit por IP, OPT-IN por ruta (`global: false`): solo las rutas que
-  // declaran `config.rateLimit` lo pagan. Hoy: /auth/forgot-password y
-  // /auth/reset-password (código de 6 dígitos por mail, 2026-09-15). Va
+  // declaran `config.rateLimit` lo pagan (tabla en `shared/rate-limits.ts`):
+  // login, register, canje de campañas, formularios públicos, forgot/reset
+  // password y site-data. La IP sale de `request.ip` (trustProxy: 1). Va
   // antes de todo `register` de rutas: el plugin engancha `onRoute` y solo
   // ve las rutas registradas después.
   await app.register(rateLimit, {
     global: false,
+    // En tests, los pedidos sin `remoteAddress` salen de 127.0.0.1 y comparten
+    // contador; los tests de 429 mandan `remoteAddress` propio. El plugin
+    // mezcla esta opción global en el `config.rateLimit` de cada ruta.
+    allowList: process.env.NODE_ENV === "test" ? ["127.0.0.1"] : [],
     errorResponseBuilder: (_request, context) => ({
       statusCode: 429,
       error: "Demasiados intentos",
@@ -460,7 +471,32 @@ export async function buildApp(opts: BuildAppOptions = {}) {
     }
   });
 
-  // Sentry: capture unhandled Fastify errors
+  // Handler global de errores (tanda 1, #22). Sin esto Fastify devolvía el
+  // `message` del error original en los 500 — con `Failed query: insert into
+  // users ...` de Drizzle el cliente veía el SQL y los parámetros.
+  //  - 5xx que NO son un `AppError`: log completo + cuerpo genérico.
+  //  - Todo lo demás (4xx de validación, JWT, 429 del rate limit, y los
+  //    `AppError` deliberados, incluidos los 503 con copy para el cliente como
+  //    "Las fotos no están disponibles por ahora"): se reenvía el error tal cual
+  //    con `reply.send(err)`, que cae en el serializador por defecto de Fastify
+  //    y produce el mismo cuerpo `{ statusCode, code?, error, message }` de
+  //    siempre. `test/shared/error-handler.test.ts` fija ambos caminos.
+  app.setErrorHandler((err, request, reply) => {
+    const status =
+      typeof (err as { statusCode?: unknown }).statusCode === "number"
+        ? (err as { statusCode: number }).statusCode
+        : 500;
+    if (status < 500 || err instanceof AppError) {
+      return reply.send(err);
+    }
+    request.log.error({ err }, "Error no manejado");
+    return reply.code(status).send(INTERNAL_ERROR_BODY);
+  });
+
+  // Sentry: capture unhandled Fastify errors. Engancha un hook `onError` (no un
+  // `setErrorHandler`, verificado en @sentry/node 10.38), que corre ANTES del
+  // handler de arriba y con el error original: Sentry sigue viendo el mensaje
+  // completo aunque el cliente reciba el genérico.
   Sentry.setupFastifyErrorHandler(app);
 
   return app;

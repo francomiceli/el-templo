@@ -46,6 +46,7 @@ import {
   exchangeSchema,
 } from "./schemas";
 import type { CreateCampaignInput, CampaignSegment } from "./types";
+import { RATE_LIMITS } from "../shared/rate-limits";
 
 /**
  * Allowlisted redirect host for /track/click (D-25, anti open-redirect).
@@ -208,7 +209,7 @@ export const campaignRoutes: FastifyPluginAsync = async (fastify) => {
   // pueda filtrar nada por el header Referer.
   fastify.post<{ Body: { token: string } }>(
     "/exchange",
-    { schema: exchangeSchema },
+    { schema: exchangeSchema, config: { rateLimit: RATE_LIMITS.exchange } },
     async (request, reply) => {
       const result = await magicLink.exchange(request.body.token);
       reply.header("Referrer-Policy", "no-referrer");
