@@ -6,6 +6,7 @@
 import {
   mysqlTable,
   int,
+  decimal,
   timestamp,
   mysqlEnum,
   index,
@@ -35,7 +36,12 @@ export const transactionLinks = mysqlTable(
       "enrollment",
     ]).notNull(),
     targetId: int("target_id").notNull(),
-    allocatedAmount: int("allocated_amount").notNull(),
+    // DECIMAL(14,2) en pesos/euros (fase 207, DI-01), no centavos enteros.
+    allocatedAmount: decimal("allocated_amount", {
+      precision: 14,
+      scale: 2,
+      mode: "number",
+    }).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [

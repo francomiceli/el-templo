@@ -2,6 +2,7 @@
 import {
   mysqlTable,
   int,
+  decimal,
   varchar,
   text,
   timestamp,
@@ -44,7 +45,14 @@ export const financialTransactions = mysqlTable(
       "expense",
     ]).notNull(),
     direction: mysqlEnum("direction", ["inflow", "outflow"]).notNull(),
-    amount: int("amount").notNull(),
+    // DECIMAL(14,2) en pesos/euros (fase 207, DI-01), no centavos enteros.
+    // mode "number": Drizzle lo mapea con Number() al leer. En SQL crudo llega
+    // como string, envolver con Number().
+    amount: decimal("amount", {
+      precision: 14,
+      scale: 2,
+      mode: "number",
+    }).notNull(),
     currency: varchar("currency", { length: 3 }).default("ARS").notNull(),
     // 'direct_debit' (domiciliación bancaria SEPA) solo aplica a sedes de
     // España — validado a nivel app, no por constraint. El banco confirma el
@@ -66,6 +74,12 @@ export const financialTransactions = mysqlTable(
     // sucursal, el modelo honesto guarda NULL. Las lecturas branch-keyed
     // (revenueByBranch/getSummary) INNER JOIN branches y descartan las filas NULL.
     branchId: int("branch_id").references(() => branches.id),
+    // Fase 207 (D-14/DI-07): sede del alumno AL MOMENTO del cobro, snapshot que
+    // no cambia si el alumno se muda. Lo escribe SOLO TransactionService.create()
+    // (plan 207-06). NULL en egresos/movimientos sin socio. Los lectores caen a
+    // users.branch_id y despues a branch_id si es NULL. Nombre SQL byte-for-byte
+    // con la migracion 0327 (backfill de historicos en 0328).
+    memberBranchId: int("member_branch_id").references(() => branches.id),
     // Phase 138: caja a la que fue la plata (D-04). NULLABLE — NULL para
     // aura_credit/internal (no es plata firme de caja) e históricos sin
     // backfillear. branchId (dónde se cobró) NO mapea 1:1 con cash_register_id
@@ -141,6 +155,12 @@ export const financialTransactions = mysqlTable(
       table.branchId,
       table.transactionDate,
     ),
+    // Fase 207: reportes por sede del alumno y mes (migracion 0327).
+    index("idx_financial_tx_tenant_member_branch_date").on(
+      table.tenantId,
+      table.memberBranchId,
+      table.transactionDate,
+    ),
     index("idx_financial_tx_kind_voided").on(table.kind, table.voidedAt),
     // Phase 137: firm-money read path (validation_status='validado' AND voided_at IS NULL).
     index("idx_financial_tx_validation_voided").on(
@@ -184,6 +204,11 @@ export const financialTransactionsRelations = relations(
     branch: one(branches, {
       fields: [financialTransactions.branchId],
       references: [branches.id],
+    }),
+    memberBranch: one(branches, {
+      fields: [financialTransactions.memberBranchId],
+      references: [branches.id],
+      relationName: "financialTxMemberBranch",
     }),
     cashRegister: one(cashRegisters, {
       fields: [financialTransactions.cashRegisterId],
