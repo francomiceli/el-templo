@@ -377,12 +377,7 @@ describe("Subscriptions API — Lifecycle", () => {
         cashRegisters,
       );
       const enrollments = new EnrollmentService(app.db, app.log);
-      const svc = new SubscriptionService(
-        app.db,
-        app.log,
-        txns,
-        enrollments,
-      );
+      const svc = new SubscriptionService(app.db, app.log, txns, enrollments);
 
       const processed = await svc.autoExpireDueSubscriptions();
       expect(processed).toBeGreaterThanOrEqual(1);
@@ -935,6 +930,182 @@ describe("Subscriptions API — Lifecycle", () => {
         );
       expect(postBalance).toHaveLength(1);
       expect(postBalance[0].amount).toBe(0);
+    });
+
+    // Caso Luis Pascual (2026-11-10): plan cargado sin cobrar → cambio de
+    // plan → cancelación. El cambio deja la sub vieja en 'changed' con su
+    // deuda viva (su valor se acreditó en el precio de la nueva). Cancelar la
+    // nueva tiene que saldar TAMBIÉN la deuda de los planes anteriores de la
+    // cadena, si no queda una deuda huérfana que nadie puede borrar desde el
+    // admin y que se suma al volver a cargarle un plan.
+    describe("cancel después de cambios de plan", () => {
+      async function subBalance(memberId: number, subId: number) {
+        const rows = await app.db
+          .select({ amount: schema.balances.amount })
+          .from(schema.balances)
+          .where(
+            and(
+              tenantWhere(schema.balances, TEMPLO_CTX),
+              eq(schema.balances.memberId, memberId),
+              eq(schema.balances.targetKind, "subscription"),
+              eq(schema.balances.targetId, subId),
+            ),
+          );
+        return rows[0]?.amount ?? null;
+      }
+
+      async function changePlanUnpaid(memberId: number, planId: number) {
+        const res = await app.inject({
+          method: "POST",
+          url: `${SUBSCRIPTIONS_URL}/members/${memberId}/subscription/change-plan`,
+          headers: { authorization: `Bearer ${adminToken}` },
+          payload: {
+            planId,
+            branchId: 1,
+            startDate: todayStr(),
+            priceTypeApplied: "regular",
+            paymentMethod: "cash",
+            amountReceived: 0,
+          },
+        });
+        expect(res.statusCode).toBe(201);
+        return (JSON.parse(res.body) as { id: number }).id;
+      }
+
+      async function cancel(memberId: number, subscriptionId?: number) {
+        const res = await app.inject({
+          method: "POST",
+          url: `${SUBSCRIPTIONS_URL}/members/${memberId}/subscription/cancel`,
+          headers: { authorization: `Bearer ${adminToken}` },
+          payload: subscriptionId === undefined ? {} : { subscriptionId },
+        });
+        expect(res.statusCode).toBe(200);
+      }
+
+      it("salda la deuda del plan anterior (status changed) además de la de la sub cancelada", async () => {
+        const planA = await createPlan(app, adminToken, {
+          name: "Cadena A",
+          priceRegular: 65000,
+        });
+        const planB = await createPlan(app, adminToken, {
+          name: "Cadena B",
+          priceRegular: 80000,
+        });
+        const member = await createMember(app);
+
+        const assigned = await assignPlan(app, adminToken, member.id, {
+          planId: planA.id,
+          amountReceived: 0,
+        });
+        expect(assigned.statusCode).toBe(201);
+        const subA = assigned.body.id as number;
+        const seededA = await subBalance(member.id, subA);
+        expect(seededA).toBeGreaterThan(0);
+
+        const subB = await changePlanUnpaid(member.id, planB.id);
+        const [oldRow] = await app.db
+          .select({ status: schema.subscriptions.status })
+          .from(schema.subscriptions)
+          .where(
+            and(
+              tenantWhere(schema.subscriptions, TEMPLO_CTX),
+              eq(schema.subscriptions.id, subA),
+            ),
+          );
+        expect(oldRow.status).toBe("changed");
+        // Precondición del bug: el cambio NO salda la deuda del plan viejo.
+        expect(await subBalance(member.id, subA)).toBe(seededA);
+
+        await cancel(member.id);
+
+        expect(await subBalance(member.id, subB)).toBe(0);
+        expect(await subBalance(member.id, subA)).toBe(0);
+
+        const [audit] = await app.db
+          .select()
+          .from(schema.auditLog)
+          .where(
+            and(
+              tenantWhere(schema.auditLog, TEMPLO_CTX),
+              eq(schema.auditLog.action, "subscription_cancelled"),
+              eq(schema.auditLog.targetId, subB),
+            ),
+          )
+          .orderBy(desc(schema.auditLog.id))
+          .limit(1);
+        const payload = audit.payloadJson as Record<string, unknown>;
+        expect(payload.changedPredecessorIds).toEqual([subA]);
+      });
+
+      it("recorre cadenas de varios cambios (A → B → C) y conserva el saldo a favor", async () => {
+        const planA = await createPlan(app, adminToken, {
+          priceRegular: 30000,
+        });
+        const planB = await createPlan(app, adminToken, {
+          priceRegular: 40000,
+        });
+        const planC = await createPlan(app, adminToken, {
+          priceRegular: 50000,
+        });
+        const member = await createMember(app);
+
+        const assigned = await assignPlan(app, adminToken, member.id, {
+          planId: planA.id,
+          amountReceived: 0,
+        });
+        const subA = assigned.body.id as number;
+        const subB = await changePlanUnpaid(member.id, planB.id);
+        const subC = await changePlanUnpaid(member.id, planC.id);
+
+        // Saldo a favor en el eslabón del medio: no se toca.
+        await app.db
+          .update(schema.balances)
+          .set({ amount: -5000 })
+          .where(
+            and(
+              tenantWhere(schema.balances, TEMPLO_CTX),
+              eq(schema.balances.memberId, member.id),
+              eq(schema.balances.targetKind, "subscription"),
+              eq(schema.balances.targetId, subB),
+            ),
+          );
+
+        await cancel(member.id);
+
+        expect(await subBalance(member.id, subC)).toBe(0);
+        expect(await subBalance(member.id, subB)).toBe(-5000);
+        expect(await subBalance(member.id, subA)).toBe(0);
+      });
+
+      it("cancelar la renovación programada NO salda la deuda de la membresía vigente", async () => {
+        const plan = await createPlan(app, adminToken, {
+          name: "Vigente con deuda",
+          priceRegular: 20000,
+        });
+        const member = await createMember(app);
+        const assigned = await assignPlan(app, adminToken, member.id, {
+          planId: plan.id,
+          startDate: todayStr(),
+          amountReceived: 0,
+        });
+        const activeId = assigned.body.id as number;
+        const seededActive = await subBalance(member.id, activeId);
+        expect(seededActive).toBeGreaterThan(0);
+
+        const renewRes = await app.inject({
+          method: "POST",
+          url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/renew`,
+          headers: { authorization: `Bearer ${adminToken}` },
+          payload: { paymentMethod: "cash", amountReceived: 0 },
+        });
+        expect(renewRes.statusCode).toBe(201);
+        const scheduledId = (JSON.parse(renewRes.body) as { id: number }).id;
+
+        await cancel(member.id, scheduledId);
+
+        // La vigente no es un eslabón 'changed': su deuda sigue en pie.
+        expect(await subBalance(member.id, activeId)).toBe(seededActive);
+      });
     });
 
     // Saldo a favor (negative balance) survives cancellation — only positive

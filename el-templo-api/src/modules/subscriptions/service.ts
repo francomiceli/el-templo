@@ -197,6 +197,13 @@ function formatDateAr(isoDate: string): string {
 const RENEWAL_PREVIEW_OVERRIDE_REASON = "preview";
 
 /**
+ * Tope de saltos hacia atrás por la cadena de cambios de plan al cancelar
+ * (findChangedPredecessorIds). Más de 2-3 cambios seguidos es rarísimo, el tope
+ * solo acota una cadena corrupta.
+ */
+const MAX_CHANGED_PREDECESSOR_HOPS = 10;
+
+/**
  * Throws BadRequestError if startDate is outside the allowed window
  * relative to today. Used by assignPlan and editSubscriptionStartDate.
  */
@@ -4105,6 +4112,7 @@ export class SubscriptionService {
         id: schema.subscriptions.id,
         userId: schema.subscriptions.userId,
         status: schema.subscriptions.status,
+        previousSubscriptionId: schema.subscriptions.previousSubscriptionId,
         planCategory: schema.subscriptionPlans.planCategory,
         specialLine: schema.subscriptionPlans.specialLine,
       })
@@ -4278,7 +4286,26 @@ export class SubscriptionService {
     // Voided-tx deltas already rolled back via BalanceService.applyDelta,
     // so the balance row reflects the residual ledger state — anything
     // still > 0 here is the phantom seed.
-    const targetSubIds = [sub.id, ...scheduledSuccessors.map((s) => s.id)];
+    //
+    // Caso Luis Pascual (2026-11-10): si la sub cancelada vino de un CAMBIO
+    // DE PLAN, la deuda del plan anterior (status='changed') sigue siendo
+    // parte de la MISMA membresía — el cambio acreditó su valor en el precio
+    // de la nueva como si estuviera pago. Cancelar tiene que saldarla también,
+    // si no queda una deuda huérfana que el admin no puede borrar (el diálogo
+    // promete "la deuda queda en 0"). Solo se sigue la cadena por eslabones
+    // 'changed' del mismo alumno: una renovación (sub vencida/completada) corta
+    // la cadena y su deuda NO se toca.
+    const changedPredecessorIds = await this.findChangedPredecessorIds(
+      ctx,
+      tx,
+      userId,
+      subRow.previousSubscriptionId,
+    );
+    const targetSubIds = [
+      sub.id,
+      ...scheduledSuccessors.map((s) => s.id),
+      ...changedPredecessorIds,
+    ];
     await tx
       .update(schema.balances)
       .set({ amount: 0, lastRecomputedAt: new Date() })
@@ -4329,9 +4356,49 @@ export class SubscriptionService {
         // path has no live charges against this sub.
         hasActiveTx: false,
         skipActiveChargesGuard: opts.skipActiveChargesGuard ?? false,
+        // Planes anteriores (cambio de plan) cuya deuda se saldó con este cancel.
+        changedPredecessorIds,
       },
       reason: notes ?? null,
     });
+  }
+
+  /**
+   * Ids de los planes ANTERIORES de una cadena de cambios de plan, desde
+   * `previousId` hacia atrás, mientras cada eslabón sea del mismo alumno y esté
+   * en status 'changed'. Corta en el primer eslabón que no cumple (p.ej. la sub
+   * vencida de la que salió una renovación). Lee con el `tx` del caller.
+   */
+  private async findChangedPredecessorIds(
+    ctx: TenantContext,
+    tx: TxHandle,
+    userId: number,
+    previousId: number | null,
+  ): Promise<number[]> {
+    const ids: number[] = [];
+    let nextId = previousId;
+    while (nextId !== null && ids.length < MAX_CHANGED_PREDECESSOR_HOPS) {
+      if (ids.includes(nextId)) break; // cadena corrupta con ciclo
+      const [prev] = await tx
+        .select({
+          id: schema.subscriptions.id,
+          userId: schema.subscriptions.userId,
+          status: schema.subscriptions.status,
+          previousSubscriptionId: schema.subscriptions.previousSubscriptionId,
+        })
+        .from(schema.subscriptions)
+        .where(
+          and(
+            tenantWhere(schema.subscriptions, ctx),
+            eq(schema.subscriptions.id, nextId),
+          ),
+        )
+        .limit(1);
+      if (!prev || prev.userId !== userId || prev.status !== "changed") break;
+      ids.push(prev.id);
+      nextId = prev.previousSubscriptionId;
+    }
+    return ids;
   }
 
   /**
