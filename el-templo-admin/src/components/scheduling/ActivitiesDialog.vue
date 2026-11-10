@@ -39,12 +39,18 @@
                 />
               </q-item-label>
               <q-item-label caption>{{ act.description || 'Sin descripcion' }}</q-item-label>
-              <q-item-label v-if="cutoffSummary(act)" caption class="text-deep-orange-8">
+              <q-item-label
+                caption
+                :class="hasCustomCutoffs(act) ? 'text-deep-orange-8' : 'text-grey-6'"
+              >
                 <q-icon name="schedule" size="14px" class="q-mr-xs" />{{ cutoffSummary(act) }}
               </q-item-label>
             </q-item-section>
             <q-item-section side>
               <div class="row items-center q-gutter-xs">
+                <q-btn flat dense round icon="schedule" size="sm" @click="openCutoffsDialog(act)">
+                  <q-tooltip>Horarios para reservar y cancelar</q-tooltip>
+                </q-btn>
                 <q-btn flat dense round icon="edit" size="sm" @click="startEditActivity(act)" />
                 <q-btn
                   v-if="act.isActive"
@@ -221,6 +227,48 @@
         </div>
       </q-card-section>
     </q-card>
+
+    <q-dialog v-model="cutoffsDialog.open">
+      <q-card style="width: 420px; max-width: 92vw">
+        <q-card-section>
+          <div class="text-subtitle1 text-weight-medium">Horarios para reservar</div>
+          <div class="text-caption text-grey-7">{{ cutoffsDialog.activityName }}</div>
+        </q-card-section>
+        <q-card-section class="q-pt-none q-gutter-md">
+          <q-input
+            v-model="cutoffsDialog.bookingCloseMinutes"
+            label="La reserva cierra (minutos antes de la clase)"
+            type="number"
+            dense
+            outlined
+            min="0"
+            :max="MAX_CLOSE_MINUTES"
+            :hint="`Vacío = ${DEFAULT_BOOKING_CLOSE_MINUTES} min (lo estándar)`"
+            :rules="[validateCloseMinutes]"
+          />
+          <q-input
+            v-model="cutoffsDialog.cancelCloseMinutes"
+            label="La cancelación cierra (minutos antes de la clase)"
+            type="number"
+            dense
+            outlined
+            min="0"
+            :max="MAX_CLOSE_MINUTES"
+            :hint="`Vacío = ${DEFAULT_CANCEL_CLOSE_MINUTES} min (lo estándar)`"
+            :rules="[validateCloseMinutes]"
+          />
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Cancelar" v-close-popup />
+          <q-btn
+            color="primary"
+            label="Guardar"
+            :loading="cutoffsDialog.saving"
+            @click="onSaveCutoffs"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </div>
 </template>
 
@@ -333,16 +381,68 @@ function normalizeCloseMinutes(v: number | string | null): number | null {
   return Number.isInteger(n) && n >= 0 && n <= MAX_CLOSE_MINUTES ? n : null;
 }
 
-/** Resumen de los cortes propios de la actividad para la lista ('' si usa los defaults). */
+function hasCustomCutoffs(act: ActivityRecord): boolean {
+  return act.bookingCloseMinutes !== null || act.cancelCloseMinutes !== null;
+}
+
+/** Cortes efectivos de la actividad para la fila de la lista (propios o estándar). */
 function cutoffSummary(act: ActivityRecord): string {
-  const parts: string[] = [];
-  if (act.bookingCloseMinutes !== null) {
-    parts.push(`Reserva hasta ${act.bookingCloseMinutes} min antes`);
+  const booking = act.bookingCloseMinutes ?? DEFAULT_BOOKING_CLOSE_MINUTES;
+  const cancel = act.cancelCloseMinutes ?? DEFAULT_CANCEL_CLOSE_MINUTES;
+  return `Reserva hasta ${booking} min antes · Cancelación hasta ${cancel} min antes`;
+}
+
+// ─── Diálogo de horarios para reservar (por actividad existente) ────────────
+
+const cutoffsDialog = ref<{
+  open: boolean;
+  activityId: number | null;
+  activityName: string;
+  bookingCloseMinutes: number | string | null;
+  cancelCloseMinutes: number | string | null;
+  saving: boolean;
+}>({
+  open: false,
+  activityId: null,
+  activityName: '',
+  bookingCloseMinutes: null,
+  cancelCloseMinutes: null,
+  saving: false,
+});
+
+function openCutoffsDialog(act: ActivityRecord) {
+  cutoffsDialog.value = {
+    open: true,
+    activityId: act.id,
+    activityName: act.name,
+    bookingCloseMinutes: act.bookingCloseMinutes,
+    cancelCloseMinutes: act.cancelCloseMinutes,
+    saving: false,
+  };
+}
+
+async function onSaveCutoffs() {
+  const dialog = cutoffsDialog.value;
+  if (dialog.activityId === null) return;
+  if (validateCloseMinutes(dialog.bookingCloseMinutes) !== true) return;
+  if (validateCloseMinutes(dialog.cancelCloseMinutes) !== true) return;
+  dialog.saving = true;
+  try {
+    // Solo los dos cortes: el PUT deja intacto todo lo que no viaja.
+    await schedulingApi.updateActivity(dialog.activityId, {
+      bookingCloseMinutes: normalizeCloseMinutes(dialog.bookingCloseMinutes),
+      cancelCloseMinutes: normalizeCloseMinutes(dialog.cancelCloseMinutes),
+    });
+    $q.notify({ type: 'positive', message: 'Horarios para reservar actualizados' });
+    dialog.open = false;
+    await loadActivities();
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error saving activity cutoffs', { error: message });
+    $q.notify({ type: 'negative', message: extractError(err, 'Error guardando los horarios') });
+  } finally {
+    dialog.saving = false;
   }
-  if (act.cancelCloseMinutes !== null) {
-    parts.push(`Cancelación hasta ${act.cancelCloseMinutes} min antes`);
-  }
-  return parts.join(' · ');
 }
 
 function emptyActivityForm() {
