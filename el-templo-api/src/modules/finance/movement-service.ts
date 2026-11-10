@@ -29,6 +29,7 @@ import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { BadRequestError } from "../shared/errors";
 import { auditLog } from "../shared/audit-log";
+import { assertMoneyAmount, moneyEquals, roundMoney } from "../shared/money";
 import {
   tenantValues,
   tenantWhere,
@@ -116,8 +117,14 @@ export class MovementService {
         "El origen y el destino del movimiento no pueden ser la misma caja",
       );
     }
-    if (amount <= 0) {
-      throw new BadRequestError("El monto del movimiento debe ser mayor a 0");
+    // Fase 207: importe > 0 con hasta 2 decimales (el service tambien lo
+    // exige: lo llaman jobs/otros servicios sin pasar por el schema de la ruta).
+    assertMoneyAmount(amount, { label: "El monto del movimiento" });
+    if (countedAmount !== undefined) {
+      assertMoneyAmount(countedAmount, {
+        label: "El conteo físico",
+        allowZero: true,
+      });
     }
 
     // Load both cajas + apply the same-currency guard (D-03) BEFORE any write —
@@ -223,8 +230,13 @@ export class MovementService {
       // expected, outflow when counted < expected, amount = |diff|. Always
       // record expected (+counted if given) in the audit payload (cheap trail).
       let adjustmentTxId: number | null = null;
-      if (countedAmount !== undefined && countedAmount !== expectedAmount) {
-        const diff = countedAmount - expectedAmount;
+      // Fase 207: la diferencia se redondea a centavos (sin 0.30000000000000004)
+      // y "hay diferencia" se decide en centavos enteros, no con `!==` de floats.
+      if (
+        countedAmount !== undefined &&
+        !moneyEquals(countedAmount, expectedAmount)
+      ) {
+        const diff = roundMoney(countedAmount - expectedAmount);
         const adjustment = await this.txnService.create(
           ctx,
           {
@@ -238,7 +250,7 @@ export class MovementService {
             effectiveDate: this.today(),
             branchId: origen.branchId,
             cashRegisterId: origenCajaId,
-            notes: `Reconciliación movimiento #${outflow.id}: esperado ${expectedAmount}, contado ${countedAmount}`,
+            notes: `Reconciliación movimiento #${outflow.id}: esperado ${roundMoney(expectedAmount)}, contado ${roundMoney(countedAmount)}`,
             links: [],
           },
           adminId,
@@ -270,10 +282,12 @@ export class MovementService {
           movementId: outflow.id,
           inflowTxId: inflow.id,
           adjustmentId: adjustmentTxId,
-          expected: expectedAmount,
+          expected: roundMoney(expectedAmount),
           counted: countedAmount ?? null,
           diff:
-            countedAmount !== undefined ? countedAmount - expectedAmount : null,
+            countedAmount !== undefined
+              ? roundMoney(countedAmount - expectedAmount)
+              : null,
         },
       });
 
@@ -321,9 +335,7 @@ export class MovementService {
     adminId: number,
   ): Promise<{ expenseTxId: number }> {
     const { cajaId, amount, costCenterId, notes } = input;
-    if (amount <= 0) {
-      throw new BadRequestError("El monto del egreso debe ser mayor a 0");
-    }
+    assertMoneyAmount(amount, { label: "El monto del egreso" });
     if (!costCenterId) {
       throw new BadRequestError(
         "Debés elegir un centro de costo válido para el egreso",
@@ -510,7 +522,10 @@ export class MovementService {
       );
     const ids = [expenseRowId, ...adjustments.map((a) => a.id)];
     await this.txnService.voidPair(ctx, ids, voidedBy, { reason });
-    this.log.info({ expenseRowId, voidedIds: ids, voidedBy, reason }, "Expense voided");
+    this.log.info(
+      { expenseRowId, voidedIds: ids, voidedBy, reason },
+      "Expense voided",
+    );
   }
 
   /** YYYY-MM-DD today (local). Movimientos/egresos nacen con fecha de hoy. */
