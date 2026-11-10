@@ -33,6 +33,16 @@ export interface ActivityRecord {
    * `null` = "Actividades con Aura". Siempre `null` si no es especial.
    */
   specialLine: string | null;
+  /**
+   * Minutos antes del inicio en que cierra la reserva desde la app.
+   * `null` = default global (5). Mirrors the API (migración 0326).
+   */
+  bookingCloseMinutes: number | null;
+  /**
+   * Minutos antes del inicio en que el socio ya no puede cancelar.
+   * `null` = default global (20). Mirrors the API (migración 0326).
+   */
+  cancelCloseMinutes: number | null;
   createdAt: string;
   updatedAt: string;
 }

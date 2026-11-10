@@ -31,6 +31,12 @@ export interface ActivityRecord {
    * línea. NULL = "Actividades con Aura". Siempre NULL si no es especial.
    */
   specialLine: string | null;
+  /**
+   * Cortes por actividad (0326), en minutos antes del inicio. NULL = default
+   * global (5 para reservar, 20 para cancelar — ver booking-constants.ts).
+   */
+  bookingCloseMinutes: number | null;
+  cancelCloseMinutes: number | null;
   createdAt: string;
   updatedAt: string;
 }

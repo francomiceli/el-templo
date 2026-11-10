@@ -39,6 +39,9 @@
                 />
               </q-item-label>
               <q-item-label caption>{{ act.description || 'Sin descripcion' }}</q-item-label>
+              <q-item-label v-if="cutoffSummary(act)" caption class="text-deep-orange-8">
+                <q-icon name="schedule" size="14px" class="q-mr-xs" />{{ cutoffSummary(act) }}
+              </q-item-label>
             </q-item-section>
             <q-item-section side>
               <div class="row items-center q-gutter-xs">
@@ -135,6 +138,32 @@
         />
         <div v-if="activityForm.isSpecial && linesInUse.length > 0" class="text-caption q-mt-xs">
           En uso: {{ linesInUse.join(', ') }}
+        </div>
+        <div class="row q-gutter-sm items-start q-mt-sm">
+          <q-input
+            v-model="activityForm.bookingCloseMinutes"
+            label="Cierre de reserva (min antes)"
+            type="number"
+            dense
+            outlined
+            class="col"
+            min="0"
+            :max="MAX_CLOSE_MINUTES"
+            :hint="`Vacío = ${DEFAULT_BOOKING_CLOSE_MINUTES} min antes del inicio`"
+            :rules="[validateCloseMinutes]"
+          />
+          <q-input
+            v-model="activityForm.cancelCloseMinutes"
+            label="Cierre de cancelación (min antes)"
+            type="number"
+            dense
+            outlined
+            class="col"
+            min="0"
+            :max="MAX_CLOSE_MINUTES"
+            :hint="`Vacío = ${DEFAULT_CANCEL_CLOSE_MINUTES} min antes del inicio`"
+            :rules="[validateCloseMinutes]"
+          />
         </div>
       </q-card-section>
     </q-card>
@@ -238,7 +267,11 @@ const activityForm = ref<{
   isSpecial: boolean;
   // Línea del pase especial. q-input clearable deja `null` al limpiar.
   specialLine: string | null;
-}>({ name: '', description: '', maxCapacity: null, isSpecial: false, specialLine: null });
+  // Cortes por actividad (minutos antes del inicio). Mismo tratamiento que
+  // maxCapacity: el q-input number puede devolver string; vacío = default.
+  bookingCloseMinutes: number | string | null;
+  cancelCloseMinutes: number | string | null;
+}>(emptyActivityForm());
 const editingActivity = ref<ActivityRecord | null>(null);
 
 // Líneas ya usadas por actividades especiales (para no equivocarse al tipear).
@@ -278,6 +311,52 @@ function normalizeCapacity(v: number | string | null): number | null {
   return Number.isInteger(n) && n > 0 ? n : null;
 }
 
+// Defaults globales de la API (booking-constants.ts) — solo para el hint.
+const DEFAULT_BOOKING_CLOSE_MINUTES = 5;
+const DEFAULT_CANCEL_CLOSE_MINUTES = 20;
+const MAX_CLOSE_MINUTES = 1440;
+
+/** Valida un corte en minutos: vacío (default) o entero entre 0 y 1440. */
+function validateCloseMinutes(v: number | string | null): true | string {
+  if (v === null || v === undefined || v === '') return true;
+  const n = Number(v);
+  return (
+    (Number.isInteger(n) && n >= 0 && n <= MAX_CLOSE_MINUTES) ||
+    `Tiene que ser un entero entre 0 y ${MAX_CLOSE_MINUTES}`
+  );
+}
+
+/** Normaliza un corte a `number | null` (vacío/inválido → null = default). */
+function normalizeCloseMinutes(v: number | string | null): number | null {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  return Number.isInteger(n) && n >= 0 && n <= MAX_CLOSE_MINUTES ? n : null;
+}
+
+/** Resumen de los cortes propios de la actividad para la lista ('' si usa los defaults). */
+function cutoffSummary(act: ActivityRecord): string {
+  const parts: string[] = [];
+  if (act.bookingCloseMinutes !== null) {
+    parts.push(`Reserva hasta ${act.bookingCloseMinutes} min antes`);
+  }
+  if (act.cancelCloseMinutes !== null) {
+    parts.push(`Cancelación hasta ${act.cancelCloseMinutes} min antes`);
+  }
+  return parts.join(' · ');
+}
+
+function emptyActivityForm() {
+  return {
+    name: '',
+    description: '',
+    maxCapacity: null,
+    isSpecial: false,
+    specialLine: null,
+    bookingCloseMinutes: null,
+    cancelCloseMinutes: null,
+  };
+}
+
 // ─── Data Loading ───────────────────────────────────────────────────────────
 
 async function loadActivities() {
@@ -315,24 +394,24 @@ function startEditActivity(act: ActivityRecord) {
     maxCapacity: act.maxCapacity ?? null,
     isSpecial: act.isSpecial,
     specialLine: act.specialLine ?? null,
+    bookingCloseMinutes: act.bookingCloseMinutes ?? null,
+    cancelCloseMinutes: act.cancelCloseMinutes ?? null,
   };
 }
 
 function cancelEditActivity() {
   editingActivity.value = null;
-  activityForm.value = {
-    name: '',
-    description: '',
-    maxCapacity: null,
-    isSpecial: false,
-    specialLine: null,
-  };
+  activityForm.value = emptyActivityForm();
 }
 
 async function onSaveActivity() {
   if (!activityForm.value.name.trim()) return;
   if (validateCapacity(activityForm.value.maxCapacity) !== true) return;
+  if (validateCloseMinutes(activityForm.value.bookingCloseMinutes) !== true) return;
+  if (validateCloseMinutes(activityForm.value.cancelCloseMinutes) !== true) return;
   const maxCapacity = normalizeCapacity(activityForm.value.maxCapacity);
+  const bookingCloseMinutes = normalizeCloseMinutes(activityForm.value.bookingCloseMinutes);
+  const cancelCloseMinutes = normalizeCloseMinutes(activityForm.value.cancelCloseMinutes);
   // Solo aplica a especiales; vacío = null (línea Aura). El server igual la limpia si no es especial.
   const specialLine = activityForm.value.isSpecial
     ? activityForm.value.specialLine?.trim() || null
@@ -345,6 +424,8 @@ async function onSaveActivity() {
         maxCapacity,
         isSpecial: activityForm.value.isSpecial,
         specialLine,
+        bookingCloseMinutes,
+        cancelCloseMinutes,
       });
       $q.notify({ type: 'positive', message: 'Actividad actualizada' });
     } else {
@@ -354,16 +435,12 @@ async function onSaveActivity() {
         maxCapacity,
         isSpecial: activityForm.value.isSpecial,
         specialLine,
+        bookingCloseMinutes,
+        cancelCloseMinutes,
       });
       $q.notify({ type: 'positive', message: 'Actividad creada' });
     }
-    activityForm.value = {
-      name: '',
-      description: '',
-      maxCapacity: null,
-      isSpecial: false,
-      specialLine: null,
-    };
+    activityForm.value = emptyActivityForm();
     editingActivity.value = null;
     await loadActivities();
   } catch (err: unknown) {

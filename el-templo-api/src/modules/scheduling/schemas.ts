@@ -44,6 +44,9 @@ const activityRecordSchema = {
     isSpecial: { type: "boolean" },
     // Línea del pase especial (2026-09-29). Declarada o se strippea.
     specialLine: { type: ["string", "null"] },
+    // Cortes por actividad (0326). Declarados o se strippean.
+    bookingCloseMinutes: { type: ["integer", "null"] },
+    cancelCloseMinutes: { type: ["integer", "null"] },
     createdAt: { type: "string" },
     updatedAt: { type: "string" },
   },
@@ -209,6 +212,10 @@ export const createActivitySchema = {
       isSpecial: { type: "boolean" },
       // Línea del pase especial (2026-09-29). Vacío/null = Aura.
       specialLine: { type: ["string", "null"], maxLength: 50 },
+      // Cortes por actividad (0326), minutos antes del inicio. `null` = default
+      // global (5 reservar / 20 cancelar). Tope: un día.
+      bookingCloseMinutes: { type: ["integer", "null"], minimum: 0, maximum: 1440 },
+      cancelCloseMinutes: { type: ["integer", "null"], minimum: 0, maximum: 1440 },
     },
   },
   response: {
@@ -250,6 +257,10 @@ export const updateActivitySchema = {
       isSpecial: { type: "boolean" },
       // Línea del pase especial (2026-09-29). Vacío/null = Aura.
       specialLine: { type: ["string", "null"], maxLength: 50 },
+      // Cortes por actividad (0326), minutos antes del inicio. `null` = default
+      // global (5 reservar / 20 cancelar). Tope: un día.
+      bookingCloseMinutes: { type: ["integer", "null"], minimum: 0, maximum: 1440 },
+      cancelCloseMinutes: { type: ["integer", "null"], minimum: 0, maximum: 1440 },
     },
   },
   response: {

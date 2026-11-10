@@ -36,6 +36,11 @@ export const activities = mysqlTable("activities", {
   // Templo, solo General: Técnica y Combos son rutas dentro de General).
   // Las especiales quedan afuera aunque estén marcadas (ver wellhub/sync-service.ts).
   wellhubEnabled: boolean("wellhub_enabled").default(false).notNull(),
+  // Cortes por actividad (2026-11-10, migración 0326), en minutos antes del
+  // inicio de la clase. NULL = default global (DEFAULT_BOOKING_CLOSE_MINUTES /
+  // BOOKING_CANCEL_WINDOW_MINUTES en scheduling/booking-constants.ts).
+  bookingCloseMinutes: int("booking_close_minutes"),
+  cancelCloseMinutes: int("cancel_close_minutes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
