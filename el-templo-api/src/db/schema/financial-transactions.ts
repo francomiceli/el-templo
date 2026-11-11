@@ -66,6 +66,8 @@ export const financialTransactions = mysqlTable(
       "aura_credit",
       "internal",
       "direct_debit",
+      // Fase 208 (D-09): medio de pago de egresos. Orden byte-for-byte con 0329.
+      "cheque",
     ]).notNull(),
     transactionDate: date("transaction_date", { mode: "string" }).notNull(),
     effectiveDate: date("effective_date", { mode: "string" }).notNull(),

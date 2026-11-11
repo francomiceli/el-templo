@@ -20,6 +20,7 @@ import { tenantIdColumn } from "./tenant-column";
 // Tipos:
 //   efectivo + branch_id=X      → caja de efectivo de la sucursal X
 //   efectivo + branch_id=NULL   → caja de efectivo central
+//   efectivo + branch_id=NULL + is_treasury → Tesoro (reserva de efectivo, una por moneda)
 //   banco    + branch_id=NULL   → caja banco POR MONEDA (una ARS, una EUR)
 //
 // El saldo es DERIVADO (D-08): opening_balance (constante por caja, D-06/D-07)
@@ -40,6 +41,10 @@ export const cashRegisters = mysqlTable(
     // sólo para las cajas efectivo de sucursal.
     branchId: int("branch_id").references(() => branches.id),
     currency: varchar("currency", { length: 3 }).notNull(),
+    // Fase 208 (DI-01): Tesoro = reserva de efectivo sin sede, una por moneda.
+    // Central = efectivo sin sede con is_treasury false. El invariante (solo
+    // efectivo y sin sede) lo valida el service. Nombre byte-for-byte con 0329.
+    isTreasury: boolean("is_treasury").default(false).notNull(),
     // Phase 150 (CTA-01 / D-01) — datos bancarios flexibles del ABM de cuentas.
     // Todas NULLABLE: solo aplican a las cajas tipo 'banco' y el ABM impone en
     // el service qué 3 son obligatorias (D-03); las cajas efectivo las dejan
