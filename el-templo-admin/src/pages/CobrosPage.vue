@@ -684,9 +684,9 @@
                     <q-icon name="warning" color="warning" />
                   </template>
                   <div class="text-body2">
-                    Estás en jornada en <strong>{{ jornadaSede.branchName }}</strong>, pero este
-                    cobro se carga en <strong>{{ resumenSede ?? 'otra sede' }}</strong>. Si la plata
-                    queda en {{ jornadaSede.branchName }}, cambiá la sede del cobro.
+                    Estás en jornada en <strong>{{ jornadaSede.branchName }}</strong
+                    >, pero este cobro se carga en <strong>{{ resumenSede ?? 'otra sede' }}</strong
+                    >. Si la plata queda en {{ jornadaSede.branchName }}, cambiá la sede del cobro.
                   </div>
                   <template v-if="puedeCobrarEnSedeDeJornada" #action>
                     <q-btn
@@ -715,10 +715,8 @@
                   />
                 </div>
 
-                <q-input
-                  v-model.number="amount"
-                  type="number"
-                  inputmode="numeric"
+                <MoneyInput
+                  v-model="amount"
                   label="Monto"
                   outlined
                   class="q-mt-md"
@@ -829,7 +827,7 @@
                     <q-icon name="warning" color="dark" />
                   </template>
                   El alumno quedará deudor por
-                  {{ formatPrice(altaPrice - (amount ?? 0), altaCurrency) }}.
+                  {{ formatPrice(roundMoney(altaPrice - (amount ?? 0)), altaCurrency) }}.
                 </q-banner>
 
                 <!-- Cuenta banco (COBRO-04) — sólo transferencia/tarjeta/domiciliación. -->
@@ -1026,6 +1024,7 @@ import { extractError, isExpectedClientError } from 'src/utils/extract-error';
 import { showTrialBookingChanges, type TrialBookingChange } from 'src/utils/trial-booking-changes';
 import { formatPrice } from 'src/utils/format-price';
 import { formatDate } from 'src/utils/format-date';
+import { compareMoney, roundMoney } from 'src/utils/money';
 import { JORNADA_ROLES, ZERO_PRICE_LABEL } from 'src/config/templo-config';
 import { useStaffAttendanceApi } from 'src/composables/useStaffAttendanceApi';
 import { sedeCobroDistintaDeJornada, type JornadaSede } from 'src/utils/sede-cobro-jornada';
@@ -1048,6 +1047,7 @@ import type { DuplicateMatch } from 'src/composables/useMembersApi';
 import type { PlanListItem, PlanTier } from 'src/types/subscription';
 import FixedSchedulePicker from 'src/components/scheduling/FixedSchedulePicker.vue';
 import CobroResumen from 'src/components/caja/CobroResumen.vue';
+import MoneyInput from 'src/components/MoneyInput.vue';
 import CuentaBancariaFormDialog from 'src/components/caja/CuentaBancariaFormDialog.vue';
 
 const log = createLogger('cobros');
@@ -1968,7 +1968,8 @@ function onProrateToggleAlta(): void {
 }
 
 const isAltaPartial = computed(
-  () => altaPrice.value > 0 && amount.value != null && amount.value < altaPrice.value
+  () =>
+    altaPrice.value > 0 && amount.value != null && compareMoney(amount.value, altaPrice.value) < 0
 );
 
 function tierLabel(tier: PlanTier): string {
@@ -2196,7 +2197,7 @@ const precioAcordadoValido = computed(() => {
   if (typeof precioAcordadoMonto.value !== 'number' || precioAcordadoMonto.value < 0) return false;
   if (precioAcordadoMotivo.value.trim().length === 0) return false;
   // El server exige amountReceived <= precio: lo cortamos acá con un mensaje claro.
-  return (amount.value ?? 0) <= precioAcordadoMonto.value;
+  return compareMoney(amount.value ?? 0, precioAcordadoMonto.value) <= 0;
 });
 
 function onPrecioAcordadoToggle(on: boolean) {
@@ -2256,7 +2257,7 @@ const renewProrateValido = computed(() => {
   if (!renewProrate.value) return true;
   if (typeof renewProratedPrice.value !== 'number' || renewProratedPrice.value < 0) return false;
   if (renewProratedPrice.value > renewFullMonthPrice.value) return false;
-  return (amount.value ?? 0) <= renewProratedPrice.value;
+  return compareMoney(amount.value ?? 0, renewProratedPrice.value) <= 0;
 });
 
 function onRenewProrateToggle(on: boolean) {

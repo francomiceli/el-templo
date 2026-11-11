@@ -509,15 +509,13 @@
 
           <div class="row q-col-gutter-md q-mt-md">
             <div class="col-12 col-sm-6">
-              <q-input
-                v-model.number="renewalAmountReceived"
+              <MoneyInput
+                v-model="renewalAmountReceived"
                 label="Monto recibido"
-                type="number"
                 dense
                 outlined
                 prefix="$"
-                :max="renewalChargeBase"
-                :min="0"
+                :rules="renewalAmountReceivedRules"
                 :disable="renewalChargeBase === 0"
                 hint="Por defecto se cobra el total. Modificá si el cobro es parcial o cero."
               />
@@ -573,7 +571,7 @@
               !!renewalTurnosError ||
               renewalAmountReceived === null ||
               renewalAmountReceived < 0 ||
-              renewalAmountReceived > renewalChargeBase
+              compareMoney(renewalAmountReceived, renewalChargeBase) > 0
             "
             @click="executeRenewal"
           />
@@ -713,6 +711,7 @@ import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { formatDate } from 'src/utils/format-date';
 import { formatPrice } from 'src/utils/format-price';
+import { compareMoney, roundMoney } from 'src/utils/money';
 import {
   extractError,
   isExpectedClientError,
@@ -740,6 +739,7 @@ import {
 } from 'src/types/transaction';
 import type { MemberProfile, BranchOption } from 'src/types/member';
 import AssignPlanDialog from 'src/components/AssignPlanDialog.vue';
+import MoneyInput from 'src/components/MoneyInput.vue';
 import ChangeFixedSchedulesDialog from 'src/components/ChangeFixedSchedulesDialog.vue';
 import FixedSchedulePicker from 'src/components/scheduling/FixedSchedulePicker.vue';
 import { DAY_SHORT_LABELS, type DayOfWeek } from 'src/types/scheduling';
@@ -1195,14 +1195,23 @@ const renewalOverrideInvalid = computed(
 );
 
 const renewalPendingBalance = computed(() =>
-  Math.max(0, renewalChargeBase.value - (renewalAmountReceived.value ?? 0))
+  roundMoney(Math.max(0, roundMoney(renewalChargeBase.value - (renewalAmountReceived.value ?? 0))))
 );
+
+// Reglas del Monto recibido (reemplazan :min/:max del input numérico).
+const renewalAmountReceivedRules = [
+  (v: number | null): true | string => v === null || v >= 0 || 'No puede ser negativo',
+  (v: number | null): true | string =>
+    v === null ||
+    compareMoney(v, renewalChargeBase.value) <= 0 ||
+    `No puede superar ${formatPrice(renewalChargeBase.value, renewTarget.value?.currency ?? 'ARS')}`,
+];
 
 const renewalIsPartialCharge = computed(
   () =>
     renewalChargeBase.value > 0 &&
     renewalAmountReceived.value !== null &&
-    renewalAmountReceived.value < renewalChargeBase.value
+    compareMoney(renewalAmountReceived.value, renewalChargeBase.value) < 0
 );
 
 // =========================================================================
