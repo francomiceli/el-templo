@@ -29,105 +29,27 @@ import { and, eq } from "drizzle-orm";
 import * as schema from "../../src/db/schema";
 import type { StretchArm } from "../../src/db/schema/stretch";
 import { createTestApp, cleanAllTestData } from "../helpers";
-import { todayInTz } from "../../src/modules/shared/date-utils";
 import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
-import { DAY_NAME_TO_NUMBER } from "../../src/modules/shared/training-constants";
-import { shiftDate, weekDayToDate } from "../../src/modules/shared/week-dates";
-import { effectiveLevelForDay } from "../../src/modules/sessions/session-view";
+import { shiftDate } from "../../src/modules/shared/week-dates";
 import type { StretchTodayView } from "../../src/modules/sessions/stretch-service";
 import { stretchArm } from "../../src/modules/sessions/stretch-timing";
+import { CTX_TEMPLO, dayIdFor } from "./_free-blocks-fixtures";
 import {
-  CTX_TEMPLO,
-  createPresencialMember,
-  dayIdFor,
-} from "./_free-blocks-fixtures";
-import {
+  AR_TZ,
+  BRANCH_ID,
+  DOW,
+  LEVEL,
   NOMBRES_CATALOGO,
-  createMemberWithArm,
+  arrangeStretchScenario,
   localClock,
   seedAttendance,
   seedClass,
-  seedStretchCatalog,
   seedStretchSession,
-  type StretchSeedBlock,
+  type Arranged,
+  type ArrangeOpts,
 } from "./_stretch-fixtures";
 
-const AR_TZ = "America/Argentina/Buenos_Aires";
 const ES_TZ = "Europe/Madrid";
-const LEVEL = "sigma";
-const BRANCH_ID = 1;
-
-type DiaClase = keyof typeof DOW;
-type ModoDia = "regular" | "rom" | "combos" | "tecnica";
-
-const DOW = {
-  lunes: 1,
-  martes: 2,
-  miercoles: 3,
-  jueves: 4,
-  viernes: 5,
-  sabado: 6,
-} as const;
-
-/** Último `dia` (hoy si lo es) según la sede de Buenos Aires, acotado a la semana 51. */
-function lastWeekday(dia: DiaClase): string {
-  const realToday = todayInTz(AR_TZ);
-  const dow = new Date(`${realToday}T00:00:00`).getDay();
-  const back = (dow + 7 - DOW[dia]) % 7;
-  const date = shiftDate(realToday, -back);
-  const cap = weekDayToDate(51, dia);
-  return cap !== null && date > cap ? cap : date;
-}
-
-const BLOQUES_REGULAR: StretchSeedBlock[] = [
-  { role: "INITIUM", route: "OAP" },
-  {
-    role: "NUCLEUS",
-    route: "OAP",
-    mobility: [
-      { name: "QUAD STANDING STRETCH", mobilityRelated: "LS" },
-      { name: "PIKE STANDING", mobilityRelated: "MN" },
-    ],
-  },
-];
-
-const BLOQUES_TECNICA: StretchSeedBlock[] = [
-  { role: "INITIUM", route: "OAP" },
-  { role: "NUCLEUS", route: "OAP" },
-  {
-    role: "STRETCHING",
-    route: "OAP",
-    stretchingMains: [
-      { name: "WARRIOR STRETCH", mobilityRelated: null },
-      { name: "COBRA STRETCH", mobilityRelated: null },
-    ],
-  },
-];
-
-interface ArrangeOpts {
-  dia?: DiaClase;
-  mode?: ModoDia;
-  arm?: StretchArm;
-  tz?: string;
-  /** Hora de pared de la sede a la que se fija el reloj. */
-  clock?: string;
-  startTime?: string;
-  endTime?: string;
-  activityName?: string;
-  isSpecial?: boolean;
-  /** `false` = sin asistencia registrada. */
-  attend?: boolean;
-  blocks?: StretchSeedBlock[];
-}
-
-interface Arranged {
-  date: string;
-  tz: string;
-  dia: DiaClase;
-  member: { id: number; token: string };
-  scheduleId: number;
-  attendanceId: number | null;
-}
 
 describe("oferta de estiramiento del día: GET /api/sessions/stretch/today (213-04)", () => {
   let app: FastifyInstance;
@@ -162,92 +84,9 @@ describe("oferta de estiramiento del día: GET /api/sessions/stretch/today (213-
 
   // ─── helpers ───────────────────────────────────────────────────────────
 
-  /**
-   * Arma el escenario: reloj, zona de la sede, modo del día, catálogo, socio,
-   * sesión aprobada, clase y asistencia. El reloj se fija ANTES de crear al socio.
-   */
-  async function arrange(opts: ArrangeOpts = {}): Promise<Arranged> {
-    const dia = opts.dia ?? "miercoles";
-    const mode = opts.mode ?? "regular";
-    const tz = opts.tz ?? AR_TZ;
-    const date = lastWeekday(dia);
-
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(localClock(tz, date, opts.clock ?? "21:05"));
-
-    // La zona de la sede 1 tiene que ser la del caso.
-    await app.db
-      .update(schema.branches)
-      .set({ timezone: tz })
-      .where(
-        and(
-          tenantWhere(schema.branches, CTX_TEMPLO),
-          eq(schema.branches.id, BRANCH_ID),
-        ),
-      );
-
-    // day_modes no se limpia entre archivos: el día tiene que tener el modo del caso.
-    await app.db
-      .delete(schema.dayModes)
-      .where(
-        and(
-          tenantWhere(schema.dayModes, CTX_TEMPLO),
-          eq(schema.dayModes.dayOfWeek, DAY_NAME_TO_NUMBER[dia]),
-        ),
-      );
-    await app.db.insert(schema.dayModes).values(
-      tenantValues(CTX_TEMPLO, {
-        dayOfWeek: DAY_NAME_TO_NUMBER[dia],
-        sessionMode: mode,
-      }),
-    );
-
-    if (
-      (
-        await app.db
-          .select({ id: schema.stretchCatalog.id })
-          .from(schema.stretchCatalog)
-          .where(tenantWhere(schema.stretchCatalog, CTX_TEMPLO))
-          .limit(1)
-      ).length === 0
-    ) {
-      await seedStretchCatalog(app);
-    }
-
-    const member = opts.arm
-      ? await createMemberWithArm(app, opts.arm, { level: LEVEL })
-      : await createPresencialMember(app, { level: LEVEL });
-
-    // En día ROM el socio lee la variante delta (effectiveLevelForDay).
-    const sessionLevel =
-      mode === "rom" ? effectiveLevelForDay("sigma", true) : LEVEL;
-    await seedStretchSession(app, {
-      date,
-      level: sessionLevel,
-      mode,
-      blocks:
-        opts.blocks ?? (mode === "tecnica" ? BLOQUES_TECNICA : BLOQUES_REGULAR),
-    });
-
-    const { scheduleId } = await seedClass(app, {
-      branchId: BRANCH_ID,
-      dayOfWeek: DOW[dia],
-      startTime: opts.startTime ?? "20:00",
-      endTime: opts.endTime ?? "21:00",
-      activityName: opts.activityName,
-      isSpecial: opts.isSpecial,
-    });
-    const attendanceId =
-      opts.attend === false
-        ? null
-        : await seedAttendance(app, {
-            memberId: member.id,
-            branchId: BRANCH_ID,
-            scheduleId,
-            sessionDate: date,
-          });
-
-    return { date, tz, dia, member, scheduleId, attendanceId };
+  /** Escenario completo de la oferta (ver `arrangeStretchScenario`). */
+  function arrange(opts: ArrangeOpts = {}): Promise<Arranged> {
+    return arrangeStretchScenario(app, opts);
   }
 
   async function getToday(
