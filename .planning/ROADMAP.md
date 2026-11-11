@@ -1206,7 +1206,7 @@ Plans:
 - [x] 208-08-PLAN.md — Admin base: USD en monedas y `formatPrice` (admin + app), espejo medio↔cuenta, `cheque`, composable de Tesoro/destinos/arqueo
 - [x] 208-09-PLAN.md — Admin: Cuentas y Saldos (USD, sección Caja central y Tesoro, grupo Tesoro)
 - [x] 208-10-PLAN.md — Admin: Retiros con destino obligatorio, destino en historial y patas del retiro en Mov./Egresos
-- [ ] 208-11-PLAN.md — Cierre: no-regresión "como prod hoy", inventario con greps, gates y checklist de UAT
+- [x] 208-11-PLAN.md — Cierre: no-regresión "como prod hoy", inventario con greps, gates y checklist de UAT
 
 ### Phase 209: Egresos — gasto, reparto y pagos
 
