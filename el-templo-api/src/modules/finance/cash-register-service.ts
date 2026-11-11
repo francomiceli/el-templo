@@ -59,7 +59,7 @@ export class CashRegisterService {
    * Rule:
    *   - aura_credit / internal → NULL (not firm cash in any caja).
    *   - transfer / card /      → banco caja of `currency` (resolved BY currency,
-   *     direct_debit             so a currency mismatch is structurally
+   *     direct_debit / cheque    so a currency mismatch is structurally
    *                              impossible — no guard needed). La domiciliación
    *                              entra por el banco igual que una transferencia:
    *                              nunca toca la caja efectivo de la sede.
@@ -86,7 +86,9 @@ export class CashRegisterService {
     if (
       paymentMethod === "transfer" ||
       paymentMethod === "card" ||
-      paymentMethod === "direct_debit"
+      paymentMethod === "direct_debit" ||
+      // Fase 208 (DI-03): el cheque solo se opera con cuenta banco.
+      paymentMethod === "cheque"
     ) {
       // Phase 146 (CAJA-03 / LOW 1): con multiples cajas banco de la misma moneda
       // (Banco ARS + Galicia + Mercado Pago), el destructuring [banco] sin orden

@@ -39,6 +39,7 @@ import type { CashRegisterService } from "./cash-register-service";
 import type { TransactionService } from "./transaction-service";
 import { RETIROS_COST_CENTER_NAME } from "./withdrawal-service";
 import { assertEfectivoCoversOutflow } from "./efectivo-guard";
+import { assertMethodAllowedForAccount } from "./payment-method-rules";
 import type {
   MovementDetail,
   RegisterExpenseInput,
@@ -52,6 +53,7 @@ type DbInstance = MySql2Database<typeof schema>;
 interface CajaRef {
   id: number;
   type: "efectivo" | "banco";
+  name: string;
   currency: string;
   branchId: number | null;
 }
@@ -74,6 +76,7 @@ export class MovementService {
       .select({
         id: schema.cashRegisters.id,
         type: schema.cashRegisters.type,
+        name: schema.cashRegisters.name,
         currency: schema.cashRegisters.currency,
         branchId: schema.cashRegisters.branchId,
       })
@@ -136,6 +139,10 @@ export class MovementService {
         `Moneda inconsistente: el origen es ${origen.currency}, el destino es ${destino.currency}`,
       );
     }
+    // Las patas de un traslado son asientos internos (exentos de la regla): el
+    // assert deja escrito dónde aplica la regla medio-cuenta (DI-04).
+    assertMethodAllowedForAccount("internal", origen);
+    assertMethodAllowedForAccount("internal", destino);
 
     // D-04: snapshot the expected origen saldo BEFORE opening the tx (the firm
     // balance as the ledger stands now). The reconciliation diff is measured
@@ -335,6 +342,9 @@ export class MovementService {
     adminId: number,
   ): Promise<{ expenseTxId: number }> {
     const { cajaId, amount, costCenterId, notes } = input;
+    // Nivel service: sin medio explícito el egreso es un asiento interno
+    // (exento). La ruta POST /expenses no lo expone en la 208.
+    const paymentMethod = input.paymentMethod ?? "internal";
     assertMoneyAmount(amount, { label: "El monto del egreso" });
     if (!costCenterId) {
       throw new BadRequestError(
@@ -342,6 +352,8 @@ export class MovementService {
       );
     }
     const caja = await this.loadCaja(ctx, cajaId);
+    // Fase 208 (DI-04): regla única medio↔cuenta antes de escribir nada.
+    assertMethodAllowedForAccount(paymentMethod, caja);
 
     // Phase 147 (EGR-02 / T-147-01): el centro de costo debe existir y estar
     // activo. Un solo SELECT — input no confiable (llega del body).
@@ -392,7 +404,7 @@ export class MovementService {
         direction: "outflow",
         amount,
         currency: caja.currency,
-        paymentMethod: "internal",
+        paymentMethod,
         transactionDate: this.today(),
         effectiveDate: this.today(),
         branchId: caja.branchId,

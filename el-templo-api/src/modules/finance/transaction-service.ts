@@ -91,6 +91,7 @@ import { PartnerReferralService } from "../referral-partners/service";
 // la 142) — el read-path lee la constante directo, sin system_settings.
 import { OVERDUE_DAYS } from "./constants";
 import { firmMoneyConditions } from "./firm-money";
+import { assertMethodAllowedForAccount } from "./payment-method-rules";
 import type {
   CreateTransactionInput,
   ObserveTransactionInput,
@@ -949,6 +950,8 @@ export class TransactionService {
         const [caja] = await tx
           .select({
             id: schema.cashRegisters.id,
+            type: schema.cashRegisters.type,
+            name: schema.cashRegisters.name,
             currency: schema.cashRegisters.currency,
             isActive: schema.cashRegisters.isActive,
           })
@@ -973,6 +976,10 @@ export class TransactionService {
             `Moneda inconsistente: la caja es ${caja.currency}, la transaccion es ${existing.currency}`,
           );
         }
+        // Fase 208 (DI-04): regla única medio↔cuenta. La Bandeja ya ofrece solo
+        // cajas compatibles; esto cierra el camino por API. Sin cashRegisterId no
+        // se valida nada nuevo (la caja sugerida existente no se revisa).
+        assertMethodAllowedForAccount(existing.paymentMethod, caja);
       }
 
       await tx

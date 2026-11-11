@@ -430,6 +430,12 @@ export interface RegisterExpenseInput {
   cajaId: number;
   amount: number;
   costCenterId: number;
+  /**
+   * Fase 208: medio con el que se paga el egreso. Solo a nivel service: la ruta
+   * POST /expenses no lo expone en la 208 y sigue en `internal` (exento de la
+   * regla medio-cuenta). La 209 lo abre para los pagos.
+   */
+  paymentMethod?: PaymentMethod;
   notes?: string | null;
 }
 
