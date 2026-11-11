@@ -37,7 +37,7 @@
       </div>
     </div>
 
-    <!-- Groups in fixed order: Efectivo sucursales → Efectivo central → Banco (D-06) -->
+    <!-- Groups in fixed order: Efectivo sucursales → Efectivo central → Tesoro (solo si hay) → Banco (D-06, 208) -->
     <div v-for="(group, idx) in groups" :key="group.key" :class="{ 'q-mt-xl': idx > 0 }">
       <div class="text-subtitle1 text-weight-medium q-mb-sm">{{ group.label }}</div>
 
@@ -212,8 +212,10 @@ const exporting = ref(false);
 
 // =========================================================================
 // Grouping by tipo (D-06). The enum is only efectivo/banco, so the
-// "Efectivo central" group is derived from type=efectivo && branchId=null.
-// Group order is FIXED: sucursales → central → banco.
+// "Efectivo central" group is derived from type=efectivo && branchId=null &&
+// !isTreasury; el Tesoro (fase 208, isTreasury) va en su propio grupo, que solo
+// aparece si hay alguno (con los datos de hoy la pantalla queda idéntica).
+// Group order is FIXED: sucursales → central → tesoro → banco.
 // =========================================================================
 
 interface SaldoGroup {
@@ -236,9 +238,14 @@ function perCurrencySubtotals(
 
 const groups = computed<SaldoGroup[]>(() => {
   const sucursales = rows.value.filter((r) => r.type === 'efectivo' && r.branchId !== null);
-  const central = rows.value.filter((r) => r.type === 'efectivo' && r.branchId === null);
+  const central = rows.value.filter(
+    (r) => r.type === 'efectivo' && r.branchId === null && !r.isTreasury
+  );
+  const tesoro = rows.value.filter(
+    (r) => r.type === 'efectivo' && r.branchId === null && r.isTreasury
+  );
   const banco = rows.value.filter((r) => r.type === 'banco');
-  return [
+  const result: SaldoGroup[] = [
     {
       key: 'efectivo_sucursales',
       label: 'Efectivo sucursales',
@@ -251,13 +258,24 @@ const groups = computed<SaldoGroup[]>(() => {
       rows: central,
       subtotals: perCurrencySubtotals(central),
     },
-    {
-      key: 'banco',
-      label: 'Banco',
-      rows: banco,
-      subtotals: perCurrencySubtotals(banco),
-    },
   ];
+  // Grupo Tesoro solo si hay alguno; sus subtotales son por moneda (USD nunca se
+  // suma a ARS).
+  if (tesoro.length > 0) {
+    result.push({
+      key: 'tesoro',
+      label: 'Tesoro',
+      rows: tesoro,
+      subtotals: perCurrencySubtotals(tesoro),
+    });
+  }
+  result.push({
+    key: 'banco',
+    label: 'Banco',
+    rows: banco,
+    subtotals: perCurrencySubtotals(banco),
+  });
+  return result;
 });
 
 // =========================================================================
@@ -322,7 +340,11 @@ const incomeMoneyColumns: Array<{
   { name: 'direct_debit', label: 'Domiciliación', value: (r) => r.byMethod.direct_debit },
   // AURA / interno: no es plata que entra a una caja, pero el summary lo cuenta
   // como ingreso; se muestra aparte para que el total cierre con el Historial.
-  { name: 'otros', label: 'AURA / interno', value: (r) => r.byMethod.aura_credit + r.byMethod.internal },
+  {
+    name: 'otros',
+    label: 'AURA / interno',
+    value: (r) => r.byMethod.aura_credit + r.byMethod.internal,
+  },
   { name: 'total', label: 'Total', value: (r) => r.total },
 ];
 
