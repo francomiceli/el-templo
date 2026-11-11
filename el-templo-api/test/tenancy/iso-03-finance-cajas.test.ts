@@ -25,6 +25,7 @@
  *   POST   /api/admin/finance/cash-registers
  *   POST   /api/admin/finance/cash-registers/efectivo
  *   POST   /api/admin/finance/cash-registers/treasury
+ *   POST   /api/admin/finance/cash-registers/:id/opening-count
  *   PATCH  /api/admin/finance/cash-registers/:id
  *   POST   /api/admin/finance/cash-registers/:id/close
  *   POST   /api/admin/finance/cash-registers/:id/reactivate
@@ -910,6 +911,156 @@ describe("alta de tesoro — POST /api/admin/finance/cash-registers/treasury", (
       await tenantDeLaFila(app, "cash_registers", id),
       porQueImportaElControl(RUTA, id),
     ).toBe(TENANT_TEMPLO);
+  });
+});
+
+describe("arqueo de apertura — POST /api/admin/finance/cash-registers/:id/opening-count", () => {
+  const RUTA = "POST /api/admin/finance/cash-registers/:id/opening-count";
+  const creadas: Array<{ id: number; tenantId: number }> = [];
+
+  /** Central (efectivo sin sede) del gimnasio dado, con saldo de apertura 100. */
+  async function nuevaCentral(
+    tenantId: number,
+    nombre: string,
+  ): Promise<number> {
+    const [fila] = await app.db
+      .insert(schema.cashRegisters)
+      .values(
+        tenantValues(
+          { tenantId },
+          {
+            name: nombre,
+            type: "efectivo",
+            branchId: null,
+            currency: "ARS",
+            openingBalance: 100,
+            cutoffDate: "2020-01-01",
+          },
+        ),
+      )
+      .$returningId();
+    creadas.push({ id: fila.id, tenantId });
+    return fila.id;
+  }
+
+  /** El arqueo de apertura es owner-only: el gimnasio 2 necesita su propio dueño. */
+  async function tokenDelDuenoDelGimnasioDos(): Promise<string> {
+    const email = `owner-g2-apertura-${Date.now()}@test.com`;
+    await createStaffUser(app, {
+      email,
+      password: "gym2-owner-123",
+      firstName: "Owner",
+      lastName: "Gimnasio Dos",
+      role: "owner",
+      branchId: gym2.branchId,
+      tenantId: TENANT_DOS,
+    });
+    return getAuthToken(app, email, "gym2-owner-123");
+  }
+
+  function arquear(token: string, cajaId: number, countedAmount: number) {
+    return app.inject({
+      method: "POST",
+      url: `${BASE}/cash-registers/${cajaId}/opening-count`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { countedAmount },
+    });
+  }
+
+  /** Cantidad de transacciones de ambos gimnasios (la evidencia se lee de la base). */
+  async function totalDeTransacciones(): Promise<number> {
+    let total = 0;
+    for (const tenantId of [TENANT_TEMPLO, TENANT_DOS]) {
+      const filas = await app.db
+        .select({ id: schema.financialTransactions.id })
+        .from(schema.financialTransactions)
+        .where(tenantWhere(schema.financialTransactions, { tenantId }));
+      total += filas.length;
+    }
+    return total;
+  }
+
+  afterAll(async () => {
+    // Las filas de transacciones las borra `cleanAllTestData`; las cajas no
+    // estan en TABLES_TO_CLEAN: se desactivan para no ensuciar a otros archivos.
+    for (const { id, tenantId } of creadas) {
+      await app.db
+        .update(schema.cashRegisters)
+        .set({ isActive: false })
+        .where(
+          and(
+            tenantWhere(schema.cashRegisters, { tenantId }),
+            eq(schema.cashRegisters.id, id),
+          ),
+        );
+    }
+  });
+
+  it("aislamiento: el dueño del gimnasio 2 no puede arquear la Central de El Templo, y no se escribe nada", async () => {
+    const centralTemplo = await nuevaCentral(
+      TENANT_TEMPLO,
+      "Central ISO03 apertura Templo",
+    );
+    const token = await tokenDelDuenoDelGimnasioDos();
+    const antes = await totalDeTransacciones();
+
+    const res = await arquear(token, centralTemplo, 5000);
+    const inexistente = await arquear(token, 99999999, 5000);
+
+    // Indistinguible de una caja que no existe: mismo status.
+    expect(
+      res.statusCode,
+      `${RUTA} dejo al gimnasio ${TENANT_DOS} arquear la caja ${centralTemplo} de El Templo. ` +
+        `Respuesta: ${res.body}`,
+    ).toBe(inexistente.statusCode);
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.body).message).toContain("No existe la caja");
+    expect(
+      await totalDeTransacciones(),
+      `${RUTA} escribio una transaccion al arquear una caja ajena.`,
+    ).toBe(antes);
+
+    const auditoria = await app.db
+      .select({ id: schema.auditLog.id })
+      .from(schema.auditLog)
+      .where(
+        and(
+          tenantWhere(schema.auditLog, { tenantId: TENANT_DOS }),
+          eq(schema.auditLog.targetKind, "cash_register"),
+          eq(schema.auditLog.targetId, centralTemplo),
+        ),
+      );
+    expect(
+      auditoria,
+      `${RUTA} dejo un audit en el gimnasio equivocado.`,
+    ).toEqual([]);
+  });
+
+  it("control: SI arquea su propia Central y el ajuste nace en el gimnasio 2", async () => {
+    const centralDos = await nuevaCentral(
+      TENANT_DOS,
+      "Central ISO03 apertura Dos",
+    );
+    const token = await tokenDelDuenoDelGimnasioDos();
+    const res = await arquear(token, centralDos, 250);
+    expect(
+      res.statusCode,
+      porQueImportaElControl(RUTA, centralDos) + ` ${res.body}`,
+    ).toBe(201);
+    const oc = JSON.parse(res.body).openingCount as {
+      adjustmentTxId: number | null;
+      firmeBalance: number;
+    };
+    expect(oc.firmeBalance).toBe(250);
+    expect(oc.adjustmentTxId).not.toBeNull();
+    expect(
+      await tenantDeLaFila(
+        app,
+        "financial_transactions",
+        oc.adjustmentTxId as number,
+      ),
+      `El ajuste del arqueo nacio en el gimnasio equivocado.`,
+    ).toBe(TENANT_DOS);
   });
 });
 
