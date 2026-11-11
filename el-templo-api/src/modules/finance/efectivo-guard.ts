@@ -5,7 +5,6 @@
 // withdrawal-service: dejarlo allá obligaba a un import circular.
 
 import { BadRequestError } from "../shared/errors";
-import { compareMoney, roundMoney } from "../shared/money";
 
 /**
  * Guard de saldo para cajas de EFECTIVO: una salida (gasto, movimiento,
@@ -21,11 +20,9 @@ export function assertEfectivoCoversOutflow(
   what: string,
 ): void {
   if (caja.type !== "efectivo") return;
-  // Fase 207: se compara en centavos para que retirar exactamente el saldo
-  // (p. ej. 100.10 con un saldo calculado de 100.09999999) no se rechace.
-  if (compareMoney(amount, available) > 0) {
+  if (amount > available) {
     throw new BadRequestError(
-      `${what} de ${roundMoney(amount)} supera el saldo de la caja de efectivo (${roundMoney(available)}): la caja quedaría en negativo`,
+      `${what} de ${amount} supera el saldo de la caja de efectivo (${available}): la caja quedaría en negativo`,
     );
   }
 }

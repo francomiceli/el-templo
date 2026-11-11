@@ -5,13 +5,7 @@
  * reports/schemas.ts. NO Zod (project does not use Zod in API modules).
  */
 
-import {
-  MONEY_NON_NEGATIVE_SCHEMA,
-  MONEY_POSITIVE_SCHEMA,
-  MONEY_RESPONSE_SCHEMA,
-} from "../shared/money";
 import { ACCOUNT_CURRENCY_SCHEMA } from "../shared/currency";
-
 // -- Shared fragments -------------------------------------------------------
 
 const errorSchema = {
@@ -80,8 +74,7 @@ export const createTransactionSchema = {
       memberId: { type: "integer", minimum: 1 },
       kind: { type: "string", enum: KIND_ENUM },
       direction: { type: "string", enum: DIRECTION_ENUM },
-      // fase 207: importe de 2 decimales máximo (keyword moneyTwoDecimals)
-      amount: MONEY_NON_NEGATIVE_SCHEMA,
+      amount: { type: "integer", minimum: 0 },
       currency: { type: "string", minLength: 1, maxLength: 8 },
       paymentMethod: { type: "string", enum: PAYMENT_METHOD_ENUM },
       transactionDate: { type: "string", format: "date" },
@@ -96,8 +89,7 @@ export const createTransactionSchema = {
           properties: {
             targetKind: { type: "string", enum: TARGET_KIND_ENUM },
             targetId: { type: "integer", minimum: 1 },
-            // fase 207: importe de 2 decimales máximo (keyword moneyTwoDecimals)
-            allocatedAmount: MONEY_NON_NEGATIVE_SCHEMA,
+            allocatedAmount: { type: "integer", minimum: 0 },
           },
           additionalProperties: false,
         },
@@ -217,8 +209,7 @@ export const correctTransactionSchema = {
         type: "object",
         minProperties: 1,
         properties: {
-          // fase 207: importe de 2 decimales máximo (keyword moneyTwoDecimals)
-          amount: MONEY_NON_NEGATIVE_SCHEMA,
+          amount: { type: "integer", minimum: 0 },
           memberId: { type: "integer", minimum: 1 },
           paymentMethod: { type: "string", enum: PAYMENT_METHOD_ENUM },
         },
@@ -277,8 +268,7 @@ const transactionListItemProperties = {
   memberName: { type: "string" },
   kind: { type: "string", enum: KIND_ENUM },
   direction: { type: "string", enum: DIRECTION_ENUM },
-  // fase 207: importe con 2 decimales — `integer` en respuesta truncaría los centavos
-  amount: MONEY_RESPONSE_SCHEMA,
+  amount: { type: "integer" },
   currency: { type: "string" },
   paymentMethod: { type: "string", enum: PAYMENT_METHOD_ENUM },
   branchId: { type: "integer" },
@@ -307,8 +297,7 @@ const transactionListItemProperties = {
       properties: {
         targetKind: { type: "string", enum: TARGET_KIND_ENUM },
         targetId: { type: "integer" },
-        // fase 207: importe con 2 decimales — `integer` en respuesta truncaría los centavos
-        allocatedAmount: MONEY_RESPONSE_SCHEMA,
+        allocatedAmount: { type: "integer" },
       },
     },
   },
@@ -386,19 +375,17 @@ export const transactionsSummarySchema = {
     200: {
       type: "object",
       properties: {
-        // fase 207: importe con 2 decimales — `integer` en respuesta truncaría los centavos
-        monthlyRevenue: MONEY_RESPONSE_SCHEMA,
+        monthlyRevenue: { type: "integer" },
         revenueByMethod: {
           type: "object",
           properties: {
-            // fase 207: importe con 2 decimales — `integer` en respuesta truncaría los centavos
-            cash: MONEY_RESPONSE_SCHEMA,
-            transfer: MONEY_RESPONSE_SCHEMA,
-            card: MONEY_RESPONSE_SCHEMA,
-            aura_credit: MONEY_RESPONSE_SCHEMA,
-            internal: MONEY_RESPONSE_SCHEMA,
-            direct_debit: MONEY_RESPONSE_SCHEMA,
-            cheque: MONEY_RESPONSE_SCHEMA,
+            cash: { type: "integer" },
+            transfer: { type: "integer" },
+            card: { type: "integer" },
+            aura_credit: { type: "integer" },
+            internal: { type: "integer" },
+            direct_debit: { type: "integer" },
+            cheque: { type: "integer" },
           },
         },
         revenueByBranch: {
@@ -408,8 +395,7 @@ export const transactionsSummarySchema = {
             properties: {
               branchId: { type: "integer" },
               branchName: { type: "string" },
-              // fase 207: importe con 2 decimales — `integer` en respuesta truncaría los centavos
-              revenue: MONEY_RESPONSE_SCHEMA,
+              revenue: { type: "integer" },
             },
           },
         },
@@ -420,16 +406,15 @@ export const transactionsSummarySchema = {
         revenueByKind: {
           type: "object",
           properties: {
-            // fase 207: importe con 2 decimales — `integer` en respuesta truncaría los centavos
-            plan_charge: MONEY_RESPONSE_SCHEMA,
-            debt_settlement: MONEY_RESPONSE_SCHEMA,
-            refund: MONEY_RESPONSE_SCHEMA,
-            adjustment: MONEY_RESPONSE_SCHEMA,
-            advance_payment: MONEY_RESPONSE_SCHEMA,
+            plan_charge: { type: "integer" },
+            debt_settlement: { type: "integer" },
+            refund: { type: "integer" },
+            adjustment: { type: "integer" },
+            advance_payment: { type: "integer" },
             // Phase 139: the 2 new kinds. Always 0 (getSummary excludes them via
             // MUST-FIX A) but present so the response shape matches RevenueByKind.
-            cash_transfer: MONEY_RESPONSE_SCHEMA,
-            expense: MONEY_RESPONSE_SCHEMA,
+            cash_transfer: { type: "integer" },
+            expense: { type: "integer" },
           },
         },
       },
@@ -490,8 +475,7 @@ export const financialHistorySchema = {
                   properties: {
                     targetKind: { type: "string", enum: TARGET_KIND_ENUM },
                     targetId: { type: "integer" },
-                    // fase 207: importe con 2 decimales — `integer` en respuesta truncaría los centavos
-                    allocatedAmount: MONEY_RESPONSE_SCHEMA,
+                    allocatedAmount: { type: "integer" },
                     conceptLabel: { type: "string" },
                   },
                 },
@@ -557,8 +541,7 @@ export const outstandingConceptsSchema = {
               targetId: { type: "integer", minimum: 1 },
               description: { type: "string" },
               currency: { type: "string" },
-              // fase 207: importe con 2 decimales — `integer` en respuesta truncaría los centavos
-              balance: MONEY_RESPONSE_SCHEMA,
+              balance: { type: "integer", minimum: 1 },
               ageInDays: { type: "integer", minimum: 0 },
               effectiveDate: { type: "string", format: "date" },
             },
@@ -622,10 +605,10 @@ export const registerMovementSchema = {
     properties: {
       origenCajaId: { type: "integer", minimum: 1 },
       destinoCajaId: { type: "integer", minimum: 1 },
-      amount: MONEY_POSITIVE_SCHEMA,
+      amount: { type: "integer", minimum: 1 },
       // D-04: conteo físico de la caja origen al momento. Cero es válido (caja
       // vacía contada). Omitido = sin ajuste de reconciliación.
-      countedAmount: MONEY_NON_NEGATIVE_SCHEMA,
+      countedAmount: { type: "integer", minimum: 0 },
       notes: { type: ["string", "null"], maxLength: 2000 },
     },
     additionalProperties: false,
@@ -649,7 +632,7 @@ export const registerExpenseSchema = {
     required: ["cajaId", "amount", "costCenterId"],
     properties: {
       cajaId: { type: "integer", minimum: 1 },
-      amount: MONEY_POSITIVE_SCHEMA,
+      amount: { type: "integer", minimum: 1 },
       costCenterId: { type: "integer", minimum: 1 },
       notes: { type: ["string", "null"], maxLength: 2000 },
     },
@@ -751,7 +734,7 @@ export const pendingTrayExportSchema = {
 /**
  * POST /cash-registers/treasury — crear el Tesoro de una moneda (fase 208,
  * DI-01). Owner-only (lo gatea la ruta). `openingBalance` es el efectivo real
- * con el que arranca, con hasta 2 decimales; opcional, default 0. La unicidad
+ * con el que arranca, en unidades enteras; opcional, default 0. La unicidad
  * por (gimnasio, moneda) entre Tesoros activos la valida el service.
  */
 export const createTreasurySchema = {
@@ -762,7 +745,7 @@ export const createTreasurySchema = {
     properties: {
       name: { type: "string", minLength: 1, maxLength: 100 },
       currency: ACCOUNT_CURRENCY_SCHEMA,
-      openingBalance: MONEY_NON_NEGATIVE_SCHEMA,
+      openingBalance: { type: "integer", minimum: 0 },
     },
   },
   response: {
@@ -783,8 +766,7 @@ export const createTreasurySchema = {
 /**
  * POST /cash-registers/efectivo — abrir la caja de efectivo de una sucursal
  * (UAT caja/cobros 2026-07-21). `openingBalance` es el arqueo inicial en
- * pesos/euros con hasta 2 decimales, igual que el resto del ledger; opcional,
- * default 0.
+ * unidades enteras, igual que el resto del ledger; opcional, default 0.
  * La unicidad por (sucursal, moneda) la valida el service. La moneda es ARS, EUR
  * o USD (fase 208): antes aceptaba cualquier código de 3 letras.
  */
@@ -796,7 +778,7 @@ export const createEfectivoCajaSchema = {
     properties: {
       branchId: { type: "integer", minimum: 1 },
       currency: ACCOUNT_CURRENCY_SCHEMA,
-      openingBalance: MONEY_NON_NEGATIVE_SCHEMA,
+      openingBalance: { type: "integer", minimum: 0 },
     },
   },
   response: {
@@ -1216,8 +1198,8 @@ export const registerWithdrawalSchema = {
       responsibleName: { type: "string", minLength: 1, maxLength: 120 },
       transactionDate: { type: "string", format: "date" },
       notes: { type: ["string", "null"], maxLength: 2000 },
-      amount: MONEY_POSITIVE_SCHEMA,
-      countedAmount: MONEY_NON_NEGATIVE_SCHEMA,
+      amount: { type: "integer", minimum: 1 },
+      countedAmount: { type: "integer", minimum: 0 },
     },
     additionalProperties: false,
   },
@@ -1292,13 +1274,7 @@ export const cashCountExpectedSchema = {
     properties: { cashRegisterId: { type: "integer", minimum: 1 } },
     additionalProperties: false,
   },
-  response: {
-    400: errorSchema,
-    401: errorSchema,
-    403: errorSchema,
-    404: errorSchema,
-    500: errorSchema,
-  },
+  response: { 400: errorSchema, 401: errorSchema, 403: errorSchema, 404: errorSchema, 500: errorSchema },
 } as const;
 
 /** POST /cash-counts (gestión) — el esperado se recalcula en el server. */
@@ -1308,19 +1284,13 @@ export const registerCashCountSchema = {
     required: ["cajaId", "countedAmount"],
     properties: {
       cajaId: { type: "integer", minimum: 1 },
-      countedAmount: MONEY_NON_NEGATIVE_SCHEMA,
+      countedAmount: { type: "integer", minimum: 0 },
       notes: { type: ["string", "null"], maxLength: 2000 },
       staffShiftId: { type: "integer", minimum: 1 },
     },
     additionalProperties: false,
   },
-  response: {
-    400: errorSchema,
-    401: errorSchema,
-    403: errorSchema,
-    404: errorSchema,
-    500: errorSchema,
-  },
+  response: { 400: errorSchema, 401: errorSchema, 403: errorSchema, 404: errorSchema, 500: errorSchema },
 } as const;
 
 /** GET /cash-counts — historial de arqueos. */
@@ -1350,22 +1320,16 @@ export const setChangeFundSchema = {
   body: {
     type: "object",
     required: ["amount"],
-    properties: { amount: MONEY_NON_NEGATIVE_SCHEMA },
+    properties: { amount: { type: "integer", minimum: 0 } },
     additionalProperties: false,
   },
-  response: {
-    400: errorSchema,
-    401: errorSchema,
-    403: errorSchema,
-    404: errorSchema,
-    500: errorSchema,
-  },
+  response: { 400: errorSchema, 401: errorSchema, 403: errorSchema, 404: errorSchema, 500: errorSchema },
 } as const;
 
 /**
  * POST /cash-registers/:id/opening-count — arqueo de apertura de Caja central
  * o Tesoro (fase 208, DI-06). Owner-only (lo gatea la ruta). `countedAmount` es
- * el efectivo real contado, con hasta 2 decimales.
+ * el efectivo real contado, en unidades enteras.
  */
 export const openingCountSchema = {
   params: {
@@ -1378,7 +1342,7 @@ export const openingCountSchema = {
     required: ["countedAmount"],
     additionalProperties: false,
     properties: {
-      countedAmount: MONEY_NON_NEGATIVE_SCHEMA,
+      countedAmount: { type: "integer", minimum: 0 },
       notes: { type: ["string", "null"], maxLength: 2000 },
     },
   },
@@ -1390,11 +1354,11 @@ export const openingCountSchema = {
           type: "object",
           properties: {
             cashRegisterId: { type: "integer" },
-            expectedAmount: { type: "number" },
-            countedAmount: { type: "number" },
-            difference: { type: "number" },
+            expectedAmount: { type: "integer" },
+            countedAmount: { type: "integer" },
+            difference: { type: "integer" },
             adjustmentTxId: { type: ["integer", "null"] },
-            firmeBalance: { type: "number" },
+            firmeBalance: { type: "integer" },
           },
         },
       },

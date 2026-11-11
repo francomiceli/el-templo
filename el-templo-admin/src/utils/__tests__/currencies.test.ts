@@ -35,12 +35,6 @@ describe('formatPrice con USD', () => {
     expect(out).not.toContain(',');
   });
 
-  it('con centavos: siempre 2 decimales', () => {
-    const out = formatPrice(1500.5, 'USD');
-    expect(out).toContain('US$');
-    expect(out.endsWith('1.500,50')).toBe(true);
-  });
-
   it('ARS y EUR no cambian', () => {
     expect(formatPrice(1500, 'ARS')).toContain('1.500');
     expect(formatPrice(1500, 'ARS')).not.toContain('US$');

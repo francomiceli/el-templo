@@ -29,12 +29,7 @@ import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { BadRequestError, NotFoundError } from "../shared/errors";
 import { auditLog } from "../shared/audit-log";
-import {
-  assertMoneyAmount,
-  moneyEquals,
-  roundMoney,
-  sumMoney,
-} from "../shared/money";
+
 import {
   tenantValues,
   tenantWhere,
@@ -138,14 +133,8 @@ export class MovementService {
         "El origen y el destino del movimiento no pueden ser la misma caja",
       );
     }
-    // Fase 207: importe > 0 con hasta 2 decimales (el service tambien lo
-    // exige: lo llaman jobs/otros servicios sin pasar por el schema de la ruta).
-    assertMoneyAmount(amount, { label: "El monto del movimiento" });
-    if (countedAmount !== undefined) {
-      assertMoneyAmount(countedAmount, {
-        label: "El conteo físico",
-        allowZero: true,
-      });
+    if (amount <= 0) {
+      throw new BadRequestError("El monto del movimiento debe ser mayor a 0");
     }
 
     // Load both cajas + apply the same-currency guard (D-03) BEFORE any write —
@@ -211,13 +200,8 @@ export class MovementService {
       // expected, outflow when counted < expected, amount = |diff|. Always
       // record expected (+counted if given) in the audit payload (cheap trail).
       let adjustmentTxId: number | null = null;
-      // Fase 207: la diferencia se redondea a centavos (sin 0.30000000000000004)
-      // y "hay diferencia" se decide en centavos enteros, no con `!==` de floats.
-      if (
-        countedAmount !== undefined &&
-        !moneyEquals(countedAmount, expectedAmount)
-      ) {
-        const diff = roundMoney(countedAmount - expectedAmount);
+      if (countedAmount !== undefined && countedAmount !== expectedAmount) {
+        const diff = countedAmount - expectedAmount;
         const adjustment = await this.txnService.create(
           ctx,
           {
@@ -231,7 +215,7 @@ export class MovementService {
             effectiveDate: this.today(),
             branchId: origen.branchId,
             cashRegisterId: origenCajaId,
-            notes: `Reconciliación movimiento #${outflowId}: esperado ${roundMoney(expectedAmount)}, contado ${roundMoney(countedAmount)}`,
+            notes: `Reconciliación movimiento #${outflowId}: esperado ${expectedAmount}, contado ${countedAmount}`,
             links: [],
           },
           adminId,
@@ -263,12 +247,10 @@ export class MovementService {
           movementId: outflowId,
           inflowTxId: inflowId,
           adjustmentId: adjustmentTxId,
-          expected: roundMoney(expectedAmount),
+          expected: expectedAmount,
           counted: countedAmount ?? null,
           diff:
-            countedAmount !== undefined
-              ? roundMoney(countedAmount - expectedAmount)
-              : null,
+            countedAmount !== undefined ? countedAmount - expectedAmount : null,
         },
       });
 
@@ -317,10 +299,11 @@ export class MovementService {
     adminId: number,
   ): Promise<OpeningCountResult> {
     const { countedAmount } = input;
-    assertMoneyAmount(countedAmount, {
-      label: "El efectivo contado",
-      allowZero: true,
-    });
+    if (!Number.isInteger(countedAmount) || countedAmount < 0) {
+      throw new BadRequestError(
+        "El efectivo contado debe ser un número entero mayor o igual a 0",
+      );
+    }
 
     const caja = await this.loadCaja(ctx, cajaId);
     if (caja.type !== "efectivo" || caja.branchId !== null) {
@@ -356,14 +339,11 @@ export class MovementService {
       const balance = await this.cashRegisterService.getBalance(ctx, caja.id);
       // Mismo esperado que todo arqueo de efectivo: la plata sin validar esta
       // en el cajon aunque no este en el saldo firme.
-      const expected = sumMoney([
-        caja.changeFund,
-        balance.firmeBalance,
-        balance.pendienteAmount,
-      ]);
-      const counted = roundMoney(countedAmount);
+      const expected =
+        caja.changeFund + balance.firmeBalance + balance.pendienteAmount;
+      const counted = countedAmount;
       const extra = input.notes?.trim();
-      const notes = `Arqueo de apertura: esperado ${roundMoney(expected)}, contado ${counted}${extra ? `. ${extra}` : ""}`;
+      const notes = `Arqueo de apertura: esperado ${expected}, contado ${counted}${extra ? `. ${extra}` : ""}`;
 
       const { difference, adjustmentTxId } = await createCountAdjustment(
         ctx,
@@ -388,7 +368,7 @@ export class MovementService {
         payload: {
           source: "opening_count",
           cashRegisterId: caja.id,
-          expected: roundMoney(expected),
+          expected,
           counted,
           difference,
           adjustmentId: adjustmentTxId,
@@ -396,7 +376,7 @@ export class MovementService {
       });
 
       return {
-        expectedAmount: roundMoney(expected),
+        expectedAmount: expected,
         countedAmount: counted,
         difference,
         adjustmentTxId,
@@ -436,7 +416,9 @@ export class MovementService {
     // Nivel service: sin medio explícito el egreso es un asiento interno
     // (exento). La ruta POST /expenses no lo expone en la 208.
     const paymentMethod = input.paymentMethod ?? "internal";
-    assertMoneyAmount(amount, { label: "El monto del egreso" });
+    if (amount <= 0) {
+      throw new BadRequestError("El monto del egreso debe ser mayor a 0");
+    }
     if (!costCenterId) {
       throw new BadRequestError(
         "Debés elegir un centro de costo válido para el egreso",
@@ -650,10 +632,7 @@ export class MovementService {
       );
     const ids = [expenseRowId, ...adjustments.map((a) => a.id)];
     await this.txnService.voidPair(ctx, ids, voidedBy, { reason });
-    this.log.info(
-      { expenseRowId, voidedIds: ids, voidedBy, reason },
-      "Expense voided",
-    );
+    this.log.info({ expenseRowId, voidedIds: ids, voidedBy, reason }, "Expense voided");
   }
 
   /** YYYY-MM-DD today (local). Movimientos/egresos nacen con fecha de hoy. */

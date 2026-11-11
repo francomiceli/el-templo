@@ -74,12 +74,6 @@ import { BadRequestError, NotFoundError } from "../shared/errors";
 import { assertBranchInEnforcedScope } from "../shared/branch-access";
 import type { PaginatedResult } from "../shared/types";
 import {
-  assertMoneyAmount,
-  moneyEquals,
-  roundMoney,
-  sumMoney,
-} from "../shared/money";
-import {
   tenantValues,
   tenantWhere,
   type TenantContext,
@@ -519,11 +513,10 @@ export class WithdrawalService {
       cashRegisterName: caja.name,
       currency: caja.currency,
       rows,
-      // Fase 207: totales en centavos enteros (sin deriva de floats).
-      total: sumMoney(rows.map((r) => r.amount)),
+      total: rows.reduce((acc, r) => acc + r.amount, 0),
       awaitingValidation: {
         rows: awaiting,
-        total: sumMoney(awaiting.map((r) => r.amount)),
+        total: awaiting.reduce((acc, r) => acc + r.amount, 0),
       },
       summary,
     };
@@ -598,24 +591,19 @@ export class WithdrawalService {
     const flow = await this.queryFlowSince(ctx, caja, lastWithdrawal?.id ?? 0);
     const inflows = flow.filter((f) => f.direction === "inflow");
     const outflows = flow.filter((f) => f.direction === "outflow");
-    const inflowTotal = sumMoney(inflows.map((f) => f.amount));
-    const outflowTotal = sumMoney(outflows.map((f) => f.amount));
+    const inflowTotal = inflows.reduce((acc, f) => acc + f.amount, 0);
+    const outflowTotal = outflows.reduce((acc, f) => acc + f.amount, 0);
     return {
       lastWithdrawal,
-      previousBalance: roundMoney(
-        balance.firmeBalance - inflowTotal + outflowTotal,
-      ),
+      previousBalance: balance.firmeBalance - inflowTotal + outflowTotal,
       inflows,
       inflowTotal,
       outflows,
       outflowTotal,
       firmeBalance: balance.firmeBalance,
       changeFund: caja.changeFund,
-      expectedInDrawer: sumMoney([
-        caja.changeFund,
-        balance.firmeBalance,
-        balance.pendienteAmount,
-      ]),
+      expectedInDrawer:
+        caja.changeFund + balance.firmeBalance + balance.pendienteAmount,
     };
   }
 
@@ -843,8 +831,9 @@ export class WithdrawalService {
     if (responsibleName.length === 0) {
       throw new BadRequestError("Indicá quién se lleva la plata (responsable)");
     }
-    // Fase 207: importe > 0 con hasta 2 decimales (antes: entero).
-    assertMoneyAmount(input.amount, { label: "El monto del retiro" });
+    if (!Number.isInteger(input.amount) || input.amount <= 0) {
+      throw new BadRequestError("El monto del retiro debe ser mayor a 0");
+    }
     const today = this.today();
     const transactionDate = input.transactionDate ?? today;
     if (transactionDate > today) {
@@ -859,12 +848,6 @@ export class WithdrawalService {
       caja,
     );
     const counted = input.countedAmount;
-    if (counted !== undefined) {
-      assertMoneyAmount(counted, {
-        label: "El conteo físico",
-        allowZero: true,
-      });
-    }
 
     if (caja.type === "banco") {
       if (counted !== undefined) {
@@ -932,21 +915,15 @@ export class WithdrawalService {
         if (counted !== undefined) {
           // Mismo esperado que el arqueo del profe: la plata sin validar está
           // en el cajón aunque no esté en el saldo firme.
-          const expected = sumMoney([
-            caja.changeFund,
-            balance.firmeBalance,
-            balance.pendienteAmount,
-          ]);
-          // Fase 207: diferencia redondeada a centavos y "hay diferencia"
-          // decidido en centavos enteros, no con `!== 0` sobre floats.
-          const difference = roundMoney(counted - expected);
-          const hasDifference = !moneyEquals(difference, 0);
-          if (hasDifference && !notes) {
+          const expected =
+            caja.changeFund + balance.firmeBalance + balance.pendienteAmount;
+          const difference = counted - expected;
+          if (difference !== 0 && !notes) {
             throw new BadRequestError(
               `La plata contada difiere de lo esperado en ${difference > 0 ? "+" : ""}${difference}: explicá la diferencia en las notas`,
             );
           }
-          if (hasDifference) {
+          if (difference !== 0) {
             // Se inserta ANTES que el retiro (id menor): el resumen del
             // próximo retiro toma "lo posterior al retiro" por id y este
             // ajuste pertenece a éste. Mismo asiento que el arqueo de
@@ -965,7 +942,7 @@ export class WithdrawalService {
               adminId,
             );
             adjustmentTxId = adj.adjustmentTxId;
-            available = roundMoney(available + difference);
+            available += difference;
           }
           countSnapshot = {
             firme: balance.firmeBalance,

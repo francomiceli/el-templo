@@ -54,12 +54,6 @@ import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { BadRequestError, NotFoundError } from "../shared/errors";
-import {
-  assertMoneyAmount,
-  moneyEquals,
-  roundMoney,
-  sumMoney,
-} from "../shared/money";
 import type { PaginatedResult } from "../shared/types";
 import {
   tenantValues,
@@ -359,17 +353,13 @@ export class CashCountService {
       changeFund: caja.changeFund,
       firmeAmount: balance.firmeBalance,
       pendienteAmount: balance.pendienteAmount,
-      // Fase 207 (DI-02): esperado exacto al centavo.
-      expectedAmount: sumMoney([
-        caja.changeFund,
-        balance.firmeBalance,
-        balance.pendienteAmount,
-      ]),
+      expectedAmount:
+        caja.changeFund + balance.firmeBalance + balance.pendienteAmount,
       lastCount: last ? last.summary : null,
       paymentsSinceLastCount: payments,
-      paymentsSinceLastCountTotal: sumMoney(payments.map((p) => p.amount)),
+      paymentsSinceLastCountTotal: payments.reduce((a, p) => a + p.amount, 0),
       voidedSinceLastCount: voided,
-      voidedSinceLastCountTotal: sumMoney(voided.map((p) => p.amount)),
+      voidedSinceLastCountTotal: voided.reduce((a, p) => a + p.amount, 0),
     };
   }
 
@@ -382,15 +372,13 @@ export class CashCountService {
     input: RegisterCashCountInput,
     userId: number,
   ): Promise<CashCountListItem> {
-    // Fase 207: el conteo admite centavos (hasta 2 decimales).
-    const counted = assertMoneyAmount(input.countedAmount, {
-      label: "El monto contado",
-      allowZero: true,
-    });
+    if (!Number.isInteger(input.countedAmount) || input.countedAmount < 0) {
+      throw new BadRequestError("El monto contado no puede ser negativo");
+    }
     const expected = await this.getExpected(ctx, input.cajaId);
-    const difference = roundMoney(counted - expected.expectedAmount);
+    const difference = input.countedAmount - expected.expectedAmount;
     const notes = input.notes?.trim() ? input.notes.trim() : null;
-    if (!moneyEquals(difference, 0) && !notes) {
+    if (difference !== 0 && !notes) {
       throw new BadRequestError(
         `La plata contada difiere del esperado en ${difference > 0 ? "+" : ""}${difference}: indicá el motivo en las notas`,
       );
@@ -423,7 +411,7 @@ export class CashCountService {
         firmeAmount: expected.firmeAmount,
         pendienteAmount: expected.pendienteAmount,
         expectedAmount: expected.expectedAmount,
-        countedAmount: counted,
+        countedAmount: input.countedAmount,
         difference,
         paymentsCount: expected.paymentsSinceLastCount.length,
         notes,
@@ -435,7 +423,7 @@ export class CashCountService {
         cashCountId: id,
         cajaId: expected.cashRegisterId,
         expected: expected.expectedAmount,
-        counted,
+        counted: input.countedAmount,
         difference,
         userId,
       },

@@ -386,7 +386,6 @@ import { useAuthStore } from 'src/stores/useAuthStore';
 import { createLogger } from 'src/utils/logger';
 import { extractError } from 'src/utils/extract-error';
 import { formatPrice } from 'src/utils/format-price';
-import { formatMoneyNumber, parseMoneyInput } from 'src/utils/money';
 import { useTransactionsApi } from 'src/composables/useTransactionsApi';
 import type { BankAccount, CajaSaldoRow, CostCenter } from 'src/types/transaction';
 import CuentaBancariaFormDialog from 'src/components/caja/CuentaBancariaFormDialog.vue';
@@ -471,17 +470,14 @@ function editChangeFund(caja: CajaSaldoRow) {
     message:
       'Plata fija que queda siempre en el cajón para dar vuelto. Entra al esperado del cierre de caja y nunca al retiro.',
     prompt: {
-      model: formatMoneyNumber(caja.changeFund),
-      type: 'text',
-      // Vacío no vale: el fondo es obligatorio (0 sí).
-      isValid: (v: string) => parseMoneyInput(v).ok,
+      model: String(caja.changeFund),
+      type: 'number',
+      isValid: (v: string) => Number.isInteger(Number(v)) && Number(v) >= 0,
     },
     cancel: true,
     persistent: true,
   }).onOk((value: string) => {
-    const parsed = parseMoneyInput(value);
-    if (!parsed.ok) return;
-    void saveChangeFund(caja.cashRegisterId, parsed.value);
+    void saveChangeFund(caja.cashRegisterId, Number(value));
   });
 }
 

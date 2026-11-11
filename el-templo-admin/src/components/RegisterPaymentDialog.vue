@@ -10,12 +10,14 @@
       </q-card-section>
 
       <q-card-section class="q-pt-none q-gutter-sm">
-        <MoneyInput
-          v-model="montoRecibido"
+        <q-input
+          v-model.number="montoRecibido"
           label="Monto recibido *"
+          type="number"
           dense
           outlined
           prefix="$"
+          :min="0"
           hint="Tipeá el monto en efectivo / transferencia / tarjeta que recibiste"
         />
         <q-select
@@ -64,13 +66,14 @@
               </q-item-label>
             </q-item-section>
             <q-item-section side style="min-width: 140px">
-              <MoneyInput
-                :model-value="allocations[conceptKey(c)] ?? null"
+              <q-input
+                v-model.number="allocations[conceptKey(c)]"
+                type="number"
                 dense
                 outlined
                 prefix="$"
-                :rules="[maxBalanceRule(c.balance)]"
-                @update:model-value="(v: number | null) => (allocations[conceptKey(c)] = v)"
+                :min="0"
+                :max="c.balance"
               />
             </q-item-section>
           </q-item>
@@ -124,15 +127,6 @@ import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { extractError, isExpectedClientError } from 'src/utils/extract-error';
 import { formatPrice } from 'src/utils/format-price';
-import {
-  compareMoney,
-  fromCents,
-  moneyEquals,
-  roundMoney,
-  sumMoney,
-  toCents,
-} from 'src/utils/money';
-import MoneyInput from 'src/components/MoneyInput.vue';
 import { useTransactionsApi } from 'src/composables/useTransactionsApi';
 import {
   PAYMENT_METHOD_OPTIONS,
@@ -189,9 +183,8 @@ const montoRecibido = ref<number | null>(null);
 const paymentMethod = ref<PaymentMethod>(defaultPaymentMethod);
 const fecha = ref<string>(todayISO());
 const notes = ref<string>('');
-// Composite key (`${targetKind}:${targetId}`) → allocated amount. `null` = el
-// usuario dejó el campo vacío o con texto inválido: cuenta como 0 en las sumas.
-const allocations = reactive<Record<string, number | null>>({});
+// Composite key (`${targetKind}:${targetId}`) → allocated amount.
+const allocations = reactive<Record<string, number>>({});
 const submitting = ref(false);
 
 // =========================================================================
@@ -233,57 +226,44 @@ const visibleConcepts = computed<OutstandingConcept[]>(() => {
 // → isInvalid === true). El currency real se usa solo cuando hay al menos 1 concepto visible.
 const displayCurrency = computed<string>(() => visibleConcepts.value[0]?.currency ?? 'ARS');
 
-// Importes en centavos (DI-02): 0,1 + 0,2 tiene que cuadrar con 0,3.
-const totalSaldos = computed<number>(() => sumMoney(visibleConcepts.value.map((c) => c.balance)));
+const totalSaldos = computed<number>(() =>
+  visibleConcepts.value.reduce((sum, c) => sum + c.balance, 0)
+);
 
 function conceptKey(c: OutstandingConcept): string {
   return `${c.targetKind}:${c.targetId}`;
 }
 
 const sumAllocated = computed<number>(() =>
-  sumMoney(visibleConcepts.value.map((c) => allocations[conceptKey(c)] ?? 0))
-);
-
-// Regla de cada campo de asignación: no puede superar el saldo del concepto.
-function maxBalanceRule(balance: number): (v: number | null) => true | string {
-  return (v) =>
-    v === null ||
-    compareMoney(v, balance) <= 0 ||
-    `No puede superar ${formatPrice(balance, displayCurrency.value)}`;
-}
-
-const hasOverAllocation = computed<boolean>(() =>
-  visibleConcepts.value.some((c) => compareMoney(allocations[conceptKey(c)] ?? 0, c.balance) > 0)
+  visibleConcepts.value.reduce((sum, c) => sum + (allocations[conceptKey(c)] ?? 0), 0)
 );
 
 // D-09 / D-10 / D-11: Confirmar disabled cuando:
 //   - montoRecibido es null/empty/NaN/<= 0
-//   - Σ allocated ≠ montoRecibido (comparado en centavos)
-//   - alguna asignación supera el saldo de su concepto
-// `MoneyInput` emite `null` si el campo está vacío o el texto es inválido.
+//   - Σ allocated ≠ montoRecibido
+// `v-model.number` puede dejar `null`, string vacío o `NaN` según el browser —
+// guard explícito contra los 3 casos.
 const isInvalid = computed<boolean>(() => {
   if (
     montoRecibido.value === null ||
+    typeof montoRecibido.value !== 'number' ||
     !Number.isFinite(montoRecibido.value) ||
     montoRecibido.value <= 0
   ) {
     return true;
   }
-  if (!moneyEquals(sumAllocated.value, montoRecibido.value)) return true;
-  if (hasOverAllocation.value) return true;
+  if (sumAllocated.value !== montoRecibido.value) return true;
   return false;
 });
 
 const sumStatus = computed<'ok' | 'short' | 'over'>(() => {
   if (montoRecibido.value === null) return 'short';
-  const cmp = compareMoney(sumAllocated.value, montoRecibido.value);
-  if (cmp === 0) return 'ok';
-  return cmp < 0 ? 'short' : 'over';
+  if (sumAllocated.value === montoRecibido.value) return 'ok';
+  if (sumAllocated.value < montoRecibido.value) return 'short';
+  return 'over';
 });
 
-const sumDiff = computed<number>(() =>
-  roundMoney(Math.abs(roundMoney((montoRecibido.value ?? 0) - sumAllocated.value)))
-);
+const sumDiff = computed<number>(() => Math.abs((montoRecibido.value ?? 0) - sumAllocated.value));
 
 // =========================================================================
 // Auto-FIFO greedy (D-07, per 108-PATTERNS §8)
@@ -296,8 +276,7 @@ function clearAllocations(): void {
 }
 
 function autoFifoAllocate(amount: number): void {
-  // En centavos enteros: restar floats dejaría residuos (0,3 - 0,1 - 0,2 ≠ 0).
-  let remaining = toCents(amount);
+  let remaining = amount;
   clearAllocations();
   for (const c of visibleConcepts.value) {
     // Already FIFO (oldest first) from backend ordering.
@@ -306,8 +285,8 @@ function autoFifoAllocate(amount: number): void {
       allocations[key] = 0;
       continue;
     }
-    const allocated = Math.min(toCents(c.balance), remaining);
-    allocations[key] = fromCents(allocated);
+    const allocated = Math.min(c.balance, remaining);
+    allocations[key] = allocated;
     remaining -= allocated;
   }
 }
@@ -325,7 +304,7 @@ function resetAllocationsToZero(): void {
 
 // D-07: re-ejecutar auto-FIFO cuando cambia el monto recibido.
 watch(montoRecibido, (val) => {
-  if (val === null || !Number.isFinite(val) || val <= 0) {
+  if (val === null || typeof val !== 'number' || !Number.isFinite(val) || val <= 0) {
     resetAllocationsToZero();
     return;
   }
@@ -365,7 +344,7 @@ async function onConfirm(): Promise<void> {
       .map((c) => ({
         targetKind: c.targetKind,
         targetId: c.targetId,
-        allocatedAmount: roundMoney(allocations[conceptKey(c)] ?? 0),
+        allocatedAmount: allocations[conceptKey(c)] ?? 0,
       }))
       .filter((l) => l.allocatedAmount > 0);
 
@@ -382,7 +361,7 @@ async function onConfirm(): Promise<void> {
       memberId: props.userId,
       kind: 'debt_settlement',
       direction: 'inflow',
-      amount: roundMoney(montoRecibido.value as number),
+      amount: montoRecibido.value as number,
       currency: displayCurrency.value,
       paymentMethod: paymentMethod.value,
       transactionDate: fecha.value,

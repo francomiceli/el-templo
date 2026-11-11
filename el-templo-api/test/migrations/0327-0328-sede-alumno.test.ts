@@ -1,6 +1,7 @@
 /**
- * Fase 207 Plan 01: migraciones 0327 (DECIMAL(14,2) + member_branch_id) y 0328
- * (backfill de la sede del alumno).
+ * Fase 207 Plan 01: migraciones 0327 (member_branch_id) y 0328 (backfill de la
+ * sede del alumno). D-23 (2026-11-11): el paso a DECIMAL(14,2) se retiro, las
+ * columnas de plata siguen siendo enteras y este test lo vigila.
  *
  * Se consulta INFORMATION_SCHEMA de la base del worker columna por columna: el
  * provisioning de tests (`test/setup.ts`) TOLERA errores `Unknown column` y
@@ -20,7 +21,7 @@ import { splitSqlStatements } from "../../src/db/run-migrations";
 
 const MIG_0327 = path.resolve(
   __dirname,
-  "../../src/db/migrations/0327_centavos_y_sede_del_alumno.sql",
+  "../../src/db/migrations/0327_sede_del_alumno_en_cobros.sql",
 );
 const MIG_0328 = path.resolve(
   __dirname,
@@ -35,8 +36,8 @@ interface ColumnaEsperada {
   defaultPrefijo?: string;
 }
 
-// Las 15 columnas de importe del ledger y las cajas (DI-03).
-const COLUMNAS_DECIMAL: ColumnaEsperada[] = [
+// Las 15 columnas de importe del ledger y las cajas: siguen enteras (D-23).
+const COLUMNAS_DE_PLATA: ColumnaEsperada[] = [
   { tabla: "financial_transactions", columna: "amount", nullable: "NO" },
   { tabla: "transaction_links", columna: "allocated_amount", nullable: "NO" },
   { tabla: "balances", columna: "amount", nullable: "NO" },
@@ -97,7 +98,7 @@ interface TxRow extends RowDataPacket {
   updated_at: Date;
 }
 
-describe("Migraciones 0327/0328 — centavos y sede del alumno", () => {
+describe("Migraciones 0327/0328 — sede del alumno (plata en enteros)", () => {
   let app: FastifyInstance;
   let backfill: string[];
 
@@ -126,8 +127,8 @@ describe("Migraciones 0327/0328 — centavos y sede del alumno", () => {
     }
   });
 
-  it.each(COLUMNAS_DECIMAL)(
-    "$tabla.$columna es DECIMAL(14,2) con nulabilidad y default originales",
+  it.each(COLUMNAS_DE_PLATA)(
+    "$tabla.$columna sigue siendo entera, con nulabilidad y default originales",
     async ({ tabla, columna, nullable, defaultPrefijo }) => {
       const rows = await q<ColumnRow>(
         `SELECT DATA_TYPE AS dataType,
@@ -141,9 +142,10 @@ describe("Migraciones 0327/0328 — centavos y sede del alumno", () => {
       );
       expect(rows, `${tabla}.${columna} no existe`).toHaveLength(1);
       const col = rows[0];
-      expect(col.dataType, `${tabla}.${columna} dataType`).toBe("decimal");
-      expect(Number(col.precision), `${tabla}.${columna} precision`).toBe(14);
-      expect(Number(col.scale), `${tabla}.${columna} scale`).toBe(2);
+      expect(["int", "bigint"], `${tabla}.${columna} dataType`).toContain(
+        col.dataType,
+      );
+      expect(Number(col.scale), `${tabla}.${columna} scale`).toBe(0);
       expect(col.isNullable, `${tabla}.${columna} nullable`).toBe(nullable);
       if (defaultPrefijo !== undefined) {
         expect(
@@ -208,7 +210,7 @@ describe("Migraciones 0327/0328 — centavos y sede del alumno", () => {
     ]);
   });
 
-  it("ida y vuelta de un importe con centavos: Drizzle da number, SQL crudo da string", async () => {
+  it("ida y vuelta de un importe entero: Drizzle y SQL crudo dan number", async () => {
     const staffId = await createStaffUser(app, {
       email: `roundtrip-0327-${Date.now()}@test.com`,
       password: "Test1234!",
@@ -223,7 +225,7 @@ describe("Migraciones 0327/0328 — centavos y sede del alumno", () => {
         {
           kind: "advance_payment" as const,
           direction: "inflow" as const,
-          amount: 77570.82,
+          amount: 77571,
           currency: "ARS",
           paymentMethod: "cash" as const,
           transactionDate: "2026-11-10",
@@ -243,16 +245,15 @@ describe("Migraciones 0327/0328 — centavos y sede del alumno", () => {
             eq(schema.financialTransactions.id, id),
           ),
         );
-      expect(viaDrizzle.amount).toBe(77570.82);
+      expect(viaDrizzle.amount).toBe(77571);
       expect(typeof viaDrizzle.amount).toBe("number");
 
-      // Regla documentada: en SQL crudo un DECIMAL llega como string.
+      // Columna INT: el SQL crudo tambien devuelve number.
       const crudo = await q<RowDataPacket & { amount: unknown }>(
         "SELECT amount FROM financial_transactions WHERE id = ? AND tenant_id = 1",
         [id],
       );
-      expect(crudo[0].amount).toBe("77570.82");
-      expect(Number(crudo[0].amount)).toBe(77570.82);
+      expect(crudo[0].amount).toBe(77571);
     } finally {
       await app.dbPool.query(
         "DELETE FROM financial_transactions WHERE id = ? AND tenant_id = 1",

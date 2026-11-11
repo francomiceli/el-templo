@@ -983,13 +983,15 @@
                      el anticipo) -->
                 <div class="row q-col-gutter-md">
                   <div class="col-12 col-sm-6">
-                    <MoneyInput
-                      v-model="amountReceived"
+                    <q-input
+                      v-model.number="amountReceived"
                       label="Monto recibido"
+                      type="number"
                       dense
                       outlined
                       prefix="$"
-                      :rules="amountReceivedRules"
+                      :max="chargeBase"
+                      :min="0"
                       :disable="chargeBase === 0 || isMiscApplied"
                       :hint="
                         isMiscApplied
@@ -1107,7 +1109,6 @@ import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { showTrialBookingChanges, type TrialBookingChange } from 'src/utils/trial-booking-changes';
 import { formatDate } from 'src/utils/format-date';
-import { compareMoney, roundMoney } from 'src/utils/money';
 import { formatPrice, type Currency } from 'src/utils/format-price';
 import { extractError, isExpectedClientError } from 'src/utils/extract-error';
 import { useSubscriptionsApi } from 'src/composables/useSubscriptionsApi';
@@ -1140,7 +1141,6 @@ import FixedSchedulePicker from 'src/components/scheduling/FixedSchedulePicker.v
 // banner CTA. Lazy import to avoid a circular ref (MemberFormDialog does not
 // import AssignPlanDialog, but the parent pages do — keep this localized).
 import MemberFormDialog from 'src/components/MemberFormDialog.vue';
-import MoneyInput from 'src/components/MoneyInput.vue';
 
 const log = createLogger('AssignPlanDialog');
 const $q = useQuasar();
@@ -1391,12 +1391,10 @@ const isMiscApplied = computed(() => selectedMiscItem.value !== null);
 // El anticipo aplicado no coincide con el precio del plan: si excede, el backend
 // rechaza (400) → avisamos; si es menor, el socio queda deudor por la diferencia.
 const miscExceedsPrice = computed(
-  () =>
-    isMiscApplied.value && compareMoney(selectedMiscItem.value?.amount ?? 0, chargeBase.value) > 0
+  () => isMiscApplied.value && (selectedMiscItem.value?.amount ?? 0) > chargeBase.value
 );
 const miscBelowPrice = computed(
-  () =>
-    isMiscApplied.value && compareMoney(selectedMiscItem.value?.amount ?? 0, chargeBase.value) < 0
+  () => isMiscApplied.value && (selectedMiscItem.value?.amount ?? 0) < chargeBase.value
 );
 
 // =========================================================================
@@ -1704,25 +1702,13 @@ const chargeBase = computed<number>(() => {
 // Cobro parcial activo: hay algo a cobrar y el admin recibió menos. Phase 107 D-03.
 const isPartialCharge = computed<boolean>(
   () =>
-    chargeBase.value > 0 &&
-    amountReceived.value !== null &&
-    compareMoney(amountReceived.value, chargeBase.value) < 0
+    chargeBase.value > 0 && amountReceived.value !== null && amountReceived.value < chargeBase.value
 );
 
 // Saldo pendiente en vivo (CHARGE-02). Nunca negativo.
 const pendingBalance = computed<number>(() =>
-  roundMoney(Math.max(0, roundMoney(chargeBase.value - (amountReceived.value ?? 0))))
+  Math.max(0, chargeBase.value - (amountReceived.value ?? 0))
 );
-
-// Reglas del Monto recibido (reemplazan :min/:max del input numérico): el
-// monto no puede ser negativo ni superar lo que se cobra.
-const amountReceivedRules = [
-  (v: number | null): true | string => v === null || v >= 0 || 'No puede ser negativo',
-  (v: number | null): true | string =>
-    v === null ||
-    compareMoney(v, chargeBase.value) <= 0 ||
-    `No puede superar ${formatPrice(chargeBase.value, displayCurrency.value)}`,
-];
 
 // Validación del bloque Cobro — bloquea Confirmar cuando inválido (D-04).
 // chargeBase === 0 (plan gratuito): el bloque queda deshabilitado y NO bloquea Confirmar.
@@ -1734,7 +1720,7 @@ const isCobroInvalid = computed<boolean>(() => {
   if (isMiscApplied.value) return miscExceedsPrice.value;
   if (amountReceived.value === null) return true;
   if (amountReceived.value < 0) return true;
-  if (compareMoney(amountReceived.value, chargeBase.value) > 0) return true;
+  if (amountReceived.value > chargeBase.value) return true;
   return false;
 });
 

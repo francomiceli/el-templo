@@ -45,19 +45,22 @@
                   : `Solo cajas en ${origenCurrency}`
               "
             />
-            <MoneyInput
-              v-model="mov.amount"
+            <q-input
+              v-model.number="mov.amount"
+              type="number"
               label="Monto *"
               dense
               outlined
-              :rules="amountRules"
+              min="1"
               :suffix="origenSymbol"
             />
-            <MoneyInput
-              v-model="mov.countedAmount"
+            <q-input
+              v-model.number="mov.countedAmount"
+              type="number"
               label="Conteo físico de origen (opcional)"
               dense
               outlined
+              min="0"
               :suffix="origenSymbol"
               hint="Si lo cargás, se concilia contra el saldo esperado y se asienta el ajuste por la diferencia."
             />
@@ -99,12 +102,13 @@
               :loading="loadingCostCenters"
               :disable="loadingCostCenters"
             />
-            <MoneyInput
-              v-model="egreso.amount"
+            <q-input
+              v-model.number="egreso.amount"
+              type="number"
               label="Monto *"
               dense
               outlined
-              :rules="amountRules"
+              min="1"
               :suffix="egresoSymbol"
             />
             <q-input
@@ -153,9 +157,7 @@ import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { extractError } from 'src/utils/extract-error';
 import { useTransactionsApi } from 'src/composables/useTransactionsApi';
-import { compareMoney } from 'src/utils/money';
 import { currencySymbol } from 'src/utils/currencies';
-import MoneyInput from 'src/components/MoneyInput.vue';
 import type { CajaSaldoRow, CostCenterItem } from 'src/types/transaction';
 
 const props = defineProps<{
@@ -333,10 +335,7 @@ function onOrigenChange() {
   }
 }
 
-// Monto obligatorio y mayor a 0 (el parser de MoneyInput ya limita a 2 decimales).
-const amountRules = [
-  (v: number | null) => (v !== null && compareMoney(v, 0) > 0) || 'Ingresá un monto mayor a 0',
-];
+
 
 const canSubmitMov = computed(
   () =>
@@ -344,7 +343,7 @@ const canSubmitMov = computed(
     mov.destinoCajaId !== null &&
     mov.origenCajaId !== mov.destinoCajaId &&
     typeof mov.amount === 'number' &&
-    compareMoney(mov.amount, 0) > 0
+    mov.amount > 0
 );
 
 const canSubmitEgreso = computed(
@@ -352,7 +351,7 @@ const canSubmitEgreso = computed(
     egreso.cajaId !== null &&
     egreso.costCenterId !== null &&
     typeof egreso.amount === 'number' &&
-    compareMoney(egreso.amount, 0) > 0
+    egreso.amount > 0
 );
 
 // =========================================================================

@@ -2,7 +2,6 @@
 import {
   mysqlTable,
   int,
-  decimal,
   varchar,
   text,
   timestamp,
@@ -45,14 +44,7 @@ export const financialTransactions = mysqlTable(
       "expense",
     ]).notNull(),
     direction: mysqlEnum("direction", ["inflow", "outflow"]).notNull(),
-    // DECIMAL(14,2) en pesos/euros (fase 207, DI-01), no centavos enteros.
-    // mode "number": Drizzle lo mapea con Number() al leer. En SQL crudo llega
-    // como string, envolver con Number().
-    amount: decimal("amount", {
-      precision: 14,
-      scale: 2,
-      mode: "number",
-    }).notNull(),
+    amount: int("amount").notNull(),
     currency: varchar("currency", { length: 3 }).default("ARS").notNull(),
     // 'direct_debit' (domiciliación bancaria SEPA) solo aplica a sedes de
     // España — validado a nivel app, no por constraint. El banco confirma el

@@ -6,7 +6,7 @@
 import {
   mysqlTable,
   int,
-  decimal,
+  bigint,
   varchar,
   date,
   timestamp,
@@ -43,24 +43,11 @@ export const weeklyBoardSnapshots = mysqlTable(
       .notNull(),
     currency: varchar("currency", { length: 3 }).notNull(),
 
-    // Bloque principal (se congela el lunes 00:05 AR). Importes DECIMAL(14,2)
-    // en pesos/euros (fase 207, DI-01).
-    cobrado: decimal("cobrado", { precision: 14, scale: 2, mode: "number" }),
-    deudaCobrable: decimal("deuda_cobrable", {
-      precision: 14,
-      scale: 2,
-      mode: "number",
-    }),
-    deudaMas10: decimal("deuda_mas_10", {
-      precision: 14,
-      scale: 2,
-      mode: "number",
-    }),
-    deudaIncobrable: decimal("deuda_incobrable", {
-      precision: 14,
-      scale: 2,
-      mode: "number",
-    }),
+    // Bloque principal (se congela el lunes 00:05 AR).
+    cobrado: bigint("cobrado", { mode: "number" }),
+    deudaCobrable: bigint("deuda_cobrable", { mode: "number" }),
+    deudaMas10: bigint("deuda_mas_10", { mode: "number" }),
+    deudaIncobrable: bigint("deuda_incobrable", { mode: "number" }),
     activos: int("activos"),
     vencenSemanaSiguiente: int("vencen_semana_siguiente"),
     mainClosedAt: timestamp("main_closed_at"),

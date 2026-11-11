@@ -62,7 +62,6 @@ import {
   NotFoundError,
 } from "../shared/errors";
 import { isDuplicateKeyError } from "../shared/sql-errors";
-import { roundMoney } from "../shared/money";
 import { TEMP_PASSWORD_RESETTABLE_ROLES } from "../shared/permissions";
 import { ReferralService } from "../referrals/service";
 import { referralCopyVariant } from "../referrals/ab-variant";
@@ -588,15 +587,11 @@ export class MemberService {
     // Gated to owner/admin (includeTotalDebt): the aggregate is financial data
     // that gestion/coach/recepcion must not see. When not authorized we skip
     // the query outright and return an empty aggregate.
-    const totalDebtPromise: Promise<
-      Array<{ currency: string; amount: string }>
-    > = includeTotalDebt
+    const totalDebtPromise: Promise<TotalDebtRow[]> = includeTotalDebt
       ? this.db
           .select({
             currency: schema.balances.currency,
-            // SUM de DECIMAL llega como string: Number() abajo, nunca CAST a entero
-            // (trunca los centavos).
-            amount: sql<string>`COALESCE(SUM(${schema.balances.amount}), 0)`,
+            amount: sql<number>`CAST(SUM(${schema.balances.amount}) AS SIGNED)`,
           })
           .from(schema.balances)
           .innerJoin(
@@ -621,7 +616,7 @@ export class MemberService {
             ),
           )
           .groupBy(schema.balances.currency)
-      : Promise.resolve<Array<{ currency: string; amount: string }>>([]);
+      : Promise.resolve<TotalDebtRow[]>([]);
 
     const [countResult, rows, totalDebtRows] = await Promise.all([
       countPromise,
@@ -632,7 +627,7 @@ export class MemberService {
     const total = countResult[0]?.count ?? 0;
     const totalDebtByCurrency: TotalDebtRow[] = totalDebtRows.map((r) => ({
       currency: r.currency,
-      amount: roundMoney(Number(r.amount)),
+      amount: Number(r.amount),
     }));
 
     // Phase 105 (TXN-04, D-10): per-row `debt` enrichment is gone. The
@@ -2784,7 +2779,7 @@ export class MemberService {
       email: r.email ?? "",
       plan: r.planName ?? "Sin plan",
       // Fase 194 D-25: importe registrado por el sistema (descuento incluido).
-      amount: r.amount === null ? null : roundMoney(Number(r.amount)),
+      amount: r.amount === null ? null : Number(r.amount),
       currency: r.currency,
       sucursal: r.branchName,
       deudor: r.debtorName ?? "",

@@ -28,7 +28,6 @@ import {
   BadRequestError,
 } from "../shared/errors";
 import { isDuplicateKeyError } from "../shared/sql-errors";
-import { compareMoney, roundMoney, sumMoney } from "../shared/money";
 import type {
   PlanListItem,
   PlanDetail,
@@ -864,16 +863,16 @@ export class SubscriptionService {
 
     const amountReceived = params.amountReceived ?? params.chargeBase;
 
-    if (compareMoney(amountReceived, 0) < 0) {
+    if (amountReceived < 0) {
       throw new BadRequestError("amountReceived no puede ser negativo");
     }
-    if (compareMoney(amountReceived, params.chargeBase) > 0) {
+    if (amountReceived > params.chargeBase) {
       throw new BadRequestError(
-        `amountReceived no puede exceder el monto a cobrar ($${roundMoney(params.chargeBase)})`,
+        `amountReceived no puede exceder el monto a cobrar ($${params.chargeBase})`,
       );
     }
 
-    if (compareMoney(amountReceived, 0) > 0) {
+    if (amountReceived > 0) {
       const flowLabel = flowLabelMap[params.flow];
       await this.transactionService.create(
         ctx,
@@ -933,7 +932,7 @@ export class SubscriptionService {
       );
     }
 
-    if (compareMoney(amountReceived, params.chargeBase) < 0) {
+    if (amountReceived < params.chargeBase) {
       this.log.info(
         {
           userId: params.userId,
@@ -941,7 +940,7 @@ export class SubscriptionService {
           planId: params.planId,
           pricePaid: params.chargeBase,
           amountReceived,
-          pendingBalance: roundMoney(params.chargeBase - amountReceived),
+          pendingBalance: params.chargeBase - amountReceived,
           paymentMethod: params.paymentMethod,
           branchId: params.branchId,
           recordedBy: params.adminId,
@@ -2915,7 +2914,7 @@ export class SubscriptionService {
           // COBRO-04 (T-146-10): excedente. Rechazar ANTES de anular nada — el
           // excedente lo maneja gestión aparte (no recreamos un plan_charge
           // menor que el anticipo ni perdemos plata).
-          if (compareMoney(advance.amount, pricePaid) > 0) {
+          if (advance.amount > pricePaid) {
             throw new BadRequestError(
               "El cobro suelto excede el precio del plan; aplicá el excedente por separado",
             );
@@ -3006,7 +3005,7 @@ export class SubscriptionService {
             branchId: input.branchId,
             pricePaid,
             paymentMethod: input.paymentMethod,
-            hasChargeTx: compareMoney(effectiveAmountReceived, 0) > 0,
+            hasChargeTx: effectiveAmountReceived > 0,
             startDate: input.startDate,
             endDate: endDateStr,
             // Phase 146 (T-146-11): rastro de la imputación. El void deja su
@@ -4212,7 +4211,7 @@ export class SubscriptionService {
           ),
         );
       if (activeLinks.length > 0) {
-        const totalAmount = sumMoney(activeLinks.map((l) => l.amount));
+        const totalAmount = activeLinks.reduce((s, l) => s + l.amount, 0);
         const currency = activeLinks[0].currency;
         // Phase 110 D-05 structured 4xx body. Encoded as JSON inside the
         // BadRequestError message and unwrapped by the route handler so the

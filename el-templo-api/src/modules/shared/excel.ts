@@ -27,29 +27,6 @@ export function styleHeaderRow(
 }
 
 /**
- * Fase 207 (DI-05): formato numérico de las columnas de importe del circuito de
- * caja. Es un formato de Excel independiente del idioma: cada usuario lo ve con
- * sus separadores (es-AR: 77.570,82). NO escribir '#.##0,00': en el XML se
- * interpretaría al revés.
- */
-export const MONEY_NUM_FMT = "#,##0.00";
-
-/**
- * Aplica `MONEY_NUM_FMT` a las columnas de importe (por key). Llamar DESPUÉS de
- * asignar `sheet.columns`. El valor de la celda debe ser `number` (no string
- * formateado) para que Excel pueda sumar. Afecta también al encabezado, que es
- * texto: Excel ignora el formato numérico en texto.
- */
-export function setMoneyColumnFormat(
-  sheet: ReturnType<Workbook["addWorksheet"]>,
-  keys: readonly string[],
-): void {
-  for (const key of keys) {
-    sheet.getColumn(key).numFmt = MONEY_NUM_FMT;
-  }
-}
-
-/**
  * Send an Excel workbook as a binary download response. The filename is
  * `<prefix>-<YYYY-MM-DD>.xlsx` (today's date).
  */

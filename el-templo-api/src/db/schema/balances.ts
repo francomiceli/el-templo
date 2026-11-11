@@ -2,7 +2,6 @@
 import {
   mysqlTable,
   int,
-  decimal,
   varchar,
   timestamp,
   mysqlEnum,
@@ -36,12 +35,7 @@ export const balances = mysqlTable(
     ]).notNull(),
     targetId: int("target_id").notNull(),
     currency: varchar("currency", { length: 3 }).notNull(),
-    // DECIMAL(14,2) en pesos/euros (fase 207, DI-01), no centavos enteros.
-    amount: decimal("amount", {
-      precision: 14,
-      scale: 2,
-      mode: "number",
-    }).notNull(),
+    amount: int("amount").notNull(),
     lastRecomputedAt: timestamp("last_recomputed_at")
       .defaultNow()
       .onUpdateNow()

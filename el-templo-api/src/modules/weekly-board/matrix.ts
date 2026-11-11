@@ -16,7 +16,6 @@
  *   informativa y no entra al Total (D-16, D-25).
  */
 import { kpisFromTally } from "../reports/service";
-import { roundMoney } from "../shared/money";
 import { renewalRateFrom } from "../renewals/service";
 import {
   BOARD_METRICS,
@@ -110,12 +109,7 @@ export function deriveMetricValues(
   };
 }
 
-/**
- * Suma; `null` apenas un valor es null ("sin dato" contagia al total).
- * Se usa para importes (cobrado/deuda, con centavos) y para conteos: el
- * `roundMoney` final corrige el error de coma flotante de los importes y deja
- * igual a los enteros.
- */
+/** Suma; `null` apenas un valor es null ("sin dato" contagia al total). */
 function sumNullable<T>(
   items: T[],
   pick: (item: T) => number | null,
@@ -126,7 +120,7 @@ function sumNullable<T>(
     if (value === null) return null;
     total += value;
   }
-  return roundMoney(total);
+  return total;
 }
 
 function sumLate(items: LateBlockValues[]): LateBlockValues {

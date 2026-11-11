@@ -401,7 +401,6 @@ import type {
 } from 'src/types/member';
 import { SEGMENT_LABELS, SEGMENT_COLORS, expiryBadge } from 'src/types/member';
 import { todayInTz } from 'src/utils/tz';
-import { formatMoneyNumber } from 'src/utils/money';
 import { levelColor } from 'src/constants/levels';
 import MemberFormDialog from 'src/components/MemberFormDialog.vue';
 import TrialMemberFormDialog from 'src/components/TrialMemberFormDialog.vue';
@@ -520,7 +519,7 @@ const filters = reactive({
 const totalDebtByCurrency = ref<TotalDebtRow[]>([]);
 
 const formattedTotalDebt = computed(() =>
-  totalDebtByCurrency.value.map((t) => `${t.currency} $${formatMoneyNumber(t.amount)}`).join(' · ')
+  totalDebtByCurrency.value.map((t) => `${t.currency} $${t.amount.toLocaleString()}`).join(' · ')
 );
 
 const tablePagination = ref({

@@ -19,7 +19,6 @@ import {
 } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import { csvEscape } from "../shared/csv";
-import { fromCents, roundMoney, sumMoney, toCents } from "../shared/money";
 import * as schema from "../../db/schema";
 import { firmMoneySqlFor } from "../finance/firm-money";
 import { buildMemberNameSearchCondition } from "../shared/member-search";
@@ -796,8 +795,7 @@ export class ReportsService {
         memberName: String(r.memberName).trim(),
         memberId: Number(r.memberId),
         planName: String(r.planName),
-        // DECIMAL crudo llega como string: Number() + roundMoney (fase 207).
-        amount: roundMoney(Number(r.amount)),
+        amount: Number(r.amount),
         currency: r.currency ? String(r.currency) : "ARS",
         paymentMethod: String(r.paymentMethod) as ChargeReportPaymentMethod,
         recorderName: String(r.recorderName).trim(),
@@ -1450,7 +1448,7 @@ export class ReportsService {
         periodEnd,
         registeredAt,
         notes,
-        amount: roundMoney(Number(r.amount)),
+        amount: Number(r.amount),
         currency: r.currency,
         effectiveDate,
         ageInDays,
@@ -1624,7 +1622,7 @@ export class ReportsService {
         );
         const key = r.currency;
         if (!map[key]) map[key] = emptyBucketTotals();
-        map[key][bucket] = roundMoney(map[key][bucket] + Number(r.amount));
+        map[key][bucket] += Number(r.amount);
       }
       bucketTotals = map;
     } else {
@@ -1633,7 +1631,7 @@ export class ReportsService {
         const bucket = computeBucketOB(
           computeAgeInDaysOB(debtCreationDateOB(r.balanceCreatedAt)),
         );
-        flat[bucket] = roundMoney(flat[bucket] + Number(r.amount));
+        flat[bucket] += Number(r.amount);
       }
       bucketTotals = flat;
     }
@@ -1650,9 +1648,7 @@ export class ReportsService {
           sql<string>`${this.effectiveDebtStatusSQL(cols.dmStatus)}`.as(
             "eff_status",
           ),
-        // SUM de DECIMAL llega como string: se convierte con Number() (nunca CAST a
-        // entero, que trunca los centavos).
-        totalAmount: sql<string>`COALESCE(SUM(${schema.balances.amount}), 0)`,
+        totalAmount: sql<number>`CAST(SUM(${schema.balances.amount}) AS SIGNED)`,
       })
       .from(schema.balances)
       .leftJoin(
@@ -1686,9 +1682,9 @@ export class ReportsService {
     };
     for (const r of statusTotalsRows) {
       if (r.effStatus === "activa") {
-        statusTotals.cobrable[r.currency] = roundMoney(Number(r.totalAmount));
+        statusTotals.cobrable[r.currency] = Number(r.totalAmount);
       } else if (r.effStatus === "incobrable") {
-        statusTotals.incobrable[r.currency] = roundMoney(Number(r.totalAmount));
+        statusTotals.incobrable[r.currency] = Number(r.totalAmount);
       }
     }
 
@@ -1765,7 +1761,7 @@ export class ReportsService {
       }
       const status = effectiveDebtStatus(r.dmStatus);
       if (status === "cobrada") continue;
-      const amountCents = toCents(Number(r.amount));
+      const amount = Number(r.amount);
 
       let byCurrency = byBranch.get(r.memberBranchId);
       if (!byCurrency) {
@@ -1774,27 +1770,18 @@ export class ReportsService {
       }
       let totals = byCurrency.get(r.currency);
       if (!totals) {
-        // Acumula en centavos enteros hasta el final de la funcion.
         totals = { cobrable: 0, mas10: 0, incobrable: 0 };
         byCurrency.set(r.currency, totals);
       }
       if (status === "incobrable") {
-        totals.incobrable += amountCents;
+        totals.incobrable += amount;
         continue;
       }
-      totals.cobrable += amountCents;
+      totals.cobrable += amount;
       const bucket = computeBucketOB(
         computeAgeInDaysOB(debtCreationDateOB(r.createdAt)),
       );
-      if (bucket === "11-15" || bucket === "15+") totals.mas10 += amountCents;
-    }
-    // Los totales se acumularon en centavos enteros: se devuelven en unidad.
-    for (const byCurrency of byBranch.values()) {
-      for (const totals of byCurrency.values()) {
-        totals.cobrable = fromCents(totals.cobrable);
-        totals.mas10 = fromCents(totals.mas10);
-        totals.incobrable = fromCents(totals.incobrable);
-      }
+      if (bucket === "11-15" || bucket === "15+") totals.mas10 += amount;
     }
     return byBranch;
   }
@@ -2077,8 +2064,9 @@ export class ReportsService {
       .sort((a, b) => a - b);
     const medianDaysToConvert = median(daysList);
 
-    const revenueFromConverted = sumMoney(
-      convertedRows.map((r) => Number(r.revenue ?? 0)),
+    const revenueFromConverted = convertedRows.reduce(
+      (acc, r) => acc + Number(r.revenue ?? 0),
+      0,
     );
     const revenuePerTrial =
       trialsCount > 0 ? revenueFromConverted / trialsCount : 0;

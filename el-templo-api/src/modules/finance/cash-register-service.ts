@@ -20,12 +20,6 @@ import {
   NotFoundError,
 } from "../shared/errors";
 import { isSupportedAccountCurrency } from "../shared/currency";
-import {
-  assertMoneyAmount,
-  fromCents,
-  roundMoney,
-  toCents,
-} from "../shared/money";
 import { firmMoneyConditions } from "./firm-money";
 import {
   tenantValues,
@@ -338,13 +332,10 @@ export class CashRegisterService {
         ),
       );
 
-    // Fase 207 (DI-02): saldo exacto al centavo. Los SUM llegan como string
-    // desde mysql2 (Number()) y se combinan en centavos enteros.
-    const firmeBalance = fromCents(
-      toCents(caja.openingBalance) +
-        toCents(Number(firmRow?.total ?? 0)) -
-        toCents(Number(outflowRow?.total ?? 0)),
-    );
+    const firmeBalance =
+      caja.openingBalance +
+      Number(firmRow?.total ?? 0) -
+      Number(outflowRow?.total ?? 0);
 
     // pendienteAmount: a SEPARATE SUM (validation_status='pendiente', not
     // voided, since cutoff). NEVER added to firmeBalance (CAJA-03).
@@ -363,7 +354,7 @@ export class CashRegisterService {
           gte(schema.financialTransactions.transactionDate, caja.cutoffDate),
         ),
       );
-    const pendienteAmount = roundMoney(Number(pendRow?.total ?? 0));
+    const pendienteAmount = Number(pendRow?.total ?? 0);
 
     return {
       cashRegisterId,
@@ -429,20 +420,14 @@ export class CashRegisterService {
             lte(schema.financialTransactions.transactionDate, dateTo),
           ),
         );
-      return roundMoney(Number(row?.total ?? 0));
+      return Number(row?.total ?? 0);
     };
 
     const [inflow, outflow] = await Promise.all([
       sumFor("inflow"),
       sumFor("outflow"),
     ]);
-    return {
-      dateFrom: from,
-      dateTo,
-      inflow,
-      outflow,
-      net: roundMoney(inflow - outflow),
-    };
+    return { dateFrom: from, dateTo, inflow, outflow, net: inflow - outflow };
   }
 
   /**
@@ -823,11 +808,9 @@ export class CashRegisterService {
     cashRegisterId: number,
     amount: number,
   ): Promise<{ cashRegisterId: number; changeFund: number }> {
-    // Fase 207: el fondo de cambio admite centavos (hasta 2 decimales).
-    assertMoneyAmount(amount, {
-      label: "El fondo de cambio",
-      allowZero: true,
-    });
+    if (!Number.isInteger(amount) || amount < 0) {
+      throw new BadRequestError("El fondo de cambio no puede ser negativo");
+    }
     const [caja] = await this.db
       .select({ id: schema.cashRegisters.id, type: schema.cashRegisters.type })
       .from(schema.cashRegisters)
@@ -1077,10 +1060,10 @@ export class CashRegisterService {
       );
     }
 
-    const openingBalance = assertMoneyAmount(input.openingBalance ?? 0, {
-      label: "El saldo inicial",
-      allowZero: true,
-    });
+    const openingBalance = input.openingBalance ?? 0;
+    if (openingBalance < 0) {
+      throw new BadRequestError("El saldo inicial no puede ser negativo");
+    }
 
     // El invariante "una caja efectivo activa por (sucursal, moneda)" es POR
     // GIMNASIO: sin este filtro, la caja de otro gimnasio en la misma sucursal
@@ -1200,10 +1183,12 @@ export class CashRegisterService {
       );
     }
     const currency = input.currency;
-    const openingBalance = assertMoneyAmount(input.openingBalance ?? 0, {
-      label: "El saldo de apertura",
-      allowZero: true,
-    });
+    const openingBalance = input.openingBalance ?? 0;
+    if (!Number.isInteger(openingBalance) || openingBalance < 0) {
+      throw new BadRequestError(
+        "El saldo de apertura debe ser un número entero mayor o igual a 0",
+      );
+    }
 
     this.assertTreasuryShape({
       type: "efectivo",

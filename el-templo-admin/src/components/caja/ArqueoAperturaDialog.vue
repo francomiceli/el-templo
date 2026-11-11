@@ -32,14 +32,22 @@
           <span class="text-caption text-grey-7"> (está en el cajón aunque no esté validado)</span>
         </div>
 
-        <MoneyInput
-          v-model="countedAmount"
+        <q-input
+          v-model.number="countedInput"
+          type="number"
+          inputmode="numeric"
+          min="0"
+          step="1"
           label="¿Cuánto efectivo contaste? *"
           dense
           outlined
           autofocus
           :prefix="currencySymbol(caja.currency)"
-          :rules="[(v) => v !== null || 'Ingresá el efectivo contado (0 si no hay nada)']"
+          :rules="[
+            () =>
+              countedAmount !== null ||
+              'Ingresá el efectivo contado en números enteros (0 si no hay nada)',
+          ]"
         />
 
         <q-banner
@@ -92,10 +100,8 @@ import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { extractError } from 'src/utils/extract-error';
 import { formatPrice } from 'src/utils/format-price';
-import { compareMoney, roundMoney, sumMoney } from 'src/utils/money';
 import { currencySymbol } from 'src/utils/currencies';
 import { useTransactionsApi } from 'src/composables/useTransactionsApi';
-import MoneyInput from 'src/components/MoneyInput.vue';
 import type { CajaSaldoRow, OpeningCountResult } from 'src/types/transaction';
 
 const props = defineProps<{
@@ -119,38 +125,35 @@ const show = computed({
 });
 
 const submitting = ref(false);
-// null = vacío o texto inválido: bloquea el envío (el 0 se tipea explícito).
-const countedAmount = ref<number | null>(null);
+// Lo que hay en el campo. Vacío o no numérico bloquea el envío (el 0 se tipea
+// explícito). La plata va en unidades enteras.
+const countedInput = ref<number | string | null>(null);
+const countedAmount = computed<number | null>(() => {
+  const v = countedInput.value;
+  return typeof v === 'number' && Number.isInteger(v) && v >= 0 ? v : null;
+});
 const notes = ref('');
 
 // Mismo esperado que calcula la API: fondo de cambio + firme + pendiente.
 const expectedAmount = computed(() =>
-  props.caja
-    ? roundMoney(
-        sumMoney([props.caja.changeFund, props.caja.firmeBalance, props.caja.pendienteAmount])
-      )
-    : 0
+  props.caja ? props.caja.changeFund + props.caja.firmeBalance + props.caja.pendienteAmount : 0
 );
 
 type Difference = { kind: 'ok' | 'sobrante' | 'faltante'; amount: number };
 
 const difference = computed<Difference | null>(() => {
   if (countedAmount.value === null) return null;
-  const diff = roundMoney(countedAmount.value - expectedAmount.value);
-  const cmp = compareMoney(diff, 0);
-  if (cmp === 0) return { kind: 'ok', amount: 0 };
-  return cmp > 0
+  const diff = countedAmount.value - expectedAmount.value;
+  if (diff === 0) return { kind: 'ok', amount: 0 };
+  return diff > 0
     ? { kind: 'sobrante', amount: diff }
     : { kind: 'faltante', amount: Math.abs(diff) };
 });
 
-const canSubmit = computed(
-  () =>
-    props.caja !== null && countedAmount.value !== null && compareMoney(countedAmount.value, 0) >= 0
-);
+const canSubmit = computed(() => props.caja !== null && countedAmount.value !== null);
 
 function resetAll() {
-  countedAmount.value = null;
+  countedInput.value = null;
   notes.value = '';
   submitting.value = false;
 }

@@ -97,7 +97,6 @@ import {
   getMemberSessionLevelsSchema,
 } from "./schemas";
 import { Workbook } from "exceljs";
-import { setMoneyColumnFormat } from "../shared/excel";
 
 import {
   ADMIN_ROLES,
@@ -442,7 +441,6 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         { header: "Importe último cobro", key: "importe", width: 20 },
         { header: "Moneda último cobro", key: "moneda", width: 20 },
       ];
-      setMoneyColumnFormat(sheet, ["importe"]);
 
       const headerRow = sheet.getRow(1);
       headerRow.font = { bold: true };
@@ -988,19 +986,14 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           });
           // Fase 195-07 (D-18): mismo registro best-effort de origen que el
           // alta sin invitador.
-          await recordSignupAttributionBestEffort(
-            fastify.db,
-            request.log,
-            ctx,
-            {
-              userId: result.lead.id,
-              branchId: trialInput.branchId,
-              capturedVia: "admin_trial",
-              platform: "admin",
-              manualOrigin: origin,
-              manualCampaign: campaign,
-            },
-          );
+          await recordSignupAttributionBestEffort(fastify.db, request.log, ctx, {
+            userId: result.lead.id,
+            branchId: trialInput.branchId,
+            capturedVia: "admin_trial",
+            platform: "admin",
+            manualOrigin: origin,
+            manualCampaign: campaign,
+          });
           return reply.code(201).send({
             ...result.lead,
             invitation: result.invitation,

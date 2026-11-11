@@ -15,7 +15,6 @@
 import { FastifyPluginAsync } from "fastify";
 import { and, eq } from "drizzle-orm";
 import { Workbook } from "exceljs";
-import { setMoneyColumnFormat } from "../shared/excel";
 import {
   TransactionService,
   BalanceService,
@@ -1035,10 +1034,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
             .code(scopeErr.code)
             .send({ error: "No encontrado", message: scopeErr.message });
         }
-        return await cashCountService.getExpected(
-          ctx,
-          request.query.cashRegisterId,
-        );
+        return await cashCountService.getExpected(ctx, request.query.cashRegisterId);
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "cash count expected");
         return reply;
@@ -1056,39 +1052,35 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
       page?: number;
       limit?: number;
     };
-  }>(
-    "/cash-counts",
-    { schema: listCashCountsSchema },
-    async (request, reply) => {
-      try {
-        let country: string | undefined;
-        if (request.scope.isOwner) {
-          country = request.query.country
-            ? request.query.country.toUpperCase()
-            : undefined;
-        } else {
-          country = request.scope.country ?? undefined;
-        }
-        const filters: CashCountListFilters = {
-          cashRegisterId: request.query.cashRegisterId,
-          branchId: request.query.branchId,
-          country: country as CashCountListFilters["country"],
-          isOwner: request.scope.isOwner,
-          dateFrom: request.query.dateFrom,
-          dateTo: request.query.dateTo,
-          page: request.query.page,
-          limit: request.query.limit,
-        };
-        return await cashCountService.list(
-          assertTenant(request.scope, "finance.cash-counts.list"),
-          filters,
-        );
-      } catch (err: unknown) {
-        handleServiceError(err, reply, request.log, "cash counts list");
-        return reply;
+  }>("/cash-counts", { schema: listCashCountsSchema }, async (request, reply) => {
+    try {
+      let country: string | undefined;
+      if (request.scope.isOwner) {
+        country = request.query.country
+          ? request.query.country.toUpperCase()
+          : undefined;
+      } else {
+        country = request.scope.country ?? undefined;
       }
-    },
-  );
+      const filters: CashCountListFilters = {
+        cashRegisterId: request.query.cashRegisterId,
+        branchId: request.query.branchId,
+        country: country as CashCountListFilters["country"],
+        isOwner: request.scope.isOwner,
+        dateFrom: request.query.dateFrom,
+        dateTo: request.query.dateTo,
+        page: request.query.page,
+        limit: request.query.limit,
+      };
+      return await cashCountService.list(
+        assertTenant(request.scope, "finance.cash-counts.list"),
+        filters,
+      );
+    } catch (err: unknown) {
+      handleServiceError(err, reply, request.log, "cash counts list");
+      return reply;
+    }
+  });
 
   fastify.post<{ Body: RegisterCashCountInput }>(
     "/cash-counts",
@@ -1144,10 +1136,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
             message: "Solo admin/owner puede definir el fondo de cambio",
           });
         }
-        const ctx = assertTenant(
-          request.scope,
-          "finance.cash-registers.change-fund",
-        );
+        const ctx = assertTenant(request.scope, "finance.cash-registers.change-fund");
         const scopeErr = await enforceCajaScope(
           ctx,
           request.params.id,
@@ -1567,7 +1556,6 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           { header: "Anulado", key: "anulado", width: 10 },
           { header: "Razón anulación", key: "razon", width: 24 },
         ];
-        setMoneyColumnFormat(sheet, ["monto"]);
 
         // Header style — bold + light grey fill (mirrors reports/routes.ts
         // styleHeaderRow helper).
@@ -1737,7 +1725,6 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           { header: "Estado", key: "estado", width: 14 },
           { header: "Vencido", key: "vencido", width: 10 },
         ];
-        setMoneyColumnFormat(sheet, ["monto"]);
         styleHeaderRow(sheet.getRow(1));
 
         for (const row of result.rows) {
@@ -2235,7 +2222,6 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           { header: "Saldo firme", key: "firme", width: 16 },
           { header: "Pendiente", key: "pendiente", width: 16 },
         ];
-        setMoneyColumnFormat(sheet, ["firme", "pendiente"]);
         styleHeaderRow(sheet.getRow(1));
 
         for (const row of rows) {
@@ -2388,7 +2374,6 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           { header: "Anulado", key: "anulado", width: 10 },
           { header: "Razón", key: "razon", width: 24 },
         ];
-        setMoneyColumnFormat(sheet, ["monto"]);
         styleHeaderRow(sheet.getRow(1));
 
         for (const row of result.rows) {

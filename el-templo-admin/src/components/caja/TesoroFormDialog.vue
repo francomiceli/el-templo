@@ -34,13 +34,21 @@
           :rules="[(v) => !!(v && v.trim()) || 'El nombre es obligatorio']"
         />
 
-        <MoneyInput
-          v-model="form.openingBalance"
+        <q-input
+          v-model.number="form.openingBalance"
+          type="number"
+          inputmode="numeric"
+          min="0"
+          step="1"
           label="Saldo de apertura *"
           dense
           outlined
           :prefix="currencySymbol(form.currency)"
-          :rules="[(v) => v !== null || 'Ingresá el saldo de apertura (0 si arranca vacío)']"
+          :rules="[
+            () =>
+              openingBalance !== null ||
+              'Ingresá el saldo de apertura en números enteros (0 si arranca vacío)',
+          ]"
           hint="Efectivo que hay hoy en el Tesoro"
         />
       </q-card-section>
@@ -66,14 +74,12 @@ import { reactive, computed, ref } from 'vue';
 import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { extractError } from 'src/utils/extract-error';
-import { compareMoney } from 'src/utils/money';
 import {
   ACCOUNT_CURRENCY_OPTIONS,
   currencySymbol,
   type AccountCurrency,
 } from 'src/utils/currencies';
 import { useTransactionsApi } from 'src/composables/useTransactionsApi';
-import MoneyInput from 'src/components/MoneyInput.vue';
 import type { CajaSaldoRow } from 'src/types/transaction';
 
 const props = defineProps<{
@@ -105,16 +111,21 @@ function defaultName(currency: AccountCurrency): string {
 const form = reactive({
   currency: 'ARS' as AccountCurrency,
   name: defaultName('ARS'),
-  // null = vacío o texto inválido: bloquea el alta (el 0 se tipea explícito).
-  openingBalance: 0 as number | null,
+  // Vacío o no numérico bloquea el alta (el 0 se tipea explícito).
+  openingBalance: 0 as number | string | null,
+});
+
+// Saldo de apertura validado: entero mayor o igual a 0, o null si no sirve.
+const openingBalance = computed<number | null>(() => {
+  const v = form.openingBalance;
+  return typeof v === 'number' && Number.isInteger(v) && v >= 0 ? v : null;
 });
 
 const canSubmit = computed(
   () =>
     !!form.name.trim() &&
     !!form.currency &&
-    form.openingBalance !== null &&
-    compareMoney(form.openingBalance, 0) >= 0
+    openingBalance.value !== null
 );
 
 // Al cambiar la moneda el nombre sugerido la sigue, salvo que lo hayan editado
@@ -134,13 +145,13 @@ function resetAll() {
 }
 
 async function submit() {
-  if (!canSubmit.value || form.openingBalance === null) return;
+  if (!canSubmit.value || openingBalance.value === null) return;
   submitting.value = true;
   try {
     const { caja } = await transactionsApi.createTreasury({
       name: form.name.trim(),
       currency: form.currency,
-      openingBalance: form.openingBalance,
+      openingBalance: openingBalance.value,
     });
     $q.notify({ type: 'positive', message: 'Tesoro creado' });
     emit('created', caja);

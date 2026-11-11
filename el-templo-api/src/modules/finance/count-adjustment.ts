@@ -14,7 +14,6 @@
 // El texto de `notes` lo arma el caller y se guarda TAL CUAL, asi cada flujo
 // conserva su redaccion.
 
-import { moneyEquals, roundMoney } from "../shared/money";
 import type { TenantContext } from "../shared/tenant";
 import type { TxHandle } from "./balance-service";
 import type { TransactionService } from "./transaction-service";
@@ -31,7 +30,7 @@ export interface CountAdjustmentInput {
 }
 
 export interface CountAdjustmentResult {
-  /** counted - expected, redondeada a centavos (0 si coinciden). */
+  /** counted - expected, en unidades enteras (0 si coinciden). */
   difference: number;
   /** Id del ajuste creado, o null cuando no hay diferencia. */
   adjustmentTxId: number | null;
@@ -48,8 +47,8 @@ export async function createCountAdjustment(
   input: CountAdjustmentInput,
   adminId: number,
 ): Promise<CountAdjustmentResult> {
-  const difference = roundMoney(input.counted - input.expected);
-  if (moneyEquals(difference, 0)) {
+  const difference = input.counted - input.expected;
+  if (difference === 0) {
     return { difference: 0, adjustmentTxId: null };
   }
   const adjustment = await txnService.create(

@@ -3,7 +3,6 @@
 import {
   mysqlTable,
   int,
-  decimal,
   text,
   timestamp,
   index,
@@ -44,38 +43,13 @@ export const cashCounts = mysqlTable(
     // check-out. NULL para un conteo suelto.
     staffShiftId: int("staff_shift_id").references(() => staffShifts.id),
     countedAt: timestamp("counted_at").defaultNow().notNull(),
-    // Importes DECIMAL(14,2) en pesos/euros (fase 207, DI-01), no centavos enteros.
-    changeFund: decimal("change_fund", {
-      precision: 14,
-      scale: 2,
-      mode: "number",
-    }).notNull(),
-    firmeAmount: decimal("firme_amount", {
-      precision: 14,
-      scale: 2,
-      mode: "number",
-    }).notNull(),
-    pendienteAmount: decimal("pendiente_amount", {
-      precision: 14,
-      scale: 2,
-      mode: "number",
-    }).notNull(),
-    expectedAmount: decimal("expected_amount", {
-      precision: 14,
-      scale: 2,
-      mode: "number",
-    }).notNull(),
-    countedAmount: decimal("counted_amount", {
-      precision: 14,
-      scale: 2,
-      mode: "number",
-    }).notNull(),
+    changeFund: int("change_fund").notNull(),
+    firmeAmount: int("firme_amount").notNull(),
+    pendienteAmount: int("pendiente_amount").notNull(),
+    expectedAmount: int("expected_amount").notNull(),
+    countedAmount: int("counted_amount").notNull(),
     /** counted − expected. Negativo = falta plata. */
-    difference: decimal("difference", {
-      precision: 14,
-      scale: 2,
-      mode: "number",
-    }).notNull(),
+    difference: int("difference").notNull(),
     /** Cobros en efectivo cargados desde el arqueo anterior (informativo). */
     paymentsCount: int("payments_count").default(0).notNull(),
     notes: text("notes"),
