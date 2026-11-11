@@ -28,7 +28,7 @@
         />
         <q-select
           v-model="form.currency"
-          :options="currencyOptions"
+          :options="ACCOUNT_CURRENCY_OPTIONS"
           label="Moneda *"
           dense
           outlined
@@ -92,7 +92,7 @@
 import { reactive, computed, ref, onUnmounted } from 'vue';
 import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
-import type { AccountCurrency } from 'src/utils/currencies';
+import { ACCOUNT_CURRENCY_OPTIONS, type AccountCurrency } from 'src/utils/currencies';
 import { extractError } from 'src/utils/extract-error';
 import { useTransactionsApi } from 'src/composables/useTransactionsApi';
 import type {
@@ -130,12 +130,6 @@ const show = computed({
 });
 
 const isEditMode = computed(() => !!props.account);
-
-// Fase 208: el tipo ya admite USD (BankAccount.currency); 208-09 suma USD a las opciones.
-const currencyOptions: Array<{ label: string; value: AccountCurrency }> = [
-  { label: 'Pesos (ARS)', value: 'ARS' },
-  { label: 'Euros (EUR)', value: 'EUR' },
-];
 
 // =========================================================================
 // Form state — SIN campo "Nombre" (derivado en el backend, D-03).

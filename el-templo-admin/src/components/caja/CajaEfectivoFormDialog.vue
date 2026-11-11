@@ -26,13 +26,13 @@
 
         <q-select
           v-model="form.currency"
-          :options="currencyOptions"
+          :options="ACCOUNT_CURRENCY_OPTIONS"
           label="Moneda *"
           dense
           outlined
           emit-value
           map-options
-          hint="No se puede cambiar después de abrir la caja"
+          hint="Una caja por sede y moneda. No se puede cambiar después."
         />
 
         <MoneyInput
@@ -69,6 +69,7 @@ import { extractError } from 'src/utils/extract-error';
 import { useTransactionsApi } from 'src/composables/useTransactionsApi';
 import { useMembersApi } from 'src/composables/useMembersApi';
 import { compareMoney } from 'src/utils/money';
+import { ACCOUNT_CURRENCY_OPTIONS, type AccountCurrency } from 'src/utils/currencies';
 import MoneyInput from 'src/components/MoneyInput.vue';
 import type { BranchOption } from 'src/types/member';
 
@@ -93,18 +94,13 @@ const show = computed({
   set: (v) => emit('update:modelValue', v),
 });
 
-const currencyOptions: Array<{ label: string; value: 'ARS' | 'EUR' }> = [
-  { label: 'Pesos (ARS)', value: 'ARS' },
-  { label: 'Euros (EUR)', value: 'EUR' },
-];
-
 const submitting = ref(false);
 const loadingBranches = ref(false);
 const branchOptions = ref<Array<{ label: string; value: number }>>([]);
 
 const form = reactive({
   branchId: null as number | null,
-  currency: 'ARS' as 'ARS' | 'EUR',
+  currency: 'ARS' as AccountCurrency,
   // null = vacío o texto inválido: bloquea el alta (el 0 se tipea explícito).
   openingBalance: 0 as number | null,
 });
@@ -119,7 +115,7 @@ const canSubmit = computed(
 
 // La moneda por defecto sigue al país del hub — es la combinación correcta en
 // el 99% de los casos y se puede cambiar a mano si hace falta.
-function defaultCurrencyForCountry(): 'ARS' | 'EUR' {
+function defaultCurrencyForCountry(): AccountCurrency {
   return props.selectedCountry === 'ES' ? 'EUR' : 'ARS';
 }
 
