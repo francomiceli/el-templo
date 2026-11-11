@@ -603,27 +603,40 @@ describe("eventos y cierre del estiramiento: POST /api/sessions/stretch/{events,
     expect(vacio.body.ok).toBe(true);
   });
 
-  it("(m) body con una propiedad extra responde 400 en las dos rutas", async () => {
+  it("(m) las propiedades fuera del contrato se podan (removeAdditional): ni tenantId ni startedAt tienen efecto", async () => {
     const { member } = await arrange();
     const { offerId, ids } = await crearOferta(member.token);
 
+    // Fastify poda la clave ajena en vez de rechazarla: 200 y sin efecto.
     const evento = await postEvent(member.token, {
       type: "card_seen",
       tenantId: 2,
     });
-    expect(evento.status).toBe(400);
+    expect(evento.status).toBe(200);
+    expect(evento.body.ok).toBe(true);
+    const tras = await offerRow(offerId);
+    expect(tras.cardSeenAt).not.toBeNull();
+    expect(tras.tenantId).toBe(CTX_TEMPLO.tenantId);
 
-    // El cliente no puede mandar tiempos: startedAt no está en el contrato.
+    // Arranque real del servidor y 2 minutos despues. Un startedAt falso de hace
+    // 10 minutos (que daria AURA si se respetara) se descarta: la duracion sale
+    // de las marcas del servidor.
+    await postEvent(member.token, { type: "started" });
+    avanzar(2 * MIN);
     const cierre = await postComplete(member.token, {
       offerId,
       exercisesCompleted: ids,
       startedAt: new Date(Date.now() - 10 * MIN).toISOString(),
     });
-    expect(cierre.status).toBe(400);
+    expect(cierre.status, JSON.stringify(cierre.body)).toBe(200);
+    expect(cierre.body.durationSeconds).toBeGreaterThanOrEqual(119);
+    expect(cierre.body.durationSeconds).toBeLessThanOrEqual(121);
+    expect(cierre.body.auraAwarded).toBe(false);
+    expect(await auraStretch(member.id)).toHaveLength(0);
 
     const row = await offerRow(offerId);
-    expect(row.cardSeenAt).toBeNull();
-    expect(row.completedAt).toBeNull();
+    expect(row.tenantId).toBe(CTX_TEMPLO.tenantId);
+    expect(row.durationSeconds).toBe(cierre.body.durationSeconds);
   });
 
   it("(n) los ids que no son de la rutina se ignoran: no inflan allDone ni se guardan", async () => {

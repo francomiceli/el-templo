@@ -5,8 +5,10 @@
  * y el gimnasio del scope del servidor (T-213-08).
  *
  * Los body de `POST /stretch/events` y `POST /stretch/complete` son cerrados
- * (`additionalProperties: false`, T-213-15): el cliente no manda tiempos ni
- * ids de gimnasio, la duracion la calcula el servidor.
+ * (`additionalProperties: false`, T-213-15). Fastify corre con `removeAdditional`:
+ * las propiedades extra se DESCARTAN (no se rechazan con 400), asi que el
+ * cliente no puede inyectar tiempos ni ids de gimnasio: la duracion la calcula
+ * el servidor.
  */
 import type {
   StretchCompleteView,
