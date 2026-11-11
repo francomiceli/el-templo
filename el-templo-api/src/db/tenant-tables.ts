@@ -195,7 +195,7 @@ export const GYM_OWNED_TABLES = [
   // TENANT_STRICT_MODULES["sponsors"]).
   "sponsor_views",
   "staff_shifts",
-  // Estiramiento post-clase (fase 213, migs 0330/0331): nacen con tenant_id y
+  // Estiramiento post-clase (fase 213, migs 0340/0341): nacen con tenant_id y
   // strict, ver TENANT_STRICT_MODULES.stretch.
   "stretch_catalog",
   "stretch_offers",

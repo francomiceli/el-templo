@@ -1,9 +1,9 @@
 /**
- * Fase 213 Plan 01: migraciones 0330 y 0331 (estiramiento post-clase).
+ * Fase 213 Plan 01: migraciones 0340 y 0341 (estiramiento post-clase).
  *
- *  - 0330 (D-02, D-15, D-16) crea `stretch_catalog` (lista curada) y
+ *  - 0340 (D-02, D-15, D-16) crea `stretch_catalog` (lista curada) y
  *    `stretch_offers` (una fila por alumno y dia = la oferta).
- *  - 0331 (D-02) carga la lista curada de 20 ejercicios, solo si el ejercicio
+ *  - 0341 (D-02) carga la lista curada de 20 ejercicios, solo si el ejercicio
  *    existe con ese id Y ese nombre.
  *
  * Se consulta INFORMATION_SCHEMA de la base del worker y no `_migrations`: el
@@ -51,7 +51,7 @@ interface CountRow extends RowDataPacket {
   total: number;
 }
 
-describe("Migraciones 0330/0331 — stretch_catalog y stretch_offers", () => {
+describe("Migraciones 0340/0341 — stretch_catalog y stretch_offers", () => {
   let app: FastifyInstance;
 
   beforeAll(async () => {
@@ -91,7 +91,7 @@ describe("Migraciones 0330/0331 — stretch_catalog y stretch_offers", () => {
     return rows;
   }
 
-  it("0330: existen las dos tablas", async () => {
+  it("0340: existen las dos tablas", async () => {
     const [rows] = (await app.dbPool.query(
       `SELECT TABLE_NAME AS tableName
          FROM INFORMATION_SCHEMA.TABLES
@@ -101,7 +101,7 @@ describe("Migraciones 0330/0331 — stretch_catalog y stretch_offers", () => {
     expect(rows.map((r) => r.tableName).sort()).toEqual([...TABLES].sort());
   });
 
-  it("0330: tenant_id es NOT NULL con default 1 en ambas tablas", async () => {
+  it("0340: tenant_id es NOT NULL con default 1 en ambas tablas", async () => {
     for (const tabla of TABLES) {
       const cols = await columnas(tabla);
       const tenant = cols.find((c) => c.columnName === "tenant_id");
@@ -113,7 +113,7 @@ describe("Migraciones 0330/0331 — stretch_catalog y stretch_offers", () => {
     }
   });
 
-  it("0330: la unique de stretch_offers es (tenant_id, user_id, local_date) con tenant primero", async () => {
+  it("0340: la unique de stretch_offers es (tenant_id, user_id, local_date) con tenant primero", async () => {
     const rows = await indice(
       "stretch_offers",
       "uq_stretch_offers_tenant_user_date",
@@ -126,7 +126,7 @@ describe("Migraciones 0330/0331 — stretch_catalog y stretch_offers", () => {
     ]);
   });
 
-  it("0330: la unique de stretch_catalog es (tenant_id, exercise_id) con tenant primero", async () => {
+  it("0340: la unique de stretch_catalog es (tenant_id, exercise_id) con tenant primero", async () => {
     const rows = await indice(
       "stretch_catalog",
       "uq_stretch_catalog_tenant_exercise",
@@ -135,7 +135,7 @@ describe("Migraciones 0330/0331 — stretch_catalog y stretch_offers", () => {
     expect(rows.map((r) => r.columnName)).toEqual(["tenant_id", "exercise_id"]);
   });
 
-  it("0330: los indices de consulta existen con sus columnas en orden", async () => {
+  it("0340: los indices de consulta existen con sus columnas en orden", async () => {
     expect(
       (
         await indice("stretch_catalog", "idx_stretch_catalog_tenant_family")
@@ -153,7 +153,7 @@ describe("Migraciones 0330/0331 — stretch_catalog y stretch_offers", () => {
     ).toEqual(["tenant_id", "user_id", "push_queued_at"]);
   });
 
-  it("0330: existen las 6 FK con sus nombres y destinos", async () => {
+  it("0340: existen las 6 FK con sus nombres y destinos", async () => {
     const [rows] = (await app.dbPool.query(
       `SELECT CONSTRAINT_NAME AS constraintName,
               TABLE_NAME AS tableName,
@@ -180,7 +180,7 @@ describe("Migraciones 0330/0331 — stretch_catalog y stretch_offers", () => {
     });
   });
 
-  it("0330: stretch_offers tiene las columnas de oferta, push, embudo y completado", async () => {
+  it("0340: stretch_offers tiene las columnas de oferta, push, embudo y completado", async () => {
     const nombres = (await columnas("stretch_offers")).map((c) => c.columnName);
     for (const esperada of [
       "arm",
@@ -197,7 +197,7 @@ describe("Migraciones 0330/0331 — stretch_catalog y stretch_offers", () => {
     }
   });
 
-  it("0330: las marcas del embudo arrancan en NULL y pending_notification_id no tiene FK", async () => {
+  it("0340: las marcas del embudo arrancan en NULL y pending_notification_id no tiene FK", async () => {
     const cols = await columnas("stretch_offers");
     for (const nombre of [
       "card_seen_at",
@@ -213,7 +213,7 @@ describe("Migraciones 0330/0331 — stretch_catalog y stretch_offers", () => {
     }
   });
 
-  it("0331: guard estatico de la semilla (20 INSERT IGNORE por id y nombre, sin ';' en comentarios)", () => {
+  it("0341: guard estatico de la semilla (20 INSERT IGNORE por id y nombre, sin ';' en comentarios)", () => {
     const source = readFileSync(
       path.join(MIGRATIONS_DIR, "0331_stretch_catalog_seed.sql"),
       "utf8",
@@ -237,7 +237,7 @@ describe("Migraciones 0330/0331 — stretch_catalog y stretch_offers", () => {
     expect(base).toEqual(["1", "2", "3", "4", "5"]);
   });
 
-  it("0331: la semilla no rompe el provisioning (el conteo del tenant 1 se puede leer)", async () => {
+  it("0341: la semilla no rompe el provisioning (el conteo del tenant 1 se puede leer)", async () => {
     // En la base de test no hay `exercises` de prod: la semilla inserta 0 filas.
     // Lo que se afirma es que la lectura funciona, no una cantidad.
     const [rows] = (await app.dbPool.query(

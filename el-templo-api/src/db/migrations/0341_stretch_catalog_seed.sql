@@ -14,7 +14,7 @@
 -- Solo tenant 1: el metodo es exclusivo de El Templo.
 --
 -- Idempotente y a prueba de ids equivocados: INSERT IGNORE sobre el UNIQUE de
--- 0330 (tenant_id, exercise_id), y el SELECT filtra por id Y por nombre del
+-- 0340 (tenant_id, exercise_id), y el SELECT filtra por id Y por nombre del
 -- ejercicio. Si el id apunta a otro ejercicio, o si la tabla exercises esta
 -- vacia (CI), inserta 0 filas y no rompe. Cero datos de prueba (staging y prod
 -- comparten servidor MySQL).

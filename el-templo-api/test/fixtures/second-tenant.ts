@@ -464,7 +464,7 @@ export async function limpiarSegundoGimnasio(
   await app.db.execute(
     sql`DELETE FROM extra_blocks_completed WHERE tenant_id = ${TENANT_DOS}`,
   );
-  // Estiramiento post-clase (0330): las ofertas tienen FK a users, attendance y
+  // Estiramiento post-clase (0340): las ofertas tienen FK a users, attendance y
   // branches, y el catálogo a exercises. Salen antes que users y exercises.
   await app.db.execute(
     sql`DELETE FROM stretch_offers WHERE tenant_id = ${TENANT_DOS}`,

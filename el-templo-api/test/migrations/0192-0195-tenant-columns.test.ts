@@ -191,7 +191,7 @@ describe("Migraciones 0192-0195 — tenant_id en las 87 tablas gym-owned", () =>
     // + weekly_board_snapshots/weekly_board_leads (fase 206, 0319) = 123.
     // + office_* x5 (fase 205, 2026-11-03, tenancy-native en la 0320) = 128.
     // + office_auto_topic_mutes (fase 205, 2026-11-04, tenancy-native en la 0321) = 129.
-    // + stretch_catalog y stretch_offers (fase 213, 2026-11-11, mig 0330, nacen strict) = 131.
+    // + stretch_catalog y stretch_offers (fase 213, 2026-11-11, mig 0340, nacen strict) = 131.
     expect(report.gymOwnedChecked).toBe(131);
   });
 
