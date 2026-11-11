@@ -2622,6 +2622,8 @@ export class TransactionService {
       aura_credit: 0,
       internal: 0,
       direct_debit: 0,
+      // fase 208: siempre 0 mientras los cobros no acepten cheque
+      cheque: 0,
     };
     for (const r of methodRows) {
       revenueByMethod[r.paymentMethod] = Number(r.total);
@@ -2749,6 +2751,7 @@ export class TransactionService {
       aura_credit: 0,
       internal: 0,
       direct_debit: 0,
+      cheque: 0,
     });
     const byKey = new Map<string, IncomeByBranchRow>();
     const centsByKey = new Map<

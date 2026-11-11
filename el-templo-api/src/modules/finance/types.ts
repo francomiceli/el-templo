@@ -346,6 +346,8 @@ export interface FinanceSummary {
     aura_credit: number;
     internal: number;
     direct_debit: number;
+    // fase 208: siempre 0 mientras los cobros no acepten cheque (medio de egresos)
+    cheque: number;
   };
   revenueByBranch: Array<{
     branchId: number;

@@ -39,6 +39,8 @@ const KIND_ENUM = [
 
 const DIRECTION_ENUM = ["inflow", "outflow"] as const;
 
+// Sin 'cheque' a propósito: es medio de egresos (fase 208). Los filtros y
+// respuestas de cobros no lo necesitan mientras no haya cobros con cheque.
 const PAYMENT_METHOD_ENUM = [
   "cash",
   "transfer",
@@ -395,6 +397,7 @@ export const transactionsSummarySchema = {
             aura_credit: MONEY_RESPONSE_SCHEMA,
             internal: MONEY_RESPONSE_SCHEMA,
             direct_debit: MONEY_RESPONSE_SCHEMA,
+            cheque: MONEY_RESPONSE_SCHEMA,
           },
         },
         revenueByBranch: {
