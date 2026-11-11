@@ -1149,7 +1149,7 @@ Plans:
 
 ### Phase 213: Estiramiento post-clase (fuera del milestone v6.1)
 
-**Estado (2026-11-11)**: fase creada, SIN PLANIFICAR. Rama `feat/estiramiento-post-clase` (worktree `et-estiramiento`, base `origin/master` `bc231c4de`), sin código, sin migraciones, SIN PUSH. Spec con datos de producción y 16 decisiones cerradas con Franco en `213-SPEC.md`; contexto para el planificador en `213-CONTEXT.md`. Numerada 213 porque 207-212 viven en `feat/egresos-rendiciones`.
+**Estado (2026-11-11)**: fase creada y PLANIFICADA (13 planes secuenciales, sin ejecutar). Rama `feat/estiramiento-post-clase` (worktree `et-estiramiento`, base `origin/master` `bc231c4de`), sin código, sin migraciones, SIN PUSH. Spec con datos de producción y 16 decisiones cerradas con Franco en `213-SPEC.md`; contexto para el planificador en `213-CONTEXT.md`. Numerada 213 porque 207-212 viven en `feat/egresos-rendiciones`.
 
 **Goal**: Después de la clase presencial, el alumno puede hacer desde Mi Templo una sesión de estiramiento de 5 a 8 minutos armada con la movilidad de la sesión de ese día, y un push lo invita y lo lleva directo al player
 **Depends on**: nada. Reusa el cron de notificaciones, el patrón de `FreeBlockPlayer` y la card `TodayCard`. Decisiones en `213-CONTEXT.md`
@@ -1165,10 +1165,22 @@ Plans:
 8. Un gimnasio sin el módulo `templo-training` no recibe ofertas, filas ni pushes
 9. Tests de integración con reloj fijo cubren los casos de `213-SPEC.md` §5.2
 
-**Plans:** 0 plans (sin planificar)
+**Plans:** 13 plans (secuenciales, una ola por plan)
 
 Plans:
-- [ ] TBD (correr `/gsd-plan-phase 213`)
+- [ ] 213-01-PLAN.md — node_modules por symlink + tablas `stretch_catalog`/`stretch_offers`, semilla de la lista curada y gates de tenancy
+- [ ] 213-02-PLAN.md — Regla pura de selección con la tabla de referencia del SPEC (TDD)
+- [ ] 213-03-PLAN.md — Reglas puras de grupo (crc32), momento del push con tope 21:30, ventana y tope de frecuencia (TDD)
+- [ ] 213-04-PLAN.md — StretchService (elegibilidad, sesión, rutina congelada) + `GET /api/sessions/stretch/today` + manifiesto + tests
+- [ ] 213-05-PLAN.md — Fuente AURA `stretch` + `POST /stretch/events` y `/stretch/complete` + invariantes + ISO-03
+- [ ] 213-06-PLAN.md — Sección curada `estirar` (API + 2 espejos) + plantilla `stretch_followup` (nace apagada) + textos del admin
+- [ ] 213-07-PLAN.md — Push en el tick de `notification-cron.ts` con motivos, tope, segundo gimnasio y reconciliación + tests §5.2
+- [ ] 213-08-PLAN.md — Tests de caracterización + `useSingleBlockPlayer` + `FreeBlockPlayer` migrado
+- [ ] 213-09-PLAN.md — App: tipos, `useStretchStore`, `useStretchCompletion`, Session sintética y reloj puro
+- [ ] 213-10-PLAN.md — Sketch del reloj (decisión documentada) + reloj elegido + `StretchPlayer` y ruta `training/estirar`
+- [ ] 213-11-PLAN.md — Card de Mi Templo: "Estirar" como principal + cableado y `card_seen`
+- [ ] 213-12-PLAN.md — Deep link del push con la app cerrada y sin sesión
+- [ ] 213-13-PLAN.md — Checklist de UAT + consulta de medición a 4 semanas + gates finales
 
 ---
 
