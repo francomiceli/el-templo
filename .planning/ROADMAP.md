@@ -1227,7 +1227,7 @@ Fuera de alcance por D-24: tipo de cambio por API, repartos guardados, reparto p
 **Plans:** 17 plans (secuenciales, una wave cada uno)
 
 Plans:
-- [ ] 209-01-PLAN.md — Base: migración 0331 (3 tablas de gastos, repartos y pagos), schema, los 5 conteos de tenancy, roles de Egresos y acciones de audit
+- [x] 209-01-PLAN.md — Base: migración 0331 (3 tablas de gastos, repartos y pagos), schema, los 5 conteos de tenancy, roles de Egresos y acciones de audit
 - [ ] 209-02-PLAN.md — Contratos (`expense-types.ts`), cálculo puro con test (reparto, estado, tipo de cambio, prorrateos) y helper de sedes operativas
 - [ ] 209-03-PLAN.md — Service: alta de gasto con reparto, idempotencia y auditoría + detalle con estado e historial
 - [ ] 209-04-PLAN.md — Service: edición con motivo e historial, anulación de gasto y listado con filtros
