@@ -33,7 +33,8 @@ export type PaymentMethod =
   | 'card'
   | 'aura_credit'
   | 'internal'
-  | 'direct_debit';
+  | 'direct_debit'
+  | 'cheque';
 
 /**
  * Legacy 3-key subset preserved for callsites that still bind to the
@@ -58,6 +59,7 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   aura_credit: 'AURA',
   internal: 'Interno',
   direct_debit: 'Domiciliación',
+  cheque: 'Cheque',
 };
 
 export const PAYMENT_METHOD_COLORS: Record<PaymentMethod, string> = {
@@ -67,7 +69,16 @@ export const PAYMENT_METHOD_COLORS: Record<PaymentMethod, string> = {
   aura_credit: 'amber',
   internal: 'grey',
   direct_debit: 'teal',
+  // Paleta cálida, sin azul: marrón (ningún otro medio lo usa).
+  cheque: 'brown',
 };
+
+/**
+ * Fase 208 (DI-03): 'cheque' existe como medio (etiquetas y colores, para
+ * mostrar filas), pero NO se ofrece en los selectores de COBRO de abajo: D-09
+ * trata del medio DESDE el que se paga y la API de cobros no lo acepta. Se
+ * ofrece en los pagos de Egresos (fase 209).
+ */
 
 /**
  * Filter / selector dropdown options (3-option subset for Phase 106).
@@ -206,6 +217,7 @@ export interface FinanceSummary {
     aura_credit: number;
     internal: number;
     direct_debit: number;
+    cheque: number;
   };
   revenueByBranch: Array<{
     branchId: number;

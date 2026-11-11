@@ -581,6 +581,7 @@ const summary = reactive<FinanceSummary>({
     aura_credit: 0,
     internal: 0,
     direct_debit: 0,
+    cheque: 0,
   },
   revenueByBranch: [],
   // Phase 109 D-11 — additive field for "Por tipo de transaccion" block.

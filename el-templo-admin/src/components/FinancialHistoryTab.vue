@@ -208,6 +208,7 @@ const PAYMENT_METHOD_LABELS_ES: Record<PaymentMethod, string> = {
   aura_credit: 'AURA',
   internal: 'Interno',
   direct_debit: 'Domiciliación',
+  cheque: 'Cheque',
 };
 
 function isVoided(item: FinancialHistoryItem): boolean {

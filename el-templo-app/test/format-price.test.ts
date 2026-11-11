@@ -33,6 +33,20 @@ describe('formatPrice', () => {
     expect(formatPrice(70.5, 'EUR')).toContain('70,50')
   })
 
+  it('USD: símbolo US$, sin decimales si es entero y 2 si hay centavos', () => {
+    const entero = formatPrice(1500, 'USD')
+    expect(entero).toContain('US$')
+    expect(entero).toContain('1.500')
+    expect(entero).not.toContain(',')
+    const centavos = formatPrice(1500.5, 'USD')
+    expect(centavos).toContain('US$')
+    expect(centavos.endsWith('1.500,50')).toBe(true)
+  })
+
+  it('USD no se confunde con ARS', () => {
+    expect(formatPrice(100, 'USD')).not.toBe(formatPrice(100, 'ARS'))
+  })
+
   it('residuo de coma flotante cuenta como entero', () => {
     expect(formatPrice(1500.0000000001, 'ARS')).toBe(formatPrice(1500, 'ARS'))
     expect(formatPrice(0.1 + 0.2, 'ARS')).toContain('0,30')
