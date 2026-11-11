@@ -11,9 +11,10 @@
  *     saldo de efectivo con centavos → 201; un centavo de más → 400.
  *   - GET /withdrawals/pending: cobros 100,10 + 200,20 → total 300,3 y
  *     resumen exacto.
- *   - POST /withdrawals: 300,30 con conteo = esperado + 0,20 y nota → ajuste
- *     inflow de 0,20 y foto del arqueo con difference 0,2; sin nota → 400;
- *     1,005 → 400.
+ *   - POST /withdrawals (fase 208: traslado a una Caja central, destino
+ *     obligatorio): 300,30 con conteo = esperado + 0,20 y nota → ajuste
+ *     inflow de 0,20, foto del arqueo con difference 0,2 y la Central sube
+ *     300,30 exacto; sin nota → 400; 1,005 → 400.
  *
  * Los escenarios con enteros siguen cubiertos por movement-service.test.ts y
  * withdrawals.test.ts (regresión).
@@ -37,6 +38,8 @@ let adminId: number;
 let branchId: number;
 let memberId: number;
 let costCenterId: number;
+// Central compartida del archivo: destino por defecto de los retiros.
+let centralId: number;
 const cajaIds: number[] = [];
 
 interface BalanceRow {
@@ -70,6 +73,26 @@ async function newCaja(
         currency: "ARS",
         openingBalance: opening,
         cutoffDate: CUTOFF,
+      }),
+    )
+    .$returningId();
+  cajaIds.push(caja.id);
+  return caja.id;
+}
+
+/** Caja central propia (efectivo, sin sede, no Tesoro): destino de retiros. */
+async function newCentral(): Promise<number> {
+  const [caja] = await app.db
+    .insert(schema.cashRegisters)
+    .values(
+      tenantValues(TEMPLO_CTX, {
+        name: `CTR-Central ${Date.now()}-${Math.random()}`,
+        type: "efectivo" as const,
+        branchId: null,
+        currency: "ARS",
+        openingBalance: 0,
+        cutoffDate: CUTOFF,
+        isTreasury: false,
       }),
     )
     .$returningId();
@@ -122,7 +145,13 @@ async function postWithdrawal(payload: Record<string, unknown>) {
     method: "POST",
     url: `${FIN}/withdrawals`,
     headers: { authorization: `Bearer ${adminToken}` },
-    payload: { responsibleName: "Responsable Centavos", ...payload },
+    // Destino por defecto: la Central compartida del archivo; los casos que
+    // afirman el saldo exacto del destino crean una propia y la pasan.
+    payload: {
+      responsibleName: "Responsable Centavos",
+      destinationCashRegisterId: centralId,
+      ...payload,
+    },
   });
   return {
     statusCode: res.statusCode,
@@ -241,6 +270,7 @@ beforeAll(async () => {
       .$returningId();
     costCenterId = ins.id;
   }
+  centralId = await newCentral();
 });
 
 afterAll(async () => {
@@ -424,19 +454,23 @@ describe("Fase 207 — retiros con centavos", () => {
 
   it("retiro de 300.30 con conteo = esperado + 0.20: ajuste inflow de 0.20 y arqueo con difference 0.2", async () => {
     const caja = await newCaja(0);
+    const destino = await newCentral();
     await seedCobro(caja, 100.1);
     await seedCobro(caja, 200.2);
 
     const sinNota = await postWithdrawal({
       cajaId: caja,
+      destinationCashRegisterId: destino,
       amount: 300.3,
       countedAmount: 300.5,
     });
     expect(sinNota.statusCode).toBe(400);
     expect(await adjustmentsOf(caja)).toHaveLength(0);
 
+    expect(await firmeOf(destino)).toBe(0);
     const res = await postWithdrawal({
       cajaId: caja,
+      destinationCashRegisterId: destino,
       amount: 300.3,
       countedAmount: 300.5,
       notes: "Sobraron 20 centavos",
@@ -465,13 +499,17 @@ describe("Fase 207 — retiros con centavos", () => {
     ]);
     // 300.30 cobrado + 0.20 sobrante − 300.30 retirado
     expect(await firmeOf(caja)).toBe(0.2);
+    // La Central recibe los 300.30 exactos (con floats daría 300.29999...).
+    expect(await firmeOf(destino)).toBe(300.3);
   });
 
   it("faltante de 0.10: ajuste outflow exacto y el tope baja a lo contado", async () => {
     const caja = await newCaja(0);
+    const destino = await newCentral();
     await seedCobro(caja, 100.1);
     const tope = await postWithdrawal({
       cajaId: caja,
+      destinationCashRegisterId: destino,
       amount: 100.1,
       countedAmount: 100,
       notes: "Faltaron 10 centavos",
@@ -480,8 +518,10 @@ describe("Fase 207 — retiros con centavos", () => {
     expect(tope.statusCode).toBe(400);
     expect(await adjustmentsOf(caja)).toHaveLength(0);
 
+    expect(await firmeOf(destino)).toBe(0); // el intento rechazado no movió nada
     const ok = await postWithdrawal({
       cajaId: caja,
+      destinationCashRegisterId: destino,
       amount: 100,
       countedAmount: 100,
       notes: "Faltaron 10 centavos",
@@ -491,32 +531,42 @@ describe("Fase 207 — retiros con centavos", () => {
       { direction: "outflow", amount: 0.1 },
     ]);
     expect(await firmeOf(caja)).toBe(0);
+    expect(await firmeOf(destino)).toBe(100);
   });
 
   it("conteo igual al esperado con centavos: sin ajuste y sin nota", async () => {
     const caja = await newCaja(0);
+    const destino = await newCentral();
     await seedCobro(caja, 100.1);
     await seedCobro(caja, 200.2);
     const res = await postWithdrawal({
       cajaId: caja,
+      destinationCashRegisterId: destino,
       amount: 100.05,
       countedAmount: 300.3,
     });
     expect(res.statusCode, JSON.stringify(res.body)).toBe(201);
     expect(await adjustmentsOf(caja)).toHaveLength(0);
     expect(await firmeOf(caja)).toBe(200.25);
+    expect(await firmeOf(destino)).toBe(100.05);
   });
 
   it("monto de 1.005 → 400 y 0 → 400; 0.5 → 201", async () => {
     const caja = await newCaja(10);
+    const destino = await newCentral();
     expect(
       (await postWithdrawal({ cajaId: caja, amount: 1.005 })).statusCode,
     ).toBe(400);
     expect((await postWithdrawal({ cajaId: caja, amount: 0 })).statusCode).toBe(
       400,
     );
-    const ok = await postWithdrawal({ cajaId: caja, amount: 0.5 });
+    const ok = await postWithdrawal({
+      cajaId: caja,
+      destinationCashRegisterId: destino,
+      amount: 0.5,
+    });
     expect(ok.statusCode, JSON.stringify(ok.body)).toBe(201);
     expect(await firmeOf(caja)).toBe(9.5);
+    expect(await firmeOf(destino)).toBe(0.5);
   });
 });
