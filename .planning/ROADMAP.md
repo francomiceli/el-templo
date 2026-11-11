@@ -1179,7 +1179,7 @@ Plans:
 - [x] 207-08-PLAN.md — Excel: formato `#,##0.00` en las 7 exportaciones del circuito de caja
 - [x] 207-09-PLAN.md — Admin base: `utils/money.ts`, regla de `formatPrice` (admin + app), `MoneyInput.vue`
 - [x] 207-10-PLAN.md — Admin: inputs de la PoS y la ficha (Cobros, Asignar plan, Renovar, Registrar pago)
-- [ ] 207-11-PLAN.md — Admin: inputs de Caja (Cerrar caja, Retiro, Traslado/Egreso, Bandeja, caja efectivo, fondo de cambio)
+- [x] 207-11-PLAN.md — Admin: inputs de Caja (Cerrar caja, Retiro, Traslado/Egreso, Bandeja, caja efectivo, fondo de cambio)
 - [ ] 207-12-PLAN.md — Cierre: auditoría de Analíticas, guard estático del contrato de plata y no-regresión con enteros + punta a punta
 
 ### Phase 208: Cuentas — USD, Tesoro, cheque, retiro con destino
