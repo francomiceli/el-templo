@@ -1196,7 +1196,7 @@ Plans:
 **Plans:** 11 plans (secuenciales, una wave cada uno)
 
 Plans:
-- [ ] 208-01-PLAN.md — Base: migración 0329 (`is_treasury` + `cheque`), schemas, lista única de monedas ARS/EUR/USD y regla pura medio↔cuenta
+- [x] 208-01-PLAN.md — Base: migración 0329 (`is_treasury` + `cheque`), schemas, lista única de monedas ARS/EUR/USD y regla pura medio↔cuenta
 - [ ] 208-02-PLAN.md — API: cuentas en USD, alta de Tesoro (owner) con saldo de apertura, `isTreasury` en Saldos/Excel, resolver de caja por moneda
 - [ ] 208-03-PLAN.md — API: aplicar la regla medio↔cuenta en egresos, traslados, cobros y resolver de caja (cheque → banco)
 - [ ] 208-04-PLAN.md — API: arqueo de apertura de Caja central y Tesoro con helper `count-adjustment.ts`
