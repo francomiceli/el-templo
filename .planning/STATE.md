@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.1
 milestone_name: Módulo Gimnasio
 status: executing
-stopped_at: Rescate de docs del master local (ROADMAP/STATE unificados)
-last_updated: "2026-11-11T18:43:22.390Z"
-last_activity: 2026-11-11 -- Phase 213 execution started
+stopped_at: Completed 213-01-PLAN.md
+last_updated: "2026-11-11T18:51:23.087Z"
+last_activity: 2026-11-11
 progress:
   total_phases: 31
   completed_phases: 10
   total_plans: 300
-  completed_plans: 244
+  completed_plans: 245
   percent: 32
 ---
 
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 ## Current Position
 
 Phase: 213 (Estiramiento post-clase) — EXECUTING
-Plan: 1 of 13
-Status: Executing Phase 213
-Last activity: 2026-11-11 -- Phase 213 execution started
+Plan: 2 of 13
+Status: Ready to execute
+Last activity: 2026-11-11
 
 **Estado real al 2026-10-28** (detalle fase por fase en `ROADMAP.md`, tabla Progress):
 
@@ -1044,9 +1044,9 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-10-28
-Stopped at: Rescate de docs del master local (ROADMAP/STATE unificados)
-Resume file: .planning/ROADMAP.md (tabla Progress = estado real por fase)
+Last session: 2026-11-11T18:51:23.043Z
+Stopped at: Completed 213-01-PLAN.md
+Resume file: .planning/phases/213-estiramiento-post-clase/213-02-PLAN.md
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
 
