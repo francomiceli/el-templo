@@ -149,6 +149,14 @@ export interface CreateTransactionInput {
    * de crash. NULL para todo path admin/histórico (FK nullable a users.id).
    */
   createdMemberId?: number | null;
+  /**
+   * Fase 207 (D-14 / DI-07): sede del alumno AL MOMENTO del cobro (snapshot en
+   * `financial_transactions.member_branch_id`). Override INTERNO (solo lo pasa
+   * `correct()`), NUNCA del body. `undefined` = create() toma `users.branch_id`
+   * del socio dentro de la misma tx. `null` = sin sede de alumno (egresos y
+   * traslados sin socio).
+   */
+  memberBranchId?: number | null;
   links: CreateTransactionLinkInput[];
 }
 

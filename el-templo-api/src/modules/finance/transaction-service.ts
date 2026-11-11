@@ -263,9 +263,13 @@ export class TransactionService {
       // cash_transfer/expense/movement rows (egreso/movimiento no tienen socio)
       // — skip the lookup entirely. Only null short-circuits; other kinds still
       // require a real member.
+      // Fase 207 (D-14): la misma query trae la sede del socio para el snapshot
+      // (cero queries extra, y dentro de la MISMA tx del INSERT: varios caminos
+      // mueven users.branch_id o crean al alumno en la tx antes de cobrar).
+      let memberBranchAtCharge: number | null = null;
       if (input.memberId !== null) {
         const memberExists = await txHandle
-          .select({ id: schema.users.id })
+          .select({ id: schema.users.id, branchId: schema.users.branchId })
           .from(schema.users)
           .where(
             and(
@@ -277,6 +281,11 @@ export class TransactionService {
         if (memberExists.length === 0) {
           throw new NotFoundError("Miembro no encontrado");
         }
+        memberBranchAtCharge = memberExists[0].branchId;
+      }
+      // Override interno (solo correct()): undefined = sede del socio ahora.
+      if (input.memberBranchId !== undefined) {
+        memberBranchAtCharge = input.memberBranchId;
       }
 
       // 1c. Branch exists. Phase 139 (extends D-06 to branch_id): a movimiento/
@@ -417,6 +426,11 @@ export class TransactionService {
             transactionDate: input.transactionDate,
             effectiveDate: input.effectiveDate,
             branchId: input.branchId,
+            // Fase 207 (D-14): snapshot de la sede del alumno al cobrar, leida en
+            // el MISMO tx. No se actualiza nunca mas (no hay UPDATE de esta
+            // columna en ningun lado): si en el futuro alguien lo necesita, que
+            // sea por migracion con motivo. NULL para egresos/traslados sin socio.
+            memberBranchId: memberBranchAtCharge,
             cashRegisterId,
             // Phase 147 (EGR-02): centro de costo. NULL para los 10 create paths;
             // SOLO registerExpense lo setea (tras validar exists+active).
@@ -1134,6 +1148,12 @@ export class TransactionService {
    *
    * Atomic: if the create fails, the void never commits (no orphan voided row).
    * `correctedFields` may change ONLY amount / memberId / paymentMethod.
+   *
+   * Fase 207 (D-14 / DI-07): sede del alumno (`member_branch_id`). Si la
+   * correccion es del MISMO socio (o no cambia el socio), el cobro nuevo copia
+   * el snapshot del original aunque el socio se haya mudado en el medio: el
+   * pago fue cuando fue. Si la correccion CAMBIA de socio, el snapshot del
+   * original no aplica y create() toma la sede ACTUAL del socio nuevo.
    */
   async correct(
     ctx: TenantContext,
@@ -1218,6 +1238,11 @@ export class TransactionService {
         transactionDate: original.transactionDate,
         effectiveDate: original.effectiveDate,
         branchId: original.branchId,
+        memberBranchId:
+          correctedFields.memberId === undefined ||
+          correctedFields.memberId === original.memberId
+            ? original.memberBranchId
+            : undefined,
         notes: original.notes,
         validationStatus: "validado",
         links: newLinks,
@@ -2768,7 +2793,13 @@ export class TransactionService {
 
   /**
    * Tablero semanal (fase 206, D-12/D-14/D-19): cobrado firme por SEDE DEL
-   * ALUMNO (`users.branch_id`) y moneda, para un rango de fechas de cobro.
+   * ALUMNO y moneda, para un rango de fechas de cobro.
+   *
+   * Fase 207 (D-14 / DI-07): la sede del alumno es la que tenia AL MOMENTO del
+   * cobro (`financial_transactions.member_branch_id`), asi un mes cerrado no
+   * cambia si el alumno se muda. Cadena de fallback: snapshot -> sede ACTUAL
+   * del socio (`users.branch_id`, es lo que se hacia antes y lo que cubre filas
+   * sin snapshot) -> sede del cobro.
    *
    * Universo IDENTICO al de Caja: las mismas `buildRevenueConditions` y el
    * mismo INNER JOIN a `branches` por la sede del cobro que
@@ -2795,13 +2826,16 @@ export class TransactionService {
       dateTo: range.dateTo,
     });
     // FA-01: columnas planas en el SELECT (nada de COALESCE sin calificar con
-    // el JOIN); la regla `alumno ?? cobro` se aplica en JS.
+    // el JOIN); la cadena `snapshot ?? actual ?? cobro` se aplica en JS.
+    // Fase 207: el SUM de una DECIMAL llega como string (se pasa por Number()).
+    // Prohibido castear a entero en SQL: truncaba los centavos.
     const rows = await this.db
       .select({
-        memberBranchId: schema.users.branchId,
+        memberBranchSnapshot: schema.financialTransactions.memberBranchId,
+        memberCurrentBranchId: schema.users.branchId,
         cobroBranchId: schema.financialTransactions.branchId,
         currency: schema.financialTransactions.currency,
-        total: sql<number>`CAST(SUM(${schema.financialTransactions.amount}) AS SIGNED)`,
+        total: sql<number>`COALESCE(SUM(${schema.financialTransactions.amount}), 0)`,
       })
       .from(schema.financialTransactions)
       .innerJoin(
@@ -2820,24 +2854,35 @@ export class TransactionService {
       )
       .where(and(...conds))
       .groupBy(
+        schema.financialTransactions.memberBranchId,
         schema.users.branchId,
         schema.financialTransactions.branchId,
         schema.financialTransactions.currency,
       );
 
-    const byBranch = new Map<number, Map<string, number>>();
+    // Se acumula en centavos enteros y se divide al final (DI-02).
+    const centsByBranch = new Map<number, Map<string, number>>();
     for (const r of rows) {
-      const branchId = r.memberBranchId ?? r.cobroBranchId;
+      const branchId =
+        r.memberBranchSnapshot ?? r.memberCurrentBranchId ?? r.cobroBranchId;
       if (branchId === null) continue;
-      let byCurrency = byBranch.get(branchId);
+      let byCurrency = centsByBranch.get(branchId);
       if (!byCurrency) {
         byCurrency = new Map<string, number>();
-        byBranch.set(branchId, byCurrency);
+        centsByBranch.set(branchId, byCurrency);
       }
       byCurrency.set(
         r.currency,
-        (byCurrency.get(r.currency) ?? 0) + Number(r.total),
+        (byCurrency.get(r.currency) ?? 0) + toCents(Number(r.total)),
       );
+    }
+    const byBranch = new Map<number, Map<string, number>>();
+    for (const [branchId, byCurrencyCents] of centsByBranch) {
+      const byCurrency = new Map<string, number>();
+      for (const [currency, cents] of byCurrencyCents) {
+        byCurrency.set(currency, fromCents(cents));
+      }
+      byBranch.set(branchId, byCurrency);
     }
     return byBranch;
   }
