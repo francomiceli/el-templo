@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, type Mock } from 'vitest'
 
 // Mismos mocks que push-destination.test.ts: el boot file importa los plugins nativos al cargarse.
 vi.mock('@capacitor/core', () => ({
@@ -80,7 +80,7 @@ describe('decideTapNavigation (P-13/H-4: el destino del push sobrevive al login)
 })
 
 interface FakeRouter {
-  push: ReturnType<typeof vi.fn>
+  push: Mock<(to: string) => Promise<void>>
   currentRoute: { value: { name: string | symbol | null | undefined } }
 }
 
@@ -89,7 +89,7 @@ function makeRouter(
 ): FakeRouter {
   const router: FakeRouter = {
     currentRoute: { value: { name: 'mi-templo' } },
-    push: vi.fn(async (to: string) => {
+    push: vi.fn(async (to: string): Promise<void> => {
       if (to === '/login') {
         if (opts.rejectsOnLogin) throw new Error('boom login')
         router.currentRoute.value = { name: 'login' }

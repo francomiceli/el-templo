@@ -19,6 +19,10 @@ vi.mock('@capacitor-firebase/messaging', () => ({
 vi.mock('src/utils/logger', () => ({
   createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
 }))
+// El boot importa el store de auth (plan 213-12) y este test solo ejercita la función pura.
+vi.mock('src/stores/useAuthStore', () => ({
+  useAuthStore: () => ({ isAuthenticated: false }),
+}))
 
 import { resolveTapRoute } from '../push-notifications'
 

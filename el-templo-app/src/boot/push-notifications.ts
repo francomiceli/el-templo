@@ -2,6 +2,7 @@ import { boot } from 'quasar/wrappers'
 import { Capacitor } from '@capacitor/core'
 import { PushNotifications } from '@capacitor/push-notifications'
 import { FirebaseMessaging } from '@capacitor-firebase/messaging'
+import { useAuthStore } from 'src/stores/useAuthStore'
 import { useNotificationStore } from 'src/stores/useNotificationStore'
 import { api } from 'src/boot/axios'
 import { createLogger } from 'src/utils/logger'
@@ -37,6 +38,78 @@ export function resolveTapRoute(data: Record<string, string> | undefined): strin
   }
 
   return FALLBACK_ROUTE
+}
+
+export type TapNavigationDecision =
+  | { kind: 'navigate'; route: string }
+  | { kind: 'login'; pendingRoute: string | null }
+
+/**
+ * Decide a dónde ir al tocar una push (Fase 213, P-13 / H-4). Pura.
+ * - Sin sesión: va al login y deja el destino guardado para retomarlo después de loguearse
+ *   (mismo modelo que `boot/deep-links.ts`). `/mi-templo` no se guarda: es donde se aterriza.
+ * - Con sesión: navega directo (comportamiento de siempre para todos los destinos).
+ * - Ruta vacía: se trata como `/mi-templo`.
+ */
+export function decideTapNavigation(input: {
+  isAuthenticated: boolean
+  route: string
+}): TapNavigationDecision {
+  const route = input.route.trim() === '' ? FALLBACK_ROUTE : input.route
+  if (!input.isAuthenticated) {
+    return { kind: 'login', pendingRoute: route === FALLBACK_ROUTE ? null : route }
+  }
+  return { kind: 'navigate', route }
+}
+
+/** Parte del router que usa el toque (permite testearlo sin Vue Router real). */
+export interface TapRouter {
+  push: (to: string) => Promise<unknown>
+  currentRoute: { value: { name?: string | symbol | null } }
+}
+
+/**
+ * Ejecuta la decisión del toque. `router.push` devuelve una promesa que NO lanza de forma
+ * síncrona (el `try/catch` anterior era código muerto): se espera de verdad. Si con sesión
+ * un guard termina mandando al login (sesión vencida), el destino queda guardado.
+ */
+export async function applyTapNavigation(input: {
+  route: string
+  isAuthenticated: boolean
+  router: TapRouter
+  setPendingRoute: (route: string | null) => void
+}): Promise<void> {
+  const { router, setPendingRoute } = input
+  const decision = decideTapNavigation({
+    isAuthenticated: input.isAuthenticated,
+    route: input.route,
+  })
+
+  if (decision.kind === 'login') {
+    if (decision.pendingRoute) setPendingRoute(decision.pendingRoute)
+    try {
+      await router.push('/login')
+    } catch (err: unknown) {
+      log.error(
+        'Failed to navigate to login from notification tap',
+        err instanceof Error ? { message: err.message } : { message: String(err) },
+      )
+    }
+    return
+  }
+
+  try {
+    await router.push(decision.route)
+    if (router.currentRoute.value.name === 'login' && decision.route !== FALLBACK_ROUTE) {
+      setPendingRoute(decision.route)
+    }
+  } catch (err: unknown) {
+    log.error(
+      'Failed to navigate from notification tap',
+      err instanceof Error ? { message: err.message } : { message: String(err) },
+    )
+    setPendingRoute(decision.route)
+  }
 }
 
 /**
@@ -89,12 +162,14 @@ export default boot(async ({ router }) => {
         )
     }
 
-    // Navigate to target route (per D-28)
-    try {
-      router.push(route)
-    } catch {
-      store.setPendingRoute(route)
-    }
+    // Navigate to target route (per D-28). Sin sesión guarda el destino y va al login
+    // (P-13/H-4, modelo boot/deep-links.ts); MiTemplo lo consume al montar tras loguearse.
+    void applyTapNavigation({
+      route,
+      isAuthenticated: useAuthStore().isAuthenticated,
+      router,
+      setPendingRoute: store.setPendingRoute,
+    })
   }
 
   if (platform === 'android') {
