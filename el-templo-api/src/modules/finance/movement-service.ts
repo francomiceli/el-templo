@@ -27,7 +27,7 @@ import { eq, and, isNull } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
-import { BadRequestError } from "../shared/errors";
+import { BadRequestError, NotFoundError } from "../shared/errors";
 import { auditLog } from "../shared/audit-log";
 import {
   assertMoneyAmount,
@@ -46,6 +46,7 @@ import { RETIROS_COST_CENTER_NAME } from "./withdrawal-service";
 import { assertEfectivoCoversOutflow } from "./efectivo-guard";
 import { assertMethodAllowedForAccount } from "./payment-method-rules";
 import { createCountAdjustment } from "./count-adjustment";
+import { collectTransferGroupIds } from "./transfer-pair";
 import type {
   MovementDetail,
   OpeningCountInput,
@@ -567,7 +568,9 @@ export class MovementService {
    *
    * `movementRowId` es CUALQUIERA de las 2 patas (outflow u inflow): se descubre
    * la pata hermana vía transaction_links (target_kind='transaction') + cualquier
-   * fila kind='adjustment' linkeada a la pata outflow. Se de-dupea el set de ids.
+   * fila kind='adjustment' linkeada a alguna de las dos patas (`collectTransferGroupIds`).
+   * Sirve también para un retiro nuevo (traslado con responsable): anula el
+   * par y su ajuste, libera los cobros pero NO los anula.
    *
    * @throws BadRequestError on empty reason, unknown row, or already-voided row
    *         (voidPair/_void enforce los guards; validamos reason temprano).
@@ -582,43 +585,22 @@ export class MovementService {
       throw new BadRequestError("Razon de anulacion requerida");
     }
 
-    // Collect every related row id: the target (movementRowId), its sibling leg,
-    // and any adjustment row linked to it — via transaction_links rows where this
-    // row is EITHER the source (transaction_id) or the target (target_id), so we
-    // catch both the both-ways leg link and the adjustment→outflow link
-    // regardless of which leg the caller passed.
-    const asSource = await this.db
-      .select({ targetId: schema.transactionLinks.targetId })
-      .from(schema.transactionLinks)
-      .where(
-        and(
-          // El void camina los links para descubrir la pata hermana y el ajuste:
-          // sin filtro, un link de otro gimnasio arrastraria una fila ajena al
-          // set de ids que se anula.
-          tenantWhere(schema.transactionLinks, ctx),
-          eq(schema.transactionLinks.transactionId, movementRowId),
-          eq(schema.transactionLinks.targetKind, "transaction"),
-        ),
-      );
-    const asTarget = await this.db
-      .select({ transactionId: schema.transactionLinks.transactionId })
-      .from(schema.transactionLinks)
-      .where(
-        and(
-          tenantWhere(schema.transactionLinks, ctx),
-          eq(schema.transactionLinks.targetId, movementRowId),
-          eq(schema.transactionLinks.targetKind, "transaction"),
-        ),
-      );
+    // Grupo del traslado (patas + ajustes) descubierto desde CUALQUIERA de las
+    // dos patas y filtrado por kind (ver transfer-pair.ts): en un retiro nuevo
+    // la salida también está vinculada a sus cobros y NUNCA se anulan. El
+    // ajuste de conciliación cae con el par aunque se pase la pata de entrada.
+    const group = await collectTransferGroupIds(
+      ctx,
+      this.db,
+      movementRowId,
+      this.log,
+    );
+    const ids = [group.outflowId, group.inflowId, ...group.adjustmentIds];
 
-    const ids = new Set<number>([movementRowId]);
-    for (const r of asSource) ids.add(r.targetId);
-    for (const r of asTarget) ids.add(r.transactionId);
-
-    await this.txnService.voidPair(ctx, [...ids], voidedBy, { reason });
+    await this.txnService.voidPair(ctx, ids, voidedBy, { reason });
 
     this.log.info(
-      { movementRowId, voidedIds: [...ids], voidedBy, reason },
+      { movementRowId, voidedIds: ids, voidedBy, reason },
       "Inter-caja movement voided (pair + adjustment)",
     );
   }
@@ -639,6 +621,50 @@ export class MovementService {
     if (!reason || reason.trim().length === 0) {
       throw new BadRequestError("Razon de anulacion requerida");
     }
+    // Despacho por formato (fase 208): esta ruta sirve para egresos, retiros
+    // viejos (expense) y retiros nuevos (traslado con responsable), así
+    // RetirosTab anula los dos con el mismo botón. Cualquier otra fila no es
+    // un egreso ni un retiro.
+    const [row] = await this.db
+      .select({
+        id: schema.financialTransactions.id,
+        kind: schema.financialTransactions.kind,
+      })
+      .from(schema.financialTransactions)
+      .where(
+        and(
+          tenantWhere(schema.financialTransactions, ctx),
+          eq(schema.financialTransactions.id, expenseRowId),
+        ),
+      )
+      .limit(1);
+    if (!row) {
+      throw new NotFoundError("Transaccion no encontrada");
+    }
+    if (row.kind === "cash_transfer") {
+      const group = await collectTransferGroupIds(
+        ctx,
+        this.db,
+        expenseRowId,
+        this.log,
+      );
+      if (!group.isWithdrawal) {
+        throw new BadRequestError(
+          "Es un traslado entre cajas: anulalo como traslado",
+        );
+      }
+      const ids = [group.outflowId, group.inflowId, ...group.adjustmentIds];
+      await this.txnService.voidPair(ctx, ids, voidedBy, { reason });
+      this.log.info(
+        { expenseRowId, voidedIds: ids, voidedBy, reason },
+        "Withdrawal (transfer format) voided",
+      );
+      return;
+    }
+    if (row.kind !== "expense") {
+      throw new BadRequestError("No es un egreso ni un retiro");
+    }
+
     // 2026-09-23 — un retiro con conteo nace con un ajuste (faltante/sobrante)
     // linkeado a él (adjustment → retiro). Si se anula el retiro para cargarlo
     // de nuevo, el ajuste tiene que caer con él: si no, el recuento del
