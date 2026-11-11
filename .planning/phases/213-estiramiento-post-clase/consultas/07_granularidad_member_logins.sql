@@ -1,0 +1,2 @@
+SELECT c por_dia, COUNT(*) pares FROM (SELECT user_id, DATE(logged_in_at - INTERVAL 3 HOUR) d, COUNT(*) c FROM member_logins WHERE logged_in_at >= NOW() - INTERVAL 28 DAY GROUP BY user_id, d) x GROUP BY c ORDER BY c LIMIT 8;
+SELECT MIN(TIMESTAMPDIFF(MINUTE, p, logged_in_at)) min_gap_min FROM (SELECT user_id, logged_in_at, LAG(logged_in_at) OVER (PARTITION BY user_id ORDER BY logged_in_at) p FROM member_logins WHERE logged_in_at >= NOW() - INTERVAL 28 DAY) y WHERE p IS NOT NULL;

@@ -1,0 +1,2 @@
+SELECT template_key, title, body FROM notification_templates WHERE tenant_id=1 AND template_key IN ('post_session_soreness','class_reminder');
+SELECT WEEKDAY(a.session_date) wd, ac.name, COUNT(*) n FROM attendance a JOIN schedules s ON s.id=a.schedule_id JOIN activities ac ON ac.id=s.activity_id WHERE a.session_date >= CURDATE() - INTERVAL 56 DAY AND WEEKDAY(a.session_date) >= 5 GROUP BY wd, ac.name;
