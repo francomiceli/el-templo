@@ -82,6 +82,7 @@ import {
   BLOQUES_REGULAR,
   DOW,
   arrangeStretchScenario,
+  restoreStretchScenario,
   seedAttendance,
   seedClass,
   seedStretchCatalog,
@@ -158,8 +159,9 @@ beforeEach(async () => {
   });
 });
 
-afterEach(() => {
+afterEach(async () => {
   vi.useRealTimers();
+  await restoreStretchScenario(app);
 });
 
 afterAll(async () => {

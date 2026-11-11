@@ -41,6 +41,7 @@ import {
   LEVEL,
   NOMBRES_CATALOGO,
   arrangeStretchScenario,
+  restoreStretchScenario,
   localClock,
   seedAttendance,
   seedClass,
@@ -78,8 +79,9 @@ describe("oferta de estiramiento del día: GET /api/sessions/stretch/today (213-
     await cleanAllTestData(app);
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     vi.useRealTimers();
+    await restoreStretchScenario(app);
   });
 
   // ─── helpers ───────────────────────────────────────────────────────────

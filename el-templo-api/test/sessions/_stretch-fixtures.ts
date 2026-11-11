@@ -570,9 +570,62 @@ export interface Arranged {
 }
 
 /**
+ * Estado global que `arrangeStretchScenario` pisa y `restoreStretchScenario`
+ * devuelve: ni `day_modes` ni `branches` están en `TABLES_TO_CLEAN`, así que sin
+ * restaurar el modo del día (y la zona de la sede 1) se filtran al resto del
+ * worker (`isolate: false`) y hacen fallar, según el día de la semana en que
+ * corra la suite, a los archivos que dependen del default.
+ * Se guarda el valor ORIGINAL la primera vez que se toca cada cosa.
+ */
+const scenarioBackup: {
+  dayModes: Map<number, string | null>;
+  branchTimezone: string | null | undefined;
+} = { dayModes: new Map(), branchTimezone: undefined };
+
+/**
+ * Devuelve `day_modes` (los días que tocó el escenario) y la zona de la sede 1
+ * a lo que había antes del primer `arrangeStretchScenario`. Llamar en el
+ * `afterEach` de todo test que use `arrangeStretchScenario`. Idempotente.
+ */
+export async function restoreStretchScenario(
+  app: FastifyInstance,
+): Promise<void> {
+  for (const [dayOfWeek, sessionMode] of scenarioBackup.dayModes) {
+    await app.db
+      .delete(schema.dayModes)
+      .where(
+        and(
+          tenantWhere(schema.dayModes, CTX_TEMPLO),
+          eq(schema.dayModes.dayOfWeek, dayOfWeek),
+        ),
+      );
+    if (sessionMode !== null) {
+      await app.db
+        .insert(schema.dayModes)
+        .values(tenantValues(CTX_TEMPLO, { dayOfWeek, sessionMode }));
+    }
+  }
+  scenarioBackup.dayModes.clear();
+
+  if (scenarioBackup.branchTimezone !== undefined) {
+    await app.db
+      .update(schema.branches)
+      .set({ timezone: scenarioBackup.branchTimezone ?? AR_TZ })
+      .where(
+        and(
+          tenantWhere(schema.branches, CTX_TEMPLO),
+          eq(schema.branches.id, BRANCH_ID),
+        ),
+      );
+    scenarioBackup.branchTimezone = undefined;
+  }
+}
+
+/**
  * Arma el escenario: reloj, zona de la sede, modo del día, catálogo, socio,
  * sesión aprobada, clase y asistencia. El reloj se fija ANTES de crear al socio
- * (el que llama restaura `vi.useRealTimers()` en su `afterEach`).
+ * (el que llama restaura `vi.useRealTimers()` y `restoreStretchScenario(app)`
+ * en su `afterEach`).
  */
 export async function arrangeStretchScenario(
   app: FastifyInstance,
@@ -586,7 +639,21 @@ export async function arrangeStretchScenario(
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(localClock(tz, date, opts.clock ?? "21:05"));
 
-  // La zona de la sede 1 tiene que ser la del caso.
+  // La zona de la sede 1 tiene que ser la del caso (se restaura en
+  // `restoreStretchScenario`).
+  if (scenarioBackup.branchTimezone === undefined) {
+    const [branch] = await app.db
+      .select({ timezone: schema.branches.timezone })
+      .from(schema.branches)
+      .where(
+        and(
+          tenantWhere(schema.branches, CTX_TEMPLO),
+          eq(schema.branches.id, BRANCH_ID),
+        ),
+      )
+      .limit(1);
+    scenarioBackup.branchTimezone = branch?.timezone ?? null;
+  }
   await app.db
     .update(schema.branches)
     .set({ timezone: tz })
@@ -597,7 +664,22 @@ export async function arrangeStretchScenario(
       ),
     );
 
-  // day_modes no se limpia entre archivos: el día tiene que tener el modo del caso.
+  // day_modes no se limpia entre archivos: el día tiene que tener el modo del
+  // caso. Se guarda el valor original para `restoreStretchScenario`.
+  const dayNumber = DAY_NAME_TO_NUMBER[dia];
+  if (!scenarioBackup.dayModes.has(dayNumber)) {
+    const [previo] = await app.db
+      .select({ sessionMode: schema.dayModes.sessionMode })
+      .from(schema.dayModes)
+      .where(
+        and(
+          tenantWhere(schema.dayModes, CTX_TEMPLO),
+          eq(schema.dayModes.dayOfWeek, dayNumber),
+        ),
+      )
+      .limit(1);
+    scenarioBackup.dayModes.set(dayNumber, previo?.sessionMode ?? null);
+  }
   await app.db
     .delete(schema.dayModes)
     .where(

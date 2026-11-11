@@ -59,6 +59,7 @@ import {
   LEVEL,
   addDeviceToken,
   arrangeStretchScenario,
+  restoreStretchScenario,
   createMemberWithArm,
   insertOfferHistory,
   localClock,
@@ -108,8 +109,9 @@ describe("push ¿Estiraste?: motivos, tope, segundo gimnasio y reconciliación (
     await prepareStretchTemplate(app);
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     vi.useRealTimers();
+    await restoreStretchScenario(app);
   });
 
   // ─── helpers ───────────────────────────────────────────────────────────

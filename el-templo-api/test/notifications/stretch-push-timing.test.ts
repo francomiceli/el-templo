@@ -41,6 +41,7 @@ import {
   LEVEL,
   addDeviceToken,
   arrangeStretchScenario,
+  restoreStretchScenario,
   createMemberWithArm,
   localClock,
   prepareStretchTemplate,
@@ -83,8 +84,9 @@ describe("push ¿Estiraste?: momento y elegibilidad (213-07, SPEC 5.2 parte 1)",
     await prepareStretchTemplate(app);
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     vi.useRealTimers();
+    await restoreStretchScenario(app);
   });
 
   // ─── helpers ───────────────────────────────────────────────────────────

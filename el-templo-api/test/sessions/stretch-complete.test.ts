@@ -49,6 +49,7 @@ import {
   BRANCH_ID,
   LEVEL,
   arrangeStretchScenario,
+  restoreStretchScenario,
   localClock,
   type ArrangeOpts,
   type Arranged,
@@ -87,8 +88,9 @@ describe("eventos y cierre del estiramiento: POST /api/sessions/stretch/{events,
       .onDuplicateKeyUpdate({ set: { defaultAmount: 5, isActive: true } });
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     vi.useRealTimers();
+    await restoreStretchScenario(app);
   });
 
   // ─── helpers ───────────────────────────────────────────────────────────
