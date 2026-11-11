@@ -14,6 +14,7 @@ import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { addDays } from "../shared/date-utils";
+import { moneyEquals, sumMoney } from "../shared/money";
 import type { TenantContext } from "../shared/tenant";
 import { ReportsService } from "../reports/service";
 import { RenewalsService } from "../renewals/service";
@@ -127,7 +128,10 @@ export class BoardCalculator {
         const foreign = new Map<string, number>();
         for (const [currency, totals] of byCurrency) {
           if (currency !== branch.currency) {
-            foreign.set(currency, totals.cobrable + totals.incobrable);
+            foreign.set(
+              currency,
+              sumMoney([totals.cobrable, totals.incobrable]),
+            );
           }
         }
         this.collectForeignCurrency(warnings, branch, "deuda", foreign);
@@ -208,7 +212,7 @@ export class BoardCalculator {
     weekStart?: string,
   ): void {
     for (const [currency, amount] of amounts) {
-      if (currency === branch.currency || amount === 0) continue;
+      if (currency === branch.currency || moneyEquals(amount, 0)) continue;
       warnings.push({ branchId: branch.id, metric, currency, amount });
       this.log.warn(
         {

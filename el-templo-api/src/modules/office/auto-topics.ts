@@ -49,6 +49,7 @@ import {
   DEFAULT_TENANT_TIMEZONE,
   todayInTz,
 } from "../shared/date-utils";
+import { moneyEquals, roundMoney } from "../shared/money";
 import { tenantWhere, type TenantContext } from "../shared/tenant";
 import {
   isoDayOfWeek,
@@ -574,17 +575,24 @@ export async function syncClassesWithoutCoach(
 
 // ───────────────────────────── 4. Arqueo con diferencia ─────────────────────────────
 
-/** "+$ 2.000" / "-$ 2.000" (con signo) o "$ 10.000" en la moneda de la caja, sin decimales. */
+/**
+ * "+$ 2.000" / "-$ 2.000" (con signo) o "$ 10.000" en la moneda de la caja.
+ * Regla de la fase 207 (DI-05): sin decimales si el importe es entero, y si no,
+ * exactamente 2 ("-$ 0,50"). Con importes enteros el texto es idéntico al de
+ * antes (no rompe el dedupe ni los temas ya creados).
+ */
 function formatMoney(
   amount: number,
   currency: string,
   signed: boolean,
 ): string {
+  const fractionDigits = Number.isInteger(roundMoney(amount)) ? 0 : 2;
   try {
     return new Intl.NumberFormat("es-AR", {
       style: "currency",
       currency,
-      maximumFractionDigits: 0,
+      minimumFractionDigits: fractionDigits,
+      maximumFractionDigits: fractionDigits,
       signDisplay: signed ? "always" : "auto",
     })
       .format(amount)
@@ -792,10 +800,10 @@ export async function syncCashCountDifferences(
   for (const [cajaId, rows] of byCaja) {
     const last = rows[rows.length - 1];
     lastDiffByCaja.set(cajaId, last.difference);
-    if (last.difference === 0) continue;
+    if (moneyEquals(last.difference, 0)) continue;
 
     let start = rows.length - 1;
-    while (start > 0 && rows[start - 1].difference !== 0) start -= 1;
+    while (start > 0 && !moneyEquals(rows[start - 1].difference, 0)) start -= 1;
     const run = rows.slice(start);
 
     let openerId = run[0].id;
