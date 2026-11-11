@@ -178,3 +178,33 @@ export function showSideSwitchNotice(phase: StretchPhase): boolean {
     phase.segmentMs - phase.remainingMs < SIDE_SWITCH_NOTICE_MS
   )
 }
+
+/** "7 minutos de estiramiento" / "1 minuto de estiramiento" (nunca menos de 1). */
+export function stretchMinutesLabel(minutes: number): string {
+  const n = Number.isFinite(minutes) ? Math.max(1, Math.round(minutes)) : 1
+  return `${n} ${n === 1 ? 'minuto' : 'minutos'} de estiramiento`
+}
+
+/** Frases de cierre propias del estiramiento: aflojar, soltar, bajar un cambio (SPEC §4.2). */
+export const STRETCH_CLOSING_PHRASES: readonly string[] = [
+  'Soltá los hombros y la mandíbula. Ya bajaste un cambio.',
+  'Aflojar también es parte del entrenamiento.',
+  'Un poco de rango cada día: así se va ganando.',
+]
+
+/** Frase del día, estable para una misma fecha local (YYYY-MM-DD); fecha inválida = la primera. */
+export function stretchClosingPhrase(localDate: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(localDate)
+  if (!match) return STRETCH_CLOSING_PHRASES[0]
+  const day = Math.floor(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])) / 86_400_000)
+  return STRETCH_CLOSING_PHRASES[day % STRETCH_CLOSING_PHRASES.length]
+}
+
+/**
+ * El cierre falló porque la oferta venció (410, D-12): el servidor manda "Este estiramiento ya
+ * venció" y `useStretchCompletion` deja ese texto en `error`. Distingue "ya no se puede guardar"
+ * de una falla de red, donde sí tiene sentido reintentar.
+ */
+export function isStretchExpiredMessage(message: string | null): boolean {
+  return message !== null && /venci/i.test(message)
+}

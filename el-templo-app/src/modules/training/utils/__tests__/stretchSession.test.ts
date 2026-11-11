@@ -3,7 +3,11 @@ import type { StretchExercise, StretchTodayResponse } from '../../types/stretch'
 import {
   buildStretchSession,
   stretchClockElapsedMs,
+  isStretchExpiredMessage,
   showSideSwitchNotice,
+  STRETCH_CLOSING_PHRASES,
+  stretchClosingPhrase,
+  stretchMinutesLabel,
   stretchPhaseAt,
   stretchTimeline,
   stretchTotalMs,
@@ -290,5 +294,43 @@ describe('stretchTotalMs y showSideSwitchNotice', () => {
     expect(showSideSwitchNotice(stretchPhaseAt(0, timeline))).toBe(false)
     expect(showSideSwitchNotice(stretchPhaseAt(20_000, timeline))).toBe(false)
     expect(showSideSwitchNotice(stretchPhaseAt(999_999, timeline))).toBe(false)
+  })
+})
+
+describe('stretchMinutesLabel y stretchClosingPhrase', () => {
+  it('pluraliza los minutos y nunca baja de 1', () => {
+    expect(stretchMinutesLabel(7)).toBe('7 minutos de estiramiento')
+    expect(stretchMinutesLabel(1)).toBe('1 minuto de estiramiento')
+    expect(stretchMinutesLabel(0)).toBe('1 minuto de estiramiento')
+    expect(stretchMinutesLabel(Number.NaN)).toBe('1 minuto de estiramiento')
+  })
+
+  it('la frase es estable para una fecha y rota entre días consecutivos', () => {
+    expect(stretchClosingPhrase('2026-11-11')).toBe(stretchClosingPhrase('2026-11-11'))
+    const tres = ['2026-11-11', '2026-11-12', '2026-11-13'].map(stretchClosingPhrase)
+    expect(new Set(tres).size).toBe(3)
+  })
+
+  it('una fecha inválida cae en la primera frase', () => {
+    expect(stretchClosingPhrase('')).toBe(STRETCH_CLOSING_PHRASES[0])
+    expect(stretchClosingPhrase('ayer')).toBe(STRETCH_CLOSING_PHRASES[0])
+  })
+
+  it('ninguna frase promete salud ni usa los textos prohibidos', () => {
+    for (const f of STRETCH_CLOSING_PHRASES) {
+      expect(f).not.toMatch(/menos dolor|evitá lesiones|recuperate más rápido/i)
+    }
+  })
+})
+
+describe('isStretchExpiredMessage', () => {
+  it('reconoce el mensaje de oferta vencida del servidor', () => {
+    expect(isStretchExpiredMessage('Este estiramiento ya venció')).toBe(true)
+  })
+
+  it('una falla de red o ningún error no es una oferta vencida', () => {
+    expect(isStretchExpiredMessage('No pudimos guardar el estiramiento')).toBe(false)
+    expect(isStretchExpiredMessage('Network Error')).toBe(false)
+    expect(isStretchExpiredMessage(null)).toBe(false)
   })
 })
