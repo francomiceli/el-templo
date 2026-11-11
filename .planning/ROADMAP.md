@@ -1174,7 +1174,7 @@ Plans:
 - [x] 213-04-PLAN.md — StretchService (elegibilidad, sesión, rutina congelada) + `GET /api/sessions/stretch/today` + manifiesto + tests
 - [x] 213-05-PLAN.md — Fuente AURA `stretch` + `POST /stretch/events` y `/stretch/complete` + invariantes + ISO-03
 - [x] 213-06-PLAN.md — Sección curada `estirar` (API + 2 espejos) + plantilla `stretch_followup` (nace apagada) + textos del admin
-- [ ] 213-07-PLAN.md — Push en el tick de `notification-cron.ts` con motivos, tope, segundo gimnasio y reconciliación + tests §5.2
+- [x] 213-07-PLAN.md — Push en el tick de `notification-cron.ts` con motivos, tope, segundo gimnasio y reconciliación + tests §5.2
 - [ ] 213-08-PLAN.md — Tests de caracterización + `useSingleBlockPlayer` + `FreeBlockPlayer` migrado
 - [ ] 213-09-PLAN.md — App: tipos, `useStretchStore`, `useStretchCompletion`, Session sintética y reloj puro
 - [ ] 213-10-PLAN.md — Sketch del reloj (decisión documentada) + reloj elegido + `StretchPlayer` y ruta `training/estirar`
