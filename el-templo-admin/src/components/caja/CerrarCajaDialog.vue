@@ -162,6 +162,7 @@ import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { extractError } from 'src/utils/extract-error';
 import { formatPrice } from 'src/utils/format-price';
+import { currencySymbol } from 'src/utils/currencies';
 import { compareMoney, moneyEquals, roundMoney, sumMoney } from 'src/utils/money';
 import MoneyInput from 'src/components/MoneyInput.vue';
 import { useFinanceLoadApi } from 'src/composables/useFinanceLoadApi';
@@ -310,12 +311,6 @@ function formatSigned(amount: number, currency: string): string {
 function formatDateTime(iso: string): string {
   const d = new Date(iso);
   return `${d.toLocaleDateString('es-AR')} ${d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}`;
-}
-
-function currencySymbol(currency: string): string {
-  if (currency === 'EUR') return '€';
-  if (currency === 'ARS') return '$';
-  return currency;
 }
 
 onUnmounted(() => {
