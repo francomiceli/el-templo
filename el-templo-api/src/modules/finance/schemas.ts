@@ -10,6 +10,7 @@ import {
   MONEY_POSITIVE_SCHEMA,
   MONEY_RESPONSE_SCHEMA,
 } from "../shared/money";
+import { ACCOUNT_CURRENCY_SCHEMA } from "../shared/currency";
 
 // -- Shared fragments -------------------------------------------------------
 
@@ -757,7 +758,8 @@ export const pendingTrayExportSchema = {
  * (UAT caja/cobros 2026-07-21). `openingBalance` es el arqueo inicial en
  * pesos/euros con hasta 2 decimales, igual que el resto del ledger; opcional,
  * default 0.
- * La unicidad por (sucursal, moneda) la valida el service.
+ * La unicidad por (sucursal, moneda) la valida el service. La moneda es ARS, EUR
+ * o USD (fase 208): antes aceptaba cualquier código de 3 letras.
  */
 export const createEfectivoCajaSchema = {
   body: {
@@ -766,7 +768,7 @@ export const createEfectivoCajaSchema = {
     additionalProperties: false,
     properties: {
       branchId: { type: "integer", minimum: 1 },
-      currency: { type: "string", minLength: 3, maxLength: 3 },
+      currency: ACCOUNT_CURRENCY_SCHEMA,
       openingBalance: MONEY_NON_NEGATIVE_SCHEMA,
     },
   },
@@ -911,7 +913,7 @@ const BANK_ACCOUNT_ID_PARAMS = {
 /**
  * POST /bank-accounts — crear cuenta banco (CTA-01 / D-02). Solo 3 obligatorios
  * a nivel schema (bankName/accountHolder/currency); `name` se autogenera en el
- * service (D-03). currency restringido a ARS/EUR y FIJA post-creación (D-04).
+ * service (D-03). currency restringido a ARS/EUR/USD y FIJA post-creación (D-04).
  * La regla uno-de-dos (CBU/CVU o Alias) vive en el service. RBAC server-side.
  */
 export const createBankAccountSchema = {
@@ -921,7 +923,7 @@ export const createBankAccountSchema = {
     properties: {
       bankName: { type: "string", minLength: 1, maxLength: 100 },
       accountHolder: { type: "string", minLength: 1, maxLength: 120 },
-      currency: { type: "string", enum: ["ARS", "EUR"] },
+      currency: ACCOUNT_CURRENCY_SCHEMA,
       ...BANK_ACCOUNT_OPTIONAL_PROPS,
     },
     additionalProperties: false,

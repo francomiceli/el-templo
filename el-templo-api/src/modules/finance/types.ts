@@ -533,6 +533,11 @@ export interface CajaSaldoRow {
   type: "efectivo" | "banco";
   branchId: number | null;
   currency: string;
+  /**
+   * Fase 208 (DI-01): true para el Tesoro (efectivo sin sede, aparte de la Caja
+   * central). Central y el resto de las cajas: false.
+   */
+  isTreasury: boolean;
   firmeBalance: number;
   pendienteAmount: number;
   /** Arqueo (2026-09-08): fondo de cambio fijo de la caja (0 en banco). */

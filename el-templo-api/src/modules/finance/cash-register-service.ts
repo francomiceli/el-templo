@@ -19,6 +19,7 @@ import {
   ConflictError,
   NotFoundError,
 } from "../shared/errors";
+import { isSupportedAccountCurrency } from "../shared/currency";
 import {
   assertMoneyAmount,
   fromCents,
@@ -123,11 +124,30 @@ export class CashRegisterService {
         "No se puede resolver la caja efectivo sin sucursal",
       );
     }
+    // Fase 208 (DI-02): una sede puede tener caja efectivo ARS y USD a la vez.
+    // Sin filtrar la moneda, el `.limit(1)` elegía una al azar y rebotaba cobros
+    // legítimos con "Moneda inconsistente". Se resuelve por moneda y orden de id
+    // (determinista); la guarda de moneda queda solo para elegir el mensaje.
     const [efectivo] = await this.db
-      .select({
-        id: schema.cashRegisters.id,
-        currency: schema.cashRegisters.currency,
-      })
+      .select({ id: schema.cashRegisters.id })
+      .from(schema.cashRegisters)
+      .where(
+        and(
+          tenantWhere(schema.cashRegisters, ctx),
+          eq(schema.cashRegisters.type, "efectivo"),
+          eq(schema.cashRegisters.branchId, branchId),
+          eq(schema.cashRegisters.currency, currency),
+          eq(schema.cashRegisters.isActive, true),
+        ),
+      )
+      .orderBy(schema.cashRegisters.id)
+      .limit(1);
+    if (efectivo) return efectivo.id;
+
+    // No hay caja en esa moneda: distinguir "no hay ninguna" de "hay, pero en
+    // otra moneda" (D-09/CAJA-04: una caja nunca mezcla monedas).
+    const [otra] = await this.db
+      .select({ currency: schema.cashRegisters.currency })
       .from(schema.cashRegisters)
       .where(
         and(
@@ -137,19 +157,16 @@ export class CashRegisterService {
           eq(schema.cashRegisters.isActive, true),
         ),
       )
+      .orderBy(schema.cashRegisters.id)
       .limit(1);
-    if (!efectivo) {
+    if (!otra) {
       throw new BadRequestError(
         `No existe caja efectivo para la sucursal ${branchId}`,
       );
     }
-    // Currency guard (D-09/CAJA-04): a caja never mixes currencies.
-    if (efectivo.currency !== currency) {
-      throw new BadRequestError(
-        `Moneda inconsistente: la caja es ${efectivo.currency}, el cobro es ${currency}`,
-      );
-    }
-    return efectivo.id;
+    throw new BadRequestError(
+      `Moneda inconsistente: la caja es ${otra.currency}, el cobro es ${currency}`,
+    );
   }
 
   /**
@@ -462,6 +479,7 @@ export class CashRegisterService {
         type: schema.cashRegisters.type,
         branchId: schema.cashRegisters.branchId,
         currency: schema.cashRegisters.currency,
+        isTreasury: schema.cashRegisters.isTreasury,
         changeFund: schema.cashRegisters.changeFund,
         branchCountry: schema.branches.country,
       })
@@ -506,6 +524,7 @@ export class CashRegisterService {
         type: c.type,
         branchId: c.branchId,
         currency: c.currency,
+        isTreasury: c.isTreasury,
         firmeBalance: bal.firmeBalance,
         pendienteAmount: bal.pendienteAmount,
         changeFund: c.changeFund,
@@ -944,6 +963,11 @@ export class CashRegisterService {
     ctx: TenantContext,
     input: CreateBankAccountInput,
   ): Promise<BankAccountRow> {
+    if (!isSupportedAccountCurrency(input.currency)) {
+      throw new BadRequestError(
+        `Moneda no soportada para una cuenta: ${input.currency}`,
+      );
+    }
     const bankName = input.bankName.trim();
     const accountHolder = input.accountHolder.trim();
     const cbuCvu = input.cbuCvu?.trim() || null;
@@ -1018,6 +1042,11 @@ export class CashRegisterService {
       openingBalance?: number;
     },
   ): Promise<CajaSaldoRow> {
+    if (!isSupportedAccountCurrency(input.currency)) {
+      throw new BadRequestError(
+        `Moneda no soportada para una caja: ${input.currency}`,
+      );
+    }
     const [branch] = await this.db
       .select({
         id: schema.branches.id,
@@ -1103,6 +1132,7 @@ export class CashRegisterService {
       type: "efectivo",
       branchId: input.branchId,
       currency: input.currency,
+      isTreasury: false,
       firmeBalance: bal.firmeBalance,
       pendienteAmount: bal.pendienteAmount,
       changeFund: 0,
