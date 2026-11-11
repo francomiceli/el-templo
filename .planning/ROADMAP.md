@@ -1193,6 +1193,21 @@ Plans:
 4. Un retiro nuevo exige destino (Caja central o Tesoro) y se guarda como traslado: la sede baja y el destino sube; se conservan responsable, conteo y resumen; los retiros viejos no cambian
 5. Central y Tesoro pueden arrancar con un arqueo de apertura del efectivo real
 
+**Plans:** 11 plans (secuenciales, una wave cada uno)
+
+Plans:
+- [ ] 208-01-PLAN.md — Base: migración 0329 (`is_treasury` + `cheque`), schemas, lista única de monedas ARS/EUR/USD y regla pura medio↔cuenta
+- [ ] 208-02-PLAN.md — API: cuentas en USD, alta de Tesoro (owner) con saldo de apertura, `isTreasury` en Saldos/Excel, resolver de caja por moneda
+- [ ] 208-03-PLAN.md — API: aplicar la regla medio↔cuenta en egresos, traslados, cobros y resolver de caja (cheque → banco)
+- [ ] 208-04-PLAN.md — API: arqueo de apertura de Caja central y Tesoro con helper `count-adjustment.ts`
+- [ ] 208-05-PLAN.md — API: lectores de retiros y anulaciones preparados para formato viejo (expense) y nuevo (cash_transfer)
+- [ ] 208-06-PLAN.md — API: el alta de retiro pasa a traslado con destino obligatorio + ruta de destinos posibles
+- [ ] 208-07-PLAN.md — Tests: adaptar withdrawals/cash-counts/centavos-traslados-retiros al alta nueva o a retiros viejos sembrados
+- [ ] 208-08-PLAN.md — Admin base: USD en monedas y `formatPrice` (admin + app), espejo medio↔cuenta, `cheque`, composable de Tesoro/destinos/arqueo
+- [ ] 208-09-PLAN.md — Admin: Cuentas y Saldos (USD, sección Caja central y Tesoro, grupo Tesoro)
+- [ ] 208-10-PLAN.md — Admin: Retiros con destino obligatorio, destino en historial y patas del retiro en Mov./Egresos
+- [ ] 208-11-PLAN.md — Cierre: no-regresión "como prod hoy", inventario con greps, gates y checklist de UAT
+
 ### Phase 209: Egresos — gasto, reparto y pagos
 
 **Goal**: Administración registra gastos con reparto entre sedes/Casa Matriz y uno o varios pagos desde distintas cuentas, y ve lo pagado y lo imputado por mes, en una sección propia del admin
