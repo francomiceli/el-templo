@@ -1165,11 +1165,11 @@ Plans:
 8. Un gimnasio sin el módulo `templo-training` no recibe ofertas, filas ni pushes
 9. Tests de integración con reloj fijo cubren los casos de `213-SPEC.md` §5.2
 
-**Plans:** 1/13 plans executed
+**Plans:** 2/13 plans executed
 
 Plans:
 - [x] 213-01-PLAN.md — node_modules por symlink + tablas `stretch_catalog`/`stretch_offers`, semilla de la lista curada y gates de tenancy
-- [ ] 213-02-PLAN.md — Regla pura de selección con la tabla de referencia del SPEC (TDD)
+- [x] 213-02-PLAN.md — Regla pura de selección con la tabla de referencia del SPEC (TDD)
 - [ ] 213-03-PLAN.md — Reglas puras de grupo (crc32), momento del push con tope 21:30, ventana y tope de frecuencia (TDD)
 - [ ] 213-04-PLAN.md — StretchService (elegibilidad, sesión, rutina congelada) + `GET /api/sessions/stretch/today` + manifiesto + tests
 - [ ] 213-05-PLAN.md — Fuente AURA `stretch` + `POST /stretch/events` y `/stretch/complete` + invariantes + ISO-03
