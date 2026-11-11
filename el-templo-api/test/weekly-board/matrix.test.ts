@@ -360,6 +360,59 @@ describe("sumBranchValues", () => {
     expect(total.late?.reservas).toBe(5);
   });
 
+  it("cobrado con centavos: 0.1 + 0.2 da 0.3 exacto en el Total", () => {
+    const total = sumBranchValues(
+      [vals({ main: { cobrado: 0.1 } }), vals({ main: { cobrado: 0.2 } })],
+      opts,
+    );
+    // Sin redondeo, 0.1 + 0.2 = 0.30000000000000004.
+    expect(total.main?.cobrado).toBe(0.3);
+  });
+
+  it("cobrado y deuda con centavos: 100.10 + 200.20 = 300.3 en cada campo de plata", () => {
+    const total = sumBranchValues(
+      [
+        vals({
+          main: {
+            cobrado: 100.1,
+            deudaCobrable: 100.1,
+            deudaMas10: 100.1,
+            deudaIncobrable: 100.1,
+            activos: 7,
+          },
+        }),
+        vals({
+          main: {
+            cobrado: 200.2,
+            deudaCobrable: 200.2,
+            deudaMas10: 200.2,
+            deudaIncobrable: 200.2,
+            activos: 8,
+          },
+        }),
+      ],
+      opts,
+    );
+    expect(total.main?.cobrado).toBe(300.3);
+    expect(total.main?.deudaCobrable).toBe(300.3);
+    expect(total.main?.deudaMas10).toBe(300.3);
+    expect(total.main?.deudaIncobrable).toBe(300.3);
+    // Los conteos no cambian.
+    expect(total.main?.activos).toBe(15);
+  });
+
+  it("con importes enteros el Total da lo mismo que antes (DI-09)", () => {
+    const total = sumBranchValues(
+      [
+        vals({ main: { cobrado: 120000, deudaCobrable: 30000 } }),
+        vals({ main: { cobrado: 80000, deudaCobrable: 5000 } }),
+      ],
+      opts,
+    );
+    expect(total.main?.cobrado).toBe(200000);
+    expect(total.main?.deudaCobrable).toBe(35000);
+  });
+
   it("leads: none devuelve siempre null", () => {
     const total = sumBranchValues([vals({ leads: 3 }), vals({ leads: 4 })], {
       leads: "none",
