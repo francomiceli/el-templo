@@ -24,6 +24,7 @@ import * as schema from "../../db/schema";
 import { buildMemberNameSearchCondition } from "../shared/member-search";
 import { tenantWhere, type TenantContext } from "../shared/tenant";
 import { isBranchScopedRole } from "../shared/branch-access";
+import { roundMoney } from "../shared/money";
 import type {
   CoachOutstandingBalanceRow,
   CoachOutstandingBalancesFilters,
@@ -109,7 +110,7 @@ export class CoachService {
       memberId: r.memberId,
       memberName: `${r.firstName ?? ""} ${r.lastName ?? ""}`.trim(),
       memberPhone: r.phone ?? null,
-      totalAmount: Number(r.totalAmount),
+      totalAmount: roundMoney(Number(r.totalAmount)),
       currency: r.currency,
     }));
 

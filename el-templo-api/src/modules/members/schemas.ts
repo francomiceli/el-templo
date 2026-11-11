@@ -2,6 +2,7 @@
  * Fastify JSON schemas for Members API request/response validation.
  */
 import { manualOriginSchema } from "../marketing/schemas";
+import { MONEY_RESPONSE_SCHEMA } from "../shared/money";
 
 import {
   activatedInvitationProperties,
@@ -252,7 +253,7 @@ export const listMembersSchema = {
             type: "object",
             properties: {
               currency: { type: "string" },
-              amount: { type: "integer" },
+              amount: MONEY_RESPONSE_SCHEMA,
             },
           },
         },

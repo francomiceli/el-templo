@@ -1,6 +1,7 @@
 /**
  * Fastify JSON schemas for Reports API request/response validation.
  */
+import { MONEY_RESPONSE_SCHEMA } from "../shared/money";
 
 // =============================================================================
 // Shared fragments
@@ -478,7 +479,7 @@ export const outstandingBalancesSchema = {
               periodEnd: { type: ["string", "null"] },
               registeredAt: { type: "string" },
               notes: { type: ["string", "null"] },
-              amount: { type: "integer" },
+              amount: MONEY_RESPONSE_SCHEMA,
               currency: { type: "string" },
               effectiveDate: { type: "string" },
               ageInDays: { type: "integer" },
