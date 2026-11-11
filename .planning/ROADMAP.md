@@ -1204,7 +1204,7 @@ Plans:
 - [x] 208-06-PLAN.md — API: el alta de retiro pasa a traslado con destino obligatorio + ruta de destinos posibles
 - [x] 208-07-PLAN.md — Tests: adaptar withdrawals/cash-counts/centavos-traslados-retiros al alta nueva o a retiros viejos sembrados
 - [x] 208-08-PLAN.md — Admin base: USD en monedas y `formatPrice` (admin + app), espejo medio↔cuenta, `cheque`, composable de Tesoro/destinos/arqueo
-- [ ] 208-09-PLAN.md — Admin: Cuentas y Saldos (USD, sección Caja central y Tesoro, grupo Tesoro)
+- [x] 208-09-PLAN.md — Admin: Cuentas y Saldos (USD, sección Caja central y Tesoro, grupo Tesoro)
 - [ ] 208-10-PLAN.md — Admin: Retiros con destino obligatorio, destino en historial y patas del retiro en Mov./Egresos
 - [ ] 208-11-PLAN.md — Cierre: no-regresión "como prod hoy", inventario con greps, gates y checklist de UAT
 
