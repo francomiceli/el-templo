@@ -13,7 +13,11 @@ import { Workbook } from "exceljs";
 import { ACCESS_SOURCE_LABELS, ReportsService } from "./service";
 import { WellhubReportService } from "./wellhub-report-service";
 import { handleServiceError } from "../shared/error-handler";
-import { styleHeaderRow, sendExcelReply } from "../shared/excel";
+import {
+  styleHeaderRow,
+  sendExcelReply,
+  setMoneyColumnFormat,
+} from "../shared/excel";
 import type {
   AccessReportFilters,
   AttendedFilter,
@@ -630,6 +634,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
           { header: "Registro", key: "recorderName", width: 25 },
           { header: "Estado", key: "estado", width: 12 },
         ];
+        setMoneyColumnFormat(sheet, ["amount"]);
 
         styleHeaderRow(sheet);
 
@@ -883,6 +888,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
           { header: "Observaciones", key: "observaciones", width: 40 },
           { header: "Tipo", key: "tipo", width: 18 },
         ];
+        setMoneyColumnFormat(sheet, ["monto"]);
 
         styleHeaderRow(sheet);
 
