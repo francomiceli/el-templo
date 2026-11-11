@@ -99,6 +99,12 @@ export const SEGMENT_TRANSITION_TEMPLATES: Record<string, string> = {
 
 // ── Template Seed Data ──────────────────────────────────────────────────────
 
+/**
+ * Fase 213 (D-12): templateKey del push "¿Estiraste?" que dispara el job de
+ * estiramiento post-clase (plan 07). Lo comparten el seed y el job.
+ */
+export const STRETCH_FOLLOWUP_TEMPLATE_KEY = "stretch_followup";
+
 export interface TemplateSeed {
   templateKey: string;
   category: NotificationCategory;
@@ -107,6 +113,12 @@ export interface TemplateSeed {
   titleFemale: string;
   bodyFemale: string;
   route: string;
+  /**
+   * `false` = la plantilla nace apagada (`is_enabled = 0`). Solo afecta el
+   * primer INSERT: `INSERT IGNORE` nunca pisa lo que el admin haya prendido.
+   * Ausente o `true` = nace prendida (comportamiento de siempre).
+   */
+  enabledAtSeed?: boolean;
 }
 
 export const TEMPLATE_SEEDS: TemplateSeed[] = [
@@ -311,5 +323,26 @@ export const TEMPLATE_SEEDS: TemplateSeed[] = [
     titleFemale: "Tu plan ya está cargado",
     bodyFemale: "Ya cargamos tu membresía. Tocá para verla.",
     route: "/planes",
+  },
+  {
+    // Fase 213 (D-12): push de estiramiento post-clase. El texto se edita
+    // desde Comunicaciones: el job NO pasa `titleOverride` ni `bodyOverride`.
+    // El destino es la sección curada `estirar` (`/training/estirar?from=push`),
+    // que sobrevive a la edición porque el PUT deriva `route` del destino.
+    //
+    // Decisión del planificador: NACE APAGADA (`enabledAtSeed: false`). Los
+    // builds de tiendas sin el player no conocen la sección ni la ruta y el
+    // toque terminaría en la página de 404. Franco la prende desde
+    // Comunicaciones cuando el build con el player esté publicado (anotar la
+    // fecha: mueve el experimento D-16). Con la plantilla apagada el job guarda
+    // `push_decision = 'plantilla_apagada'` y la card sigue ofreciendo (D-11).
+    templateKey: STRETCH_FOLLOWUP_TEMPLATE_KEY,
+    category: "entrenamiento",
+    title: "¿Estiraste?",
+    body: "6 minutos para aflojar lo que trabajaste hoy. Tocá y arrancamos.",
+    titleFemale: "¿Estiraste?",
+    bodyFemale: "6 minutos para aflojar lo que trabajaste hoy. Toca y arrancamos.",
+    route: "/training/estirar?from=push",
+    enabledAtSeed: false,
   },
 ];

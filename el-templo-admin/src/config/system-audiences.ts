@@ -16,7 +16,7 @@
 //    `card_upsell` → `showUpsellBadge = profile.branchIsVirtual` en
 //    `el-templo-app/src/modules/progression/pages/MiTemplo.vue` (~L311-312).
 //    `card_program` → `showProgramCta = !showProgramProgress` (~L264).
-//  - Las 18 `templateKey` de plantillas push: `TEMPLATE_SEEDS` en
+//  - Las 20 `templateKey` de plantillas push: `TEMPLATE_SEEDS` en
 //    `el-templo-api/src/modules/notifications/types.ts`. Sin `triggerType`
 //    en DB (lógica de negocio hardcodeada en jobs/servicios) — acá el label
 //    es SOLO texto informativo para el admin, igual que
@@ -50,7 +50,7 @@ export const SYSTEM_AVISO_AUDIENCES: Readonly<Record<string, Audience>> = {
 };
 
 /**
- * Las 17 plantillas push de sistema, por `templateKey`. Decisiones de
+ * Las 20 plantillas push de sistema, por `templateKey`. Decisiones de
  * clasificación donde el plan dejaba margen (ambas leídas del propio
  * disparo, ver `systemTriggerDescription()`):
  *  - `program_enrollment` → 'evento' ("se activó un programa"), no 'grupo':
@@ -107,6 +107,11 @@ export const SYSTEM_TEMPLATE_AUDIENCES: Readonly<Record<string, Audience>> = {
     label: 'Con reserva anticipada para hoy',
     icon: 'event_available',
     breadth: 'grupo',
+  },
+  stretch_followup: {
+    label: 'Después de su clase, con asistencia',
+    icon: 'self_improvement',
+    breadth: 'evento',
   },
 };
 
