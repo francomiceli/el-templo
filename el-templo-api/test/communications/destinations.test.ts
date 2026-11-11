@@ -18,8 +18,26 @@ import {
 
 describe("communications/destinations", () => {
   // 2026-10-22 (Fase 201 D-11): 9 -> 10 con el destino `conquer`.
-  it("APP_SECTIONS tiene exactamente 10 entradas", () => {
-    expect(APP_SECTIONS).toHaveLength(10);
+  // 2026-11-11 (Fase 213 D-12): 10 -> 11 con el destino `estirar`.
+  it("APP_SECTIONS tiene exactamente 11 entradas", () => {
+    expect(APP_SECTIONS).toHaveLength(11);
+  });
+
+  it("el destino estirar lleva al player de estiramiento y es una key válida", () => {
+    const destination: Destination = {
+      type: "app_section",
+      section: "estirar",
+      whatsappText: null,
+    };
+    expect(isAppSectionKey("estirar")).toBe(true);
+    expect(resolveDestinationRoute(destination)).toBe(
+      "/training/estirar?from=push",
+    );
+    expect(fallbackRouteFor(destination)).toBe("/training/estirar?from=push");
+    expect(validateDestination(destination)).toEqual({
+      ok: true,
+      value: destination,
+    });
   });
 
   it("el destino conquer lleva a Entrenar ▸ Conquer y es una key válida", () => {
@@ -98,6 +116,10 @@ describe("communications/destinations", () => {
 
     it("la ruta de Conquer mapea a conquer", () => {
       expect(appSectionForRoute("/training?tab=conquer")).toBe("conquer");
+    });
+
+    it("la ruta del estiramiento mapea a estirar", () => {
+      expect(appSectionForRoute("/training/estirar?from=push")).toBe("estirar");
     });
 
     it("cualquier otra ruta (o desconocida) cae a mi_templo", () => {
