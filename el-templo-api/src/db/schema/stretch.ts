@@ -86,7 +86,8 @@ export const stretchCatalog = mysqlTable(
  *   `classEndAt` (UTC), `exercises` (rutina congelada), `plannedSeconds`, `arm`.
  * - Push: `pushDecision`, `pushQueuedAt`, `pendingNotificationId` (sin FK: la
  *   cola se purga a 24 h), `pushSentAt`, `pushOpenedAt`.
- * - App: `cardSeenAt`, `startedAt`, `startedFrom` (`card` | `push`).
+ * - App: `cardSeenAt`, `startedAt` (ULTIMO ingreso al player), `startedFrom`
+ *   (`card` | `push`, el del primer ingreso).
  * - Al terminar: `completedAt`, `durationSeconds`, `exercisesCompleted`
  *   (índices de la rutina congelada), `auraAwarded`.
  * - UNIQUE (tenant_id, user_id, local_date): tenant primero.

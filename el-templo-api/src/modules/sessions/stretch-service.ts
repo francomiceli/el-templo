@@ -20,7 +20,7 @@
  *
  * - D-08: completar acredita +5 AURA (fuente `stretch`) una vez por dia local,
  *   solo con todos los estiramientos marcados y al menos 3 minutos medidos por
- *   el servidor entre `started_at` y `completed_at`.
+ *   el servidor entre `started_at` (ultimo ingreso al player) y `completed_at`.
  *
  * Solo LEE `completed_sessions` (el espejo presencial) para el nivel del
  * socio. Toda consulta lleva `tenantWhere`; el reloj entra por parametro `now`.
@@ -580,17 +580,21 @@ export class StretchService {
       return { kind: "ok" };
     }
 
-    // started: la duracion se mide desde el PRIMER arranque. Con la oferta ya
-    // completada no hay nada que marcar.
+    // started: cada ingreso al player REESCRIBE `started_at` (la duracion y el
+    // piso de AURA cuentan desde el ULTIMO ingreso, no desde el primero: el
+    // player siempre arranca de cero). `started_from` conserva el primero y solo
+    // se escribe si es NULL. Con la oferta ya completada no hay nada que marcar.
     if (offer.completedAt) return { kind: "ok" };
     await this.db
       .update(schema.stretchOffers)
-      .set({ startedAt: now, startedFrom: from ?? "card" })
+      .set({
+        startedAt: now,
+        startedFrom: sql`COALESCE(${schema.stretchOffers.startedFrom}, ${from ?? "card"})`,
+      })
       .where(
         and(
           tenantWhere(schema.stretchOffers, ctx),
           eq(schema.stretchOffers.id, offer.id),
-          isNull(schema.stretchOffers.startedAt),
           isNull(schema.stretchOffers.completedAt),
         ),
       );

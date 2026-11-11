@@ -147,6 +147,8 @@ ORDER BY FIELD(w.arm, 'control', 'push_30', 'push_60'), w.periodo;
 -- BLOQUE 5: duracion real de los estiramientos completados contra la planificada
 -- La mediana se aproxima con ROW_NUMBER (promedio de las dos filas del medio)
 -- real_sobre_plan cerca de 1 = la gente sigue el reloj. Muy por debajo = marca y sale antes
+-- La duracion se mide desde el ULTIMO ingreso al player (started_at se reescribe en cada ingreso mientras no se completa)
+-- started_from queda con el del primer ingreso. empezados (bloque 1) solo mira started_at NOT NULL: no cambia
 -- ============================================================
 WITH c AS (
   SELECT o.arm,

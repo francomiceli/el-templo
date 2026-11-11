@@ -548,7 +548,7 @@ describe("eventos y cierre del estiramiento: POST /api/sessions/stretch/{events,
     expect(marcaSegunda?.getTime()).toBe(marcaPrimera?.getTime());
   });
 
-  it("(k) started dos veces: queda el started_at y el started_from del primero", async () => {
+  it("(k) started dos veces: started_at se mueve al último ingreso y started_from queda el del primero", async () => {
     const { member } = await arrange();
     const { offerId } = await crearOferta(member.token);
 
@@ -565,8 +565,57 @@ describe("eventos y cierre del estiramiento: POST /api/sessions/stretch/{events,
     expect(segunda.status).toBe(200);
 
     const despues = await offerRow(offerId);
-    expect(despues.startedAt?.getTime()).toBe(primera.startedAt?.getTime());
+    expect(despues.startedAt?.getTime()).toBe(
+      (primera.startedAt?.getTime() ?? 0) + 5 * MIN,
+    );
     expect(despues.startedFrom).toBe("push");
+  });
+
+  it("(k2) reingreso: con todo marcado a menos de 180 s del último ingreso no hay AURA, aunque el primer ingreso fuera hace 10 minutos", async () => {
+    const { member } = await arrange();
+    const { offerId, ids } = await crearOferta(member.token);
+
+    await postEvent(member.token, { type: "started", from: "card" });
+    avanzar(10 * MIN);
+    // Sale y vuelve a entrar: la medicion arranca de nuevo.
+    await postEvent(member.token, { type: "started", from: "push" });
+    avanzar(60 * 1000);
+    const res = await postComplete(member.token, {
+      offerId,
+      exercisesCompleted: ids,
+    });
+
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(res.body.allDone).toBe(true);
+    expect(res.body.auraAwarded).toBe(false);
+    expect(res.body.durationSeconds).toBeGreaterThanOrEqual(59);
+    expect(res.body.durationSeconds).toBeLessThanOrEqual(61);
+    expect(await auraStretch(member.id)).toHaveLength(0);
+
+    const row = await offerRow(offerId);
+    expect(row.startedFrom).toBe("card");
+    expect(row.durationSeconds).toBe(res.body.durationSeconds);
+  });
+
+  it("(k3) started con la oferta completada no mueve started_at", async () => {
+    const { member } = await arrange();
+    const { offerId, ids } = await crearOferta(member.token);
+
+    await postEvent(member.token, { type: "started" });
+    avanzar(4 * MIN);
+    const cierre = await postComplete(member.token, {
+      offerId,
+      exercisesCompleted: ids,
+    });
+    expect(cierre.body.auraAwarded).toBe(true);
+    const antes = await offerRow(offerId);
+
+    avanzar(MIN);
+    expect((await postEvent(member.token, { type: "started" })).status).toBe(
+      200,
+    );
+    const despues = await offerRow(offerId);
+    expect(despues.startedAt?.getTime()).toBe(antes.startedAt?.getTime());
   });
 
   it("(l) push_opened pasada la medianoche marca la fila encolada de ayer; sin filas encoladas es un no-op", async () => {
