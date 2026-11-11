@@ -58,14 +58,16 @@ const FILAS_SPEC: readonly FilaCatalogo[] = [
 ];
 
 function armarCatalogo(filas: readonly FilaCatalogo[]): EntradaCatalogo[] {
-  return filas.map(([exerciseId, nombre, familia, orden, lados, ordenBase]) => ({
-    exerciseId,
-    nombre,
-    familia,
-    orden,
-    lados,
-    ordenBase,
-  }));
+  return filas.map(
+    ([exerciseId, nombre, familia, orden, lados, ordenBase]) => ({
+      exerciseId,
+      nombre,
+      familia,
+      orden,
+      lados,
+      ordenBase,
+    }),
+  );
 }
 
 const CATALOGO_SPEC: readonly EntradaCatalogo[] = armarCatalogo(FILAS_SPEC);
@@ -117,7 +119,10 @@ const SESIONES: readonly SesionDeReferencia[] = [
       { nombre: "SEAL PUSH UP", familiaBase: "FL" },
       { nombre: "SUPERMAN HYPEREXTENSION", familiaBase: null },
       { nombre: "KNEE PIGEON STRETCH", familiaBase: "LS ( LUNGES )" },
-      { nombre: "ARCHER COUCH STRETCH KNEE SPAGAT", familiaBase: "LS ( LUNGES )" },
+      {
+        nombre: "ARCHER COUCH STRETCH KNEE SPAGAT",
+        familiaBase: "LS ( LUNGES )",
+      },
       { nombre: "LOW BRIDGE ONE LEG", familiaBase: "FL" },
     ],
     rutas: ["MU", "MU", "L", "STRETCHING"],
@@ -405,7 +410,9 @@ function nombres(e: EntradaSeleccion): string[] {
   return seleccionarEstiramientos(e).estiramientos.map((x) => x.nombre);
 }
 
-const sesionesConOferta = SESIONES.filter((s) => modoOfreceEstiramiento(s.modo));
+const sesionesConOferta = SESIONES.filter((s) =>
+  modoOfreceEstiramiento(s.modo),
+);
 
 describe("tabla de referencia del SPEC 4.1", () => {
   it("transcribe las 12 sesiones del TSV: 11 con oferta + el sabado ROM", () => {
@@ -468,9 +475,12 @@ describe("tabla de referencia del SPEC 4.1", () => {
 });
 
 describe("modoOfreceEstiramiento (D-06)", () => {
-  it.each(["regular", "combos", "tecnica"])("%s ofrece estiramiento", (modo) => {
-    expect(modoOfreceEstiramiento(modo)).toBe(true);
-  });
+  it.each(["regular", "combos", "tecnica"])(
+    "%s ofrece estiramiento",
+    (modo) => {
+      expect(modoOfreceEstiramiento(modo)).toBe(true);
+    },
+  );
 
   it("rom no ofrece estiramiento (W37-sabado-alfa)", () => {
     const sabado = SESIONES.find((s) => s.dayId === "W37-sabado-alfa");
@@ -531,7 +541,9 @@ describe("familias del dia (pasos 1 y 2)", () => {
 
   it("PL cuenta como FL (D-04)", () => {
     const r = seleccionarEstiramientos(
-      entrada({ prescritos: [{ nombre: "RH TUCK TO STR", familiaBase: "PL" }] }),
+      entrada({
+        prescritos: [{ nombre: "RH TUCK TO STR", familiaBase: "PL" }],
+      }),
     );
     expect(r.familias).toEqual(["FL"]);
   });
