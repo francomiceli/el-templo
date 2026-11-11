@@ -46,7 +46,7 @@ import { RETIROS_COST_CENTER_NAME } from "./withdrawal-service";
 import { assertEfectivoCoversOutflow } from "./efectivo-guard";
 import { assertMethodAllowedForAccount } from "./payment-method-rules";
 import { createCountAdjustment } from "./count-adjustment";
-import { collectTransferGroupIds } from "./transfer-pair";
+import { collectTransferGroupIds, createTransferPair } from "./transfer-pair";
 import type {
   MovementDetail,
   OpeningCountInput,
@@ -181,73 +181,29 @@ export class MovementService {
     );
 
     return await this.db.transaction(async (tx) => {
-      // Pata A: outflow en origen. cashRegisterId explícito (override) — NO se
-      // resuelve por paymentMethod (las cajas son explícitas en un movimiento).
-      // branchId = la sucursal de la caja (null para central/banco — Plan 01
-      // hizo branch_id NULLABLE para esto).
-      const outflow = await this.txnService.create(
+      // Par de traslado (salida en origen + entrada en destino + links ida y
+      // vuelta): armado único en transfer-pair.ts, compartido con el retiro.
+      const { outflowId, inflowId } = await createTransferPair(
         ctx,
+        tx,
+        this.txnService,
         {
-          memberId: null,
-          kind: "cash_transfer",
-          direction: "outflow",
+          origen: {
+            id: origenCajaId,
+            currency: origen.currency,
+            branchId: origen.branchId,
+          },
+          destino: {
+            id: destinoCajaId,
+            currency: destino.currency,
+            branchId: destino.branchId,
+          },
           amount,
-          currency: origen.currency,
-          paymentMethod: "internal",
           transactionDate: this.today(),
-          effectiveDate: this.today(),
-          branchId: origen.branchId,
-          cashRegisterId: origenCajaId,
           notes: notes ?? null,
-          links: [],
         },
         adminId,
-        tx,
       );
-
-      // Pata B: inflow en destino.
-      const inflow = await this.txnService.create(
-        ctx,
-        {
-          memberId: null,
-          kind: "cash_transfer",
-          direction: "inflow",
-          amount,
-          currency: destino.currency,
-          paymentMethod: "internal",
-          transactionDate: this.today(),
-          effectiveDate: this.today(),
-          branchId: destino.branchId,
-          cashRegisterId: destinoCajaId,
-          notes: notes ?? null,
-          links: [],
-        },
-        adminId,
-        tx,
-      );
-
-      // Link the 2 legs both-ways (target_kind='transaction', allocatedAmount 0
-      // — provenance link, not a money allocation; applyDelta ignores tx-to-tx
-      // links). voidMovement walks these to find the sibling leg.
-      await tx.insert(schema.transactionLinks).values([
-        // `as const` SOLO acá: dentro de un array literal el elemento pierde el
-        // tipo contextual de `.values()`, asi que `tenantValues` infiere
-        // `targetKind: string` y el enum de Drizzle deja de compilar. En el
-        // insert de un objeto suelto (el del ajuste, abajo) no hace falta —
-        // es el matiz que el hallazgo 169-07 no cubria.
-        tenantValues(ctx, {
-          transactionId: outflow.id,
-          targetKind: "transaction" as const,
-          targetId: inflow.id,
-          allocatedAmount: 0,
-        }),
-        tenantValues(ctx, {
-          transactionId: inflow.id,
-          targetKind: "transaction" as const,
-          targetId: outflow.id,
-          allocatedAmount: 0,
-        }),
-      ]);
 
       // D-04 reconciliation. Only materialize an adjustment when the physical
       // count differs from expected. The adjustment row corrects origen's saldo
@@ -275,7 +231,7 @@ export class MovementService {
             effectiveDate: this.today(),
             branchId: origen.branchId,
             cashRegisterId: origenCajaId,
-            notes: `Reconciliación movimiento #${outflow.id}: esperado ${roundMoney(expectedAmount)}, contado ${roundMoney(countedAmount)}`,
+            notes: `Reconciliación movimiento #${outflowId}: esperado ${roundMoney(expectedAmount)}, contado ${roundMoney(countedAmount)}`,
             links: [],
           },
           adminId,
@@ -289,7 +245,7 @@ export class MovementService {
           tenantValues(ctx, {
             transactionId: adjustment.id,
             targetKind: "transaction",
-            targetId: outflow.id,
+            targetId: outflowId,
             allocatedAmount: 0,
           }),
         );
@@ -302,10 +258,10 @@ export class MovementService {
         actorId: adminId,
         action: "reconciliation",
         targetKind: "transaction",
-        targetId: outflow.id,
+        targetId: outflowId,
         payload: {
-          movementId: outflow.id,
-          inflowTxId: inflow.id,
+          movementId: outflowId,
+          inflowTxId: inflowId,
           adjustmentId: adjustmentTxId,
           expected: roundMoney(expectedAmount),
           counted: countedAmount ?? null,
@@ -318,8 +274,8 @@ export class MovementService {
 
       this.log.info(
         {
-          outflowTxId: outflow.id,
-          inflowTxId: inflow.id,
+          outflowTxId: outflowId,
+          inflowTxId: inflowId,
           adjustmentTxId,
           origenCajaId,
           destinoCajaId,
@@ -332,8 +288,8 @@ export class MovementService {
       );
 
       return {
-        outflowTxId: outflow.id,
-        inflowTxId: inflow.id,
+        outflowTxId: outflowId,
+        inflowTxId: inflowId,
         adjustmentTxId,
         expectedAmount,
         countedAmount: countedAmount ?? null,

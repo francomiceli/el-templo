@@ -7,7 +7,9 @@
 // pata de salida está vinculada a los cobros que el retiro se llevó.
 //
 // `collectTransferGroupIds` descubre el grupo a anular desde CUALQUIERA de las
-// dos patas. 208-06 le suma `createTransferPair` (el armado del par).
+// dos patas. `createTransferPair` (208-06) es el ÚNICO lugar donde se arma el
+// par: lo usan el traslado común (`MovementService.registerMovement`) y el
+// retiro con destino (`WithdrawalService.registerWithdrawal`).
 //
 // TRAMPA que este helper cierra: la anulación vieja caminaba TODOS los links de
 // la fila (como origen y como destino) sin mirar el kind. En un retiro nuevo la
@@ -23,8 +25,13 @@ import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { BadRequestError, NotFoundError } from "../shared/errors";
-import { tenantWhere, type TenantContext } from "../shared/tenant";
+import {
+  tenantValues,
+  tenantWhere,
+  type TenantContext,
+} from "../shared/tenant";
 import type { TxHandle } from "./balance-service";
+import type { TransactionService } from "./transaction-service";
 import { withdrawalFormatOf } from "./withdrawal-marker";
 
 type DbInstance = MySql2Database<typeof schema>;
@@ -72,7 +79,11 @@ export async function collectTransferGroupIds(
 
   // Hermana: la otra fila `cash_transfer` vinculada, en cualquier sentido.
   const asSource = await db
-    .select({ id: ft.id, direction: ft.direction, responsibleName: ft.responsibleName })
+    .select({
+      id: ft.id,
+      direction: ft.direction,
+      responsibleName: ft.responsibleName,
+    })
     .from(tl)
     .innerJoin(ft, and(tenantWhere(ft, ctx), eq(ft.id, tl.targetId)))
     .where(
@@ -84,7 +95,11 @@ export async function collectTransferGroupIds(
       ),
     );
   const asTarget = await db
-    .select({ id: ft.id, direction: ft.direction, responsibleName: ft.responsibleName })
+    .select({
+      id: ft.id,
+      direction: ft.direction,
+      responsibleName: ft.responsibleName,
+    })
     .from(tl)
     .innerJoin(ft, and(tenantWhere(ft, ctx), eq(ft.id, tl.transactionId)))
     .where(
@@ -161,4 +176,133 @@ export async function collectTransferGroupIds(
         responsibleName: outflow.responsibleName,
       }) === "transfer",
   };
+}
+
+export interface TransferPairCaja {
+  id: number;
+  currency: string;
+  /** Sede de la caja (NULL para Central, Tesoro o banco). */
+  branchId: number | null;
+}
+
+export interface CreateTransferPairInput {
+  origen: TransferPairCaja;
+  destino: TransferPairCaja;
+  amount: number;
+  /** YYYY-MM-DD: fecha de la transacción y fecha efectiva de las dos patas. */
+  transactionDate: string;
+  notes: string | null;
+  /**
+   * Responsable. Si viene (retiro) se graba en las DOS patas: es lo que hace
+   * que el marcador vea la salida como retiro y que la entrada se lea sola
+   * ("Retiro desde ..."). El traslado común no lo manda.
+   */
+  responsibleName?: string | null;
+  /**
+   * Clave de idempotencia opcional, SOLO en la pata de salida (la entrada
+   * nunca la lleva: el UNIQUE es global). Todavía sin uso: deja trivial el
+   * merge de la rama T0 (`fix/traslados-idempotencia`).
+   */
+  idempotencyKey?: string | null;
+}
+
+/**
+ * Arma el par de un traslado entre cajas: pata de SALIDA en el origen, pata de
+ * ENTRADA en el destino (`kind 'cash_transfer'`, `payment_method 'internal'`,
+ * mismo monto, fecha y notas) y los dos links ida y vuelta con
+ * `allocated_amount` 0. El orden de inserts es salida, entrada, links, y es
+ * parte del contrato (el id de la salida es menor que el de la entrada).
+ *
+ * Corre dentro de la transacción del caller (`tx`): este helper no abre la
+ * suya. Los callers validan con mensajes de usuario (moneda, misma caja,
+ * activa, etc.) ANTES; los guards de acá son de programación.
+ *
+ * Contrato del formato (traslado común y retiro nuevo): ver el docblock de
+ * `withdrawal-marker.ts`. Lo propio del retiro (ajuste por conteo, links a los
+ * cobros, arqueo) lo agrega el caller sobre el `outflowId` que devuelve.
+ */
+export async function createTransferPair(
+  ctx: TenantContext,
+  tx: TxHandle,
+  txnService: TransactionService,
+  input: CreateTransferPairInput,
+  adminId: number,
+): Promise<{ outflowId: number; inflowId: number }> {
+  const { origen, destino, amount, transactionDate, notes } = input;
+  if (origen.id === destino.id) {
+    throw new Error("createTransferPair: origen y destino son la misma caja");
+  }
+  if (origen.currency !== destino.currency) {
+    throw new Error(
+      `createTransferPair: monedas distintas (${origen.currency} -> ${destino.currency})`,
+    );
+  }
+  const responsibleName = input.responsibleName ?? null;
+
+  // Pata A: salida en el origen. `cashRegisterId` explícito (no se resuelve por
+  // medio de pago) y `branchId` = sede de la caja.
+  const outflow = await txnService.create(
+    ctx,
+    {
+      memberId: null,
+      kind: "cash_transfer",
+      direction: "outflow",
+      amount,
+      currency: origen.currency,
+      paymentMethod: "internal",
+      transactionDate,
+      effectiveDate: transactionDate,
+      branchId: origen.branchId,
+      cashRegisterId: origen.id,
+      notes,
+      responsibleName,
+      idempotencyKey: input.idempotencyKey ?? null,
+      links: [],
+    },
+    adminId,
+    tx,
+  );
+
+  // Pata B: entrada en el destino (sin idempotencyKey).
+  const inflow = await txnService.create(
+    ctx,
+    {
+      memberId: null,
+      kind: "cash_transfer",
+      direction: "inflow",
+      amount,
+      currency: destino.currency,
+      paymentMethod: "internal",
+      transactionDate,
+      effectiveDate: transactionDate,
+      branchId: destino.branchId,
+      cashRegisterId: destino.id,
+      notes,
+      responsibleName,
+      links: [],
+    },
+    adminId,
+    tx,
+  );
+
+  // Links ida y vuelta (`allocated_amount` 0: vínculo de procedencia, no una
+  // asignación de plata). La anulación los camina para hallar la pata hermana.
+  await tx.insert(schema.transactionLinks).values([
+    // `as const` SOLO acá: dentro de un array literal el elemento pierde el
+    // tipo contextual de `.values()` y el enum de Drizzle deja de compilar.
+    tenantValues(ctx, {
+      transactionId: outflow.id,
+      targetKind: "transaction" as const,
+      targetId: inflow.id,
+      allocatedAmount: 0,
+    }),
+    tenantValues(ctx, {
+      transactionId: inflow.id,
+      targetKind: "transaction" as const,
+      targetId: outflow.id,
+      allocatedAmount: 0,
+    }),
+  ]);
+
+  return { outflowId: outflow.id, inflowId: inflow.id };
 }
