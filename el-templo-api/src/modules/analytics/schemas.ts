@@ -62,6 +62,8 @@ const activeMembersKpiSchema = {
         totalActive: { type: "integer" },
       },
     },
+    // Visitantes Wellhub del período sin membresía vigente (fuera del valor).
+    wellhubVisitors: { type: "integer" },
   },
 } as const;
 
