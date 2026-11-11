@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { fractionDigitsFor } from './money';
 
 /**
  * Extract a user-friendly error message from an Axios error or unknown error.
@@ -63,10 +64,13 @@ export function parseActiveTransactionsBlock(
   const count = data.details?.transactionIds?.length ?? 0;
   const amount = data.details?.totalAmount ?? 0;
   const currency = data.details?.currency ?? 'ARS';
+  // Fase 207: decimales solo si el total tiene centavos.
+  const digits = fractionDigitsFor(amount);
   const formatted = new Intl.NumberFormat('es-AR', {
     style: 'currency',
     currency,
-    maximumFractionDigits: 0,
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
   }).format(amount);
   const plural = count === 1 ? '' : 's';
   const message = `No se puede ${verb}: tiene ${count} cobro${plural} activo${plural} por ${formatted}. Anulalos primero en Detalle Financiero → Anular y volvé a intentar.`;
