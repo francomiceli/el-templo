@@ -51,7 +51,18 @@ describe('parseMoneyInput', () => {
     expect(parseMoneyInput('$')).toEqual({ ok: false, reason: 'empty' });
   });
 
-  const invalidos = ['abc', '-5', '1,234,5', '1,2,3', '12a', '1.5.5', ',5', '.5', '1.500,5,0', '--1'];
+  const invalidos = [
+    'abc',
+    '-5',
+    '1,234,5',
+    '1,2,3',
+    '12a',
+    '1.5.5',
+    ',5',
+    '.5',
+    '1.500,5,0',
+    '--1',
+  ];
   for (const text of invalidos) {
     it(`"${text}" -> invalid`, () => {
       expect(parseMoneyInput(text)).toEqual({ ok: false, reason: 'invalid' });
