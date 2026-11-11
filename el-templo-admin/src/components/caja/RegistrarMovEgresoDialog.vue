@@ -154,6 +154,7 @@ import { createLogger } from 'src/utils/logger';
 import { extractError } from 'src/utils/extract-error';
 import { useTransactionsApi } from 'src/composables/useTransactionsApi';
 import { compareMoney } from 'src/utils/money';
+import { currencySymbol } from 'src/utils/currencies';
 import MoneyInput from 'src/components/MoneyInput.vue';
 import type { CajaSaldoRow, CostCenterItem } from 'src/types/transaction';
 
@@ -191,8 +192,13 @@ const show = computed({
 const cajas = ref<CajaSaldoRow[]>([]);
 const loadingCajas = ref(false);
 
+/** Etiqueta de caja: el Tesoro se distingue de la Caja central por el sufijo (fase 208). */
+function cajaLabel(c: CajaSaldoRow): string {
+  return `${c.name} (${c.currency})${c.isTreasury ? ' · Tesoro' : ''}`;
+}
+
 const cajaOptions = computed(() =>
-  cajas.value.map((c) => ({ label: `${c.name} (${c.currency})`, value: c.cashRegisterId }))
+  cajas.value.map((c) => ({ label: cajaLabel(c), value: c.cashRegisterId }))
 );
 
 function cajaById(id: number | null): CajaSaldoRow | undefined {
@@ -313,7 +319,7 @@ const destinoOptions = computed(() => {
   const cur = origenCurrency.value;
   return cajas.value
     .filter((c) => c.cashRegisterId !== mov.origenCajaId && c.currency === cur)
-    .map((c) => ({ label: `${c.name} (${c.currency})`, value: c.cashRegisterId }));
+    .map((c) => ({ label: cajaLabel(c), value: c.cashRegisterId }));
 });
 
 function onOrigenChange() {
@@ -325,12 +331,6 @@ function onOrigenChange() {
   ) {
     mov.destinoCajaId = null;
   }
-}
-
-function currencySymbol(currency: string): string {
-  if (currency === 'EUR') return '€';
-  if (currency === 'ARS') return '$';
-  return currency;
 }
 
 // Monto obligatorio y mayor a 0 (el parser de MoneyInput ya limita a 2 decimales).
