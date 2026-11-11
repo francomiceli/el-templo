@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v6.1
 milestone_name: Módulo Gimnasio
 status: executing
-stopped_at: Completed 213-11-PLAN.md
-last_updated: "2026-11-11T20:24:01.199Z"
+stopped_at: Completed 213-12-PLAN.md
+last_updated: "2026-11-11T20:27:17.931Z"
 last_activity: 2026-11-11
 progress:
   total_phases: 31
   completed_phases: 10
   total_plans: 300
-  completed_plans: 255
+  completed_plans: 256
   percent: 32
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 ## Current Position
 
 Phase: 213 (Estiramiento post-clase) — EXECUTING
-Plan: 12 of 13
+Plan: 13 of 13
 Status: Ready to execute
 Last activity: 2026-11-11
 
@@ -1044,9 +1044,9 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-11-11T20:24:01.178Z
+Last session: 2026-11-11T20:27:17.894Z
 Stopped at: Completed 213-11-PLAN.md
-Resume file: .planning/phases/213-estiramiento-post-clase/213-12-PLAN.md
+Resume file: .planning/phases/213-estiramiento-post-clase/213-13-PLAN.md
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
 
