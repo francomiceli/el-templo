@@ -140,12 +140,7 @@
               <!-- Desglose (solo informativo): solo la card de activos lo tiene -->
               <template v-if="kpi.key === 'activeMembers' && activeBreakdown">
                 <q-space />
-                <q-icon
-                  name="info"
-                  size="18px"
-                  color="grey-6"
-                  class="cursor-pointer"
-                >
+                <q-icon name="info" size="18px" color="grey-6" class="cursor-pointer">
                   <q-menu anchor="bottom right" self="top right">
                     <div class="q-pa-md" style="min-width: 260px">
                       <div class="text-subtitle2 q-mb-xs">Desglose de activos</div>
@@ -207,6 +202,21 @@
                 {{ kpi.trend.percentage.toFixed(1) }}%
               </span>
             </div>
+            <!-- Apartado Wellhub: fuera del número grande (no pagan membresía).
+                 Solo si hubo visitas, así no aparece en gimnasios sin Wellhub. -->
+            <template v-if="kpi.key === 'activeMembers' && wellhubVisitors > 0">
+              <q-separator spaced />
+              <div class="row items-center no-wrap">
+                <q-icon name="confirmation_number" size="18px" color="grey-7" class="q-mr-xs" />
+                <span class="text-body2">
+                  <span class="text-weight-bold">{{ wellhubVisitors }}</span>
+                  por Wellhub
+                </span>
+              </div>
+              <div class="text-caption text-grey-6">
+                Vinieron en el período, sin membresía vigente
+              </div>
+            </template>
           </q-card-section>
         </q-card>
       </div>
@@ -704,6 +714,10 @@ function formatCurrency(value: number): string {
 // no navega al listado — esos socios no se exponen en la lista de Alumnos.
 
 const activeBreakdown = computed(() => kpis.value?.activeMembers.breakdown ?? null);
+
+// Visitantes Wellhub del período sin membresía vigente. Va como apartado
+// dentro de la card de activos, nunca sumado al número grande.
+const wellhubVisitors = computed(() => kpis.value?.activeMembers.wellhubVisitors ?? 0);
 
 const kpiCards = computed<KpiCard[]>(() => {
   if (!kpis.value) return [];

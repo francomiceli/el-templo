@@ -50,6 +50,11 @@ export interface KpiStats {
     value: number;
     trend: Trend;
     breakdown: ActiveMembersBreakdown;
+    /**
+     * Personas distintas con visita Wellhub en el período elegido y sin
+     * membresía vigente. Apartado aparte: NO suma al valor ni al desglose.
+     */
+    wellhubVisitors: number;
   };
   /**
    * Monthly revenue per currency (D-05). Replaces the former single

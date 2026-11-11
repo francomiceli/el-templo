@@ -28,6 +28,7 @@ import {
   activeSubOfKindExists,
 } from "../shared/active-member";
 import { membershipPlanCondition, notTrialPlanSql } from "../shared/membership";
+import { isWellhubAttendanceSql } from "../shared/wellhub-sources";
 import { firmMoneySqlFor } from "../finance/firm-money";
 import { resolveEffectiveCapacity } from "../scheduling/capacity";
 import { applyScope } from "./scope";
@@ -249,12 +250,12 @@ export class AnalyticsService {
     value: number;
     trend: Trend;
     breakdown: ActiveMembersBreakdown;
+    wellhubVisitors: number;
   }> {
-    const breakdown = await this.countActiveMembersBreakdown(
-      ctx,
-      branchId,
-      country,
-    );
+    const [breakdown, wellhubVisitors] = await Promise.all([
+      this.countActiveMembersBreakdown(ctx, branchId, country),
+      this.countWellhubVisitors(ctx, branchId, country, dateFrom, dateTo),
+    ]);
     // `paying` es EXACTAMENTE el conteo del KPI (activePayingNonEspecial):
     // reusar la misma cifra evita una 2ª query y garantiza que el número
     // grande y el desglose nunca se contradigan.
@@ -281,7 +282,65 @@ export class AnalyticsService {
       value: currentCount,
       trend: this.computeTrend(currentCount, priorCount),
       breakdown,
+      wellhubVisitors,
     };
+  }
+
+  /**
+   * Personas que vinieron por Wellhub en el período elegido y NO tienen
+   * ninguna membresía vigente hoy. Se muestra como apartado dentro de la
+   * tarjeta "Activos hoy", fuera del número grande: el visitante Wellhub no
+   * paga membresía, así que sumarlo rompería ARPU, churn y la tendencia.
+   *
+   * - Visita Wellhub = `attendance_source` `wellhub` o `wellhub_manual`
+   *   (`isWellhubAttendanceSql`, única definición compartida).
+   * - Se excluye a quien tiene CUALQUIER sub vigente (`activeMemberExists`, el
+   *   mismo predicado de `totalActive`): un socio que además usa Wellhub ya
+   *   está en el desglose y no se cuenta dos veces.
+   * - Sede/país: los de la VISITA (`attendance.branch_id`), igual que el resto
+   *   de las métricas de asistencia.
+   * - Rango half-open [dateFrom, dateTo+1) sobre `checked_in_at` (índice
+   *   usable, mismo patrón que `computeDailyAvg`).
+   */
+  private async countWellhubVisitors(
+    ctx: TenantContext,
+    branchId: number | undefined,
+    country: "AR" | "ES" | undefined,
+    dateFrom: string,
+    dateTo: string,
+  ): Promise<number> {
+    /* tenant-safe: filtros de rango/fuente/sede/país — el tenantWhere(schema.attendance, ctx) real va en el .where() de abajo, y activeMemberExists recibe ctx */
+    const conditions: SQL[] = [
+      sql`${schema.attendance.checkedInAt} >= ${dateFrom}`,
+      sql`${schema.attendance.checkedInAt} < ${nextDay(dateTo)}`,
+      isWellhubAttendanceSql(),
+      sql`NOT ${activeMemberExists(schema.attendance.memberId, ctx)}`,
+    ];
+    if (branchId !== undefined) {
+      conditions.push(eq(schema.attendance.branchId, branchId));
+    }
+    if (country !== undefined) {
+      conditions.push(eq(schema.branches.country, country));
+    }
+
+    let query = this.db
+      .select({
+        count: sql<number>`COUNT(DISTINCT ${schema.attendance.memberId})`,
+      })
+      .from(schema.attendance)
+      .where(and(tenantWhere(schema.attendance, ctx), ...conditions))
+      .$dynamic();
+
+    if (country !== undefined) {
+      /* tenant-safe: branches joineado por FK para filtrar por country una fila de attendance ya scopeada por tenantWhere arriba, no expone datos cross-gym (D4) */
+      query = query.innerJoin(
+        schema.branches,
+        sql`/* tenant-safe: branches joineado por FK para filtrar por country una fila de attendance ya scopeada por tenantWhere arriba, no expone datos cross-gym (D4) */ ${schema.branches.id} = ${schema.attendance.branchId}`,
+      );
+    }
+
+    const [result] = await query;
+    return Number(result?.count ?? 0);
   }
 
   /**
