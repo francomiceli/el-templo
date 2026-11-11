@@ -113,7 +113,7 @@ describe("Migración 0329 — Tesoro y cheque", () => {
         {
           kind: "expense" as const,
           direction: "outflow" as const,
-          amount: 1234.56,
+          amount: 1234,
           currency: "ARS",
           paymentMethod: "cheque" as const,
           transactionDate: "2026-11-10",
@@ -137,7 +137,7 @@ describe("Migración 0329 — Tesoro y cheque", () => {
           ),
         );
       expect(fila.paymentMethod).toBe("cheque");
-      expect(fila.amount).toBe(1234.56);
+      expect(fila.amount).toBe(1234);
     } finally {
       await app.dbPool.query(
         "DELETE FROM financial_transactions WHERE id = ? AND tenant_id = 1",

@@ -292,7 +292,7 @@ describe("Migraciones 0327/0328 — sede del alumno (plata en enteros)", () => {
            (tenant_id, member_id, member_branch_id, kind, direction, amount,
             currency, payment_method, transaction_date, effective_date,
             recorded_by, validation_status)
-         VALUES (1, ?, ?, ?, ?, 1500.50, 'ARS', 'cash', '2026-11-10',
+         VALUES (1, ?, ?, ?, ?, 1500, 'ARS', 'cash', '2026-11-10',
                  '2026-11-10', ?, 'validado')`,
         [
           over.memberId,
