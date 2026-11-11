@@ -1171,7 +1171,7 @@ Plans:
 - [x] 213-01-PLAN.md — node_modules por symlink + tablas `stretch_catalog`/`stretch_offers`, semilla de la lista curada y gates de tenancy
 - [x] 213-02-PLAN.md — Regla pura de selección con la tabla de referencia del SPEC (TDD)
 - [x] 213-03-PLAN.md — Reglas puras de grupo (crc32), momento del push con tope 21:30, ventana y tope de frecuencia (TDD)
-- [ ] 213-04-PLAN.md — StretchService (elegibilidad, sesión, rutina congelada) + `GET /api/sessions/stretch/today` + manifiesto + tests
+- [x] 213-04-PLAN.md — StretchService (elegibilidad, sesión, rutina congelada) + `GET /api/sessions/stretch/today` + manifiesto + tests
 - [ ] 213-05-PLAN.md — Fuente AURA `stretch` + `POST /stretch/events` y `/stretch/complete` + invariantes + ISO-03
 - [ ] 213-06-PLAN.md — Sección curada `estirar` (API + 2 espejos) + plantilla `stretch_followup` (nace apagada) + textos del admin
 - [ ] 213-07-PLAN.md — Push en el tick de `notification-cron.ts` con motivos, tope, segundo gimnasio y reconciliación + tests §5.2
