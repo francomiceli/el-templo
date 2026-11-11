@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>213-10 · Reloj del estiramiento: bloque work_rest (A) vs por ejercicio (B)</title>
+<style>
+  /* Sketch desechable: autocontenido, sin red. Paleta cálida de la marca (sin azul). */
+  :root {
+    --ink: #2c2318; --ink-2: #5f584d; --cream: #f2ebe1; --paper: #fbf8f3; --line: #e5dbcd;
+    --terra: #96593a; --btn-a: #a35f3c; --btn-b: #7e4529; --sage: #3f6a47; --sage-tint: #e9f0e6;
+    --cream-2: #e3c9a8; --cream-3: #c9bba6; --story: #2e2a26; --surface: #2c2318;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #e9e2d7; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; color: var(--ink); }
+  header.top { max-width: 1100px; margin: 0 auto; padding: 24px 20px 4px; }
+  header.top h1 { margin: 0; font: 800 21px system-ui, sans-serif; }
+  header.top p { margin: 6px 0 0; color: var(--ink-2); font-size: 14px; line-height: 1.45; }
+  .tools { max-width: 1100px; margin: 12px auto 0; padding: 0 20px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .tools button { border: 1px solid #cdbfac; background: #fff; border-radius: 999px; padding: 7px 14px; font: 600 13px system-ui; color: var(--ink); cursor: pointer; }
+  .tools button[aria-pressed='true'] { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .tools .clock { font: 700 13px ui-monospace, monospace; color: var(--ink-2); margin-left: 8px; }
+  .row { max-width: 1100px; margin: 18px auto 20px; padding: 0 20px; display: flex; gap: 34px; flex-wrap: wrap; justify-content: center; }
+  .cap { width: 360px; }
+  .cap h3 { margin: 0 0 4px; font: 800 14px system-ui; }
+  .cap p { margin: 0 0 10px; font-size: 12.5px; color: var(--ink-2); line-height: 1.4; min-height: 52px; }
+
+  /* Teléfono */
+  .phone { width: 360px; height: 700px; border-radius: 32px; overflow: hidden; background: var(--paper); box-shadow: 0 18px 40px rgba(44,35,24,.22), 0 0 0 9px #1c1814; display: flex; flex-direction: column; position: relative; }
+  .status { height: 26px; flex: none; background: #1c1814; color: #fff; font: 600 12px system-ui; display: flex; align-items: center; justify-content: space-between; padding: 0 22px; }
+
+  .story { position: relative; height: 210px; flex: none; background: linear-gradient(135deg, #1e1b18 0%, #2e2a26 50%, #3d3732 100%); color: #fff; }
+  .story .hdr { position: absolute; top: 14px; left: 8px; right: 12px; display: flex; justify-content: space-between; align-items: center; }
+  .story.small { height: 112px; }
+  .story.small .novideo { top: 52px; }
+  .story .back { font-size: 22px; padding: 6px 10px; }
+  .story .titles { text-align: right; }
+  .story .kicker { font: 800 10px system-ui; letter-spacing: .14em; text-transform: uppercase; color: var(--cream-2); }
+  .story .name { font: 700 15px system-ui; }
+  .story .foot { position: absolute; left: 14px; right: 14px; bottom: 12px; }
+  .story .foot b { display: block; font: 700 17px system-ui; }
+  .story .foot span { font-size: 12.5px; color: var(--cream-3); }
+  .story .novideo { position: absolute; left: 0; right: 0; top: 70px; text-align: center; font-size: 11px; color: #8d8272; letter-spacing: .1em; text-transform: uppercase; }
+
+  /* Opción A: reloj de bloque en la fila del formato */
+  .fmt { display: flex; justify-content: space-between; align-items: flex-start; padding: 12px 16px; border-bottom: 1px solid var(--line); background: #fff; }
+  .fmt .l b { display: block; font: 700 14px Georgia, serif; letter-spacing: .06em; text-transform: uppercase; }
+  .fmt .l span { font-size: 12px; color: var(--ink-2); }
+  .fmt .r { width: 108px; text-align: right; }
+  .fmt .t { font: 700 30px Georgia, serif; font-variant-numeric: tabular-nums; color: #3d3732; line-height: 1; }
+  .fmt .lab { margin-top: 3px; font: 800 9.5px system-ui; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-2); }
+
+  /* Opción B: tarjeta del reloj (hermana del player) */
+  .clock-card { flex: none; background: var(--surface); color: var(--cream); padding: 10px 16px 12px; text-align: center; }
+  .clock-card .k { font: 800 10px system-ui; letter-spacing: .16em; text-transform: uppercase; color: var(--cream-2); }
+  .clock-card .nm { font: 800 19px system-ui; margin: 2px 0 6px; line-height: 1.15; }
+  .clock-card .big { font: 700 58px Georgia, serif; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+  .clock-card .side { display: inline-block; margin-top: 6px; padding: 3px 11px; border-radius: 999px; border: 1px solid rgba(240,230,214,.45); font: 700 12px system-ui; }
+  .clock-card .switch { margin-top: 6px; min-height: 20px; font: 800 13px system-ui; color: #f1d6ad; letter-spacing: .06em; text-transform: uppercase; }
+  .clock-card .bar { margin-top: 8px; height: 6px; border-radius: 3px; background: rgba(240,230,214,.18); position: relative; overflow: hidden; }
+  .clock-card .bar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--cream-2); }
+  .clock-card .left { margin-top: 4px; font-size: 11.5px; color: var(--cream-3); }
+  .clock-card.prep .big { color: #f1d6ad; }
+  .clock-card.done .nm { color: #f1d6ad; }
+
+  /* Lista y cierre (iguales en A y B: marcado por toque, D-08) */
+  .list { flex: 1; overflow: hidden; padding: 8px 14px; background: var(--paper); }
+  .list h4 { margin: 4px 0 6px; font: 800 10px system-ui; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-2); }
+  .ex { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 10px; border: 1px solid transparent; font-size: 13px; cursor: pointer; }
+  .ex .box { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #948878; flex: none; display: grid; place-items: center; font-size: 13px; color: #fff; }
+  .ex.on { background: #fff; border-color: var(--line); font-weight: 700; }
+  .ex.marked .box { background: var(--sage); border-color: var(--sage); }
+  .ex.marked .nm2 { color: var(--ink-2); text-decoration: line-through; }
+  .ex .sd { margin-left: auto; font-size: 11px; color: var(--ink-2); }
+  .cta { flex: none; padding: 10px 16px 14px; background: var(--paper); border-top: 1px solid var(--line); }
+  .cta button { width: 100%; border: 0; border-radius: 12px; padding: 13px; font: 700 15px system-ui; color: #fff; background: linear-gradient(135deg, var(--btn-a), var(--btn-b)); }
+  .cta button[disabled] { background: #e7dfd3; color: var(--ink-2); }
+  .cta button.hot { animation: pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse { 50% { transform: scale(1.03); } }
+  @media (prefers-reduced-motion: reduce) { .cta button.hot { animation: none; } }
+
+  .meas { max-width: 1100px; margin: 0 auto 40px; padding: 0 20px; }
+  .meas table { border-collapse: collapse; background: #fff; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; font-size: 13px; width: 100%; }
+  .meas th, .meas td { padding: 8px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+  .meas th { background: var(--cream); font-weight: 700; }
+  .meas .bad { color: #8f3434; font-weight: 700; }
+  .meas .ok { color: var(--sage); font-weight: 700; }
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>213-10 · Reloj del estiramiento: A (bloque work_rest 45/10) vs B (reloj por ejercicio)</h1>
+  <p>Misma rutina de referencia W37-lunes-kairos en los dos teléfonos: COUCH STRETCH x2, STR PIKE STANDING, BUTCHER FLOOR STRETCH, SITTED GLUTE STRETCH x2 y LAYED DOWN HAM BENT x2 (8 lados, 5 ejercicios, 45 s por lado y 10 s de transición antes de cada ejercicio: 6:50 en total, igual que <code>plannedSeconds</code> del servidor). Tocá un ejercicio para marcarlo, como en la app (el reloj nunca marca solo). Los dos relojes corren a la vez: usá x10 para ver el recorrido completo.</p>
+</header>
+<div class="tools">
+  <button id="play" type="button" aria-pressed="false">Arrancar</button>
+  <button id="fast" type="button" aria-pressed="false">x10</button>
+  <button id="end" type="button">Saltar al final</button>
+  <button id="reset" type="button">Reiniciar</button>
+  <span class="clock" id="tclock">0:00</span>
+</div>
+
+<div class="row">
+  <div class="cap">
+    <h3>A. Reloj de bloque work_rest</h3>
+    <p>Lo que pintaría hoy BlockProgressionView con <code>timerSpec = work_rest 45/10 x 8 rondas</code> (una ronda = un lado). El ejercicio de la historia es el que va marcando el alumno.</p>
+    <div class="phone" id="phoneA"></div>
+  </div>
+  <div class="cap">
+    <h3>B. Reloj por ejercicio (StretchClock)</h3>
+    <p>Tarjeta propia arriba del player: nombre, lado, cuenta regresiva, aviso de cambio de lado y barra de la rutina. 10 s de transición ANTES de cada ejercicio.</p>
+    <div class="phone" id="phoneB"></div>
+  </div>
+</div>
+
+<div class="meas">
+  <table>
+    <thead><tr><th>Medición</th><th>A · work_rest 45/10</th><th>B · por ejercicio</th></tr></thead>
+    <tbody id="meas"></tbody>
+  </table>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var WORK = 45000, REST = 10000, TRANS = 10000;
+  var EXS = [
+    { name: 'COUCH STRETCH', sides: 2 },
+    { name: 'STR PIKE STANDING', sides: 1 },
+    { name: 'BUTCHER FLOOR STRETCH', sides: 1 },
+    { name: 'SITTED GLUTE STRETCH', sides: 2 },
+    { name: 'LAYED DOWN HAM BENT', sides: 2 }
+  ];
+  var TOTAL_SIDES = EXS.reduce(function (n, e) { return n + e.sides; }, 0);
+
+  // Línea de tiempo de B (la misma lógica que stretchTimeline de la app)
+  var timeline = [], cursor = 0;
+  EXS.forEach(function (e, i) {
+    function push(kind, side, ms) { timeline.push({ i: i, kind: kind, side: side, start: cursor, dur: ms }); cursor += ms; }
+    push('transition', null, TRANS);
+    push('work', 1, WORK);
+    if (e.sides === 2) push('work', 2, WORK);
+  });
+  var B_TOTAL = cursor;
+  var A_CYCLE = WORK + REST, A_TOTAL = A_CYCLE * TOTAL_SIDES;
+
+  function mmss(ms) {
+    var s = Math.max(0, Math.ceil(ms / 1000));
+    var m = Math.floor(s / 60), r = s % 60;
+    return m + ':' + (r < 10 ? '0' : '') + r;
+  }
+  function phaseB(t) {
+    if (t >= B_TOTAL) return { done: true };
+    for (var k = 0; k < timeline.length; k++) {
+      var s = timeline[k];
+      if (t < s.start + s.dur) return { done: false, seg: s, remaining: s.start + s.dur - t, into: t - s.start };
+    }
+    return { done: true };
+  }
+  function phaseA(t) {
+    if (t >= A_TOTAL) return { done: true };
+    var round = Math.floor(t / A_CYCLE), off = t - round * A_CYCLE;
+    var work = off < WORK;
+    return { done: false, work: work, round: round + 1, remaining: work ? WORK - off : A_CYCLE - off };
+  }
+
+  var marked = { A: {}, B: {} };
+  var t = 0, running = false, speed = 1, last = 0;
+
+  function esc(s) { return String(s).replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }); }
+  function allMarked(k) { return EXS.every(function (_, i) { return marked[k][i]; }); }
+  function firstUnmarked(k) { for (var i = 0; i < EXS.length; i++) if (!marked[k][i]) return i; return EXS.length - 1; }
+
+  function listHtml(k, activeIdx) {
+    return '<div class="list"><h4>Ejercicios · tocá para marcar</h4>' + EXS.map(function (e, i) {
+      return '<div class="ex' + (i === activeIdx ? ' on' : '') + (marked[k][i] ? ' marked' : '') + '" data-k="' + k + '" data-i="' + i + '">' +
+        '<span class="box">' + (marked[k][i] ? '&#10003;' : '') + '</span><span class="nm2">' + esc(e.name) + '</span>' +
+        '<span class="sd">' + (e.sides === 2 ? '2 lados' : '1 lado') + '</span></div>';
+    }).join('') + '</div>';
+  }
+  function ctaHtml(k, hot) {
+    return '<div class="cta"><button type="button" ' + (allMarked(k) ? '' : 'disabled') + (hot && allMarked(k) ? ' class="hot"' : '') + '>' +
+      (allMarked(k) ? 'Terminar estiramiento' : 'Marcá todos para terminar') + '</button></div>';
+  }
+  function storyHtml(kicker, name, exName, sub) {
+    return '<div class="story"><div class="hdr"><span class="back">&#8592;</span><div class="titles"><div class="kicker">' + esc(kicker) + '</div><div class="name">' + esc(name) + '</div></div></div>' +
+      '<div class="novideo">sin video</div><div class="foot"><b>' + esc(exName) + '</b><span>' + esc(sub) + '</span></div></div>';
+  }
+
+  function renderA() {
+    var p = phaseA(t), idx = firstUnmarked('A'), e = EXS[idx];
+    var time = p.done ? '0:00' : mmss(p.remaining);
+    var label = p.done ? 'Terminado' : (p.work ? 'Trabajo' : 'Descanso') + ' · ' + p.round + '/' + TOTAL_SIDES;
+    document.getElementById('phoneA').innerHTML =
+      '<div class="status"><span>9:41</span><span>5G</span></div>' +
+      storyHtml('Bloque libre · Stretching', 'Stretching', e.name, e.sides === 2 ? '45 s por lado' : '45 s') +
+      '<div class="fmt"><div class="l"><b>stretch</b><span>' + EXS.length + ' ejercicios</span></div><div class="r"><div class="t">' + time + '</div><div class="lab">' + label + '</div></div></div>' +
+      listHtml('A', idx) + ctaHtml('A', p.done);
+  }
+  function renderB() {
+    var p = phaseB(t), idx = firstUnmarked('B'), cls = 'clock-card', k, nm, big, side = '', sw = '', pct = Math.min(100, t / B_TOTAL * 100), left = mmss(B_TOTAL - t);
+    if (p.done) {
+      cls += ' done'; k = 'Rutina terminada'; nm = 'Marcá lo que hiciste y terminá'; big = '0:00'; left = '0:00';
+    } else if (p.seg.kind === 'transition') {
+      cls += ' prep'; k = 'Preparate'; nm = 'Ahora: ' + EXS[p.seg.i].name; big = mmss(p.remaining);
+      side = EXS[p.seg.i].sides === 2 ? 'Lado 1 de 2' : 'Un solo lado';
+    } else {
+      k = 'Estirando'; nm = EXS[p.seg.i].name; big = mmss(p.remaining);
+      side = EXS[p.seg.i].sides === 2 ? 'Lado ' + p.seg.side + ' de 2' : 'Un solo lado';
+      if (p.seg.side === 2 && p.into < 4000) sw = 'Cambiá de lado';
+    }
+    var ticks = timeline.filter(function (s) { return s.kind === 'transition' && s.i > 0; }).map(function (s) {
+      return '<b style="position:absolute;top:0;bottom:0;left:' + (s.start / B_TOTAL * 100) + '%;width:2px;background:#2c2318"></b>';
+    }).join('');
+    var activeIdx = p.done ? firstUnmarked('B') : p.seg.i;
+    document.getElementById('phoneB').innerHTML =
+      '<div class="status"><span>9:41</span><span>5G</span></div>' +
+      '<div class="' + cls + '"><div class="k">' + k + '</div><div class="nm">' + esc(nm) + '</div><div class="big" role="timer">' + big + '</div>' +
+      (side ? '<span class="side">' + side + '</span>' : '') + '<div class="switch">' + sw + '</div>' +
+      '<div class="bar"><i style="width:' + pct + '%"></i>' + ticks + '</div><div class="left">Quedan ' + left + ' de rutina</div></div>' +
+      storyHtml('Estiramiento', 'Post-clase', EXS[activeIdx].name, '').replace('class="story"', 'class="story small"') +
+      listHtml('B', activeIdx) + ctaHtml('B', p.done);
+  }
+
+  function render() {
+    renderA(); renderB();
+    document.getElementById('tclock').textContent = 'tiempo real transcurrido: ' + mmss(t);
+  }
+  function tick(now) {
+    if (running) { t += (now - last) * speed; if (t > A_TOTAL + 5000) { t = A_TOTAL + 5000; running = false; sync(); } render(); }
+    last = now; requestAnimationFrame(tick);
+  }
+  function sync() {
+    var p = document.getElementById('play'); p.textContent = running ? 'Pausar' : 'Arrancar'; p.setAttribute('aria-pressed', String(running));
+    var f = document.getElementById('fast'); f.setAttribute('aria-pressed', String(speed === 10));
+  }
+  document.getElementById('play').onclick = function () { running = !running; sync(); };
+  document.getElementById('fast').onclick = function () { speed = speed === 10 ? 1 : 10; sync(); };
+  document.getElementById('end').onclick = function () { t = B_TOTAL - 8000; render(); };
+  document.getElementById('reset').onclick = function () { t = 0; running = false; marked = { A: {}, B: {} }; sync(); render(); };
+  document.addEventListener('click', function (ev) {
+    var el = ev.target.closest && ev.target.closest('.ex'); if (!el) return;
+    var k = el.getAttribute('data-k'), i = Number(el.getAttribute('data-i')); marked[k][i] = !marked[k][i]; render();
+  });
+
+  document.getElementById('meas').innerHTML =
+    '<tr><td>Duración total de la rutina</td><td class="bad">' + mmss(A_TOTAL) + ' (8 x 55 s)</td><td class="ok">' + mmss(B_TOTAL) + ' (8 x 45 s + 5 x 10 s)</td></tr>' +
+    '<tr><td>Contra <code>plannedSeconds</code> del servidor (6:50 = 410 s)</td><td class="bad">+' + Math.round((A_TOTAL - 410000) / 1000) + ' s: mete 10 s de descanso tras CADA lado, la regla solo 10 s antes de cada ejercicio</td><td class="ok">coincide (' + (B_TOTAL / 1000) + ' s)</td></tr>' +
+    '<tr><td>Dice qué ejercicio y qué lado</td><td class="bad">No: "Trabajo 3/8". El ejercicio es el que marcó el alumno, no el que toca</td><td class="ok">Sí: nombre grande y "Lado 2 de 2"</td></tr>' +
+    '<tr><td>Cambio de lado sin tocar</td><td class="bad">No se distingue de un descanso entre ejercicios</td><td class="ok">Aviso "Cambiá de lado" sin pausa</td></tr>' +
+    '<tr><td>Costo en el código</td><td>Ninguno en el reloj, pero hay que arreglar los textos de BlockProgressionView igual</td><td>Un componente nuevo (StretchClock) + una función pura con test</td></tr>';
+
+  sync(); render(); requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
