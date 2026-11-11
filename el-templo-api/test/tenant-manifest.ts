@@ -1317,6 +1317,10 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     categoria: "templo-module",
     modulo: "templo-training",
   },
+  "GET /api/sessions/stretch/today": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
   "GET /api/sessions/weekly": {
     categoria: "templo-module",
     modulo: "templo-training",
