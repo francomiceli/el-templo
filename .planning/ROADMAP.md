@@ -1153,9 +1153,11 @@ _Unificado el 2026-10-28 (rescate de docs del master local): sobre el ROADMAP de
 
 ## Milestone: Egresos y rendiciones (fases 207-212, fuera de v6.1)
 
-Pedido de administración del 2026-11-10. Decisiones D-01..D-22 en `.planning/egresos-rendiciones/DECISIONES.md`; método y alcance en `.planning/egresos-rendiciones/MILESTONE.md`. Rama `feat/egresos-rendiciones` (worktree `et-egresos`), fases secuenciales.
+Pedido de administración del 2026-11-10. Decisiones D-01..D-24 en `.planning/egresos-rendiciones/DECISIONES.md` (el §20 revoca los centavos y recorta el milestone); método y alcance en `.planning/egresos-rendiciones/MILESTONE.md`. Rama `feat/egresos-rendiciones` (worktree `et-egresos`), fases secuenciales.
 
 ### Phase 207: Centavos en el sistema de plata + sede del alumno en cada cobro
+
+> **D-23 (2026-11-11): el cambio a centavos se revirtió en `9a342ad84`.** De esta fase queda solo la sede del alumno guardada en cada cobro (criterios 3 y 4). Los criterios 1, 2 y 5 de centavos ya no aplican. Detalle en `.planning/egresos-rendiciones/SIN-CENTAVOS-SUMMARY.md`.
 
 **Goal**: El ledger y las cajas guardan importes con centavos exactos de punta a punta, y cada cobro guarda la sede del alumno al momento del pago
 **Depends on**: nada. Decisiones en `207-CONTEXT.md`
@@ -1208,20 +1210,23 @@ Plans:
 - [x] 208-10-PLAN.md — Admin: Retiros con destino obligatorio, destino en historial y patas del retiro en Mov./Egresos
 - [x] 208-11-PLAN.md — Cierre: no-regresión "como prod hoy", inventario con greps, gates y checklist de UAT
 
-### Phase 209: Egresos — gasto, reparto y pagos
+### Phase 209: Egresos — gasto, reparto y pagos (recortada por D-24)
 
-**Goal**: Administración registra gastos con reparto entre sedes/Casa Matriz y uno o varios pagos desde distintas cuentas, y ve lo pagado y lo imputado por mes, en una sección propia del admin
-**Depends on**: 207, 208
+**Goal**: Administración registra gastos con reparto entre sedes y Casa Matriz y uno o varios pagos desde distintas cuentas, y ve lo pagado y lo imputado por mes, en una sección propia del admin
+**Depends on**: 207 (sede del alumno), 208. Decisiones en `209-CONTEXT.md`. Plata en unidades enteras (D-23)
 **Success Criteria**:
-1. Sección "Egresos" en Finanzas (Gastos, Por pagar, Resumen, Repartos, Rubros); "Egreso" sale del diálogo de Caja
-2. Gasto: concepto/beneficiario, rubro, mes de imputación, importe, moneda, estimado/confirmado con historial de correcciones, links de comprobante, observaciones
-3. Reparto directo/partes iguales/montos/porcentajes y repartos guardados; suma exacta al centavo; Casa Matriz como destino
-4. Pagos parciales desde varias cuentas, con fecha, medio, TC (BNA vendedor por API con fallback) ; estado pendiente/parcial/pagado y saldo pendiente; cada pago baja el saldo de su cuenta
-5. Resumen por sede: pagado en el mes / costo del mes (incluye estimados y pendientes) / pendiente, con detalle por rubro y concepto y export Excel
-6. Cerrar mes bloquea gastos y pagos del mes; owner/admin reabren con motivo
-7. Importación de la planilla de noviembre
+1. Sección "Egresos" en Finanzas (Gastos, Por pagar, Resumen, Rubros). "Egreso" sale del diálogo de Caja
+2. Gasto: concepto, beneficiario, rubro, mes de imputación, importe entero, moneda, estimado o confirmado con historial de correcciones, links de comprobante, observaciones
+3. Reparto directo, en partes iguales entre las sedes del país o por montos. Suma exacta. Casa Matriz como destino
+4. Pagos parciales desde varias cuentas, con fecha, medio y tipo de cambio cargado a mano cuando hace falta. Estado pendiente, parcial o pagado y saldo pendiente. Cada pago baja el saldo de su cuenta
+5. Resumen por sede: pagado en el mes, costo del mes (incluye estimados y pendientes) y pendiente, con detalle por rubro y concepto y export Excel
+6. Permisos: operan owner, admin y gestion. Anulan y administran rubros owner y admin
 
-### Phase 210: Caja — extracto por cuenta, por conciliar y cambio de moneda
+Fuera de alcance por D-24: tipo de cambio por API, repartos guardados, reparto por porcentajes, cerrar mes, importar planilla.
+
+### Phase 210: Caja — extracto por cuenta, por conciliar y cambio de moneda — EN ESPERA (D-24)
+
+**Estado**: en espera, no planificar. Sin cuentas en USD y con 0 traslados históricos el cambio de moneda no tiene uso, y el extracto no sirve mientras los bancos no tengan saldo real.
 
 **Goal**: Cada cuenta se puede conciliar contra el efectivo o el extracto bancario, y los cambios de moneda quedan registrados con su comisión
 **Depends on**: 209
@@ -1230,7 +1235,7 @@ Plans:
 2. "Cobros por conciliar" visible en el extracto y el Resumen, con acceso a la bandeja
 3. Cambio de moneda: entregado, recibido, comisión (gasto automático "Gastos bancarios" a Casa Matriz), cotización real a la vista
 
-### Phase 211: Resultado por sede y consolidado
+### Phase 211: Resultado por sede y consolidado (informe chico, D-24)
 
 **Goal**: Owner/admin leen, por mes, el resultado y margen de cada sede y el consolidado argentino
 **Depends on**: 209
@@ -1239,7 +1244,9 @@ Plans:
 2. Casa Matriz con sus costos; consolidado AR descuenta Casa Matriz una vez; Barcelona aparte en EUR
 3. Solo owner/admin
 
-### Phase 212: Rendiciones a inversores
+### Phase 212: Rendiciones a inversores — EN ESPERA (D-24)
+
+**Estado**: en espera, no planificar. Son 2 sedes, el criterio de Alberti sigue en revisión y todavía no hay un mes de gastos cargado.
 
 **Goal**: Administración prepara, compara, aprueba y emite la rendición mensual de cada sede con inversores, y registra sus pagos
 **Depends on**: 211

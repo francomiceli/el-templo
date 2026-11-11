@@ -141,3 +141,20 @@ Aceptado: Egresos (cargar gastos/pagos, Por pagar, Resumen) = owner/admin/gestio
 - T5 Resultado por sede y consolidado (D-14, D-17)
 - T6 Rendiciones (D-15, D-16)
 Administración sigue con la planilla hasta T3.
+
+## §20 Revisión del milestone (2026-11-11)
+
+**D-23 (2026-11-11): se REVOCA D-06. La plata queda en unidades enteras en todo el sistema, también en Egresos.** Motivo (Franco): el cambio de tipo de la 207 toca los caminos de cobro que ya andan en producción para un caso marginal; "no pasa nada con perder centavos, la gran mayoría de los gastos son en pesos". Consecuencias:
+- De la fase 207 se conserva SOLO el snapshot de sede del alumno (`member_branch_id`, D-14). El paso a `DECIMAL(14,2)`, `shared/money.ts`, `MoneyInput` y los tests de centavos se sacan de la rama antes de cualquier push.
+- Los gastos se cargan redondeados al peso ($77.570,82 → $77.571). El reparto "al centavo" de D-01/§3 pasa a ser "al peso", con el resto a la última sede. USD y EUR también en enteros.
+- Medición 11-11 sobre `4d24e58ec` (208-06): deshacer la 207 choca con la 208 en 4 archivos de `modules/finance` (10 bloques) y deja 4 tests de la 208 por ajustar.
+- Auditoría hecha contra prod el 11-11 (no hay material real de gastos): `AUDITORIA-2026-11-11.md`.
+
+**D-24 (2026-11-11): RECORTE del milestone, con OK de Franco.** Queda: (1) sacar el cambio de tipo de la 207, (2) terminar la 208, (3) 209 Egresos en versión chica, (4) 211 Resultado por sede como informe, (5) saldo de apertura de bancos + arqueo de Central y Tesoro al arrancar. Cambios sobre decisiones anteriores:
+- **210 completa EN ESPERA** (extracto por cuenta, línea "por conciliar" de D-20, cambio de moneda de §11 y comisión automática de D-13). Vuelve el extracto cuando los bancos tengan saldo real, y el cambio de moneda cuando exista una cuenta en USD con uso.
+- **212 completa EN ESPERA** (D-15, D-16 y §13). La rendición se sigue armando en planilla a partir del Resultado por sede. Vuelve con dos meses de gastos cargados y el criterio de Alberti cerrado. Mientras tanto, el pago al inversor es un gasto común con rubro "Inversores".
+- **D-07/D-08 fuera:** tipo de cambio manual por pago, sin API del BNA.
+- **D-02 fuera:** sin repartos guardados con nombre. Al cargar: directo, partes iguales entre las 6 o por montos.
+- **D-18 fuera en lo del importador:** noviembre se carga a mano (la planilla está vacía).
+- **D-21 en espera:** "Cerrar mes" vuelve junto con las rendiciones.
+- Pestañas de Egresos: Gastos, Por pagar, Resumen y Rubros (sin Repartos).
