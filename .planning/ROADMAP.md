@@ -1165,7 +1165,7 @@ Plans:
 8. Un gimnasio sin el módulo `templo-training` no recibe ofertas, filas ni pushes
 9. Tests de integración con reloj fijo cubren los casos de `213-SPEC.md` §5.2
 
-**Plans:** 6/13 plans executed
+**Plans:** 10/13 plans executed
 
 Plans:
 - [x] 213-01-PLAN.md — node_modules por symlink + tablas `stretch_catalog`/`stretch_offers`, semilla de la lista curada y gates de tenancy
@@ -1177,7 +1177,7 @@ Plans:
 - [x] 213-07-PLAN.md — Push en el tick de `notification-cron.ts` con motivos, tope, segundo gimnasio y reconciliación + tests §5.2
 - [x] 213-08-PLAN.md — Tests de caracterización + `useSingleBlockPlayer` + `FreeBlockPlayer` migrado
 - [x] 213-09-PLAN.md — App: tipos, `useStretchStore`, `useStretchCompletion`, Session sintética y reloj puro
-- [ ] 213-10-PLAN.md — Sketch del reloj (decisión documentada) + reloj elegido + `StretchPlayer` y ruta `training/estirar`
+- [x] 213-10-PLAN.md — Sketch del reloj (decisión documentada) + reloj elegido + `StretchPlayer` y ruta `training/estirar`
 - [ ] 213-11-PLAN.md — Card de Mi Templo: "Estirar" como principal + cableado y `card_seen`
 - [ ] 213-12-PLAN.md — Deep link del push con la app cerrada y sin sesión
 - [ ] 213-13-PLAN.md — Checklist de UAT + consulta de medición a 4 semanas + gates finales
