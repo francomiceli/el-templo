@@ -23,7 +23,21 @@
 //
 // Tenancy: toda lectura lleva `tenantWhere` (también en los joins: el filtro de
 // la tabla unida va en el ON) y todo insert `tenantValues`.
-import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  exists,
+  inArray,
+  isNull,
+  like,
+  or,
+  sql,
+  type SQL,
+} from "drizzle-orm";
+import type { AnyMySqlColumn } from "drizzle-orm/mysql-core";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
@@ -33,7 +47,9 @@ import {
   NotFoundError,
 } from "../shared/errors";
 import { auditLog } from "../shared/audit-log";
+import { escapeLikeTerm } from "../shared/sql-like";
 import { isDuplicateKeyError } from "../shared/sql-errors";
+import type { PaginatedResult } from "../shared/types";
 import {
   tenantValues,
   tenantWhere,
@@ -68,6 +84,7 @@ import {
   type ExpensePaymentItem,
   type ExpensePaymentMethod,
   type ExpenseRecordDetail,
+  type ExpenseListFilters,
   type ExpenseRecordListItem,
   type UpdateExpenseRecordInput,
 } from "./expense-types";
@@ -137,6 +154,29 @@ function optionalText(
     );
   }
   return trimmed;
+}
+
+/**
+ * Condición SQL del filtro de estado sobre `paid` (suma de pagos vigentes) y el
+ * importe del gasto. Misma regla que `expenseStatusOf` (DI-11): si cambia una,
+ * cambia la otra y su test. pendiente = nada pagado, parcial = pagado < importe,
+ * pagado = pagado >= importe, por_pagar = todo lo que todavía debe plata.
+ */
+function statusFilterSql(
+  status: NonNullable<ExpenseListFilters["status"]>,
+  paid: SQL,
+  amount: SQL | AnyMySqlColumn,
+): SQL {
+  switch (status) {
+    case "pendiente":
+      return sql`${paid} = 0`;
+    case "parcial":
+      return sql`(${paid} > 0 AND ${paid} < ${amount})`;
+    case "pagado":
+      return sql`${paid} >= ${amount}`;
+    case "por_pagar":
+      return sql`${paid} < ${amount}`;
+  }
 }
 
 export class ExpenseRecordService {
@@ -649,6 +689,206 @@ export class ExpenseRecordService {
       this.log.info({ expenseRecordId: id }, "Gasto editado");
     }
     return this.getDetail(ctx, id, { country: opts.country });
+  }
+
+  /**
+   * Anulación del gasto (DI-10). Solo procede si no tiene pagos vigentes: si
+   * los tiene, 409 (hay que anular los pagos primero). Queda el rastro
+   * `expense_record_voided` con el motivo. El candado `FOR UPDATE` sobre el
+   * gasto evita que entre un pago nuevo mientras se decide (T-209-13).
+   */
+  async void(
+    ctx: TenantContext,
+    id: number,
+    reason: string,
+    adminId: number,
+    opts: { country?: ExpenseCountry | null } = {},
+  ): Promise<ExpenseRecordDetail> {
+    const trimmed = (reason ?? "").trim();
+    if (trimmed.length === 0) {
+      throw new BadRequestError("El motivo de la anulación es obligatorio");
+    }
+    await this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .select()
+        .from(schema.expenseRecords)
+        .where(
+          and(
+            tenantWhere(schema.expenseRecords, ctx),
+            eq(schema.expenseRecords.id, id),
+          ),
+        )
+        .limit(1)
+        .for("update");
+      if (!row || (opts.country && row.country !== opts.country)) {
+        throw new NotFoundError("Gasto no encontrado");
+      }
+      if (row.voidedAt !== null) {
+        throw new BadRequestError("El gasto ya está anulado");
+      }
+      const [payments] = await tx
+        .select({ n: count() })
+        .from(schema.expensePayments)
+        .where(
+          and(
+            tenantWhere(schema.expensePayments, ctx),
+            eq(schema.expensePayments.expenseRecordId, id),
+            isNull(schema.expensePayments.voidedAt),
+          ),
+        );
+      if ((payments?.n ?? 0) > 0) {
+        throw new ConflictError(
+          "El gasto tiene pagos vigentes: anulalos primero",
+        );
+      }
+      await tx
+        .update(schema.expenseRecords)
+        .set({ voidedAt: new Date(), voidedBy: adminId, voidReason: trimmed })
+        .where(
+          and(
+            tenantWhere(schema.expenseRecords, ctx),
+            eq(schema.expenseRecords.id, id),
+          ),
+        );
+      await auditLog.write(ctx, tx, {
+        actorId: adminId,
+        action: "expense_record_voided",
+        targetKind: "expense_record",
+        targetId: id,
+        reason: trimmed,
+        payload: { concept: row.concept, amount: row.amount },
+      });
+    });
+    this.log.info({ expenseRecordId: id }, "Gasto anulado");
+    return this.getDetail(ctx, id, { country: opts.country });
+  }
+
+  /**
+   * Listado de gastos con filtros (base de las pestañas Gastos y Por pagar).
+   * Por defecto oculta los anulados. El estado se filtra en SQL sobre la suma
+   * de pagos vigentes; el mapeo a `ExpenseRecordListItem` (con su estado
+   * calculado) lo hace `toListItems` para todas las filas de la página en lote.
+   */
+  async list(
+    ctx: TenantContext,
+    filters: ExpenseListFilters,
+  ): Promise<PaginatedResult<ExpenseRecordListItem>> {
+    const page = Math.max(1, filters.page ?? 1);
+    const limit = Math.min(200, Math.max(1, filters.limit ?? 50));
+    const offset = (page - 1) * limit;
+
+    // Pagado por gasto: Σ applied_amount de los pagos vigentes (misma fuente
+    // que `loadPaidByRecord`).
+    const paidSq = this.db
+      .select({
+        recordId: schema.expensePayments.expenseRecordId,
+        paid: sql<string>`SUM(${schema.expensePayments.appliedAmount})`.as(
+          "paid_total",
+        ),
+      })
+      .from(schema.expensePayments)
+      .where(
+        and(
+          tenantWhere(schema.expensePayments, ctx),
+          isNull(schema.expensePayments.voidedAt),
+        ),
+      )
+      .groupBy(schema.expensePayments.expenseRecordId)
+      .as("paid_sq");
+    const paid = sql`COALESCE(${paidSq.paid}, 0)`;
+
+    const q = (filters.q ?? "").trim();
+    const pattern = `%${escapeLikeTerm(q)}%`;
+
+    // UN solo statement con todas las condiciones (incluido el tenant): así el
+    // filtro de gimnasio y las columnas del gasto viven juntos.
+    const conditions: SQL[] = [
+      tenantWhere(schema.expenseRecords, ctx),
+      eq(schema.expenseRecords.country, filters.country),
+      ...(filters.month
+        ? [eq(schema.expenseRecords.imputationMonth, filters.month)]
+        : []),
+      ...(filters.costCenterId !== undefined
+        ? [eq(schema.expenseRecords.costCenterId, filters.costCenterId)]
+        : []),
+      // EXISTS sobre el reparto: un gasto repartido entre varias sedes aparece
+      // una sola vez. "casa_matriz" = parte con branch_id NULL.
+      ...(filters.destination !== undefined
+        ? [
+            exists(
+              this.db
+                .select({ one: sql`1` })
+                .from(schema.expenseAllocations)
+                .where(
+                  and(
+                    tenantWhere(schema.expenseAllocations, ctx),
+                    eq(
+                      schema.expenseAllocations.expenseRecordId,
+                      schema.expenseRecords.id,
+                    ),
+                    filters.destination === "casa_matriz"
+                      ? isNull(schema.expenseAllocations.branchId)
+                      : eq(
+                          schema.expenseAllocations.branchId,
+                          filters.destination,
+                        ),
+                  ),
+                ),
+            ),
+          ]
+        : []),
+      ...(q.length >= 2
+        ? [
+            or(
+              like(schema.expenseRecords.concept, pattern),
+              like(schema.expenseRecords.beneficiary, pattern),
+            ),
+          ].filter((c): c is SQL => c !== undefined)
+        : []),
+      ...(filters.includeVoided
+        ? []
+        : [isNull(schema.expenseRecords.voidedAt)]),
+      ...(filters.status
+        ? [statusFilterSql(filters.status, paid, schema.expenseRecords.amount)]
+        : []),
+    ];
+
+    const [totalRow] = await this.db
+      .select({ n: count() })
+      .from(schema.expenseRecords)
+      .leftJoin(paidSq, eq(paidSq.recordId, schema.expenseRecords.id))
+      .where(and(tenantWhere(schema.expenseRecords, ctx), ...conditions));
+    const total = totalRow?.n ?? 0;
+
+    // Por pagar: lo más viejo primero. El resto: lo más nuevo primero.
+    const order =
+      filters.status === "por_pagar"
+        ? [
+            asc(schema.expenseRecords.imputationMonth),
+            asc(schema.expenseRecords.id),
+          ]
+        : [
+            desc(schema.expenseRecords.imputationMonth),
+            desc(schema.expenseRecords.id),
+          ];
+    const rows = await this.db
+      .select({ record: schema.expenseRecords })
+      .from(schema.expenseRecords)
+      .leftJoin(paidSq, eq(paidSq.recordId, schema.expenseRecords.id))
+      .where(and(tenantWhere(schema.expenseRecords, ctx), ...conditions))
+      .orderBy(...order)
+      .limit(limit)
+      .offset(offset);
+
+    return {
+      rows: await this.toListItems(
+        ctx,
+        rows.map((r) => r.record),
+      ),
+      total,
+      page,
+      limit,
+    };
   }
 
   // ---------------------------------------------------------------------------
