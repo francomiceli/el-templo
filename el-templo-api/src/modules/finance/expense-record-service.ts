@@ -27,7 +27,11 @@ import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
-import { BadRequestError, NotFoundError } from "../shared/errors";
+import {
+  BadRequestError,
+  ConflictError,
+  NotFoundError,
+} from "../shared/errors";
 import { auditLog } from "../shared/audit-log";
 import { isDuplicateKeyError } from "../shared/sql-errors";
 import {
@@ -57,6 +61,7 @@ import {
   type CreateExpenseRecordInput,
   type ExpenseAllocationInput,
   type ExpenseAllocationItem,
+  type ExpenseAmountStatus,
   type ExpenseCountry,
   type ExpenseCurrency,
   type ExpenseHistoryItem,
@@ -64,6 +69,7 @@ import {
   type ExpensePaymentMethod,
   type ExpenseRecordDetail,
   type ExpenseRecordListItem,
+  type UpdateExpenseRecordInput,
 } from "./expense-types";
 import { RETIROS_COST_CENTER_NAME } from "./withdrawal-service";
 
@@ -170,32 +176,16 @@ export class ExpenseRecordService {
       }
     }
 
-    // 2. Validaciones.
-    const concept = (input.concept ?? "").trim();
-    if (concept.length === 0) {
-      throw new BadRequestError("El concepto es obligatorio");
-    }
-    if (concept.length > MAX_CONCEPT) {
-      throw new BadRequestError(
-        `El concepto no puede superar los ${MAX_CONCEPT} caracteres`,
-      );
-    }
+    // 2. Validaciones (las mismas que usa `update`, en métodos privados).
+    const concept = this.validateConcept(input.concept);
     const beneficiary = optionalText(
       input.beneficiary,
       MAX_BENEFICIARY,
       "El beneficiario",
     );
-    if (!isValidImputationMonth(input.imputationMonth)) {
-      throw new BadRequestError(
-        "El mes de imputación tiene que tener el formato AAAA-MM",
-      );
-    }
+    this.validateImputationMonth(input.imputationMonth);
     const amount = input.amount;
-    if (!Number.isInteger(amount) || amount < 1 || amount > MAX_MONEY) {
-      throw new BadRequestError(
-        "El importe tiene que ser un número entero mayor a 0",
-      );
-    }
+    this.validateAmount(amount);
     const currency = input.currency;
     if (
       !(EXPENSE_CURRENCIES_BY_COUNTRY[country] as readonly string[]).includes(
@@ -208,43 +198,19 @@ export class ExpenseRecordService {
           : "Los gastos de España van en EUR",
       );
     }
-    // Tipo de cambio de referencia (DI-03): solo los gastos de AR en USD lo llevan.
-    const fxRate = input.fxRate ?? null;
-    if (country === "AR" && currency === "USD") {
-      if (fxRate === null) {
-        throw new BadRequestError(
-          "Un gasto en dólares necesita el tipo de cambio de referencia",
-        );
-      }
-      assertValidFxRate(fxRate);
-    } else if (fxRate !== null) {
-      throw new BadRequestError(
-        "El tipo de cambio solo se carga en gastos en dólares",
-      );
-    }
-    if (
-      input.amountStatus !== "estimado" &&
-      input.amountStatus !== "confirmado"
-    ) {
-      throw new BadRequestError(
-        "El estado del importe tiene que ser estimado o confirmado",
-      );
-    }
+    const fxRate = this.validateFx(country, currency, input.fxRate ?? null);
+    this.validateAmountStatus(input.amountStatus);
     await this.assertUsableCostCenter(ctx, country, input.costCenterId);
     const receiptLinks = normalizeReceiptLinks(input.receiptLinks);
     const notes = optionalText(input.notes, MAX_NOTES, "Las observaciones");
 
     // Destinos válidos del reparto (DI-08): sedes operativas del país del
     // scope, nunca las que vengan en el body sin chequear (T-209-07).
-    const operational = await listOperationalBranches(this.db, ctx, country);
-    validateAllocations({
+    const allocations = await this.validateAllocationsFor(
+      ctx,
+      country,
       amount,
-      allocations: input.allocations ?? [],
-      validBranchIds: new Set(operational.map((b) => b.id)),
-      allowCasaMatriz: casaMatrizAllowed(country),
-    });
-    const allocations: ExpenseAllocationInput[] = input.allocations.map(
-      (a) => ({ branchId: a.branchId, amount: a.amount }),
+      input.allocations ?? [],
     );
 
     // 3. Una transacción: gasto + reparto + audit.
@@ -391,6 +357,298 @@ export class ExpenseRecordService {
         actorName: nameOf(actorId),
       })),
     };
+  }
+
+  /**
+   * Edición de un gasto (DI-09). Todo en UNA transacción con candado
+   * `FOR UPDATE` sobre la fila del gasto (mismo orden que el alta de pagos:
+   * gasto primero), para que lo pagado que se lee acá no cambie mientras se
+   * decide.
+   *
+   * - Editables: concepto, beneficiario, rubro, mes, importe, estado del
+   *   importe, tipo de cambio, links, observaciones y reparto. País y moneda no.
+   * - El reparto se REEMPLAZA entero. Si cambia el importe hay que mandarlo.
+   * - Cambiar importe, estado o tipo de cambio exige `reason`.
+   * - Un gasto `confirmado` no puede quedar por debajo de lo ya pagado.
+   * - Sin cambios efectivos no escribe nada (ni audit).
+   * - Toda edición efectiva deja `expense_record_update` con before/after.
+   */
+  async update(
+    ctx: TenantContext,
+    id: number,
+    input: UpdateExpenseRecordInput,
+    adminId: number,
+    opts: { country?: ExpenseCountry | null } = {},
+  ): Promise<ExpenseRecordDetail> {
+    const changed = await this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .select()
+        .from(schema.expenseRecords)
+        .where(
+          and(
+            tenantWhere(schema.expenseRecords, ctx),
+            eq(schema.expenseRecords.id, id),
+          ),
+        )
+        .limit(1)
+        .for("update");
+      if (!row || (opts.country && row.country !== opts.country)) {
+        throw new NotFoundError("Gasto no encontrado");
+      }
+      if (row.voidedAt !== null) {
+        throw new BadRequestError("El gasto está anulado: no se puede editar");
+      }
+      const country = toExpenseCountry(row.country);
+      const currency = toExpenseCurrency(row.currency);
+
+      // Valores nuevos de los campos presentes, validados con las mismas
+      // reglas del alta. `before`/`after` solo guardan lo que cambia de verdad.
+      const set: Partial<typeof schema.expenseRecords.$inferInsert> = {};
+      const changes: Record<string, { before: unknown; after: unknown }> = {};
+      const track = <T>(
+        field: string,
+        before: T,
+        after: T,
+        column: keyof typeof schema.expenseRecords.$inferInsert,
+      ): void => {
+        if (JSON.stringify(before) === JSON.stringify(after)) return;
+        changes[field] = { before, after };
+        Object.assign(set, { [column]: after });
+      };
+
+      if (input.concept !== undefined) {
+        track(
+          "concept",
+          row.concept,
+          this.validateConcept(input.concept),
+          "concept",
+        );
+      }
+      if (input.beneficiary !== undefined) {
+        track(
+          "beneficiary",
+          row.beneficiary,
+          optionalText(input.beneficiary, MAX_BENEFICIARY, "El beneficiario"),
+          "beneficiary",
+        );
+      }
+      if (input.imputationMonth !== undefined) {
+        this.validateImputationMonth(input.imputationMonth);
+        track(
+          "imputationMonth",
+          row.imputationMonth,
+          input.imputationMonth,
+          "imputationMonth",
+        );
+      }
+      if (
+        input.costCenterId !== undefined &&
+        input.costCenterId !== row.costCenterId
+      ) {
+        // Misma regla del alta (activo, del país, no "Retiros"). Un rubro que
+        // no se toca no se vuelve a validar: el gasto viejo puede tener uno
+        // que hoy está inactivo.
+        await this.assertUsableCostCenter(ctx, country, input.costCenterId);
+        track(
+          "costCenterId",
+          row.costCenterId,
+          input.costCenterId,
+          "costCenterId",
+        );
+      }
+      if (input.amount !== undefined) {
+        this.validateAmount(input.amount);
+        track("amount", row.amount, input.amount, "amount");
+      }
+      if (input.amountStatus !== undefined) {
+        this.validateAmountStatus(input.amountStatus);
+        track(
+          "amountStatus",
+          row.amountStatus,
+          input.amountStatus,
+          "amountStatus",
+        );
+      }
+      if (input.fxRate !== undefined) {
+        track(
+          "fxRate",
+          row.fxRate,
+          this.validateFx(country, currency, input.fxRate),
+          "fxRate",
+        );
+      }
+      if (input.receiptLinks !== undefined) {
+        const links = normalizeReceiptLinks(input.receiptLinks);
+        track("receiptLinks", row.receiptLinks ?? [], links, "receiptLinks");
+        // Sin links se guarda null, igual que el alta.
+        if ("receiptLinks" in changes) {
+          set.receiptLinks = links.length > 0 ? links : null;
+        }
+      }
+      if (input.notes !== undefined) {
+        track(
+          "notes",
+          row.notes,
+          optionalText(input.notes, MAX_NOTES, "Las observaciones"),
+          "notes",
+        );
+      }
+
+      // Motivo (T-209-11): importe, estado y tipo de cambio mueven plata o su
+      // lectura, así que no se cambian en silencio.
+      const reason = (input.reason ?? "").trim();
+      if (
+        ("amount" in changes ||
+          "amountStatus" in changes ||
+          "fxRate" in changes) &&
+        reason.length === 0
+      ) {
+        throw new BadRequestError(
+          "Para cambiar el importe, el estado o el tipo de cambio tenés que escribir el motivo",
+        );
+      }
+
+      const finalAmount = set.amount ?? row.amount;
+      const finalStatus: ExpenseAmountStatus =
+        set.amountStatus ?? row.amountStatus;
+
+      // Reparto: se reemplaza entero. Si cambia el importe es obligatorio.
+      if ("amount" in changes && input.allocations === undefined) {
+        throw new BadRequestError(
+          "Si cambiás el importe, mandá el reparto completo",
+        );
+      }
+      const storedAllocations = (
+        await tx
+          .select({
+            branchId: schema.expenseAllocations.branchId,
+            amount: schema.expenseAllocations.amount,
+          })
+          .from(schema.expenseAllocations)
+          .where(
+            and(
+              tenantWhere(schema.expenseAllocations, ctx),
+              eq(schema.expenseAllocations.expenseRecordId, id),
+            ),
+          )
+          .orderBy(asc(schema.expenseAllocations.id))
+      ).map((a) => ({ branchId: a.branchId, amount: a.amount }));
+
+      let newAllocations: ExpenseAllocationInput[] | null = null;
+      if (input.allocations !== undefined) {
+        // Supuesto conservador: se puede reenviar una sede que YA estaba en el
+        // reparto aunque hoy esté inactiva (corregir un gasto viejo). Una sede
+        // nueva tiene que ser operativa.
+        const keep = new Set(
+          storedAllocations
+            .map((a) => a.branchId)
+            .filter((b): b is number => b !== null),
+        );
+        const normalized = await this.validateAllocationsFor(
+          ctx,
+          country,
+          finalAmount,
+          input.allocations,
+          keep,
+        );
+        const key = (list: ExpenseAllocationInput[]): string =>
+          JSON.stringify(
+            [...list]
+              .sort((a, b) => (a.branchId ?? -1) - (b.branchId ?? -1))
+              .map((a) => [a.branchId, a.amount]),
+          );
+        if (key(normalized) !== key(storedAllocations)) {
+          newAllocations = normalized;
+        }
+      }
+
+      if (Object.keys(changes).length === 0 && newAllocations === null) {
+        return false;
+      }
+
+      // Lo pagado (DI-09), leído con el gasto ya bloqueado.
+      if (
+        ("amount" in changes || "amountStatus" in changes) &&
+        finalStatus === "confirmado"
+      ) {
+        const [paidRow] = await tx
+          .select({
+            paid: sql<string>`COALESCE(SUM(${schema.expensePayments.appliedAmount}), 0)`,
+          })
+          .from(schema.expensePayments)
+          .where(
+            and(
+              tenantWhere(schema.expensePayments, ctx),
+              eq(schema.expensePayments.expenseRecordId, id),
+              isNull(schema.expensePayments.voidedAt),
+            ),
+          );
+        const paid = Number(paidRow?.paid ?? 0);
+        if (finalAmount < paid) {
+          throw new BadRequestError(
+            `Ya se pagaron ${paid}: no se puede dejar el gasto confirmado en ${finalAmount}. Primero anulá un pago.`,
+          );
+        }
+      }
+
+      if (Object.keys(set).length > 0) {
+        await tx
+          .update(schema.expenseRecords)
+          .set(set)
+          .where(
+            and(
+              tenantWhere(schema.expenseRecords, ctx),
+              eq(schema.expenseRecords.id, id),
+            ),
+          );
+      }
+      if (newAllocations !== null) {
+        await tx
+          .delete(schema.expenseAllocations)
+          .where(
+            and(
+              tenantWhere(schema.expenseAllocations, ctx),
+              eq(schema.expenseAllocations.expenseRecordId, id),
+            ),
+          );
+        await tx.insert(schema.expenseAllocations).values(
+          newAllocations.map((a) =>
+            tenantValues(ctx, {
+              expenseRecordId: id,
+              branchId: a.branchId,
+              amount: a.amount,
+            }),
+          ),
+        );
+      }
+
+      // Rastro en la misma transacción (T-209-11). Sin links ni notas en el
+      // log de aplicación: pueden tener datos sensibles.
+      await auditLog.write(ctx, tx, {
+        actorId: adminId,
+        action: "expense_record_update",
+        targetKind: "expense_record",
+        targetId: id,
+        reason: reason.length > 0 ? reason : null,
+        payload: {
+          changes,
+          ...(newAllocations !== null
+            ? {
+                allocations: {
+                  before: storedAllocations,
+                  after: newAllocations,
+                },
+              }
+            : {}),
+        },
+      });
+      return true;
+    });
+
+    if (changed) {
+      this.log.info({ expenseRecordId: id }, "Gasto editado");
+    }
+    return this.getDetail(ctx, id, { country: opts.country });
   }
 
   // ---------------------------------------------------------------------------
@@ -770,6 +1028,98 @@ export class ExpenseRecordService {
       );
     }
     return existing.id;
+  }
+
+  // Validaciones de campos compartidas por `create` y `update`: un solo lugar
+  // para cada regla y cada mensaje.
+
+  private validateConcept(raw: string | null | undefined): string {
+    const concept = (raw ?? "").trim();
+    if (concept.length === 0) {
+      throw new BadRequestError("El concepto es obligatorio");
+    }
+    if (concept.length > MAX_CONCEPT) {
+      throw new BadRequestError(
+        `El concepto no puede superar los ${MAX_CONCEPT} caracteres`,
+      );
+    }
+    return concept;
+  }
+
+  private validateImputationMonth(month: string): void {
+    if (!isValidImputationMonth(month)) {
+      throw new BadRequestError(
+        "El mes de imputación tiene que tener el formato AAAA-MM",
+      );
+    }
+  }
+
+  private validateAmount(amount: number): void {
+    if (!Number.isInteger(amount) || amount < 1 || amount > MAX_MONEY) {
+      throw new BadRequestError(
+        "El importe tiene que ser un número entero mayor a 0",
+      );
+    }
+  }
+
+  private validateAmountStatus(status: string): void {
+    if (status !== "estimado" && status !== "confirmado") {
+      throw new BadRequestError(
+        "El estado del importe tiene que ser estimado o confirmado",
+      );
+    }
+  }
+
+  /**
+   * Tipo de cambio de referencia (DI-03): solo los gastos de AR en USD lo
+   * llevan y es obligatorio. Devuelve el valor a guardar (null si no aplica).
+   */
+  private validateFx(
+    country: ExpenseCountry,
+    currency: ExpenseCurrency,
+    fxRate: number | null,
+  ): number | null {
+    if (country === "AR" && currency === "USD") {
+      if (fxRate === null) {
+        throw new BadRequestError(
+          "Un gasto en dólares necesita el tipo de cambio de referencia",
+        );
+      }
+      assertValidFxRate(fxRate);
+      return fxRate;
+    }
+    if (fxRate !== null) {
+      throw new BadRequestError(
+        "El tipo de cambio solo se carga en gastos en dólares",
+      );
+    }
+    return null;
+  }
+
+  /**
+   * Valida el reparto contra el importe y devuelve las partes normalizadas.
+   * Destinos válidos: sedes operativas del país (DI-08, T-209-07) más
+   * `keepBranchIds`, sedes que el reparto guardado ya tenía (en la edición:
+   * permite reenviar un gasto viejo cuya sede hoy está inactiva).
+   */
+  private async validateAllocationsFor(
+    ctx: TenantContext,
+    country: ExpenseCountry,
+    amount: number,
+    allocations: ExpenseAllocationInput[],
+    keepBranchIds: ReadonlySet<number> = new Set(),
+  ): Promise<ExpenseAllocationInput[]> {
+    const operational = await listOperationalBranches(this.db, ctx, country);
+    validateAllocations({
+      amount,
+      allocations,
+      validBranchIds: new Set([
+        ...operational.map((b) => b.id),
+        ...keepBranchIds,
+      ]),
+      allowCasaMatriz: casaMatrizAllowed(country),
+    });
+    return allocations.map((a) => ({ branchId: a.branchId, amount: a.amount }));
   }
 
   /**
