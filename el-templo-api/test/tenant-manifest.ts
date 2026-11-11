@@ -536,6 +536,9 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "POST /api/admin/finance/cash-registers/efectivo": {
     categoria: "tenant-scoped",
   },
+  "POST /api/admin/finance/cash-registers/treasury": {
+    categoria: "tenant-scoped",
+  },
   "POST /api/admin/finance/coach-load/alta": { categoria: "tenant-scoped" },
   "POST /api/admin/finance/coach-load/misc": { categoria: "tenant-scoped" },
   "POST /api/admin/finance/coach-load/pay-plan": { categoria: "tenant-scoped" },

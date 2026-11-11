@@ -172,7 +172,9 @@ export const EXCEPCIONES_NOMBRADAS: Readonly<Record<string, string>> = {
  * que hace que 0 rutas cubiertas se ponga tan rojo como 37.
  */
 // 2026-09-08: 44 -> 50 por el arqueo / cierre de caja (coach-load ×2, cajas ×4).
-const CASOS_BASELINE = 50;
+// 2026-11-11: 50 -> 51 por el alta de Tesoro (fase 208-02), con su par
+// aislamiento+control en iso-03-finance-cajas.
+const CASOS_BASELINE = 51;
 
 /** Los tres archivos de la batería ISO-03, en el orden en que se escribieron. */
 const ARCHIVOS_BATERIA = [

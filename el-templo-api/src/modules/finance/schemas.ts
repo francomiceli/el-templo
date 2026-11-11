@@ -749,6 +749,33 @@ export const pendingTrayExportSchema = {
 } as const;
 
 /**
+ * POST /cash-registers/treasury — crear el Tesoro de una moneda (fase 208,
+ * DI-01). Owner-only (lo gatea la ruta). `openingBalance` es el efectivo real
+ * con el que arranca, con hasta 2 decimales; opcional, default 0. La unicidad
+ * por (gimnasio, moneda) entre Tesoros activos la valida el service.
+ */
+export const createTreasurySchema = {
+  body: {
+    type: "object",
+    required: ["name", "currency"],
+    additionalProperties: false,
+    properties: {
+      name: { type: "string", minLength: 1, maxLength: 100 },
+      currency: ACCOUNT_CURRENCY_SCHEMA,
+      openingBalance: MONEY_NON_NEGATIVE_SCHEMA,
+    },
+  },
+  response: {
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
+    409: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+/**
  * GET /cash-registers/balances — saldos por caja (REP-02). Querystring: only
  * `country` (owner override; non-owner scope is pinned server-side). Loose
  * response (flat CajaSaldoRow array).

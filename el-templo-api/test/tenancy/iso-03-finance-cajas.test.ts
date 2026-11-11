@@ -24,6 +24,7 @@
  *   GET    /api/admin/finance/cost-centers/all
  *   POST   /api/admin/finance/cash-registers
  *   POST   /api/admin/finance/cash-registers/efectivo
+ *   POST   /api/admin/finance/cash-registers/treasury
  *   PATCH  /api/admin/finance/cash-registers/:id
  *   POST   /api/admin/finance/cash-registers/:id/close
  *   POST   /api/admin/finance/cash-registers/:id/reactivate
@@ -107,7 +108,12 @@ import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import { and, eq, sql } from "drizzle-orm";
 import { Workbook } from "exceljs";
 import type { FastifyInstance } from "fastify";
-import { createTestApp, cleanAllTestData } from "../helpers";
+import {
+  createTestApp,
+  cleanAllTestData,
+  createStaffUser,
+  getAuthToken,
+} from "../helpers";
 import * as schema from "../../src/db/schema";
 import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
 import {
@@ -823,6 +829,90 @@ describe("alta de caja efectivo — POST /api/admin/finance/cash-registers/efect
   });
 });
 
+describe("alta de tesoro — POST /api/admin/finance/cash-registers/treasury", () => {
+  const RUTA = "POST /api/admin/finance/cash-registers/treasury";
+  const NOMBRE = "Tesoro ISO03";
+
+  /** Los Tesoros no se limpian solos (`cash_registers` no esta en TABLES_TO_CLEAN). */
+  async function desactivarTesorosDeElTemplo(): Promise<void> {
+    await app.db
+      .update(schema.cashRegisters)
+      .set({ isActive: false })
+      .where(
+        and(
+          tenantWhere(schema.cashRegisters, { tenantId: TENANT_TEMPLO }),
+          eq(schema.cashRegisters.isTreasury, true),
+        ),
+      );
+  }
+
+  beforeEach(desactivarTesorosDeElTemplo);
+  afterAll(desactivarTesorosDeElTemplo);
+
+  /** El Tesoro es owner-only: el gimnasio 2 necesita su propio dueño. */
+  async function tokenDelDuenoDelGimnasioDos(): Promise<string> {
+    const email = `owner-g2-iso03-${Date.now()}@test.com`;
+    await createStaffUser(app, {
+      email,
+      password: "gym2-owner-123",
+      firstName: "Owner",
+      lastName: "Gimnasio Dos",
+      role: "owner",
+      branchId: gym2.branchId,
+      tenantId: TENANT_DOS,
+    });
+    return getAuthToken(app, email, "gym2-owner-123");
+  }
+
+  function crearTesoro(token: string, currency = "ARS") {
+    return app.inject({
+      method: "POST",
+      url: `${BASE}/cash-registers/treasury`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: NOMBRE, currency, openingBalance: 100 },
+    });
+  }
+
+  it("aislamiento: el Tesoro activo de El Templo no bloquea ni delata al del gimnasio 2", async () => {
+    const tokenTemplo = await getAuthToken(
+      app,
+      "admin@test.com",
+      "adminpass123",
+    );
+    const propio = await crearTesoro(tokenTemplo);
+    expect(propio.statusCode, `${RUTA} (Templo): ${propio.body}`).toBe(201);
+
+    // La unicidad es POR gimnasio: sin `tenantWhere` en el SELECT, este alta
+    // chocaria con el Tesoro ARS de El Templo y contestaria 409 delatandolo.
+    const res = await crearTesoro(await tokenDelDuenoDelGimnasioDos());
+    expect(
+      res.statusCode,
+      `${RUTA} del gimnasio ${TENANT_DOS} choco con el Tesoro de El Templo: la unicidad no esta ` +
+        `scopeada por gimnasio. Respuesta: ${res.body}`,
+    ).toBe(201);
+    const id = JSON.parse(res.body).caja.cashRegisterId as number;
+    expect(
+      await tenantDeLaFila(app, "cash_registers", id),
+      `El Tesoro ${id} nacio en el gimnasio equivocado: el \`tenant_id\` no salio del scope server-side.`,
+    ).toBe(TENANT_DOS);
+  });
+
+  it("control: SI puede crear su propio Tesoro, y nace en El Templo", async () => {
+    const tokenTemplo = await getAuthToken(
+      app,
+      "admin@test.com",
+      "adminpass123",
+    );
+    const res = await crearTesoro(tokenTemplo, "USD");
+    expect(res.statusCode, `${RUTA} fallo: ${res.body}`).toBe(201);
+    const id = JSON.parse(res.body).caja.cashRegisterId as number;
+    expect(
+      await tenantDeLaFila(app, "cash_registers", id),
+      porQueImportaElControl(RUTA, id),
+    ).toBe(TENANT_TEMPLO);
+  });
+});
+
 describe("edicion de cuenta banco — PATCH /api/admin/finance/cash-registers/:id", () => {
   const RUTA = "PATCH /api/admin/finance/cash-registers/:id";
 
@@ -1237,7 +1327,10 @@ async function contarTransaccionesDe(tenantId: number): Promise<number> {
 }
 
 /** Retiro PROPIO del gimnasio 2 via la ruta (control positivo compartido). */
-async function registrarRetiroPropio(): Promise<{ id: number; amount: number }> {
+async function registrarRetiroPropio(): Promise<{
+  id: number;
+  amount: number;
+}> {
   const res = await escribirComoGimnasioDos("POST", "/withdrawals", {
     cajaId: dos.cajaId,
     responsibleName: RESPONSABLE_DOS,
@@ -1287,9 +1380,10 @@ describe("cobros pendientes de retiro (lo que hay en el cajon) — GET /api/admi
         porQueImportaElListado(RUTA, fila.id),
       ).toBe(TENANT_DOS);
     }
-    expect(cuerpo.total, `${RUTA}: el total tiene que ser la suma de lo propio`).toBe(
-      IMPORTE_SEMBRADO,
-    );
+    expect(
+      cuerpo.total,
+      `${RUTA}: el total tiene que ser la suma de lo propio`,
+    ).toBe(IMPORTE_SEMBRADO);
   });
 });
 
@@ -1310,7 +1404,10 @@ describe("alta de retiro — POST /api/admin/finance/withdrawals", () => {
         `(o contesto algo distinto de "no existe"). Respuesta: ${res.body}`,
     ).toBe(404);
     expect(
-      [await contarTransaccionesDe(TENANT_DOS), await contarTransaccionesDe(TENANT_TEMPLO)],
+      [
+        await contarTransaccionesDe(TENANT_DOS),
+        await contarTransaccionesDe(TENANT_TEMPLO),
+      ],
       `${RUTA} escribio una fila aunque contesto que la caja no existe.`,
     ).toEqual([antesDos, antesTemplo]);
   });
@@ -1363,9 +1460,10 @@ describe("historial de retiros — GET /api/admin/finance/withdrawals", () => {
     const res = await getComoGimnasioDos("/withdrawals?limit=200");
     expect(res.statusCode, `${RUTA} fallo: ${res.body}`).toBe(200);
     const cuerpo = JSON.parse(res.body) as { rows: Array<{ id: number }> };
-    expect(cuerpo.rows.map((r) => r.id), porQueImportaElListado(RUTA, ajeno)).not.toContain(
-      ajeno,
-    );
+    expect(
+      cuerpo.rows.map((r) => r.id),
+      porQueImportaElListado(RUTA, ajeno),
+    ).not.toContain(ajeno);
     for (const fila of cuerpo.rows) {
       expect(
         await tenantDeLaFila(app, "financial_transactions", fila.id),
@@ -1403,7 +1501,10 @@ describe("detalle de un retiro — GET /api/admin/finance/withdrawals/:id", () =
   it("control: SI devuelve el retiro propio con sus cobros", async () => {
     const propio = await registrarRetiroPropio();
     const res = await getComoGimnasioDos(`/withdrawals/${propio.id}`);
-    expect(res.statusCode, porQueImportaElControl(RUTA, propio.id) + ` ${res.body}`).toBe(200);
+    expect(
+      res.statusCode,
+      porQueImportaElControl(RUTA, propio.id) + ` ${res.body}`,
+    ).toBe(200);
     const cuerpo = JSON.parse(res.body) as { payments: Array<{ id: number }> };
     expect(cuerpo.payments.map((p) => p.id)).toContain(dos.transactionId);
   });
@@ -1429,7 +1530,9 @@ describe("responsables sugeridos — GET /api/admin/finance/withdrawals/responsi
     const res = await getComoGimnasioDos("/withdrawals/responsibles");
     expect(res.statusCode, `${RUTA} fallo: ${res.body}`).toBe(200);
     const nombres = JSON.parse(res.body) as string[];
-    expect(nombres, porQueImportaElControl(RUTA, dos.cajaId)).toContain(RESPONSABLE_DOS);
+    expect(nombres, porQueImportaElControl(RUTA, dos.cajaId)).toContain(
+      RESPONSABLE_DOS,
+    );
     expect(nombres).toContain("Admin Gimnasio Dos");
   });
 });
@@ -1448,14 +1551,18 @@ async function registrarArqueoPropio(countedAmount: number, notes?: string) {
     res.statusCode,
     `POST /cash-counts (control) fallo para el gimnasio ${TENANT_DOS}: ${res.body}`,
   ).toBe(201);
-  return (JSON.parse(res.body) as { cashCount: { id: number; difference: number } }).cashCount;
+  return (
+    JSON.parse(res.body) as { cashCount: { id: number; difference: number } }
+  ).cashCount;
 }
 
 describe("esperado en el cajon para el arqueo — GET /api/admin/finance/cash-counts/expected", () => {
   const RUTA = "GET /api/admin/finance/cash-counts/expected";
 
   it("aislamiento: el cajon de una caja de El Templo no existe para el gimnasio 2", async () => {
-    const res = await getComoGimnasioDos(`/cash-counts/expected?cashRegisterId=${templo.cajaId}`);
+    const res = await getComoGimnasioDos(
+      `/cash-counts/expected?cashRegisterId=${templo.cajaId}`,
+    );
     expect(
       res.statusCode,
       `${RUTA} le mostro al gimnasio ${TENANT_DOS} el esperado de la caja ${templo.cajaId} de ` +
@@ -1464,14 +1571,21 @@ describe("esperado en el cajon para el arqueo — GET /api/admin/finance/cash-co
   });
 
   it("control: SI calcula el esperado de la caja propia con su cobro", async () => {
-    const res = await getComoGimnasioDos(`/cash-counts/expected?cashRegisterId=${dos.cajaId}`);
+    const res = await getComoGimnasioDos(
+      `/cash-counts/expected?cashRegisterId=${dos.cajaId}`,
+    );
     expect(res.statusCode, `${RUTA} fallo: ${res.body}`).toBe(200);
     const cuerpo = JSON.parse(res.body) as {
       expectedAmount: number;
       paymentsSinceLastCount: Array<{ id: number }>;
     };
-    expect(cuerpo.expectedAmount, porQueImportaElControl(RUTA, dos.cajaId)).toBe(IMPORTE_SEMBRADO);
-    expect(cuerpo.paymentsSinceLastCount.map((p) => p.id)).toContain(dos.transactionId);
+    expect(
+      cuerpo.expectedAmount,
+      porQueImportaElControl(RUTA, dos.cajaId),
+    ).toBe(IMPORTE_SEMBRADO);
+    expect(cuerpo.paymentsSinceLastCount.map((p) => p.id)).toContain(
+      dos.transactionId,
+    );
   });
 });
 
@@ -1493,11 +1607,17 @@ describe("alta de arqueo — POST /api/admin/finance/cash-counts", () => {
       .select({ n: sql<number>`COUNT(*)` })
       .from(schema.cashCounts)
       .where(tenantWhere(schema.cashCounts, { tenantId: TENANT_TEMPLO }));
-    expect(Number(fila?.n ?? 0), `${RUTA} escribio un arqueo en El Templo.`).toBe(0);
+    expect(
+      Number(fila?.n ?? 0),
+      `${RUTA} escribio un arqueo en El Templo.`,
+    ).toBe(0);
   });
 
   it("control: SI registra el arqueo propio, con la diferencia contra el esperado", async () => {
-    const arqueo = await registrarArqueoPropio(IMPORTE_SEMBRADO - 100, "faltan 100");
+    const arqueo = await registrarArqueoPropio(
+      IMPORTE_SEMBRADO - 100,
+      "faltan 100",
+    );
     expect(arqueo.difference).toBe(-100);
     const [fila] = await app.db
       .select({ tenantId: schema.cashCounts.tenantId })
@@ -1509,7 +1629,9 @@ describe("alta de arqueo — POST /api/admin/finance/cash-counts", () => {
         ),
       )
       .limit(1);
-    expect(fila?.tenantId, `${RUTA} estampo el arqueo en otro gimnasio.`).toBe(TENANT_DOS);
+    expect(fila?.tenantId, `${RUTA} estampo el arqueo en otro gimnasio.`).toBe(
+      TENANT_DOS,
+    );
   });
 });
 
@@ -1539,11 +1661,16 @@ describe("historial de arqueos — GET /api/admin/finance/cash-counts", () => {
     await registrarArqueoPropio(IMPORTE_SEMBRADO);
     const res = await getComoGimnasioDos("/cash-counts?limit=200");
     expect(res.statusCode, `${RUTA} fallo: ${res.body}`).toBe(200);
-    const cuerpo = JSON.parse(res.body) as { rows: Array<{ id: number; cashRegisterId: number }> };
-    expect(cuerpo.rows.map((r) => r.id), porQueImportaElListado(RUTA, ajeno.id)).not.toContain(
-      ajeno.id,
+    const cuerpo = JSON.parse(res.body) as {
+      rows: Array<{ id: number; cashRegisterId: number }>;
+    };
+    expect(
+      cuerpo.rows.map((r) => r.id),
+      porQueImportaElListado(RUTA, ajeno.id),
+    ).not.toContain(ajeno.id);
+    expect(cuerpo.rows.map((r) => r.cashRegisterId)).not.toContain(
+      templo.cajaId,
     );
-    expect(cuerpo.rows.map((r) => r.cashRegisterId)).not.toContain(templo.cajaId);
   });
 
   it("control: SI devuelve el arqueo propio", async () => {
@@ -1551,9 +1678,10 @@ describe("historial de arqueos — GET /api/admin/finance/cash-counts", () => {
     const res = await getComoGimnasioDos("/cash-counts?limit=200");
     expect(res.statusCode, `${RUTA} fallo: ${res.body}`).toBe(200);
     const cuerpo = JSON.parse(res.body) as { rows: Array<{ id: number }> };
-    expect(cuerpo.rows.map((r) => r.id), porQueImportaElControl(RUTA, propio.id)).toContain(
-      propio.id,
-    );
+    expect(
+      cuerpo.rows.map((r) => r.id),
+      porQueImportaElControl(RUTA, propio.id),
+    ).toContain(propio.id);
   });
 });
 
@@ -1561,9 +1689,13 @@ describe("fondo de cambio — PATCH /api/admin/finance/cash-registers/:id/change
   const RUTA = "PATCH /api/admin/finance/cash-registers/:id/change-fund";
 
   it("aislamiento: no puede fijar el fondo de una caja de El Templo, y la fila queda intacta", async () => {
-    const res = await escribirComoGimnasioDos("PATCH", `/cash-registers/${templo.cajaId}/change-fund`, {
-      amount: 999,
-    });
+    const res = await escribirComoGimnasioDos(
+      "PATCH",
+      `/cash-registers/${templo.cajaId}/change-fund`,
+      {
+        amount: 999,
+      },
+    );
     expect(
       res.statusCode,
       `${RUTA} dejo al gimnasio ${TENANT_DOS} tocar la caja ${templo.cajaId} de El Templo. ` +
@@ -1579,16 +1711,31 @@ describe("fondo de cambio — PATCH /api/admin/finance/cash-registers/:id/change
         ),
       )
       .limit(1);
-    expect(fila?.changeFund, `${RUTA} modifico el fondo de la caja ajena.`).toBe(0);
+    expect(
+      fila?.changeFund,
+      `${RUTA} modifico el fondo de la caja ajena.`,
+    ).toBe(0);
   });
 
   it("control: SI fija el fondo de la caja propia y el esperado lo incluye", async () => {
-    const res = await escribirComoGimnasioDos("PATCH", `/cash-registers/${dos.cajaId}/change-fund`, {
-      amount: 20000,
-    });
-    expect(res.statusCode, porQueImportaElControl(RUTA, dos.cajaId) + ` ${res.body}`).toBe(200);
-    const esperado = await getComoGimnasioDos(`/cash-counts/expected?cashRegisterId=${dos.cajaId}`);
-    const cuerpo = JSON.parse(esperado.body) as { changeFund: number; expectedAmount: number };
+    const res = await escribirComoGimnasioDos(
+      "PATCH",
+      `/cash-registers/${dos.cajaId}/change-fund`,
+      {
+        amount: 20000,
+      },
+    );
+    expect(
+      res.statusCode,
+      porQueImportaElControl(RUTA, dos.cajaId) + ` ${res.body}`,
+    ).toBe(200);
+    const esperado = await getComoGimnasioDos(
+      `/cash-counts/expected?cashRegisterId=${dos.cajaId}`,
+    );
+    const cuerpo = JSON.parse(esperado.body) as {
+      changeFund: number;
+      expectedAmount: number;
+    };
     expect(cuerpo.changeFund).toBe(20000);
     expect(cuerpo.expectedAmount).toBe(20000 + IMPORTE_SEMBRADO);
   });

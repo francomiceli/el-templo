@@ -838,7 +838,9 @@ export class CashRegisterService {
       .limit(1);
     if (!caja) throw new NotFoundError("Caja no encontrada");
     if (caja.type !== "efectivo") {
-      throw new BadRequestError("Solo una caja de efectivo tiene fondo de cambio");
+      throw new BadRequestError(
+        "Solo una caja de efectivo tiene fondo de cambio",
+      );
     }
     await this.db
       .update(schema.cashRegisters)
@@ -849,7 +851,10 @@ export class CashRegisterService {
           eq(schema.cashRegisters.id, cashRegisterId),
         ),
       );
-    this.log.info({ cashRegisterId, changeFund: amount }, "Fondo de cambio actualizado");
+    this.log.info(
+      { cashRegisterId, changeFund: amount },
+      "Fondo de cambio actualizado",
+    );
     return { cashRegisterId, changeFund: amount };
   }
 
@@ -1133,6 +1138,125 @@ export class CashRegisterService {
       branchId: input.branchId,
       currency: input.currency,
       isTreasury: false,
+      firmeBalance: bal.firmeBalance,
+      pendienteAmount: bal.pendienteAmount,
+      changeFund: 0,
+      period: null,
+    };
+  }
+
+  /**
+   * Invariante del Tesoro (fase 208, DI-01): `is_treasury` solo existe en una
+   * cuenta de EFECTIVO y SIN sede. Se valida en el service (no con CHECK) y se
+   * llama antes de todo INSERT de un Tesoro: hoy `createTreasury` siempre lo
+   * cumple, es la red para quien toque el alta después.
+   *
+   * @throws BadRequestError cuando se pretende un Tesoro banco o con sede.
+   */
+  private assertTreasuryShape(shape: {
+    type: "efectivo" | "banco";
+    branchId: number | null;
+    isTreasury: boolean;
+  }): void {
+    if (
+      shape.isTreasury &&
+      (shape.type !== "efectivo" || shape.branchId !== null)
+    ) {
+      throw new BadRequestError("El Tesoro es una cuenta de efectivo sin sede");
+    }
+  }
+
+  /**
+   * Crea el Tesoro de una moneda (fase 208, DI-01): cuenta de efectivo SIN sede
+   * (`branch_id` NULL) e `is_treasury`, aparte de la Caja central. Owner-only
+   * por el scope de listados (igual que Central) y por el gate de la ruta.
+   *
+   * Unicidad: a lo sumo UN Tesoro ACTIVO por (gimnasio, moneda). Se valida acá
+   * con `tenantWhere` (no con un UNIQUE: un Tesoro cerrado no debe bloquear al
+   * siguiente, y el filtro por gimnasio evita que el Tesoro de otro gimnasio
+   * dispare un 409 que delataría su existencia).
+   *
+   * Para una cuenta NUEVA alcanza con `opening_balance` + `cutoff_date` = hoy
+   * (DI-06): el saldo de apertura declarado ES el arqueo, no se registra otro.
+   *
+   * @throws BadRequestError nombre vacío/largo, moneda no soportada o saldo inválido.
+   * @throws ConflictError cuando ya hay un Tesoro activo en esa moneda.
+   */
+  async createTreasury(
+    ctx: TenantContext,
+    input: { name: string; currency: string; openingBalance?: number },
+  ): Promise<CajaSaldoRow> {
+    const name = input.name.trim();
+    if (name.length < 1 || name.length > 100) {
+      throw new BadRequestError(
+        "El nombre del Tesoro es obligatorio (hasta 100 caracteres)",
+      );
+    }
+    if (!isSupportedAccountCurrency(input.currency)) {
+      throw new BadRequestError(
+        `Moneda no soportada para un Tesoro: ${input.currency}`,
+      );
+    }
+    const currency = input.currency;
+    const openingBalance = assertMoneyAmount(input.openingBalance ?? 0, {
+      label: "El saldo de apertura",
+      allowZero: true,
+    });
+
+    this.assertTreasuryShape({
+      type: "efectivo",
+      branchId: null,
+      isTreasury: true,
+    });
+
+    const [existing] = await this.db
+      .select({ id: schema.cashRegisters.id })
+      .from(schema.cashRegisters)
+      .where(
+        and(
+          tenantWhere(schema.cashRegisters, ctx),
+          eq(schema.cashRegisters.type, "efectivo"),
+          isNull(schema.cashRegisters.branchId),
+          eq(schema.cashRegisters.isTreasury, true),
+          eq(schema.cashRegisters.currency, currency),
+          eq(schema.cashRegisters.isActive, true),
+        ),
+      )
+      .limit(1);
+    if (existing) {
+      throw new ConflictError(`Ya hay un Tesoro activo en ${currency}`);
+    }
+
+    const inserted = await this.db.insert(schema.cashRegisters).values(
+      tenantValues(ctx, {
+        name,
+        type: "efectivo",
+        branchId: null,
+        isTreasury: true,
+        currency,
+        openingBalance,
+        cutoffDate: this.today(),
+      }),
+    );
+    const id = Number(inserted[0].insertId);
+    this.log.info(
+      {
+        cashRegisterId: id,
+        currency,
+        openingBalance,
+        tenantId: ctx.tenantId,
+      },
+      "Tesoro creado",
+    );
+
+    const bal = await this.getBalance(ctx, id);
+    return {
+      cashRegisterId: id,
+      name,
+      type: "efectivo",
+      branchId: null,
+      currency,
+      isTreasury: true,
       firmeBalance: bal.firmeBalance,
       pendienteAmount: bal.pendienteAmount,
       changeFund: 0,

@@ -44,6 +44,7 @@ import {
   pendingTrayExportSchema,
   cashBalancesSchema,
   createEfectivoCajaSchema,
+  createTreasurySchema,
   costCentersSchema,
   cashBalancesExportSchema,
   movementsHistorySchema,
@@ -72,6 +73,7 @@ import {
   FINANCE_VOID_ROLES,
   FINANCE_ADJUSTMENT_ROLES,
   ADMIN_ROLES,
+  OWNER_ROLES,
 } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
 import {
@@ -1985,6 +1987,34 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
+  // POST /cash-registers/treasury — crear el Tesoro de una moneda (fase 208,
+  // DI-01). OWNER-ONLY, como la Caja central: es plata sin sede y el
+  // openingBalance entra directo al saldo firme. A lo sumo uno activo por
+  // (gimnasio, moneda): lo sostiene el service.
+  fastify.post<{
+    Body: { name: string; currency: string; openingBalance?: number };
+  }>(
+    "/cash-registers/treasury",
+    { schema: createTreasurySchema },
+    async (request, reply) => {
+      try {
+        if (!(OWNER_ROLES as readonly string[]).includes(request.user.role)) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "Solo el dueño puede crear un Tesoro",
+          });
+        }
+        const caja = await cashRegisterService.createTreasury(
+          assertTenant(request.scope, "finance.cash-registers.treasury"),
+          request.body,
+        );
+        return reply.code(201).send({ caja });
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "create treasury");
+      }
+    },
+  );
+
   // PATCH /cash-registers/:id — editar cuenta banco (CTA-01, D-04 moneda fija)
   fastify.patch<{ Params: { id: number }; Body: UpdateBankAccountInput }>(
     "/cash-registers/:id",
@@ -2122,7 +2152,10 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         for (const row of rows) {
           sheet.addRow({
             caja: row.name,
-            tipo: CAJA_TYPE_LABELS_ES[row.type] ?? row.type,
+            // El Tesoro se distingue de Central (DI-09): Central sigue "Efectivo".
+            tipo: row.isTreasury
+              ? "Tesoro"
+              : (CAJA_TYPE_LABELS_ES[row.type] ?? row.type),
             moneda: row.currency,
             firme: row.firmeBalance,
             pendiente: row.pendienteAmount,
