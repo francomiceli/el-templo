@@ -1,6 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import type { StretchExercise, StretchTodayResponse } from '../../types/stretch'
-import { buildStretchSession, stretchPhaseAt, stretchTimeline } from '../stretchSession'
+import {
+  buildStretchSession,
+  stretchClockElapsedMs,
+  showSideSwitchNotice,
+  stretchPhaseAt,
+  stretchTimeline,
+  stretchTotalMs,
+} from '../stretchSession'
 
 /**
  * Fase 213-09: Session sintética del estiramiento y reloj puro de la rutina
@@ -220,5 +227,68 @@ describe('stretchPhaseAt', () => {
       remainingMs: 0,
       segmentMs: 0,
     })
+  })
+})
+
+describe('stretchClockElapsedMs', () => {
+  const timeline = stretchTimeline(EJERCICIOS)
+
+  it('(a) al pasar a playing (elapsed = ancla) el reloj está en 0 y empieza la transición del ejercicio 0 con 10 s', () => {
+    expect(stretchClockElapsedMs(3, 3)).toBe(0)
+    const p = stretchPhaseAt(stretchClockElapsedMs(3, 3), timeline)
+    expect(p.phase).toBe('transition')
+    expect(p.exerciseIndex).toBe(0)
+    expect(p.remainingMs).toBe(10_000)
+  })
+
+  it('(b) 10 s después del ancla arranca el lado 1 del ejercicio 0 con 45 s por delante', () => {
+    const p = stretchPhaseAt(stretchClockElapsedMs(13, 3), timeline)
+    expect(p.phase).toBe('work')
+    expect(p.exerciseIndex).toBe(0)
+    expect(p.side).toBe(1)
+    expect(p.remainingMs).toBe(45_000)
+  })
+
+  it('(c) sin ancla (todavía en el 3-2-1) es 0, por más segundos que traiga el reloj del player', () => {
+    expect(stretchClockElapsedMs(0, null)).toBe(0)
+    expect(stretchClockElapsedMs(3, null)).toBe(0)
+    expect(stretchClockElapsedMs(120, null)).toBe(0)
+  })
+
+  it('(d) con elapsed menor que el ancla nunca da negativo', () => {
+    expect(stretchClockElapsedMs(1, 3)).toBe(0)
+    expect(stretchClockElapsedMs(0, 5)).toBe(0)
+  })
+
+  it('un ancla en 0 (sin segundos previos) deja pasar el tiempo entero', () => {
+    expect(stretchClockElapsedMs(12, 0)).toBe(12_000)
+  })
+
+  it('valores no finitos se tratan como 0', () => {
+    expect(stretchClockElapsedMs(Number.NaN, 3)).toBe(0)
+    expect(stretchClockElapsedMs(10, Number.NaN)).toBe(0)
+  })
+})
+
+describe('stretchTotalMs y showSideSwitchNotice', () => {
+  const timeline = stretchTimeline(EJERCICIOS)
+
+  it('el total es la suma de los tramos y 0 sin rutina', () => {
+    expect(stretchTotalMs(timeline)).toBe(255_000)
+    expect(stretchTotalMs([])).toBe(0)
+  })
+
+  it('el aviso de cambio de lado solo vive los primeros 4 s del lado 2', () => {
+    // Ejercicio 0: transición 0-10 s, lado 1 10-55 s, lado 2 55-100 s
+    expect(showSideSwitchNotice(stretchPhaseAt(54_000, timeline))).toBe(false)
+    expect(showSideSwitchNotice(stretchPhaseAt(55_000, timeline))).toBe(true)
+    expect(showSideSwitchNotice(stretchPhaseAt(58_999, timeline))).toBe(true)
+    expect(showSideSwitchNotice(stretchPhaseAt(59_000, timeline))).toBe(false)
+  })
+
+  it('no hay aviso en la transición, en el lado 1 ni al terminar', () => {
+    expect(showSideSwitchNotice(stretchPhaseAt(0, timeline))).toBe(false)
+    expect(showSideSwitchNotice(stretchPhaseAt(20_000, timeline))).toBe(false)
+    expect(showSideSwitchNotice(stretchPhaseAt(999_999, timeline))).toBe(false)
   })
 })

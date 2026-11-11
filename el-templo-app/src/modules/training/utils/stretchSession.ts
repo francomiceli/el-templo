@@ -145,3 +145,36 @@ export function stretchPhaseAt(elapsedMs: number, timeline: StretchSegment[]): S
     segmentMs: seg.durationMs,
   }
 }
+
+/**
+ * Tiempo de la rutina (ms) para el reloj del player. `useSingleBlockPlayer.beginBlock` arranca el
+ * reloj del player junto con el 3-2-1, así que `elapsedSeconds` ya trae esos segundos cuando el
+ * alumno empieza a estirar: la página guarda `elapsedSeconds` en el momento del paso a `playing`
+ * (`clockStartElapsedSeconds`) y el reloj de la rutina cuenta desde ahí. `null` = todavía en el 3-2-1.
+ */
+export function stretchClockElapsedMs(
+  elapsedSeconds: number,
+  clockStartElapsedSeconds: number | null,
+): number {
+  if (clockStartElapsedSeconds === null) return 0
+  if (!Number.isFinite(elapsedSeconds) || !Number.isFinite(clockStartElapsedSeconds)) return 0
+  return Math.max(0, elapsedSeconds - clockStartElapsedSeconds) * MS
+}
+
+/** Duración total de la rutina (ms); 0 con timeline vacío. */
+export function stretchTotalMs(timeline: StretchSegment[]): number {
+  const last = timeline[timeline.length - 1]
+  return last ? last.startMs + last.durationMs : 0
+}
+
+/** Cuánto dura el aviso "Cambiá de lado" al empezar el lado 2 (ms). */
+export const SIDE_SWITCH_NOTICE_MS = 4000
+
+/** true durante los primeros segundos del lado 2: el alumno tiene que cambiar de posición. */
+export function showSideSwitchNotice(phase: StretchPhase): boolean {
+  return (
+    phase.phase === 'work' &&
+    phase.side === 2 &&
+    phase.segmentMs - phase.remainingMs < SIDE_SWITCH_NOTICE_MS
+  )
+}
