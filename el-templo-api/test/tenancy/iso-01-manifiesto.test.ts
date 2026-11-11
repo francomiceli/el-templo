@@ -435,7 +435,10 @@ import {
 // 2026-11-11: 555 -> 556 por el arqueo de apertura (fase 208-04): `POST
 // /api/admin/finance/cash-registers/:id/opening-count`, `tenant-scoped`
 // (owner-only, `assertTenant` + `tenantWhere`/`tenantValues` en el service).
-const ENTRADAS_BASELINE = 556;
+// 2026-11-11: 556 -> 557 por los destinos del retiro (fase 208-06): `GET
+// /api/admin/finance/withdrawals/destinations`, `tenant-scoped` (`assertTenant`
+// + `tenantWhere` en el service; solo nombres, sin saldos).
+const ENTRADAS_BASELINE = 557;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -578,7 +581,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 556 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 557 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(

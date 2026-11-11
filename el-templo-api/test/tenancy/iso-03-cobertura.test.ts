@@ -176,7 +176,9 @@ export const EXCEPCIONES_NOMBRADAS: Readonly<Record<string, string>> = {
 // aislamiento+control en iso-03-finance-cajas.
 // 2026-11-11: 51 -> 52 por el arqueo de apertura (fase 208-04), con su par
 // aislamiento+control en iso-03-finance-cajas.
-const CASOS_BASELINE = 52;
+// 2026-11-11: 52 -> 53 por los destinos del retiro (fase 208-06), con su par
+// aislamiento+control en iso-03-finance-cajas.
+const CASOS_BASELINE = 53;
 
 /** Los tres archivos de la batería ISO-03, en el orden en que se escribieron. */
 const ARCHIVOS_BATERIA = [

@@ -149,6 +149,11 @@ export interface FinanzasDelGimnasioDos {
   cajaId: number;
   /** Cuenta banco (`cash_registers.type = 'banco'`, sin sede). */
   bankAccountId: number;
+  /**
+   * Caja central del gimnasio 2 (efectivo SIN sede, activa): el destino de un
+   * retiro (fase 208-06).
+   */
+  centralId: number;
   costCenterId: number;
   transactionId: number;
   linkId: number;
@@ -170,6 +175,8 @@ export interface FinanzasDeElTemplo {
   cajaId: number;
   /** Cuenta banco creada por este fixture (marcada). */
   bankAccountId: number;
+  /** Caja central de El Templo creada por este fixture (marcada): destino ajeno. */
+  centralId: number;
   /** Centro de costo creado por este fixture (marcado). */
   costCenterId: number;
   transactionId: number;
@@ -388,6 +395,21 @@ export async function sembrarFinanzasTemplo(
     )
     .$returningId();
 
+  // Caja central (efectivo sin sede): destino posible de un retiro (208-06).
+  const [central] = await app.db
+    .insert(schema.cashRegisters)
+    .values(
+      tenantValues(CTX_TEMPLO, {
+        name: `${MARCA_ISO03} Central Templo ${suf}`,
+        type: "efectivo",
+        branchId: null,
+        currency: MONEDA_SEMBRADA,
+        openingBalance: 0,
+        cutoffDate: "2020-01-01",
+      }),
+    )
+    .$returningId();
+
   const costCenterName = `${MARCA_ISO03} Centro Templo ${suf}`;
   const [centro] = await app.db
     .insert(schema.costCenters)
@@ -406,6 +428,7 @@ export async function sembrarFinanzasTemplo(
     branchId: sede.id,
     cajaId: caja.id,
     bankAccountId: banco.id,
+    centralId: central.id,
     costCenterId: centro.id,
     transactionId,
     linkId,
@@ -469,6 +492,21 @@ export async function sembrarFinanzasGimnasioDos(
     )
     .$returningId();
 
+  // Caja central (efectivo sin sede): destino posible de un retiro (208-06).
+  const [central] = await app.db
+    .insert(schema.cashRegisters)
+    .values(
+      tenantValues(CTX_DOS, {
+        name: `${MARCA_ISO03} Central G2 ${suf}`,
+        type: "efectivo",
+        branchId: null,
+        currency: MONEDA_SEMBRADA,
+        openingBalance: 0,
+        cutoffDate: "2020-01-01",
+      }),
+    )
+    .$returningId();
+
   const costCenterName = `${MARCA_ISO03} Centro G2 ${suf}`;
   const [centro] = await app.db
     .insert(schema.costCenters)
@@ -486,6 +524,7 @@ export async function sembrarFinanzasGimnasioDos(
   return {
     cajaId: caja.id,
     bankAccountId: banco.id,
+    centralId: central.id,
     costCenterId: centro.id,
     transactionId,
     linkId,

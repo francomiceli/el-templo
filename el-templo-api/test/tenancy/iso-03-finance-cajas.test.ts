@@ -36,6 +36,7 @@
  *
  * Retiros de caja (feedback caja/cobros 2026-09-07, 5 rutas):
  *   GET    /api/admin/finance/withdrawals/pending
+ *   GET    /api/admin/finance/withdrawals/destinations
  *   POST   /api/admin/finance/withdrawals
  *   GET    /api/admin/finance/withdrawals
  *   GET    /api/admin/finance/withdrawals/:id
@@ -1484,6 +1485,7 @@ async function registrarRetiroPropio(): Promise<{
 }> {
   const res = await escribirComoGimnasioDos("POST", "/withdrawals", {
     cajaId: dos.cajaId,
+    destinationCashRegisterId: dos.centralId,
     responsibleName: RESPONSABLE_DOS,
     amount: IMPORTE_SEMBRADO,
   });
@@ -1546,6 +1548,7 @@ describe("alta de retiro — POST /api/admin/finance/withdrawals", () => {
     const antesTemplo = await contarTransaccionesDe(TENANT_TEMPLO);
     const res = await escribirComoGimnasioDos("POST", "/withdrawals", {
       cajaId: templo.cajaId,
+      destinationCashRegisterId: dos.centralId,
       responsibleName: RESPONSABLE_DOS,
       amount: 1,
     });
@@ -1560,6 +1563,32 @@ describe("alta de retiro — POST /api/admin/finance/withdrawals", () => {
         await contarTransaccionesDe(TENANT_TEMPLO),
       ],
       `${RUTA} escribio una fila aunque contesto que la caja no existe.`,
+    ).toEqual([antesDos, antesTemplo]);
+  });
+
+  it("aislamiento: no puede mandar su retiro a la Caja central de El Templo, y no nace ninguna fila", async () => {
+    // Fase 208-06 (T-208-19): el destino llega del BODY. `loadDestination` filtra
+    // con tenantWhere, asi que la Central ajena da el mismo 400 que un id
+    // inexistente (no se filtra que existe) y el retiro no escribe nada.
+    const antesDos = await contarTransaccionesDe(TENANT_DOS);
+    const antesTemplo = await contarTransaccionesDe(TENANT_TEMPLO);
+    const res = await escribirComoGimnasioDos("POST", "/withdrawals", {
+      cajaId: dos.cajaId,
+      destinationCashRegisterId: templo.centralId,
+      responsibleName: RESPONSABLE_DOS,
+      amount: 1,
+    });
+    expect(
+      res.statusCode,
+      `${RUTA} dejo al gimnasio ${TENANT_DOS} mandar un retiro a la Caja central ${templo.centralId} ` +
+        `de El Templo (o contesto algo distinto de "el destino no es valido"). Respuesta: ${res.body}`,
+    ).toBe(400);
+    expect(
+      [
+        await contarTransaccionesDe(TENANT_DOS),
+        await contarTransaccionesDe(TENANT_TEMPLO),
+      ],
+      `${RUTA} escribio una fila aunque rechazo el destino ajeno.`,
     ).toEqual([antesDos, antesTemplo]);
   });
 
@@ -1599,6 +1628,51 @@ describe("alta de retiro — POST /api/admin/finance/withdrawals", () => {
       await tenantDeLaFila(app, "financial_transactions", retiro.id),
       `${RUTA} creo el retiro ${retiro.id} en otro gimnasio (tenantValues perdido).`,
     ).toBe(TENANT_DOS);
+  });
+});
+
+describe("destinos de un retiro — GET /api/admin/finance/withdrawals/destinations", () => {
+  const RUTA = "GET /api/admin/finance/withdrawals/destinations";
+
+  it("aislamiento: los destinos de una caja de El Templo no existen para el gimnasio 2", async () => {
+    const res = await getComoGimnasioDos(
+      `/withdrawals/destinations?cashRegisterId=${templo.cajaId}`,
+    );
+    // El guard es enforceCajaScope (ruta) sobre el ORIGEN: misma respuesta que
+    // una caja inexistente, y nada de El Templo en el cuerpo.
+    expect(
+      res.statusCode,
+      `${RUTA} le contesto al gimnasio ${TENANT_DOS} sobre la caja ${templo.cajaId} de El Templo ` +
+        `algo distinto de "no existe": ${res.body}`,
+    ).toBe(404);
+    expect(
+      res.body,
+      `${RUTA} filtro la Caja central ${templo.centralId} de El Templo al gimnasio ${TENANT_DOS}.`,
+    ).not.toContain(`"id":${templo.centralId},`);
+  });
+
+  it("control: SI lista la Caja central propia y nunca la de El Templo", async () => {
+    const res = await getComoGimnasioDos(
+      `/withdrawals/destinations?cashRegisterId=${dos.cajaId}`,
+    );
+    expect(res.statusCode, `${RUTA} fallo: ${res.body}`).toBe(200);
+    const { destinations } = JSON.parse(res.body) as {
+      destinations: Array<{ id: number }>;
+    };
+    expect(
+      destinations.map((d) => d.id),
+      porQueImportaElControl(RUTA, dos.centralId),
+    ).toContain(dos.centralId);
+    expect(
+      destinations.map((d) => d.id),
+      `${RUTA} listo la Caja central de El Templo para el gimnasio ${TENANT_DOS}.`,
+    ).not.toContain(templo.centralId);
+    for (const d of destinations) {
+      expect(
+        await tenantDeLaFila(app, "cash_registers", d.id),
+        porQueImportaElListado(RUTA, d.id),
+      ).toBe(TENANT_DOS);
+    }
   });
 });
 

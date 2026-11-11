@@ -742,14 +742,30 @@ export interface CashRegisterBalance {
 }
 
 // -- Retiros de caja (feedback 2026-09-07, rediseño 2026-09-23) -------------
-// Un retiro es un `expense` con centro de costo "Retiros" + responsable
-// obligatorio. En efectivo lleva monto libre con tope en el saldo firme,
+// Un retiro es un traslado a Central/Tesoro con responsable obligatorio (fase
+// 208; los retiros viejos son un `expense` con centro de costo "Retiros"). En efectivo lleva monto libre con tope en el saldo firme,
 // conteo opcional (ajuste por faltante/sobrante) y se auto-vincula a los
 // cobros firmes sin retiro (procedencia: un cobro retirado no se anula ni se
 // vuelve a retirar). Ver withdrawal-service.ts.
 
+/**
+ * Destino posible de un retiro (GET /withdrawals/destinations): solo
+ * identificación, sin saldos (Central y Tesoro son owner-only en Saldos).
+ */
+export interface WithdrawalDestination {
+  id: number;
+  name: string;
+  isTreasury: boolean;
+  currency: string;
+}
+
 export interface RegisterWithdrawalInput {
   cajaId: number;
+  /**
+   * Fase 208 (D-19): Caja central o Tesoro adonde va la plata. Obligatorio:
+   * el retiro es un traslado (la caja de origen baja y el destino sube).
+   */
+  destinationCashRegisterId: number;
   /** Quién se llevó la plata. Texto libre, obligatorio. */
   responsibleName: string;
   /** YYYY-MM-DD. Default hoy. Nunca futura. */

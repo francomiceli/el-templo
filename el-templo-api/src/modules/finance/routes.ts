@@ -59,6 +59,7 @@ import {
   costCentersAllSchema,
   pendingWithdrawalsSchema,
   registerWithdrawalSchema,
+  withdrawalDestinationsSchema,
   listWithdrawalsSchema,
   withdrawalByIdSchema,
   incomeByBranchSchema,
@@ -785,9 +786,10 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // ===================================================================
-  // Retiros de caja (feedback 2026-09-07). Un retiro = expense "Retiros" con
-  // responsable obligatorio y, en efectivo, los cobros que se llevó. La
-  // anulación reusa POST /expenses/:id/void (libera los cobros).
+  // Retiros de caja (feedback 2026-09-07). Desde la fase 208 un retiro nuevo
+  // = traslado a Caja central/Tesoro con responsable obligatorio y, en
+  // efectivo, los cobros que se llevó (los viejos son un expense "Retiros").
+  // La anulación reusa POST /expenses/:id/void (libera los cobros).
   // ===================================================================
 
   // GET /withdrawals/pending?cashRegisterId=&dateTo= — lo que debería estar
@@ -822,6 +824,44 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         );
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "withdrawals pending");
+        return reply;
+      }
+    },
+  );
+
+  // GET /withdrawals/destinations?cashRegisterId= — Central/Tesoros adonde se
+  // puede retirar desde esa caja (fase 208). Solo nombres, sin saldos: aunque
+  // Central y Tesoro sean owner-only en Saldos, quien carga retiros los elige.
+  // Va ANTES de /withdrawals/:id. Lectura.
+  fastify.get<{ Querystring: { cashRegisterId: number } }>(
+    "/withdrawals/destinations",
+    { schema: withdrawalDestinationsSchema },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(
+          request.scope,
+          "finance.withdrawals.destinations",
+        );
+        // El alcance se evalúa sobre el ORIGEN (la caja desde la que se retira).
+        const scopeErr = await enforceCajaScope(
+          ctx,
+          request.query.cashRegisterId,
+          request.scope.isOwner,
+          request.scope.country ?? null,
+        );
+        if (scopeErr) {
+          return reply
+            .code(scopeErr.code)
+            .send({ error: "No encontrado", message: scopeErr.message });
+        }
+        const destinations = await withdrawalService.listDestinations(
+          ctx,
+          request.query.cashRegisterId,
+          enforcedBranchIds(request.scope) ?? undefined,
+        );
+        return { destinations };
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "withdrawal destinations");
         return reply;
       }
     },
@@ -953,6 +993,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           ctx,
           {
             cajaId: request.body.cajaId,
+            destinationCashRegisterId: request.body.destinationCashRegisterId,
             responsibleName: request.body.responsibleName,
             transactionDate: request.body.transactionDate,
             notes: request.body.notes ?? null,

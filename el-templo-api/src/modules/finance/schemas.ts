@@ -1150,7 +1150,51 @@ export const pendingWithdrawalsSchema = {
 } as const;
 
 /**
- * POST /withdrawals — registrar un retiro. `amount` siempre (2026-09-23: el
+ * GET /withdrawals/destinations?cashRegisterId= — adónde puede ir un retiro
+ * desde esa caja (Central o Tesoro activos de la misma moneda). Solo
+ * identificación: id, nombre, si es Tesoro y moneda. Sin saldos.
+ */
+export const withdrawalDestinationsSchema = {
+  querystring: {
+    type: "object",
+    required: ["cashRegisterId"],
+    properties: {
+      cashRegisterId: { type: "integer", minimum: 1 },
+    },
+    additionalProperties: false,
+  },
+  response: {
+    200: {
+      type: "object",
+      required: ["destinations"],
+      properties: {
+        destinations: {
+          type: "array",
+          items: {
+            type: "object",
+            required: ["id", "name", "isTreasury", "currency"],
+            properties: {
+              id: { type: "integer" },
+              name: { type: "string" },
+              isTreasury: { type: "boolean" },
+              currency: { type: "string" },
+            },
+          },
+        },
+      },
+    },
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+/**
+ * POST /withdrawals — registrar un retiro. Fase 208 (D-19): el retiro es un
+ * traslado a la Caja central o a un Tesoro, así que `destinationCashRegisterId`
+ * es obligatorio (la caja y la moneda se validan en el service). `amount` siempre (2026-09-23: el
  * retiro en efectivo es una masa de plata, ya no la suma de cobros tildados).
  * `countedAmount` (conteo físico) solo en efectivo y con fecha de hoy — se
  * valida en el service. `transactionIds` ya no existe (Fastify descarta las
@@ -1160,9 +1204,15 @@ export const pendingWithdrawalsSchema = {
 export const registerWithdrawalSchema = {
   body: {
     type: "object",
-    required: ["cajaId", "responsibleName", "amount"],
+    required: [
+      "cajaId",
+      "destinationCashRegisterId",
+      "responsibleName",
+      "amount",
+    ],
     properties: {
       cajaId: { type: "integer", minimum: 1 },
+      destinationCashRegisterId: { type: "integer", minimum: 1 },
       responsibleName: { type: "string", minLength: 1, maxLength: 120 },
       transactionDate: { type: "string", format: "date" },
       notes: { type: ["string", "null"], maxLength: 2000 },

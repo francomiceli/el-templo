@@ -559,6 +559,9 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   // gimnasio vía assertTenant + enforceCajaScope/enforceRowScope.
   "GET /api/admin/finance/withdrawals": { categoria: "tenant-scoped" },
   "GET /api/admin/finance/withdrawals/:id": { categoria: "tenant-scoped" },
+  "GET /api/admin/finance/withdrawals/destinations": {
+    categoria: "tenant-scoped",
+  },
   "GET /api/admin/finance/withdrawals/pending": { categoria: "tenant-scoped" },
   "GET /api/admin/finance/withdrawals/responsibles": {
     categoria: "tenant-scoped",
