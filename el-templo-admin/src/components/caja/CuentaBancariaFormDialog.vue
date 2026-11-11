@@ -92,6 +92,7 @@
 import { reactive, computed, ref, onUnmounted } from 'vue';
 import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
+import type { AccountCurrency } from 'src/utils/currencies';
 import { extractError } from 'src/utils/extract-error';
 import { useTransactionsApi } from 'src/composables/useTransactionsApi';
 import type {
@@ -111,7 +112,7 @@ const props = defineProps<{
    * abre el diálogo con la moneda del cobro ya elegida). Ignorada en edición
    * (la moneda no se puede cambiar post-creación, D-04).
    */
-  defaultCurrency?: 'ARS' | 'EUR';
+  defaultCurrency?: AccountCurrency;
 }>();
 
 const emit = defineEmits<{
@@ -130,7 +131,8 @@ const show = computed({
 
 const isEditMode = computed(() => !!props.account);
 
-const currencyOptions: Array<{ label: string; value: 'ARS' | 'EUR' }> = [
+// Fase 208: el tipo ya admite USD (BankAccount.currency); 208-09 suma USD a las opciones.
+const currencyOptions: Array<{ label: string; value: AccountCurrency }> = [
   { label: 'Pesos (ARS)', value: 'ARS' },
   { label: 'Euros (EUR)', value: 'EUR' },
 ];
@@ -144,7 +146,7 @@ const submitting = ref(false);
 const form = reactive({
   bankName: '',
   accountHolder: '',
-  currency: 'ARS' as 'ARS' | 'EUR', // default ARS (D-04)
+  currency: 'ARS' as AccountCurrency, // default ARS (D-04)
   cbuCvu: '',
   accountAlias: '',
   taxId: '',

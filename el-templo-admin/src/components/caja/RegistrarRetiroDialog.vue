@@ -428,6 +428,9 @@ async function submit() {
   submitting.value = true;
   try {
     const isEfectivo = selectedCaja.value.type === 'efectivo';
+    // TODO(208-10): el retiro exige destino (Central/Tesoro). Hasta que 208-10 lo
+    // cargue desde el selector, se silencia el tipo; el expect-error avisa si queda.
+    // @ts-expect-error TS2345 falta destinationCashRegisterId (208-10)
     const { withdrawal } = await transactionsApi.registerWithdrawal({
       cajaId: selectedCaja.value.cashRegisterId,
       responsibleName: (responsibleName.value ?? '').trim(),

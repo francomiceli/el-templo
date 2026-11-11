@@ -4,6 +4,8 @@
  * Replaces src/types/payment.ts (deleted in this phase).
  */
 
+import type { AccountCurrency } from '../utils/currencies';
+
 // -- Enum union types -------------------------------------------------------
 
 export type TransactionKind =
@@ -572,6 +574,11 @@ export interface CajaSaldoRow {
   type: 'efectivo' | 'banco';
   branchId: number | null;
   currency: string;
+  /**
+   * Fase 208 (DI-01): true para el Tesoro (efectivo sin sede, aparte de la Caja
+   * central). Central y el resto de las cajas: false.
+   */
+  isTreasury: boolean;
   firmeBalance: number;
   pendienteAmount: number;
   /** Arqueo (2026-09-08): fondo de cambio fijo de la caja (0 en banco). */
@@ -629,6 +636,11 @@ export interface MovEgresoItem {
   // Phase 147 (EGR-03): nombre del centro de costo imputado. Solo lo traen las
   // filas expense; las demás kinds quedan NULL (LEFT JOIN a cost_centers).
   costCenterName: string | null;
+  /**
+   * Fase 208: responsable de un retiro (viejo = expense, nuevo = patas del
+   * traslado). null en el resto de las filas.
+   */
+  responsibleName: string | null;
 }
 
 export interface MovEgresoParams {
@@ -731,7 +743,7 @@ export interface ExpenseDetail {
 export interface BankAccount {
   id: number;
   name: string;
-  currency: 'ARS' | 'EUR';
+  currency: AccountCurrency;
   isActive: boolean;
   bankName: string | null;
   accountHolder: string | null;
@@ -751,7 +763,7 @@ export interface BankAccount {
 export interface CreateBankAccountInput {
   bankName: string;
   accountHolder: string;
-  currency: 'ARS' | 'EUR';
+  currency: AccountCurrency;
   cbuCvu?: string | null;
   accountAlias?: string | null;
   taxId?: string | null;
@@ -900,6 +912,14 @@ export interface WithdrawalListItem {
   recorderName: string;
   notes: string | null;
   paymentCount: number;
+  /**
+   * Formato del retiro (fase 208): 'legacy_expense' = expense con responsable
+   * (los retiros viejos), 'transfer' = traslado con responsable (los nuevos).
+   */
+  format: 'legacy_expense' | 'transfer';
+  /** Caja destino del retiro nuevo (Central o Tesoro). null en los viejos. */
+  destinationCashRegisterId: number | null;
+  destinationName: string | null;
   voidedAt: string | null;
   voidReason: string | null;
   createdAt: string;
@@ -919,8 +939,21 @@ export interface WithdrawalListParams {
   limit?: number;
 }
 
+/** Fase 208: Caja central o Tesoro adonde puede ir un retiro (misma moneda que el origen). */
+export interface WithdrawalDestination {
+  id: number;
+  name: string;
+  isTreasury: boolean;
+  currency: string;
+}
+
 export interface RegisterWithdrawalInput {
   cajaId: number;
+  /**
+   * Fase 208 (D-19): Caja central o Tesoro adonde va la plata. Obligatorio:
+   * el retiro es un traslado (la caja de origen baja y el destino sube).
+   */
+  destinationCashRegisterId: number;
   responsibleName: string;
   transactionDate?: string;
   notes?: string | null;
@@ -928,6 +961,33 @@ export interface RegisterWithdrawalInput {
   amount: number;
   /** Solo efectivo y retiro de hoy: plata contada en el cajón. */
   countedAmount?: number;
+}
+
+// -- Fase 208: Tesoro y arqueo de apertura ---------------------------------
+
+/** Alta del Tesoro de una moneda (POST /cash-registers/treasury, owner-only). */
+export interface CreateTreasuryInput {
+  name: string;
+  currency: AccountCurrency;
+  openingBalance?: number;
+}
+
+/** Arqueo de apertura (POST /cash-registers/:id/opening-count, owner-only). */
+export interface OpeningCountInput {
+  /** Efectivo real contado en total (incluye el fondo de cambio). */
+  countedAmount: number;
+  notes?: string | null;
+}
+
+export interface OpeningCountResult {
+  cashRegisterId: number;
+  expectedAmount: number;
+  countedAmount: number;
+  difference: number;
+  /** null si no hizo falta ajuste (contado == esperado). */
+  adjustmentTxId: number | null;
+  /** Saldo firme de la caja leído después del commit. */
+  firmeBalance: number;
 }
 
 // -- Ingresos por sede y medio de pago (pestaña Saldos) ---------------------
