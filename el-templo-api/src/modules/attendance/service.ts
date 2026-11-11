@@ -23,6 +23,7 @@ import {
   type MemberSeniority,
 } from "../shared/date-utils";
 import { validateQrToken } from "../shared/qr-token";
+import { CHECKIN_WINDOW_MS } from "../shared/checkin-window";
 import { isCoachLikeRole } from "../shared/permissions";
 import { memberCoveredUntilSql } from "../shared/covered-until";
 import {
@@ -134,7 +135,7 @@ export class AttendanceService {
     // presencial/online) to validate the budget AND decrement. The "no matching
     // booking" error is thrown at its ORIGINAL position (after the
     // subscription/budget/one-per-day checks) so error ordering is preserved.
-    const windowMs = 20 * 60 * 1000;
+    const windowMs = CHECKIN_WINDOW_MS;
 
     const bookingsInRange = await this.db
       .select({
