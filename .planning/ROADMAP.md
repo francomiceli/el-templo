@@ -1178,7 +1178,7 @@ Plans:
 - [x] 213-08-PLAN.md — Tests de caracterización + `useSingleBlockPlayer` + `FreeBlockPlayer` migrado
 - [x] 213-09-PLAN.md — App: tipos, `useStretchStore`, `useStretchCompletion`, Session sintética y reloj puro
 - [x] 213-10-PLAN.md — Sketch del reloj (decisión documentada) + reloj elegido + `StretchPlayer` y ruta `training/estirar`
-- [ ] 213-11-PLAN.md — Card de Mi Templo: "Estirar" como principal + cableado y `card_seen`
+- [x] 213-11-PLAN.md — Card de Mi Templo: "Estirar" como principal + cableado y `card_seen`
 - [ ] 213-12-PLAN.md — Deep link del push con la app cerrada y sin sesión
 - [ ] 213-13-PLAN.md — Checklist de UAT + consulta de medición a 4 semanas + gates finales
 
