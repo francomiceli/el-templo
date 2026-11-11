@@ -16,3 +16,14 @@
 - Fallos preexistentes que no son tuyos: 2 en `coach-load-alta.test.ts` y 1 en `office-routes.test.ts`.
 - Sedes: siempre por su nombre de `branches`, nunca cantidades fijas ("las sedes de Argentina", no "las 6").
 - Fastify corre con `removeAdditional` y `coerceTypes`: un campo extra del body se descarta sin 400, y `"12"` se convierte a 12.
+
+## Cadena de la fase 209 (valen para todos sus planes)
+
+- Leer antes de empezar: este archivo, `.planning/phases/209-egresos/209-CONTEXT.md`, el PLAN propio completo, los SUMMARY de los planes anteriores de la 209 (traen las firmas exportadas: usarlas, no reimplementar) y el `CLAUDE.md` del repo.
+- Corridas de vitest: timeout del Bash de 600000 ms. No correr `tsc` en paralelo con vitest. Si el harness manda una corrida larga a segundo plano por su cuenta, esperarla con UN solo comando bloqueante (`tail --pid=<pid> -f /dev/null`) y leer el resultado completo.
+- Gates de API: `npx tsc --noEmit` = 0, `npm run -s lint:tenant` = `DISCREPANCIAS: 0`, `npm run -s typecheck:tests` = `DISCREPANCIAS: 18`.
+- Gates de admin: `cd el-templo-admin && npx vue-tsc --noEmit 2>&1 | grep -c "error TS"` = 27. Sin `console.*` (usar `createLogger()`), sin `any`, composables con `cleanup()` y sin `onUnmounted`, paleta cálida de la marca y sin azul, textos en español rioplatense con acentos.
+- Tenancy: queries con `tenantWhere`/`tenantValues`. Nunca tocar la allowlist del lint de tenancy. No hardcodear ids de `users` en tests.
+- `transaction-service.ts`, `movement-service.ts` y `cash-register-service.ts` son caminos de cobro y de Caja en producción: cambio mínimo y explicable en una línea, sin refactorizar alrededor. `test/finance/no-regresion-208.test.ts` queda verde SIN tocarlo.
+- Migración de la fase: `0331_egresos_gastos_repartos_pagos.sql`, ya creada. Si un plan necesitara otra, va desde la 0332 y se anota en el SUMMARY.
+- SUMMARY de cada plan: qué se hizo, desviaciones, decisiones del ejecutor, resultados exactos de tests y gates, y firmas exportadas o datos que necesitan los planes siguientes. El árbol queda limpio al final.
