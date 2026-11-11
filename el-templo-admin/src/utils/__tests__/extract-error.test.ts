@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { AxiosError, AxiosHeaders, type AxiosResponse } from 'axios';
-import { extractError, isExpectedClientError } from '../extract-error';
+import { extractError, isExpectedClientError, parseActiveTransactionsBlock } from '../extract-error';
 
 function axiosErrorWith(status: number, data: unknown): AxiosError {
   const response: AxiosResponse = {
@@ -57,5 +57,29 @@ describe('isExpectedClientError', () => {
     expect(isExpectedClientError(axiosErrorWith(500, {}))).toBe(false);
     expect(isExpectedClientError(new AxiosError('Network Error', 'ERR_NETWORK'))).toBe(false);
     expect(isExpectedClientError(new Error('x'))).toBe(false);
+  });
+});
+
+describe('parseActiveTransactionsBlock (fase 207: centavos)', () => {
+  const block = (totalAmount: number) =>
+    axiosErrorWith(409, {
+      code: 'SUB_HAS_ACTIVE_TRANSACTIONS',
+      details: { transactionIds: [1, 2], totalAmount, currency: 'ARS' },
+    });
+
+  it('total entero: sin decimales (igual que antes)', () => {
+    const r = parseActiveTransactionsBlock(block(15000), 'cancelar');
+    expect(r?.formatted).toContain('15.000');
+    expect(r?.formatted).not.toContain(',');
+  });
+
+  it('total con centavos: 2 decimales', () => {
+    const r = parseActiveTransactionsBlock(block(77570.82), 'cancelar');
+    expect(r?.formatted).toContain('77.570,82');
+    expect(r?.message).toContain('2 cobros activos');
+  });
+
+  it('otro error devuelve null', () => {
+    expect(parseActiveTransactionsBlock(new Error('x'), 'cancelar')).toBeNull();
   });
 });
