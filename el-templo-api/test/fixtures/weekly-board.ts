@@ -505,6 +505,12 @@ export interface SeedIncomeOpts {
   tenantId?: number;
   /** Quien registra. Default: `admin@test.com` de El Templo (sobrevive a la limpieza). */
   recordedBy?: number;
+  /**
+   * Snapshot de la sede del alumno al cobrar (fase 207, D-14). `undefined` con
+   * `memberId` = la sede actual del socio (imita a `create()`). `null`
+   * explicito = dejar la columna NULL (para probar el fallback de lectura).
+   */
+  memberBranchId?: number | null;
 }
 
 async function temploAdminId(app: FastifyInstance): Promise<number> {
@@ -532,6 +538,22 @@ export async function seedIncome(
 ): Promise<number> {
   const tenantId = opts.tenantId ?? TENANT_TEMPLO;
   const recordedBy = opts.recordedBy ?? (await temploAdminId(app));
+  let memberBranchSnapshot: number | null = null;
+  if (opts.memberBranchId !== undefined) {
+    memberBranchSnapshot = opts.memberBranchId;
+  } else if (opts.memberId !== null && opts.memberId !== undefined) {
+    const [member] = await app.db
+      .select({ branchId: schema.users.branchId })
+      .from(schema.users)
+      .where(
+        and(
+          tenantWhere(schema.users, { tenantId }),
+          eq(schema.users.id, opts.memberId),
+        ),
+      )
+      .limit(1);
+    memberBranchSnapshot = member?.branchId ?? null;
+  }
   const [row] = await app.db
     .insert(schema.financialTransactions)
     .values(
@@ -547,6 +569,7 @@ export async function seedIncome(
           transactionDate: opts.transactionDate,
           effectiveDate: opts.transactionDate,
           branchId: opts.cobroBranchId,
+          memberBranchId: memberBranchSnapshot,
           recordedBy,
           validationStatus:
             opts.state === "pendiente"
