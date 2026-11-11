@@ -140,7 +140,7 @@ function iso(d: Date | null): string | null {
 }
 
 /** Texto opcional recortado: vacío → null, y tope de largo con mensaje en español. */
-function optionalText(
+export function optionalText(
   value: string | null | undefined,
   max: number,
   label: string,
