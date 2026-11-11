@@ -8,13 +8,12 @@
  *     alta de alumno NUEVO (usuario creado en la misma tx).
  *   - Egresos y traslados (sin socio) → NULL.
  *   - Alumno mudado: los cobros previos conservan la sede; el nuevo toma la
- *     actual. Lo leen el Tablero (`getIncomeByMemberBranch`, con centavos y con
+ *     actual. Lo leen el Tablero (`getIncomeByMemberBranch`, con
  *     fallback a la sede actual para filas sin snapshot) y Reportes → Cobros
  *     (columna y filtro de sede).
  *   - correct(): mismo socio conserva el snapshot, otro socio toma su sede.
  *
- * Armado calcado de centavos-cobros.test.ts, centavos-traslados-retiros.test.ts
- * y weekly-board/by-branch-caja-alumnos.test.ts.
+ * Armado calcado de weekly-board/by-branch-caja-alumnos.test.ts.
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
@@ -388,7 +387,7 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  // Misma limpieza que centavos-cobros.test.ts: una sola conexión con FK checks
+  // Limpieza: una sola conexión con FK checks
   // off y DELETE acotados al gimnasio.
   const conn = await app.dbPool.getConnection();
   try {
@@ -527,7 +526,7 @@ describe("snapshot de sede: sin socio queda NULL", () => {
       method: "POST",
       url: `${FIN}/expenses`,
       headers: { authorization: `Bearer ${adminToken}` },
-      payload: { cajaId: origen, amount: 100.5, costCenterId },
+      payload: { cajaId: origen, amount: 100, costCenterId },
     });
     expect(expense.statusCode, expense.body).toBe(201);
 
@@ -574,23 +573,23 @@ describe("snapshot de sede: alumno mudado", () => {
     expect(await snapshotOf(nuevo)).toBe(branchC);
   });
 
-  it("Tablero: el cobro previo cuenta en A (no en C), el nuevo en C, con centavos exactos", async () => {
-    await postAdvance(memberId, 100.1);
-    await postAdvance(memberId, 200.2);
+  it("Tablero: el cobro previo cuenta en A (no en C), el nuevo en C, con suma exacta", async () => {
+    await postAdvance(memberId, 100);
+    await postAdvance(memberId, 200);
     await moveMember(memberId, branchC);
-    await postAdvance(memberId, 50.05);
+    await postAdvance(memberId, 50);
 
     const byBranch = await incomeByMemberBranch();
-    // 100.10 + 200.20 con floats da 300.29999999999995.
-    expect(byBranch.get(branchA)?.get("ARS")).toBe(300.3);
-    expect(byBranch.get(branchC)?.get("ARS")).toBe(50.05);
+    // 100 + 200 en A, 50 en C.
+    expect(byBranch.get(branchA)?.get("ARS")).toBe(300);
+    expect(byBranch.get(branchC)?.get("ARS")).toBe(50);
   });
 
   it("Tablero: una fila sin snapshot cobrada en B cae en la sede ACTUAL del socio (A)", async () => {
     await seedIncome(app, {
       memberId,
       cobroBranchId: branchB,
-      amount: 700.7,
+      amount: 700,
       currency: "ARS",
       transactionDate: today,
       state: "firme",
@@ -598,7 +597,7 @@ describe("snapshot de sede: alumno mudado", () => {
     });
 
     const byBranch = await incomeByMemberBranch();
-    expect(byBranch.get(branchA)?.get("ARS")).toBe(700.7);
+    expect(byBranch.get(branchA)?.get("ARS")).toBe(700);
     expect(byBranch.get(branchB)?.get("ARS")).toBeUndefined();
   });
 
@@ -660,7 +659,7 @@ describe("snapshot de sede: correct()", () => {
     const original = await postAdvance(memberId, 1000);
     await moveMember(memberId, branchC);
 
-    const corregido = await correct(original, { amount: 1000.5 });
+    const corregido = await correct(original, { amount: 1001 });
     expect(corregido).not.toBe(original);
     expect(await snapshotOf(corregido)).toBe(branchA);
   });
