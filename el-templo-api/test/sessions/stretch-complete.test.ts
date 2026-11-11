@@ -468,6 +468,60 @@ describe("eventos y cierre del estiramiento: POST /api/sessions/stretch/{events,
     expect(await auraStretch(member.id)).toHaveLength(1);
   });
 
+  it("(f2) reintento tras un premio fallido: la oferta completada con condiciones cumplidas y aura_awarded false acredita una sola vez", async () => {
+    const { member, date } = await arrange();
+    // Simula el fallo previo: completada con todo marcado y 4 min medidos, pero
+    // el premio no llego a acreditarse (aura_awarded false, sin ledger).
+    const offerId = await insertarOferta(member.id, date, {
+      startedAt: new Date(Date.now() - 4 * MIN),
+      completedAt: new Date(),
+      durationSeconds: 240,
+      exercisesCompleted: [1],
+      auraAwarded: false,
+    });
+    expect(await auraStretch(member.id)).toHaveLength(0);
+
+    const primera = await postComplete(member.token, {
+      offerId,
+      exercisesCompleted: [1],
+    });
+    expect(primera.status, JSON.stringify(primera.body)).toBe(200);
+    expect(primera.body.alreadyCompleted).toBe(true);
+    expect(primera.body.auraAwarded).toBe(true);
+    expect(await auraStretch(member.id)).toHaveLength(1);
+    expect((await offerRow(offerId)).auraAwarded).toBe(true);
+
+    // Un tercer intento ya no acredita nada mas.
+    const segunda = await postComplete(member.token, {
+      offerId,
+      exercisesCompleted: [1],
+    });
+    expect(segunda.body.alreadyCompleted).toBe(true);
+    expect(segunda.body.auraAwarded).toBe(true);
+    expect(await auraStretch(member.id)).toHaveLength(1);
+  });
+
+  it("(f3) reintento sin condiciones de AURA (menos de 180 s o ejercicios sin marcar): no acredita", async () => {
+    const { member, date } = await arrange();
+    const corta = await insertarOferta(member.id, date, {
+      startedAt: new Date(Date.now() - 2 * MIN),
+      completedAt: new Date(),
+      durationSeconds: 120,
+      exercisesCompleted: [1],
+      auraAwarded: false,
+    });
+
+    const res = await postComplete(member.token, {
+      offerId: corta,
+      exercisesCompleted: [1],
+    });
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(res.body.alreadyCompleted).toBe(true);
+    expect(res.body.auraAwarded).toBe(false);
+    expect(await auraStretch(member.id)).toHaveLength(0);
+    expect((await offerRow(corta)).auraAwarded).toBe(false);
+  });
+
   it("(g) complete de una oferta de ayer responde 410 y la fila no cambia (D-12)", async () => {
     const { member, date } = await arrange();
     const ayer = shiftDate(date, -1);

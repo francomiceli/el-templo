@@ -683,7 +683,15 @@ export class StretchService {
     }
 
     if (row.completedAt) {
-      return { kind: "ok", view: this.toCompleteView(row, true) };
+      // ME-02: si el premio fallo despues de marcar el completado (deadlock,
+      // timeout), el reintento del cliente lo vuelve a intentar. Es idempotente
+      // por dia local (`awardOncePerLocalDay`), asi que no puede duplicar.
+      let view = this.toCompleteView(row, true);
+      if (!row.auraAwarded && this.meetsAuraCondition(row)) {
+        const awarded = await this.awardAura(ctx, userId, row);
+        if (awarded) view = { ...view, auraAwarded: true };
+      }
+      return { kind: "ok", view };
     }
 
     // Solo ejercicios de la rutina congelada, sin duplicados, en orden de rutina.
@@ -734,44 +742,12 @@ export class StretchService {
       return { kind: "ok", view: this.toCompleteView(fresh, true) };
     }
 
-    let auraAwarded = false;
-    if (
+    const auraAwarded =
       allDone &&
       durationSeconds !== null &&
       durationSeconds >= STRETCH_AURA_MIN_SECONDS
-    ) {
-      auraAwarded = await awardOncePerLocalDay(this.auraService, this.log, {
-        userId,
-        sourceType: "stretch",
-        referenceType: "stretch_day",
-        localDate: row.localDate,
-        description: "Estiramiento post-clase",
-      });
-      if (auraAwarded) {
-        try {
-          await this.db
-            .update(schema.stretchOffers)
-            .set({ auraAwarded: true })
-            .where(
-              and(
-                tenantWhere(schema.stretchOffers, ctx),
-                eq(schema.stretchOffers.id, row.id),
-              ),
-            );
-        } catch (err: unknown) {
-          // La AURA ya esta en el ledger (el unique impide un segundo cobro):
-          // se informa igual y queda rastro del flag que no se pudo marcar.
-          this.log.error(
-            {
-              userId,
-              offerId: row.id,
-              detail: err instanceof Error ? err.message : String(err),
-            },
-            "AURA de estiramiento acreditada pero aura_awarded no se pudo marcar",
-          );
-        }
-      }
-    }
+        ? await this.awardAura(ctx, userId, row)
+        : false;
 
     return {
       kind: "ok",
@@ -784,6 +760,61 @@ export class StretchService {
         minutes: this.minutesFor(durationSeconds, row.plannedSeconds),
       },
     };
+  }
+
+  /**
+   * D-08: condicion de AURA de una oferta YA completada: todos los ejercicios
+   * de la rutina marcados y al menos `STRETCH_AURA_MIN_SECONDS` medidos.
+   */
+  private meetsAuraCondition(row: StretchOfferRow): boolean {
+    const hechos = new Set(row.exercisesCompleted ?? []);
+    return (
+      row.durationSeconds !== null &&
+      row.durationSeconds >= STRETCH_AURA_MIN_SECONDS &&
+      row.exercises.every((e) => hechos.has(e.exerciseId))
+    );
+  }
+
+  /**
+   * Acredita la AURA del dia (idempotente por dia local) y, si acredito, marca
+   * `aura_awarded`. Devuelve `true` solo si acredito en esta llamada.
+   */
+  private async awardAura(
+    ctx: TenantContext,
+    userId: number,
+    row: StretchOfferRow,
+  ): Promise<boolean> {
+    const awarded = await awardOncePerLocalDay(this.auraService, this.log, {
+      userId,
+      sourceType: "stretch",
+      referenceType: "stretch_day",
+      localDate: row.localDate,
+      description: "Estiramiento post-clase",
+    });
+    if (!awarded) return false;
+    try {
+      await this.db
+        .update(schema.stretchOffers)
+        .set({ auraAwarded: true })
+        .where(
+          and(
+            tenantWhere(schema.stretchOffers, ctx),
+            eq(schema.stretchOffers.id, row.id),
+          ),
+        );
+    } catch (err: unknown) {
+      // La AURA ya esta en el ledger (el unique impide un segundo cobro):
+      // se informa igual y queda rastro del flag que no se pudo marcar.
+      this.log.error(
+        {
+          userId,
+          offerId: row.id,
+          detail: err instanceof Error ? err.message : String(err),
+        },
+        "AURA de estiramiento acreditada pero aura_awarded no se pudo marcar",
+      );
+    }
+    return true;
   }
 
   private minutesFor(
