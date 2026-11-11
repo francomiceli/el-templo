@@ -29,6 +29,19 @@ export const DERIVED_CLASS_LABEL: Record<string, string> = {
 };
 
 /**
+ * Criterio de "actividad generica": la fila "General" no especial. Fuente unica
+ * para el etiquetado de Combos/Tecnica y para la elegibilidad del estiramiento
+ * post-clase (fase 213, SPEC 2.2: General si; Acrobacias, Verticales, Yoga y
+ * Open Gym no).
+ */
+export function isGenericClassActivity(
+  activityName: string,
+  isSpecial: boolean,
+): boolean {
+  return activityName === "General" && !isSpecial;
+}
+
+/**
  * Deriva el nombre de clase visible: "Combos"/"Tecnica" si la actividad es
  * la generica ("General") no-especial y el dia tiene ese modo aprobado;
  * de lo contrario conserva `activityName` tal cual.
@@ -38,7 +51,6 @@ export function deriveActivityLabel(
   isSpecial: boolean,
   dayMode: string | undefined,
 ): string {
-  const isGenericActivity = activityName === "General" && !isSpecial;
-  if (!isGenericActivity) return activityName;
+  if (!isGenericClassActivity(activityName, isSpecial)) return activityName;
   return DERIVED_CLASS_LABEL[dayMode ?? ""] ?? activityName;
 }
