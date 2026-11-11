@@ -24,6 +24,36 @@
             @update:model-value="onCajaChange"
           />
 
+          <!-- Destino obligatorio (fase 208, D-19): Caja central o Tesoro de la misma moneda. -->
+          <q-banner
+            v-if="selectedCaja && !loadingDestinations && destinations.length === 0"
+            dense
+            rounded
+            class="bg-orange-1 text-grey-9"
+          >
+            <template #avatar>
+              <q-icon name="info" color="orange-8" />
+            </template>
+            No hay Caja central ni Tesoro en {{ selectedCaja.currency }}, así que no hay a dónde
+            llevar la plata.
+            <template v-if="isOwner">
+              Podés crear un Tesoro desde Caja → Cuentas → "Caja central y Tesoro".
+            </template>
+            <template v-else>Pedile al dueño que cree un Tesoro en esa moneda.</template>
+          </q-banner>
+          <q-select
+            v-else
+            v-model="destinationId"
+            :options="destinationOptions"
+            label="¿A dónde va la plata? *"
+            dense
+            outlined
+            emit-value
+            map-options
+            :disable="!selectedCaja"
+            :loading="loadingDestinations"
+          />
+
           <div class="row q-col-gutter-sm">
             <div class="col-12 col-sm-4">
               <q-input
@@ -63,6 +93,12 @@
                 </template>
               </q-select>
             </div>
+          </div>
+
+          <div v-if="selectedCaja && selectedDestination" class="text-caption text-grey-8">
+            Sale de <strong>{{ selectedCaja.name }}</strong> y entra a
+            <strong>{{ selectedDestination.name }}</strong
+            >.
           </div>
 
           <!-- ======================= EFECTIVO: masa de plata ======================= -->
@@ -111,7 +147,11 @@
               v-if="difference !== null && !moneyEquals(difference, 0)"
               dense
               rounded
-              :class="compareMoney(difference, 0) < 0 ? 'bg-red-1 text-negative' : 'bg-orange-1 text-grey-9'"
+              :class="
+                compareMoney(difference, 0) < 0
+                  ? 'bg-red-1 text-negative'
+                  : 'bg-orange-1 text-grey-9'
+              "
             >
               <template #avatar>
                 <q-icon :name="compareMoney(difference, 0) < 0 ? 'error_outline' : 'info'" />
@@ -123,12 +163,13 @@
               contra lo esperado. Se asienta como ajuste de caja junto con el retiro: explicá la
               diferencia en las notas.
             </q-banner>
-            <div v-if="pending && amountError === null && amountValue !== null" class="text-caption text-grey-8">
+            <div
+              v-if="pending && amountError === null && amountValue !== null"
+              class="text-caption text-grey-8"
+            >
               Después del retiro quedan
               <strong>{{ formatPrice(remaining, selectedCaja.currency) }}</strong>
-              en la caja<span v-if="pending.summary.changeFund > 0">
-                más el fondo de cambio</span
-              >.
+              en la caja<span v-if="pending.summary.changeFund > 0"> más el fondo de cambio</span>.
             </div>
           </template>
 
@@ -180,6 +221,7 @@ import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { extractError } from 'src/utils/extract-error';
 import { formatPrice } from 'src/utils/format-price';
+import { currencySymbol } from 'src/utils/currencies';
 import { compareMoney, moneyEquals, roundMoney } from 'src/utils/money';
 import MoneyInput from 'src/components/MoneyInput.vue';
 import { useTransactionsApi } from 'src/composables/useTransactionsApi';
@@ -187,6 +229,7 @@ import CajaResumenRetiro from 'src/components/caja/CajaResumenRetiro.vue';
 import type {
   CajaSaldoRow,
   PendingWithdrawalResult,
+  WithdrawalDestination,
   WithdrawalDetail,
 } from 'src/types/transaction';
 
@@ -200,6 +243,9 @@ import type {
 // Para cuentas banco, monto explícito. La API (POST /withdrawals) es la
 // autoridad de todas las reglas; acá solo se anticipan para no mandar algo
 // que va a rebotar.
+// Fase 208 (D-19): el retiro es un traslado de la caja a la Caja central o a un
+// Tesoro de la MISMA moneda; el destino es obligatorio y las opciones salen de
+// GET /withdrawals/destinations (la API valida moneda, existencia y fecha).
 // =========================================================================
 
 const props = defineProps<{
@@ -233,11 +279,18 @@ const cajas = ref<CajaSaldoRow[]>([]);
 const loadingCajas = ref(false);
 const selectedCajaId = ref<number | null>(null);
 
+/** Tipo legible: el efectivo sin sede es el Tesoro o la Caja central. */
+function cajaKindLabel(c: CajaSaldoRow): string {
+  if (c.type === 'banco') return 'Banco';
+  if (c.isTreasury) return 'Tesoro';
+  return c.branchId === null ? 'Central' : 'Efectivo';
+}
+
 const cajaOptions = computed(() =>
   [...cajas.value]
     .sort((a, b) => (a.type === b.type ? 0 : a.type === 'efectivo' ? -1 : 1))
     .map((c) => ({
-      label: `${c.name} · ${c.type === 'efectivo' ? 'Efectivo' : 'Banco'} (${c.currency})`,
+      label: `${c.name} · ${cajaKindLabel(c)} (${c.currency})`,
       value: c.cashRegisterId,
     }))
 );
@@ -258,6 +311,52 @@ async function loadCajas() {
     $q.notify({ type: 'negative', message });
   } finally {
     loadingCajas.value = false;
+  }
+}
+
+// ---------------------------------------------------------------- destinos
+const destinations = ref<WithdrawalDestination[]>([]);
+const loadingDestinations = ref(false);
+const destinationId = ref<number | null>(null);
+/** Descarta respuestas viejas si se cambia de caja mientras carga. */
+let destinationsRequest = 0;
+
+const destinationOptions = computed(() =>
+  destinations.value.map((d) => ({
+    label: `${d.name} · ${d.isTreasury ? 'Tesoro' : 'Caja central'}`,
+    value: d.id,
+  }))
+);
+
+const selectedDestination = computed(
+  () => destinations.value.find((d) => d.id === destinationId.value) ?? null
+);
+
+async function loadDestinations() {
+  const caja = selectedCaja.value;
+  const request = ++destinationsRequest;
+  destinationId.value = null;
+  if (!caja) {
+    destinations.value = [];
+    loadingDestinations.value = false;
+    return;
+  }
+  loadingDestinations.value = true;
+  try {
+    const list = await transactionsApi.getWithdrawalDestinations(caja.cashRegisterId);
+    if (request !== destinationsRequest) return;
+    destinations.value = list;
+    // Un solo destino: se preselecciona. Varios: la Caja central si está (no el Tesoro).
+    const preferred = list.length === 1 ? list[0] : list.find((d) => !d.isTreasury);
+    destinationId.value = preferred?.id ?? null;
+  } catch (err: unknown) {
+    if (request !== destinationsRequest) return;
+    const message = extractError(err, 'Error cargando los destinos del retiro');
+    log.error('Error loading withdrawal destinations', { error: message });
+    $q.notify({ type: 'negative', message });
+    destinations.value = [];
+  } finally {
+    if (request === destinationsRequest) loadingDestinations.value = false;
   }
 }
 
@@ -343,9 +442,7 @@ async function loadPending() {
   }
 }
 
-const counted = computed(() =>
-  isToday.value ? nonNegativeMoney(countedAmount.value) : null
-);
+const counted = computed(() => (isToday.value ? nonNegativeMoney(countedAmount.value) : null));
 
 /** Contado − esperado (fondo + firme + sin validar). null sin conteo. */
 const difference = computed(() =>
@@ -402,11 +499,13 @@ function onCajaChange() {
   amountTouched.value = false;
   countedAmount.value = null;
   void loadPending();
+  void loadDestinations();
 }
 
 // ---------------------------------------------------------------- submit
 const canSubmit = computed(() => {
   if (!selectedCaja.value) return false;
+  if (destinationId.value === null) return false;
   if (!responsibleName.value || responsibleName.value.trim().length === 0) return false;
   if (!transactionDate.value || transactionDate.value > today) return false;
   if (amountValue.value === null) return false;
@@ -428,11 +527,11 @@ async function submit() {
   submitting.value = true;
   try {
     const isEfectivo = selectedCaja.value.type === 'efectivo';
-    // TODO(208-10): el retiro exige destino (Central/Tesoro). Hasta que 208-10 lo
-    // cargue desde el selector, se silencia el tipo; el expect-error avisa si queda.
-    // @ts-expect-error TS2345 falta destinationCashRegisterId (208-10)
+    const destination = selectedDestination.value;
+    if (destinationId.value === null) return;
     const { withdrawal } = await transactionsApi.registerWithdrawal({
       cajaId: selectedCaja.value.cashRegisterId,
+      destinationCashRegisterId: destinationId.value,
       responsibleName: (responsibleName.value ?? '').trim(),
       transactionDate: transactionDate.value,
       amount: amountValue.value,
@@ -441,7 +540,7 @@ async function submit() {
     });
     $q.notify({
       type: 'positive',
-      message: `Retiro registrado: ${formatPrice(withdrawal.amount, withdrawal.currency)} · ${withdrawal.responsibleName}`,
+      message: `Retiro registrado: ${formatPrice(withdrawal.amount, withdrawal.currency)} · ${withdrawal.responsibleName}${destination ? ` → ${destination.name}` : ''}`,
     });
     show.value = false;
     emit('registered', withdrawal);
@@ -468,7 +567,7 @@ async function onShow() {
       });
     }
   }
-  await loadPending();
+  await Promise.all([loadPending(), loadDestinations()]);
 }
 
 function resetAll() {
@@ -481,12 +580,10 @@ function resetAll() {
   amountTouched.value = false;
   countedAmount.value = null;
   pending.value = null;
-}
-
-function currencySymbol(currency: string): string {
-  if (currency === 'EUR') return '€';
-  if (currency === 'ARS') return '$';
-  return currency;
+  destinationsRequest += 1;
+  destinations.value = [];
+  destinationId.value = null;
+  loadingDestinations.value = false;
 }
 
 onUnmounted(() => {
