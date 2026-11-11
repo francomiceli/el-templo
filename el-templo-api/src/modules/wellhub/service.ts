@@ -52,6 +52,7 @@ import {
 import type { BookingService } from "../scheduling/booking-service";
 import type { WellhubClient } from "./client";
 import { WellhubApiError, isCheckinAlreadyValidated } from "./client";
+import { resolveWalkInSchedule } from "./walk-in-schedule";
 import type {
   WellhubBookingEventData,
   WellhubCheckinEventData,
@@ -461,6 +462,12 @@ export class WellhubService {
     // la confirmación de esa reserva. Nada de classesRemaining / AURA /
     // completed_sessions (no es socio).
     const now = new Date();
+    // Check-in sin reserva: el aviso de Wellhub no dice a qué clase vino, así
+    // que se ubica por la hora con la regla del QR (±20 min del inicio, solo
+    // clases que Wellhub vende hoy). Fuera de clase queda sin horario.
+    const scheduleId =
+      todayBooking?.scheduleId ??
+      (await resolveWalkInSchedule(this.db, ctx, branch, todayStr, now));
     let upgradedManual = false;
     // El otro aviso del mismo check-in ganó el lock y ya registró la visita.
     let alreadyRecorded = false;
@@ -515,7 +522,7 @@ export class WellhubService {
         tenantValues(ctx, {
           memberId: userId,
           branchId: branch.id,
-          scheduleId: todayBooking?.scheduleId ?? null,
+          scheduleId,
           sessionDate: todayStr,
           status: "confirmado",
           source: "wellhub",
@@ -556,6 +563,8 @@ export class WellhubService {
         tenantId: ctx.tenantId,
         sessionDate: todayStr,
         yaValidado,
+        scheduleId,
+        conReserva: Boolean(todayBooking),
       },
       upgradedManual
         ? "Visita Wellhub a mano validada luego por Wellhub"
@@ -1037,6 +1046,7 @@ export class WellhubService {
   private async findBranchByGymId(gymId: number): Promise<{
     id: number;
     timezone: string;
+    country: string;
     tenantId: number;
     tenantStatus: string | null;
   } | null> {
@@ -1044,6 +1054,7 @@ export class WellhubService {
       .select({
         id: schema.branches.id,
         timezone: schema.branches.timezone,
+        country: schema.branches.country,
         tenantId: schema.branches.tenantId,
         tenantStatus: schema.tenants.status,
       })
