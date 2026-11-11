@@ -299,7 +299,7 @@
           <div class="text-h6">Corregir pago de {{ actionRow.memberName }}</div>
         </q-card-section>
         <q-card-section class="q-pt-none q-gutter-md">
-          <q-input v-model.number="corregir.amount" type="number" label="Monto" outlined dense />
+          <MoneyInput v-model="corregir.amount" label="Monto" outlined dense />
           <q-select
             v-model="corregir.paymentMethod"
             :options="methodSelectOptions"
@@ -407,6 +407,8 @@ import type { QTableProps } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { extractError, isExpectedClientError } from 'src/utils/extract-error';
 import { formatPrice } from 'src/utils/format-price';
+import { moneyEquals } from 'src/utils/money';
+import MoneyInput from 'src/components/MoneyInput.vue';
 import { useTransactionsApi } from 'src/composables/useTransactionsApi';
 import {
   PAYMENT_METHOD_LABELS,
@@ -695,7 +697,7 @@ async function submitCorregir() {
   // Send only the fields that actually changed — the 137 endpoint accepts
   // a subset of amount / paymentMethod / memberId (no cashRegister / notes).
   const correctedFields: CorrectedFields = {};
-  if (corregir.amount !== null && corregir.amount !== row.amount) {
+  if (corregir.amount !== null && !moneyEquals(corregir.amount, row.amount)) {
     correctedFields.amount = corregir.amount;
   }
   if (corregir.paymentMethod !== null && corregir.paymentMethod !== row.paymentMethod) {

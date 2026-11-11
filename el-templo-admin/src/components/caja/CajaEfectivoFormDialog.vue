@@ -35,14 +35,12 @@
           hint="No se puede cambiar después de abrir la caja"
         />
 
-        <q-input
-          v-model.number="form.openingBalance"
-          type="number"
-          inputmode="numeric"
+        <MoneyInput
+          v-model="form.openingBalance"
           label="Saldo inicial"
           dense
           outlined
-          :rules="[(v) => v == null || v >= 0 || 'El saldo inicial no puede ser negativo']"
+          :rules="[(v) => v !== null || 'Ingresá el saldo inicial (0 si arranca vacía)']"
           hint="Arqueo del efectivo que ya hay en la caja hoy. Dejalo en 0 si arranca vacía."
         />
       </q-card-section>
@@ -70,6 +68,8 @@ import { createLogger } from 'src/utils/logger';
 import { extractError } from 'src/utils/extract-error';
 import { useTransactionsApi } from 'src/composables/useTransactionsApi';
 import { useMembersApi } from 'src/composables/useMembersApi';
+import { compareMoney } from 'src/utils/money';
+import MoneyInput from 'src/components/MoneyInput.vue';
 import type { BranchOption } from 'src/types/member';
 
 const props = defineProps<{
@@ -105,11 +105,16 @@ const branchOptions = ref<Array<{ label: string; value: number }>>([]);
 const form = reactive({
   branchId: null as number | null,
   currency: 'ARS' as 'ARS' | 'EUR',
-  openingBalance: 0,
+  // null = vacío o texto inválido: bloquea el alta (el 0 se tipea explícito).
+  openingBalance: 0 as number | null,
 });
 
 const canSubmit = computed(
-  () => form.branchId !== null && !!form.currency && form.openingBalance >= 0
+  () =>
+    form.branchId !== null &&
+    !!form.currency &&
+    form.openingBalance !== null &&
+    compareMoney(form.openingBalance, 0) >= 0
 );
 
 // La moneda por defecto sigue al país del hub — es la combinación correcta en
@@ -149,7 +154,7 @@ function resetAll() {
 }
 
 async function submit() {
-  if (form.branchId === null) return;
+  if (form.branchId === null || form.openingBalance === null) return;
   submitting.value = true;
   try {
     await transactionsApi.createEfectivoCaja({
