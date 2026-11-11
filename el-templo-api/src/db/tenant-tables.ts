@@ -124,6 +124,10 @@ export const GYM_OWNED_TABLES = [
   "exercise_milestone_proposals",
   "exercise_progressions",
   "exercises",
+  // Egresos (0331, fase 209): nacen con tenant_id y strict en finance.
+  "expense_allocations",
+  "expense_payments",
+  "expense_records",
   // Bloque libre (fase 197, mig 0286): nace con tenant_id y strict, ver
   // TENANT_STRICT_MODULES["free-blocks"].
   "extra_blocks_completed",
@@ -659,6 +663,9 @@ export const TENANT_STRICT_MODULES: Record<string, readonly string[]> = {
     "cash_registers",
     "cost_centers",
     "debt_management",
+    "expense_allocations",
+    "expense_payments",
+    "expense_records",
     "financial_transactions",
     "transaction_links",
   ],
