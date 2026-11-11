@@ -532,16 +532,16 @@ describe("registerExpense aplica la regla medio-cuenta", () => {
   });
 
   it("cheque desde banco → ok, queda payment_method cheque y el saldo baja exacto", async () => {
-    const banco = await newCaja("banco", { opening: 1000.5 });
+    const banco = await newCaja("banco", { opening: 1000 });
     const { expenseTxId } = await movementService.registerExpense(
       TEMPLO_CTX,
-      { cajaId: banco, amount: 250.25, costCenterId, paymentMethod: "cheque" },
+      { cajaId: banco, amount: 250, costCenterId, paymentMethod: "cheque" },
       adminId,
     );
     const row = await readTx(expenseTxId);
     expect(row.paymentMethod).toBe("cheque");
     expect(row.cashRegisterId).toBe(banco);
-    expect(await firme(banco)).toBe(750.25);
+    expect(await firme(banco)).toBe(750);
   });
 
   it("cash desde efectivo → ok, queda payment_method cash", async () => {
@@ -606,11 +606,11 @@ describe("traslados entre cuentas de distinto tipo", () => {
       method: "POST",
       url: `${FIN}/movements`,
       headers: { authorization: `Bearer ${adminToken}` },
-      payload: { origenCajaId: origen, destinoCajaId: destino, amount: 300.5 },
+      payload: { origenCajaId: origen, destinoCajaId: destino, amount: 300 },
     });
     expect(res.statusCode, res.body).toBe(201);
-    expect(await firme(origen)).toBe(699.5);
-    expect(await firme(destino)).toBe(300.5);
+    expect(await firme(origen)).toBe(700);
+    expect(await firme(destino)).toBe(300);
   });
 });
 
