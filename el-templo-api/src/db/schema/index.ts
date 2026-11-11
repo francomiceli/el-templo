@@ -2,6 +2,7 @@ export * from "./tenants";
 export * from "./branches";
 export * from "./cash-registers";
 export * from "./cash-counts";
+export * from "./expense-records";
 export * from "./cost-centers";
 export * from "./users";
 export * from "./user-branches";
