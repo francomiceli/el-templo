@@ -4,7 +4,10 @@ import { and, eq, sql } from "drizzle-orm";
 import { createTestApp, getAuthToken, cleanAllTestData } from "./helpers";
 import * as schema from "../src/db/schema";
 import { NotificationService } from "../src/modules/notifications/service";
-import { runPlanRenewalWarnings } from "../src/jobs/notification-cron";
+import {
+  resolveBatchPushDeliveryAt,
+  runPlanRenewalWarnings,
+} from "../src/jobs/notification-cron";
 import { createPlan, createMember } from "./subscriptions/_helpers";
 // Fase 174.1-05 (D-02): runPlanRenewalWarnings ahora recibe ctx (threadeado
 // desde el barrido por-tenant que lo llama en producción).
@@ -125,6 +128,43 @@ describe("Notifications — runPlanRenewalWarnings (plan renewal windows)", () =
     expect(await pendingKeysFor(member.id)).toEqual([
       "plan_renewal_warning_7d",
     ]);
+  });
+
+  it("schedules the push for 10:00 in the member's branch tz, not for the 03:00 run (hotfix 2026-11-11)", async () => {
+    const member = await createMember(app, { email: "renew-hour@test.com" });
+    await giveDeviceToken(member.id);
+    await insertSub(member.id, "active", 7);
+
+    const before = new Date();
+    await runPlanRenewalWarnings(app.db, notificationService, TEMPLO_CTX);
+
+    const [row] = await app.db
+      .select({ scheduledAt: schema.pendingNotifications.scheduledAt })
+      .from(schema.pendingNotifications)
+      .where(
+        and(
+          eq(schema.pendingNotifications.userId, member.id),
+          eq(schema.pendingNotifications.tenantId, TENANT_TEMPLO),
+        ),
+      );
+    expect(row).toBeDefined();
+
+    // Mismo cálculo que el job, con el `now` de antes de la corrida. Si en CI ya
+    // pasaron las 10:00 locales, el job programa "ahora" → tolerancia de 10 s.
+    // Si no, tiene que ser exactamente las 10:00 locales (MySQL trunca a seg).
+    const expected = await resolveBatchPushDeliveryAt(
+      app.db,
+      TEMPLO_CTX,
+      member.id,
+      before,
+    );
+    if (expected.getTime() === before.getTime()) {
+      expect(
+        Math.abs(row.scheduledAt.getTime() - before.getTime()),
+      ).toBeLessThan(10_000);
+    } else {
+      expect(row.scheduledAt.toISOString()).toBe(expected.toISOString());
+    }
   });
 
   it("queues plan_renewal_warning_3d for a member covered until today+3", async () => {
