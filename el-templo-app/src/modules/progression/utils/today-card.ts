@@ -72,6 +72,16 @@
  * Después va `withExtraPrograms`: pone "Tus programas" en `secondary` solo si quedó vacío
  * (completada y presenciales, nunca virtual ni sin plan).
  *
+ * Fase 213 (D-09): `withStretch` va ÚLTIMA y toma el botón principal con "Estirar" (a
+ * `{ name: 'stretch-player' }`) mientras `input.stretch.status === 'available'`. Solo en
+ * `presencial-turno` y `completada`, con asistencia registrada y la clase no empezada ni en curso
+ * (`windowState` distinto de 'before'/'open'). El primary anterior baja a `secondary`: "Estirar"
+ * desplaza, en prioridad de mayor a menor, al primary anterior > Libre > secundario propio > "Tus
+ * programas" (el link único sigue siendo uno solo). Con `done` el primary vuelve al anterior, el
+ * secondary queda como estaba y la línea de estado pasa a "Clase y estiramiento hechos" (en la pill
+ * si había, si no en `meta`). `none` (incluye la falla de la consulta, fase 203) deja el modelo
+ * EXACTAMENTE como sin la fase: lo calcula el servidor, la card no decide nada.
+ *
  * El QR de check-in NO se decide acá: su única fuente de verdad es
  * `useTodayBookingStore.fabVisible`. La card solo informa la ventana con una pill.
  */
@@ -170,6 +180,12 @@ export interface TodayCardInput {
   trialEligible: boolean
   /** FREE_BLOCKS_ENABLED: apagado, nunca se pone el link a Libre (queda el `secondary` del gate) */
   libreEnabled: boolean
+  /**
+   * Fase 213 (D-09): oferta de estiramiento post-clase de hoy. La calcula el servidor
+   * (`useStretchStore.cardInput`); la card no decide nada. Sin dato o con la consulta fallida es
+   * `none`: la card queda como antes de la fase (fase 203, "una falla es 'no sé'").
+   */
+  stretch: { status: 'none' | 'available' | 'done'; minutes: number | null }
   /**
    * Fase 203 (D-08): sesión sin perfil (el boot no lo trajo). Sin perfil no se sabe si el socio
    * es presencial o virtual ni la zona de la sede (`todayStr`). Deja la card en esqueleto AUN con
@@ -535,9 +551,40 @@ function withLibreLink(model: TodayCardModel, input: TodayCardInput): TodayCardM
   return show ? { ...model, secondary: LIBRE_LINK } : model
 }
 
-// El orden importa: Libre primero (reemplaza al secondary), "Tus programas" solo si quedó libre.
+const STRETCH_ACTION: TodayCardAction = { label: 'Estirar', to: { name: 'stretch-player' } }
+const STRETCH_DONE_TEXT: TodayCardText = [{ text: 'Clase y estiramiento hechos' }]
+
+/**
+ * Fase 213 (D-09): "Estirar" toma el botón principal después de la clase (ver docblock del archivo).
+ * Se aplica ÚLTIMA, sobre el modelo ya compuesto. Solo con asistencia registrada, la clase no
+ * empezada ni en curso y en `presencial-turno` / `completada`; cualquier otro caso (o `none`)
+ * devuelve el modelo intacto.
+ */
+function withStretch(model: TodayCardModel, input: TodayCardInput): TodayCardModel {
+  if (input.stretch.status === 'none') return model
+  if (input.attendanceMarkedAt === null) return model
+  if (input.windowState === 'before' || input.windowState === 'open') return model
+  if (model.kind !== 'presencial-turno' && model.kind !== 'completada') return model
+
+  if (input.stretch.status === 'available') {
+    // El primary anterior baja a secondary y desplaza a Libre / "Tus programas": un solo link.
+    return { ...model, primary: STRETCH_ACTION, secondary: model.primary }
+  }
+  // done: primary y secondary quedan como estaban; solo cambia la línea de estado.
+  if (model.pill !== null) {
+    return {
+      ...model,
+      pill: { icon: 'check_circle', tone: 'ok', text: STRETCH_DONE_TEXT },
+      meta: null,
+    }
+  }
+  return { ...model, meta: STRETCH_DONE_TEXT, pill: null }
+}
+
+// El orden importa: Libre primero (reemplaza al secondary), "Tus programas" solo si quedó libre,
+// y "Estirar" (fase 213) al final, sobre el modelo ya compuesto.
 export function resolveTodayCard(input: TodayCardInput): TodayCardModel {
-  return withExtraPrograms(withLibreLink(resolveBaseCard(input), input), input)
+  return withStretch(withExtraPrograms(withLibreLink(resolveBaseCard(input), input), input), input)
 }
 
 function resolveBaseCard(input: TodayCardInput): TodayCardModel {

@@ -2199,7 +2199,12 @@ describe('resolveTodayCard — estiramiento post-clase (fase 213 D-09)', () => {
       },
       {
         nombre: `plan programado con clase (asistencia ${attendanceMarkedAt})`,
-        over: { attendanceMarkedAt, booking: BOOKING, windowState: 'after', ...SUB_PROGRAMADA },
+        over: {
+          attendanceMarkedAt,
+          booking: BOOKING,
+          windowState: 'after' as const,
+          ...SUB_PROGRAMADA,
+        },
         // Un plan solo programado no entrena hoy pero la card lo trata como activo (D4): como la
         // asistencia existe y la clase terminó, es elegible.
         elegible: attendanceMarkedAt !== null,
@@ -2233,12 +2238,24 @@ describe('resolveTodayCard — estiramiento post-clase (fase 213 D-09)', () => {
           for (const stretch of [NONE, AVAILABLE, DONE]) {
             const m = resolveTodayCard(baseInput({ ...common, stretch }))
             evaluated += 1
-            const where = JSON.stringify({ escenario: esc.nombre, libreEnabled, hasExtraPrograms, stretch })
+            const where = JSON.stringify({
+              escenario: esc.nombre,
+              libreEnabled,
+              hasExtraPrograms,
+              stretch,
+            })
 
             // Invariantes de alto fijo en TODA la matriz.
-            expect(Object.keys(m).sort(), where).toEqual(
-              ['kicker', 'kind', 'meta', 'pill', 'primary', 'progress', 'secondary', 'title'],
-            )
+            expect(Object.keys(m).sort(), where).toEqual([
+              'kicker',
+              'kind',
+              'meta',
+              'pill',
+              'primary',
+              'progress',
+              'secondary',
+              'title',
+            ])
             expect(m.pill === null || m.meta === null, where).toBe(true)
             expect(m.secondary === null || typeof m.secondary === 'object', where).toBe(true)
             expect(m.kind, where).toBe(base.kind)
