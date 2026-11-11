@@ -2,13 +2,13 @@
  * Fase 208-04 — Arqueo de apertura de Caja central y Tesoro (DI-06).
  *
  * Cubre:
- *   - el saldo firme queda EXACTO en lo contado (mayor, menor, igual, con
- *     centavos) y la diferencia es un `adjustment` interno trazable (notas,
+ *   - el saldo firme queda EXACTO en lo contado (mayor, menor, igual, en
+ *     pesos enteros) y la diferencia es un `adjustment` interno trazable (notas,
  *     recorded_by, created_at, sin sede)
  *   - audit 'reconciliation' (target_kind 'cash_register') SIEMPRE, con o sin ajuste
  *   - fondo de cambio: el esperado lo incluye
  *   - invariantes: no en caja de sede, banco, caja cerrada ni antes del corte (400)
- *   - validaciones del body (más de 2 decimales, negativo, faltante)
+ *   - validaciones del body (decimales, negativo, faltante)
  *   - owner-only (403 para gestión y admin)
  *   - NO escribe en `cash_counts` (no abre temas en Oficina)
  *
@@ -268,16 +268,16 @@ afterAll(async () => {
 });
 
 describe("208-04: arqueo de apertura — saldo exacto y trazabilidad", () => {
-  it("contado mayor (con centavos): ajuste inflow exacto, firme = contado, ajuste trazable", async () => {
+  it("contado mayor: ajuste inflow exacto, firme = contado, ajuste trazable", async () => {
     const central = await nuevaCentral(1000);
-    const res = await arquear(ownerToken, central, { countedAmount: 1234.56 });
+    const res = await arquear(ownerToken, central, { countedAmount: 1234 });
     expect(res.statusCode, res.body).toBe(201);
     const oc = JSON.parse(res.body).openingCount as OpeningCount;
     expect(oc.cashRegisterId).toBe(central);
     expect(oc.expectedAmount).toBe(1000);
-    expect(oc.countedAmount).toBe(1234.56);
-    expect(oc.difference).toBe(234.56);
-    expect(oc.firmeBalance).toBe(1234.56);
+    expect(oc.countedAmount).toBe(1234);
+    expect(oc.difference).toBe(234);
+    expect(oc.firmeBalance).toBe(1234);
     expect(oc.adjustmentTxId).not.toBeNull();
 
     const ajustes = await ajustesDe(central);
@@ -286,31 +286,29 @@ describe("208-04: arqueo de apertura — saldo exacto y trazabilidad", () => {
     expect(aj.id).toBe(oc.adjustmentTxId);
     expect(aj.kind).toBe("adjustment");
     expect(aj.direction).toBe("inflow");
-    expect(Number(aj.amount)).toBe(234.56);
+    expect(Number(aj.amount)).toBe(234);
     expect(aj.paymentMethod).toBe("internal");
     expect(aj.branchId).toBeNull();
     expect(aj.recordedBy).toBe(ownerId);
     expect(aj.createdAt).not.toBeNull();
     expect(
-      aj.notes?.startsWith(
-        "Arqueo de apertura: esperado 1000, contado 1234.56",
-      ),
+      aj.notes?.startsWith("Arqueo de apertura: esperado 1000, contado 1234"),
     ).toBe(true);
 
     // Y el saldo que ve Saldos coincide.
-    expect(await firmeDe(central)).toBe(1234.56);
+    expect(await firmeDe(central)).toBe(1234);
   });
 
   it("contado menor: ajuste outflow por la diferencia, firme = contado", async () => {
-    const central = await nuevaCentral(1234.56);
+    const central = await nuevaCentral(1234);
     const res = await arquear(ownerToken, central, { countedAmount: 900 });
     expect(res.statusCode, res.body).toBe(201);
     const oc = JSON.parse(res.body).openingCount as OpeningCount;
-    expect(oc.difference).toBe(-334.56);
+    expect(oc.difference).toBe(-334);
     expect(oc.firmeBalance).toBe(900);
     const [aj] = await ajustesDe(central);
     expect(aj.direction).toBe("outflow");
-    expect(Number(aj.amount)).toBe(334.56);
+    expect(Number(aj.amount)).toBe(334);
     expect(await firmeDe(central)).toBe(900);
   });
 
@@ -336,7 +334,7 @@ describe("208-04: arqueo de apertura — saldo exacto y trazabilidad", () => {
 
   it("con diferencia también hay audit, con el id del ajuste y esperado/contado", async () => {
     const central = await nuevaCentral(100);
-    const res = await arquear(ownerToken, central, { countedAmount: 150.5 });
+    const res = await arquear(ownerToken, central, { countedAmount: 150 });
     expect(res.statusCode, res.body).toBe(201);
     const oc = JSON.parse(res.body).openingCount as OpeningCount;
     const audits = await auditsDe(central);
@@ -346,8 +344,8 @@ describe("208-04: arqueo de apertura — saldo exacto y trazabilidad", () => {
       source: "opening_count",
       cashRegisterId: central,
       expected: 100,
-      counted: 150.5,
-      difference: 50.5,
+      counted: 150,
+      difference: 50,
       adjustmentId: oc.adjustmentTxId,
     });
   });
@@ -497,10 +495,11 @@ describe("208-04: arqueo de apertura — invariantes y permisos", () => {
     expect(res.statusCode, res.body).toBe(400);
   });
 
-  it("validaciones del body: 1.005, -1 y sin countedAmount → 400", async () => {
+  it("validaciones del body: decimales (1.005 y 100.5), -1 y sin countedAmount → 400", async () => {
     const central = await nuevaCentral(100);
     for (const payload of [
       { countedAmount: 1.005 },
+      { countedAmount: 100.5 },
       { countedAmount: -1 },
       {},
     ]) {
