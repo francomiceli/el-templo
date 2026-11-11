@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v6.1
 milestone_name: Módulo Gimnasio
 status: executing
-stopped_at: Completed 213-12-PLAN.md
+stopped_at: Completed 213-13-PLAN.md (fase 213 ejecutada 13/13, pendiente UAT de Franco)
 last_updated: "2026-11-11T20:27:17.931Z"
 last_activity: 2026-11-11
 progress:
@@ -25,9 +25,9 @@ See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 
 ## Current Position
 
-Phase: 213 (Estiramiento post-clase) — EXECUTING
-Plan: 13 of 13
-Status: Ready to execute
+Phase: 213 (Estiramiento post-clase) — EJECUTADA 13/13, pendiente UAT (213-UAT.md) y OK de Franco para push a staging
+Plan: 13 of 13 (completo)
+Status: Phase complete — ready for verification
 Last activity: 2026-11-11
 
 **Estado real al 2026-10-28** (detalle fase por fase en `ROADMAP.md`, tabla Progress):
@@ -1045,8 +1045,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 ## Session Continuity
 
 Last session: 2026-11-11T20:27:17.894Z
-Stopped at: Completed 213-11-PLAN.md
-Resume file: .planning/phases/213-estiramiento-post-clase/213-13-PLAN.md
+Stopped at: Completed 213-13-PLAN.md
+Resume file: .planning/phases/213-estiramiento-post-clase/213-UAT.md
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
 

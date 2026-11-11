@@ -1149,7 +1149,7 @@ Plans:
 
 ### Phase 213: Estiramiento post-clase (fuera del milestone v6.1)
 
-**Estado (2026-11-11)**: fase creada y PLANIFICADA (13 planes secuenciales, sin ejecutar). Rama `feat/estiramiento-post-clase` (worktree `et-estiramiento`, base `origin/master` `bc231c4de`), sin código, sin migraciones, SIN PUSH. Spec con datos de producción y 16 decisiones cerradas con Franco en `213-SPEC.md`; contexto para el planificador en `213-CONTEXT.md`. Numerada 213 porque 207-212 viven en `feat/egresos-rendiciones`.
+**Estado (2026-11-11)**: fase EJECUTADA 13/13 (11-11), pendiente UAT de Franco (`213-UAT.md`). Rama `feat/estiramiento-post-clase` (worktree `et-estiramiento`, base `origin/master` `bc231c4de`), sin código, sin migraciones, SIN PUSH. Spec con datos de producción y 16 decisiones cerradas con Franco en `213-SPEC.md`; contexto para el planificador en `213-CONTEXT.md`. Numerada 213 porque 207-212 viven en `feat/egresos-rendiciones`.
 
 **Goal**: Después de la clase presencial, el alumno puede hacer desde Mi Templo una sesión de estiramiento de 5 a 8 minutos armada con la movilidad de la sesión de ese día, y un push lo invita y lo lleva directo al player
 **Depends on**: nada. Reusa el cron de notificaciones, el patrón de `FreeBlockPlayer` y la card `TodayCard`. Decisiones en `213-CONTEXT.md`
@@ -1180,7 +1180,7 @@ Plans:
 - [x] 213-10-PLAN.md — Sketch del reloj (decisión documentada) + reloj elegido + `StretchPlayer` y ruta `training/estirar`
 - [x] 213-11-PLAN.md — Card de Mi Templo: "Estirar" como principal + cableado y `card_seen`
 - [x] 213-12-PLAN.md — Deep link del push con la app cerrada y sin sesión
-- [ ] 213-13-PLAN.md — Checklist de UAT + consulta de medición a 4 semanas + gates finales
+- [x] 213-13-PLAN.md — Checklist de UAT + consulta de medición a 4 semanas + gates finales
 
 ---
 
