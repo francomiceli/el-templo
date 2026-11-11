@@ -335,7 +335,7 @@ describe("208-02: cuenta banco en USD", () => {
 
 describe("208-02: caja de efectivo de sede en USD", () => {
   it("una sede con caja ARS puede abrir también una USD → 201; repetir USD → 409", async () => {
-    const ars = await crearEfectivo(branchA, "ARS", 250.75);
+    const ars = await crearEfectivo(branchA, "ARS", 250);
     expect(ars.statusCode, ars.body).toBe(201);
 
     const usd = await crearEfectivo(branchA, "USD");
@@ -410,12 +410,12 @@ describe("208-02: Saldos por caja con USD", () => {
     expect(ars, "falta la caja ARS en Saldos").toBeDefined();
     expect(usd?.isTreasury).toBe(false);
     expect(usd?.firmeBalance).toBe(0);
-    // Apertura 250,75 + (cobro de 500 si ya está validado): lo que importa es
+    // Apertura 250 + (cobro de 500 si ya está validado): lo que importa es
     // que NO incluya nada de la caja USD ni se mezcle con ella.
     expect(ars?.currency).toBe("ARS");
     expect(ars?.isTreasury).toBe(false);
     expect(ars?.cashRegisterId).not.toBe(usd?.cashRegisterId);
-    expect([250.75, 750.75]).toContain(ars?.firmeBalance);
+    expect([250, 750]).toContain(ars?.firmeBalance);
   });
 });
 
@@ -424,7 +424,7 @@ describe("208-02: alta de Tesoro", () => {
     const res = await crearTesoro({
       name: "Tesoro ARS",
       currency: "ARS",
-      openingBalance: 1500.75,
+      openingBalance: 1500,
     });
     expect(res.statusCode, res.body).toBe(201);
     const caja = JSON.parse(res.body).caja as CajaSaldoRow;
@@ -432,7 +432,7 @@ describe("208-02: alta de Tesoro", () => {
     expect(caja.branchId).toBeNull();
     expect(caja.isTreasury).toBe(true);
     expect(caja.currency).toBe("ARS");
-    expect(caja.firmeBalance).toBe(1500.75);
+    expect(caja.firmeBalance).toBe(1500);
 
     const [fila] = await app.db
       .select({
@@ -495,19 +495,22 @@ describe("208-02: alta de Tesoro", () => {
     expect(res.statusCode, res.body).toBe(201);
   });
 
-  it("valida el body: nombre en blanco, moneda inválida y centavos de más → 400", async () => {
+  it("valida el body: nombre en blanco, moneda inválida y apertura con decimales → 400", async () => {
     const enBlanco = await crearTesoro({ name: "   ", currency: "EUR" });
     expect(enBlanco.statusCode, enBlanco.body).toBe(400);
 
     const moneda = await crearTesoro({ name: "X", currency: "XYZ" });
     expect(moneda.statusCode, moneda.body).toBe(400);
 
-    const centavos = await crearTesoro({
-      name: "X",
-      currency: "EUR",
-      openingBalance: 1.005,
-    });
-    expect(centavos.statusCode, centavos.body).toBe(400);
+    // La plata va en unidades enteras: un decimal se rechaza (no se trunca).
+    for (const openingBalance of [100.5, 1.005]) {
+      const decimal = await crearTesoro({
+        name: "X",
+        currency: "EUR",
+        openingBalance,
+      });
+      expect(decimal.statusCode, decimal.body).toBe(400);
+    }
   });
 
   it("un campo extra (branchId) se descarta: el Tesoro nace SIN sede igual", async () => {
@@ -563,7 +566,7 @@ describe("208-02: scope owner-only de Central y Tesoro", () => {
     expect(delGestion.every((f) => f.branchId !== null)).toBe(true);
   });
 
-  it("Central → Tesoro (owner, 100,50): el Tesoro sube exacto; gestión recibe 404", async () => {
+  it("Central → Tesoro (owner, 100): el Tesoro sube exacto; gestión recibe 404", async () => {
     const tesoro = (await fetchBalances(ownerToken)).find(
       (f) => f.isTreasury && f.currency === "ARS",
     );
@@ -573,21 +576,21 @@ describe("208-02: scope owner-only de Central y Tesoro", () => {
     const denegado = await post(gestionToken, "/movements", {
       origenCajaId: centralId,
       destinoCajaId: tesoro?.cashRegisterId ?? 0,
-      amount: 100.5,
+      amount: 100,
     });
     expect(denegado.statusCode, denegado.body).toBe(404);
 
     const res = await post(ownerToken, "/movements", {
       origenCajaId: centralId,
       destinoCajaId: tesoro?.cashRegisterId ?? 0,
-      amount: 100.5,
+      amount: 100,
     });
     expect(res.statusCode, res.body).toBe(201);
 
     const despues = (await fetchBalances(ownerToken)).find(
       (f) => f.cashRegisterId === tesoro?.cashRegisterId,
     );
-    expect(despues?.firmeBalance).toBe(antes + 100.5);
+    expect(despues?.firmeBalance).toBe(antes + 100);
   });
 });
 
