@@ -66,7 +66,13 @@ export type AuditAction =
   | "staff_shift_forced_checkout"
   // Fase 204 (D-21): un duplicado Wellhub puro se unió con un alumno existente.
   // El payload guarda el id/mail absorbido, el gympass_id y cuánto se movió.
-  | "wellhub_member_merged";
+  | "wellhub_member_merged"
+  // Fase 209 (DI-09): Egresos. action es varchar(50) en DB, sin migración.
+  | "expense_record_created"
+  | "expense_record_update"
+  | "expense_record_voided"
+  | "expense_payment_registered"
+  | "expense_payment_voided";
 
 export type AuditTargetKind =
   | "subscription"
@@ -78,7 +84,12 @@ export type AuditTargetKind =
   | "staff_shift"
   // Fase 208 (DI-06): arqueo de apertura de Caja central / Tesoro. audit_log.target_kind
   // es varchar(30), no enum de DB: no requiere migracion.
-  | "cash_register";
+  | "cash_register"
+  // Fase 209 (DI-09): gasto de Egresos. Los eventos de sus pagos también usan
+  // este targetKind con targetId = id del gasto (el id del pago va en el
+  // payload), así el historial del gasto se lee con una sola condición.
+  // target_kind es varchar(30): sin migración.
+  | "expense_record";
 
 export interface AuditWriteParams {
   actorId: number;
