@@ -80,26 +80,24 @@
 
             <div v-if="pending" class="row q-col-gutter-sm">
               <div v-if="isToday" class="col-12 col-sm-6">
-                <q-input
-                  v-model.number="countedAmount"
-                  type="number"
+                <MoneyInput
+                  :key="`counted-${inputsKey}`"
+                  v-model="countedAmount"
                   label="¿Cuánto contaste en la caja?"
                   dense
                   outlined
                   clearable
-                  min="0"
                   :prefix="currencySymbol(selectedCaja.currency)"
                   :hint="`Todo lo del cajón, fondo de cambio incluido. Esperado: ${formatPrice(pending.summary.expectedInDrawer, selectedCaja.currency)}`"
                 />
               </div>
               <div class="col-12" :class="isToday ? 'col-sm-6' : ''">
-                <q-input
+                <MoneyInput
+                  :key="`amount-${inputsKey}`"
                   :model-value="amount"
-                  type="number"
                   label="¿Cuánto te llevás? *"
                   dense
                   outlined
-                  min="1"
                   :prefix="currencySymbol(selectedCaja.currency)"
                   :error="amountError !== null"
                   :error-message="amountError ?? undefined"
@@ -110,16 +108,16 @@
             </div>
 
             <q-banner
-              v-if="difference !== null && difference !== 0"
+              v-if="difference !== null && !moneyEquals(difference, 0)"
               dense
               rounded
-              :class="difference < 0 ? 'bg-red-1 text-negative' : 'bg-orange-1 text-grey-9'"
+              :class="compareMoney(difference, 0) < 0 ? 'bg-red-1 text-negative' : 'bg-orange-1 text-grey-9'"
             >
               <template #avatar>
-                <q-icon :name="difference < 0 ? 'error_outline' : 'info'" />
+                <q-icon :name="compareMoney(difference, 0) < 0 ? 'error_outline' : 'info'" />
               </template>
               <strong>
-                {{ difference < 0 ? 'Faltante' : 'Sobrante' }} de
+                {{ compareMoney(difference, 0) < 0 ? 'Faltante' : 'Sobrante' }} de
                 {{ formatPrice(Math.abs(difference), selectedCaja.currency) }}
               </strong>
               contra lo esperado. Se asienta como ajuste de caja junto con el retiro: explicá la
@@ -127,7 +125,7 @@
             </q-banner>
             <div v-if="pending && amountError === null && amountValue !== null" class="text-caption text-grey-8">
               Después del retiro quedan
-              <strong>{{ formatPrice(available - amountValue, selectedCaja.currency) }}</strong>
+              <strong>{{ formatPrice(remaining, selectedCaja.currency) }}</strong>
               en la caja<span v-if="pending.summary.changeFund > 0">
                 más el fondo de cambio</span
               >.
@@ -136,13 +134,12 @@
 
           <!-- ======================= BANCO: monto explícito ======================= -->
           <template v-else-if="selectedCaja">
-            <q-input
+            <MoneyInput
+              :key="`amount-banco-${inputsKey}`"
               :model-value="amount"
-              type="number"
               label="Monto *"
               dense
               outlined
-              min="1"
               :suffix="currencySymbol(selectedCaja.currency)"
               @update:model-value="onAmountInput"
             />
@@ -183,6 +180,8 @@ import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { extractError } from 'src/utils/extract-error';
 import { formatPrice } from 'src/utils/format-price';
+import { compareMoney, moneyEquals, roundMoney } from 'src/utils/money';
+import MoneyInput from 'src/components/MoneyInput.vue';
 import { useTransactionsApi } from 'src/composables/useTransactionsApi';
 import CajaResumenRetiro from 'src/components/caja/CajaResumenRetiro.vue';
 import type {
@@ -275,9 +274,16 @@ const submitting = ref(false);
 /** El conteo es de la plata de AHORA: solo en un retiro con fecha de hoy. */
 const isToday = computed(() => transactionDate.value === today);
 
-/** q-input number entrega '' al borrar: todo lo que no sea entero ≥ 0 es "vacío". */
-function toInt(v: unknown): number | null {
-  return typeof v === 'number' && Number.isInteger(v) && v >= 0 ? v : null;
+/**
+ * Cambia cuando el diálogo resetea los montos por código (cambio de caja,
+ * cierre): remonta los MoneyInput para que un texto inválido a medio tipear no
+ * sobreviva al reset a null (limitación conocida de MoneyInput, 207-09).
+ */
+const inputsKey = ref(0);
+
+/** MoneyInput ya entrega number | null con hasta 2 decimales: solo se descartan negativos. */
+function nonNegativeMoney(v: number | null): number | null {
+  return v !== null && compareMoney(v, 0) >= 0 ? v : null;
 }
 
 // ---------------------------------------------------------------- responsables
@@ -337,32 +343,41 @@ async function loadPending() {
   }
 }
 
-const counted = computed(() => (isToday.value ? toInt(countedAmount.value) : null));
+const counted = computed(() =>
+  isToday.value ? nonNegativeMoney(countedAmount.value) : null
+);
 
 /** Contado − esperado (fondo + firme + sin validar). null sin conteo. */
 const difference = computed(() =>
   pending.value && counted.value !== null
-    ? counted.value - pending.value.summary.expectedInDrawer
+    ? roundMoney(counted.value - pending.value.summary.expectedInDrawer)
     : null
 );
 
 /** Tope del retiro: el saldo firme, corregido por la diferencia del conteo. */
 const available = computed(() =>
-  pending.value ? pending.value.summary.firmeBalance + (difference.value ?? 0) : 0
+  pending.value ? roundMoney(pending.value.summary.firmeBalance + (difference.value ?? 0)) : 0
 );
 
-const notesRequired = computed(() => difference.value !== null && difference.value !== 0);
+const notesRequired = computed(
+  () => difference.value !== null && !moneyEquals(difference.value, 0)
+);
 
 const amountValue = computed(() => {
-  const v = toInt(amount.value);
-  return v !== null && v > 0 ? v : null;
+  const v = nonNegativeMoney(amount.value);
+  return v !== null && compareMoney(v, 0) > 0 ? v : null;
 });
+
+/** Lo que queda en la caja después del retiro (en centavos exactos). */
+const remaining = computed(() =>
+  amountValue.value === null ? available.value : roundMoney(available.value - amountValue.value)
+);
 
 const amountError = computed(() => {
   if (!selectedCaja.value || selectedCaja.value.type !== 'efectivo' || !pending.value) return null;
   if (amount.value === null) return null;
   if (amountValue.value === null) return 'Ingresá un monto mayor a 0';
-  if (amountValue.value > available.value) {
+  if (compareMoney(amountValue.value, available.value) > 0) {
     return `Supera lo disponible (${formatPrice(available.value, selectedCaja.value.currency)})`;
   }
   return null;
@@ -371,17 +386,18 @@ const amountError = computed(() => {
 /** Sugerencia: llevarse todo lo disponible, mientras el usuario no escriba otro monto. */
 function suggestAmount() {
   if (amountTouched.value) return;
-  amount.value = available.value > 0 ? available.value : null;
+  amount.value = compareMoney(available.value, 0) > 0 ? available.value : null;
 }
 
-function onAmountInput(v: string | number | null) {
+function onAmountInput(v: number | null) {
   amountTouched.value = true;
-  amount.value = typeof v === 'number' ? v : v === null || v === '' ? null : Number(v);
+  amount.value = v;
 }
 
 watch([countedAmount, isToday], () => suggestAmount());
 
 function onCajaChange() {
+  inputsKey.value += 1;
   amount.value = null;
   amountTouched.value = false;
   countedAmount.value = null;
@@ -453,6 +469,7 @@ async function onShow() {
 }
 
 function resetAll() {
+  inputsKey.value += 1;
   selectedCajaId.value = null;
   transactionDate.value = today;
   responsibleName.value = null;

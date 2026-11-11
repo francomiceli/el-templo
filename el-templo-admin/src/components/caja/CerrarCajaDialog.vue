@@ -22,7 +22,7 @@
           </div>
           <div class="text-caption text-grey-7">
             Fondo de cambio {{ formatPrice(expected.changeFund, expected.currency) }} · cobros en
-            efectivo {{ formatPrice(expected.firmeAmount + expected.pendienteAmount, expected.currency) }}
+            efectivo {{ formatPrice(sumMoney([expected.firmeAmount, expected.pendienteAmount]), expected.currency) }}
             <span v-if="expected.pendienteAmount > 0">
               ({{ formatPrice(expected.pendienteAmount, expected.currency) }} sin validar todavía)
             </span>
@@ -90,21 +90,20 @@
             Último cierre: {{ formatDateTime(expected.lastCount.countedAt) }} por
             {{ expected.lastCount.counterName }} ·
             {{
-              expected.lastCount.difference === 0
+              moneyEquals(expected.lastCount.difference, 0)
                 ? 'sin diferencia'
                 : `diferencia ${formatSigned(expected.lastCount.difference, expected.currency)}`
             }}
           </div>
 
           <!-- Conteo -->
-          <q-input
-            v-model.number="countedAmount"
-            type="number"
-            inputmode="numeric"
+          <MoneyInput
+            v-model="countedAmount"
             label="Plata contada en el cajón *"
             outlined
             class="q-mt-md"
             :suffix="currencySymbol(expected.currency)"
+            :rules="[(v) => v !== null || 'Ingresá la plata contada']"
             autofocus
           />
           <q-banner
@@ -112,11 +111,11 @@
             dense
             rounded
             class="q-mt-sm"
-            :class="difference === 0 ? 'bg-green-1 text-green-9' : 'bg-orange-1 text-orange-10'"
+            :class="noDifference ? 'bg-green-1 text-green-9' : 'bg-orange-1 text-orange-10'"
           >
-            <template v-if="difference === 0">Coincide con lo esperado.</template>
+            <template v-if="noDifference">Coincide con lo esperado.</template>
             <template v-else>
-              {{ difference > 0 ? 'Sobra' : 'Falta' }}
+              {{ compareMoney(difference, 0) > 0 ? 'Sobra' : 'Falta' }}
               {{ formatPrice(Math.abs(difference), expected.currency) }}. Anotá el motivo y cerrá
               igual: gestión lo revisa.
             </template>
@@ -124,7 +123,7 @@
           <q-input
             v-model="notes"
             type="textarea"
-            :label="difference !== 0 ? 'Motivo de la diferencia *' : 'Notas (opcional)'"
+            :label="!noDifference ? 'Motivo de la diferencia *' : 'Notas (opcional)'"
             outlined
             dense
             autogrow
@@ -163,6 +162,8 @@ import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { extractError } from 'src/utils/extract-error';
 import { formatPrice } from 'src/utils/format-price';
+import { compareMoney, moneyEquals, roundMoney, sumMoney } from 'src/utils/money';
+import MoneyInput from 'src/components/MoneyInput.vue';
 import { useFinanceLoadApi } from 'src/composables/useFinanceLoadApi';
 import { useTransactionsApi } from 'src/composables/useTransactionsApi';
 import type { CashCountExpected, CashCountListItem } from 'src/types/transaction';
@@ -220,16 +221,18 @@ const expected = ref<CashCountExpected | null>(null);
 const countedAmount = ref<number | null>(null);
 const notes = ref('');
 
+// Diferencia exacta en centavos (1000,10 contado vs 1000,1 esperado = 0).
 const difference = computed(() =>
   typeof countedAmount.value === 'number' && expected.value
-    ? countedAmount.value - expected.value.expectedAmount
+    ? roundMoney(countedAmount.value - expected.value.expectedAmount)
     : 0
 );
+const noDifference = computed(() => moneyEquals(difference.value, 0));
 
 const canSubmit = computed(() => {
   if (!expected.value) return false;
-  if (typeof countedAmount.value !== 'number' || countedAmount.value < 0) return false;
-  if (difference.value !== 0 && notes.value.trim().length === 0) return false;
+  if (typeof countedAmount.value !== 'number' || compareMoney(countedAmount.value, 0) < 0) return false;
+  if (!noDifference.value && notes.value.trim().length === 0) return false;
   return true;
 });
 
@@ -274,7 +277,7 @@ async function submit() {
     $q.notify({
       type: 'positive',
       message:
-        cashCount.difference === 0
+        moneyEquals(cashCount.difference, 0)
           ? 'Caja cerrada, sin diferencia'
           : `Caja cerrada con diferencia ${formatSigned(cashCount.difference, cashCount.currency)}`,
     });
@@ -301,7 +304,7 @@ function resetAll() {
 }
 
 function formatSigned(amount: number, currency: string): string {
-  return `${amount > 0 ? '+' : '-'}${formatPrice(Math.abs(amount), currency)}`;
+  return `${compareMoney(amount, 0) > 0 ? '+' : '-'}${formatPrice(Math.abs(amount), currency)}`;
 }
 
 function formatDateTime(iso: string): string {
