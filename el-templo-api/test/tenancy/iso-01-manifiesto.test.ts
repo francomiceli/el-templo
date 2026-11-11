@@ -431,7 +431,10 @@ import {
 // `GET /api/sessions/:id` (sin clientes) junto con su línea del manifiesto.
 // 2026-11-11: 554 -> 555 por el estiramiento post-clase (fase 213): GET
 // /api/sessions/stretch/today, `templo-module`.
-const ENTRADAS_BASELINE = 555;
+// 2026-11-11: 555 -> 557 por el player del estiramiento (fase 213): POST
+// /api/sessions/stretch/events y POST /api/sessions/stretch/complete,
+// `templo-module`.
+const ENTRADAS_BASELINE = 557;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -574,7 +577,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 555 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 557 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(

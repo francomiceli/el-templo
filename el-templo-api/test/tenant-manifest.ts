@@ -1321,6 +1321,14 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     categoria: "templo-module",
     modulo: "templo-training",
   },
+  "POST /api/sessions/stretch/events": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/sessions/stretch/complete": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
   "GET /api/sessions/weekly": {
     categoria: "templo-module",
     modulo: "templo-training",

@@ -18,10 +18,24 @@
  *   upsert no-op sobre `uq_stretch_offers_tenant_user_date`.
  * - D-16: el grupo del experimento (`arm`) se fija al crear la fila.
  *
+ * - D-08: completar acredita +5 AURA (fuente `stretch`) una vez por dia local,
+ *   solo con todos los estiramientos marcados y al menos 3 minutos medidos por
+ *   el servidor entre `started_at` y `completed_at`.
+ *
  * Solo LEE `completed_sessions` (el espejo presencial) para el nivel del
  * socio. Toda consulta lleva `tenantWhere`; el reloj entra por parametro `now`.
  */
-import { and, asc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  sql,
+} from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../db/schema";
@@ -31,7 +45,11 @@ import type {
   StretchOfferRow,
 } from "../../db/schema/stretch";
 import { isGenericClassActivity } from "../scheduling/derived-label";
-import { resolveBranchTimezone } from "../aura/daily-award";
+import {
+  awardOncePerLocalDay,
+  resolveBranchTimezone,
+} from "../aura/daily-award";
+import type { AuraService } from "../aura/service";
 import { buildClassDateTime, todayInTz } from "../shared/date-utils";
 import { buildVideoResolver } from "../shared/exercise-video-fallback";
 import {
@@ -56,6 +74,43 @@ import { stretchArm } from "./stretch-timing";
 import type { ExerciseLevel } from "./types";
 
 type Db = MySql2Database<typeof schema>;
+
+/** D-08: segundos minimos medidos por el servidor para acreditar la AURA. */
+export const STRETCH_AURA_MIN_SECONDS = 180;
+
+/**
+ * Ventana hacia atras para atribuir un `push_opened` a la fila encolada: el
+ * push se puede tocar pasada la medianoche y la ruta de la plantilla no lleva
+ * el id de la oferta.
+ */
+export const STRETCH_PUSH_OPEN_LOOKBACK_HOURS = 36;
+
+export type StretchEventType = "card_seen" | "started" | "push_opened";
+export type StretchStartedFrom = "card" | "push";
+
+export type StretchEventResult = { kind: "ok" } | { kind: "not_found" };
+
+export interface CompleteStretchInput {
+  offerId: number;
+  exercisesCompleted: number[];
+}
+
+export interface StretchCompleteView {
+  completedAt: string;
+  durationSeconds: number | null;
+  allDone: boolean;
+  auraAwarded: boolean;
+  alreadyCompleted: boolean;
+  /** Minutos para la pantalla "Listo. X minutos de estiramiento". */
+  minutes: number;
+}
+
+export type StretchCompleteResult =
+  | { kind: "ok"; view: StretchCompleteView }
+  | { kind: "error"; status: 404 | 410; message: string };
+
+const MSG_OFERTA_NO_ENCONTRADA = "No encontramos ese estiramiento";
+const MSG_OFERTA_VENCIDA = "Este estiramiento ya venció";
 
 /** Asistencia que habilita la oferta del dia. */
 export interface EligibleAttendance {
@@ -105,6 +160,7 @@ export class StretchService {
   constructor(
     private readonly db: Db,
     private readonly log: FastifyBaseLogger,
+    private readonly auraService: AuraService,
   ) {}
 
   /** Zona y dia local de hoy del socio (por su sede), o null si no existe. */
@@ -487,6 +543,266 @@ export class StretchService {
     if (!offer) return this.noneView(today.localDate);
 
     return this.toView(ctx, offer);
+  }
+
+  /**
+   * D-15: eventos del embudo. Cada marca se escribe una sola vez (`... IS NULL`
+   * en el WHERE), asi repetir el evento no cambia la primera marca.
+   */
+  async recordEvent(
+    ctx: TenantContext,
+    userId: number,
+    type: StretchEventType,
+    from: StretchStartedFrom | undefined,
+    now: Date,
+  ): Promise<StretchEventResult> {
+    if (type === "push_opened") {
+      await this.markPushOpened(ctx, userId, now);
+      return { kind: "ok" };
+    }
+
+    const today = await this.resolveToday(ctx, userId, now);
+    if (!today) return { kind: "not_found" };
+    const offer = await this.readOffer(ctx, userId, today.localDate);
+    if (!offer) return { kind: "not_found" };
+
+    if (type === "card_seen") {
+      await this.db
+        .update(schema.stretchOffers)
+        .set({ cardSeenAt: now })
+        .where(
+          and(
+            tenantWhere(schema.stretchOffers, ctx),
+            eq(schema.stretchOffers.id, offer.id),
+            isNull(schema.stretchOffers.cardSeenAt),
+          ),
+        );
+      return { kind: "ok" };
+    }
+
+    // started: la duracion se mide desde el PRIMER arranque. Con la oferta ya
+    // completada no hay nada que marcar.
+    if (offer.completedAt) return { kind: "ok" };
+    await this.db
+      .update(schema.stretchOffers)
+      .set({ startedAt: now, startedFrom: from ?? "card" })
+      .where(
+        and(
+          tenantWhere(schema.stretchOffers, ctx),
+          eq(schema.stretchOffers.id, offer.id),
+          isNull(schema.stretchOffers.startedAt),
+          isNull(schema.stretchOffers.completedAt),
+        ),
+      );
+    return { kind: "ok" };
+  }
+
+  /**
+   * Atribuye el toque del push a la fila encolada mas reciente del socio que
+   * todavia no tiene `push_opened_at`. Sin fila candidata es un no-op.
+   */
+  private async markPushOpened(
+    ctx: TenantContext,
+    userId: number,
+    now: Date,
+  ): Promise<void> {
+    const since = new Date(
+      now.getTime() - STRETCH_PUSH_OPEN_LOOKBACK_HOURS * 60 * 60 * 1000,
+    );
+    const [row] = await this.db
+      .select({ id: schema.stretchOffers.id })
+      .from(schema.stretchOffers)
+      .where(
+        and(
+          tenantWhere(schema.stretchOffers, ctx),
+          eq(schema.stretchOffers.userId, userId),
+          eq(schema.stretchOffers.pushDecision, "queued"),
+          isNull(schema.stretchOffers.pushOpenedAt),
+          gte(schema.stretchOffers.pushQueuedAt, since),
+        ),
+      )
+      .orderBy(desc(schema.stretchOffers.pushQueuedAt))
+      .limit(1);
+    if (!row) return;
+
+    await this.db
+      .update(schema.stretchOffers)
+      .set({ pushOpenedAt: now })
+      .where(
+        and(
+          tenantWhere(schema.stretchOffers, ctx),
+          eq(schema.stretchOffers.id, row.id),
+          isNull(schema.stretchOffers.pushOpenedAt),
+        ),
+      );
+  }
+
+  /**
+   * Fase 213 D-08/D-12: cierre del estiramiento.
+   *
+   * Guarda `completed_at`, la duracion y los ejercicios marcados, y acredita
+   * +5 AURA (fuente `stretch`) una vez por dia local. La duracion sale de dos
+   * marcas del SERVIDOR (`started_at` y `now`): el body no acepta tiempos.
+   *
+   * Invariantes: NO escribe `completed_sessions` ni toca racha, programa ni RPE
+   * ni encola `post_session_soreness` (solo escribe `stretch_offers` y, via
+   * `AuraService`, el ledger de AURA).
+   */
+  async complete(
+    ctx: TenantContext,
+    userId: number,
+    input: CompleteStretchInput,
+    now: Date,
+  ): Promise<StretchCompleteResult> {
+    const [row] = await this.db
+      .select()
+      .from(schema.stretchOffers)
+      .where(
+        and(
+          tenantWhere(schema.stretchOffers, ctx),
+          eq(schema.stretchOffers.id, input.offerId),
+          eq(schema.stretchOffers.userId, userId),
+        ),
+      )
+      .limit(1);
+    if (!row) {
+      return { kind: "error", status: 404, message: MSG_OFERTA_NO_ENCONTRADA };
+    }
+
+    // D-12: una oferta de otro dia local esta vencida.
+    const today = await this.resolveToday(ctx, userId, now);
+    if (!today) {
+      return { kind: "error", status: 404, message: MSG_OFERTA_NO_ENCONTRADA };
+    }
+    if (row.localDate !== today.localDate) {
+      return { kind: "error", status: 410, message: MSG_OFERTA_VENCIDA };
+    }
+
+    if (row.completedAt) {
+      return { kind: "ok", view: this.toCompleteView(row, true) };
+    }
+
+    // Solo ejercicios de la rutina congelada, sin duplicados, en orden de rutina.
+    const marcados = new Set(input.exercisesCompleted);
+    const done = row.exercises
+      .map((e) => e.exerciseId)
+      .filter((id) => marcados.has(id));
+    const allDone = done.length === row.exercises.length;
+
+    const durationSeconds = row.startedAt
+      ? Math.max(
+          0,
+          Math.floor((now.getTime() - row.startedAt.getTime()) / 1000),
+        )
+      : null;
+    if (durationSeconds === null) {
+      this.log.warn(
+        { offerId: row.id, userId },
+        "stretch: complete sin started_at, se registra sin duracion ni AURA",
+      );
+    }
+
+    const [result] = await this.db
+      .update(schema.stretchOffers)
+      .set({
+        completedAt: now,
+        durationSeconds,
+        exercisesCompleted: done,
+      })
+      .where(
+        and(
+          tenantWhere(schema.stretchOffers, ctx),
+          eq(schema.stretchOffers.id, row.id),
+          isNull(schema.stretchOffers.completedAt),
+        ),
+      );
+
+    if (result.affectedRows === 0) {
+      // Carrera: otra llamada completo primero. Se devuelve lo guardado.
+      const fresh = await this.readOffer(ctx, userId, row.localDate);
+      if (!fresh) {
+        return {
+          kind: "error",
+          status: 404,
+          message: MSG_OFERTA_NO_ENCONTRADA,
+        };
+      }
+      return { kind: "ok", view: this.toCompleteView(fresh, true) };
+    }
+
+    let auraAwarded = false;
+    if (
+      allDone &&
+      durationSeconds !== null &&
+      durationSeconds >= STRETCH_AURA_MIN_SECONDS
+    ) {
+      auraAwarded = await awardOncePerLocalDay(this.auraService, this.log, {
+        userId,
+        sourceType: "stretch",
+        referenceType: "stretch_day",
+        localDate: row.localDate,
+        description: "Estiramiento post-clase",
+      });
+      if (auraAwarded) {
+        try {
+          await this.db
+            .update(schema.stretchOffers)
+            .set({ auraAwarded: true })
+            .where(
+              and(
+                tenantWhere(schema.stretchOffers, ctx),
+                eq(schema.stretchOffers.id, row.id),
+              ),
+            );
+        } catch (err: unknown) {
+          // La AURA ya esta en el ledger (el unique impide un segundo cobro):
+          // se informa igual y queda rastro del flag que no se pudo marcar.
+          this.log.error(
+            {
+              userId,
+              offerId: row.id,
+              detail: err instanceof Error ? err.message : String(err),
+            },
+            "AURA de estiramiento acreditada pero aura_awarded no se pudo marcar",
+          );
+        }
+      }
+    }
+
+    return {
+      kind: "ok",
+      view: {
+        completedAt: now.toISOString(),
+        durationSeconds,
+        allDone,
+        auraAwarded,
+        alreadyCompleted: false,
+        minutes: this.minutesFor(durationSeconds, row.plannedSeconds),
+      },
+    };
+  }
+
+  private minutesFor(
+    durationSeconds: number | null,
+    plannedSeconds: number,
+  ): number {
+    return Math.max(1, Math.round((durationSeconds ?? plannedSeconds) / 60));
+  }
+
+  /** Vista de una oferta ya completada (reintento o carrera). */
+  private toCompleteView(
+    row: StretchOfferRow,
+    alreadyCompleted: boolean,
+  ): StretchCompleteView {
+    const hechos = new Set(row.exercisesCompleted ?? []);
+    return {
+      completedAt: (row.completedAt ?? new Date()).toISOString(),
+      durationSeconds: row.durationSeconds,
+      allDone: row.exercises.every((e) => hechos.has(e.exerciseId)),
+      auraAwarded: row.auraAwarded,
+      alreadyCompleted,
+      minutes: this.minutesFor(row.durationSeconds, row.plannedSeconds),
+    };
   }
 
   private noneView(localDate: string): StretchTodayView {
