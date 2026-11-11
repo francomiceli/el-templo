@@ -1149,7 +1149,7 @@ Plans:
 
 ### Phase 213: Estiramiento post-clase (fuera del milestone v6.1)
 
-**Estado (2026-11-11)**: fase EJECUTADA 13/13 (11-11), pendiente UAT de Franco (`213-UAT.md`). Rama `feat/estiramiento-post-clase` (worktree `et-estiramiento`, base `origin/master` `bc231c4de`), sin código, sin migraciones, SIN PUSH. Spec con datos de producción y 16 decisiones cerradas con Franco en `213-SPEC.md`; contexto para el planificador en `213-CONTEXT.md`. Numerada 213 porque 207-212 viven en `feat/egresos-rendiciones`.
+**Estado (2026-11-11)**: fase EJECUTADA 13/13 (11-11) + arreglos de la revisión de código (`213-REVIEW.md`); verificación `human_needed` (`213-VERIFICATION.md`), pendiente UAT de Franco (`213-UAT.md`) y primer CI de los tests de integración. Rama `feat/estiramiento-post-clase` (worktree `et-estiramiento`, base `origin/master` `bc231c4de`), migraciones 0340-0342, SIN PUSH. Spec con datos de producción y 16 decisiones cerradas con Franco en `213-SPEC.md`; contexto para el planificador en `213-CONTEXT.md`. Numerada 213 porque 207-212 viven en `feat/egresos-rendiciones`.
 
 **Goal**: Después de la clase presencial, el alumno puede hacer desde Mi Templo una sesión de estiramiento de 5 a 8 minutos armada con la movilidad de la sesión de ese día, y un push lo invita y lo lleva directo al player
 **Depends on**: nada. Reusa el cron de notificaciones, el patrón de `FreeBlockPlayer` y la card `TodayCard`. Decisiones en `213-CONTEXT.md`
@@ -1165,7 +1165,7 @@ Plans:
 8. Un gimnasio sin el módulo `templo-training` no recibe ofertas, filas ni pushes
 9. Tests de integración con reloj fijo cubren los casos de `213-SPEC.md` §5.2
 
-**Plans:** 10/13 plans executed
+**Plans:** 13/13 plans executed
 
 Plans:
 - [x] 213-01-PLAN.md — node_modules por symlink + tablas `stretch_catalog`/`stretch_offers`, semilla de la lista curada y gates de tenancy
