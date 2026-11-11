@@ -408,9 +408,12 @@ describe("Migraciones 0327/0328 — sede del alumno (plata en enteros)", () => {
     });
   });
 
-  it("0327 no contiene datos (solo ALTER)", () => {
+  it("0327 no contiene datos (solo un ALTER que agrega member_branch_id, sin tocar columnas de plata)", () => {
     const sentencias = splitSqlStatements(readFileSync(MIG_0327, "utf8"));
-    expect(sentencias.length).toBe(6);
+    // D-23: la migracion ya no cambia el tipo de la plata, queda un solo ALTER.
+    expect(sentencias.length).toBe(1);
+    expect(sentencias[0]).toMatch(/ADD COLUMN `member_branch_id`/);
+    expect(sentencias[0]).not.toMatch(/MODIFY|DECIMAL/i);
     for (const s of sentencias) {
       // El primer statement arrastra el header de comentarios `--`.
       const sinComentarios = s
