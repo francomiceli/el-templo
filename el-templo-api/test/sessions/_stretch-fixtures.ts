@@ -16,6 +16,9 @@
  *   zona, modo del día, catálogo, socio, sesión, clase y asistencia), compartido
  *   por stretch-today y stretch-complete.
  * - `localClock`: instante UTC de una hora de pared de la sede, para fijar el reloj.
+ * - `prepareStretchTemplate` / `addDeviceToken` / `stretchPendingRows` /
+ *   `readStretchOffer` / `insertOfferHistory`: armado y lectura del push del
+ *   plan 07 (plantilla `stretch_followup`, token, cola y filas de la oferta).
  *
  * Todo insert de tabla gym-owned pasa por `tenantValues(ctx, ...)`; el ctx por
  * defecto es El Templo.
@@ -24,6 +27,8 @@ import { vi } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { and, eq } from "drizzle-orm";
 import * as schema from "../../src/db/schema";
+import { NotificationService } from "../../src/modules/notifications/service";
+import { STRETCH_FOLLOWUP_TEMPLATE_KEY } from "../../src/modules/notifications/types";
 import type { StretchArm, StretchFamily } from "../../src/db/schema/stretch";
 import {
   buildClassDateTime,
@@ -654,4 +659,133 @@ export async function arrangeStretchScenario(
         });
 
   return { date, tz, dia, member, scheduleId, attendanceId };
+}
+
+// ─── push "¿Estiraste?" (plan 07) ───
+
+/**
+ * Siembra las plantillas del gimnasio y deja la de estiramiento prendida o
+ * apagada (en producción nace apagada, plan 06). `notification_templates` está
+ * en `TABLES_TO_CLEAN`: se llama en cada `beforeEach`.
+ */
+export async function prepareStretchTemplate(
+  app: FastifyInstance,
+  opts: { enabled?: boolean; ctx?: Ctx } = {},
+): Promise<void> {
+  const ctx = opts.ctx ?? CTX_TEMPLO;
+  await new NotificationService(app.db, app.log).seedTemplates(ctx);
+  await app.db
+    .update(schema.notificationTemplates)
+    .set({ isEnabled: opts.enabled ?? true })
+    .where(
+      and(
+        tenantWhere(schema.notificationTemplates, ctx),
+        eq(
+          schema.notificationTemplates.templateKey,
+          STRETCH_FOLLOWUP_TEMPLATE_KEY,
+        ),
+      ),
+    );
+}
+
+/** Token de dispositivo del socio (sin él el push queda como `sin_token`). */
+export async function addDeviceToken(
+  app: FastifyInstance,
+  userId: number,
+  ctx: Ctx = CTX_TEMPLO,
+): Promise<void> {
+  await app.db.insert(schema.deviceTokens).values(
+    tenantValues(ctx, {
+      userId,
+      token: `tok-stretch-${userId}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      platform: "android" as const,
+    }),
+  );
+}
+
+/** Filas de la cola que salieron de la plantilla de estiramiento para el socio. */
+export async function stretchPendingRows(
+  app: FastifyInstance,
+  userId: number,
+  ctx: Ctx = CTX_TEMPLO,
+) {
+  return app.db
+    .select({
+      id: schema.pendingNotifications.id,
+      templateId: schema.pendingNotifications.templateId,
+      bookingId: schema.pendingNotifications.bookingId,
+      title: schema.pendingNotifications.title,
+      body: schema.pendingNotifications.body,
+      route: schema.pendingNotifications.route,
+      status: schema.pendingNotifications.status,
+      scheduledAt: schema.pendingNotifications.scheduledAt,
+    })
+    .from(schema.pendingNotifications)
+    .innerJoin(
+      schema.notificationTemplates,
+      eq(
+        schema.pendingNotifications.templateId,
+        schema.notificationTemplates.id,
+      ),
+    )
+    .where(
+      and(
+        tenantWhere(schema.pendingNotifications, ctx),
+        eq(schema.pendingNotifications.userId, userId),
+        eq(
+          schema.notificationTemplates.templateKey,
+          STRETCH_FOLLOWUP_TEMPLATE_KEY,
+        ),
+      ),
+    );
+}
+
+/** Filas de `stretch_offers` del socio (una por día). */
+export async function readStretchOffers(
+  app: FastifyInstance,
+  userId: number,
+  ctx: Ctx = CTX_TEMPLO,
+) {
+  return app.db
+    .select()
+    .from(schema.stretchOffers)
+    .where(
+      and(
+        tenantWhere(schema.stretchOffers, ctx),
+        eq(schema.stretchOffers.userId, userId),
+      ),
+    );
+}
+
+/**
+ * Fila de historia: una oferta de un día anterior ya encolada (y sin abrir si
+ * no se pasa `openedAt`), para el tope semanal y la pausa de 14 días.
+ */
+export async function insertOfferHistory(
+  app: FastifyInstance,
+  opts: {
+    userId: number;
+    branchId: number;
+    localDate: string;
+    queuedAt: Date;
+    openedAt?: Date | null;
+    ctx?: Ctx;
+  },
+): Promise<void> {
+  const ctx = opts.ctx ?? CTX_TEMPLO;
+  await app.db.insert(schema.stretchOffers).values(
+    tenantValues(ctx, {
+      userId: opts.userId,
+      localDate: opts.localDate,
+      branchId: opts.branchId,
+      sourceDayId: "historia",
+      classEndAt: opts.queuedAt,
+      exercises: [],
+      plannedSeconds: 360,
+      arm: "push_30" as const,
+      pushDecision: "queued",
+      pushQueuedAt: opts.queuedAt,
+      pushOpenedAt: opts.openedAt ?? null,
+    }),
+  );
 }
