@@ -66,6 +66,7 @@ import {
   registerCashCountSchema,
   listCashCountsSchema,
   setChangeFundSchema,
+  openingCountSchema,
 } from "./schemas";
 import {
   FINANCE_READ_ROLES,
@@ -1125,6 +1126,53 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.send(result);
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "set change fund");
+      }
+    },
+  );
+
+  // Arqueo de apertura (fase 208, DI-06): el owner deja la Caja central o un
+  // Tesoro en el efectivo real contado, con un ajuste trazable. OWNER-ONLY.
+  fastify.post<{
+    Params: { id: number };
+    Body: { countedAmount: number; notes?: string | null };
+  }>(
+    "/cash-registers/:id/opening-count",
+    { schema: openingCountSchema },
+    async (request, reply) => {
+      try {
+        if (!(OWNER_ROLES as readonly string[]).includes(request.user.role)) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "Solo el dueño puede registrar el arqueo de apertura",
+          });
+        }
+        const ctx = assertTenant(
+          request.scope,
+          "finance.cash-registers.opening-count",
+        );
+        const scopeErr = await enforceCajaScope(
+          ctx,
+          request.params.id,
+          request.scope.isOwner,
+          request.scope.country ?? null,
+        );
+        if (scopeErr) {
+          return reply
+            .code(scopeErr.code)
+            .send({ error: "No encontrado", message: scopeErr.message });
+        }
+        const openingCount = await movementService.registerOpeningCount(
+          ctx,
+          request.params.id,
+          {
+            countedAmount: request.body.countedAmount,
+            notes: request.body.notes ?? null,
+          },
+          request.user.userId,
+        );
+        return reply.code(201).send({ openingCount });
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "register opening count");
       }
     },
   );

@@ -1311,3 +1311,48 @@ export const setChangeFundSchema = {
     500: errorSchema,
   },
 } as const;
+
+/**
+ * POST /cash-registers/:id/opening-count — arqueo de apertura de Caja central
+ * o Tesoro (fase 208, DI-06). Owner-only (lo gatea la ruta). `countedAmount` es
+ * el efectivo real contado, con hasta 2 decimales.
+ */
+export const openingCountSchema = {
+  params: {
+    type: "object",
+    required: ["id"],
+    properties: { id: { type: "integer", minimum: 1 } },
+  },
+  body: {
+    type: "object",
+    required: ["countedAmount"],
+    additionalProperties: false,
+    properties: {
+      countedAmount: MONEY_NON_NEGATIVE_SCHEMA,
+      notes: { type: ["string", "null"], maxLength: 2000 },
+    },
+  },
+  response: {
+    201: {
+      type: "object",
+      properties: {
+        openingCount: {
+          type: "object",
+          properties: {
+            cashRegisterId: { type: "integer" },
+            expectedAmount: { type: "number" },
+            countedAmount: { type: "number" },
+            difference: { type: "number" },
+            adjustmentTxId: { type: ["integer", "null"] },
+            firmeBalance: { type: "number" },
+          },
+        },
+      },
+    },
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
+    500: errorSchema,
+  },
+} as const;

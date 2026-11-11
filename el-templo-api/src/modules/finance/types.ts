@@ -475,6 +475,27 @@ export interface MovementDetail {
   countedAmount: number | null; // conteo físico, si se proveyó
 }
 
+/**
+ * Fase 208 (DI-06): input del arqueo de apertura de Caja central / Tesoro. El
+ * owner informa el efectivo real contado; el servicio deja el saldo firme en
+ * ese valor con un ajuste trazable.
+ */
+export interface OpeningCountInput {
+  countedAmount: number;
+  notes?: string | null;
+}
+
+/** Fase 208 (DI-06): resultado del arqueo de apertura. */
+export interface OpeningCountResult {
+  cashRegisterId: number;
+  expectedAmount: number;
+  countedAmount: number;
+  difference: number;
+  adjustmentTxId: number | null;
+  /** Saldo firme de la caja leido despues del commit. */
+  firmeBalance: number;
+}
+
 // -- Phase 141: reportes para la admin (REP-01 / REP-02) --------------------
 
 /**

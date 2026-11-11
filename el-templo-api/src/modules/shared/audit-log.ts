@@ -75,7 +75,10 @@ export type AuditTargetKind =
   | "renewal_followup"
   | "trial_followup"
   | "booking"
-  | "staff_shift";
+  | "staff_shift"
+  // Fase 208 (DI-06): arqueo de apertura de Caja central / Tesoro. audit_log.target_kind
+  // es varchar(30), no enum de DB: no requiere migracion.
+  | "cash_register";
 
 export interface AuditWriteParams {
   actorId: number;

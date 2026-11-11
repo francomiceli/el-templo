@@ -29,7 +29,12 @@ import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { BadRequestError } from "../shared/errors";
 import { auditLog } from "../shared/audit-log";
-import { assertMoneyAmount, moneyEquals, roundMoney } from "../shared/money";
+import {
+  assertMoneyAmount,
+  moneyEquals,
+  roundMoney,
+  sumMoney,
+} from "../shared/money";
 import {
   tenantValues,
   tenantWhere,
@@ -40,8 +45,11 @@ import type { TransactionService } from "./transaction-service";
 import { RETIROS_COST_CENTER_NAME } from "./withdrawal-service";
 import { assertEfectivoCoversOutflow } from "./efectivo-guard";
 import { assertMethodAllowedForAccount } from "./payment-method-rules";
+import { createCountAdjustment } from "./count-adjustment";
 import type {
   MovementDetail,
+  OpeningCountInput,
+  OpeningCountResult,
   RegisterExpenseInput,
   RegisterMovementInput,
 } from "./types";
@@ -56,6 +64,11 @@ interface CajaRef {
   name: string;
   currency: string;
   branchId: number | null;
+  // Fase 208-04: los usa el arqueo de apertura (estado, fondo de cambio, corte).
+  isActive: boolean;
+  isTreasury: boolean;
+  changeFund: number;
+  cutoffDate: string;
 }
 
 export class MovementService {
@@ -79,6 +92,10 @@ export class MovementService {
         name: schema.cashRegisters.name,
         currency: schema.cashRegisters.currency,
         branchId: schema.cashRegisters.branchId,
+        isActive: schema.cashRegisters.isActive,
+        isTreasury: schema.cashRegisters.isTreasury,
+        changeFund: schema.cashRegisters.changeFund,
+        cutoffDate: schema.cashRegisters.cutoffDate,
       })
       .from(schema.cashRegisters)
       .where(
@@ -321,6 +338,123 @@ export class MovementService {
         countedAmount: countedAmount ?? null,
       };
     });
+  }
+
+  /**
+   * Arqueo de apertura (fase 208, DI-06): el owner informa el efectivo real de
+   * la Caja central o de un Tesoro y el saldo firme queda EXACTO en lo contado
+   * (descontando fondo de cambio y pendientes, como todo arqueo de efectivo).
+   * La diferencia se asienta como un `adjustment` interno trazable (notas con
+   * esperado y contado, recorded_by, created_at) + un audit 'reconciliation'.
+   *
+   * NO escribe en `cash_counts`: no es una observacion de Oficina. Para una
+   * cuenta nueva alcanza con el saldo de apertura del alta.
+   *
+   * @throws BadRequestError si la caja no existe, esta dada de baja, no es una
+   *         caja de efectivo sin sede, o la fecha de hoy es anterior al corte.
+   */
+  async registerOpeningCount(
+    ctx: TenantContext,
+    cajaId: number,
+    input: OpeningCountInput,
+    adminId: number,
+  ): Promise<OpeningCountResult> {
+    const { countedAmount } = input;
+    assertMoneyAmount(countedAmount, {
+      label: "El efectivo contado",
+      allowZero: true,
+    });
+
+    const caja = await this.loadCaja(ctx, cajaId);
+    if (caja.type !== "efectivo" || caja.branchId !== null) {
+      throw new BadRequestError(
+        "El arqueo de apertura es solo para la Caja central o un Tesoro",
+      );
+    }
+    if (!caja.isActive) {
+      throw new BadRequestError("La caja está dada de baja");
+    }
+    const today = this.today();
+    if (today < caja.cutoffDate) {
+      throw new BadRequestError(
+        `La fecha de hoy es anterior al corte de la caja ${caja.name} (${caja.cutoffDate})`,
+      );
+    }
+
+    const result = await this.db.transaction(async (tx) => {
+      // Candado sobre la caja: un traslado o retiro simultaneo se serializa
+      // aca y el saldo que leemos ya lo incluye (getBalance lee lo commiteado
+      // desde otra conexion, mismo criterio que el retiro).
+      await tx
+        .select({ id: schema.cashRegisters.id })
+        .from(schema.cashRegisters)
+        .where(
+          and(
+            tenantWhere(schema.cashRegisters, ctx),
+            eq(schema.cashRegisters.id, caja.id),
+          ),
+        )
+        .for("update");
+
+      const balance = await this.cashRegisterService.getBalance(ctx, caja.id);
+      // Mismo esperado que todo arqueo de efectivo: la plata sin validar esta
+      // en el cajon aunque no este en el saldo firme.
+      const expected = sumMoney([
+        caja.changeFund,
+        balance.firmeBalance,
+        balance.pendienteAmount,
+      ]);
+      const counted = roundMoney(countedAmount);
+      const extra = input.notes?.trim();
+      const notes = `Arqueo de apertura: esperado ${roundMoney(expected)}, contado ${counted}${extra ? `. ${extra}` : ""}`;
+
+      const { difference, adjustmentTxId } = await createCountAdjustment(
+        ctx,
+        tx,
+        this.txnService,
+        {
+          caja,
+          expected,
+          counted,
+          transactionDate: today,
+          notes,
+        },
+        adminId,
+      );
+
+      // Rastro SIEMPRE, haya o no ajuste.
+      await auditLog.write(ctx, tx, {
+        actorId: adminId,
+        action: "reconciliation",
+        targetKind: "cash_register",
+        targetId: caja.id,
+        payload: {
+          source: "opening_count",
+          cashRegisterId: caja.id,
+          expected: roundMoney(expected),
+          counted,
+          difference,
+          adjustmentId: adjustmentTxId,
+        },
+      });
+
+      return {
+        expectedAmount: roundMoney(expected),
+        countedAmount: counted,
+        difference,
+        adjustmentTxId,
+      };
+    });
+
+    const { firmeBalance } = await this.cashRegisterService.getBalance(
+      ctx,
+      caja.id,
+    );
+    this.log.info(
+      { cashRegisterId: caja.id, ...result, firmeBalance, adminId },
+      "Opening count registered",
+    );
+    return { cashRegisterId: caja.id, ...result, firmeBalance };
   }
 
   /**
