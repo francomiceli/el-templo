@@ -2,6 +2,11 @@
  * Fastify JSON schemas for Subscriptions API request/response validation.
  */
 
+import {
+  MONEY_NON_NEGATIVE_SCHEMA,
+  MONEY_RESPONSE_SCHEMA,
+} from "../shared/money";
+
 // =============================================================================
 // Shared response fragments
 // =============================================================================
@@ -557,7 +562,7 @@ export const assignPlanSchema = {
       },
       auraSpend: { type: "integer", minimum: 0 },
       priceOverrideAmount: { type: "integer", minimum: 0 },
-      amountReceived: { type: "integer", minimum: 0 },
+      amountReceived: MONEY_NON_NEGATIVE_SCHEMA,
       // Phase 146 (COBRO-03): cobro suelto pendiente a imputar al alta.
       appliedMiscChargeId: { type: "integer", minimum: 1 },
       priceOverrideReason: { type: "string" },
@@ -612,7 +617,7 @@ export const changePlanSchema = {
       scheduleIds: { type: "array", items: { type: "integer" }, minItems: 1 },
       auraSpend: { type: "integer", minimum: 0 },
       priceOverrideAmount: { type: "integer", minimum: 0 },
-      amountReceived: { type: "integer", minimum: 0 },
+      amountReceived: MONEY_NON_NEGATIVE_SCHEMA,
       priceOverrideReason: { type: "string" },
       boardingPass: { type: "boolean" },
       notes: { type: "string" },
@@ -654,7 +659,7 @@ export const renewSubscriptionSchema = {
         type: "string",
         enum: ["cash", "transfer", "card", "direct_debit"],
       },
-      amountReceived: { type: "integer", minimum: 0 },
+      amountReceived: MONEY_NON_NEGATIVE_SCHEMA,
       priceOverrideAmount: { type: "integer", minimum: 0 },
       priceOverrideReason: { type: "string" },
       // Fase 161 (PASE-04): discriminador explícito de QUÉ sub renovar. Opcional
@@ -746,7 +751,7 @@ const cancelErrorSchema = {
       type: "object",
       properties: {
         transactionIds: { type: "array", items: { type: "integer" } },
-        totalAmount: { type: "integer" },
+        totalAmount: MONEY_RESPONSE_SCHEMA,
         currency: { type: "string" },
       },
     },
