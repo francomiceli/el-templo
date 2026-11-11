@@ -341,7 +341,8 @@ export const TEMPLATE_SEEDS: TemplateSeed[] = [
     title: "¿Estiraste?",
     body: "6 minutos para aflojar lo que trabajaste hoy. Tocá y arrancamos.",
     titleFemale: "¿Estiraste?",
-    bodyFemale: "6 minutos para aflojar lo que trabajaste hoy. Toca y arrancamos.",
+    bodyFemale:
+      "6 minutos para aflojar lo que trabajaste hoy. Tocá y arrancamos.",
     route: "/training/estirar?from=push",
     enabledAtSeed: false,
   },
