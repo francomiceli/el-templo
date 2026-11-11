@@ -1200,7 +1200,7 @@ Plans:
 - [x] 208-02-PLAN.md — API: cuentas en USD, alta de Tesoro (owner) con saldo de apertura, `isTreasury` en Saldos/Excel, resolver de caja por moneda
 - [x] 208-03-PLAN.md — API: aplicar la regla medio↔cuenta en egresos, traslados, cobros y resolver de caja (cheque → banco)
 - [x] 208-04-PLAN.md — API: arqueo de apertura de Caja central y Tesoro con helper `count-adjustment.ts`
-- [ ] 208-05-PLAN.md — API: lectores de retiros y anulaciones preparados para formato viejo (expense) y nuevo (cash_transfer)
+- [x] 208-05-PLAN.md — API: lectores de retiros y anulaciones preparados para formato viejo (expense) y nuevo (cash_transfer)
 - [ ] 208-06-PLAN.md — API: el alta de retiro pasa a traslado con destino obligatorio + ruta de destinos posibles
 - [ ] 208-07-PLAN.md — Tests: adaptar withdrawals/cash-counts/centavos-traslados-retiros al alta nueva o a retiros viejos sembrados
 - [ ] 208-08-PLAN.md — Admin base: USD en monedas y `formatPrice` (admin + app), espejo medio↔cuenta, `cheque`, composable de Tesoro/destinos/arqueo
