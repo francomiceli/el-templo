@@ -96,7 +96,7 @@ describe("tenant-tables — clasificación canónica de tablas (COL-01)", () => 
     ).toEqual([]);
   });
 
-  it("los conteos son 129 gym-owned + 5 exentas y cubren las 134 tablas del schema", () => {
+  it("los conteos son 131 gym-owned + 5 exentas y cubren las 136 tablas del schema", () => {
     // Fase 159 (SEM-05) sumó `session_week_regime` a GYM_OWNED_TABLES (era 87,
     // ver el comentario de src/db/tenant-tables.ts:32-41): 87 -> 88, 91 -> 92.
     // Fase 179 sumó `referral_partners`, `partner_referrals`,
@@ -138,17 +138,19 @@ describe("tenant-tables — clasificación canónica de tablas (COL-01)", () => 
     // sobre los conteos de master: 117 -> 121 gym-owned, 122 -> 126 tablas.
     // 2026-11-03 sumó `weekly_board_snapshots` y `weekly_board_leads` (fase 206,
     // mig 0319, nacen strict en `weekly-board`): 121 -> 123, 126 -> 128.
-    
+
     // 2026-11-03: +5 office_* (fase 205, 0320) nacen tenancy-native en el módulo
     // nuevo `office`: 123 -> 128, 128 -> 133.
     // 2026-11-04: +1 `office_auto_topic_mutes` (fase 205, 0321, avisos automáticos
     // de Oficina por sede): 128 -> 129, 133 -> 134.
-    expect(GYM_OWNED_TABLES.length).toBe(129);
+    // 2026-11-11 sumó `stretch_catalog` y `stretch_offers` (fase 213, nacen strict
+    // en `stretch`): 129 -> 131, 134 -> 136.
+    expect(GYM_OWNED_TABLES.length).toBe(131);
     expect(TENANT_EXEMPT_TABLES.length).toBe(5);
     // Sin duplicados dentro de cada lista.
     expect(gymOwned.size).toBe(GYM_OWNED_TABLES.length);
     expect(exempt.size).toBe(TENANT_EXEMPT_TABLES.length);
-    expect(schemaTables.size).toBe(134);
+    expect(schemaTables.size).toBe(136);
     expect(gymOwned.size + exempt.size).toBe(schemaTables.size);
   });
 
@@ -525,6 +527,8 @@ describe("TENANT_STRICT_MODULES (fase 170, D-05/D-06)", () => {
     // 2026-09-07: jornada laboral del staff (check-in/out con el QR de sede).
     // Nace strict, sin deuda de allowlist previa.
     "staff-attendance": ["staff_shifts"],
+    // Fase 213: el módulo nace strict, no hay deuda previa que tolerar.
+    stretch: ["stretch_catalog", "stretch_offers"],
     // 2026-09-26: cadencia de mensajes en Sesiones de Prueba (brief Nacho).
     // Nace strict, sin deuda de allowlist previa.
     "trial-followups": ["trial_followups"],

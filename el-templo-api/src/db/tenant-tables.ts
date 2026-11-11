@@ -195,6 +195,10 @@ export const GYM_OWNED_TABLES = [
   // TENANT_STRICT_MODULES["sponsors"]).
   "sponsor_views",
   "staff_shifts",
+  // Estiramiento post-clase (fase 213, migs 0330/0331): nacen con tenant_id y
+  // strict, ver TENANT_STRICT_MODULES.stretch.
+  "stretch_catalog",
+  "stretch_offers",
   "subscription_plans",
   "subscription_schedule_changes",
   "subscription_schedules",
@@ -743,6 +747,8 @@ export const TENANT_STRICT_MODULES: Record<string, readonly string[]> = {
   // 2026-09-07: el modulo nace strict, no hay deuda previa que tolerar
   // (mismo criterio que `communications`, fase 193).
   "staff-attendance": ["staff_shifts"],
+  // Fase 213: el módulo nace strict, no hay deuda previa que tolerar.
+  stretch: ["stretch_catalog", "stretch_offers"],
   // Cadencia de mensajes en Sesiones de Prueba (brief Nacho, 2026-09-26) —
   // nace strict, sin deuda previa que tolerar (mismo criterio que
   // `renewals`/`communications`/`staff-attendance`).

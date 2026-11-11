@@ -464,6 +464,14 @@ export async function limpiarSegundoGimnasio(
   await app.db.execute(
     sql`DELETE FROM extra_blocks_completed WHERE tenant_id = ${TENANT_DOS}`,
   );
+  // Estiramiento post-clase (0330): las ofertas tienen FK a users, attendance y
+  // branches, y el catálogo a exercises. Salen antes que users y exercises.
+  await app.db.execute(
+    sql`DELETE FROM stretch_offers WHERE tenant_id = ${TENANT_DOS}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM stretch_catalog WHERE tenant_id = ${TENANT_DOS}`,
+  );
   // Fase 201 (Conquer v2, 0291): estado del alumno. Hijas antes que padres y
   // todas ANTES del `DELETE FROM users` (members/sessions/alerts/body_checks
   // tienen FK a users) y del `DELETE FROM tenants` final.
