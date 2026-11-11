@@ -5,7 +5,7 @@
  * Cubre:
  *   - destino obligatorio y validado (schema, caja de sede, banco, moneda,
  *     inactivo, mismo que el origen)
- *   - saldos EXACTOS con centavos: la caja de origen baja y el destino sube
+ *   - saldos EXACTOS en pesos enteros: la caja de origen baja y el destino sube
  *   - contrato del formato nuevo: las filas que crea el alta tienen el mismo
  *     shape que `seedTransferWithdrawal` (fixture de 208-05)
  *   - ajuste por conteo (faltante/sobrante), arqueo en `cash_counts`, notas
@@ -337,13 +337,13 @@ beforeAll(async () => {
   });
   memberId = (member.user as { id: number }).id;
 
-  // Tesoros por la API (owner): uno ARS con apertura 500.50 y uno USD.
+  // Tesoros por la API (owner): uno ARS con apertura 500 y uno USD.
   tesoroArsName = `Tesoro ARS Destino ${suf}`;
   const altaArs = await app.inject({
     method: "POST",
     url: `${BASE}/cash-registers/treasury`,
     headers: authed(ownerToken),
-    payload: { name: tesoroArsName, currency: "ARS", openingBalance: 500.5 },
+    payload: { name: tesoroArsName, currency: "ARS", openingBalance: 500 },
   });
   expect(altaArs.statusCode, altaArs.body).toBe(201);
   tesoroArsId = JSON.parse(altaArs.body).caja.cashRegisterId as number;
@@ -437,6 +437,25 @@ describe("208-06: retiro con destino — validaciones", () => {
     expect(await countTenantTransactions()).toBe(antes);
   });
 
+  it("importe decimal (amount o countedAmount) → 400 y no escribe nada: la plata va en pesos enteros", async () => {
+    const w = await makeWorld([1000]);
+    const antes = await countTenantTransactions();
+    for (const extra of [
+      { amount: 100.5 },
+      { amount: 500, countedAmount: 1000.5 },
+    ]) {
+      const res = await retirar(ownerToken, {
+        cajaId: w.sede.id,
+        destinationCashRegisterId: w.central.id,
+        responsibleName: "Gaby",
+        ...extra,
+      });
+      expect(res.statusCode, JSON.stringify(extra) + res.body).toBe(400);
+    }
+    expect(await countTenantTransactions()).toBe(antes);
+    expect(await firmeDe(w.sede.id)).toBe(1000);
+  });
+
   it("destino = otra caja de sede → 400", async () => {
     const w = await makeWorld([1000]);
     const otraSede = await newCaja({ kind: "sede" });
@@ -526,29 +545,29 @@ describe("208-06: retiro con destino — validaciones", () => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe("208-06: retiro con destino — alta, saldos y contrato", () => {
-  it("cobros 1000.10 + 2000.20, retiro 3000.30 a la Central con conteo = esperado: sede -3000.30 y Central +3000.30 exactos", async () => {
-    const w = await makeWorld([1000.1, 2000.2]);
-    expect(await firmeDe(w.sede.id)).toBe(3000.3);
+  it("cobros 1000 + 2000, retiro 3000 a la Central con conteo = esperado: sede -3000 y Central +3000 exactos", async () => {
+    const w = await makeWorld([1000, 2000]);
+    expect(await firmeDe(w.sede.id)).toBe(3000);
     expect(await firmeDe(w.central.id)).toBe(0);
 
     const res = await retirar(ownerToken, {
       cajaId: w.sede.id,
       destinationCashRegisterId: w.central.id,
       responsibleName: "Gaby",
-      amount: 3000.3,
-      countedAmount: 3000.3,
+      amount: 3000,
+      countedAmount: 3000,
     });
     expect(res.statusCode, res.body).toBe(201);
     const { withdrawal } = JSON.parse(res.body) as WithdrawalBody;
     expect(withdrawal.format).toBe("transfer");
-    expect(withdrawal.amount).toBe(3000.3);
+    expect(withdrawal.amount).toBe(3000);
     expect(withdrawal.destinationCashRegisterId).toBe(w.central.id);
     expect(withdrawal.destinationName).toBe(w.central.name);
     expect(withdrawal.paymentCount).toBe(2);
     expect(withdrawal.responsibleName).toBe("Gaby");
 
     expect(await firmeDe(w.sede.id)).toBe(0);
-    expect(await firmeDe(w.central.id)).toBe(3000.3);
+    expect(await firmeDe(w.central.id)).toBe(3000);
   });
 
   it("contrato: las filas del alta tienen el mismo shape que seedTransferWithdrawal y no hay ningún expense nuevo", async () => {
@@ -641,29 +660,29 @@ describe("208-06: retiro con destino — alta, saldos y contrato", () => {
     });
   });
 
-  it("a un Tesoro: el Tesoro sube exacto (apertura 500.50 + 3000.30)", async () => {
-    const w = await makeWorld([1000.1, 2000.2]);
-    expect(await firmeDe(tesoroArsId)).toBe(500.5);
+  it("a un Tesoro: el Tesoro sube exacto (apertura 500 + 3000)", async () => {
+    const w = await makeWorld([1000, 2000]);
+    expect(await firmeDe(tesoroArsId)).toBe(500);
     const res = await retirar(ownerToken, {
       cajaId: w.sede.id,
       destinationCashRegisterId: tesoroArsId,
       responsibleName: "Gaby",
-      amount: 3000.3,
+      amount: 3000,
     });
     expect(res.statusCode, res.body).toBe(201);
     const { withdrawal } = JSON.parse(res.body) as WithdrawalBody;
     expect(withdrawal.destinationName).toBe(tesoroArsName);
-    expect(await firmeDe(tesoroArsId)).toBe(3500.8);
+    expect(await firmeDe(tesoroArsId)).toBe(3500);
     expect(await firmeDe(w.sede.id)).toBe(0);
     // Dejar el Tesoro como estaba para los casos que siguen.
     const back = await retirar(ownerToken, {
       cajaId: tesoroArsId,
       destinationCashRegisterId: w.central.id,
       responsibleName: "Gaby",
-      amount: 3000.3,
+      amount: 3000,
     });
     expect(back.statusCode, back.body).toBe(201);
-    expect(await firmeDe(tesoroArsId)).toBe(500.5);
+    expect(await firmeDe(tesoroArsId)).toBe(500);
   });
 
   it("monto mayor al disponible → 400 y ninguna fila nueva", async () => {
@@ -673,7 +692,7 @@ describe("208-06: retiro con destino — alta, saldos y contrato", () => {
       cajaId: w.sede.id,
       destinationCashRegisterId: w.central.id,
       responsibleName: "Gaby",
-      amount: 1000.01,
+      amount: 1001,
     });
     expect(res.statusCode, res.body).toBe(400);
     expect(await countTenantTransactions()).toBe(antes);
@@ -688,8 +707,8 @@ describe("208-06: retiro con destino — alta, saldos y contrato", () => {
       cajaId: banco.id,
       destinationCashRegisterId: central.id,
       responsibleName: "Gaby",
-      amount: 700.7,
-      countedAmount: 700.7,
+      amount: 700,
+      countedAmount: 700,
     });
     expect(conConteo.statusCode, conConteo.body).toBe(400);
 
@@ -697,14 +716,14 @@ describe("208-06: retiro con destino — alta, saldos y contrato", () => {
       cajaId: banco.id,
       destinationCashRegisterId: central.id,
       responsibleName: "Gaby",
-      amount: 700.7,
+      amount: 700,
     });
     expect(res.statusCode, res.body).toBe(201);
     const { withdrawal } = JSON.parse(res.body) as WithdrawalBody;
     expect(withdrawal.format).toBe("transfer");
     expect(withdrawal.paymentCount).toBe(0);
-    expect(await firmeDe(central.id)).toBe(700.7);
-    expect(await firmeDe(banco.id)).toBe(-700.7);
+    expect(await firmeDe(central.id)).toBe(700);
+    expect(await firmeDe(banco.id)).toBe(-700);
   });
 });
 
@@ -721,7 +740,7 @@ describe("208-06: retiro con destino — conteo", () => {
       destinationCashRegisterId: w.central.id,
       responsibleName: "Gaby",
       amount: 3000,
-      countedAmount: 4999.5,
+      countedAmount: 4999,
     });
     expect(sinNota.statusCode, sinNota.body).toBe(400);
     expect(await firmeDe(w.sede.id)).toBe(5000);
@@ -731,7 +750,7 @@ describe("208-06: retiro con destino — conteo", () => {
       destinationCashRegisterId: w.central.id,
       responsibleName: "Gaby",
       amount: 3000,
-      countedAmount: 4999.5,
+      countedAmount: 4999,
       notes: "faltó un vuelto",
     });
     expect(res.statusCode, res.body).toBe(201);
@@ -750,10 +769,10 @@ describe("208-06: retiro con destino — conteo", () => {
     expect(ajustes).toHaveLength(1);
     const ajuste = ajustes[0];
     expect(ajuste.direction).toBe("outflow");
-    expect(Number(ajuste.amount)).toBe(0.5);
+    expect(Number(ajuste.amount)).toBe(1);
     expect(ajuste.id).toBeLessThan(withdrawal.id);
     expect(ajuste.notes).toBe(
-      "Faltante al retirar: esperado 5000, contado 4999.5. faltó un vuelto",
+      "Faltante al retirar: esperado 5000, contado 4999. faltó un vuelto",
     );
     const linkAjuste = await linksOf([ajuste.id]);
     expect(linkAjuste).toHaveLength(1);
@@ -773,23 +792,23 @@ describe("208-06: retiro con destino — conteo", () => {
     expect(conteos[0].notes).toBe(
       `Conteo al retirar (retiro #${withdrawal.id}). faltó un vuelto`,
     );
-    expect(Number(conteos[0].difference)).toBe(-0.5);
+    expect(Number(conteos[0].difference)).toBe(-1);
     expect(conteos[0].paymentsCount).toBe(1);
 
-    // 5000 - 0.50 (faltante) - 3000 = 1999.50 y la Central 3000.
-    expect(await firmeDe(w.sede.id)).toBe(1999.5);
+    // 5000 - 1 (faltante) - 3000 = 1999 y la Central 3000.
+    expect(await firmeDe(w.sede.id)).toBe(1999);
     expect(await firmeDe(w.central.id)).toBe(3000);
   });
 
   it("sobrante: ajuste inflow y el tope sube a lo contado", async () => {
     const w = await makeWorld([1000]);
-    // Contado 1000.25 (sobran 0.25): se puede retirar 1000.25 completo.
+    // Contado 1001 (sobra 1): se puede retirar 1001 completo.
     const res = await retirar(ownerToken, {
       cajaId: w.sede.id,
       destinationCashRegisterId: w.central.id,
       responsibleName: "Gaby",
-      amount: 1000.25,
-      countedAmount: 1000.25,
+      amount: 1001,
+      countedAmount: 1001,
       notes: "sobró una moneda",
     });
     expect(res.statusCode, res.body).toBe(201);
@@ -804,12 +823,12 @@ describe("208-06: retiro con destino — conteo", () => {
         ),
       );
     expect(ajuste.direction).toBe("inflow");
-    expect(Number(ajuste.amount)).toBe(0.25);
+    expect(Number(ajuste.amount)).toBe(1);
     expect(ajuste.notes).toBe(
-      "Sobrante al retirar: esperado 1000, contado 1000.25. sobró una moneda",
+      "Sobrante al retirar: esperado 1000, contado 1001. sobró una moneda",
     );
     expect(await firmeDe(w.sede.id)).toBe(0);
-    expect(await firmeDe(w.central.id)).toBe(1000.25);
+    expect(await firmeDe(w.central.id)).toBe(1001);
   });
 });
 
@@ -981,19 +1000,19 @@ describe("208-06: GET /withdrawals/destinations y permisos", () => {
 
 describe("208-06: anular un retiro creado por la API", () => {
   it("POST /expenses/:id/void anula las dos patas y el ajuste, libera los cobros y los saldos vuelven exactos", async () => {
-    const w = await makeWorld([1000.1, 2000.2]);
+    const w = await makeWorld([1000, 2000]);
     const res = await retirar(ownerToken, {
       cajaId: w.sede.id,
       destinationCashRegisterId: w.central.id,
       responsibleName: "Gaby",
       amount: 3000,
-      countedAmount: 3000.4,
-      notes: "sobraron diez centavos",
+      countedAmount: 3001,
+      notes: "sobró un peso",
     });
     expect(res.statusCode, res.body).toBe(201);
     const { withdrawal } = JSON.parse(res.body) as WithdrawalBody;
-    // Esperado 3000.30, contado 3000.40: sobrante 0.10 → sede 3000.40 - 3000 = 0.40.
-    expect(await firmeDe(w.sede.id)).toBe(0.4);
+    // Esperado 3000, contado 3001: sobrante 1 → sede 3001 - 3000 = 1.
+    expect(await firmeDe(w.sede.id)).toBe(1);
     expect(await firmeDe(w.central.id)).toBe(3000);
 
     const antesPendientes = await get(
@@ -1054,7 +1073,7 @@ describe("208-06: anular un retiro creado por la API", () => {
         .sort((a, b) => a - b),
     ).toEqual([...w.cobros].sort((a, b) => a - b));
 
-    expect(await firmeDe(w.sede.id)).toBe(3000.3);
+    expect(await firmeDe(w.sede.id)).toBe(3000);
     expect(await firmeDe(w.central.id)).toBe(0);
   });
 });
