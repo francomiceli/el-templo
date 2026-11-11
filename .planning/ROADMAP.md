@@ -1231,7 +1231,7 @@ Plans:
 - [x] 209-02-PLAN.md — Contratos (`expense-types.ts`), cálculo puro con test (reparto, estado, tipo de cambio, prorrateos) y helper de sedes operativas
 - [x] 209-03-PLAN.md — Service: alta de gasto con reparto, idempotencia y auditoría + detalle con estado e historial
 - [x] 209-04-PLAN.md — Service: edición con motivo e historial, anulación de gasto y listado con filtros
-- [ ] 209-05-PLAN.md — Service: registrar pago (validaciones, tipo de cambio, fila del ledger, idempotencia) y cuentas para pagar sin saldos
+- [x] 209-05-PLAN.md — Service: registrar pago (validaciones, tipo de cambio, fila del ledger, idempotencia) y cuentas para pagar sin saldos
 - [ ] 209-06-PLAN.md — Service: anular pago, guarda de Caja sobre pagos, débito automático saliente y reglas con pagos
 - [ ] 209-07-PLAN.md — API: 6 rutas de gasto con permisos, país, ISO-01 y batería ISO-03 de Egresos
 - [ ] 209-08-PLAN.md — API: rutas de registrar y anular pago, ISO-01/ISO-03 y pruebas de roles (gestion paga sin ver saldos)
