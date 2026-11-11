@@ -18,7 +18,7 @@
 //
 // Tenancy: `tenantWhere` en toda lectura (en los joins, el filtro de la tabla
 // unida va en el ON) y `tenantValues` en los inserts.
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
@@ -37,11 +37,17 @@ import {
 } from "../shared/tenant";
 import type { CashRegisterService } from "./cash-register-service";
 import { assertEfectivoCoversOutflow } from "./efectivo-guard";
-import { countryToday } from "./expense-branches";
+import {
+  CASA_MATRIZ_LABEL,
+  casaMatrizAllowed,
+  countryToday,
+  listOperationalBranches,
+} from "./expense-branches";
 import {
   EXPENSE_CURRENCIES_BY_COUNTRY,
   MAX_MONEY,
   computePaymentAmounts,
+  countryCurrencyOf,
   expenseStatusOf,
 } from "./expense-math";
 import {
@@ -53,12 +59,16 @@ import {
 import {
   EXPENSE_PAYMENT_METHODS,
   type ExpenseCountry,
+  type ExpenseDestinationOption,
+  type ExpenseFormOptions,
+  type ExpensePaymentAccount,
   type ExpensePaymentItem,
   type ExpenseRecordDetail,
   type RegisterExpensePaymentInput,
 } from "./expense-types";
 import { assertMethodAllowedForAccount } from "./payment-method-rules";
 import type { TransactionService } from "./transaction-service";
+import { RETIROS_COST_CENTER_NAME } from "./withdrawal-service";
 
 type DbInstance = MySql2Database<typeof schema>;
 
@@ -380,6 +390,111 @@ export class ExpensePaymentService {
       record,
       payment: this.pickPayment(record, paymentId),
       created: true,
+    };
+  }
+
+  /**
+   * Cuentas desde las que se puede pagar un gasto del país (DI-07): activas, en
+   * una moneda del país y sin sede o de una sede del país. Incluye bancos, Caja
+   * central y Tesoro. NUNCA devuelve saldos: gestion tiene que poder elegirlas
+   * aunque Saldos por caja sea owner-only para las cuentas sin sede (T-209-18).
+   *
+   * Orden: efectivo de sede (por nombre de sede), efectivo sin sede (Central y
+   * después Tesoros) y bancos; dentro de cada grupo, por nombre.
+   */
+  async listPaymentAccounts(
+    ctx: TenantContext,
+    country: ExpenseCountry,
+  ): Promise<ExpensePaymentAccount[]> {
+    const cr = schema.cashRegisters;
+    const br = schema.branches;
+    const rows = await this.db
+      .select({
+        id: cr.id,
+        name: cr.name,
+        type: cr.type,
+        currency: cr.currency,
+        branchId: cr.branchId,
+        branchName: br.name,
+        isTreasury: cr.isTreasury,
+        cutoffDate: cr.cutoffDate,
+      })
+      .from(cr)
+      .leftJoin(br, and(tenantWhere(br, ctx), eq(br.id, cr.branchId)))
+      .where(
+        and(
+          tenantWhere(cr, ctx),
+          eq(cr.isActive, true),
+          inArray(cr.currency, [...EXPENSE_CURRENCIES_BY_COUNTRY[country]]),
+          or(isNull(cr.branchId), eq(br.country, country)),
+        ),
+      )
+      .orderBy(
+        sql`CASE WHEN ${cr.type} = 'efectivo' AND ${cr.branchId} IS NOT NULL THEN 0 WHEN ${cr.type} = 'efectivo' THEN 1 ELSE 2 END`,
+        asc(br.name),
+        asc(cr.isTreasury),
+        asc(cr.name),
+        asc(cr.id),
+      );
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      type: r.type,
+      currency: r.currency,
+      branchId: r.branchId,
+      branchName: r.branchName,
+      isTreasury: Boolean(r.isTreasury),
+      cutoffDate: r.cutoffDate,
+    }));
+  }
+
+  /**
+   * Opciones del formulario de gasto y de pago: moneda y monedas del país,
+   * "hoy" del país, cuentas para pagar (sin saldos), destinos del reparto
+   * (sedes operativas y, solo en Argentina, Casa Matriz al final) y rubros
+   * activos del país sin el de Retiros.
+   */
+  async getFormOptions(
+    ctx: TenantContext,
+    country: ExpenseCountry,
+  ): Promise<ExpenseFormOptions> {
+    const [today, accounts, branches, costCenters] = await Promise.all([
+      countryToday(this.db, ctx, country),
+      this.listPaymentAccounts(ctx, country),
+      listOperationalBranches(this.db, ctx, country),
+      this.db
+        .select({
+          id: schema.costCenters.id,
+          name: schema.costCenters.name,
+        })
+        .from(schema.costCenters)
+        .where(
+          and(
+            tenantWhere(schema.costCenters, ctx),
+            eq(schema.costCenters.country, country),
+            eq(schema.costCenters.isActive, true),
+            ne(schema.costCenters.name, RETIROS_COST_CENTER_NAME),
+          ),
+        )
+        .orderBy(asc(schema.costCenters.name), asc(schema.costCenters.id)),
+    ]);
+
+    const destinations: ExpenseDestinationOption[] = branches.map((b) => ({
+      branchId: b.id,
+      name: b.name,
+    }));
+    if (casaMatrizAllowed(country)) {
+      destinations.push({ branchId: null, name: CASA_MATRIZ_LABEL });
+    }
+
+    return {
+      country,
+      countryCurrency: countryCurrencyOf(country),
+      expenseCurrencies: [...EXPENSE_CURRENCIES_BY_COUNTRY[country]],
+      today,
+      accounts,
+      destinations,
+      costCenters,
     };
   }
 
