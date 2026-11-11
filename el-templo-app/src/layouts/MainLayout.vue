@@ -233,6 +233,7 @@ import { useAvisosStore } from 'src/stores/useAvisosStore'
 import { useNovedadesStore } from 'src/stores/useNovedadesStore'
 import { useSponsorsStore } from 'src/stores/useSponsorsStore'
 import { useTodayBookingStore } from 'src/stores/useTodayBookingStore'
+import { useStretchStore } from 'src/stores/useStretchStore'
 import { useCardHadContentStore } from 'src/stores/useCardHadContentStore'
 import PushPermissionDialog from 'src/components/PushPermissionDialog.vue'
 import ImprovementPromptDialog from 'src/components/ImprovementPromptDialog.vue'
@@ -260,6 +261,7 @@ const avisosStore = useAvisosStore()
 const novedadesStore = useNovedadesStore()
 const sponsorsStore = useSponsorsStore()
 const todayBookingStore = useTodayBookingStore()
+const stretchStore = useStretchStore()
 const cardFlags = useCardHadContentStore()
 
 // Fase 193 (D-20/D-21): hidrata el número de ventas del servidor + el texto
@@ -306,6 +308,8 @@ watch(
       sponsorsStore.reset()
       // Reservas del socio anterior + reloj: nada vivo tras el logout.
       todayBookingStore.reset()
+      // Estiramiento post-clase (fase 213): la oferta del socio anterior no se arrastra al siguiente.
+      stretchStore.reset()
       // Flags "tuvo contenido" (D-02): los del socio anterior no se arrastran al siguiente.
       cardFlags.reset()
       // Stats/check-ins (fase 203): `statsLoaded` y los datos del socio anterior no se arrastran.
@@ -313,6 +317,25 @@ watch(
     }
   },
   { immediate: true },
+)
+
+// Fase 213 (T-213-35): refresca la oferta de estiramiento solo para quien registró asistencia hoy y
+// todavía no estiró (el servidor decide si ya terminó la clase). Sin intervalos propios: cuelga de
+// los mismos puntos que el turno de hoy. Fail-open: `load()` nunca lanza y una falla deja la card
+// como está (fase 203).
+function refreshStretch(): void {
+  if (todayBookingStore.attendanceMarkedAt === null) return
+  if (stretchStore.cardInput.status === 'done') return
+  void stretchStore.load()
+}
+
+// Asistencia recién registrada (null -> valor): primera consulta del estiramiento. Puede seguir en
+// `none` hasta que termine la clase; el próximo refresco (volver a primer plano) lo trae.
+watch(
+  () => todayBookingStore.attendanceMarkedAt,
+  (marked, prev) => {
+    if (prev === null && marked !== null && authStore.isAuthenticated) refreshStretch()
+  },
 )
 
 // Refresca el turno de hoy al volver del escáner o de reservar (D-06).
@@ -334,7 +357,10 @@ watch(
     if (!tz || !authStore.isAuthenticated) return
     const inFlightWithThisTz =
       todayBookingStore.loadedTz === null && tz === (prevTz ?? DEFAULT_BRANCH_TZ)
-    if (todayBookingStore.loadedTz !== tz && !inFlightWithThisTz) void todayBookingStore.load()
+    if (todayBookingStore.loadedTz !== tz && !inFlightWithThisTz) {
+      void todayBookingStore.load()
+      refreshStretch()
+    }
   },
 )
 
@@ -346,6 +372,7 @@ watch(
 function onVisibilityChange(): void {
   if (document.visibilityState === 'visible' && authStore.isAuthenticated) {
     void todayBookingStore.load()
+    refreshStretch()
     if (userStore.profileStale) void userStore.retryProfileLoad()
   }
 }
