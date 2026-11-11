@@ -215,7 +215,7 @@ describe("Migraciones 0340/0341 — stretch_catalog y stretch_offers", () => {
 
   it("0341: guard estatico de la semilla (20 INSERT IGNORE por id y nombre, sin ';' en comentarios)", () => {
     const source = readFileSync(
-      path.join(MIGRATIONS_DIR, "0331_stretch_catalog_seed.sql"),
+      path.join(MIGRATIONS_DIR, "0341_stretch_catalog_seed.sql"),
       "utf8",
     );
     const inserts = source

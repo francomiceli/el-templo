@@ -1,4 +1,4 @@
--- 0331_stretch_catalog_seed.sql
+-- 0341_stretch_catalog_seed.sql
 -- Fase 213 Estiramiento post-clase (D-02): carga inicial de la lista curada.
 --
 -- Son los 20 ejercicios de la lista curada del SPEC seccion 4.1, agrupados en

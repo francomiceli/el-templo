@@ -1,4 +1,4 @@
--- 0330_stretch_tables.sql
+-- 0340_stretch_tables.sql
 -- Fase 213 Estiramiento post-clase (D-01, D-02, D-15, D-16).
 --
 -- Dos tablas gym-owned que nacen strict (modulo `stretch`):
