@@ -624,6 +624,11 @@ export interface MovEgresoItem {
   // Phase 147 (EGR-03): nombre del centro de costo (LEFT JOIN cost_centers).
   // Solo las filas expense lo tienen; el resto de kinds queda null.
   costCenterName: string | null;
+  /**
+   * Fase 208: responsable de un retiro (viejo = expense, nuevo = patas del
+   * traslado). null en el resto de las filas.
+   */
+  responsibleName: string | null;
 }
 
 /**
@@ -885,6 +890,14 @@ export interface WithdrawalListItem {
   notes: string | null;
   /** Cantidad de cobros vinculados (0 en retiros de cuenta banco). */
   paymentCount: number;
+  /**
+   * Formato del retiro (fase 208): "legacy_expense" = expense con responsable
+   * (los retiros viejos), "transfer" = traslado con responsable (los nuevos).
+   */
+  format: "legacy_expense" | "transfer";
+  /** Caja destino del retiro nuevo (Central o Tesoro). null en los viejos. */
+  destinationCashRegisterId: number | null;
+  destinationName: string | null;
   voidedAt: string | null;
   voidReason: string | null;
   createdAt: string; // ISO

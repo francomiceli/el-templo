@@ -76,6 +76,7 @@ import {
   activeWithdrawalDateSql,
   activeWithdrawalIdSql,
 } from "./withdrawal-service";
+import { MEMBER_INFLOW_KINDS } from "./withdrawal-marker";
 import type { PaginatedResult } from "../shared/types";
 import { auditLog } from "../shared/audit-log";
 import {
@@ -660,7 +661,13 @@ export class TransactionService {
     // con los cobros que lo componen. Primero se anula el retiro (libera
     // sus cobros), después el cobro. Solo aplica a inflows: anular el retiro
     // mismo (outflow) pasa de largo. correct() también entra por acá.
-    if (existing.direction === "inflow") {
+    // Fase 208: solo aplica a COBROS de socio. La pata de entrada de un retiro
+    // nuevo (traslado) también está vinculada desde el retiro y NO es un cobro:
+    // sin este filtro, anular el par daba 409 por su propio retiro.
+    if (
+      existing.direction === "inflow" &&
+      MEMBER_INFLOW_KINDS.includes(existing.kind)
+    ) {
       const withdrawal = await WithdrawalService.findActiveWithdrawalForPayment(
         ctx,
         tx,
@@ -2131,6 +2138,8 @@ export class TransactionService {
         notes: schema.financialTransactions.notes,
         // Phase 147 (EGR-03): nombre del centro de costo (solo filas expense).
         costCenterName: schema.costCenters.name,
+        // Fase 208: responsable del retiro (viejo o nuevo), null en el resto.
+        responsibleName: schema.financialTransactions.responsibleName,
       })
       .from(schema.financialTransactions)
       .leftJoin(
@@ -2199,6 +2208,7 @@ export class TransactionService {
       voidReason: r.voidReason,
       notes: r.notes,
       costCenterName: r.costCenterName ?? null,
+      responsibleName: r.responsibleName ?? null,
     }));
 
     return { rows, total, page, limit };

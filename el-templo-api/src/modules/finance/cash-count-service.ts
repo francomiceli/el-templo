@@ -75,16 +75,10 @@ import type {
   CashCountSummary,
   CashCountVoidedItem,
   RegisterCashCountInput,
-  TransactionKind,
 } from "./types";
+import { MEMBER_INFLOW_KINDS } from "./withdrawal-marker";
 
 type DbInstance = MySql2Database<typeof schema>;
-
-const MEMBER_INFLOW_KINDS: ReadonlyArray<TransactionKind> = [
-  "plan_charge",
-  "debt_settlement",
-  "advance_payment",
-];
 
 interface CajaRef {
   id: number;

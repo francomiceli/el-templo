@@ -74,6 +74,12 @@ import type { CashRegisterService } from "./cash-register-service";
 import type { TransactionService } from "./transaction-service";
 import { assertEfectivoCoversOutflow } from "./efectivo-guard";
 import { firmMoneyConditions } from "./firm-money";
+import {
+  MEMBER_INFLOW_KINDS,
+  withdrawalFormatOf,
+  withdrawalRowConditions,
+  withdrawalRowSql,
+} from "./withdrawal-marker";
 import type {
   PendingWithdrawalResult,
   RegisterWithdrawalInput,
@@ -90,13 +96,6 @@ type DbInstance = MySql2Database<typeof schema>;
 
 /** Nombre canónico del centro de costo de retiros (sembrado en la mig 0163). */
 export const RETIROS_COST_CENTER_NAME = "Retiros";
-
-/** Kinds de cobro de socio que pueden estar en el cajón y por lo tanto retirarse. */
-const MEMBER_INFLOW_KINDS: ReadonlyArray<TransactionKind> = [
-  "plan_charge",
-  "debt_settlement",
-  "advance_payment",
-];
 
 /** Roles cuyos nombres se ofrecen como sugerencia de responsable. */
 const STAFF_ROLES = [
@@ -121,7 +120,9 @@ interface CajaRef {
 }
 
 /**
- * Subquery escalar: id del retiro ACTIVO (expense no anulado) que incluye el
+ * Retiro viejo (expense) o nuevo (traslado), ver withdrawal-marker.ts.
+ *
+ * Subquery escalar: id del retiro ACTIVO (no anulado) que incluye el
  * cobro `financial_transactions.id` de la query externa. Escrita con nombres
  * literales (no `${schema.x.col}`) porque dentro de `.select()` drizzle
  * renderiza esas referencias sin calificar y la correlación se rompe
@@ -136,8 +137,7 @@ function activeWithdrawalIdSql(ctx: TenantContext) {
       AND w.tenant_id = ${ctx.tenantId}
       AND tl.target_kind = 'transaction'
       AND tl.target_id = financial_transactions.id
-      AND w.kind = 'expense'
-      AND w.responsible_name IS NOT NULL
+      AND ${withdrawalRowSql("w")}
       AND w.voided_at IS NULL
     ORDER BY w.id DESC
     LIMIT 1
@@ -153,8 +153,7 @@ function activeWithdrawalDateSql(ctx: TenantContext) {
       AND w.tenant_id = ${ctx.tenantId}
       AND tl.target_kind = 'transaction'
       AND tl.target_id = financial_transactions.id
-      AND w.kind = 'expense'
-      AND w.responsible_name IS NOT NULL
+      AND ${withdrawalRowSql("w")}
       AND w.voided_at IS NULL
     ORDER BY w.id DESC
     LIMIT 1
@@ -179,6 +178,64 @@ function planNameSql(ctx: TenantContext) {
   )`;
 }
 
+/**
+ * Subquery escalar: cantidad de COBROS de socio vinculados al retiro de la
+ * query externa. Cuenta solo cobros (no la pata hermana de un retiro nuevo,
+ * que también está linkeada desde la de salida). Con retiros viejos da lo
+ * mismo que contar todos los links (solo vinculan cobros). Literal por la
+ * correlación sin calificar en `.select()`.
+ */
+function paymentCountSql(ctx: TenantContext) {
+  const kinds = sql.join(
+    MEMBER_INFLOW_KINDS.map((k) => sql`${k}`),
+    sql`, `,
+  );
+  return sql<number>`(
+    SELECT COUNT(*) FROM transaction_links tlc
+    JOIN financial_transactions c ON c.id = tlc.target_id
+    WHERE tlc.tenant_id = ${ctx.tenantId}
+      AND c.tenant_id = ${ctx.tenantId}
+      AND tlc.transaction_id = financial_transactions.id
+      AND tlc.target_kind = 'transaction'
+      AND c.kind IN (${kinds})
+  )`;
+}
+
+/**
+ * Subquery escalar: id de la caja destino de un retiro NUEVO (la caja de la
+ * pata de entrada vinculada desde la de salida). NULL en los retiros viejos.
+ */
+function destinationCashRegisterIdSql(ctx: TenantContext) {
+  return sql<number | null>`(
+    SELECT o.cash_register_id FROM transaction_links tld
+    JOIN financial_transactions o ON o.id = tld.target_id
+    WHERE tld.tenant_id = ${ctx.tenantId}
+      AND o.tenant_id = ${ctx.tenantId}
+      AND tld.target_kind = 'transaction'
+      AND tld.transaction_id = financial_transactions.id
+      AND o.kind = 'cash_transfer'
+      AND o.direction = 'inflow'
+    LIMIT 1
+  )`;
+}
+
+/** Nombre de esa caja destino (NULL en los retiros viejos). */
+function destinationNameSql(ctx: TenantContext) {
+  return sql<string | null>`(
+    SELECT dcr.name FROM transaction_links tld2
+    JOIN financial_transactions o2 ON o2.id = tld2.target_id
+    JOIN cash_registers dcr ON dcr.id = o2.cash_register_id
+    WHERE tld2.tenant_id = ${ctx.tenantId}
+      AND o2.tenant_id = ${ctx.tenantId}
+      AND dcr.tenant_id = ${ctx.tenantId}
+      AND tld2.target_kind = 'transaction'
+      AND tld2.transaction_id = financial_transactions.id
+      AND o2.kind = 'cash_transfer'
+      AND o2.direction = 'inflow'
+    LIMIT 1
+  )`;
+}
+
 export { activeWithdrawalIdSql, activeWithdrawalDateSql };
 
 /** Texto de una fila del resumen del cajón: quién pagó, en qué se gastó, etc. */
@@ -188,6 +245,7 @@ function describeFlow(r: {
   memberName: string;
   costCenterName: string | null;
   counterpartCaja: string | null;
+  responsibleName: string | null;
 }): string {
   switch (r.kind) {
     case "plan_charge":
@@ -197,6 +255,12 @@ function describeFlow(r: {
     case "expense":
       return r.costCenterName ?? "Gasto";
     case "cash_transfer":
+      // Retiro nuevo (traslado con responsable), ver withdrawal-marker.ts.
+      if (r.responsibleName !== null && r.responsibleName.trim() !== "") {
+        return r.direction === "inflow"
+          ? `Retiro desde ${r.counterpartCaja ?? "otra caja"}`
+          : `Retiro a ${r.counterpartCaja ?? "otra caja"}`;
+      }
       return r.direction === "inflow"
         ? `Movimiento desde ${r.counterpartCaja ?? "otra caja"}`
         : `Movimiento a ${r.counterpartCaja ?? "otra caja"}`;
@@ -420,8 +484,8 @@ export class WithdrawalService {
         and(
           tenantWhere(schema.financialTransactions, ctx),
           eq(schema.financialTransactions.cashRegisterId, cajaId),
-          eq(schema.financialTransactions.kind, "expense"),
-          isNotNull(schema.financialTransactions.responsibleName),
+          // Retiro viejo (expense) o nuevo (traslado), ver withdrawal-marker.ts.
+          withdrawalRowConditions(),
           isNull(schema.financialTransactions.voidedAt),
         ),
       )
@@ -512,6 +576,7 @@ export class WithdrawalService {
         direction: ft.direction,
         amount: ft.amount,
         notes: ft.notes,
+        responsibleName: ft.responsibleName,
         createdAt: ft.createdAt,
         memberFirstName: schema.users.firstName,
         memberLastName: schema.users.lastName,
@@ -960,8 +1025,8 @@ export class WithdrawalService {
 
     const conds = [
       tenantWhere(schema.financialTransactions, ctx),
-      eq(schema.financialTransactions.kind, "expense"),
-      sql`${schema.financialTransactions.responsibleName} IS NOT NULL`,
+      // Retiro viejo (expense) o nuevo (traslado), ver withdrawal-marker.ts.
+      withdrawalRowConditions(),
     ];
     if (filters.cashRegisterId !== undefined) {
       conds.push(
@@ -1022,6 +1087,7 @@ export class WithdrawalService {
           branchId: schema.financialTransactions.branchId,
           branchName: schema.branches.name,
           responsibleName: schema.financialTransactions.responsibleName,
+          kind: schema.financialTransactions.kind,
           recordedBy: schema.financialTransactions.recordedBy,
           recorderFirstName: recorder.firstName,
           recorderLastName: recorder.lastName,
@@ -1029,12 +1095,9 @@ export class WithdrawalService {
           voidedAt: schema.financialTransactions.voidedAt,
           voidReason: schema.financialTransactions.voidReason,
           createdAt: schema.financialTransactions.createdAt,
-          paymentCount: sql<number>`(
-            SELECT COUNT(*) FROM transaction_links tlc
-            WHERE tlc.tenant_id = ${ctx.tenantId}
-              AND tlc.transaction_id = financial_transactions.id
-              AND tlc.target_kind = 'transaction'
-          )`,
+          paymentCount: paymentCountSql(ctx),
+          destinationCashRegisterId: destinationCashRegisterIdSql(ctx),
+          destinationName: destinationNameSql(ctx),
         })
         .from(schema.financialTransactions)
         .innerJoin(
@@ -1108,6 +1171,7 @@ export class WithdrawalService {
     cashRegisterType: "efectivo" | "banco";
     branchId: number | null;
     branchName: string | null;
+    kind: TransactionKind;
     responsibleName: string | null;
     recordedBy: number;
     recorderFirstName: string | null;
@@ -1117,7 +1181,17 @@ export class WithdrawalService {
     voidReason: string | null;
     createdAt: Date;
     paymentCount: number;
+    destinationCashRegisterId: number | null;
+    destinationName: string | null;
   }): WithdrawalListItem {
+    // Los lectores solo traen filas que cumplen el marcador, así que siempre
+    // hay formato; el fallback conservador es el viejo.
+    const format =
+      withdrawalFormatOf({
+        kind: r.kind,
+        direction: "outflow",
+        responsibleName: r.responsibleName,
+      }) ?? "legacy_expense";
     return {
       id: r.id,
       transactionDate: String(r.transactionDate),
@@ -1134,6 +1208,12 @@ export class WithdrawalService {
         `${r.recorderFirstName ?? ""} ${r.recorderLastName ?? ""}`.trim(),
       notes: r.notes,
       paymentCount: Number(r.paymentCount),
+      format,
+      destinationCashRegisterId:
+        r.destinationCashRegisterId === null
+          ? null
+          : Number(r.destinationCashRegisterId),
+      destinationName: r.destinationName,
       voidedAt: r.voidedAt ? r.voidedAt.toISOString() : null,
       voidReason: r.voidReason,
       createdAt: r.createdAt.toISOString(),
@@ -1160,6 +1240,7 @@ export class WithdrawalService {
         branchId: schema.financialTransactions.branchId,
         branchName: schema.branches.name,
         responsibleName: schema.financialTransactions.responsibleName,
+        kind: schema.financialTransactions.kind,
         recordedBy: schema.financialTransactions.recordedBy,
         recorderFirstName: recorder.firstName,
         recorderLastName: recorder.lastName,
@@ -1167,12 +1248,9 @@ export class WithdrawalService {
         voidedAt: schema.financialTransactions.voidedAt,
         voidReason: schema.financialTransactions.voidReason,
         createdAt: schema.financialTransactions.createdAt,
-        paymentCount: sql<number>`(
-          SELECT COUNT(*) FROM transaction_links tlc
-          WHERE tlc.tenant_id = ${ctx.tenantId}
-            AND tlc.transaction_id = financial_transactions.id
-            AND tlc.target_kind = 'transaction'
-        )`,
+        paymentCount: paymentCountSql(ctx),
+        destinationCashRegisterId: destinationCashRegisterIdSql(ctx),
+        destinationName: destinationNameSql(ctx),
       })
       .from(schema.financialTransactions)
       .innerJoin(
@@ -1203,8 +1281,8 @@ export class WithdrawalService {
         and(
           tenantWhere(schema.financialTransactions, ctx),
           eq(schema.financialTransactions.id, id),
-          eq(schema.financialTransactions.kind, "expense"),
-          sql`${schema.financialTransactions.responsibleName} IS NOT NULL`,
+          // Retiro viejo (expense) o nuevo (traslado), ver withdrawal-marker.ts.
+          withdrawalRowConditions(),
         ),
       )
       .limit(1);
@@ -1228,8 +1306,8 @@ export class WithdrawalService {
       .where(
         and(
           tenantWhere(schema.financialTransactions, ctx),
-          eq(schema.financialTransactions.kind, "expense"),
-          sql`${schema.financialTransactions.responsibleName} IS NOT NULL`,
+          // Retiro viejo (expense) o nuevo (traslado), ver withdrawal-marker.ts.
+          withdrawalRowConditions(),
         ),
       );
     const staff = await this.db
@@ -1288,8 +1366,8 @@ export class WithdrawalService {
           tenantWhere(link, ctx),
           eq(link.targetKind, "transaction"),
           eq(link.targetId, transactionId),
-          eq(schema.financialTransactions.kind, "expense"),
-          sql`${schema.financialTransactions.responsibleName} IS NOT NULL`,
+          // Retiro viejo (expense) o nuevo (traslado), ver withdrawal-marker.ts.
+          withdrawalRowConditions(),
           isNull(schema.financialTransactions.voidedAt),
         ),
       )

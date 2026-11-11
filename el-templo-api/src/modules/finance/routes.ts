@@ -2353,7 +2353,13 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         for (const row of result.rows) {
           sheet.addRow({
             fecha: row.transactionDate,
-            tipo: KIND_LABELS_ES[row.kind] ?? row.kind,
+            // Fase 208: las patas de un retiro nuevo (traslado con
+            // responsable) se rotulan "Retiro". Los retiros viejos siguen
+            // "Egreso" (DI-09: nada de lo existente cambia).
+            tipo:
+              row.kind === "cash_transfer" && row.responsibleName
+                ? "Retiro"
+                : (KIND_LABELS_ES[row.kind] ?? row.kind),
             direccion: DIRECTION_LABELS_ES[row.direction] ?? row.direction,
             concepto: row.notes ?? "",
             monto: row.amount,
