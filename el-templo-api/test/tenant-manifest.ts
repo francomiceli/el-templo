@@ -1153,6 +1153,10 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     categoria: "templo-module",
     modulo: "templo-training",
   },
+  "POST /api/communications/tv/admin/tv-avisos/image-upload-url": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
   "PUT /api/communications/tv/admin/tv-avisos/:id": {
     categoria: "templo-module",
     modulo: "templo-training",

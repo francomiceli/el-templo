@@ -100,6 +100,7 @@ import type { TvAvisoRow, TvAvisoMode } from 'src/composables/useCommunicationsA
 import type { BranchOption } from 'src/types/member';
 import { confirmDeleteComunicacion } from 'src/utils/confirm-delete-comunicacion';
 import { audienceOfTvAviso, groupByAudience } from 'src/utils/comunicaciones-audience';
+import { eventoCalendario } from 'src/tv/evento';
 
 const log = createLogger('TvAvisosTab');
 const $q = useQuasar();
@@ -136,15 +137,25 @@ function sedesLabel(row: TvAvisoRow): string {
 }
 
 // 2026-10-06: el fondo de la placa (tema claro/oscuro) va como un dato más.
+// 2026-11-12: un aviso con formato evento muestra su fecha en vez del fondo
+// (la tarjeta de evento es siempre clara, el tema no aplica).
 function cardMeta(row: TvAvisoRow): Array<{ icon: string; text: string }> {
   return [
     { icon: 'tv', text: MODE_LABELS[row.mode] },
-    {
-      icon: row.tema === 'claro' ? 'light_mode' : 'dark_mode',
-      text: row.tema === 'claro' ? 'Fondo claro' : 'Fondo oscuro',
-    },
+    row.evento
+      ? { icon: 'event', text: `Evento · ${eventoFechaLabel(row.evento.fecha)}` }
+      : {
+          icon: row.tema === 'claro' ? 'light_mode' : 'dark_mode',
+          text: row.tema === 'claro' ? 'Fondo claro' : 'Fondo oscuro',
+        },
     { icon: 'place', text: sedesLabel(row) },
   ];
+}
+
+/** `2026-11-14` → `SÁB 14 NOV` (misma hoja de calendario que pinta la TV). */
+function eventoFechaLabel(fecha: string): string {
+  const cal = eventoCalendario(fecha);
+  return cal ? `${cal.dia} ${cal.num} ${cal.mes}` : fecha;
 }
 
 const editorOpen = ref(false);

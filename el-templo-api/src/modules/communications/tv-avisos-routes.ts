@@ -23,6 +23,7 @@
  */
 import { FastifyPluginAsync } from "fastify";
 import { TvAvisosService } from "./tv-avisos-service";
+import { BlogImageService } from "../blog/image-service";
 import { ADMIN_ROLES, TV_CONTROL_ROLES } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
 import { assertTenant } from "../shared/tenant";
@@ -36,9 +37,13 @@ import {
   listTvAvisosResponseSchema,
   tvAvisoWriteResponseSchema,
   tvAvisoActivoResponseSchema,
+  tvAvisoImageUploadSchema,
+  tvAvisoImageUploadResponseSchema,
+  TV_AVISO_IMAGE_PREFIX,
   type CreateTvAvisoBody,
   type UpdateTvAvisoBody,
   type TvAvisoActivoQuery,
+  type TvAvisoImageUploadBody,
 } from "./schemas";
 
 export const tvAvisosRoutes: FastifyPluginAsync = async (fastify) => {
@@ -112,11 +117,55 @@ export const tvAvisosRoutes: FastifyPluginAsync = async (fastify) => {
           tema: request.body.tema,
           isActive: request.body.isActive,
           scopeBranchIds: request.body.scopeBranchIds ?? null,
+          evento: request.body.evento ?? null,
         });
         reply.code(201);
         return aviso;
       } catch (err: unknown) {
         handleServiceError(err, reply, fastify.log, "tvAvisos.create");
+      }
+    },
+  );
+
+  // =========================================================================
+  // POST /admin/tv-avisos/image-upload-url — URL prefirmada de R2 para la foto
+  // de un aviso con formato evento (2026-11-12, D-29: admin). El navegador
+  // sube el archivo directo a R2 bajo `tv/avisos/` y después manda la
+  // `publicUrl` en `evento.imageUrl` (el service solo acepta ese prefijo).
+  // =========================================================================
+
+  fastify.post<{ Body: TvAvisoImageUploadBody }>(
+    "/admin/tv-avisos/image-upload-url",
+    {
+      schema: {
+        ...tvAvisoImageUploadSchema,
+        response: tvAvisoImageUploadResponseSchema,
+      },
+    },
+    async (request, reply) => {
+      if (!isAdmin(request.user.role)) {
+        return reply.code(403).send({ error: "Acceso denegado" });
+      }
+
+      assertTenant(request.scope, "tvAvisos.imageUploadUrl");
+      if (!fastify.r2) {
+        return reply
+          .code(503)
+          .send({ error: "Almacenamiento de imágenes no configurado" });
+      }
+
+      try {
+        const imageService = new BlogImageService(
+          fastify.r2,
+          fastify.r2Bucket,
+          request.log,
+        );
+        return await imageService.generateUploadUrl(
+          request.body.filename,
+          TV_AVISO_IMAGE_PREFIX,
+        );
+      } catch (err: unknown) {
+        handleServiceError(err, reply, fastify.log, "tvAvisos.imageUploadUrl");
       }
     },
   );
@@ -149,6 +198,7 @@ export const tvAvisosRoutes: FastifyPluginAsync = async (fastify) => {
           tema: request.body.tema,
           isActive: request.body.isActive,
           scopeBranchIds: request.body.scopeBranchIds,
+          evento: request.body.evento,
         });
         return aviso;
       } catch (err: unknown) {

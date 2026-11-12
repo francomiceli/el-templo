@@ -18,6 +18,10 @@
  *       responden el 4xx del guard de módulo
  *   (7) aislamiento: un PUT/DELETE con id de aviso de TV de otro tenant
  *       -> 404, nunca 403
+ *   (8) formato evento (2026-11-12, migración 0332): alta/edición con
+ *       `evento`, normalización, validaciones, foto solo del R2 propio
+ *       (`tv/avisos/`), vuelta a placa con `evento:null`, y la ruta
+ *       `/admin/tv-avisos/image-upload-url` (roles, extensiones, 200/503)
  *
  * LIMPIEZA (193-03, L2): `tv_avisos` NO está en `TABLES_TO_CLEAN`
  * (`test/helpers.ts`) — sin semilla de sistema (a diferencia de `avisos`),
@@ -31,6 +35,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "vitest";
 import type { FastifyInstance } from "fastify";
+import { S3Client } from "@aws-sdk/client-s3";
 import { sql, and, eq } from "drizzle-orm";
 import {
   createTestApp,
@@ -437,7 +442,7 @@ describe("communications/tv-avisos (COM-04, D-24/D-29)", () => {
     expect(stateRow?.tvAvisoId).toBeNull();
   });
 
-  it("(6) módulo apagado (D-23): con templo-training OFF, las 5 rutas responden 4xx del guard", async () => {
+  it("(6) módulo apagado (D-23): con templo-training OFF, las 6 rutas responden 4xx del guard", async () => {
     const createRes = await postComo(
       "/admin/tv-avisos",
       adminToken,
@@ -464,6 +469,11 @@ describe("communications/tv-avisos (COM-04, D-24/D-29)", () => {
 
     const del = await deleteComo(`/admin/tv-avisos/${created.id}`, adminToken);
     expect(del.statusCode).toBe(404);
+
+    const upload = await postComo("/admin/tv-avisos/image-upload-url", adminToken, {
+      filename: "foto.jpg",
+    });
+    expect(upload.statusCode).toBe(404);
 
     const control = await getComo(
       `/control/tv-aviso-activo?branchId=${branchA}`,
@@ -498,5 +508,486 @@ describe("communications/tv-avisos (COM-04, D-24/D-29)", () => {
     } finally {
       await limpiarSegundoGimnasio(app);
     }
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// (8) Formato evento (2026-11-12, migración 0332)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const R2_BASE = "https://r2.test.example";
+
+interface EventoBody {
+  fecha: string;
+  hora: string;
+  lugar: string;
+  sello: string | null;
+  imageUrl: string | null;
+}
+
+interface TvAvisoConEvento {
+  id: number;
+  title: string;
+  body: string;
+  evento: EventoBody | null;
+}
+
+function buildEvento(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    fecha: "2026-11-14",
+    hora: "10:00 h",
+    lugar: "Cousteau · Gral. Roca 1218",
+    sello: "Gratis y abierto a todos",
+    ...overrides,
+  };
+}
+
+function buildEventoAvisoBody(
+  eventoOverrides: Record<string, unknown> = {},
+  avisoOverrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    title: "Social Run",
+    body: "Aura Club × Cousteau",
+    mode: "flex_final",
+    evento: buildEvento(eventoOverrides),
+    ...avisoOverrides,
+  };
+}
+
+describe("communications/tv-avisos — formato evento (migración 0332)", () => {
+  let previoR2PublicUrl: string | undefined;
+
+  beforeAll(() => {
+    previoR2PublicUrl = process.env.R2_PUBLIC_URL;
+  });
+
+  beforeEach(() => {
+    process.env.R2_PUBLIC_URL = R2_BASE;
+  });
+
+  afterAll(() => {
+    if (previoR2PublicUrl === undefined) {
+      delete process.env.R2_PUBLIC_URL;
+    } else {
+      process.env.R2_PUBLIC_URL = previoR2PublicUrl;
+    }
+  });
+
+  it("(8a) un aviso sin `evento` es una placa: `evento:null` en el alta y en el listado", async () => {
+    const res = await postComo("/admin/tv-avisos", adminToken, buildValidTvAvisoBody());
+    expect(res.statusCode, res.body).toBe(201);
+    const created = JSON.parse(res.body) as TvAvisoConEvento;
+    expect(created.evento).toBeNull();
+
+    const list = JSON.parse((await getComo("/admin/tv-avisos", adminToken)).body) as {
+      avisos: TvAvisoConEvento[];
+    };
+    expect(list.avisos.find((a) => a.id === created.id)?.evento).toBeNull();
+  });
+
+  it("(8b) alta con evento: se guarda normalizado (trim, opcionales vacíos -> null) y viaja en el listado", async () => {
+    const res = await postComo(
+      "/admin/tv-avisos",
+      adminToken,
+      buildEventoAvisoBody({
+        hora: "  10:00 h ",
+        lugar: "  Cousteau · Gral. Roca 1218  ",
+        sello: "   ",
+        imageUrl: "",
+      }),
+    );
+    expect(res.statusCode, res.body).toBe(201);
+    const created = JSON.parse(res.body) as TvAvisoConEvento;
+    expect(created.title).toBe("Social Run");
+    expect(created.body).toBe("Aura Club × Cousteau");
+    expect(created.evento).toEqual({
+      fecha: "2026-11-14",
+      hora: "10:00 h",
+      lugar: "Cousteau · Gral. Roca 1218",
+      sello: null,
+      imageUrl: null,
+    });
+
+    const list = JSON.parse((await getComo("/admin/tv-avisos", adminToken)).body) as {
+      avisos: TvAvisoConEvento[];
+    };
+    expect(list.avisos.find((a) => a.id === created.id)?.evento).toEqual(created.evento);
+
+    // La fila guarda el JSON ya normalizado (lo que lee el poll del TV).
+    const [row] = await app.db
+      .select({ evento: tvAvisos.evento })
+      .from(tvAvisos)
+      .where(and(tenantWhere(tvAvisos, CTX_TEMPLO), eq(tvAvisos.id, created.id)));
+    expect(row.evento).toEqual(created.evento);
+  });
+
+  it("(8c) sello y foto opcionales: sin las claves quedan en null; con sello se conserva", async () => {
+    const sin = await postComo(
+      "/admin/tv-avisos",
+      adminToken,
+      { ...buildEventoAvisoBody(), evento: { fecha: "2026-11-14", hora: "10:00 h", lugar: "Cousteau" } },
+    );
+    expect(sin.statusCode, sin.body).toBe(201);
+    expect((JSON.parse(sin.body) as TvAvisoConEvento).evento).toEqual({
+      fecha: "2026-11-14",
+      hora: "10:00 h",
+      lugar: "Cousteau",
+      sello: null,
+      imageUrl: null,
+    });
+
+    const con = await postComo("/admin/tv-avisos", adminToken, buildEventoAvisoBody());
+    expect(con.statusCode, con.body).toBe(201);
+    expect((JSON.parse(con.body) as TvAvisoConEvento).evento?.sello).toBe(
+      "Gratis y abierto a todos",
+    );
+  });
+
+  it("(8d) validaciones del evento -> 400 y no se persiste nada", async () => {
+    const casos: Array<[string, Record<string, unknown>]> = [
+      ["fecha con otro formato", buildEventoAvisoBody({ fecha: "14/11/2026" })],
+      ["fecha inexistente", buildEventoAvisoBody({ fecha: "2026-02-30" })],
+      ["fecha vacía", buildEventoAvisoBody({ fecha: "" })],
+      ["hora vacía tras trim", buildEventoAvisoBody({ hora: "   " })],
+      ["hora larga", buildEventoAvisoBody({ hora: "x".repeat(21) })],
+      ["lugar vacío tras trim", buildEventoAvisoBody({ lugar: "  " })],
+      ["lugar largo", buildEventoAvisoBody({ lugar: "x".repeat(81) })],
+      ["sello largo", buildEventoAvisoBody({ sello: "x".repeat(41) })],
+      ["nombre largo", buildEventoAvisoBody({}, { title: "x".repeat(41) })],
+      ["subtítulo largo", buildEventoAvisoBody({}, { body: "x".repeat(61) })],
+      ["fecha con espacios", buildEventoAvisoBody({ fecha: " 2026-11-14 " })],
+      [
+        "sin lugar",
+        { ...buildEventoAvisoBody(), evento: { fecha: "2026-11-14", hora: "10:00 h" } },
+      ],
+      ["evento que no es objeto", { ...buildEventoAvisoBody(), evento: "social run" }],
+    ];
+    for (const [nombre, payload] of casos) {
+      const res = await postComo("/admin/tv-avisos", adminToken, payload);
+      expect(res.statusCode, `${nombre}: ${res.body}`).toBe(400);
+    }
+
+    const list = JSON.parse((await getComo("/admin/tv-avisos", adminToken)).body) as {
+      avisos: unknown[];
+    };
+    expect(list.avisos).toHaveLength(0);
+  });
+
+  it("(8d-bis) una clave de más dentro del evento se descarta: ni se guarda ni vuelve en la respuesta", async () => {
+    const res = await postComo(
+      "/admin/tv-avisos",
+      adminToken,
+      buildEventoAvisoBody({ color: "rojo" }),
+    );
+    expect(res.statusCode, res.body).toBe(201);
+    const created = JSON.parse(res.body) as TvAvisoConEvento;
+    expect(created.evento).toEqual({
+      fecha: "2026-11-14",
+      hora: "10:00 h",
+      lugar: "Cousteau · Gral. Roca 1218",
+      sello: "Gratis y abierto a todos",
+      imageUrl: null,
+    });
+    const [row] = await app.db
+      .select({ evento: tvAvisos.evento })
+      .from(tvAvisos)
+      .where(and(tenantWhere(tvAvisos, CTX_TEMPLO), eq(tvAvisos.id, created.id)));
+    expect(row.evento).toEqual(created.evento);
+  });
+
+  it("(8e) los límites cortos de nombre/subtítulo solo rigen para eventos: una placa sigue aceptando 120/400", async () => {
+    const res = await postComo(
+      "/admin/tv-avisos",
+      adminToken,
+      buildValidTvAvisoBody({ title: "x".repeat(120), body: "y".repeat(400) }),
+    );
+    expect(res.statusCode, res.body).toBe(201);
+  });
+
+  it("(8f) foto: solo se acepta una URL del R2 propio bajo tv/avisos/", async () => {
+    const rechazadas = [
+      "https://evil.example/tv/avisos/1-foto.jpg",
+      `${R2_BASE}.evil.com/tv/avisos/1-foto.jpg`,
+      `${R2_BASE}/sponsors/logos/1-foto.jpg`,
+      `${R2_BASE}/tv/avisos`,
+      "javascript:alert(1)",
+    ];
+    for (const imageUrl of rechazadas) {
+      const res = await postComo(
+        "/admin/tv-avisos",
+        adminToken,
+        buildEventoAvisoBody({ imageUrl }),
+      );
+      expect(res.statusCode, `${imageUrl}: ${res.body}`).toBe(400);
+    }
+
+    const ok = await postComo(
+      "/admin/tv-avisos",
+      adminToken,
+      buildEventoAvisoBody({ imageUrl: `${R2_BASE}/tv/avisos/1-cousteau.jpg` }),
+    );
+    expect(ok.statusCode, ok.body).toBe(201);
+    expect((JSON.parse(ok.body) as TvAvisoConEvento).evento?.imageUrl).toBe(
+      `${R2_BASE}/tv/avisos/1-cousteau.jpg`,
+    );
+
+    // Con la base cargada con barra final se normaliza igual.
+    process.env.R2_PUBLIC_URL = `${R2_BASE}/`;
+    const conBarra = await postComo(
+      "/admin/tv-avisos",
+      adminToken,
+      buildEventoAvisoBody({ imageUrl: `${R2_BASE}/tv/avisos/2-cousteau.jpg` }),
+    );
+    expect(conBarra.statusCode, conBarra.body).toBe(201);
+  });
+
+  it("(8g) sin R2_PUBLIC_URL no se puede asignar una foto, pero sí crear el evento sin foto", async () => {
+    process.env.R2_PUBLIC_URL = "";
+    const conFoto = await postComo(
+      "/admin/tv-avisos",
+      adminToken,
+      buildEventoAvisoBody({ imageUrl: `${R2_BASE}/tv/avisos/1-cousteau.jpg` }),
+    );
+    expect(conFoto.statusCode, conFoto.body).toBe(400);
+
+    const sinFoto = await postComo("/admin/tv-avisos", adminToken, buildEventoAvisoBody());
+    expect(sinFoto.statusCode, sinFoto.body).toBe(201);
+  });
+
+  it("(8h) edición: `evento` reemplaza completo, `evento:null` vuelve a placa y sin la clave no se toca", async () => {
+    const created = JSON.parse(
+      (
+        await postComo(
+          "/admin/tv-avisos",
+          adminToken,
+          buildEventoAvisoBody({ imageUrl: `${R2_BASE}/tv/avisos/1-cousteau.jpg` }),
+        )
+      ).body,
+    ) as TvAvisoConEvento;
+
+    // Sin la clave `evento`: se conserva tal cual.
+    const soloActivo = await putComo(`/admin/tv-avisos/${created.id}`, adminToken, {
+      isActive: true,
+    });
+    expect(soloActivo.statusCode, soloActivo.body).toBe(200);
+    expect((JSON.parse(soloActivo.body) as TvAvisoConEvento).evento).toEqual(created.evento);
+
+    // Reemplazo COMPLETO: lo que no viene (sello, foto) se pierde.
+    const reemplazo = await putComo(`/admin/tv-avisos/${created.id}`, adminToken, {
+      evento: { fecha: "2026-12-05", hora: "9:30 h", lugar: "Parque Centenario" },
+    });
+    expect(reemplazo.statusCode, reemplazo.body).toBe(200);
+    expect((JSON.parse(reemplazo.body) as TvAvisoConEvento).evento).toEqual({
+      fecha: "2026-12-05",
+      hora: "9:30 h",
+      lugar: "Parque Centenario",
+      sello: null,
+      imageUrl: null,
+    });
+
+    // Vuelta a placa.
+    const aPlaca = await putComo(`/admin/tv-avisos/${created.id}`, adminToken, {
+      evento: null,
+    });
+    expect(aPlaca.statusCode, aPlaca.body).toBe(200);
+    expect((JSON.parse(aPlaca.body) as TvAvisoConEvento).evento).toBeNull();
+
+    // Ya como placa, el título vuelve a aceptar más de 40 caracteres.
+    const tituloLargo = await putComo(`/admin/tv-avisos/${created.id}`, adminToken, {
+      title: "x".repeat(100),
+    });
+    expect(tituloLargo.statusCode, tituloLargo.body).toBe(200);
+  });
+
+  it("(8i) edición: el estado FINAL manda — texto largo sobre un evento, o evento sobre texto largo -> 400", async () => {
+    const evento = JSON.parse(
+      (await postComo("/admin/tv-avisos", adminToken, buildEventoAvisoBody())).body,
+    ) as TvAvisoConEvento;
+    const tituloLargo = await putComo(`/admin/tv-avisos/${evento.id}`, adminToken, {
+      title: "x".repeat(41),
+    });
+    expect(tituloLargo.statusCode, tituloLargo.body).toBe(400);
+    const cuerpoLargo = await putComo(`/admin/tv-avisos/${evento.id}`, adminToken, {
+      body: "y".repeat(61),
+    });
+    expect(cuerpoLargo.statusCode, cuerpoLargo.body).toBe(400);
+
+    const placa = JSON.parse(
+      (
+        await postComo(
+          "/admin/tv-avisos",
+          adminToken,
+          buildValidTvAvisoBody({ title: "x".repeat(100) }),
+        )
+      ).body,
+    ) as TvAvisoConEvento;
+    const aEvento = await putComo(`/admin/tv-avisos/${placa.id}`, adminToken, {
+      evento: buildEvento(),
+    });
+    expect(aEvento.statusCode, aEvento.body).toBe(400);
+    // …y con el texto corto en el mismo PUT, sí.
+    const aEventoOk = await putComo(`/admin/tv-avisos/${placa.id}`, adminToken, {
+      title: "Social Run",
+      body: "Aura Club × Cousteau",
+      evento: buildEvento(),
+    });
+    expect(aEventoOk.statusCode, aEventoOk.body).toBe(200);
+
+    // Nada de lo rechazado se persistió.
+    const [row] = await app.db
+      .select({ title: tvAvisos.title, body: tvAvisos.body })
+      .from(tvAvisos)
+      .where(and(tenantWhere(tvAvisos, CTX_TEMPLO), eq(tvAvisos.id, evento.id)));
+    expect(row).toEqual({ title: "Social Run", body: "Aura Club × Cousteau" });
+  });
+
+  it("(8j) edición: una foto que NO cambia no se revalida si cambió R2_PUBLIC_URL; una nueva sí", async () => {
+    const imageUrl = `${R2_BASE}/tv/avisos/1-cousteau.jpg`;
+    const created = JSON.parse(
+      (await postComo("/admin/tv-avisos", adminToken, buildEventoAvisoBody({ imageUrl }))).body,
+    ) as TvAvisoConEvento;
+
+    process.env.R2_PUBLIC_URL = "https://otra-base.example";
+    const mismaFoto = await putComo(`/admin/tv-avisos/${created.id}`, adminToken, {
+      evento: buildEvento({ imageUrl, hora: "11:00 h" }),
+    });
+    expect(mismaFoto.statusCode, mismaFoto.body).toBe(200);
+    expect((JSON.parse(mismaFoto.body) as TvAvisoConEvento).evento).toMatchObject({
+      imageUrl,
+      hora: "11:00 h",
+    });
+
+    const fotoNueva = await putComo(`/admin/tv-avisos/${created.id}`, adminToken, {
+      evento: buildEvento({ imageUrl: `${R2_BASE}/tv/avisos/2-otra.jpg` }),
+    });
+    expect(fotoNueva.statusCode, fotoNueva.body).toBe(400);
+  });
+
+  it("(8k) un coach no puede crear ni editar eventos (403), igual que el resto del CRUD", async () => {
+    const post = await postComo("/admin/tv-avisos", coachToken, buildEventoAvisoBody());
+    expect(post.statusCode).toBe(403);
+
+    const created = JSON.parse(
+      (await postComo("/admin/tv-avisos", adminToken, buildEventoAvisoBody())).body,
+    ) as TvAvisoConEvento;
+    const put = await putComo(`/admin/tv-avisos/${created.id}`, coachToken, { evento: null });
+    expect(put.statusCode).toBe(403);
+  });
+
+  it("(8l) el control del profe lista un evento manual activo con su título (el botón no necesita el evento)", async () => {
+    const created = JSON.parse(
+      (
+        await postComo(
+          "/admin/tv-avisos",
+          adminToken,
+          buildEventoAvisoBody({}, { mode: "manual", isActive: true }),
+        )
+      ).body,
+    ) as TvAvisoConEvento;
+
+    const control = await getComo(`/control/tv-aviso-activo?branchId=${branchA}`, coachToken);
+    expect(control.statusCode, control.body).toBe(200);
+    const body = JSON.parse(control.body) as { avisos: Array<{ id: number; title: string }> };
+    expect(body.avisos).toEqual([
+      expect.objectContaining({ id: created.id, title: "Social Run" }),
+    ]);
+  });
+});
+
+describe("POST /admin/tv-avisos/image-upload-url (migración 0332)", () => {
+  // La firma de la URL es local (sin red). Si el entorno no tiene R2 se
+  // inyecta un cliente S3 con credenciales falsas en el decorador de la app
+  // (mismo patrón que test/sponsors/sponsors-admin.test.ts).
+  const hadR2 = (): boolean => app.hasDecorator("r2");
+
+  it("coach -> 403 (el guard va antes que el 503 y que la validación de R2)", async () => {
+    const res = await postComo("/admin/tv-avisos/image-upload-url", coachToken, {
+      filename: "foto.jpg",
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it("extensión no permitida o sin filename -> 400 (AVIF incluido: los televisores no lo decodifican)", async () => {
+    for (const filename of ["foto.exe", "foto.gif", "foto.avif", "foto", "foto.jpg.exe"]) {
+      const res = await postComo("/admin/tv-avisos/image-upload-url", adminToken, {
+        filename,
+      });
+      expect(res.statusCode, filename).toBe(400);
+    }
+    const sinFilename = await postComo("/admin/tv-avisos/image-upload-url", adminToken, {});
+    expect(sinFilename.statusCode).toBe(400);
+  });
+
+  it("sin R2 configurado -> 503", async () => {
+    if (hadR2()) return; // entorno con R2 real: el caso lo cubre el test de abajo
+    const res = await postComo("/admin/tv-avisos/image-upload-url", adminToken, {
+      filename: "foto.jpg",
+    });
+    expect(res.statusCode, res.body).toBe(503);
+  });
+
+  describe("con R2", () => {
+    let previoR2: S3Client | undefined;
+    let previoBucket: string | undefined;
+    let previoPublicUrl: string | undefined;
+
+    beforeAll(() => {
+      previoR2 = hadR2() ? app.r2 : undefined;
+      previoBucket = hadR2() ? app.r2Bucket : undefined;
+      previoPublicUrl = process.env.R2_PUBLIC_URL;
+      app.r2 = new S3Client({
+        region: "auto",
+        endpoint: "https://cuenta-falsa.r2.cloudflarestorage.com",
+        credentials: { accessKeyId: "test", secretAccessKey: "test" },
+      });
+      app.r2Bucket = "bucket-test";
+    });
+
+    beforeEach(() => {
+      process.env.R2_PUBLIC_URL = R2_BASE;
+    });
+
+    afterAll(() => {
+      if (previoR2 !== undefined && previoBucket !== undefined) {
+        app.r2 = previoR2;
+        app.r2Bucket = previoBucket;
+      } else {
+        Reflect.deleteProperty(app, "r2");
+        Reflect.deleteProperty(app, "r2Bucket");
+      }
+      if (previoPublicUrl === undefined) {
+        delete process.env.R2_PUBLIC_URL;
+      } else {
+        process.env.R2_PUBLIC_URL = previoPublicUrl;
+      }
+    });
+
+    it("admin -> 200 con URL bajo tv/avisos/, y esa publicUrl se acepta como foto del evento", async () => {
+      for (const filename of ["Cousteau Social Run.JPG", "foto.png", "foto.webp", "foto.jpeg"]) {
+        const res = await postComo("/admin/tv-avisos/image-upload-url", adminToken, {
+          filename,
+        });
+        expect(res.statusCode, `${filename}: ${res.body}`).toBe(200);
+        const parsed = JSON.parse(res.body) as { uploadUrl: string; publicUrl: string };
+        expect(parsed.publicUrl.startsWith(`${R2_BASE}/tv/avisos/`)).toBe(true);
+        expect(parsed.uploadUrl).toContain("tv/avisos/");
+      }
+
+      const up = JSON.parse(
+        (
+          await postComo("/admin/tv-avisos/image-upload-url", adminToken, {
+            filename: "cousteau.jpg",
+          })
+        ).body,
+      ) as { publicUrl: string };
+      const created = await postComo(
+        "/admin/tv-avisos",
+        adminToken,
+        buildEventoAvisoBody({ imageUrl: up.publicUrl }),
+      );
+      expect(created.statusCode, created.body).toBe(201);
+      expect((JSON.parse(created.body) as TvAvisoConEvento).evento?.imageUrl).toBe(up.publicUrl);
+    });
   });
 });
