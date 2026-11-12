@@ -38,8 +38,15 @@
     <!-- Los paneles se llenan en los planes siguientes. Cada componente recibe
          `selectedCountry` (AR | ES), `isOwner` y `canVoid` por props. -->
     <q-tab-panels v-model="activeTab" keep-alive :swipeable="false" class="bg-transparent">
-      <!-- Gastos: lista, alta/edición y detalle (plan 209-13) -->
-      <q-tab-panel :name="EGRESOS_TABS.gastos" class="q-px-none" />
+      <!-- Gastos: lista, alta y edición (plan 209-13). El detalle (209-15) escucha open-detail. -->
+      <q-tab-panel :name="EGRESOS_TABS.gastos" class="q-px-none">
+        <GastosTab
+          :selected-country="selectedCountry"
+          :is-owner="isOwner"
+          :open-new="openNew"
+          @new-consumed="onNewConsumed"
+        />
+      </q-tab-panel>
 
       <!-- Por pagar: gastos pendientes y parciales con registro de pago (plan 209-14) -->
       <q-tab-panel :name="EGRESOS_TABS.porPagar" class="q-px-none" />
@@ -67,6 +74,7 @@ import {
   type EgresosTab,
 } from 'src/constants/egresos';
 import type { ExpenseCountry } from 'src/types/expense';
+import GastosTab from 'src/components/egresos/GastosTab.vue';
 import RubrosTab from 'src/components/egresos/RubrosTab.vue';
 
 const route = useRoute();
@@ -110,6 +118,17 @@ watch(activeTab, (tab) => {
     void router.replace({ query: { ...route.query, tab } });
   }
 });
+
+// "Nuevo gasto" desde Caja llega como /egresos?tab=gastos&nuevo=1. Los paneles están
+// en keep-alive, así que la pestaña lo recibe por prop reactiva (no solo al montar).
+const openNew = computed(() => route.query.nuevo === '1');
+
+// Una vez abierto el alta se limpia `nuevo`, así un refresh no la reabre.
+function onNewConsumed() {
+  if (route.query.nuevo !== undefined) {
+    void router.replace({ query: { ...route.query, nuevo: undefined } });
+  }
+}
 
 // Y al revés: el botón "atrás" o un hijo que navega con ?tab= cambian la pestaña.
 watch(
