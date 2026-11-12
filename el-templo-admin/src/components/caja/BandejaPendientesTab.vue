@@ -707,9 +707,11 @@ async function submitCorregir() {
     corregirDialog.value = false;
     await loadBandeja();
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error desconocido';
+    // Se muestra el mensaje del servidor (p. ej. "Este movimiento es el pago de un
+    // gasto: anulalo desde Egresos…", fase 209) y, si no hay, el texto genérico.
+    const message = extractError(err, 'Error al corregir el pago');
     log.error('Error correcting transaction', { error: message });
-    $q.notify({ type: 'negative', message: 'Error al corregir el pago' });
+    $q.notify({ type: 'negative', message, timeout: 5000 });
   } finally {
     dialogLoading.value = false;
   }
