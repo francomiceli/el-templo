@@ -23,45 +23,116 @@
       />
     </div>
 
-    <!-- 3-2-1 antes de arrancar (se entra directo, sin pantalla de inicio) -->
-    <CountdownOverlay
-      v-else-if="stage === 'countdown'"
-      :kicker="countdownKicker"
-      @done="onCountdownFinished"
-    />
-
     <!-- Pantalla final (D-07): el "+5" y los minutos salen de la respuesta del servidor (T-213-31) -->
     <StretchDone
       v-else-if="stage === 'celebration' && lastResult"
-      :minutes="lastResult.minutes"
+      :minutes-label="stretchDoneMinutesLabel(lastResult)"
       :aura-awarded="lastResult.auraAwarded"
       :local-date="localDate"
       @done="onDone"
     />
 
-    <!-- En curso: el reloj por ejercicio es HERMANO de BlockProgressionView (el bloque lleva
-         timerSpec null y `copy` apaga el reloj de bloque y los textos de entrenamiento) -->
-    <div
-      v-else-if="(stage === 'playing' || stage === 'saving') && player"
-      class="stretch-player__run"
-    >
-      <StretchClock :exercises="routine" :elapsed-ms="clockElapsedMs" />
-      <div class="stretch-player__view">
-        <BlockProgressionView
-          day-name=""
-          mode="free"
-          :copy="playerCopy"
-          :playable-blocks="playableBlocks"
-          :active-block-index="activeBlockIndex"
-          :completed-blocks="completedBlocks"
-          :elapsed-seconds="elapsedSeconds"
-          :completed-exercises="allCompletedExercises"
-          @back="requestExit"
-          @restart="restartRoutine"
-          @complete-block="onBlockComplete"
-          @toggle-exercise-complete="onToggleExerciseComplete"
+    <!-- En curso: video, minutero chico, lista, Anterior / Siguiente y Terminar (sin lados, sin
+         cuenta regresiva y sin tildes: el alumno pasa de ejercicio a mano) -->
+    <div v-else-if="stage === 'playing' || stage === 'saving'" class="stretch-player__run">
+      <div class="stretch-player__story">
+        <VideoPlaceholder
+          :key="player.current.value?.exerciseId ?? 'none'"
+          :video-url="player.current.value?.videoUrl ?? null"
+          class="stretch-player__video"
         />
+        <div class="stretch-player__story-top">
+          <q-btn
+            flat
+            round
+            dense
+            icon="arrow_back"
+            color="white"
+            aria-label="Salir del estiramiento"
+            :disable="stage === 'saving'"
+            @click="requestExit"
+          />
+          <div class="stretch-player__titles">
+            <div class="stretch-player__kicker">Estiramiento</div>
+            <div class="stretch-player__title">Post-clase</div>
+          </div>
+        </div>
+        <div v-if="player.current.value" class="stretch-player__story-foot">
+          <div class="stretch-player__story-name">
+            <b>{{ player.current.value.name }}</b>
+            <span>Ejercicio {{ player.index.value + 1 }} de {{ player.exercises.value.length }}</span>
+          </div>
+          <span class="stretch-player__dose">{{ stretchDoseLabel(player.current.value.dose) }}</span>
+        </div>
       </div>
+
+      <div class="stretch-player__format">
+        <div class="stretch-player__format-info">
+          <b>Estiramiento</b>
+          <span>{{ player.exercises.value.length }} ejercicios · a tu ritmo</span>
+        </div>
+        <div class="stretch-player__timer-box">
+          <div class="stretch-player__timer" role="timer" aria-label="Tiempo transcurrido">
+            {{ clockLabel }}
+          </div>
+          <div class="stretch-player__timer-label">Tiempo</div>
+        </div>
+      </div>
+
+      <div class="stretch-player__list">
+        <h4 class="stretch-player__list-title">Ejercicios · tocá para ir a uno</h4>
+        <button
+          v-for="(e, i) in player.exercises.value"
+          :key="i"
+          type="button"
+          class="stretch-player__ex"
+          :class="{ 'stretch-player__ex--on': i === player.index.value }"
+          :aria-current="i === player.index.value ? 'true' : undefined"
+          @click="player.goTo(i)"
+        >
+          <span class="stretch-player__ex-num">{{ i + 1 }}</span>
+          <span class="stretch-player__ex-name">{{ e.name }}</span>
+          <span class="stretch-player__ex-dose">{{ stretchDoseLabel(e.dose) }}</span>
+        </button>
+      </div>
+
+      <div class="stretch-player__nav">
+        <button
+          type="button"
+          class="stretch-player__nav-btn"
+          :disabled="player.isFirst.value"
+          @click="player.prev()"
+        >
+          &#8249; Anterior
+        </button>
+        <button
+          type="button"
+          class="stretch-player__nav-btn"
+          :disabled="player.isLast.value"
+          @click="player.next()"
+        >
+          Siguiente &#8250;
+        </button>
+      </div>
+
+      <div class="stretch-player__cta">
+        <button
+          type="button"
+          class="stretch-player__finish"
+          :disabled="stage === 'saving'"
+          @click="onFinish"
+        >
+          Terminar
+        </button>
+        <div
+          class="stretch-player__hint"
+          :class="{ 'stretch-player__hint--ok': auraReady }"
+          aria-live="polite"
+        >
+          {{ auraReady ? 'Ya sumás +5 AURA al terminar' : 'Con 3 minutos sumás +5 AURA' }}
+        </div>
+      </div>
+
       <div v-if="stage === 'saving'" class="stretch-player__saving flex flex-center">
         <TemploLoader size="lg" />
       </div>
@@ -76,36 +147,34 @@ import { useQuasar } from 'quasar'
 
 // Components
 import TemploLoader from 'src/components/TemploLoader.vue'
-import CountdownOverlay from '../components/player/CountdownOverlay.vue'
-import StretchClock from '../components/player/StretchClock.vue'
 import StretchDone from '../components/player/StretchDone.vue'
-import BlockProgressionView from '../components/BlockProgressionView.vue'
+import VideoPlaceholder from '../components/player/VideoPlaceholder.vue'
 
 // Composables, stores and helpers
-import {
-  useSingleBlockPlayer,
-  type SingleBlockSaveInput,
-} from '../composables/useSingleBlockPlayer'
+import { useStretchPlayer } from '../composables/useStretchPlayer'
 import { useWakeLock } from '../composables/useWakeLock'
 import { useStretchCompletion } from '../composables/useStretchCompletion'
 import { useStretchStore } from 'src/stores/useStretchStore'
 import { createLogger } from 'src/utils/logger'
 import { confirmDialog, type ConfirmDialogOptions } from 'src/utils/confirm-dialog'
-import type { PlayerCopyOverride } from '../utils/playerHeader'
+import { formatElapsedTime } from '../utils/formatTime'
 import {
-  buildStretchSession,
   isStretchExpiredMessage,
-  stretchClockElapsedMs,
+  stretchAuraReady,
+  stretchDoneMinutesLabel,
+  stretchDoseLabel,
 } from '../utils/stretchSession'
-import type { StretchCompleteResponse, StretchEventFrom, StretchExercise } from '../types/stretch'
+import type { StretchCompleteResponse, StretchEventFrom } from '../types/stretch'
 
 const log = createLogger('StretchPlayer')
 
-// Fase 213 D-07: player del estiramiento post-clase sobre useSingleBlockPlayer (el mismo que usa
-// FreeBlockPlayer). Orquesta 3-2-1 -> en curso -> guardado -> pantalla final corta.
-// La rutina la arma el servidor (T-213-27): acá solo se la reproduce. La duración y el AURA los
-// decide el servidor (T-213-31). Sin RPE, sin notas y sin "Seguir entrenando".
+// Fase 213 D-07 / plan 15: player propio del estiramiento post-clase. Video arriba, minutero chico
+// que solo avanza, lista de ejercicios, Anterior / Siguiente y "Terminar" siempre disponible. Nada
+// avanza solo y no se marca nada. La rutina y la dosis las arma el servidor (T-213-27); la duración
+// y el AURA los decide el servidor (T-213-31, T-213-43): el minutero es solo visual.
 // D-12: sin oferta, ya hecha o vencida (push tocado al día siguiente) la página avisa y vuelve.
+
+type Stage = 'loading' | 'missing' | 'playing' | 'saving' | 'celebration'
 
 const route = useRoute()
 const router = useRouter()
@@ -113,101 +182,36 @@ const $q = useQuasar()
 const wakeLock = useWakeLock()
 const completion = useStretchCompletion()
 const stretchStore = useStretchStore()
+const player = useStretchPlayer()
 
 const MSG_YA_HECHO = 'Ya estiraste hoy.'
 const MSG_NO_DISPONIBLE =
   'Este estiramiento ya no está disponible. Aparece después de tu próxima clase.'
 const MSG_NO_CARGO = 'No pudimos cargar el estiramiento. Probá de nuevo en un rato.'
 
-/** Textos del player: el encabezado y el cierre de un estiramiento, no los de un bloque libre */
-const playerCopy: PlayerCopyOverride = {
-  kicker: 'Estiramiento',
-  name: 'Post-clase',
-  done: {
-    title: 'Rutina completa',
-    subtitle: 'Marcaste todos los ejercicios.',
-    buttonLabel: 'Terminar',
-  },
-}
-
-const routine = ref<StretchExercise[]>([])
+const stage = ref<Stage>('loading')
 const offerId = ref<number | null>(null)
 const localDate = ref('')
-const minutes = ref(0)
 const missingText = ref(MSG_NO_DISPONIBLE)
 /** Respuesta del servidor al cierre: manda la pantalla final */
 const lastResult = ref<StretchCompleteResponse | null>(null)
-/** El último cierre falló porque la oferta venció (410): ya no tiene sentido reintentar */
-let expiredOnSave = false
+/** El alumno ya confirmó que sale: el guard de la ruta lo deja pasar */
+let exitConfirmed = false
+let disposed = false
+
+const clockLabel = computed(() => formatElapsedTime(player.elapsedSeconds.value))
 
 /**
- * Segundos del reloj del player en el momento del paso a `playing` (fin del 3-2-1). El reloj del
- * player arranca junto con el 3-2-1, así que sin este ancla la rutina perdería la primera
- * transición. `null` = todavía en el 3-2-1.
+ * "Ya sumás +5 AURA": cuenta desde que el servidor confirmó el `started`, no desde el minutero.
+ * Depende de `elapsedSeconds` solo para recalcularse cada segundo.
  */
-const clockStartElapsed = ref<number | null>(null)
-
-/** Cierre: el servidor calcula la duración (de `started_at`) y decide el AURA */
-async function saveStretch(input: SingleBlockSaveInput): Promise<StretchCompleteResponse | null> {
-  const id = offerId.value
-  if (id === null) return null
-
-  expiredOnSave = false
-  const res = await completion.complete({
-    offerId: id,
-    exercisesCompleted: input.exercisesCompleted,
-  })
-  if (single.isDisposed()) return null
-
-  if (!res) {
-    if (isStretchExpiredMessage(completion.error.value)) {
-      expiredOnSave = true
-      return null
-    }
-    $q.notify({
-      type: 'negative',
-      message: 'No pudimos guardar el estiramiento. Probá de nuevo.',
-      icon: 'error',
-      position: 'top',
-      timeout: 3000,
-    })
-    return null
-  }
-
-  lastResult.value = res
-  return res
-}
-
-const single = useSingleBlockPlayer<StretchCompleteResponse>({
-  wakeLock,
-  save: saveStretch,
+const auraReady = computed(() => {
+  void player.elapsedSeconds.value
+  return stretchAuraReady(completion.startedConfirmedAt.value, Date.now())
 })
-
-const {
-  stage,
-  player,
-  playableBlocks,
-  activeBlockIndex,
-  completedBlocks,
-  elapsedSeconds,
-  allCompletedExercises,
-  needsExitConfirm,
-} = single
-
-const clockElapsedMs = computed(() =>
-  stretchClockElapsedMs(elapsedSeconds.value, clockStartElapsed.value),
-)
-
-const countdownKicker = computed(() => `Estiramiento · ${minutes.value} min`)
 
 function goToMiTemplo(): void {
   void router.push('/mi-templo')
-}
-
-/** Fin del 3-2-1: ancla el reloj de la rutina y pasa a `playing` */
-function onCountdownFinished(): void {
-  clockStartElapsed.value = elapsedSeconds.value
-  single.onCountdownDone()
 }
 
 const exitDialogOpts: ConfirmDialogOptions = {
@@ -217,18 +221,26 @@ const exitDialogOpts: ConfirmDialogOptions = {
   destructive: true,
 }
 
+const earlyFinishDialogOpts: ConfirmDialogOptions = {
+  title: 'Todavía no llegaste a los 3 minutos',
+  message: 'Si terminás ahora no sumás AURA.',
+  okLabel: 'Terminar igual',
+  cancelLabel: 'Seguir estirando',
+}
+
+/** Solo en curso: ya guardado, vencido o cargando no hay nada que perder al salir */
+const needsExitConfirm = computed(() => stage.value === 'playing' && !exitConfirmed)
+
 function requestExit(): void {
   if (stage.value === 'saving') return
-  if (needsExitConfirm.value) {
-    confirmDialog($q, exitDialogOpts).onOk(async () => {
-      single.confirmExit()
-      await single.leaveWithoutSaving()
-      goToMiTemplo()
-    })
+  if (!needsExitConfirm.value) {
+    goToMiTemplo()
     return
   }
-  single.confirmExit()
-  void single.leaveWithoutSaving().then(goToMiTemplo)
+  confirmDialog($q, exitDialogOpts).onOk(() => {
+    exitConfirmed = true
+    goToMiTemplo()
+  })
 }
 
 onBeforeRouteLeave((_to, _from, next) => {
@@ -241,45 +253,64 @@ onBeforeRouteLeave((_to, _from, next) => {
     return
   }
   confirmDialog($q, exitDialogOpts)
-    .onOk(async () => {
-      single.confirmExit()
-      await single.leaveWithoutSaving()
+    .onOk(() => {
+      exitConfirmed = true
       next()
     })
     .onCancel(() => next(false))
 })
 
-async function onToggleExerciseComplete(payload: { prescriptionId: number }): Promise<void> {
-  await single.toggleExercise(payload.prescriptionId)
-}
+/** Cierre: el servidor mide la duración (desde `started_at`) y decide el AURA */
+async function closeStretch(): Promise<void> {
+  const id = offerId.value
+  if (id === null || stage.value !== 'playing') return
 
-/** "Reiniciar": vuelve al 3-2-1 con un player nuevo; el reloj se vuelve a anclar al terminar */
-function restartRoutine(): void {
-  confirmDialog($q, {
-    title: '¿Empezar de nuevo?',
-    message: 'Se pierde lo que hiciste hasta ahora.',
-    okLabel: 'Empezar',
-    destructive: true,
-  }).onOk(async () => {
-    clockStartElapsed.value = null
-    await single.restart()
+  stage.value = 'saving'
+  const res = await completion.complete({ offerId: id })
+  if (disposed) return
+
+  if (res) {
+    player.stop()
+    lastResult.value = res
+    stage.value = 'celebration'
+    void wakeLock.releaseWakeLock()
+    return
+  }
+
+  if (isStretchExpiredMessage(completion.error.value)) {
+    // D-12: la oferta venció, ya no se puede guardar
+    player.stop()
+    missingText.value = MSG_NO_DISPONIBLE
+    stage.value = 'missing'
+    void wakeLock.releaseWakeLock()
+    return
+  }
+
+  stage.value = 'playing'
+  $q.notify({
+    type: 'negative',
+    message: 'No pudimos guardar el estiramiento. Probá de nuevo.',
+    icon: 'error',
+    position: 'top',
+    timeout: 3000,
   })
 }
 
-/** Cierre: guarda y recién ahí muestra la pantalla final; una oferta vencida corta acá (D-12) */
-async function onBlockComplete(): Promise<void> {
-  const result = await single.completeBlock()
-  if (result === null && expiredOnSave && !single.isDisposed()) {
-    await single.leaveWithoutSaving()
-    missingText.value = MSG_NO_DISPONIBLE
-    single.markMissing()
+/** "Terminar": directo con el AURA asegurado; antes de los 3 minutos pide confirmar (T-213-44) */
+function onFinish(): void {
+  if (stage.value !== 'playing') return
+  if (stretchAuraReady(completion.startedConfirmedAt.value, Date.now())) {
+    void closeStretch()
+    return
   }
+  confirmDialog($q, earlyFinishDialogOpts).onOk(() => {
+    void closeStretch()
+  })
 }
 
 /** "Volver a Mi Templo": ya está guardado, la card de Mi Templo ya lo sabe (§5.3.5) */
 function onDone(): void {
-  single.confirmExit()
-  void single.leaveWithoutSaving().then(goToMiTemplo)
+  goToMiTemplo()
 }
 
 onMounted(async () => {
@@ -289,39 +320,40 @@ onMounted(async () => {
   if (from === 'push') void completion.sendEvent('push_opened')
 
   await stretchStore.load()
-  if (single.isDisposed()) return
+  if (disposed) return
 
   const today = stretchStore.today
   if (!today) {
     missingText.value = stretchStore.loadFailed ? MSG_NO_CARGO : MSG_NO_DISPONIBLE
-    single.markMissing()
+    stage.value = 'missing'
     return
   }
   if (today.status === 'done') {
     missingText.value = MSG_YA_HECHO
-    single.markMissing()
+    stage.value = 'missing'
     return
   }
   if (today.status !== 'available' || today.offerId === null || today.exercises.length === 0) {
     missingText.value = MSG_NO_DISPONIBLE
-    single.markMissing()
+    stage.value = 'missing'
     return
   }
 
   offerId.value = today.offerId
   localDate.value = today.localDate
-  minutes.value = today.minutes ?? Math.max(1, Math.round((today.plannedSeconds ?? 0) / 60))
-  routine.value = today.exercises
   // Cada entrada empieza de cero: si abandonó antes no hay nada que retomar
-  await single.load(buildStretchSession(today))
-  if (single.isDisposed()) return
+  player.setExercises(today.exercises)
+  stage.value = 'playing'
+  player.start()
+  void wakeLock.requestWakeLock()
   // ME-03: reintenta en segundo plano; sin `started_at` no hay duración ni AURA
   completion.sendStarted(from)
-  log.info('Estiramiento listo', { from, minutes: minutes.value })
+  log.info('Estiramiento listo', { from, exercises: today.exercises.length })
 })
 
 onUnmounted(() => {
-  single.cleanup()
+  disposed = true
+  player.cleanup()
   wakeLock.cleanup()
   completion.cleanup()
 })
@@ -343,7 +375,7 @@ onUnmounted(() => {
   padding: 24px;
 }
 
-// Reloj arriba y el player debajo; el player ocupa el resto (BlockProgressionView trae height 100%)
+// Todo en una columna: video, fila del minutero, lista (la única que scrollea), botones
 .stretch-player__run {
   display: flex;
   flex-direction: column;
@@ -351,9 +383,271 @@ onUnmounted(() => {
   min-height: 0;
 }
 
-.stretch-player__view {
+.stretch-player__story {
+  position: relative;
+  flex: none;
+  height: clamp(180px, 28vh, 260px);
+  background: linear-gradient(135deg, #1e1b18 0%, #2e2a26 50%, #3d3732 100%);
+  color: #fff;
+}
+
+.stretch-player__video {
+  position: absolute;
+  inset: 0;
+}
+
+.stretch-player__story-top {
+  position: absolute;
+  top: 10px;
+  left: 6px;
+  right: 12px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.stretch-player__titles {
+  text-align: right;
+}
+
+.stretch-player__kicker {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: $pd-cream-2;
+}
+
+.stretch-player__title {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+// Pie sobre un fade a negro, como el de las historias del player de entrenamiento
+.stretch-player__story-foot {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 28px 14px 12px;
+  background: linear-gradient(to top, rgba(20, 16, 12, 0.85), rgba(20, 16, 12, 0));
+}
+
+.stretch-player__story-name {
+  min-width: 0;
+
+  b {
+    display: block;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 17px;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  span {
+    font-size: 12px;
+    color: $pd-cream-3;
+  }
+}
+
+.stretch-player__dose {
+  flex: none;
+  white-space: nowrap;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(240, 230, 214, 0.5);
+  font-family: 'Montserrat', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: $pd-cream;
+}
+
+.stretch-player__format {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: #fff;
+  border-bottom: 1px solid $pd-light-line;
+}
+
+.stretch-player__format-info {
+  b {
+    display: block;
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 16px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: $pd-ink;
+  }
+
+  span {
+    font-size: 12px;
+    color: $pd-ink-2;
+  }
+}
+
+.stretch-player__timer-box {
+  text-align: right;
+}
+
+.stretch-player__timer {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: $pd-ink;
+}
+
+.stretch-player__timer-label {
+  margin-top: 3px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: $pd-ink-2;
+}
+
+.stretch-player__list {
   flex: 1;
   min-height: 0;
+  overflow-y: auto;
+  padding: 6px 14px;
+}
+
+.stretch-player__list-title {
+  margin: 4px 0;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: $pd-ink-2;
+}
+
+.stretch-player__ex {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: none;
+  font-size: 13px;
+  color: $pd-ink;
+  text-align: left;
+  cursor: pointer;
+}
+
+.stretch-player__ex--on {
+  background: #fff;
+  border-color: $pd-light-line;
+  font-weight: 700;
+}
+
+.stretch-player__ex-num {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1.5px solid $pd-light-edge;
+  font-size: 11px;
+  font-weight: 700;
+  color: $pd-ink-2;
+}
+
+.stretch-player__ex--on .stretch-player__ex-num {
+  background: $pd-ink;
+  border-color: $pd-ink;
+  color: #fff;
+}
+
+.stretch-player__ex-name {
+  min-width: 0;
+}
+
+.stretch-player__ex-dose {
+  margin-left: auto;
+  white-space: nowrap;
+  font-size: 11.5px;
+  color: $pd-ink-2;
+}
+
+.stretch-player__nav {
+  flex: none;
+  display: flex;
+  gap: 8px;
+  padding: 6px 16px 0;
+}
+
+.stretch-player__nav-btn {
+  flex: 1;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid $pd-light-edge;
+  background: #fff;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: $pd-ink;
+  cursor: pointer;
+
+  &:disabled {
+    color: $pd-ink-2;
+    background: rgba(255, 255, 255, 0.4);
+    border-color: $pd-light-line;
+    opacity: 0.6;
+    cursor: default;
+  }
+}
+
+.stretch-player__cta {
+  flex: none;
+  padding: 8px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+}
+
+.stretch-player__finish {
+  width: 100%;
+  padding: 13px;
+  border: 0;
+  border-radius: 12px;
+  background: linear-gradient(135deg, $pd-btn-a, $pd-btn-b);
+  font-family: 'Montserrat', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+}
+
+.stretch-player__hint {
+  margin-top: 6px;
+  text-align: center;
+  font-size: 11.5px;
+  color: $pd-ink-2;
+}
+
+.stretch-player__hint--ok {
+  color: $pd-terra-ink;
+  font-weight: 700;
 }
 
 .stretch-player__saving {

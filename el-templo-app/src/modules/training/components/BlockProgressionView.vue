@@ -62,7 +62,6 @@
         :is-last-block="isFinalBlock"
         :show-final-prompt="showFinalPrompt"
         :quick-dose="currentSlideQuickDose"
-        :done-copy="copy?.done ?? null"
         @tap-next="storyNav.next()"
         @tap-prev="storyNav.prev()"
         @complete-block="emit('complete-block')"
@@ -75,7 +74,7 @@
       <!-- Fila del formato: nombre + definición a la izquierda y el cronómetro a la derecha (sketch
            026). La fila existe aunque el bloque no traiga formato: el reloj no puede desaparecer.
            Separador simple de 1 px debajo (D-11 en libre, todos los parámetros en sesión). -->
-      <div v-if="viewingBlock && !copy" class="block-progression__format">
+      <div v-if="viewingBlock" class="block-progression__format">
         <div class="block-progression__format-info">
           <template v-if="viewingBlock.format">
             <div class="block-progression__format-line">
@@ -230,7 +229,6 @@ import {
   playerFormatParts,
   playerHeaderLines,
   playerRoleLabel,
-  type PlayerCopyOverride,
 } from '../utils/playerHeader'
 
 interface Props {
@@ -256,12 +254,6 @@ interface Props {
   isFinalBlock?: boolean
   /** Cierre "Sesión completa" dentro del video al tildar todo el último bloque (DayPlayer lo apaga) */
   showFinalPrompt?: boolean
-  /**
-   * Fase 213-10: textos propios del encabezado y del cierre (estiramiento). Con esto no se pinta la
-   * fila del formato ni el reloj del bloque: el player trae su propio reloj. Default `null` = igual
-   * que siempre (DayPlayer, FreeBlockPlayer y GoalPlanSession no lo pasan).
-   */
-  copy?: PlayerCopyOverride | null
 }
 
 interface Emits {
@@ -279,7 +271,6 @@ const props = withDefaults(defineProps<Props>(), {
   auraGoalSeconds: null,
   isFinalBlock: true,
   showFinalPrompt: true,
-  copy: null,
 })
 const emit = defineEmits<Emits>()
 
@@ -536,7 +527,6 @@ const currentSlideRutaSlug = computed(() => {
 // Computed display values
 const headerLines = computed(() => {
   if (!viewingBlock.value) return { kicker: '', name: '' }
-  if (props.copy) return { kicker: props.copy.kicker, name: props.copy.name }
   return playerHeaderLines(viewingBlock.value, props.mode)
 })
 

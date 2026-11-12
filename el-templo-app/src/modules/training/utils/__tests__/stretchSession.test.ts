@@ -7,7 +7,7 @@ import {
   STRETCH_CLOSING_PHRASES,
   stretchAuraReady,
   stretchClosingPhrase,
-  stretchDoneMinutes,
+  stretchDoneMinutesLabel,
   stretchDoseLabel,
   stretchMinutesLabel,
 } from '../stretchSession'
@@ -79,17 +79,24 @@ describe('stretchAuraReady', () => {
   })
 })
 
-describe('stretchDoneMinutes (pantalla final)', () => {
-  it('con duración medida usa los minutos del servidor', () => {
-    expect(stretchDoneMinutes({ durationSeconds: 240, minutes: 4 })).toBe(4)
+describe('stretchDoneMinutesLabel (pantalla final)', () => {
+  it('con duración medida dice los minutos del servidor', () => {
+    expect(stretchDoneMinutesLabel({ durationSeconds: 240, minutes: 4 })).toBe(
+      '4 minutos de estiramiento',
+    )
+    expect(stretchDoneMinutesLabel({ durationSeconds: 40, minutes: 1 })).toBe(
+      '1 minuto de estiramiento',
+    )
   })
 
   it('sin duración (el started nunca llegó) no hay cifra: "Listo." a secas', () => {
-    expect(stretchDoneMinutes({ durationSeconds: null, minutes: 7 })).toBeNull()
+    expect(stretchDoneMinutesLabel({ durationSeconds: null, minutes: 7 })).toBeNull()
   })
 
   it('una duración de 0 s es una duración medida', () => {
-    expect(stretchDoneMinutes({ durationSeconds: 0, minutes: 1 })).toBe(1)
+    expect(stretchDoneMinutesLabel({ durationSeconds: 0, minutes: 1 })).toBe(
+      '1 minuto de estiramiento',
+    )
   })
 })
 

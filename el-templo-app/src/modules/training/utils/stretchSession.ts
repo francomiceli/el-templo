@@ -33,21 +33,21 @@ export function stretchAuraReady(startedConfirmedAt: number | null, nowMs: numbe
   return nowMs - startedConfirmedAt >= (STRETCH_AURA_SECONDS + STRETCH_AURA_MARGIN_SECONDS) * 1000
 }
 
-/**
- * Minutos para la pantalla final. Con `durationSeconds: null` (el `started` nunca llegó al
- * servidor) el `minutes` de la respuesta es una estimación que ya no significa nada: la pantalla
- * dice "Listo." sin cifra.
- */
-export function stretchDoneMinutes(
-  res: Pick<StretchCompleteResponse, 'durationSeconds' | 'minutes'>,
-): number | null {
-  return res.durationSeconds === null ? null : res.minutes
-}
-
 /** "7 minutos de estiramiento" / "1 minuto de estiramiento" (nunca menos de 1). */
 export function stretchMinutesLabel(minutes: number): string {
   const n = Number.isFinite(minutes) ? Math.max(1, Math.round(minutes)) : 1
   return `${n} ${n === 1 ? 'minuto' : 'minutos'} de estiramiento`
+}
+
+/**
+ * Línea de minutos de la pantalla final. Con `durationSeconds: null` (el `started` nunca llegó al
+ * servidor) el `minutes` de la respuesta es una estimación vieja que ya no significa nada: la
+ * pantalla dice "Listo." sin cifra (null = no se muestra la línea).
+ */
+export function stretchDoneMinutesLabel(
+  res: Pick<StretchCompleteResponse, 'durationSeconds' | 'minutes'>,
+): string | null {
+  return res.durationSeconds === null ? null : stretchMinutesLabel(res.minutes)
 }
 
 /** Frases de cierre propias del estiramiento: aflojar, soltar, bajar un cambio (SPEC §4.2). */

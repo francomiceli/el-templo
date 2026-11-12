@@ -1,6 +1,7 @@
 <template>
   <!-- Fase 213-10 (D-07): pantalla final del estiramiento. Corta: "Listo. X minutos de
        estiramiento", una frase y vuelta a Mi Templo; sin puntaje, sin notas y sin resumen.
+       Fase 213-15: sin duración medida por el servidor (`minutesLabel` null) dice "Listo." sin cifra.
        T-213-31: el "+5 AURA" sale SOLO de `auraAwarded`, que viene de la respuesta del servidor. -->
   <CelebrationFrame
     kicker="Estiramiento"
@@ -8,7 +9,7 @@
     cta-label="Volver a Mi Templo"
     @cta="emit('done')"
   >
-    <p class="sd-minutes">{{ minutesLabel }}</p>
+    <p v-if="minutesLabel" class="sd-minutes">{{ minutesLabel }}</p>
 
     <div v-if="auraAwarded" class="sd-aura">
       <span class="sd-aura__amount">+5</span>
@@ -22,11 +23,11 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import CelebrationFrame from './CelebrationFrame.vue'
-import { stretchClosingPhrase, stretchMinutesLabel } from '../../utils/stretchSession'
+import { stretchClosingPhrase } from '../../utils/stretchSession'
 
 interface Props {
-  /** Minutos de la RESPUESTA del servidor */
-  minutes: number
+  /** "7 minutos de estiramiento" de la RESPUESTA del servidor; null = sin duración medida */
+  minutesLabel: string | null
   /** true solo si el servidor acreditó los +5 AURA */
   auraAwarded: boolean
   /** Día local de la oferta (YYYY-MM-DD): elige la frase de cierre */
@@ -40,7 +41,6 @@ interface Emits {
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
-const minutesLabel = computed(() => stretchMinutesLabel(props.minutes))
 const phrase = computed(() => stretchClosingPhrase(props.localDate))
 </script>
 

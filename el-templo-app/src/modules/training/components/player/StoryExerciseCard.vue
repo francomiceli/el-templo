@@ -77,8 +77,6 @@ interface Props {
    * DayPlayer lo apaga: ahí aparece directo el modal "¡Sesión completada!".
    */
   showFinalPrompt?: boolean
-  /** Fase 213-10: textos propios del cierre (estiramiento); `null` = los de siempre */
-  doneCopy?: { title: string; subtitle: string; buttonLabel: string } | null
 }
 
 interface Emits {
@@ -94,7 +92,6 @@ const props = withDefaults(defineProps<Props>(), {
   isLastBlock: true,
   quickDose: '',
   showFinalPrompt: true,
-  doneCopy: null,
 })
 const emit = defineEmits<Emits>()
 
@@ -137,19 +134,16 @@ const footer = computed(() =>
 )
 
 const blockDoneTitle = computed(() => {
-  if (props.doneCopy) return props.doneCopy.title
   if (isFreeMode.value) return 'Bloque completo'
   return 'Sesión completa'
 })
 
 const blockDoneSubtitle = computed(() => {
-  if (props.doneCopy) return props.doneCopy.subtitle
   if (isFreeMode.value) return 'Hacé una elongación antes de terminar.'
   return 'Hacé una elongación final antes de terminar'
 })
 
 const blockDoneButtonLabel = computed(() => {
-  if (props.doneCopy) return props.doneCopy.buttonLabel
   return isFreeMode.value ? 'Ver resumen' : 'Ver resumen de sesión'
 })
 </script>

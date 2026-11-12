@@ -13,18 +13,6 @@ export function playerRoleLabel(role: BlockRole): string {
   return ROLE_LABELS[role] ?? role
 }
 
-/**
- * Fase 213-10: textos propios para un bloque que no es un entrenamiento (estiramiento post-clase).
- * Sin esto el player en modo libre dice "Bloque libre · ...", pinta el reloj de bloque y cierra con
- * "Hacé una elongación antes de terminar". `null`/ausente = los textos de siempre.
- */
-export interface PlayerCopyOverride {
-  kicker: string
-  name: string
-  /** Cierre al marcar todos los ejercicios */
-  done: { title: string; subtitle: string; buttonLabel: string }
-}
-
 export interface PlayerHeaderLines {
   /** Línea 1: kicker de 11 px en mayúsculas */
   kicker: string
