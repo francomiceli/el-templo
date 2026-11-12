@@ -1241,7 +1241,7 @@ Plans:
 - [x] 209-12-PLAN.md — Admin: Rubros se muda a Egresos y "Egreso" sale del diálogo de Caja con acceso a Nuevo gasto
 - [x] 209-13-PLAN.md — Admin: pestaña Gastos (filtros, alta y edición con editor de reparto)
 - [x] 209-14-PLAN.md — Admin: pestaña Por pagar y diálogo para registrar pagos
-- [ ] 209-15-PLAN.md — Admin: detalle del gasto con pagos, historial y anulaciones
+- [x] 209-15-PLAN.md — Admin: detalle del gasto con pagos, historial y anulaciones
 - [ ] 209-16-PLAN.md — Admin: pestaña Resumen con detalle por rubro y export a Excel
 - [ ] 209-17-PLAN.md — Cierre: identidades del Resumen y casos del brief, no-regresión, inventario con greps y checklist de UAT
 
