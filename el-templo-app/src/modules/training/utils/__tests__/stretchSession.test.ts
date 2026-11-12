@@ -1,299 +1,95 @@
 import { describe, it, expect } from 'vitest'
-import type { StretchExercise, StretchTodayResponse } from '../../types/stretch'
+import type { StretchDose } from '../../types/stretch'
 import {
-  buildStretchSession,
-  stretchClockElapsedMs,
   isStretchExpiredMessage,
-  showSideSwitchNotice,
+  STRETCH_AURA_MARGIN_SECONDS,
+  STRETCH_AURA_SECONDS,
   STRETCH_CLOSING_PHRASES,
+  stretchAuraReady,
   stretchClosingPhrase,
+  stretchDoneMinutes,
+  stretchDoseLabel,
   stretchMinutesLabel,
-  stretchPhaseAt,
-  stretchTimeline,
-  stretchTotalMs,
 } from '../stretchSession'
 
 /**
- * Fase 213-09: Session sintética del estiramiento y reloj puro de la rutina
- * (45 s por lado + 10 s de transición antes de cada ejercicio).
+ * Fase 213-15: textos y reglas puras del estiramiento sin reloj por ejercicio
+ * (dosis, aviso de AURA, pantalla final).
  */
 
-function ex(
-  exerciseId: number,
-  name: string,
-  sides: number,
-  overrides: Partial<StretchExercise> = {},
-): StretchExercise {
-  return {
-    exerciseId,
-    name,
-    family: 'LS',
-    sides,
-    secondsPerSide: 45,
-    transitionSeconds: 10,
-    videoUrl: `https://cdn.test/${exerciseId}.mp4`,
-    ...overrides,
-  }
+function dose(unit: StretchDose['unit'], value: number, max: number | null = null): StretchDose {
+  return { unit, value, max }
 }
 
-const EJERCICIOS: StretchExercise[] = [ex(11, 'Isquios', 2), ex(12, 'Cuello', 1), ex(13, 'Cuádriceps', 2)]
-
-function today(exercises: StretchExercise[] = EJERCICIOS): StretchTodayResponse {
-  return {
-    status: 'available',
-    localDate: '2026-11-11',
-    offerId: 9,
-    minutes: 7,
-    plannedSeconds: 410,
-    exercises,
-    completedAt: null,
-    auraAwarded: false,
-  }
-}
-
-describe('buildStretchSession', () => {
-  it('arma una Session de un bloque STRETCHING con id derivado de la fecha local', () => {
-    const s = buildStretchSession(today())
-    expect(s.dayId).toBe('ST-2026-11-11')
-    expect(s.blockCount).toBe(1)
-    expect(s.sessionMode).toBe('regular')
-    expect(s.blocks).toHaveLength(1)
-    const b = s.blocks[0]!
-    expect(b.blockId).toBe('ST-2026-11-11')
-    expect(b.role).toBe('STRETCHING')
-    expect(b.route).toBe('STRETCHING')
-    expect(b.format).toBe('stretch')
-    expect(b.formatParams).toBeNull()
-    expect(b.timerSpec).toBeNull()
-    expect(b.mobilityExercise).toBeNull()
-    expect(b.sortOrder).toBe(0)
+describe('stretchDoseLabel', () => {
+  it('segundos con valor único', () => {
+    expect(stretchDoseLabel(dose('seconds', 30))).toBe('30 s')
   })
 
-  it('una Prescription por ejercicio, en el orden del servidor y con los datos del servidor', () => {
-    const b = buildStretchSession(today()).blocks[0]!
-    expect(b.exercises.map((p) => p.exerciseId)).toEqual([11, 12, 13])
-    expect(b.exercises.map((p) => p.exerciseName)).toEqual(['Isquios', 'Cuello', 'Cuádriceps'])
-    expect(b.exercises.map((p) => p.sortOrder)).toEqual([0, 1, 2])
-    for (const p of b.exercises) {
-      expect(p.seconds).toBe(45)
-      expect(p.reps).toBeNull()
-      expect(p.rest).toBe(10)
-      expect(p.contraction).toBe('ISO')
-    }
+  it('segundos con rango', () => {
+    expect(stretchDoseLabel(dose('seconds', 20, 30))).toBe('20 a 30 s')
   })
 
-  it('la nota "45 s por lado" solo aparece en los ejercicios de 2 lados', () => {
-    const b = buildStretchSession(today()).blocks[0]!
-    expect(b.exercises.map((p) => p.notes)).toEqual(['45 s por lado', null, '45 s por lado'])
+  it('repeticiones con valor único, en plural', () => {
+    expect(stretchDoseLabel(dose('reps', 10))).toBe('10 repeticiones')
   })
 
-  it('copia videoUrl tal cual, incluido null', () => {
-    const b = buildStretchSession(
-      today([ex(1, 'A', 1, { videoUrl: null }), ex(2, 'B', 1, { videoUrl: 'https://v/2' })]),
-    ).blocks[0]!
-    expect(b.exercises.map((p) => p.videoUrl)).toEqual([null, 'https://v/2'])
+  it('una repetición va en singular', () => {
+    expect(stretchDoseLabel(dose('reps', 1))).toBe('1 repetición')
   })
 
-  it('usa secondsPerSide y transitionSeconds del servidor, no constantes', () => {
-    const b = buildStretchSession(
-      today([ex(1, 'A', 2, { secondsPerSide: 30, transitionSeconds: 5 })]),
-    ).blocks[0]!
-    expect(b.exercises[0]!.seconds).toBe(30)
-    expect(b.exercises[0]!.rest).toBe(5)
-    expect(b.exercises[0]!.notes).toBe('30 s por lado')
+  it('repeticiones con rango', () => {
+    expect(stretchDoseLabel(dose('reps', 8, 10))).toBe('8 a 10 repeticiones')
   })
 
-  it('sin ejercicios devuelve un bloque vacío sin romper', () => {
-    const b = buildStretchSession(today([])).blocks[0]!
-    expect(b.exercises).toEqual([])
+  it('un max igual o menor al valor se ignora (no hay rango)', () => {
+    expect(stretchDoseLabel(dose('seconds', 30, 30))).toBe('30 s')
+    expect(stretchDoseLabel(dose('reps', 10, 5))).toBe('10 repeticiones')
   })
 })
 
-describe('stretchTimeline', () => {
-  it('por ejercicio: transición, lado 1 y lado 2 (solo si tiene 2 lados), en orden', () => {
-    const t = stretchTimeline(EJERCICIOS)
-    expect(t.map((s) => [s.exerciseIndex, s.kind, s.side])).toEqual([
-      [0, 'transition', null],
-      [0, 'work', 1],
-      [0, 'work', 2],
-      [1, 'transition', null],
-      [1, 'work', 1],
-      [2, 'transition', null],
-      [2, 'work', 1],
-      [2, 'work', 2],
-    ])
+describe('stretchAuraReady', () => {
+  const T0 = 1_700_000_000_000
+  const NEEDED_MS = (STRETCH_AURA_SECONDS + STRETCH_AURA_MARGIN_SECONDS) * 1000
+
+  it('los 180 s del servidor más 2 s de margen', () => {
+    expect(STRETCH_AURA_SECONDS).toBe(180)
+    expect(STRETCH_AURA_MARGIN_SECONDS).toBe(2)
   })
 
-  it('los segmentos son contiguos y suman lo mismo que plannedSeconds (410 s)', () => {
-    const t = stretchTimeline(EJERCICIOS)
-    expect(t[0]!.startMs).toBe(0)
-    for (let i = 1; i < t.length; i++) {
-      expect(t[i]!.startMs).toBe(t[i - 1]!.startMs + t[i - 1]!.durationMs)
-    }
-    const total = t.reduce((acc, s) => acc + s.durationMs, 0)
-    // (2 + 1 + 2) lados * 45 s + 3 transiciones * 10 s = 255 s
-    expect(total).toBe(255_000)
+  it('sin started confirmado nunca está listo, pase el tiempo que pase', () => {
+    expect(stretchAuraReady(null, T0 + NEEDED_MS * 10)).toBe(false)
   })
 
-  it('una rutina de 5 ejercicios (3 de 2 lados, 2 de 1) dura 410 s = Σ lados * 45 + 10 * n', () => {
-    // 8 lados * 45 s + 5 transiciones * 10 s = 410 s (la rutina de W37-lunes-kairos).
-    const rutina = [
-      ex(1, 'a', 2),
-      ex(2, 'b', 2),
-      ex(3, 'c', 2),
-      ex(4, 'd', 1),
-      ex(5, 'e', 1),
-    ]
-    const total = stretchTimeline(rutina).reduce((acc, s) => acc + s.durationMs, 0)
-    expect(total).toBe(410_000)
+  it('a los 180 s justos todavía no (el servidor puede medir 179 s)', () => {
+    expect(stretchAuraReady(T0, T0 + 180_000)).toBe(false)
   })
 
-  it('sin ejercicios no hay segmentos', () => {
-    expect(stretchTimeline([])).toEqual([])
+  it('un milisegundo antes del margen todavía no', () => {
+    expect(stretchAuraReady(T0, T0 + NEEDED_MS - 1)).toBe(false)
   })
 
-  it('una transición de 0 s no genera segmento', () => {
-    const t = stretchTimeline([ex(1, 'a', 1, { transitionSeconds: 0 })])
-    expect(t.map((s) => s.kind)).toEqual(['work'])
+  it('a los 182 s en adelante sí', () => {
+    expect(stretchAuraReady(T0, T0 + NEEDED_MS)).toBe(true)
+    expect(stretchAuraReady(T0, T0 + NEEDED_MS + 60_000)).toBe(true)
+  })
+
+  it('un reloj que retrocede no da AURA', () => {
+    expect(stretchAuraReady(T0, T0 - 5_000)).toBe(false)
   })
 })
 
-describe('stretchPhaseAt', () => {
-  const timeline = stretchTimeline(EJERCICIOS)
-
-  it('a 0 ms: transición del ejercicio 0 con 10 s restantes', () => {
-    expect(stretchPhaseAt(0, timeline)).toEqual({
-      exerciseIndex: 0,
-      side: null,
-      totalSides: 2,
-      phase: 'transition',
-      remainingMs: 10_000,
-      segmentMs: 10_000,
-    })
+describe('stretchDoneMinutes (pantalla final)', () => {
+  it('con duración medida usa los minutos del servidor', () => {
+    expect(stretchDoneMinutes({ durationSeconds: 240, minutes: 4 })).toBe(4)
   })
 
-  it('a 10 000 ms: lado 1 del ejercicio 0 con 45 000 restantes', () => {
-    expect(stretchPhaseAt(10_000, timeline)).toEqual({
-      exerciseIndex: 0,
-      side: 1,
-      totalSides: 2,
-      phase: 'work',
-      remainingMs: 45_000,
-      segmentMs: 45_000,
-    })
+  it('sin duración (el started nunca llegó) no hay cifra: "Listo." a secas', () => {
+    expect(stretchDoneMinutes({ durationSeconds: null, minutes: 7 })).toBeNull()
   })
 
-  it('a 55 000 ms: lado 2 del ejercicio 0', () => {
-    const p = stretchPhaseAt(55_000, timeline)
-    expect(p.exerciseIndex).toBe(0)
-    expect(p.side).toBe(2)
-    expect(p.phase).toBe('work')
-    expect(p.remainingMs).toBe(45_000)
-  })
-
-  it('un ejercicio de un solo lado reporta totalSides 1 y side 1', () => {
-    // El ejercicio 1 arranca en 10 + 45 + 45 = 100 s: transición hasta 110 s.
-    const trans = stretchPhaseAt(100_000, timeline)
-    expect(trans).toMatchObject({ exerciseIndex: 1, side: null, totalSides: 1, phase: 'transition' })
-    const work = stretchPhaseAt(110_000, timeline)
-    expect(work).toMatchObject({ exerciseIndex: 1, side: 1, totalSides: 1, phase: 'work' })
-  })
-
-  it('descuenta lo transcurrido dentro del segmento', () => {
-    const p = stretchPhaseAt(25_000, timeline)
-    expect(p.exerciseIndex).toBe(0)
-    expect(p.side).toBe(1)
-    expect(p.remainingMs).toBe(30_000)
-  })
-
-  it('el límite entre segmentos pertenece al segmento siguiente', () => {
-    expect(stretchPhaseAt(9_999, timeline).phase).toBe('transition')
-    expect(stretchPhaseAt(10_000, timeline).phase).toBe('work')
-  })
-
-  it('al llegar al total (y más allá) es done, sobre el último ejercicio', () => {
-    const done = { exerciseIndex: 2, side: null, totalSides: 2, phase: 'done', remainingMs: 0, segmentMs: 0 }
-    expect(stretchPhaseAt(255_000, timeline)).toEqual(done)
-    expect(stretchPhaseAt(999_999_999, timeline)).toEqual(done)
-  })
-
-  it('tiempos negativos o no finitos se tratan como 0', () => {
-    expect(stretchPhaseAt(-5_000, timeline)).toEqual(stretchPhaseAt(0, timeline))
-    expect(stretchPhaseAt(Number.NaN, timeline)).toEqual(stretchPhaseAt(0, timeline))
-  })
-
-  it('con timeline vacío siempre es done', () => {
-    expect(stretchPhaseAt(0, [])).toEqual({
-      exerciseIndex: 0,
-      side: null,
-      totalSides: 0,
-      phase: 'done',
-      remainingMs: 0,
-      segmentMs: 0,
-    })
-  })
-})
-
-describe('stretchClockElapsedMs', () => {
-  const timeline = stretchTimeline(EJERCICIOS)
-
-  it('(a) al pasar a playing (elapsed = ancla) el reloj está en 0 y empieza la transición del ejercicio 0 con 10 s', () => {
-    expect(stretchClockElapsedMs(3, 3)).toBe(0)
-    const p = stretchPhaseAt(stretchClockElapsedMs(3, 3), timeline)
-    expect(p.phase).toBe('transition')
-    expect(p.exerciseIndex).toBe(0)
-    expect(p.remainingMs).toBe(10_000)
-  })
-
-  it('(b) 10 s después del ancla arranca el lado 1 del ejercicio 0 con 45 s por delante', () => {
-    const p = stretchPhaseAt(stretchClockElapsedMs(13, 3), timeline)
-    expect(p.phase).toBe('work')
-    expect(p.exerciseIndex).toBe(0)
-    expect(p.side).toBe(1)
-    expect(p.remainingMs).toBe(45_000)
-  })
-
-  it('(c) sin ancla (todavía en el 3-2-1) es 0, por más segundos que traiga el reloj del player', () => {
-    expect(stretchClockElapsedMs(0, null)).toBe(0)
-    expect(stretchClockElapsedMs(3, null)).toBe(0)
-    expect(stretchClockElapsedMs(120, null)).toBe(0)
-  })
-
-  it('(d) con elapsed menor que el ancla nunca da negativo', () => {
-    expect(stretchClockElapsedMs(1, 3)).toBe(0)
-    expect(stretchClockElapsedMs(0, 5)).toBe(0)
-  })
-
-  it('un ancla en 0 (sin segundos previos) deja pasar el tiempo entero', () => {
-    expect(stretchClockElapsedMs(12, 0)).toBe(12_000)
-  })
-
-  it('valores no finitos se tratan como 0', () => {
-    expect(stretchClockElapsedMs(Number.NaN, 3)).toBe(0)
-    expect(stretchClockElapsedMs(10, Number.NaN)).toBe(0)
-  })
-})
-
-describe('stretchTotalMs y showSideSwitchNotice', () => {
-  const timeline = stretchTimeline(EJERCICIOS)
-
-  it('el total es la suma de los tramos y 0 sin rutina', () => {
-    expect(stretchTotalMs(timeline)).toBe(255_000)
-    expect(stretchTotalMs([])).toBe(0)
-  })
-
-  it('el aviso de cambio de lado solo vive los primeros 4 s del lado 2', () => {
-    // Ejercicio 0: transición 0-10 s, lado 1 10-55 s, lado 2 55-100 s
-    expect(showSideSwitchNotice(stretchPhaseAt(54_000, timeline))).toBe(false)
-    expect(showSideSwitchNotice(stretchPhaseAt(55_000, timeline))).toBe(true)
-    expect(showSideSwitchNotice(stretchPhaseAt(58_999, timeline))).toBe(true)
-    expect(showSideSwitchNotice(stretchPhaseAt(59_000, timeline))).toBe(false)
-  })
-
-  it('no hay aviso en la transición, en el lado 1 ni al terminar', () => {
-    expect(showSideSwitchNotice(stretchPhaseAt(0, timeline))).toBe(false)
-    expect(showSideSwitchNotice(stretchPhaseAt(20_000, timeline))).toBe(false)
-    expect(showSideSwitchNotice(stretchPhaseAt(999_999, timeline))).toBe(false)
+  it('una duración de 0 s es una duración medida', () => {
+    expect(stretchDoneMinutes({ durationSeconds: 0, minutes: 1 })).toBe(1)
   })
 })
 

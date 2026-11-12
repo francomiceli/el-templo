@@ -51,7 +51,7 @@ function baseInput(over: Partial<TodayCardInput> = {}): TodayCardInput {
     trialEligible: false,
     libreEnabled: true,
     // Fase 213: por defecto sin oferta de estiramiento (la card queda como antes de la fase).
-    stretch: { status: 'none', minutes: null },
+    stretch: { status: 'none' },
     // Fase 203: por defecto todo resuelto y sin fallas (los casos anteriores no cambian).
     profileLoading: false,
     weekLoading: false,
@@ -1960,9 +1960,9 @@ describe('resolveTodayCard — estiramiento post-clase (fase 213 D-09)', () => {
   const TUS_PROGRAMAS = { label: 'Tus programas', action: 'open-program' }
   const HECHOS: TodayCardModel['meta'] = [{ text: 'Clase y estiramiento hechos' }]
 
-  const AVAILABLE = { status: 'available', minutes: 6 } as const
-  const DONE = { status: 'done', minutes: null } as const
-  const NONE = { status: 'none', minutes: null } as const
+  const AVAILABLE = { status: 'available' } as const
+  const DONE = { status: 'done' } as const
+  const NONE = { status: 'none' } as const
 
   const ATENDIDA = {
     booking: BOOKING,

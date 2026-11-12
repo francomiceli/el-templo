@@ -36,10 +36,17 @@ import {
 const RESPONSE: StretchCompleteResponse = {
   completedAt: '2026-11-11T19:00:00.000Z',
   durationSeconds: 400,
-  allDone: true,
   auraAwarded: true,
   alreadyCompleted: false,
   minutes: 7,
+}
+
+function deferred<T>(): { promise: Promise<T>; resolve: (v: T) => void } {
+  let resolve!: (v: T) => void
+  const promise = new Promise<T>((r) => {
+    resolve = r
+  })
+  return { promise, resolve }
 }
 
 function httpError(status: number, data: Record<string, unknown>): AxiosError {
@@ -61,17 +68,14 @@ describe('useStretchCompletion', () => {
   })
 
   describe('complete', () => {
-    it('éxito: manda offerId + ejercicios, devuelve la respuesta y la aplica al store', async () => {
+    it('éxito: manda SOLO el offerId, devuelve la respuesta y la aplica al store', async () => {
       vi.mocked(api.post).mockResolvedValue({ data: RESPONSE })
       const { complete, isSubmitting, error } = useStretchCompletion()
 
-      const res = await complete({ offerId: 5, exercisesCompleted: [1, 2] })
+      const res = await complete({ offerId: 5 })
 
       expect(res).toEqual(RESPONSE)
-      expect(api.post).toHaveBeenCalledWith('/sessions/stretch/complete', {
-        offerId: 5,
-        exercisesCompleted: [1, 2],
-      })
+      expect(api.post).toHaveBeenCalledWith('/sessions/stretch/complete', { offerId: 5 })
       expect(stretchStoreMock.applyCompletion).toHaveBeenCalledWith(RESPONSE)
       expect(isSubmitting.value).toBe(false)
       expect(error.value).toBeNull()
@@ -83,7 +87,7 @@ describe('useStretchCompletion', () => {
       )
       const { complete, error } = useStretchCompletion()
 
-      const res = await complete({ offerId: 5, exercisesCompleted: [] })
+      const res = await complete({ offerId: 5 })
 
       expect(res).toBeNull()
       expect(error.value).toBe('Este estiramiento ya venció')
@@ -96,7 +100,7 @@ describe('useStretchCompletion', () => {
       vi.mocked(api.post).mockRejectedValue(httpError(410, {}))
       const { complete, error } = useStretchCompletion()
 
-      await complete({ offerId: 5, exercisesCompleted: [] })
+      await complete({ offerId: 5 })
 
       expect(error.value).toBe('Este estiramiento ya venció')
     })
@@ -107,7 +111,7 @@ describe('useStretchCompletion', () => {
       )
       const { complete, error } = useStretchCompletion()
 
-      expect(await complete({ offerId: 5, exercisesCompleted: [] })).toBeNull()
+      expect(await complete({ offerId: 5 })).toBeNull()
       expect(error.value).toBe('No encontramos ese estiramiento')
       expect(logMock.warn).toHaveBeenCalled()
       expect(logMock.error).not.toHaveBeenCalled()
@@ -117,7 +121,7 @@ describe('useStretchCompletion', () => {
       vi.mocked(api.post).mockRejectedValue(httpError(500, { error: 'boom' }))
       const { complete, error } = useStretchCompletion()
 
-      const res = await complete({ offerId: 5, exercisesCompleted: [] })
+      const res = await complete({ offerId: 5 })
 
       expect(res).toBeNull()
       expect(error.value).toBe('boom')
@@ -128,7 +132,7 @@ describe('useStretchCompletion', () => {
       vi.mocked(api.post).mockRejectedValue('timeout')
       const { complete, error } = useStretchCompletion()
 
-      expect(await complete({ offerId: 5, exercisesCompleted: [] })).toBeNull()
+      expect(await complete({ offerId: 5 })).toBeNull()
       expect(error.value).toBe('No pudimos guardar el estiramiento')
       expect(logMock.error).toHaveBeenCalled()
     })
@@ -142,9 +146,9 @@ describe('useStretchCompletion', () => {
       )
       const { complete, isSubmitting } = useStretchCompletion()
 
-      const first = complete({ offerId: 5, exercisesCompleted: [1] })
+      const first = complete({ offerId: 5 })
       expect(isSubmitting.value).toBe(true)
-      expect(await complete({ offerId: 5, exercisesCompleted: [1] })).toBeNull()
+      expect(await complete({ offerId: 5 })).toBeNull()
       resolve({ data: RESPONSE })
       expect(await first).toEqual(RESPONSE)
       expect(api.post).toHaveBeenCalledTimes(1)
@@ -156,9 +160,9 @@ describe('useStretchCompletion', () => {
       vi.mocked(api.post).mockResolvedValueOnce({ data: RESPONSE })
       const { complete, error } = useStretchCompletion()
 
-      await complete({ offerId: 5, exercisesCompleted: [] })
+      await complete({ offerId: 5 })
       expect(error.value).toBe('boom')
-      await complete({ offerId: 5, exercisesCompleted: [] })
+      await complete({ offerId: 5 })
       expect(error.value).toBeNull()
     })
   })
@@ -338,15 +342,12 @@ describe('useStretchCompletion', () => {
 
       sendStarted('card')
       await vi.advanceTimersByTimeAsync(0)
-      expect(await complete({ offerId: 5, exercisesCompleted: [1] })).toEqual(RESPONSE)
+      expect(await complete({ offerId: 5 })).toEqual(RESPONSE)
       await vi.advanceTimersByTimeAsync(LONGEST * 3)
 
       // 1 inicio fallido + 1 cierre: ningún inicio tardío
       expect(api.post).toHaveBeenCalledTimes(2)
-      expect(api.post).toHaveBeenLastCalledWith('/sessions/stretch/complete', {
-        offerId: 5,
-        exercisesCompleted: [1],
-      })
+      expect(api.post).toHaveBeenLastCalledWith('/sessions/stretch/complete', { offerId: 5 })
       expect(logMock.error).toHaveBeenCalledTimes(1)
       expect(logMock.error).toHaveBeenCalledWith(
         expect.stringContaining('sin aviso de inicio'),
@@ -361,7 +362,7 @@ describe('useStretchCompletion', () => {
 
       sendStarted('card')
       await vi.advanceTimersByTimeAsync(0)
-      await complete({ offerId: 5, exercisesCompleted: [1] })
+      await complete({ offerId: 5 })
 
       expect(logMock.error).not.toHaveBeenCalled()
     })
@@ -381,11 +382,123 @@ describe('useStretchCompletion', () => {
     })
   })
 
+  describe('startedConfirmedAt (el AURA cuenta desde que el servidor aceptó el started)', () => {
+    const FIRST = STARTED_RETRY_DELAYS_MS[0] ?? 0
+    const T0 = new Date('2026-11-12T18:00:00.000Z')
+
+    beforeEach(() => {
+      vi.useFakeTimers()
+      vi.setSystemTime(T0)
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('arranca en null', () => {
+      expect(useStretchCompletion().startedConfirmedAt.value).toBeNull()
+    })
+
+    it('queda en null hasta que el servidor responde y después guarda el Date.now() de ese momento', async () => {
+      const d = deferred<{ data: { ok: boolean } }>()
+      vi.mocked(api.post).mockReturnValueOnce(d.promise)
+      const { sendStarted, startedConfirmedAt } = useStretchCompletion()
+
+      sendStarted('card')
+      await vi.advanceTimersByTimeAsync(5_000)
+      expect(startedConfirmedAt.value).toBeNull()
+
+      d.resolve({ data: { ok: true } })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(startedConfirmedAt.value).toBe(T0.getTime() + 5_000)
+    })
+
+    it('una falla de red lo deja en null y el reintento exitoso lo fija con la hora del reintento', async () => {
+      vi.mocked(api.post).mockRejectedValueOnce(new Error('network down'))
+      vi.mocked(api.post).mockResolvedValue({ data: { ok: true } })
+      const { sendStarted, startedConfirmedAt } = useStretchCompletion()
+
+      sendStarted('card')
+      await vi.advanceTimersByTimeAsync(FIRST - 1)
+      expect(startedConfirmedAt.value).toBeNull()
+
+      await vi.advanceTimersByTimeAsync(1)
+      expect(startedConfirmedAt.value).toBe(T0.getTime() + FIRST)
+    })
+
+    it('un 4xx lo deja en null (el servidor no aceptó el started)', async () => {
+      vi.mocked(api.post).mockRejectedValue(httpError(404, { error: 'sin oferta' }))
+      const { sendStarted, startedConfirmedAt } = useStretchCompletion()
+
+      sendStarted('card')
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(startedConfirmedAt.value).toBeNull()
+    })
+
+    it('un sendStarted nuevo lo vuelve a null hasta que el servidor confirme de nuevo', async () => {
+      vi.mocked(api.post).mockResolvedValueOnce({ data: { ok: true } })
+      const { sendStarted, startedConfirmedAt } = useStretchCompletion()
+      sendStarted('card')
+      await vi.advanceTimersByTimeAsync(0)
+      expect(startedConfirmedAt.value).toBe(T0.getTime())
+
+      const d = deferred<{ data: { ok: boolean } }>()
+      vi.mocked(api.post).mockReturnValueOnce(d.promise)
+      await vi.advanceTimersByTimeAsync(10_000)
+      sendStarted('card')
+      expect(startedConfirmedAt.value).toBeNull()
+
+      d.resolve({ data: { ok: true } })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(startedConfirmedAt.value).toBe(T0.getTime() + 10_000)
+    })
+
+    it('una confirmación tardía de una corrida vieja no pisa a la nueva', async () => {
+      const old = deferred<{ data: { ok: boolean } }>()
+      vi.mocked(api.post).mockReturnValueOnce(old.promise)
+      vi.mocked(api.post).mockRejectedValueOnce(new Error('network down'))
+      const { sendStarted, startedConfirmedAt } = useStretchCompletion()
+
+      sendStarted('card')
+      sendStarted('card')
+      await vi.advanceTimersByTimeAsync(0)
+      old.resolve({ data: { ok: true } })
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(startedConfirmedAt.value).toBeNull()
+    })
+
+    it('cleanup lo vuelve a null', async () => {
+      vi.mocked(api.post).mockResolvedValue({ data: { ok: true } })
+      const { sendStarted, startedConfirmedAt, cleanup } = useStretchCompletion()
+      sendStarted('card')
+      await vi.advanceTimersByTimeAsync(0)
+      expect(startedConfirmedAt.value).not.toBeNull()
+
+      cleanup()
+
+      expect(startedConfirmedAt.value).toBeNull()
+    })
+
+    it('cerrar con complete() conserva el instante ya confirmado', async () => {
+      vi.mocked(api.post).mockResolvedValueOnce({ data: { ok: true } })
+      vi.mocked(api.post).mockResolvedValue({ data: RESPONSE })
+      const { sendStarted, complete, startedConfirmedAt } = useStretchCompletion()
+      sendStarted('card')
+      await vi.advanceTimersByTimeAsync(0)
+
+      await complete({ offerId: 5 })
+
+      expect(startedConfirmedAt.value).toBe(T0.getTime())
+    })
+  })
+
   describe('cleanup', () => {
     it('resetea isSubmitting y error', async () => {
       vi.mocked(api.post).mockRejectedValue(httpError(500, { error: 'boom' }))
       const { complete, error, isSubmitting, cleanup } = useStretchCompletion()
-      await complete({ offerId: 5, exercisesCompleted: [] })
+      await complete({ offerId: 5 })
       expect(error.value).toBe('boom')
 
       cleanup()

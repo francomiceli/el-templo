@@ -43,16 +43,12 @@ function today(overrides: Partial<StretchTodayResponse> = {}): StretchTodayRespo
     status: 'available',
     localDate: '2026-11-11',
     offerId: 5,
-    minutes: 7,
-    plannedSeconds: 410,
     exercises: [
       {
         exerciseId: 1,
         name: 'Isquios',
         family: 'LS',
-        sides: 2,
-        secondsPerSide: 45,
-        transitionSeconds: 10,
+        dose: { unit: 'seconds', value: 30, max: null },
         videoUrl: null,
       },
     ],
@@ -93,7 +89,7 @@ describe('useStretchStore', () => {
       const s = useStretchStore()
       expect(s.today).toBeNull()
       expect(s.loaded).toBe(false)
-      expect(s.cardInput).toEqual({ status: 'none', minutes: null })
+      expect(s.cardInput).toEqual({ status: 'none' })
     })
 
     it('OK: guarda la respuesta, loaded true, loadFailed false', async () => {
@@ -104,7 +100,7 @@ describe('useStretchStore', () => {
       expect(s.today?.offerId).toBe(5)
       expect(s.loaded).toBe(true)
       expect(s.loadFailed).toBe(false)
-      expect(s.cardInput).toEqual({ status: 'available', minutes: 7 })
+      expect(s.cardInput).toEqual({ status: 'available' })
     })
 
     it('error en la primera carga: loadFailed true, sin dato y la card queda none (no ofrece ni oculta)', async () => {
@@ -114,7 +110,7 @@ describe('useStretchStore', () => {
       expect(s.loadFailed).toBe(true)
       expect(s.loaded).toBe(true)
       expect(s.today).toBeNull()
-      expect(s.cardInput).toEqual({ status: 'none', minutes: null })
+      expect(s.cardInput).toEqual({ status: 'none' })
       expect(logMock.warn).toHaveBeenCalled()
     })
 
@@ -126,7 +122,7 @@ describe('useStretchStore', () => {
       await s.load()
       expect(s.loadFailed).toBe(true)
       expect(s.today?.localDate).toBe('2026-11-11')
-      expect(s.cardInput).toEqual({ status: 'available', minutes: 7 })
+      expect(s.cardInput).toEqual({ status: 'available' })
     })
 
     it('error en un refresco al día siguiente: NO muestra el dato viejo de otro día', async () => {
@@ -138,7 +134,7 @@ describe('useStretchStore', () => {
       await s.load()
       expect(s.loadFailed).toBe(true)
       expect(s.today).toBeNull()
-      expect(s.cardInput).toEqual({ status: 'none', minutes: null })
+      expect(s.cardInput).toEqual({ status: 'none' })
     })
 
     it('mientras recarga al día siguiente no muestra el dato de ayer', async () => {
@@ -149,10 +145,10 @@ describe('useStretchStore', () => {
       const d = deferred<{ data: StretchTodayResponse }>()
       vi.mocked(api.get).mockReturnValueOnce(d.promise)
       const pending = s.load()
-      expect(s.cardInput).toEqual({ status: 'none', minutes: null })
-      d.resolve({ data: today({ localDate: '2026-11-12', minutes: 9 }) })
+      expect(s.cardInput).toEqual({ status: 'none' })
+      d.resolve({ data: today({ localDate: '2026-11-12', offerId: 9 }) })
       await pending
-      expect(s.cardInput).toEqual({ status: 'available', minutes: 9 })
+      expect(s.cardInput).toEqual({ status: 'available' })
     })
 
     it('mientras recarga el mismo día conserva el dato (no vuelve a none)', async () => {
@@ -163,9 +159,9 @@ describe('useStretchStore', () => {
       vi.mocked(api.get).mockReturnValueOnce(d.promise)
       const pending = s.load()
       expect(s.cardInput.status).toBe('available')
-      d.resolve({ data: today({ minutes: 8 }) })
+      d.resolve({ data: today({ status: 'done' }) })
       await pending
-      expect(s.cardInput.minutes).toBe(8)
+      expect(s.cardInput.status).toBe('done')
     })
 
     it('dos load() superpuestos: gana el último aunque el primero responda tarde', async () => {
@@ -175,34 +171,34 @@ describe('useStretchStore', () => {
       const s = useStretchStore()
       const p1 = s.load()
       const p2 = s.load()
-      second.resolve({ data: today({ minutes: 9 }) })
+      second.resolve({ data: today({ offerId: 9 }) })
       await p2
-      first.resolve({ data: today({ minutes: 3 }) })
+      first.resolve({ data: today({ offerId: 3 }) })
       await p1
-      expect(s.today?.minutes).toBe(9)
+      expect(s.today?.offerId).toBe(9)
     })
 
     it('un error de un load() viejo no pisa el dato del último', async () => {
       const first = deferred<{ data: StretchTodayResponse }>()
       vi.mocked(api.get)
         .mockReturnValueOnce(first.promise)
-        .mockResolvedValueOnce({ data: today({ minutes: 9 }) })
+        .mockResolvedValueOnce({ data: today({ offerId: 9 }) })
       const s = useStretchStore()
       const p1 = s.load()
       await s.load()
       first.reject(new Error('late'))
       await p1
-      expect(s.today?.minutes).toBe(9)
+      expect(s.today?.offerId).toBe(9)
       expect(s.loadFailed).toBe(false)
     })
 
     it('un status none del servidor (sin oferta) queda como none', async () => {
       vi.mocked(api.get).mockResolvedValue({
-        data: today({ status: 'none', offerId: null, minutes: null, exercises: [] }),
+        data: today({ status: 'none', offerId: null, exercises: [] }),
       })
       const s = useStretchStore()
       await s.load()
-      expect(s.cardInput).toEqual({ status: 'none', minutes: null })
+      expect(s.cardInput).toEqual({ status: 'none' })
     })
   })
 
@@ -263,7 +259,6 @@ describe('useStretchStore', () => {
     const RES: StretchCompleteResponse = {
       completedAt: '2026-11-11T19:00:00.000Z',
       durationSeconds: 400,
-      allDone: true,
       auraAwarded: true,
       alreadyCompleted: false,
       minutes: 7,
@@ -277,7 +272,8 @@ describe('useStretchStore', () => {
       expect(s.today?.status).toBe('done')
       expect(s.today?.completedAt).toBe(RES.completedAt)
       expect(s.today?.auraAwarded).toBe(true)
-      expect(s.cardInput).toEqual({ status: 'done', minutes: 7 })
+      expect(s.today).not.toHaveProperty('minutes')
+      expect(s.cardInput).toEqual({ status: 'done' })
       expect(api.get).toHaveBeenCalledTimes(1)
     })
 
@@ -298,12 +294,12 @@ describe('useStretchStore', () => {
       vi.mocked(api.get).mockReturnValueOnce(d.promise)
       const pending = s.load()
       s.reset()
-      d.resolve({ data: today({ minutes: 99 }) })
+      d.resolve({ data: today({ offerId: 99 }) })
       await pending
       expect(s.today).toBeNull()
       expect(s.loaded).toBe(false)
       expect(s.loadFailed).toBe(false)
-      expect(s.cardInput).toEqual({ status: 'none', minutes: null })
+      expect(s.cardInput).toEqual({ status: 'none' })
     })
 
     it('después de reset vuelve a mandar card_seen', async () => {
