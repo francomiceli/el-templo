@@ -78,6 +78,7 @@ import {
   type TenantContext,
 } from "../shared/tenant";
 import { BalanceService, type TxHandle } from "./balance-service";
+import { assertNotExpensePaymentRow } from "./expense-payment-guard";
 import { CashRegisterService } from "./cash-register-service";
 import { PartnerReferralService } from "../referral-partners/service";
 // Phase 149 (D-13, Opción A): el umbral de pendientes queda hardcodeado en la
@@ -290,12 +291,21 @@ export class TransactionService {
         // en sedes de España. Se valida acá (y no en el JSON-Schema) porque el
         // país es de la SUCURSAL, no de la transacción — el schema no lo ve.
         // Reusa el lookup de arriba, así el gate no cuesta una query extra.
-        if (input.paymentMethod === "direct_debit" && branch.country !== "ES") {
+        // fase 209 DI-06: para salidas, `direct_debit` es el débito automático de
+        // un gasto y lo acota la regla medio↔cuenta (solo banco).
+        if (
+          input.direction === "inflow" &&
+          input.paymentMethod === "direct_debit" &&
+          branch.country !== "ES"
+        ) {
           throw new BadRequestError(
             "La domiciliación bancaria solo está disponible en sedes de España",
           );
         }
-      } else if (input.paymentMethod === "direct_debit") {
+      } else if (
+        input.direction === "inflow" &&
+        input.paymentMethod === "direct_debit"
+      ) {
         // Sin sucursal no hay país que validar: un movimiento/egreso branch-less
         // nunca es una domiciliación.
         throw new BadRequestError(
@@ -515,6 +525,8 @@ export class TransactionService {
     voidedBy: number,
     input: VoidTransactionInput,
   ): Promise<TransactionDetail> {
+    // fase 209: la fila del ledger de un pago de gasto se anula desde Egresos.
+    await assertNotExpensePaymentRow(ctx, this.db, id);
     return await this.db.transaction(async (tx) => {
       await this._void(ctx, tx, id, voidedBy, input);
 
@@ -1153,6 +1165,8 @@ export class TransactionService {
     >,
     adminId: number,
   ): Promise<TransactionDetail> {
+    // fase 209: la fila del ledger de un pago de gasto se anula desde Egresos.
+    await assertNotExpensePaymentRow(ctx, this.db, originalId);
     return await this.db.transaction(async (tx) => {
       const [original] = await tx
         .select()

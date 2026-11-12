@@ -39,6 +39,7 @@ import type { CashRegisterService } from "./cash-register-service";
 import type { TransactionService } from "./transaction-service";
 import { RETIROS_COST_CENTER_NAME } from "./withdrawal-service";
 import { assertEfectivoCoversOutflow } from "./efectivo-guard";
+import { assertNotExpensePaymentRow } from "./expense-payment-guard";
 import { assertMethodAllowedForAccount } from "./payment-method-rules";
 import { createCountAdjustment } from "./count-adjustment";
 import { collectTransferGroupIds, createTransferPair } from "./transfer-pair";
@@ -559,6 +560,8 @@ export class MovementService {
     if (!reason || reason.trim().length === 0) {
       throw new BadRequestError("Razon de anulacion requerida");
     }
+    // fase 209: la fila del ledger de un pago de gasto se anula desde Egresos.
+    await assertNotExpensePaymentRow(ctx, this.db, expenseRowId);
     // Despacho por formato (fase 208): esta ruta sirve para egresos, retiros
     // viejos (expense) y retiros nuevos (traslado con responsable), así
     // RetirosTab anula los dos con el mismo botón. Cualquier otra fila no es

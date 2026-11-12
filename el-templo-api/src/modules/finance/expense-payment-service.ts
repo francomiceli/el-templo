@@ -14,7 +14,8 @@
 //     `FOR UPDATE` → fila de la cuenta `FOR UPDATE` → leer lo pagado. El alta y la
 //     edición del gasto (`ExpenseRecordService`) toman el gasto primero también:
 //     mismo orden, sin deadlocks.
-//   - La anulación del pago y el débito automático saliente son del plan 209-06.
+//   - Anular un pago: gasto `FOR UPDATE` → pago `FOR UPDATE`, y la fila del ledger
+//     se anula con `txnService.voidInTx` en la MISMA tx (no se reimplementa).
 //
 // Tenancy: `tenantWhere` en toda lectura (en los joins, el filtro de la tabla
 // unida va en el ON) y `tenantValues` en los inserts.
@@ -391,6 +392,120 @@ export class ExpensePaymentService {
       payment: this.pickPayment(record, paymentId),
       created: true,
     };
+  }
+
+  /**
+   * Anula un pago de un gasto (DI-10). Marca la fila de `expense_payments` y anula
+   * su fila del ledger con `voidInTx` (el camino de anulación existente) en UNA
+   * transacción: el saldo de la cuenta vuelve exacto y el estado del gasto se
+   * recalcula solo (los pagos anulados no cuentan).
+   *
+   * Candados en el mismo orden que el alta de pagos: gasto → pago.
+   *
+   * @param opts.country si viene y difiere del país del gasto, 404.
+   */
+  async voidPayment(
+    ctx: TenantContext,
+    recordId: number,
+    paymentId: number,
+    reason: string,
+    adminId: number,
+    opts: { country?: ExpenseCountry | null } = {},
+  ): Promise<ExpenseRecordDetail> {
+    const trimmedReason = typeof reason === "string" ? reason.trim() : "";
+    if (trimmedReason.length === 0) {
+      throw new BadRequestError("El motivo de la anulación es obligatorio");
+    }
+
+    await this.db.transaction(async (tx) => {
+      // a. Gasto, PRIMER candado.
+      const [record] = await tx
+        .select({
+          id: schema.expenseRecords.id,
+          country: schema.expenseRecords.country,
+        })
+        .from(schema.expenseRecords)
+        .where(
+          and(
+            tenantWhere(schema.expenseRecords, ctx),
+            eq(schema.expenseRecords.id, recordId),
+          ),
+        )
+        .limit(1)
+        .for("update");
+      if (!record || (opts.country && record.country !== opts.country)) {
+        throw new NotFoundError("Gasto no encontrado");
+      }
+
+      // b. Pago de ESE gasto, SEGUNDO candado.
+      const [payment] = await tx
+        .select()
+        .from(schema.expensePayments)
+        .where(
+          and(
+            tenantWhere(schema.expensePayments, ctx),
+            eq(schema.expensePayments.id, paymentId),
+            eq(schema.expensePayments.expenseRecordId, recordId),
+          ),
+        )
+        .limit(1)
+        .for("update");
+      if (!payment) throw new NotFoundError("Pago no encontrado");
+      if (payment.voidedAt !== null) {
+        throw new BadRequestError("El pago ya está anulado");
+      }
+
+      // c. Fila del ledger: el camino de anulación existente, en esta tx.
+      await this.txnService.voidInTx(ctx, tx, payment.transactionId, adminId, {
+        reason: trimmedReason,
+      });
+
+      // d. Fila del pago.
+      await tx
+        .update(schema.expensePayments)
+        .set({
+          voidedAt: new Date(),
+          voidedBy: adminId,
+          voidReason: trimmedReason,
+        })
+        .where(
+          and(
+            tenantWhere(schema.expensePayments, ctx),
+            eq(schema.expensePayments.id, paymentId),
+          ),
+        );
+
+      // e. Rastro en el historial del gasto.
+      await auditLog.write(ctx, tx, {
+        actorId: adminId,
+        action: "expense_payment_voided",
+        targetKind: "expense_record",
+        targetId: recordId,
+        payload: {
+          paymentId,
+          transactionId: payment.transactionId,
+          amount: payment.amount,
+          appliedAmount: payment.appliedAmount,
+          currency: payment.currency,
+        },
+        reason: trimmedReason,
+      });
+
+      this.log.info(
+        {
+          expenseRecordId: recordId,
+          paymentId,
+          transactionId: payment.transactionId,
+          amount: payment.amount,
+          currency: payment.currency,
+        },
+        "Pago de gasto anulado",
+      );
+    });
+
+    return this.recordService.getDetail(ctx, recordId, {
+      country: opts.country,
+    });
   }
 
   /**
