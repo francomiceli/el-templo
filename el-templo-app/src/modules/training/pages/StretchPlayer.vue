@@ -41,7 +41,10 @@
 
     <!-- En curso: el reloj por ejercicio es HERMANO de BlockProgressionView (el bloque lleva
          timerSpec null y `copy` apaga el reloj de bloque y los textos de entrenamiento) -->
-    <div v-else-if="(stage === 'playing' || stage === 'saving') && player" class="stretch-player__run">
+    <div
+      v-else-if="(stage === 'playing' || stage === 'saving') && player"
+      class="stretch-player__run"
+    >
       <StretchClock :exercises="routine" :elapsed-ms="clockElapsedMs" />
       <div class="stretch-player__view">
         <BlockProgressionView
@@ -94,11 +97,7 @@ import {
   isStretchExpiredMessage,
   stretchClockElapsedMs,
 } from '../utils/stretchSession'
-import type {
-  StretchCompleteResponse,
-  StretchEventFrom,
-  StretchExercise,
-} from '../types/stretch'
+import type { StretchCompleteResponse, StretchEventFrom, StretchExercise } from '../types/stretch'
 
 const log = createLogger('StretchPlayer')
 
@@ -154,7 +153,10 @@ async function saveStretch(input: SingleBlockSaveInput): Promise<StretchComplete
   if (id === null) return null
 
   expiredOnSave = false
-  const res = await completion.complete({ offerId: id, exercisesCompleted: input.exercisesCompleted })
+  const res = await completion.complete({
+    offerId: id,
+    exercisesCompleted: input.exercisesCompleted,
+  })
   if (single.isDisposed()) return null
 
   if (!res) {
@@ -313,7 +315,8 @@ onMounted(async () => {
   // Cada entrada empieza de cero: si abandonó antes no hay nada que retomar
   await single.load(buildStretchSession(today))
   if (single.isDisposed()) return
-  void completion.sendEvent('started', from)
+  // ME-03: reintenta en segundo plano; sin `started_at` no hay duración ni AURA
+  completion.sendStarted(from)
   log.info('Estiramiento listo', { from, minutes: minutes.value })
 })
 

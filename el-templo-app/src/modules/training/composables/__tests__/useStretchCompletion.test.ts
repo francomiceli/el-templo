@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { AxiosError, AxiosHeaders, type AxiosResponse } from 'axios'
 import type { StretchCompleteResponse } from '../../types/stretch'
 
@@ -27,7 +27,11 @@ vi.mock('src/stores/useStretchStore', () => ({
 }))
 
 import { api } from 'src/boot/axios'
-import { useStretchCompletion } from '../useStretchCompletion'
+import {
+  useStretchCompletion,
+  STARTED_MAX_ATTEMPTS,
+  STARTED_RETRY_DELAYS_MS,
+} from '../useStretchCompletion'
 
 const RESPONSE: StretchCompleteResponse = {
   completedAt: '2026-11-11T19:00:00.000Z',
@@ -74,7 +78,9 @@ describe('useStretchCompletion', () => {
     })
 
     it('410: devuelve null, error con el mensaje del servidor y log.warn', async () => {
-      vi.mocked(api.post).mockRejectedValue(httpError(410, { error: 'Este estiramiento ya venció' }))
+      vi.mocked(api.post).mockRejectedValue(
+        httpError(410, { error: 'Este estiramiento ya venció' }),
+      )
       const { complete, error } = useStretchCompletion()
 
       const res = await complete({ offerId: 5, exercisesCompleted: [] })
@@ -197,6 +203,181 @@ describe('useStretchCompletion', () => {
       await expect(sendEvent('started', 'card')).resolves.toBeUndefined()
       expect(logMock.warn).toHaveBeenCalled()
       expect(logMock.error).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('sendStarted (ME-03: reintentos del aviso de inicio)', () => {
+    const EVENTS = '/sessions/stretch/events'
+    const FIRST = STARTED_RETRY_DELAYS_MS[0] ?? 0
+    const LONGEST = Math.max(...STARTED_RETRY_DELAYS_MS)
+
+    beforeEach(() => {
+      vi.useFakeTimers()
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('entra al primer intento: un solo POST y no reintenta', async () => {
+      vi.mocked(api.post).mockResolvedValue({ data: { ok: true } })
+      const { sendStarted } = useStretchCompletion()
+
+      sendStarted('push')
+      await vi.advanceTimersByTimeAsync(LONGEST * 3)
+
+      expect(api.post).toHaveBeenCalledTimes(1)
+      expect(api.post).toHaveBeenCalledWith(EVENTS, { type: 'started', from: 'push' })
+      expect(logMock.error).not.toHaveBeenCalled()
+    })
+
+    it('falla la red y después entra: reintenta tras la primera espera y corta', async () => {
+      vi.mocked(api.post).mockRejectedValueOnce(new Error('network down'))
+      vi.mocked(api.post).mockResolvedValue({ data: { ok: true } })
+      const { sendStarted } = useStretchCompletion()
+
+      sendStarted('card')
+      await vi.advanceTimersByTimeAsync(FIRST - 1)
+      expect(api.post).toHaveBeenCalledTimes(1)
+
+      await vi.advanceTimersByTimeAsync(1)
+      expect(api.post).toHaveBeenCalledTimes(2)
+      expect(api.post).toHaveBeenLastCalledWith(EVENTS, { type: 'started', from: 'card' })
+
+      await vi.advanceTimersByTimeAsync(LONGEST * 3)
+      expect(api.post).toHaveBeenCalledTimes(2)
+      // La falla intermedia no va a Sentry
+      expect(logMock.warn).toHaveBeenCalled()
+      expect(logMock.error).not.toHaveBeenCalled()
+    })
+
+    it('respeta la escalera de esperas y repite la última', async () => {
+      vi.mocked(api.post).mockRejectedValue(new Error('network down'))
+      const { sendStarted } = useStretchCompletion()
+
+      sendStarted('card')
+      await vi.advanceTimersByTimeAsync(0)
+      let calls = 1
+      expect(api.post).toHaveBeenCalledTimes(calls)
+
+      const waits = [...STARTED_RETRY_DELAYS_MS, LONGEST]
+      for (const wait of waits) {
+        await vi.advanceTimersByTimeAsync(wait - 1)
+        expect(api.post).toHaveBeenCalledTimes(calls)
+        await vi.advanceTimersByTimeAsync(1)
+        calls += 1
+        expect(api.post).toHaveBeenCalledTimes(calls)
+      }
+    })
+
+    it('un 4xx no se reintenta', async () => {
+      vi.mocked(api.post).mockRejectedValue(httpError(404, { error: 'no hay oferta' }))
+      const { sendStarted } = useStretchCompletion()
+
+      sendStarted('card')
+      await vi.advanceTimersByTimeAsync(LONGEST * 3)
+
+      expect(api.post).toHaveBeenCalledTimes(1)
+      expect(logMock.error).not.toHaveBeenCalled()
+    })
+
+    it('un 5xx sí se reintenta', async () => {
+      vi.mocked(api.post).mockRejectedValueOnce(httpError(503, { error: 'caído' }))
+      vi.mocked(api.post).mockResolvedValue({ data: { ok: true } })
+      const { sendStarted } = useStretchCompletion()
+
+      sendStarted('card')
+      await vi.advanceTimersByTimeAsync(FIRST)
+
+      expect(api.post).toHaveBeenCalledTimes(2)
+    })
+
+    it('corta al llegar al tope de intentos', async () => {
+      vi.mocked(api.post).mockRejectedValue(new Error('network down'))
+      const { sendStarted } = useStretchCompletion()
+
+      sendStarted('card')
+      await vi.advanceTimersByTimeAsync(LONGEST * (STARTED_MAX_ATTEMPTS + 5))
+
+      expect(api.post).toHaveBeenCalledTimes(STARTED_MAX_ATTEMPTS)
+    })
+
+    it('cleanup cancela el reintento agendado', async () => {
+      vi.mocked(api.post).mockRejectedValue(new Error('network down'))
+      const { sendStarted, cleanup } = useStretchCompletion()
+
+      sendStarted('card')
+      await vi.advanceTimersByTimeAsync(0)
+      cleanup()
+      await vi.advanceTimersByTimeAsync(LONGEST * 3)
+
+      expect(api.post).toHaveBeenCalledTimes(1)
+    })
+
+    it('un intento en vuelo que falla después de cleanup no agenda otro', async () => {
+      let reject!: (e: Error) => void
+      vi.mocked(api.post).mockReturnValueOnce(
+        new Promise((_res, rej) => {
+          reject = rej
+        }),
+      )
+      const { sendStarted, cleanup } = useStretchCompletion()
+
+      sendStarted('card')
+      cleanup()
+      reject(new Error('network down'))
+      await vi.advanceTimersByTimeAsync(LONGEST * 3)
+
+      expect(api.post).toHaveBeenCalledTimes(1)
+    })
+
+    it('complete corta los reintentos y avisa que cerró sin inicio confirmado', async () => {
+      vi.mocked(api.post).mockRejectedValueOnce(new Error('network down'))
+      vi.mocked(api.post).mockResolvedValue({ data: RESPONSE })
+      const { sendStarted, complete } = useStretchCompletion()
+
+      sendStarted('card')
+      await vi.advanceTimersByTimeAsync(0)
+      expect(await complete({ offerId: 5, exercisesCompleted: [1] })).toEqual(RESPONSE)
+      await vi.advanceTimersByTimeAsync(LONGEST * 3)
+
+      // 1 inicio fallido + 1 cierre: ningún inicio tardío
+      expect(api.post).toHaveBeenCalledTimes(2)
+      expect(api.post).toHaveBeenLastCalledWith('/sessions/stretch/complete', {
+        offerId: 5,
+        exercisesCompleted: [1],
+      })
+      expect(logMock.error).toHaveBeenCalledTimes(1)
+      expect(logMock.error).toHaveBeenCalledWith(
+        expect.stringContaining('sin aviso de inicio'),
+        expect.objectContaining({ offerId: 5 }),
+      )
+    })
+
+    it('con el inicio confirmado, complete no avisa nada', async () => {
+      vi.mocked(api.post).mockResolvedValueOnce({ data: { ok: true } })
+      vi.mocked(api.post).mockResolvedValue({ data: RESPONSE })
+      const { sendStarted, complete } = useStretchCompletion()
+
+      sendStarted('card')
+      await vi.advanceTimersByTimeAsync(0)
+      await complete({ offerId: 5, exercisesCompleted: [1] })
+
+      expect(logMock.error).not.toHaveBeenCalled()
+    })
+
+    it('un segundo sendStarted reemplaza a la corrida anterior', async () => {
+      vi.mocked(api.post).mockRejectedValueOnce(new Error('network down'))
+      vi.mocked(api.post).mockResolvedValue({ data: { ok: true } })
+      const { sendStarted } = useStretchCompletion()
+
+      sendStarted('card')
+      await vi.advanceTimersByTimeAsync(0)
+      sendStarted('card')
+      await vi.advanceTimersByTimeAsync(LONGEST * 3)
+
+      // 1 fallido de la primera corrida + 1 de la segunda: el reintento viejo no sale
+      expect(api.post).toHaveBeenCalledTimes(2)
     })
   })
 
