@@ -494,10 +494,15 @@ function asText(v: unknown): string | null {
 
 const FX_FORMAT = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 4, useGrouping: true });
 
-/** Tipo de cambio para mostrar: `1.560` o `1.560,5`. Lo que no es número se ve como "—". */
+/** Tipo de cambio para mostrar: `1560` -> `1.560`, `1560.5` -> `1.560,5`. */
+export function formatFxRate(fxRate: number): string {
+  return FX_FORMAT.format(fxRate);
+}
+
+/** Tipo de cambio del historial: lo que no es número se ve como "—". */
 function fxText(v: unknown): string {
   const n = asNumber(v);
-  return n === null ? '—' : FX_FORMAT.format(n);
+  return n === null ? '—' : formatFxRate(n);
 }
 
 function moneyText(v: unknown, currency: string): string {

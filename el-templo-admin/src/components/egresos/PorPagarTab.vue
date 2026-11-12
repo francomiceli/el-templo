@@ -175,7 +175,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import {
+  computed,
+  onActivated,
+  onDeactivated,
+  onMounted,
+  onUnmounted,
+  reactive,
+  ref,
+  watch,
+} from 'vue';
 import { useQuasar, type QTableColumn } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { extractError } from 'src/utils/extract-error';
@@ -213,12 +222,18 @@ import type {
  *   `paid(record)` avisa a la página por si otra pestaña tiene que refrescarse.
  * - Expone `reload()` y se recarga sola al volver a mostrarse (los paneles están
  *   en keep-alive): así refleja un pago hecho desde el detalle.
+ * - `refreshKey`: la página lo incrementa cuando el detalle cambió algo; si la pestaña
+ *   está a la vista recarga ya, y si está oculta lo hace al activarse.
  */
-const props = defineProps<{
-  selectedCountry: ExpenseCountry;
-  isOwner: boolean;
-  options: ExpenseFormOptions | null;
-}>();
+const props = withDefaults(
+  defineProps<{
+    selectedCountry: ExpenseCountry;
+    isOwner: boolean;
+    options: ExpenseFormOptions | null;
+    refreshKey?: number;
+  }>(),
+  { refreshKey: 0 }
+);
 
 const emit = defineEmits<{
   (e: 'open-detail', id: number): void;
@@ -425,13 +440,26 @@ onMounted(reload);
 // Los paneles están en keep-alive: al volver a mostrarse se refresca (un pago hecho
 // desde el detalle, por ejemplo). La primera activación coincide con el montaje.
 let firstActivation = true;
+let isActive = false;
 onActivated(() => {
+  isActive = true;
   if (firstActivation) {
     firstActivation = false;
     return;
   }
   reload();
 });
+onDeactivated(() => {
+  isActive = false;
+});
+
+// El detalle cambió algo: si la pestaña está a la vista se recarga ya; si no, lo hace al activarse.
+watch(
+  () => props.refreshKey,
+  () => {
+    if (isActive) reload();
+  }
+);
 
 // Otro país: otras sedes y otros rubros, así que se vuelve a empezar con los filtros.
 watch(

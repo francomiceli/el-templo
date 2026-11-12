@@ -12,6 +12,7 @@ import {
   cleanReceiptLinks,
   diffExpenseUpdate,
   expenseStatusOf,
+  formatFxRate,
   historyEntryLines,
   type ExpenseFormValues,
   isHttpUrl,
@@ -879,5 +880,13 @@ describe('historyEntryLines (DI-09)', () => {
       lines: [],
     });
     expect(norm(historyEntryLines(bad({ changes: { amount: 5 } }), ars)).lines).toEqual([]);
+  });
+});
+
+describe('formatFxRate', () => {
+  it('separador de miles y coma decimal, hasta 4 decimales', () => {
+    expect(formatFxRate(1560)).toBe('1.560');
+    expect(formatFxRate(1560.5)).toBe('1.560,5');
+    expect(formatFxRate(0.8765)).toBe('0,8765');
   });
 });

@@ -35,16 +35,19 @@
 
     <q-separator />
 
-    <!-- Los paneles se llenan en los planes siguientes. Cada componente recibe
-         `selectedCountry` (AR | ES), `isOwner` y `canVoid` por props. -->
+    <!-- Cada componente recibe `selectedCountry` (AR | ES) e `isOwner` por props; el detalle
+         del gasto (único, abajo) recibe además `canVoid`. `refreshKey` hace que las listas
+         se refresquen cuando el detalle cambió algo. -->
     <q-tab-panels v-model="activeTab" keep-alive :swipeable="false" class="bg-transparent">
-      <!-- Gastos: lista, alta y edición (plan 209-13). El detalle (209-15) escucha open-detail. -->
+      <!-- Gastos: lista, alta y edición (plan 209-13); la fila abre el detalle (209-15) -->
       <q-tab-panel :name="EGRESOS_TABS.gastos" class="q-px-none">
         <GastosTab
           :selected-country="selectedCountry"
           :is-owner="isOwner"
           :open-new="openNew"
+          :refresh-key="refreshKey"
           @new-consumed="onNewConsumed"
+          @open-detail="onOpenDetail"
         />
       </q-tab-panel>
 
@@ -54,6 +57,7 @@
           :selected-country="selectedCountry"
           :is-owner="isOwner"
           :options="expenseOptions"
+          :refresh-key="refreshKey"
           @open-detail="onOpenDetail"
         />
       </q-tab-panel>
@@ -66,6 +70,16 @@
         <RubrosTab :selected-country="selectedCountry" />
       </q-tab-panel>
     </q-tab-panels>
+
+    <!-- Detalle del gasto: se monta una sola vez y lo abre cualquier pestaña con onOpenDetail(id) -->
+    <GastoDetailDialog
+      v-model="showDetail"
+      :record-id="detailId"
+      :country="selectedCountry"
+      :options="expenseOptions"
+      :can-void="canVoid"
+      @changed="onDetailChanged"
+    />
   </q-page>
 </template>
 
@@ -85,6 +99,7 @@ import { useExpensesApi } from 'src/composables/useExpensesApi';
 import { createLogger } from 'src/utils/logger';
 import { extractError } from 'src/utils/extract-error';
 import type { ExpenseCountry, ExpenseFormOptions } from 'src/types/expense';
+import GastoDetailDialog from 'src/components/egresos/GastoDetailDialog.vue';
 import GastosTab from 'src/components/egresos/GastosTab.vue';
 import PorPagarTab from 'src/components/egresos/PorPagarTab.vue';
 import RubrosTab from 'src/components/egresos/RubrosTab.vue';
@@ -141,10 +156,28 @@ onUnmounted(() => {
   expensesApi.cleanup();
 });
 
-// Click en una fila de Por pagar: el detalle del gasto lo monta el plan 209-15.
-function onOpenDetail(_id: number) {
-  // Sin detalle todavía (209-15).
+// Detalle del gasto (209-15): un único diálogo para toda la página. Lo abren Gastos, Por pagar
+// y (209-16) el Resumen llamando a `onOpenDetail(id)`, sin importar qué pestaña esté activa.
+const showDetail = ref(false);
+const detailId = ref<number | null>(null);
+
+// Se incrementa cuando el detalle cambia algo (pago, edición, anulación): las pestañas con
+// lista lo reciben por `refresh-key` y se recargan (la oculta, al volver a mostrarse).
+const refreshKey = ref(0);
+
+function onOpenDetail(id: number) {
+  detailId.value = id;
+  showDetail.value = true;
 }
+
+function onDetailChanged() {
+  refreshKey.value += 1;
+}
+
+// Otro país: el gasto abierto ya no corresponde a lo que se está mirando.
+watch(selectedCountry, () => {
+  showDetail.value = false;
+});
 
 // Pestaña activa, sincronizada con ?tab= para que sobreviva al refresh y al "atrás".
 function tabFromQuery(): EgresosTab {

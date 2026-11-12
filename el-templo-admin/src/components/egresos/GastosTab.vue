@@ -226,7 +226,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import {
+  computed,
+  onActivated,
+  onDeactivated,
+  onMounted,
+  onUnmounted,
+  reactive,
+  ref,
+  watch,
+} from 'vue';
 import { useQuasar, type QTableColumn } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { extractError } from 'src/utils/extract-error';
@@ -255,15 +264,19 @@ import type {
  * - `isOwner` queda declarado como en las demás pestañas (hoy no cambia nada acá).
  * - `openNew` en true abre el alta apenas hay opciones del formulario y emite
  *   `new-consumed` para que la página limpie `?nuevo=1` de la URL.
- * - `open-detail(id)`: click en una fila (lo escucha el detalle del gasto, 209-15).
+ * - `open-detail(id)`: click en una fila (la página abre el detalle del gasto, 209-15).
+ * - `refreshKey`: la página lo incrementa cuando el detalle cambió algo; la pestaña recarga
+ *   si está a la vista y, si está oculta (keep-alive), al volver a mostrarse.
+ * - Expone `reload()` y se recarga sola al reactivarse, igual que Por pagar.
  */
 const props = withDefaults(
   defineProps<{
     selectedCountry: ExpenseCountry;
     isOwner: boolean;
     openNew?: boolean;
+    refreshKey?: number;
   }>(),
-  { openNew: false }
+  { openNew: false, refreshKey: 0 }
 );
 
 const emit = defineEmits<{
@@ -480,6 +493,10 @@ watch([newRequested, options], () => {
 // Ciclo de vida
 // ---------------------------------------------------------------------------
 
+function reload() {
+  void loadRows();
+}
+
 onMounted(async () => {
   if (await loadOptions()) {
     // Por defecto, el mes de imputación actual (según la fecha del gimnasio).
@@ -487,6 +504,32 @@ onMounted(async () => {
   }
   await loadRows();
 });
+
+// Los paneles están en keep-alive: al volver a mostrarse se refresca (un pago o una anulación
+// hechos desde el detalle, por ejemplo). La primera activación coincide con el montaje.
+let firstActivation = true;
+let isActive = false;
+onActivated(() => {
+  isActive = true;
+  if (firstActivation) {
+    firstActivation = false;
+    return;
+  }
+  reload();
+});
+onDeactivated(() => {
+  isActive = false;
+});
+
+// El detalle cambió algo: si la pestaña está a la vista se recarga ya; si no, lo hace al activarse.
+watch(
+  () => props.refreshKey,
+  () => {
+    if (isActive) reload();
+  }
+);
+
+defineExpose({ reload });
 
 // Otro país: otras sedes y otros rubros, así que se vuelve a empezar con los filtros.
 watch(
