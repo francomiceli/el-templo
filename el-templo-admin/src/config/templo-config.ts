@@ -162,6 +162,20 @@ export const PLANES_READ_ROLES: AdminRole[] = [
 export const CAJA_SALDOS_ROLES: AdminRole[] = ['gestion', 'admin', 'owner', 'admin_sede'];
 
 /**
+ * Egresos (fase 209, DI-14): owner, admin y gestión operan gastos y pagos.
+ * Espeja EXPENSES_ROLES del API y el `meta.allowedRoles` de `/egresos`. Esto
+ * solo oculta: el gate real es el API (admin_sede y recepción reciben 403).
+ */
+export const EGRESOS_ROLES: AdminRole[] = ['gestion', 'admin', 'owner'];
+
+/**
+ * Egresos: anular un gasto o un pago es solo owner y admin. Espeja
+ * EXPENSES_VOID_ROLES del API; también gobierna la pestaña Rubros. Esto solo
+ * oculta: el gate real es el API.
+ */
+export const EGRESOS_ANULAR_ROLES: AdminRole[] = ['admin', 'owner'];
+
+/**
  * Analíticas: Dueño + admin_sede (2026-09-09, feedback UAT). Mirrors the
  * /analiticas route allowedRoles y `ANALYTICS_ADMIN_ROLES` del API. El
  * admin_sede la ve, pero SIEMPRE acotada a SU sede — el server la fuerza
@@ -417,7 +431,7 @@ export const NAV_MODEL: NavCategory[] = [
     ],
   },
   {
-    // Finanzas. Orden: Caja, Cobros, Reportes, Analíticas (revisión v5.4). Deudas es la
+    // Finanzas. Orden: Caja, Cobros, Egresos, Reportes, Analíticas (revisión v5.4). Deudas es la
     // herramienta operativa del profe (coach-only + Templo): owner/admin/gestion ven la
     // morosidad DENTRO de Reportes; el coach NO tiene acceso a Reportes, así que ve
     // "Deudas" por fuera. El nav solo HIDE — el gate real sigue en el API/route guard (D-04).
@@ -425,6 +439,7 @@ export const NAV_MODEL: NavCategory[] = [
     items: [
       { path: '/caja', label: 'Caja', icon: 'point_of_sale', roles: CAJA_SALDOS_ROLES },
       { path: '/cobros', label: 'Cobros', icon: 'payments', roles: PAGOS_ROLES },
+      { path: '/egresos', label: 'Egresos', icon: 'receipt_long', roles: EGRESOS_ROLES },
       { path: '/deudas', label: 'Deudas', icon: 'request_quote', roles: ['coach'], templo: true },
       {
         path: '/reportes',

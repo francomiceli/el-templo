@@ -15,6 +15,7 @@ import {
   ANALITICAS_ROLES,
   OFICINA_ROLES,
   TABLERO_ROLES,
+  EGRESOS_ROLES,
 } from 'src/config/templo-config';
 
 /**
@@ -205,6 +206,13 @@ const routes: RouteRecordRaw[] = [
         // gestion/admin/owner. Widening D-14: recepcion incluida vía PAGOS_ROLES
         // (espeja FINANCE_LOAD_ROLES de la API). Sincronizado con el nav (Plan 03).
         meta: { allowedRoles: PAGOS_ROLES },
+      },
+      {
+        path: 'egresos',
+        component: () => import('pages/EgresosPage.vue'),
+        // Fase 209 (DI-14): owner, admin y gestión. El guard solo oculta: el gate
+        // real es el API (EXPENSES_ROLES en finance/expense-routes.ts).
+        meta: { allowedRoles: EGRESOS_ROLES },
       },
       // Phase 151 (COBRO-01): /pagos renombrado a /cobros. Redirect para que los
       // enlaces viejos (bookmarks, landing pre-151) sigan resolviendo.
