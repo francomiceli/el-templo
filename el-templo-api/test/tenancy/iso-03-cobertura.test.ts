@@ -180,14 +180,16 @@ export const EXCEPCIONES_NOMBRADAS: Readonly<Record<string, string>> = {
 // aislamiento+control en iso-03-finance-cajas.
 // 2026-11-11: 53 -> 59 por las 6 rutas del gasto de Egresos (fase 209-07), con su
 // par aislamiento+control cada una en iso-03-finance-egresos.
-const CASOS_BASELINE = 59;
+// 2026-11-11: 59 -> 61 por los 2 pagos de Egresos (fase 209-08: registrar y anular),
+// con su par aislamiento+control cada una en iso-03-finance-egresos.
+const CASOS_BASELINE = 61;
 
 /** Los archivos de la batería ISO-03, en el orden en que se escribieron. */
 const ARCHIVOS_BATERIA = [
   "iso-03-finance-cajas.test.ts", // plan 172-17 — 14 rutas
   "iso-03-finance-transacciones.test.ts", // plan 172-18 — 13 rutas
   "iso-03-finance-coach-load.test.ts", // plan 172-19 — 11 rutas
-  "iso-03-finance-egresos.test.ts", // plan 209-07 — Egresos
+  "iso-03-finance-egresos.test.ts", // planes 209-07 y 209-08 — Egresos
 ] as const;
 
 /**

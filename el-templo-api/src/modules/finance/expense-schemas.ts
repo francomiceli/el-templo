@@ -15,6 +15,7 @@
 
 import { EXPENSE_AMOUNT_STATUSES } from "../../db/schema";
 import { MAX_MONEY } from "./expense-math";
+import { EXPENSE_PAYMENT_METHODS } from "./expense-types";
 
 const errorSchema = {
   type: "object",
@@ -238,6 +239,62 @@ export const expenseFormOptionsSchema = {
   querystring: {
     type: "object",
     properties: { ...countryQuery },
+  },
+  response: errorResponses,
+} as const;
+
+// -- POST /expense-records/:id/payments --------------------------------------
+
+/** Fecha `AAAA-MM-DD` (sin `format`: la validez del calendario la chequea el service). */
+const ISO_DATE_PATTERN = "^\\d{4}-\\d{2}-\\d{2}$";
+
+export const registerExpensePaymentSchema = {
+  params: idParams,
+  querystring: {
+    type: "object",
+    properties: { ...countryQuery },
+  },
+  body: {
+    type: "object",
+    required: ["paidOn", "cashRegisterId", "paymentMethod", "amount"],
+    properties: {
+      paidOn: { type: "string", pattern: ISO_DATE_PATTERN },
+      cashRegisterId: { type: "integer", minimum: 1 },
+      paymentMethod: { type: "string", enum: EXPENSE_PAYMENT_METHODS },
+      // Importe en la moneda de la cuenta, entero (D-23).
+      amount: moneyAmount,
+      fxRate: fxRateSchema,
+      reference: { type: ["string", "null"], maxLength: 100 },
+      notes: { type: ["string", "null"], maxLength: 2000 },
+      idempotencyKey: { type: ["string", "null"], minLength: 1, maxLength: 64 },
+    },
+    additionalProperties: false,
+  },
+  response: errorResponses,
+} as const;
+
+// -- POST /expense-records/:id/payments/:paymentId/void ----------------------
+
+export const voidExpensePaymentSchema = {
+  params: {
+    type: "object",
+    required: ["id", "paymentId"],
+    properties: {
+      id: { type: "integer", minimum: 1 },
+      paymentId: { type: "integer", minimum: 1 },
+    },
+  },
+  querystring: {
+    type: "object",
+    properties: { ...countryQuery },
+  },
+  body: {
+    type: "object",
+    required: ["reason"],
+    properties: {
+      reason: { type: "string", minLength: 1, maxLength: 500 },
+    },
+    additionalProperties: false,
   },
   response: errorResponses,
 } as const;

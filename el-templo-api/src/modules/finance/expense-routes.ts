@@ -32,7 +32,9 @@ import {
   expenseFormOptionsSchema,
   expenseRecordIdSchema,
   listExpenseRecordsSchema,
+  registerExpensePaymentSchema,
   updateExpenseRecordSchema,
+  voidExpensePaymentSchema,
   voidExpenseRecordSchema,
 } from "./expense-schemas";
 import type {
@@ -40,6 +42,7 @@ import type {
   ExpenseCountry,
   ExpenseListFilters,
   ExpensePaymentStatus,
+  RegisterExpensePaymentInput,
   UpdateExpenseRecordInput,
 } from "./expense-types";
 
@@ -49,6 +52,10 @@ interface CountryQuery {
 
 interface IdParams {
   id: number;
+}
+
+interface PaymentParams extends IdParams {
+  paymentId: number;
 }
 
 interface ListQuery extends CountryQuery {
@@ -296,6 +303,83 @@ export function registerExpenseRoutes(
         return { record };
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "void expense record");
+        return reply;
+      }
+    },
+  );
+
+  // POST /expense-records/:id/payments — registrar un pago (DI-04, DI-05,
+  // DI-13). Owner, admin y gestion. gestion puede pagar desde cualquier cuenta
+  // activa del gimnasio aunque no vea su saldo (DI-07): la ruta no devuelve
+  // saldos. 201 si creó el pago, 200 si la `idempotencyKey` ya existía.
+  fastify.post<{
+    Params: IdParams;
+    Body: RegisterExpensePaymentInput;
+    Querystring: CountryQuery;
+  }>(
+    "/expense-records/:id/payments",
+    { schema: registerExpensePaymentSchema },
+    async (request, reply) => {
+      try {
+        if (denyUnlessRole(request, reply, EXPENSES_ROLES, FORBIDDEN_MESSAGE)) {
+          return reply;
+        }
+        const ctx = assertTenant(
+          request.scope,
+          "finance.expense-records.payments.create",
+        );
+        const { record, payment, created } =
+          await paymentService.registerPayment(
+            ctx,
+            request.params.id,
+            request.body,
+            request.user.userId,
+            { country: byIdCountry(request) },
+          );
+        return reply.code(created ? 201 : 200).send({ record, payment });
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "register expense payment");
+        return reply;
+      }
+    },
+  );
+
+  // POST /expense-records/:id/payments/:paymentId/void — anular un pago
+  // (DI-10). Solo owner y admin: gestion carga pagos pero no los anula.
+  fastify.post<{
+    Params: PaymentParams;
+    Body: { reason: string };
+    Querystring: CountryQuery;
+  }>(
+    "/expense-records/:id/payments/:paymentId/void",
+    { schema: voidExpensePaymentSchema },
+    async (request, reply) => {
+      try {
+        if (
+          denyUnlessRole(
+            request,
+            reply,
+            EXPENSES_VOID_ROLES,
+            FORBIDDEN_VOID_MESSAGE,
+          )
+        ) {
+          return reply;
+        }
+        const ctx = assertTenant(
+          request.scope,
+          "finance.expense-records.payments.void",
+        );
+        const record = await paymentService.voidPayment(
+          ctx,
+          request.params.id,
+          request.params.paymentId,
+          request.body.reason,
+          request.user.userId,
+          { country: byIdCountry(request) },
+        );
+        return { record };
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "void expense payment");
         return reply;
       }
     },

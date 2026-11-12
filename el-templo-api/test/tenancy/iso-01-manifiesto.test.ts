@@ -443,7 +443,11 @@ import {
 // /expense-records/:id`, `GET /expense-records/form-options` y `POST
 // /expense-records/:id/void`, todas `tenant-scoped` (`assertTenant` + `tenantWhere`
 // en el service; el país sale del scope).
-const ENTRADAS_BASELINE = 563;
+// 2026-11-11: 563 -> 565 por los pagos de Egresos (fase 209-08): `POST
+// /expense-records/:id/payments` y `POST /expense-records/:id/payments/:paymentId/void`,
+// `tenant-scoped` (`assertTenant` + `tenantWhere` en el service; la cuenta y el
+// gasto ajenos dan la misma respuesta que los inexistentes).
+const ENTRADAS_BASELINE = 565;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -586,7 +590,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 563 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 565 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(

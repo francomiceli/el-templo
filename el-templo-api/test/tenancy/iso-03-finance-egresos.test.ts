@@ -6,17 +6,19 @@
  * el porqué de cada decisión): esta batería es el GATE de que Egresos no deja
  * ver ni tocar los gastos de otro gimnasio.
  *
- * QUE RUTAS CUBRE (6, plan 209-07)
- * --------------------------------
+ * QUE RUTAS CUBRE (6 del plan 209-07 y 2 del 209-08)
+ * --------------------------------------------------
  *   GET    /api/admin/finance/expense-records
  *   POST   /api/admin/finance/expense-records
  *   GET    /api/admin/finance/expense-records/form-options
  *   GET    /api/admin/finance/expense-records/:id
  *   PATCH  /api/admin/finance/expense-records/:id
  *   POST   /api/admin/finance/expense-records/:id/void
+ *   POST   /api/admin/finance/expense-records/:id/payments            (209-08)
+ *   POST   /api/admin/finance/expense-records/:id/payments/:paymentId/void (209-08)
  *
- * Las rutas de pagos (209-08) y del Resumen (209-10) suman sus propios
- * `describe` en este mismo archivo.
+ * Las rutas del Resumen (209-10) suman sus propios `describe` en este mismo
+ * archivo.
  *
  * EL CONTRATO QUE SE AFIRMA (D-09)
  * --------------------------------
@@ -45,7 +47,7 @@
  * `--hookTimeout=540000`.
  */
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
-import { and, count, eq } from "drizzle-orm";
+import { and, count, eq, isNull } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { createTestApp, cleanAllTestData, getAuthToken } from "../helpers";
 import * as schema from "../../src/db/schema";
@@ -79,6 +81,10 @@ const CONCEPTO_TEMPLO = `${MARCA_ISO03} gasto templo`;
 const CONCEPTO_DOS = `${MARCA_ISO03} gasto g2`;
 const CLAVE_IDEMPOTENCIA = `${MARCA_ISO03.toLowerCase()}-clave-compartida`;
 
+/** Fecha de los pagos sembrados: pasada (no futura) y posterior al corte de las cuentas. */
+const FECHA_PAGO = "2026-01-15";
+const IMPORTE_PAGO = 2000;
+
 // ─── Ciclo de vida ───────────────────────────────────────────────────────────
 
 let app: FastifyInstance;
@@ -97,9 +103,21 @@ let sedeTemploId: number;
 let gastoTemploId: number;
 /** Gasto del gimnasio 2: el recurso PROPIO (control positivo). */
 let gastoDosId: number;
+/** Pago de El Templo (desde su banco): el pago AJENO. */
+let pagoTemplo: { id: number; transactionId: number };
+/** Pago del gimnasio 2 (desde su banco): el pago PROPIO. */
+let pagoDos: { id: number; transactionId: number };
 
 interface RecordResponse {
   record: { id: number; concept: string; voidedAt: string | null };
+}
+
+interface PaymentResponse {
+  record: {
+    id: number;
+    payments: Array<{ id: number; voidedAt: string | null }>;
+  };
+  payment: { id: number; transactionId: number };
 }
 
 beforeAll(async () => {
@@ -161,6 +179,30 @@ beforeEach(async () => {
     `alta del gasto del gimnasio 2: ${resDos.body}`,
   ).toBe(201);
   gastoDosId = (JSON.parse(resDos.body) as RecordResponse).record.id;
+
+  // Un pago por gimnasio, cada uno desde su propio banco (cuenta sin sede).
+  const pagoDelTemplo = await app.inject({
+    method: "POST",
+    url: `${BASE}/${gastoTemploId}/payments?country=AR`,
+    headers: { authorization: `Bearer ${ownerToken}` },
+    payload: cuerpoDePago(templo.bankAccountId),
+  });
+  expect(
+    pagoDelTemplo.statusCode,
+    `pago del gasto de El Templo: ${pagoDelTemplo.body}`,
+  ).toBe(201);
+  pagoTemplo = (JSON.parse(pagoDelTemplo.body) as PaymentResponse).payment;
+
+  const pagoDelDos = await comoGimnasioDos(
+    "POST",
+    `/${gastoDosId}/payments`,
+    cuerpoDePago(dos.bankAccountId),
+  );
+  expect(
+    pagoDelDos.statusCode,
+    `pago del gasto del gimnasio 2: ${pagoDelDos.body}`,
+  ).toBe(201);
+  pagoDos = (JSON.parse(pagoDelDos.body) as PaymentResponse).payment;
 });
 
 afterAll(async () => {
@@ -190,6 +232,20 @@ function cuerpoDeAlta(datos: {
     ...(datos.idempotencyKey === undefined
       ? {}
       : { idempotencyKey: datos.idempotencyKey }),
+  };
+}
+
+/** Cuerpo de un pago por transferencia desde la cuenta indicada. */
+function cuerpoDePago(
+  cashRegisterId: number,
+  extra: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    paidOn: FECHA_PAGO,
+    cashRegisterId,
+    paymentMethod: "transfer",
+    amount: IMPORTE_PAGO,
+    ...extra,
   };
 }
 
@@ -235,6 +291,77 @@ async function contarGastos(tenantId: number): Promise<number> {
   return Number(fila?.n ?? 0);
 }
 
+/** Cantidad de pagos de gastos de un gimnasio. */
+async function contarPagos(tenantId: number): Promise<number> {
+  const [fila] = await app.db
+    .select({ n: count() })
+    .from(schema.expensePayments)
+    .where(tenantWhere(schema.expensePayments, { tenantId }));
+  return Number(fila?.n ?? 0);
+}
+
+/** Cantidad de filas del ledger de un gimnasio (todas las cuentas, todos los tipos). */
+async function contarLedger(tenantId: number): Promise<number> {
+  const [fila] = await app.db
+    .select({ n: count() })
+    .from(schema.financialTransactions)
+    .where(tenantWhere(schema.financialTransactions, { tenantId }));
+  return Number(fila?.n ?? 0);
+}
+
+/** Suma de lo egresado (vigente) de una cuenta, leída del ledger del gimnasio. */
+async function egresadoDeLaCuenta(
+  tenantId: number,
+  cashRegisterId: number,
+): Promise<number> {
+  const filas = await app.db
+    .select({ amount: schema.financialTransactions.amount })
+    .from(schema.financialTransactions)
+    .where(
+      and(
+        tenantWhere(schema.financialTransactions, { tenantId }),
+        eq(schema.financialTransactions.cashRegisterId, cashRegisterId),
+        eq(schema.financialTransactions.direction, "outflow"),
+        isNull(schema.financialTransactions.voidedAt),
+      ),
+    );
+  return filas.reduce((total, fila) => total + Number(fila.amount), 0);
+}
+
+/** El pago leído de la DB dentro del gimnasio indicado (`null` si no es de él). */
+async function leerPago(tenantId: number, id: number) {
+  const [fila] = await app.db
+    .select({
+      id: schema.expensePayments.id,
+      transactionId: schema.expensePayments.transactionId,
+      voidedAt: schema.expensePayments.voidedAt,
+    })
+    .from(schema.expensePayments)
+    .where(
+      and(
+        tenantWhere(schema.expensePayments, { tenantId }),
+        eq(schema.expensePayments.id, id),
+      ),
+    )
+    .limit(1);
+  return fila ?? null;
+}
+
+/** El `voidedAt` de la fila del ledger de un pago, leído dentro del gimnasio indicado. */
+async function leerAnulacionDelLedger(tenantId: number, id: number) {
+  const [fila] = await app.db
+    .select({ voidedAt: schema.financialTransactions.voidedAt })
+    .from(schema.financialTransactions)
+    .where(
+      and(
+        tenantWhere(schema.financialTransactions, { tenantId }),
+        eq(schema.financialTransactions.id, id),
+      ),
+    )
+    .limit(1);
+  return fila ?? null;
+}
+
 /** Mensaje de los rojos de AISLAMIENTO. */
 function fuga(ruta: string, detalle: string): string {
   return (
@@ -267,6 +394,19 @@ describe("precondiciones de la bateria de Egresos", () => {
       `Algun gasto sembrado no nacio en su gimnasio: sin recurso ajeno vivo, los casos de ` +
         `aislamiento de abajo pasan probando nada.`,
     ).toEqual([CONCEPTO_TEMPLO, CONCEPTO_DOS]);
+  });
+
+  it("cada gimnasio tiene su pago, escrito en su propio gimnasio y con su fila del ledger", async () => {
+    expect([
+      (await leerPago(TENANT_TEMPLO, pagoTemplo.id))?.transactionId,
+      (await leerPago(TENANT_DOS, pagoDos.id))?.transactionId,
+    ]).toEqual([pagoTemplo.transactionId, pagoDos.transactionId]);
+    expect(await egresadoDeLaCuenta(TENANT_TEMPLO, templo.bankAccountId)).toBe(
+      IMPORTE_PAGO,
+    );
+    expect(await egresadoDeLaCuenta(TENANT_DOS, dos.bankAccountId)).toBe(
+      IMPORTE_PAGO,
+    );
   });
 
   it("los rubros de los dos gimnasios son de su gimnasio y las sedes son del mismo pais", async () => {
@@ -674,13 +814,221 @@ describe("anulacion de gasto — POST /api/admin/finance/expense-records/:id/voi
   });
 
   it("control: SI anula un gasto propio sin pagos", async () => {
-    const res = await comoGimnasioDos("POST", `/${gastoDosId}/void`, {
+    // `gastoDosId` ya tiene un pago vigente (lo siembra el beforeEach): se anula
+    // un gasto propio NUEVO, sin pagos.
+    const alta = await comoGimnasioDos(
+      "POST",
+      "",
+      cuerpoDeAlta({
+        concept: `${MARCA_ISO03} gasto sin pagos`,
+        costCenterId: dos.costCenterId,
+        branchId: gym2.branchId,
+      }),
+    );
+    expect(alta.statusCode, sinControl(RUTA, alta.body)).toBe(201);
+    const gastoSinPagosId = (JSON.parse(alta.body) as RecordResponse).record.id;
+
+    const res = await comoGimnasioDos("POST", `/${gastoSinPagosId}/void`, {
       reason: "carga duplicada",
     });
     expect(res.statusCode, sinControl(RUTA, res.body)).toBe(200);
     expect(
       (JSON.parse(res.body) as RecordResponse).record.voidedAt,
     ).not.toBeNull();
-    expect((await leerGasto(TENANT_DOS, gastoDosId))?.voidedAt).not.toBeNull();
+    expect(
+      (await leerGasto(TENANT_DOS, gastoSinPagosId))?.voidedAt,
+    ).not.toBeNull();
+  });
+});
+
+describe("pago de gasto — POST /api/admin/finance/expense-records/:id/payments", () => {
+  const RUTA = "POST /api/admin/finance/expense-records/:id/payments";
+
+  it("aislamiento: pagar el gasto de El Templo, o pagar con su cuenta, es el mismo rechazo que con ids inexistentes y no escribe nada", async () => {
+    const pagosTemplo = await contarPagos(TENANT_TEMPLO);
+    const pagosDos = await contarPagos(TENANT_DOS);
+    const ledgerTemplo = await contarLedger(TENANT_TEMPLO);
+    const ledgerDos = await contarLedger(TENANT_DOS);
+    const bancoTemploAntes = await egresadoDeLaCuenta(
+      TENANT_TEMPLO,
+      templo.bankAccountId,
+    );
+
+    // Gasto ajeno (con una cuenta propia válida) vs gasto inexistente.
+    const gastoAjeno = await comoGimnasioDos(
+      "POST",
+      `/${gastoTemploId}/payments`,
+      cuerpoDePago(dos.bankAccountId),
+    );
+    const gastoInexistente = await comoGimnasioDos(
+      "POST",
+      `/${ID_INEXISTENTE}/payments`,
+      cuerpoDePago(dos.bankAccountId),
+    );
+    expect(
+      gastoAjeno.statusCode,
+      fuga(
+        RUTA,
+        `respondio ${gastoAjeno.statusCode} al pagar el gasto ajeno ${gastoTemploId}: ${gastoAjeno.body}`,
+      ),
+    ).toBe(404);
+    expect(gastoInexistente.statusCode).toBe(404);
+    expect(JSON.parse(gastoAjeno.body)).toEqual(
+      JSON.parse(gastoInexistente.body),
+    );
+
+    // Cuenta ajena (con un gasto propio válido) vs cuenta inexistente.
+    const cuentaAjena = await comoGimnasioDos(
+      "POST",
+      `/${gastoDosId}/payments`,
+      cuerpoDePago(templo.bankAccountId),
+    );
+    const cuentaInexistente = await comoGimnasioDos(
+      "POST",
+      `/${gastoDosId}/payments`,
+      cuerpoDePago(ID_INEXISTENTE),
+    );
+    expect(
+      cuentaAjena.statusCode,
+      fuga(
+        RUTA,
+        `acepto pagar con el banco ${templo.bankAccountId} de El Templo: ${cuentaAjena.body}`,
+      ),
+    ).toBe(400);
+    expect(cuentaInexistente.statusCode).toBe(400);
+    expect(JSON.parse(cuentaAjena.body)).toEqual(
+      JSON.parse(cuentaInexistente.body),
+    );
+
+    // Evidencia leída de la DB: ninguna fila nueva en ningún gimnasio y el
+    // banco de El Templo exactamente como estaba.
+    expect(
+      await contarPagos(TENANT_TEMPLO),
+      fuga(RUTA, "se escribio un pago en El Templo"),
+    ).toBe(pagosTemplo);
+    expect(
+      await contarPagos(TENANT_DOS),
+      fuga(RUTA, "se escribio un pago del gimnasio 2 con datos ajenos"),
+    ).toBe(pagosDos);
+    expect(
+      await contarLedger(TENANT_TEMPLO),
+      fuga(RUTA, "se escribio una fila del ledger en El Templo"),
+    ).toBe(ledgerTemplo);
+    expect(
+      await contarLedger(TENANT_DOS),
+      fuga(RUTA, "se escribio una fila del ledger en el gimnasio 2"),
+    ).toBe(ledgerDos);
+    expect(
+      await egresadoDeLaCuenta(TENANT_TEMPLO, templo.bankAccountId),
+      fuga(RUTA, "el banco de El Templo cambio de saldo"),
+    ).toBe(bancoTemploAntes);
+  });
+
+  it("control: pagando su gasto con su banco SI crea el pago y su fila del ledger, en el gimnasio 2", async () => {
+    const pagosAntes = await contarPagos(TENANT_DOS);
+    const ledgerAntes = await contarLedger(TENANT_DOS);
+    const res = await comoGimnasioDos(
+      "POST",
+      `/${gastoDosId}/payments`,
+      cuerpoDePago(dos.bankAccountId, { amount: 500 }),
+    );
+    expect(res.statusCode, sinControl(RUTA, res.body)).toBe(201);
+    const { payment } = JSON.parse(res.body) as PaymentResponse;
+    expect((await leerPago(TENANT_DOS, payment.id))?.transactionId).toBe(
+      payment.transactionId,
+    );
+    expect(await contarPagos(TENANT_DOS)).toBe(pagosAntes + 1);
+    expect(await contarLedger(TENANT_DOS)).toBe(ledgerAntes + 1);
+    expect(await egresadoDeLaCuenta(TENANT_DOS, dos.bankAccountId)).toBe(
+      IMPORTE_PAGO + 500,
+    );
+  });
+});
+
+describe("anulacion de pago — POST /api/admin/finance/expense-records/:id/payments/:paymentId/void", () => {
+  const RUTA =
+    "POST /api/admin/finance/expense-records/:id/payments/:paymentId/void";
+  const payload = { reason: "intento de anular lo ajeno" };
+
+  it("aislamiento: el pago de El Templo da el mismo rechazo que uno inexistente y sigue vigente", async () => {
+    // Gasto y pago ajenos vs gasto y pago inexistentes.
+    const ajeno = await comoGimnasioDos(
+      "POST",
+      `/${gastoTemploId}/payments/${pagoTemplo.id}/void`,
+      payload,
+    );
+    const inexistente = await comoGimnasioDos(
+      "POST",
+      `/${ID_INEXISTENTE}/payments/${ID_INEXISTENTE}/void`,
+      payload,
+    );
+    expect(
+      ajeno.statusCode,
+      fuga(
+        RUTA,
+        `respondio ${ajeno.statusCode} sobre el pago ajeno ${pagoTemplo.id}: ${ajeno.body}`,
+      ),
+    ).toBe(404);
+    expect(inexistente.statusCode).toBe(404);
+    expect(JSON.parse(ajeno.body)).toEqual(JSON.parse(inexistente.body));
+
+    // Gasto propio con el pago ajeno vs gasto propio con un pago inexistente.
+    const pagoAjenoEnGastoPropio = await comoGimnasioDos(
+      "POST",
+      `/${gastoDosId}/payments/${pagoTemplo.id}/void`,
+      payload,
+    );
+    const pagoInexistente = await comoGimnasioDos(
+      "POST",
+      `/${gastoDosId}/payments/${ID_INEXISTENTE}/void`,
+      payload,
+    );
+    expect(
+      pagoAjenoEnGastoPropio.statusCode,
+      fuga(
+        RUTA,
+        `respondio ${pagoAjenoEnGastoPropio.statusCode} al anular el pago ajeno ${pagoTemplo.id} desde un gasto propio`,
+      ),
+    ).toBe(404);
+    expect(pagoInexistente.statusCode).toBe(404);
+    expect(JSON.parse(pagoAjenoEnGastoPropio.body)).toEqual(
+      JSON.parse(pagoInexistente.body),
+    );
+
+    // La evidencia: el pago y su fila del ledger, releídos de la DB, siguen vigentes.
+    expect(
+      (await leerPago(TENANT_TEMPLO, pagoTemplo.id))?.voidedAt,
+      fuga(RUTA, "anulo el pago de El Templo y despues contesto con rechazo"),
+    ).toBeNull();
+    expect(
+      (await leerAnulacionDelLedger(TENANT_TEMPLO, pagoTemplo.transactionId))
+        ?.voidedAt,
+      fuga(RUTA, "anulo la fila del ledger de El Templo"),
+    ).toBeNull();
+    expect(
+      await egresadoDeLaCuenta(TENANT_TEMPLO, templo.bankAccountId),
+      fuga(RUTA, "el banco de El Templo cambio de saldo"),
+    ).toBe(IMPORTE_PAGO);
+    // El pago propio tampoco se tocó.
+    expect((await leerPago(TENANT_DOS, pagoDos.id))?.voidedAt).toBeNull();
+  });
+
+  it("control: SI anula un pago propio, y su fila del ledger tambien", async () => {
+    const res = await comoGimnasioDos(
+      "POST",
+      `/${gastoDosId}/payments/${pagoDos.id}/void`,
+      { reason: "pago cargado de mas" },
+    );
+    expect(res.statusCode, sinControl(RUTA, res.body)).toBe(200);
+    const { record } = JSON.parse(res.body) as PaymentResponse;
+    expect(
+      record.payments.find((p) => p.id === pagoDos.id)?.voidedAt,
+    ).not.toBeNull();
+    expect((await leerPago(TENANT_DOS, pagoDos.id))?.voidedAt).not.toBeNull();
+    expect(
+      (await leerAnulacionDelLedger(TENANT_DOS, pagoDos.transactionId))
+        ?.voidedAt,
+    ).not.toBeNull();
+    expect(await egresadoDeLaCuenta(TENANT_DOS, dos.bankAccountId)).toBe(0);
   });
 });
