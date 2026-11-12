@@ -339,10 +339,10 @@ export const TEMPLATE_SEEDS: TemplateSeed[] = [
     templateKey: STRETCH_FOLLOWUP_TEMPLATE_KEY,
     category: "entrenamiento",
     title: "¿Estiraste?",
-    body: "6 minutos para aflojar lo que trabajaste hoy. Tocá y arrancamos.",
+    body: "Unos minutos para aflojar lo que trabajaste hoy. Tocá y arrancamos.",
     titleFemale: "¿Estiraste?",
     bodyFemale:
-      "6 minutos para aflojar lo que trabajaste hoy. Tocá y arrancamos.",
+      "Unos minutos para aflojar lo que trabajaste hoy. Tocá y arrancamos.",
     route: "/training/estirar?from=push",
     enabledAtSeed: false,
   },
