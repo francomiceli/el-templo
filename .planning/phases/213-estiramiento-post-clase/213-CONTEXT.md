@@ -165,3 +165,16 @@ Todas cerradas con Franco el 2026-11-11. No reabrir; lo marcado "interpretación
 - Lectura de flags por gimnasio en la app.
 - Medir permanencia o asistencia con un grupo sin la feature.
 </deferred>
+
+## Enmienda 2026-11-12 (reabre D-05 y D-08)
+
+Decisiones de Franco al ver el sketch del reloj:
+
+- **Sin lados y sin marcado.** El alumno pasa de un ejercicio a otro a mano y es libre de hacerlos.
+- **Minutero que solo avanza.** No hay cuenta regresiva ni duración objetivo.
+- **Dosis por ejercicio** en lugar de los 45 s por lado de D-05: la de la plani del día si el estiramiento está en esa plani. Si no está, dosis base (20 s isométrico, 10 repeticiones si no).
+- **Botón "Terminar" siempre disponible.** De D-08 queda solo el piso de 3 minutos medidos por el servidor para el AURA.
+- **Dos clases el mismo día no existe**, no se contempla.
+- **Player:** teléfono 1 de `sketch-reloj/minutero.html` (video arriba, minutero chico).
+
+La regla de selección no cambió: sigue usando los lados solo para decidir cuántos estiramientos entran. Implementado en los planes 213-14 y 213-15.

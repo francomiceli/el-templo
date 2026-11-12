@@ -1,5 +1,7 @@
 # Decisión del reloj del estiramiento (213-10)
 
+> **Reemplazada el 2026-11-12.** Franco vio el sketch y pidió otro modelo: sin lados, sin marcar, minutero que solo avanza, dosis de la plani y botón "Terminar". Eligió el teléfono 1 de `minutero.html` con avance a mano (planes 213-14 y 213-15). Lo de abajo queda como historia.
+
 **Opción elegida: B, reloj por ejercicio** (componente nuevo `StretchClock`, alimentado por `stretchPhaseAt`).
 
 Decisión tomada por el ejecutor con la recomendación de partida del planificador: el sketch no mostró nada en contra, al contrario (ver mediciones). Franco la revisa en el UAT; el sketch es `index.html` en esta misma carpeta (autocontenido, sin red, x10 para acelerar).
