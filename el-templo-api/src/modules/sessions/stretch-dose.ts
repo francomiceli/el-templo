@@ -39,15 +39,14 @@ function tope(valor: number, max: number | null): number | null {
 }
 
 /**
- * Decide la dosis de `nombre`. Gana la PRIMERA prescripcion del dia con ese
- * nombre que tenga dosis util (segundos primero, despues repeticiones). Sin
- * ninguna, la dosis base segun `baseEsIso`.
+ * La dosis que la plani del dia le da a `nombre`, o null si no esta prescrito
+ * ese dia (o ninguna de sus filas trae dosis util). Gana la PRIMERA coincidencia
+ * con dosis (segundos primero, despues repeticiones).
  */
-export function dosisDeEstiramiento(
+export function dosisEnPlani(
   nombre: string,
   prescripciones: ReadonlyArray<PrescripcionDelDia>,
-  baseEsIso: boolean,
-): StretchDose {
+): StretchDose | null {
   const clave = normalizarNombre(nombre);
   for (const p of prescripciones) {
     if (normalizarNombre(p.nombre) !== clave) continue;
@@ -64,6 +63,20 @@ export function dosisDeEstiramiento(
       return { unit: "reps", value: reps, max: tope(reps, p.repsMax) };
     }
   }
+  return null;
+}
+
+/**
+ * Decide la dosis de `nombre`: la de la plani del dia si esta prescrito, si no
+ * la dosis base segun `baseEsIso`.
+ */
+export function dosisDeEstiramiento(
+  nombre: string,
+  prescripciones: ReadonlyArray<PrescripcionDelDia>,
+  baseEsIso: boolean,
+): StretchDose {
+  const enPlani = dosisEnPlani(nombre, prescripciones);
+  if (enPlani) return enPlani;
   return baseEsIso
     ? { unit: "seconds", value: STRETCH_BASE_ISO_SECONDS, max: null }
     : { unit: "reps", value: STRETCH_BASE_REPS, max: null };

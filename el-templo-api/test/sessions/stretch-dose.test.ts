@@ -9,6 +9,7 @@
 import { describe, it, expect } from "vitest";
 import {
   dosisDeEstiramiento,
+  dosisEnPlani,
   STRETCH_BASE_ISO_SECONDS,
   STRETCH_BASE_REPS,
   type PrescripcionDelDia,
@@ -138,9 +139,9 @@ describe("dosisDeEstiramiento", () => {
   });
 
   it("fuera de la plani y ISO: 20 segundos", () => {
-    expect(dosisDeEstiramiento("Psoas", [presc("Otro", { reps: 5 })], true)).toEqual(
-      { unit: "seconds", value: STRETCH_BASE_ISO_SECONDS, max: null },
-    );
+    expect(
+      dosisDeEstiramiento("Psoas", [presc("Otro", { reps: 5 })], true),
+    ).toEqual({ unit: "seconds", value: STRETCH_BASE_ISO_SECONDS, max: null });
     expect(STRETCH_BASE_ISO_SECONDS).toBe(20);
   });
 
@@ -180,5 +181,22 @@ describe("dosisDeEstiramiento", () => {
       false,
     );
     expect(dosis).toEqual({ unit: "seconds", value: 15, max: null });
+  });
+});
+
+describe("dosisEnPlani", () => {
+  it("devuelve null si el estiramiento no esta prescrito ese dia", () => {
+    expect(dosisEnPlani("Psoas", [presc("Otro", { seconds: 30 })])).toBeNull();
+    expect(dosisEnPlani("Psoas", [])).toBeNull();
+  });
+
+  it("devuelve null si las coincidencias no traen dosis util", () => {
+    expect(dosisEnPlani("Psoas", [presc("Psoas")])).toBeNull();
+  });
+
+  it("devuelve la dosis de la primera coincidencia util", () => {
+    expect(
+      dosisEnPlani("psoas", [presc("PSOAS"), presc("Psoas", { reps: 9 })]),
+    ).toEqual({ unit: "reps", value: 9, max: null });
   });
 });

@@ -25,7 +25,7 @@ import {
   vi,
 } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import * as schema from "../../src/db/schema";
 import type { StretchArm } from "../../src/db/schema/stretch";
 import { createTestApp, cleanAllTestData } from "../helpers";
@@ -131,16 +131,18 @@ describe("oferta de estiramiento del día: GET /api/sessions/stretch/today (213-
     expect(body.exercises).toHaveLength(5);
     for (const e of body.exercises) {
       expect(NOMBRES_CATALOGO.has(e.name)).toBe(true);
-      expect(e.secondsPerSide).toBe(45);
-      expect(e.transitionSeconds).toBe(10);
+      // El contrato nuevo no expone lados ni tiempos por lado (plan 14).
+      expect(e).not.toHaveProperty("sides");
+      expect(e).not.toHaveProperty("secondsPerSide");
+      expect(e).not.toHaveProperty("transitionSeconds");
+      expect(e.dose.max).toBeNull();
     }
     // Los prescritos que están en la lista van primero y siempre entran.
     const nombres = body.exercises.map((e) => e.name);
     expect(nombres).toContain("QUAD STANDING STRETCH");
     expect(nombres).toContain("PIKE STANDING");
-    expect(body.plannedSeconds).toBeGreaterThan(0);
-    expect(body.minutes).toBe(Math.round((body.plannedSeconds ?? 0) / 60));
-    expect(body.minutes).toBeGreaterThan(0);
+    expect(body).not.toHaveProperty("minutes");
+    expect(body).not.toHaveProperty("plannedSeconds");
     expect(body.completedAt).toBeNull();
     expect(body.auraAwarded).toBe(false);
 
@@ -155,7 +157,8 @@ describe("oferta de estiramiento del día: GET /api/sessions/stretch/today (213-
     expect(row.classEndAt.getTime()).toBe(
       localClock(AR_TZ, date, "21:00").getTime(),
     );
-    expect(row.plannedSeconds).toBe(body.plannedSeconds);
+    // `planned_seconds` queda como dato interno de la regla.
+    expect(row.plannedSeconds).toBeGreaterThan(0);
     expect(row.exercises.map((e) => e.name)).toEqual(nombres);
     expect(row.arm).toBe(stretchArm(member.id));
     expect(row.pushDecision).toBe(row.arm === "control" ? "control" : null);
@@ -316,7 +319,6 @@ describe("oferta de estiramiento del día: GET /api/sessions/stretch/today (213-
     expect(segunda.body.exercises.map((e) => e.exerciseId)).toEqual(
       primera.body.exercises.map((e) => e.exerciseId),
     );
-    expect(segunda.body.plannedSeconds).toBe(primera.body.plannedSeconds);
     expect(await offerRows(member.id)).toHaveLength(1);
   });
 
@@ -361,7 +363,12 @@ describe("oferta de estiramiento del día: GET /api/sessions/stretch/today (213-
         sourceDayId: dayIdFor(ayer, LEVEL),
         classEndAt: new Date(),
         exercises: [
-          { exerciseId, name: "CAT COW", family: "FL" as const, sides: 1 },
+          {
+            exerciseId,
+            name: "CAT COW",
+            family: "FL" as const,
+            dose: { unit: "reps" as const, value: 10, max: null },
+          },
         ],
         plannedSeconds: 330,
         arm: "push_30" as const,
@@ -428,6 +435,194 @@ describe("oferta de estiramiento del día: GET /api/sessions/stretch/today (213-
     expect(row.classEndAt.getTime()).toBe(
       localClock(ES_TZ, date, "21:00").getTime(),
     );
+  });
+
+  // ─── dosis por estiramiento (plan 14) ──────────────────────────────────
+
+  /** Bloque NUCLEUS con la movilidad prescrita del día (con su dosis). */
+  function bloquesConDosis(
+    items: {
+      name: string;
+      mobilityRelated: string | null;
+      seconds?: number;
+      secondsMax?: number;
+      reps?: number;
+      repsMax?: number;
+    }[],
+  ) {
+    return [
+      { role: "INITIUM", route: "OAP" },
+      { role: "NUCLEUS", route: "OAP", mobility: items },
+    ];
+  }
+
+  /** Cambia el `effort` de todas las copias de la lista curada. */
+  async function setCatalogEffort(effort: string): Promise<void> {
+    await app.db
+      .update(schema.exercises)
+      .set({ effort })
+      .where(
+        and(
+          tenantWhere(schema.exercises, CTX_TEMPLO),
+          inArray(schema.exercises.exercise, [...NOMBRES_CATALOGO]),
+        ),
+      );
+  }
+
+  it("(o) estiramiento prescrito ese día con segundos: usa esa dosis (con rango)", async () => {
+    const { member } = await arrange({
+      blocks: bloquesConDosis([
+        {
+          name: "QUAD STANDING STRETCH",
+          mobilityRelated: "LS",
+          seconds: 30,
+          secondsMax: 50,
+        },
+        { name: "PIKE STANDING", mobilityRelated: "MN", seconds: 25 },
+      ]),
+    });
+
+    const { body } = await getToday(member.token);
+
+    const quad = body.exercises.find((e) => e.name === "QUAD STANDING STRETCH");
+    const pike = body.exercises.find((e) => e.name === "PIKE STANDING");
+    expect(quad?.dose).toEqual({ unit: "seconds", value: 30, max: 50 });
+    expect(pike?.dose).toEqual({ unit: "seconds", value: 25, max: null });
+  });
+
+  it("(p) estiramiento prescrito ese día con repeticiones: usa esa dosis", async () => {
+    const { member } = await arrange({
+      blocks: bloquesConDosis([
+        {
+          name: "QUAD STANDING STRETCH",
+          mobilityRelated: "LS",
+          reps: 8,
+          repsMax: 12,
+        },
+        { name: "PIKE STANDING", mobilityRelated: "MN", reps: 6 },
+      ]),
+    });
+
+    const { body } = await getToday(member.token);
+
+    const quad = body.exercises.find((e) => e.name === "QUAD STANDING STRETCH");
+    const pike = body.exercises.find((e) => e.name === "PIKE STANDING");
+    expect(quad?.dose).toEqual({ unit: "reps", value: 8, max: 12 });
+    expect(pike?.dose).toEqual({ unit: "reps", value: 6, max: null });
+  });
+
+  it("(q) no prescrito y con copia ISO: 20 segundos", async () => {
+    const { member } = await arrange();
+    await setCatalogEffort("ISO");
+
+    const { body } = await getToday(member.token);
+
+    const noPrescritos = body.exercises.filter(
+      (e) => e.name !== "QUAD STANDING STRETCH" && e.name !== "PIKE STANDING",
+    );
+    expect(noPrescritos.length).toBeGreaterThan(0);
+    for (const e of noPrescritos) {
+      expect(e.dose).toEqual({ unit: "seconds", value: 20, max: null });
+    }
+    // Los prescritos conservan la dosis de la plani (45 s).
+    const quad = body.exercises.find((e) => e.name === "QUAD STANDING STRETCH");
+    expect(quad?.dose).toEqual({ unit: "seconds", value: 45, max: null });
+  });
+
+  it("(r) no prescrito y sin copia ISO: 10 repeticiones", async () => {
+    const { member } = await arrange();
+    await setCatalogEffort("high");
+
+    const { body } = await getToday(member.token);
+
+    const noPrescritos = body.exercises.filter(
+      (e) => e.name !== "QUAD STANDING STRETCH" && e.name !== "PIKE STANDING",
+    );
+    expect(noPrescritos.length).toBeGreaterThan(0);
+    for (const e of noPrescritos) {
+      expect(e.dose).toEqual({ unit: "reps", value: 10, max: null });
+    }
+  });
+
+  it("(s) la dosis queda congelada: cambiar la plani después de crear la oferta no la cambia", async () => {
+    const { member } = await arrange({
+      blocks: bloquesConDosis([
+        { name: "QUAD STANDING STRETCH", mobilityRelated: "LS", seconds: 30 },
+        { name: "PIKE STANDING", mobilityRelated: "MN", seconds: 30 },
+      ]),
+    });
+
+    const primera = await getToday(member.token);
+    await app.db
+      .update(schema.sessionPrescriptions)
+      .set({ seconds: 90, secondsMax: 120 })
+      .where(tenantWhere(schema.sessionPrescriptions, CTX_TEMPLO));
+    const segunda = await getToday(member.token);
+
+    const quad1 = primera.body.exercises.find(
+      (e) => e.name === "QUAD STANDING STRETCH",
+    );
+    const quad2 = segunda.body.exercises.find(
+      (e) => e.name === "QUAD STANDING STRETCH",
+    );
+    expect(quad1?.dose).toEqual({ unit: "seconds", value: 30, max: null });
+    expect(quad2?.dose).toEqual(quad1?.dose);
+    // Y la dosis está congelada en la fila, no se recalcula al leer.
+    const [row] = await offerRows(member.id);
+    expect(
+      row.exercises.find((e) => e.name === "QUAD STANDING STRETCH")?.dose,
+    ).toEqual({ unit: "seconds", value: 30, max: null });
+    expect(row.exercises[0]).not.toHaveProperty("sides");
+  });
+
+  describe("videoUrl con R2_PUBLIC_URL", () => {
+    const R2_BASE = "https://cdn.example.test";
+    let previo: string | undefined;
+
+    beforeAll(() => {
+      previo = process.env.R2_PUBLIC_URL;
+      process.env.R2_PUBLIC_URL = R2_BASE;
+    });
+
+    afterAll(() => {
+      if (previo === undefined) {
+        delete process.env.R2_PUBLIC_URL;
+      } else {
+        process.env.R2_PUBLIC_URL = previo;
+      }
+    });
+
+    it("(t) la key de R2 sale como URL completa y sin video queda null", async () => {
+      const { member } = await arrange();
+      const [catalogo] = await app.db
+        .select({ exerciseId: schema.stretchCatalog.exerciseId })
+        .from(schema.stretchCatalog)
+        .where(
+          and(
+            tenantWhere(schema.stretchCatalog, CTX_TEMPLO),
+            eq(schema.stretchCatalog.exerciseName, "QUAD STANDING STRETCH"),
+          ),
+        )
+        .limit(1);
+      await app.db
+        .update(schema.exercises)
+        .set({ videoUrl: "exercises/quad-standing.mp4" })
+        .where(
+          and(
+            tenantWhere(schema.exercises, CTX_TEMPLO),
+            eq(schema.exercises.id, catalogo.exerciseId),
+          ),
+        );
+
+      const { body } = await getToday(member.token);
+
+      const quad = body.exercises.find(
+        (e) => e.name === "QUAD STANDING STRETCH",
+      );
+      expect(quad?.videoUrl).toBe(`${R2_BASE}/exercises/quad-standing.mp4`);
+      const pike = body.exercises.find((e) => e.name === "PIKE STANDING");
+      expect(pike?.videoUrl).toBeNull();
+    });
   });
 
   it("sin token responde 401", async () => {

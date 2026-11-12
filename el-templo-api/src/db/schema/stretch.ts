@@ -26,12 +26,23 @@ export type StretchFamily = "LS" | "MN" | "FL" | "TTB" | "TS";
 /** Brazo del experimento del push (D-16). */
 export type StretchArm = "control" | "push_30" | "push_60";
 
-/** Un ejercicio de la rutina congelada en la oferta. */
+/**
+ * Dosis de un estiramiento: la de la plani del dia o la base (20 s si es ISO,
+ * 10 repeticiones si no). `max` es el tope del rango, o null si es un valor
+ * unico.
+ */
+export interface StretchOfferDose {
+  unit: "seconds" | "reps";
+  value: number;
+  max: number | null;
+}
+
+/** Un ejercicio de la rutina congelada en la oferta (con su dosis). */
 export interface StretchOfferExercise {
   exerciseId: number;
   name: string;
   family: StretchFamily;
-  sides: number;
+  dose: StretchOfferDose;
 }
 
 /**

@@ -351,6 +351,15 @@ export async function seedAttendance(
 export interface StretchSeedItem {
   name: string;
   mobilityRelated: string | null;
+  /**
+   * Dosis de la prescripcion. Sin ninguno de los cuatro queda 45 s (default de
+   * siempre). Con alguno, lo que no se pasa queda en 0 (convencion: ISO usa
+   * `seconds` con `reps = 0`, CON usa `reps` con `seconds = 0`).
+   */
+  seconds?: number;
+  secondsMax?: number;
+  reps?: number;
+  repsMax?: number;
 }
 
 export interface StretchSeedBlock {
@@ -449,14 +458,17 @@ export async function seedStretchSession(
         mobilityRelated: item.mobilityRelated,
         ctx,
       });
+      const conDosis = item.seconds !== undefined || item.reps !== undefined;
       await app.db.insert(schema.sessionPrescriptions).values(
         tenantValues(ctx, {
           blockId: block.id,
           exerciseId,
           exerciseName: item.name,
-          contraction: "ISO",
-          reps: 1,
-          seconds: 45,
+          contraction: conDosis && !item.seconds ? "CON" : "ISO",
+          reps: conDosis ? (item.reps ?? 0) : 1,
+          repsMax: item.repsMax ?? null,
+          seconds: conDosis ? (item.seconds ?? 0) : 45,
+          secondsMax: item.secondsMax ?? null,
           rest: 0,
           // Las `mobility` van al final del bloque como en prod (999), con el
           // índice sumado para que el orden sea determinista.

@@ -36,8 +36,6 @@ export const stretchTodayResponse = {
       status: { type: "string", enum: ["none", "available", "done"] },
       localDate: { type: "string" },
       offerId: { type: ["integer", "null"] },
-      minutes: { type: ["integer", "null"] },
-      plannedSeconds: { type: ["integer", "null"] },
       exercises: {
         type: "array",
         items: {
@@ -46,9 +44,14 @@ export const stretchTodayResponse = {
             exerciseId: { type: "integer" },
             name: { type: "string" },
             family: { type: "string" },
-            sides: { type: "integer" },
-            secondsPerSide: { type: "integer" },
-            transitionSeconds: { type: "integer" },
+            dose: {
+              type: "object",
+              properties: {
+                unit: { type: "string", enum: ["seconds", "reps"] },
+                value: { type: "integer" },
+                max: { type: ["integer", "null"] },
+              },
+            },
             videoUrl: { type: ["string", "null"] },
           },
         },

@@ -41,6 +41,7 @@ import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../db/schema";
 import type {
   StretchFamily,
+  StretchOfferDose,
   StretchOfferExercise,
   StretchOfferRow,
 } from "../../db/schema/stretch";
@@ -60,16 +61,21 @@ import {
 import { DAY_NAME_TO_NUMBER } from "../shared/training-constants";
 import { dateToDayName, dateToWeekNumber } from "../shared/week-dates";
 import { buildDayIdCandidates, effectiveLevelForDay } from "./session-view";
+import { assembleVideoUrl } from "../shared/video-url";
 import {
   DIAS_SEMANA,
-  STRETCH_SECONDS_PER_SIDE,
-  STRETCH_TRANSITION_SECONDS,
   modoOfreceEstiramiento,
+  normalizarNombre,
   seleccionarEstiramientos,
   type DiaSemana,
   type EntradaCatalogo,
   type PrescritoMovilidad,
 } from "./stretch-selection";
+import {
+  dosisDeEstiramiento,
+  dosisEnPlani,
+  type PrescripcionDelDia,
+} from "./stretch-dose";
 import { stretchArm } from "./stretch-timing";
 import type { ExerciseLevel } from "./types";
 
@@ -129,9 +135,7 @@ export interface StretchTodayExercise {
   exerciseId: number;
   name: string;
   family: StretchFamily;
-  sides: number;
-  secondsPerSide: number;
-  transitionSeconds: number;
+  dose: StretchOfferDose;
   videoUrl: string | null;
 }
 
@@ -139,8 +143,6 @@ export interface StretchTodayView {
   status: "none" | "available" | "done";
   localDate: string;
   offerId: number | null;
-  minutes: number | null;
-  plannedSeconds: number | null;
   exercises: StretchTodayExercise[];
   completedAt: string | null;
   auraAwarded: boolean;
@@ -358,12 +360,18 @@ export class StretchService {
       .map((b) => b.route);
 
     const prescritos: PrescritoMovilidad[] = [];
+    // Las mismas prescripciones, con su dosis, para `dosisDeEstiramiento`.
+    const prescripcionesDelDia: PrescripcionDelDia[] = [];
     if (blocks.length > 0) {
       const rows = await this.db
         .select({
           blockId: schema.sessionPrescriptions.blockId,
           exerciseName: schema.sessionPrescriptions.exerciseName,
           exerciseType: schema.sessionPrescriptions.exerciseType,
+          reps: schema.sessionPrescriptions.reps,
+          repsMax: schema.sessionPrescriptions.repsMax,
+          seconds: schema.sessionPrescriptions.seconds,
+          secondsMax: schema.sessionPrescriptions.secondsMax,
           mobilityRelated: schema.exercises.mobilityRelated,
         })
         .from(schema.sessionPrescriptions)
@@ -383,10 +391,14 @@ export class StretchService {
             ),
           ),
         )
-        .orderBy(asc(schema.sessionPrescriptions.sortOrder));
+        .orderBy(
+          asc(schema.sessionPrescriptions.sortOrder),
+          asc(schema.sessionPrescriptions.id),
+        );
 
       // Orden de bloque, luego sort_order dentro del bloque (el ORDER BY ya
-      // viene por sort_order; el recorrido por bloque lo agrupa).
+      // viene por sort_order, con el id de desempate; el recorrido por bloque
+      // lo agrupa).
       for (const block of blocks) {
         const esStretching = block.role === "STRETCHING";
         for (const row of rows) {
@@ -396,6 +408,13 @@ export class StretchService {
             prescritos.push({
               nombre: row.exerciseName,
               familiaBase: row.mobilityRelated,
+            });
+            prescripcionesDelDia.push({
+              nombre: row.exerciseName,
+              reps: row.reps,
+              repsMax: row.repsMax,
+              seconds: row.seconds,
+              secondsMax: row.secondsMax,
             });
           }
         }
@@ -447,16 +466,56 @@ export class StretchService {
     });
     if (resultado.estiramientos.length === 0) return null;
 
+    // Los elegidos sin dosis en la plani necesitan saber si el ejercicio es ISO
+    // (20 s) o no (10 repeticiones). Una sola consulta, y solo si hace falta.
+    const sinDosisEnPlani = resultado.estiramientos.filter(
+      (e) => dosisEnPlani(e.nombre, prescripcionesDelDia) === null,
+    );
+    const nombresIso = await this.nombresConCopiaIso(
+      ctx,
+      sinDosisEnPlani.map((e) => e.nombre),
+    );
+
     return {
       sourceDayId: session.dayId,
       exercises: resultado.estiramientos.map((e) => ({
         exerciseId: e.exerciseId,
         name: e.nombre,
         family: e.familia,
-        sides: e.lados,
+        dose: dosisDeEstiramiento(
+          e.nombre,
+          prescripcionesDelDia,
+          nombresIso.has(normalizarNombre(e.nombre)),
+        ),
       })),
       plannedSeconds: resultado.duracionSegundos,
     };
+  }
+
+  /**
+   * Nombres (normalizados) de entre `nombres` para los que alguna copia en
+   * `exercises` (mismo gimnasio) tiene `effort` ISO. `exercises` tiene varias
+   * filas por nombre, por eso se cruza por nombre y no por id.
+   */
+  private async nombresConCopiaIso(
+    ctx: TenantContext,
+    nombres: string[],
+  ): Promise<Set<string>> {
+    if (nombres.length === 0) return new Set();
+    const buscados = new Set(nombres.map(normalizarNombre));
+    const rows = await this.db
+      .select({ name: schema.exercises.exercise })
+      .from(schema.exercises)
+      .where(
+        and(
+          tenantWhere(schema.exercises, ctx),
+          inArray(sql`UPPER(TRIM(${schema.exercises.exercise}))`, [
+            ...buscados,
+          ]),
+          sql`UPPER(${schema.exercises.effort}) = 'ISO'`,
+        ),
+      );
+    return new Set(rows.map((r) => normalizarNombre(r.name)));
   }
 
   /** Fila de la oferta del socio para un dia local, si existe. */
@@ -845,8 +904,6 @@ export class StretchService {
       status: "none",
       localDate,
       offerId: null,
-      minutes: null,
-      plannedSeconds: null,
       exercises: [],
       completedAt: null,
       auraAwarded: false,
@@ -880,18 +937,14 @@ export class StretchService {
       status: offer.completedAt ? "done" : "available",
       localDate: offer.localDate,
       offerId: offer.id,
-      minutes: Math.round(offer.plannedSeconds / 60),
-      plannedSeconds: offer.plannedSeconds,
       exercises: offer.exercises.map((e) => ({
         exerciseId: e.exerciseId,
         name: e.name,
         family: e.family,
-        sides: e.sides,
-        secondsPerSide: STRETCH_SECONDS_PER_SIDE,
-        transitionSeconds: STRETCH_TRANSITION_SECONDS,
-        videoUrl: resolveVideo(
-          e.exerciseId,
-          ownVideo.get(e.exerciseId) ?? null,
+        dose: e.dose,
+        // La base guarda la key de R2: se arma la URL completa al leer.
+        videoUrl: assembleVideoUrl(
+          resolveVideo(e.exerciseId, ownVideo.get(e.exerciseId) ?? null),
         ),
       })),
       completedAt: offer.completedAt ? offer.completedAt.toISOString() : null,
