@@ -3,6 +3,7 @@
  *
  * Endpoints:
  *   GET   /api/admin/renewals
+ *   GET   /api/admin/renewals/export
  *   PATCH /api/admin/renewals/:subscriptionId
  *   POST  /api/admin/renewals/:subscriptionId/notes
  *   GET   /api/admin/renewals/reasons
@@ -24,6 +25,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { eq, and } from "drizzle-orm";
+import { Workbook, type CellValue, type Worksheet } from "exceljs";
 import {
   createTestApp,
   cleanAllTestData,
@@ -1610,6 +1612,553 @@ describe("Renewals API (módulo de Renovaciones)", () => {
   });
 
   // ─── Aislamiento ────────────────────────────────────────────────────────
+
+  // ─── GET /export (Excel) ───────────────────────────────────────────────
+
+  describe("GET /api/admin/renewals/export — Excel del período", () => {
+    const HEADERS = [
+      "Nombre",
+      "Membresía vigente",
+      "Vencimiento",
+      "Sucursal",
+      "Celular",
+      "Estado",
+      "Pausa hasta",
+      "Mensajes",
+      "Para cerrar",
+      "Última gestión",
+      "Gestionó",
+      "Plan nuevo",
+      "Renovó el",
+      "Motivo",
+      "Detalle del motivo",
+      "Observación",
+      "Fecha de la observación",
+      "Autor de la observación",
+    ];
+
+    type ExcelRow = Record<string, CellValue>;
+
+    function exportUrl(
+      dateFrom: string,
+      dateTo: string,
+      branchId?: number,
+      activityType?: string,
+    ): string {
+      const params = new URLSearchParams({ dateFrom, dateTo });
+      if (branchId !== undefined) params.set("branchId", String(branchId));
+      if (activityType !== undefined) params.set("activityType", activityType);
+      return `${BASE}/export?${params.toString()}`;
+    }
+
+    async function getExport(
+      token: string,
+      dateFrom: string,
+      dateTo: string,
+      branchId?: number,
+      activityType?: string,
+    ) {
+      return app.inject({
+        method: "GET",
+        url: exportUrl(dateFrom, dateTo, branchId, activityType),
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    }
+
+    function sheetOrThrow(workbook: Workbook, name: string): Worksheet {
+      const sheet = workbook.getWorksheet(name);
+      if (!sheet) throw new Error(`El XLSX no trae la hoja "${name}"`);
+      return sheet;
+    }
+
+    /** Encabezados (fila 1) de la hoja, en orden. */
+    function headersOf(sheet: Worksheet): string[] {
+      const out: string[] = [];
+      sheet.getRow(1).eachCell((cell) => {
+        out.push(String(cell.value));
+      });
+      return out;
+    }
+
+    /** Filas de datos de "Renovaciones" como { encabezado: valor }. */
+    function dataRowsOf(sheet: Worksheet): ExcelRow[] {
+      const headers = headersOf(sheet);
+      const out: ExcelRow[] = [];
+      for (let n = 2; n <= sheet.rowCount; n += 1) {
+        const row = sheet.getRow(n);
+        const obj: ExcelRow = {};
+        headers.forEach((h, i) => {
+          obj[h] = row.getCell(i + 1).value;
+        });
+        out.push(obj);
+      }
+      return out;
+    }
+
+    /** Hoja "Resumen" como mapa { etiqueta (col A): valor (col B) }. */
+    function summaryOf(sheet: Worksheet): Map<string, CellValue> {
+      const out = new Map<string, CellValue>();
+      sheet.eachRow((row) => {
+        const label = row.getCell(1).value;
+        if (typeof label === "string") out.set(label, row.getCell(2).value);
+      });
+      return out;
+    }
+
+    async function parseExport(payload: Buffer): Promise<{
+      rows: ExcelRow[];
+      headers: string[];
+      summary: Map<string, CellValue>;
+    }> {
+      const workbook = new Workbook();
+      // exceljs tipa `load` con su propio `Buffer` (un ArrayBuffer), que no
+      // matchea el `Buffer` de Node de `rawPayload` — se le pasa una copia
+      // como ArrayBuffer en vez de sumar un error de tipos al baseline.
+      const bytes = new Uint8Array(payload.byteLength);
+      bytes.set(payload);
+      await workbook.xlsx.load(bytes.buffer);
+      const main = sheetOrThrow(workbook, "Renovaciones");
+      return {
+        rows: dataRowsOf(main),
+        headers: headersOf(main),
+        summary: summaryOf(sheetOrThrow(workbook, "Resumen")),
+      };
+    }
+
+    /** Celda de texto: vacío y `null` son lo mismo para quien abre la planilla. */
+    function text(v: CellValue | undefined): string {
+      return v === null || v === undefined ? "" : String(v);
+    }
+
+    /** Celda de fecha → "YYYY-MM-DD" (exceljs devuelve `Date` en UTC). */
+    function day(v: CellValue | undefined): string | null {
+      return v instanceof Date ? v.toISOString().slice(0, 10) : null;
+    }
+
+    /** Alta de socio + su nombre tal como sale en el listado. */
+    async function insertNamedMember(
+      branchId = branchAId,
+    ): Promise<{ id: number; name: string }> {
+      const id = await insertMember(branchId);
+      return { id, name: `Socio Renov${memberSeq}` };
+    }
+
+    function rowByName(rows: ExcelRow[], name: string): ExcelRow | undefined {
+      return rows.find((r) => r["Nombre"] === name);
+    }
+
+    it("devuelve un XLSX con una fila por vencimiento del período y los mismos datos del listado", async () => {
+      // a) renovó cambiando a Flex
+      const a = await insertNamedMember();
+      await insertSub({
+        userId: a.id,
+        planId: planPresencialId,
+        startDate: dateOffsetStr(-30),
+        endDate: todayStr(),
+      });
+      await insertSub({
+        userId: a.id,
+        planId: planFlexId,
+        startDate: dateOffsetStr(1),
+        endDate: dateOffsetStr(31),
+        status: "active",
+      });
+
+      // b) no renueva, con motivo + detalle + 2 mensajes + observación
+      const b = await insertNamedMember();
+      const subB = await insertSub({
+        userId: b.id,
+        planId: planPresencialId,
+        startDate: dateOffsetStr(-30),
+        endDate: todayStr(),
+      });
+      const [reasonRow] = await app.db
+        .select({ id: schema.renewalReasons.id })
+        .from(schema.renewalReasons)
+        .where(
+          and(
+            tenantWhere(schema.renewalReasons, TEMPLO_CTX),
+            eq(schema.renewalReasons.label, "Viaje"),
+          ),
+        )
+        .limit(1);
+      const patchRes = await app.inject({
+        method: "PATCH",
+        url: `${BASE}/${subB}`,
+        headers: { Authorization: `Bearer ${adminToken}` },
+        payload: {
+          messageCount: 2,
+          manualStatus: "no_renovo",
+          reasonId: reasonRow.id,
+          reasonNote: "Se va 2 meses",
+        },
+      });
+      expect(patchRes.statusCode, patchRes.body).toBe(200);
+      const noteRes = await app.inject({
+        method: "POST",
+        url: `${BASE}/${subB}/notes`,
+        headers: { Authorization: `Bearer ${adminToken}` },
+        payload: { content: "Llamar en marzo" },
+      });
+      expect(noteRes.statusCode, noteRes.body).toBe(201);
+
+      // c) pausada, vence dentro del rango
+      const c = await insertNamedMember();
+      await insertSub({
+        userId: c.id,
+        planId: planPresencialId,
+        status: "paused",
+        startDate: dateOffsetStr(-28),
+        endDate: dateOffsetStr(2),
+        pauseEndDate: dateOffsetStr(10),
+      });
+
+      // d) vence FUERA del período → no va al archivo
+      const d = await insertNamedMember();
+      await insertSub({
+        userId: d.id,
+        planId: planPresencialId,
+        startDate: dateOffsetStr(-10),
+        endDate: dateOffsetStr(20),
+      });
+
+      const res = await getExport(
+        adminToken,
+        dateOffsetStr(-7),
+        dateOffsetStr(7),
+      );
+      expect(res.statusCode, res.body).toBe(200);
+      expect(res.headers["content-type"]).toContain("spreadsheetml");
+      expect(res.headers["content-disposition"]).toContain("renovaciones-");
+      expect(res.headers["content-disposition"]).toContain(".xlsx");
+
+      const { rows, headers, summary } = await parseExport(res.rawPayload);
+      expect(headers).toEqual(HEADERS);
+      expect(rows).toHaveLength(3);
+      expect(rowByName(rows, d.name)).toBeUndefined();
+
+      // Mismas filas y mismo orden que la pantalla.
+      const { body: list } = await getList(
+        adminToken,
+        dateOffsetStr(-7),
+        dateOffsetStr(7),
+      );
+      expect(rows.map((r) => r["Nombre"])).toEqual(
+        (list.rows as RenewalRow[]).map((r) => r.memberName),
+      );
+
+      const adminName = await adminDisplayName();
+
+      const rowA = rowByName(rows, a.name);
+      expect(rowA).toBeDefined();
+      expect(rowA?.["Estado"]).toBe("Renovó");
+      expect(text(rowA?.["Membresía vigente"])).toContain("Foundation");
+      expect(text(rowA?.["Plan nuevo"])).toContain("Flex");
+      expect(day(rowA?.["Vencimiento"])).toBe(todayStr());
+      expect(rowA?.["Renovó el"]).toBeInstanceOf(Date);
+      expect(rowA?.["Mensajes"]).toBe(0);
+      expect(text(rowA?.["Motivo"])).toBe("");
+      expect(text(rowA?.["Última gestión"])).toBe("");
+
+      const rowB = rowByName(rows, b.name);
+      expect(rowB).toBeDefined();
+      expect(rowB?.["Estado"]).toBe("No renueva");
+      expect(rowB?.["Motivo"]).toBe("Viaje");
+      expect(rowB?.["Detalle del motivo"]).toBe("Se va 2 meses");
+      expect(rowB?.["Mensajes"]).toBe(2);
+      expect(rowB?.["Para cerrar"]).toBe("No");
+      expect(rowB?.["Última gestión"]).toBeInstanceOf(Date);
+      expect(rowB?.["Gestionó"]).toBe(adminName);
+      expect(rowB?.["Observación"]).toBe("Llamar en marzo");
+      expect(rowB?.["Fecha de la observación"]).toBeInstanceOf(Date);
+      expect(rowB?.["Autor de la observación"]).toBe(adminName);
+      expect(text(rowB?.["Plan nuevo"])).toBe("");
+
+      const rowC = rowByName(rows, c.name);
+      expect(rowC).toBeDefined();
+      expect(rowC?.["Estado"]).toBe("Pausada");
+      expect(day(rowC?.["Vencimiento"])).toBe(dateOffsetStr(2));
+      expect(day(rowC?.["Pausa hasta"])).toBe(dateOffsetStr(10));
+
+      // Hoja "Resumen": los KPIs de las tarjetas, iguales a los del listado.
+      expect(summary.get("Tipo de actividad")).toBe("Todas");
+      expect(summary.get("Vencimientos")).toBe(3);
+      expect(summary.get("Vencimientos")).toBe(list.kpis.total);
+      expect(summary.get("Renovó")).toBe(1);
+      expect(summary.get("No renueva")).toBe(1);
+      expect(summary.get("Pausadas")).toBe(1);
+      expect(summary.get("En proceso")).toBe(0);
+      // renovo / (renovo + noRenovo + volvioTarde) = 1/2, como fracción.
+      expect(summary.get("% Renovación (sobre gestionados)")).toBeCloseTo(
+        0.5,
+        5,
+      );
+      const [fy, fm, fd] = dateOffsetStr(-7).split("-");
+      expect(text(summary.get("Período (vencimientos)"))).toContain(
+        `${fd}/${fm}/${fy}`,
+      );
+    });
+
+    it("en proceso con 4 mensajes → Para cerrar = Sí", async () => {
+      const m = await insertNamedMember();
+      const subId = await insertSub({
+        userId: m.id,
+        planId: planPresencialId,
+        startDate: dateOffsetStr(-30),
+        endDate: todayStr(),
+      });
+      const patchRes = await app.inject({
+        method: "PATCH",
+        url: `${BASE}/${subId}`,
+        headers: { Authorization: `Bearer ${adminToken}` },
+        payload: { messageCount: 4 },
+      });
+      expect(patchRes.statusCode, patchRes.body).toBe(200);
+
+      const res = await getExport(
+        adminToken,
+        dateOffsetStr(-7),
+        dateOffsetStr(7),
+      );
+      expect(res.statusCode, res.body).toBe(200);
+      const { rows, summary } = await parseExport(res.rawPayload);
+      const row = rowByName(rows, m.name);
+      expect(row?.["Estado"]).toBe("En proceso");
+      expect(row?.["Mensajes"]).toBe(4);
+      expect(row?.["Para cerrar"]).toBe("Sí");
+      expect(summary.get("Para cerrar")).toBe(1);
+    });
+
+    it("respeta el filtro de tipo de actividad (aura → solo el pase Aura)", async () => {
+      const membresia = await insertNamedMember();
+      await insertSub({
+        userId: membresia.id,
+        planId: planPresencialId,
+        startDate: dateOffsetStr(-30),
+        endDate: todayStr(),
+      });
+      const aura = await insertNamedMember();
+      await insertSub({
+        userId: aura.id,
+        planId: planAuraId,
+        startDate: dateOffsetStr(-30),
+        endDate: todayStr(),
+      });
+
+      const res = await getExport(
+        adminToken,
+        dateOffsetStr(-7),
+        dateOffsetStr(7),
+        undefined,
+        "aura",
+      );
+      expect(res.statusCode, res.body).toBe(200);
+      const { rows, summary } = await parseExport(res.rawPayload);
+      expect(rows.map((r) => r["Nombre"])).toEqual([aura.name]);
+      expect(summary.get("Tipo de actividad")).toBe("Actividades con Aura");
+      expect(summary.get("Vencimientos")).toBe(1);
+    });
+
+    it("respeta el filtro de sede (branchId)", async () => {
+      const enA = await insertNamedMember(branchAId);
+      await insertSub({
+        userId: enA.id,
+        planId: planPresencialId,
+        branchId: branchAId,
+        startDate: dateOffsetStr(-30),
+        endDate: todayStr(),
+      });
+      const enB = await insertNamedMember(branchBId);
+      await insertSub({
+        userId: enB.id,
+        planId: planPresencialId,
+        branchId: branchBId,
+        startDate: dateOffsetStr(-30),
+        endDate: todayStr(),
+      });
+
+      const res = await getExport(
+        adminToken,
+        dateOffsetStr(-7),
+        dateOffsetStr(7),
+        branchBId,
+      );
+      expect(res.statusCode, res.body).toBe(200);
+      const { rows, summary } = await parseExport(res.rawPayload);
+      expect(rows.map((r) => r["Nombre"])).toEqual([enB.name]);
+      expect(rows[0]?.["Sucursal"]).toBe("Sede Renovaciones B");
+      expect(summary.get("Sucursales con vencimientos")).toBe(
+        "Sede Renovaciones B",
+      );
+    });
+
+    it("período sin vencimientos → XLSX válido solo con encabezados", async () => {
+      const res = await getExport(
+        adminToken,
+        dateOffsetStr(-7),
+        dateOffsetStr(7),
+      );
+      expect(res.statusCode, res.body).toBe(200);
+      const { rows, headers, summary } = await parseExport(res.rawPayload);
+      expect(headers).toEqual(HEADERS);
+      expect(rows).toHaveLength(0);
+      expect(summary.get("Vencimientos")).toBe(0);
+      expect(summary.get("% Renovación (sobre gestionados)")).toBe("—");
+      expect(summary.get("Sucursales con vencimientos")).toBe("—");
+    });
+
+    it("valida el período igual que el listado (400)", async () => {
+      const sinFechas = await app.inject({
+        method: "GET",
+        url: `${BASE}/export`,
+        headers: { Authorization: `Bearer ${adminToken}` },
+      });
+      expect(sinFechas.statusCode).toBe(400);
+
+      const invertido = await getExport(
+        adminToken,
+        dateOffsetStr(5),
+        dateOffsetStr(-5),
+      );
+      expect(invertido.statusCode).toBe(400);
+
+      const muyLargo = await getExport(
+        adminToken,
+        dateOffsetStr(-50),
+        dateOffsetStr(50),
+      );
+      expect(muyLargo.statusCode).toBe(400);
+
+      const tipoInvalido = await getExport(
+        adminToken,
+        dateOffsetStr(-7),
+        dateOffsetStr(7),
+        undefined,
+        "cualquiera",
+      );
+      expect(tipoInvalido.statusCode).toBe(400);
+    });
+
+    it("gestion puede exportar; coach → 403; sin token → 401", async () => {
+      const stamp = Date.now();
+      const gestionEmail = `gestion-exp-${stamp}@test.local`;
+      await createStaffUser(app, {
+        email: gestionEmail,
+        password: "test1234",
+        firstName: "Gestion",
+        lastName: "Export",
+        role: "gestion",
+        branchId: branchAId,
+        country: "AR",
+      });
+      const gestionToken = await getAuthToken(app, gestionEmail, "test1234");
+      const okRes = await getExport(
+        gestionToken,
+        dateOffsetStr(-7),
+        dateOffsetStr(7),
+      );
+      expect(okRes.statusCode, okRes.body).toBe(200);
+      expect(okRes.headers["content-type"]).toContain("spreadsheetml");
+
+      const coachEmail = `coach-exp-${stamp}@test.local`;
+      await createStaffUser(app, {
+        email: coachEmail,
+        password: "test1234",
+        firstName: "Coach",
+        lastName: "Export",
+        role: "coach",
+        branchId: branchAId,
+        country: "AR",
+      });
+      const coachToken = await getAuthToken(app, coachEmail, "test1234");
+      const forbidden = await getExport(
+        coachToken,
+        dateOffsetStr(-7),
+        dateOffsetStr(7),
+      );
+      expect(forbidden.statusCode).toBe(403);
+
+      const anon = await app.inject({
+        method: "GET",
+        url: exportUrl(dateOffsetStr(-7), dateOffsetStr(7)),
+      });
+      expect(anon.statusCode).toBe(401);
+    });
+
+    it("admin_sede exporta SOLO los vencimientos de su sede", async () => {
+      const email = `admin-sede-exp-${Date.now()}@test.local`;
+      await createStaffUser(app, {
+        email,
+        password: "test1234",
+        firstName: "AdminSede",
+        lastName: "Export",
+        role: "admin_sede",
+        branchId: branchBId,
+        country: "AR",
+      });
+      const adminSedeToken = await getAuthToken(app, email, "test1234");
+
+      const propio = await insertNamedMember(branchBId);
+      await insertSub({
+        userId: propio.id,
+        planId: planPresencialId,
+        branchId: branchBId,
+        startDate: dateOffsetStr(-30),
+        endDate: todayStr(),
+      });
+      const ajeno = await insertNamedMember(branchAId);
+      await insertSub({
+        userId: ajeno.id,
+        planId: planPresencialId,
+        branchId: branchAId,
+        startDate: dateOffsetStr(-30),
+        endDate: todayStr(),
+      });
+
+      const res = await getExport(
+        adminSedeToken,
+        dateOffsetStr(-7),
+        dateOffsetStr(7),
+      );
+      expect(res.statusCode, res.body).toBe(200);
+      const { rows } = await parseExport(res.rawPayload);
+      expect(rowByName(rows, propio.name)).toBeDefined();
+      expect(rowByName(rows, ajeno.name)).toBeUndefined();
+    });
+
+    it("tenant 2 no recibe vencimientos del tenant 1 en su Excel", async () => {
+      await limpiarSegundoGimnasio(app);
+      const gym2 = await seedSecondTenant(app);
+
+      const m = await insertNamedMember();
+      await insertSub({
+        userId: m.id,
+        planId: planPresencialId,
+        startDate: dateOffsetStr(-30),
+        endDate: todayStr(),
+      });
+
+      const res = await getExport(
+        gym2.adminToken,
+        dateOffsetStr(-7),
+        dateOffsetStr(7),
+      );
+      expect(res.statusCode, res.body).toBe(200);
+      const { rows } = await parseExport(res.rawPayload);
+      expect(rowByName(rows, m.name)).toBeUndefined();
+
+      // Control: el dueño del dato sí lo recibe.
+      const own = await getExport(
+        adminToken,
+        dateOffsetStr(-7),
+        dateOffsetStr(7),
+      );
+      const { rows: ownRows } = await parseExport(own.rawPayload);
+      expect(rowByName(ownRows, m.name)).toBeDefined();
+
+      await limpiarSegundoGimnasio(app);
+    });
+  });
 
   describe("Aislamiento", () => {
     it("admin_sede solo ve/gestiona vencimientos de SU sede (404 en la ajena)", async () => {

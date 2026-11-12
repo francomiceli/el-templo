@@ -38,6 +38,7 @@ const renewalRowSchema = {
     phoneE164: { type: ["string", "null"] },
     branchId: { type: "integer" },
     branchName: { type: "string" },
+    branchTimezone: { type: "string" },
     planId: { type: "integer" },
     planName: { type: "string" },
     endDate: { type: "string" },
@@ -99,17 +100,20 @@ const renewalKpisSchema = {
   },
 } as const;
 
-export const renewalListSchema = {
-  querystring: {
-    type: "object",
-    required: ["dateFrom", "dateTo"],
-    properties: {
-      dateFrom: { type: "string", format: "date" },
-      dateTo: { type: "string", format: "date" },
-      branchId: { type: "integer" },
-      activityType: { type: "string", enum: ["membresia", "aura"] },
-    },
+/** Filtros del listado — los comparte el export a Excel (mismo período, mismas filas). */
+const renewalListQuerystring = {
+  type: "object",
+  required: ["dateFrom", "dateTo"],
+  properties: {
+    dateFrom: { type: "string", format: "date" },
+    dateTo: { type: "string", format: "date" },
+    branchId: { type: "integer" },
+    activityType: { type: "string", enum: ["membresia", "aura"] },
   },
+} as const;
+
+export const renewalListSchema = {
+  querystring: renewalListQuerystring,
   response: {
     200: {
       type: "object",
@@ -124,6 +128,12 @@ export const renewalListSchema = {
     403: errorSchema,
     500: errorSchema,
   },
+} as const;
+
+// Export a Excel: respuesta binaria (XLSX) — sin schema de respuesta, igual
+// que los exports de reports/analytics.
+export const renewalExportSchema = {
+  querystring: renewalListQuerystring,
 } as const;
 
 export const renewalFollowupUpdateSchema = {
