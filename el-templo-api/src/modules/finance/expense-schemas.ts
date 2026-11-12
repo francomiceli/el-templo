@@ -298,3 +298,39 @@ export const voidExpensePaymentSchema = {
   },
   response: errorResponses,
 } as const;
+
+// -- GET /expense-records/summary (y /summary/export, /summary/detail) -------
+
+/** Mes del Resumen: obligatorio, `AAAA-MM`. */
+const summaryQuery = {
+  month: imputationMonthSchema,
+  ...countryQuery,
+} as const;
+
+export const expenseSummarySchema = {
+  querystring: {
+    type: "object",
+    required: ["month"],
+    properties: { ...summaryQuery },
+  },
+  response: errorResponses,
+} as const;
+
+export const expenseSummaryDetailSchema = {
+  querystring: {
+    type: "object",
+    required: ["month", "destination"],
+    properties: {
+      ...summaryQuery,
+      // id de sede, "casa_matriz" o "total"
+      destination: {
+        type: "string",
+        pattern: "^(\\d+|casa_matriz|total)$",
+      },
+    },
+  },
+  response: errorResponses,
+} as const;
+
+/** El Excel recibe lo mismo que el resumen JSON. */
+export const expenseSummaryExportSchema = expenseSummarySchema;

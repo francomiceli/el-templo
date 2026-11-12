@@ -122,6 +122,32 @@ export interface ExpenseMonthComputation {
   incomplete: ExpenseSummary["incomplete"];
 }
 
+/** Una fila del detalle del Excel: un gasto en un destino. Enteros, en la moneda del país. */
+export interface ExpenseExportRow {
+  /** nombre de la sede o "Casa Matriz" */
+  destination: string;
+  destinationKey: string;
+  destinationIsActive: boolean;
+  /** posición del destino entre las columnas del Resumen (para ordenar) */
+  destinationOrder: number;
+  costCenterName: string;
+  costCenterId: number;
+  expenseRecordId: number;
+  concept: string;
+  beneficiary: string | null;
+  imputationMonth: string;
+  estimated: boolean;
+  cost: number;
+  pending: number;
+  paidInMonth: number;
+}
+
+/** Lo que necesita `buildExpenseSummaryWorkbook`. */
+export interface ExpenseExportData {
+  summary: ExpenseSummary;
+  rows: ExpenseExportRow[];
+}
+
 const EMPTY_SHARE: ExpenseMonthShare = {
   cost: 0,
   costEstimated: 0,
@@ -177,8 +203,63 @@ export class ExpenseSummaryService {
     country: ExpenseCountry,
     month: string,
   ): Promise<ExpenseSummary> {
-    const computed = await this.computeMonth(ctx, country, month);
+    return this.summaryOf(await this.computeMonth(ctx, country, month));
+  }
 
+  /**
+   * Datos del Excel (DI-12): el Resumen y el detalle por gasto y destino salen
+   * de UN SOLO `computeMonth`, así que el Excel muestra exactamente los mismos
+   * números que `getSummary` y `getDetail` (nada se recalcula).
+   *
+   * `rows` trae una fila por gasto y destino con algún valor distinto de cero,
+   * ordenadas por destino (en el orden de las columnas del Resumen), rubro y
+   * concepto. No incluye el Total: sumar las filas de un destino da su columna.
+   */
+  async getExportData(
+    ctx: TenantContext,
+    country: ExpenseCountry,
+    month: string,
+  ): Promise<ExpenseExportData> {
+    const computed = await this.computeMonth(ctx, country, month);
+    const summary = this.summaryOf(computed);
+
+    const rows: ExpenseExportRow[] = [];
+    computed.destinations.forEach((destination, destinationOrder) => {
+      for (const r of computed.records) {
+        const share = r.shares.get(destination.key);
+        if (!share || !hasAnyValue(share)) continue;
+        rows.push({
+          destination: destination.name,
+          destinationKey: destination.key,
+          destinationIsActive: destination.isActive,
+          destinationOrder,
+          costCenterName: r.costCenterName,
+          costCenterId: r.costCenterId,
+          expenseRecordId: r.id,
+          concept: r.concept,
+          beneficiary: r.beneficiary,
+          imputationMonth: r.imputationMonth,
+          estimated: r.amountStatus === "estimado",
+          cost: share.cost,
+          pending: share.pending,
+          paidInMonth: share.paidInMonth,
+        });
+      }
+    });
+    rows.sort(
+      (a, b) =>
+        a.destinationOrder - b.destinationOrder ||
+        a.costCenterName.localeCompare(b.costCenterName, "es") ||
+        a.costCenterId - b.costCenterId ||
+        a.concept.localeCompare(b.concept, "es") ||
+        a.expenseRecordId - b.expenseRecordId,
+    );
+
+    return { summary, rows };
+  }
+
+  /** Arma las columnas del Resumen (y el Total) desde el cálculo del mes. */
+  private summaryOf(computed: ExpenseMonthComputation): ExpenseSummary {
     const columns: ExpenseSummaryColumn[] = computed.destinations.map((d) => {
       let total = { ...EMPTY_SHARE };
       for (const r of computed.records) {
@@ -212,7 +293,11 @@ export class ExpenseSummaryService {
     columns.push(totalColumn);
 
     this.log.debug(
-      { country, month, destinations: computed.destinations.length },
+      {
+        country: computed.country,
+        month: computed.month,
+        destinations: computed.destinations.length,
+      },
       "Resumen de egresos calculado",
     );
 

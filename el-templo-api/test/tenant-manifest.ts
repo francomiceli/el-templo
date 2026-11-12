@@ -559,6 +559,15 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "GET /api/admin/finance/expense-records/form-options": {
     categoria: "tenant-scoped",
   },
+  "GET /api/admin/finance/expense-records/summary": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/admin/finance/expense-records/summary/detail": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/admin/finance/expense-records/summary/export": {
+    categoria: "tenant-scoped",
+  },
   "PATCH /api/admin/finance/expense-records/:id": {
     categoria: "tenant-scoped",
   },

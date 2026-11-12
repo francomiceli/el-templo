@@ -27,10 +27,16 @@ import type { TransactionService } from "./transaction-service";
 import type { CashRegisterService } from "./cash-register-service";
 import { ExpenseRecordService } from "./expense-record-service";
 import { ExpensePaymentService } from "./expense-payment-service";
+import { ExpenseSummaryService } from "./expense-summary-service";
+import { buildExpenseSummaryWorkbook } from "./expense-summary-excel";
+import { sendExcelReply } from "../shared/excel";
 import {
   createExpenseRecordSchema,
   expenseFormOptionsSchema,
   expenseRecordIdSchema,
+  expenseSummaryDetailSchema,
+  expenseSummaryExportSchema,
+  expenseSummarySchema,
   listExpenseRecordsSchema,
   registerExpensePaymentSchema,
   updateExpenseRecordSchema,
@@ -56,6 +62,14 @@ interface IdParams {
 
 interface PaymentParams extends IdParams {
   paymentId: number;
+}
+
+interface SummaryQuery extends CountryQuery {
+  month: string;
+}
+
+interface SummaryDetailQuery extends SummaryQuery {
+  destination: string;
 }
 
 interface ListQuery extends CountryQuery {
@@ -112,6 +126,19 @@ function parseDestination(
   return destination === "casa_matriz" ? "casa_matriz" : Number(destination);
 }
 
+/**
+ * Destino del detalle del Resumen: `"total"`, `"casa_matriz"` o el id de una
+ * sede (el schema ya garantiza el formato).
+ */
+function parseSummaryDestination(
+  destination: string,
+): "total" | "casa_matriz" | number {
+  if (destination === "total" || destination === "casa_matriz") {
+    return destination;
+  }
+  return Number(destination);
+}
+
 export function registerExpenseRoutes(
   fastify: FastifyInstance,
   deps: {
@@ -151,6 +178,98 @@ export function registerExpenseRoutes(
           request.log,
           "expense records form options",
         );
+        return reply;
+      }
+    },
+  );
+
+  // Resumen mensual (DI-12, DI-13). Estáticas: van ANTES de /:id.
+  const summaryService = new ExpenseSummaryService(
+    fastify.db,
+    fastify.log,
+    recordService,
+  );
+
+  // GET /expense-records/summary — Resumen del mes por destino (una columna por
+  // sede, Casa Matriz solo en Argentina y el Total). `?month=AAAA-MM` obligatorio.
+  fastify.get<{ Querystring: SummaryQuery }>(
+    "/expense-records/summary",
+    { schema: expenseSummarySchema },
+    async (request, reply) => {
+      try {
+        if (denyUnlessRole(request, reply, EXPENSES_ROLES, FORBIDDEN_MESSAGE)) {
+          return reply;
+        }
+        const ctx = assertTenant(
+          request.scope,
+          "finance.expense-records.summary",
+        );
+        const country = resolveCountry(request);
+        return await summaryService.getSummary(
+          ctx,
+          country,
+          request.query.month,
+        );
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "expense summary");
+        return reply;
+      }
+    },
+  );
+
+  // GET /expense-records/summary/detail — detalle de un destino (o del Total)
+  // por rubro y concepto. `?destination=` es un id de sede, "casa_matriz" o "total".
+  fastify.get<{ Querystring: SummaryDetailQuery }>(
+    "/expense-records/summary/detail",
+    { schema: expenseSummaryDetailSchema },
+    async (request, reply) => {
+      try {
+        if (denyUnlessRole(request, reply, EXPENSES_ROLES, FORBIDDEN_MESSAGE)) {
+          return reply;
+        }
+        const ctx = assertTenant(
+          request.scope,
+          "finance.expense-records.summary.detail",
+        );
+        const country = resolveCountry(request);
+        return await summaryService.getDetail(
+          ctx,
+          country,
+          request.query.month,
+          parseSummaryDestination(request.query.destination),
+        );
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "expense summary detail");
+        return reply;
+      }
+    },
+  );
+
+  // GET /expense-records/summary/export — el mismo Resumen en un .xlsx (hojas
+  // "Resumen" y "Detalle"), desde el mismo cálculo que el JSON.
+  fastify.get<{ Querystring: SummaryQuery }>(
+    "/expense-records/summary/export",
+    { schema: expenseSummaryExportSchema },
+    async (request, reply) => {
+      try {
+        if (denyUnlessRole(request, reply, EXPENSES_ROLES, FORBIDDEN_MESSAGE)) {
+          return reply;
+        }
+        const ctx = assertTenant(
+          request.scope,
+          "finance.expense-records.summary.export",
+        );
+        const country = resolveCountry(request);
+        const { month } = request.query;
+        const data = await summaryService.getExportData(ctx, country, month);
+        await sendExcelReply(
+          buildExpenseSummaryWorkbook(data),
+          reply,
+          `egresos-resumen-${country}-${month}`,
+        );
+        return reply;
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "export expense summary");
         return reply;
       }
     },
