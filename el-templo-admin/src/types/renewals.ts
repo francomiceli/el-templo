@@ -27,6 +27,8 @@ export interface RenewalRow {
   phoneE164: string | null;
   branchId: number;
   branchName: string;
+  /** Huso horario (IANA) de la sede de la sub que vence — lo usa el export a Excel. */
+  branchTimezone: string;
   planId: number;
   planName: string;
   endDate: string;

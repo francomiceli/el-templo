@@ -32,6 +32,12 @@ export interface RenewalRow {
   phoneE164: string | null;
   branchId: number;
   branchName: string;
+  /**
+   * Huso horario de la sede de la sub que vence (IANA). Lo usa el export a
+   * Excel para escribir las marcas de tiempo ("Última gestión", "Renovó el")
+   * en hora de la sede y no en UTC.
+   */
+  branchTimezone: string;
   planId: number;
   planName: string;
   endDate: string;

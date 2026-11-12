@@ -754,6 +754,9 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   // (Kommo), no desde el admin — el listado expone `phoneE164` para ese
   // copy/paste en vez de plantillas server-side.
   "GET /api/admin/renewals": { categoria: "tenant-scoped" },
+  // 2026-11-12: el mismo listado como XLSX (reusa `listRenewals`, mismo
+  // `assertTenant` y mismo recorte por sede).
+  "GET /api/admin/renewals/export": { categoria: "tenant-scoped" },
   "PATCH /api/admin/renewals/:subscriptionId": { categoria: "tenant-scoped" },
   "POST /api/admin/renewals/:subscriptionId/notes": {
     categoria: "tenant-scoped",
