@@ -8,8 +8,13 @@ import {
   EXPENSE_STATUS_META,
   allocationDifference,
   allocationsSum,
+  amountAtRate,
+  cleanReceiptLinks,
+  diffExpenseUpdate,
   expenseStatusOf,
+  type ExpenseFormValues,
   isHttpUrl,
+  isValidFxRate,
   isValidMonth,
   isValidMoneyInteger,
   moneyIntegerRule,
@@ -24,6 +29,7 @@ import {
   splitEvenlyRemainder,
   toNumberOrNull,
 } from '../expenses';
+import type { ExpenseRecordDetail } from '../../types/expense';
 
 // Los resultados esperados están escritos a mano, nunca recalculados con la
 // función bajo prueba. splitEvenly, expenseStatusOf y previewPayment usan los
@@ -414,5 +420,166 @@ describe('paymentMethodsForAccount', () => {
     const metodos = paymentMethodsForAccount('banco');
     expect(metodos).not.toContain('cash');
     expect(metodos).toEqual(['transfer', 'card', 'cheque', 'direct_debit']);
+  });
+});
+
+describe('isValidFxRate y amountAtRate', () => {
+  it('isValidFxRate: positivo, hasta 4 decimales y dentro del rango', () => {
+    expect(isValidFxRate(1560)).toBe(true);
+    expect(isValidFxRate(1234.5678)).toBe(true);
+    expect(isValidFxRate(0.0001)).toBe(true);
+    expect(isValidFxRate(99_999_999.9999)).toBe(true);
+    expect(isValidFxRate(0)).toBe(false);
+    expect(isValidFxRate(-5)).toBe(false);
+    expect(isValidFxRate(1.23456)).toBe(false);
+    expect(isValidFxRate(100_000_000)).toBe(false);
+    expect(isValidFxRate(NaN)).toBe(false);
+    expect(isValidFxRate('1560')).toBe(false);
+    expect(isValidFxRate(null)).toBe(false);
+  });
+
+  it('amountAtRate: caso del brief, USD 600 a 1560 = 936000', () => {
+    expect(amountAtRate(600, 1560)).toBe(936000);
+    expect(amountAtRate(100, 1560)).toBe(156000);
+  });
+
+  it('amountAtRate redondea al entero más cercano', () => {
+    expect(amountAtRate(3, 1234.5678)).toBe(3704);
+    expect(amountAtRate(1, 1560.4999)).toBe(1560);
+    expect(amountAtRate(1, 1560.5)).toBe(1561);
+  });
+});
+
+describe('cleanReceiptLinks', () => {
+  it('recorta espacios y descarta las filas vacías', () => {
+    expect(
+      cleanReceiptLinks([
+        { label: '  Factura ', url: ' https://x.com/a ' },
+        { label: '', url: '  ' },
+        { label: '', url: 'https://x.com/b' },
+      ])
+    ).toEqual([
+      { label: 'Factura', url: 'https://x.com/a' },
+      { label: '', url: 'https://x.com/b' },
+    ]);
+  });
+});
+
+describe('diffExpenseUpdate (DI-09)', () => {
+  const original = {
+    id: 7,
+    country: 'AR',
+    concept: 'Alquiler',
+    beneficiary: 'Inmobiliaria',
+    costCenterId: 3,
+    costCenterName: 'Alquileres',
+    imputationMonth: '2026-11',
+    amount: 100,
+    currency: 'ARS',
+    amountStatus: 'confirmado',
+    fxRate: null,
+    allocations: [
+      { branchId: 1, branchName: 'Sede 1', amount: 60, amountInCountryCurrency: 60 },
+      { branchId: null, branchName: 'Casa Matriz', amount: 40, amountInCountryCurrency: 40 },
+    ],
+    receiptLinks: [{ label: 'Factura', url: 'https://x.com/a' }],
+    notes: 'Nota',
+  } as unknown as ExpenseRecordDetail;
+
+  const same: ExpenseFormValues = {
+    concept: 'Alquiler',
+    beneficiary: 'Inmobiliaria',
+    costCenterId: 3,
+    imputationMonth: '2026-11',
+    amount: 100,
+    amountStatus: 'confirmado',
+    fxRate: null,
+    receiptLinks: [{ label: 'Factura', url: 'https://x.com/a' }],
+    notes: 'Nota',
+    allocations: [
+      { branchId: null, amount: 40 },
+      { branchId: 1, amount: 60 },
+    ],
+  };
+
+  it('sin cambios: PATCH vacío y sin motivo', () => {
+    expect(diffExpenseUpdate(original, same)).toEqual({
+      changes: {},
+      needsReason: false,
+      hasChanges: false,
+    });
+  });
+
+  it('cambiar el concepto, el rubro o los links manda solo eso y no pide motivo', () => {
+    const r = diffExpenseUpdate(original, {
+      ...same,
+      concept: ' Alquiler noviembre ',
+      costCenterId: 4,
+      receiptLinks: [],
+    });
+    expect(r.changes).toEqual({
+      concept: 'Alquiler noviembre',
+      costCenterId: 4,
+      receiptLinks: [],
+    });
+    expect(r.needsReason).toBe(false);
+    expect(r.hasChanges).toBe(true);
+  });
+
+  it('cambiar el importe pide motivo y manda el reparto completo', () => {
+    const allocations = [
+      { branchId: 1, amount: 90 },
+      { branchId: null, amount: 60 },
+    ];
+    const r = diffExpenseUpdate(original, { ...same, amount: 150, allocations });
+    expect(r.changes).toEqual({ amount: 150, allocations });
+    expect(r.needsReason).toBe(true);
+  });
+
+  it('cambiar solo el estado del importe pide motivo y no toca el reparto', () => {
+    const r = diffExpenseUpdate(original, { ...same, amountStatus: 'estimado' });
+    expect(r.changes).toEqual({ amountStatus: 'estimado' });
+    expect(r.needsReason).toBe(true);
+  });
+
+  it('cambiar solo el reparto no pide motivo', () => {
+    const allocations = [
+      { branchId: 1, amount: 50 },
+      { branchId: null, amount: 50 },
+    ];
+    const r = diffExpenseUpdate(original, { ...same, allocations });
+    expect(r.changes).toEqual({ allocations });
+    expect(r.needsReason).toBe(false);
+  });
+
+  it('el tipo de cambio solo cuenta en gastos en dólares de Argentina', () => {
+    const ars = diffExpenseUpdate(original, { ...same, fxRate: 1560 });
+    expect(ars.hasChanges).toBe(false);
+    const usd = {
+      ...original,
+      currency: 'USD',
+      fxRate: 1500,
+    } as unknown as ExpenseRecordDetail;
+    const r = diffExpenseUpdate(usd, { ...same, fxRate: 1560 });
+    expect(r.changes).toEqual({ fxRate: 1560 });
+    expect(r.needsReason).toBe(true);
+    expect(diffExpenseUpdate(usd, { ...same, fxRate: 1500 }).hasChanges).toBe(false);
+  });
+
+  it('vaciar beneficiario y observaciones manda null', () => {
+    const r = diffExpenseUpdate(original, { ...same, beneficiary: '  ', notes: '' });
+    expect(r.changes).toEqual({ beneficiary: null, notes: null });
+    expect(r.needsReason).toBe(false);
+  });
+
+  it('un beneficiario y observaciones nulos en el original no cuentan como cambio si siguen vacíos', () => {
+    const sinDatos = {
+      ...original,
+      beneficiary: null,
+      notes: null,
+    } as unknown as ExpenseRecordDetail;
+    expect(diffExpenseUpdate(sinDatos, { ...same, beneficiary: '', notes: '' }).hasChanges).toBe(
+      false
+    );
   });
 });

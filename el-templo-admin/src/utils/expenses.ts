@@ -19,6 +19,9 @@ import type {
   ExpenseCurrency,
   ExpensePaymentMethod,
   ExpensePaymentStatus,
+  ExpenseRecordDetail,
+  ReceiptLink,
+  UpdateExpenseRecordInput,
 } from '../types/expense';
 import { isMethodAllowedForAccount, type AccountType } from './payment-method-rules';
 
@@ -117,6 +120,21 @@ export function sameAllocations(
 /** El gasto necesita tipo de cambio para conocer su costo: solo Argentina con USD. */
 export function needsExpenseFx(country: ExpenseCountry, currency: ExpenseCurrency): boolean {
   return country === 'AR' && currency === 'USD';
+}
+
+/**
+ * Tipo de cambio válido: mayor a 0, hasta 4 decimales y dentro del rango de
+ * DECIMAL(12,4). Misma condición que `assertValidFxRate` de la API.
+ */
+export function isValidFxRate(v: unknown): v is number {
+  if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0 || v > 99_999_999.9999) return false;
+  const scaled = v * 10_000;
+  return Math.abs(scaled - Math.round(scaled)) < 1e-6;
+}
+
+/** Equivalente de un importe a un tipo de cambio: `Math.round(importe × tc)` (como la API). */
+export function amountAtRate(amount: number, fxRate: number): number {
+  return Math.round(amount * fxRate);
 }
 
 /**
@@ -299,4 +317,89 @@ export function isHttpUrl(s: string): boolean {
   } catch {
     return false;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Edición del gasto (DI-09)
+// ---------------------------------------------------------------------------
+
+/** Quita espacios y descarta las filas de comprobante totalmente vacías. */
+export function cleanReceiptLinks(links: ReadonlyArray<ReceiptLink>): ReceiptLink[] {
+  return links
+    .map((l) => ({ label: l.label.trim(), url: l.url.trim() }))
+    .filter((l) => l.label !== '' || l.url !== '');
+}
+
+/** Lo que el formulario de gasto tiene cargado, ya con los tipos de la API. */
+export interface ExpenseFormValues {
+  concept: string;
+  beneficiary: string;
+  costCenterId: number;
+  imputationMonth: string;
+  amount: number;
+  amountStatus: ExpenseAmountStatus;
+  fxRate: number | null;
+  receiptLinks: ReadonlyArray<ReceiptLink>;
+  notes: string;
+  allocations: ReadonlyArray<ExpenseAllocationInput>;
+}
+
+/**
+ * Qué cambió respecto del gasto guardado: el PATCH lleva SOLO los campos que
+ * cambiaron. El reparto va completo si cambió el reparto o el importe (la API
+ * lo exige con el importe). `needsReason`: cambiar importe, estado del importe
+ * o tipo de cambio exige motivo (la API da 400 sin él). El país y la moneda no
+ * se editan, y el tipo de cambio solo cuenta en gastos en dólares de Argentina.
+ */
+export function diffExpenseUpdate(
+  original: ExpenseRecordDetail,
+  values: ExpenseFormValues
+): { changes: UpdateExpenseRecordInput; needsReason: boolean; hasChanges: boolean } {
+  const changes: UpdateExpenseRecordInput = {};
+
+  const concept = values.concept.trim();
+  if (concept !== original.concept) changes.concept = concept;
+
+  const beneficiary = values.beneficiary.trim() === '' ? null : values.beneficiary.trim();
+  const originalBeneficiary = (original.beneficiary ?? '').trim() || null;
+  if (beneficiary !== originalBeneficiary) changes.beneficiary = beneficiary;
+
+  if (values.costCenterId !== original.costCenterId) changes.costCenterId = values.costCenterId;
+  if (values.imputationMonth !== original.imputationMonth) {
+    changes.imputationMonth = values.imputationMonth;
+  }
+
+  const amountChanged = values.amount !== original.amount;
+  if (amountChanged) changes.amount = values.amount;
+  const statusChanged = values.amountStatus !== original.amountStatus;
+  if (statusChanged) changes.amountStatus = values.amountStatus;
+  const fxChanged =
+    needsExpenseFx(original.country, original.currency) && values.fxRate !== original.fxRate;
+  if (fxChanged) changes.fxRate = values.fxRate;
+
+  const links = cleanReceiptLinks(values.receiptLinks);
+  const linkKey = (list: ReadonlyArray<ReceiptLink>): string =>
+    JSON.stringify(list.map((l) => [l.label.trim(), l.url.trim()]));
+  if (linkKey(links) !== linkKey(original.receiptLinks)) changes.receiptLinks = links;
+
+  const notes = values.notes.trim() === '' ? null : values.notes.trim();
+  const originalNotes = (original.notes ?? '').trim() || null;
+  if (notes !== originalNotes) changes.notes = notes;
+
+  const originalAllocations = original.allocations.map((a) => ({
+    branchId: a.branchId,
+    amount: a.amount,
+  }));
+  if (amountChanged || !sameAllocations(originalAllocations, values.allocations)) {
+    changes.allocations = values.allocations.map((a) => ({
+      branchId: a.branchId,
+      amount: a.amount,
+    }));
+  }
+
+  return {
+    changes,
+    needsReason: amountChanged || statusChanged || fxChanged,
+    hasChanges: Object.keys(changes).length > 0,
+  };
 }
