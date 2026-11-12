@@ -178,13 +178,16 @@ export const EXCEPCIONES_NOMBRADAS: Readonly<Record<string, string>> = {
 // aislamiento+control en iso-03-finance-cajas.
 // 2026-11-11: 52 -> 53 por los destinos del retiro (fase 208-06), con su par
 // aislamiento+control en iso-03-finance-cajas.
-const CASOS_BASELINE = 53;
+// 2026-11-11: 53 -> 59 por las 6 rutas del gasto de Egresos (fase 209-07), con su
+// par aislamiento+control cada una en iso-03-finance-egresos.
+const CASOS_BASELINE = 59;
 
-/** Los tres archivos de la batería ISO-03, en el orden en que se escribieron. */
+/** Los archivos de la batería ISO-03, en el orden en que se escribieron. */
 const ARCHIVOS_BATERIA = [
   "iso-03-finance-cajas.test.ts", // plan 172-17 — 14 rutas
   "iso-03-finance-transacciones.test.ts", // plan 172-18 — 13 rutas
   "iso-03-finance-coach-load.test.ts", // plan 172-19 — 11 rutas
+  "iso-03-finance-egresos.test.ts", // plan 209-07 — Egresos
 ] as const;
 
 /**
@@ -321,7 +324,7 @@ describe("cobertura de la batería ISO-03 — contra el manifiesto real", () => 
     ).toEqual([]);
   });
 
-  it("la batería cubre exactamente las 50 rutas finance del baseline", () => {
+  it("la batería cubre exactamente las rutas finance del baseline", () => {
     expect(
       RUTAS_FINANCE.length,
       `El manifiesto tiene ${RUTAS_FINANCE.length} rutas finance ` +
@@ -353,8 +356,8 @@ describe("cobertura de la batería ISO-03 — contra el manifiesto real", () => 
         claves.length,
         `${archivo} no declaró ni una sola ruta en sus describe. O el archivo ` +
           `se vació, o se renombró, o sus describe perdieron la clave del ` +
-          `manifiesto. Los tres archivos aportan (14 + 13 + 11 = ` +
-          `${CASOS_BASELINE}), así que un 0 acá es una lectura rota, no una ` +
+          `manifiesto. Los cuatro archivos aportan (cajas + transacciones + ` +
+          `coach-load + egresos = ${CASOS_BASELINE}), así que un 0 acá es una lectura rota, no una ` +
           `decisión.`,
       ).toBeGreaterThan(0);
     }

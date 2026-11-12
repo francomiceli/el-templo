@@ -82,7 +82,7 @@
  *
  * @see .docs/saas-multitenancy/07-receta-adopcion.md (lo escribe el plan 172-23)
  */
-import { and, eq, like, sql, type SQL } from "drizzle-orm";
+import { and, eq, inArray, like, sql, type SQL } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import * as schema from "../../src/db/schema";
 import {
@@ -629,6 +629,49 @@ async function sembrarElAsiento(
 export async function limpiarFinanzasDeLaBateria(
   app: FastifyInstance,
 ): Promise<void> {
+  // Egresos (fase 209-07): los gastos, sus repartos y sus pagos tienen FK a los
+  // rubros y a las cajas que se borran mas abajo, asi que salen PRIMERO (pagos,
+  // reparto, gastos). Del gimnasio 2 se van todos y, de El Templo, solo los
+  // gastos marcados con MARCA_ISO03 en el concepto.
+  for (const ctx of [CTX_DOS, CTX_TEMPLO]) {
+    const gastos = await app.db
+      .select({ id: schema.expenseRecords.id })
+      .from(schema.expenseRecords)
+      .where(
+        ctx === CTX_DOS
+          ? tenantWhere(schema.expenseRecords, ctx)
+          : and(
+              tenantWhere(schema.expenseRecords, ctx),
+              like(schema.expenseRecords.concept, `${MARCA_ISO03}%`),
+            ),
+      );
+    const ids = gastos.map((g) => g.id);
+    if (ids.length === 0) continue;
+    await app.db
+      .delete(schema.expensePayments)
+      .where(
+        and(
+          tenantWhere(schema.expensePayments, ctx),
+          inArray(schema.expensePayments.expenseRecordId, ids),
+        ),
+      );
+    await app.db
+      .delete(schema.expenseAllocations)
+      .where(
+        and(
+          tenantWhere(schema.expenseAllocations, ctx),
+          inArray(schema.expenseAllocations.expenseRecordId, ids),
+        ),
+      );
+    await app.db
+      .delete(schema.expenseRecords)
+      .where(
+        and(
+          tenantWhere(schema.expenseRecords, ctx),
+          inArray(schema.expenseRecords.id, ids),
+        ),
+      );
+  }
   await app.db
     .delete(schema.costCenters)
     .where(tenantWhere(schema.costCenters, CTX_DOS));
