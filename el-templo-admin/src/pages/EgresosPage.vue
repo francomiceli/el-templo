@@ -63,7 +63,15 @@
       </q-tab-panel>
 
       <!-- Resumen: matriz por destino y Excel (plan 209-16) -->
-      <q-tab-panel :name="EGRESOS_TABS.resumen" class="q-px-none" />
+      <q-tab-panel :name="EGRESOS_TABS.resumen" class="q-px-none">
+        <ResumenTab
+          :selected-country="selectedCountry"
+          :is-owner="isOwner"
+          :options="expenseOptions"
+          :refresh-key="refreshKey"
+          @open-detail="onOpenDetail"
+        />
+      </q-tab-panel>
 
       <!-- Rubros: ABM movido desde Caja > Cuentas (plan 209-12), solo owner y admin -->
       <q-tab-panel v-if="canManageRubros" :name="EGRESOS_TABS.rubros" class="q-px-none">
@@ -102,6 +110,7 @@ import type { ExpenseCountry, ExpenseFormOptions } from 'src/types/expense';
 import GastoDetailDialog from 'src/components/egresos/GastoDetailDialog.vue';
 import GastosTab from 'src/components/egresos/GastosTab.vue';
 import PorPagarTab from 'src/components/egresos/PorPagarTab.vue';
+import ResumenTab from 'src/components/egresos/ResumenTab.vue';
 import RubrosTab from 'src/components/egresos/RubrosTab.vue';
 
 const route = useRoute();
