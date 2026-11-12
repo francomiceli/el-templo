@@ -304,6 +304,7 @@ function deriveRow(
     phoneE164: normalizePhoneE164(e.phone, e.branchCountry),
     branchId: e.branchId,
     branchName: e.branchName,
+    branchTimezone: e.branchTimezone,
     planId: e.planId,
     planName: e.planName,
     endDate: e.endDate,
