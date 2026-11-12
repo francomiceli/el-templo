@@ -140,7 +140,7 @@ Y en `stretch-schemas.ts:7-9` reemplazar "el cliente no manda tiempos" por "las 
 
 ### ME-03: El evento `started` es fire-and-forget; si falla, el cierre queda sin duración ni AURA y no se puede rehacer
 
-**Estado: abierto** (decisión: anotado para el UAT, no se arregla en esta pasada).
+**Estado: FIXED** (2026-11-12, decisión de Franco: reintentar el inicio). `sendStarted` reintenta `started` en segundo plano (3 s, 8 s, 15 s, después cada 30 s, tope 20 intentos); corta al entrar, ante un 4xx, al llamar a `complete` o en `cleanup`. Si se cierra sin inicio confirmado queda un `log.error` (Sentry) para medir cuánto pasa. No se reenvía justo antes de `complete` porque `started` reescribe `started_at` y mediría una duración de segundos.
 
 **File:** `el-templo-app/src/modules/training/composables/useStretchCompletion.ts:80-93`, `el-templo-app/src/modules/training/pages/StretchPlayer.vue:316`; `el-templo-api/src/modules/sessions/stretch-service.ts:692-704` (test (i) lo fija)
 
