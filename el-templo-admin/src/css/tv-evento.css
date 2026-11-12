@@ -1,0 +1,204 @@
+/* Tarjeta de evento de los avisos de TV (2026-11-12, sketch 029 variante G1):
+   tarjeta clara a todo el ancho con la fecha como hoja de calendario, hora,
+   lugar, sello y la foto a la derecha; logo · reloj · fecha en una fila debajo.
+
+   UN solo archivo para la pantalla del televisor (TvScreenPage.vue) y la vista
+   previa del editor (TvAvisoPreview.vue). Todas las medidas salen de `--tvu`,
+   el 1% del ancho del marco 16:9: el televisor la define como `1rem` (ver
+   src/tv/scale.ts) y la vista previa como el ancho de su caja / 100.
+
+   Sin `gap` ni grid a propósito: flex con márgenes, lo más barato de componer
+   en el GPU del televisor. Todo estático (sin animaciones). */
+.tvEvento {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 calc(var(--tvu) * 4);
+  overflow: hidden;
+  box-sizing: border-box;
+  font-family: 'NunitoSans', 'Segoe UI', system-ui, sans-serif;
+  color: #3d3732;
+  text-align: left;
+}
+.tvEvento * {
+  box-sizing: border-box;
+}
+
+.tvEvento__card {
+  display: flex;
+  overflow: hidden;
+  background: rgba(251, 247, 241, 0.95);
+  border-radius: calc(var(--tvu) * 1.8);
+  box-shadow: 0 calc(var(--tvu) * 1) calc(var(--tvu) * 4) rgba(61, 55, 50, 0.22);
+}
+.tvEvento__cuerpo {
+  flex: 1;
+  min-width: 0;
+  padding: calc(var(--tvu) * 3.2) calc(var(--tvu) * 4);
+}
+.tvEvento__foto {
+  flex: none;
+  width: calc(var(--tvu) * 28);
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+.tvEvento__foto--sin {
+  display: none;
+}
+
+/* Fila principal: hoja de calendario + nombre y subtítulo. */
+.tvEvento__fila {
+  display: flex;
+  align-items: center;
+}
+.tvEvento__cal {
+  flex: none;
+  width: calc(var(--tvu) * 13.5);
+  border-radius: calc(var(--tvu) * 1.4);
+  background: #96593a;
+  color: #f2ebe1;
+  text-align: center;
+  padding: calc(var(--tvu) * 1.5) 0 calc(var(--tvu) * 1.6);
+  margin-right: calc(var(--tvu) * 3.2);
+}
+.tvEvento__calDia,
+.tvEvento__calMes {
+  font-weight: 700;
+  font-size: calc(var(--tvu) * 2.1);
+  letter-spacing: 0.22em;
+  line-height: 1.2;
+}
+.tvEvento__calNum {
+  font-weight: 700;
+  font-size: calc(var(--tvu) * 7.8);
+  line-height: 1.05;
+}
+.tvEvento__titulos {
+  min-width: 0;
+}
+/* El nivel (t1..t6) lo elige `eventoNombreNivel` para que entre en una línea. */
+.tvEvento__nombre {
+  font-weight: 700;
+  font-size: calc(var(--tvu) * 7.6);
+  line-height: 1.02;
+  letter-spacing: -0.01em;
+  color: #3d3732;
+}
+.tvEvento__nombre--t2 {
+  font-size: calc(var(--tvu) * 6.4);
+}
+.tvEvento__nombre--t3 {
+  font-size: calc(var(--tvu) * 5.4);
+}
+.tvEvento__nombre--t4 {
+  font-size: calc(var(--tvu) * 4.6);
+}
+.tvEvento__nombre--t5 {
+  font-size: calc(var(--tvu) * 3.8);
+}
+.tvEvento__nombre--t6 {
+  font-size: calc(var(--tvu) * 3.2);
+  line-height: 1.1;
+}
+.tvEvento__sub {
+  font-weight: 400;
+  font-size: calc(var(--tvu) * 3.1);
+  line-height: 1.2;
+  color: #3d3732;
+  margin-top: calc(var(--tvu) * 1.2);
+}
+.tvEvento__sub--chico {
+  font-size: calc(var(--tvu) * 2.4);
+}
+
+/* Hora | Lugar. */
+.tvEvento__datos {
+  display: flex;
+  margin-top: calc(var(--tvu) * 2.8);
+  padding-top: calc(var(--tvu) * 2.3);
+  border-top: 1px solid rgba(61, 55, 50, 0.2);
+}
+.tvEvento__dato {
+  min-width: 0;
+}
+.tvEvento__dato--hora {
+  flex: none;
+}
+.tvEvento__dato + .tvEvento__dato {
+  margin-left: calc(var(--tvu) * 3.2);
+  padding-left: calc(var(--tvu) * 3.2);
+  border-left: 1px solid rgba(61, 55, 50, 0.2);
+}
+.tvEvento__label {
+  font-weight: 700;
+  font-size: calc(var(--tvu) * 1.3);
+  letter-spacing: 0.3em;
+  color: #6f6455;
+  margin-bottom: calc(var(--tvu) * 0.6);
+}
+.tvEvento__valor {
+  font-weight: 700;
+  font-size: calc(var(--tvu) * 2.8);
+  line-height: 1.2;
+  color: #3d3732;
+}
+.tvEvento__valor--chico {
+  font-size: calc(var(--tvu) * 2.2);
+}
+
+.tvEvento__sello {
+  display: inline-block;
+  margin-top: calc(var(--tvu) * 2.5);
+  border: calc(var(--tvu) * 0.16) solid #96593a;
+  border-radius: calc(var(--tvu) * 5);
+  padding: calc(var(--tvu) * 0.6) calc(var(--tvu) * 2.2);
+  font-weight: 700;
+  font-size: calc(var(--tvu) * 2.1);
+  line-height: 1.3;
+  color: #96593a;
+}
+.tvEvento__sello--sin {
+  display: none;
+}
+
+/* Identidad al pie: partenón · reloj · fecha, con halo crema para leerse
+   sobre la foto del templo. */
+.tvEvento__pie {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: calc(var(--tvu) * 2.2);
+}
+.tvEvento__logo {
+  width: calc(var(--tvu) * 3.4);
+  margin-right: calc(var(--tvu) * 1.6);
+  filter: drop-shadow(0 0 calc(var(--tvu) * 0.9) rgba(242, 236, 226, 0.95));
+}
+.tvEvento__reloj {
+  font-family: 'Cinzel', Georgia, serif;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: calc(var(--tvu) * 3);
+  line-height: 1;
+  color: #3d3732;
+  text-shadow:
+    0 0 calc(var(--tvu) * 0.9) rgba(242, 236, 226, 0.95),
+    0 0 calc(var(--tvu) * 2.2) rgba(242, 236, 226, 0.8);
+}
+.tvEvento__fecha {
+  font-weight: 700;
+  font-size: calc(var(--tvu) * 1.15);
+  letter-spacing: 0.26em;
+  color: #6f6455;
+  margin-left: calc(var(--tvu) * 2);
+  text-shadow:
+    0 0 calc(var(--tvu) * 0.9) rgba(242, 236, 226, 0.95),
+    0 0 calc(var(--tvu) * 2.2) rgba(242, 236, 226, 0.8);
+}

@@ -188,6 +188,45 @@
               <div class="fechaXl" id="avisoFecha"></div>
             </aside>
           </div>
+          <!-- Tarjeta de evento (2026-11-12, sketch 029 G1): cuando el aviso
+               trae `evento`, render.ts suma `pantalla--evento` a esta pantalla
+               y el CSS muestra esta tarjeta EN LUGAR del marco de arriba.
+               Estilos compartidos con la vista previa del editor
+               (src/css/tv-evento.css); textos con `textContent` plano. -->
+          <div class="tvEvento">
+            <div class="tvEvento__card">
+              <div class="tvEvento__cuerpo">
+                <div class="tvEvento__fila">
+                  <div class="tvEvento__cal">
+                    <div class="tvEvento__calDia" id="eventoCalDia"></div>
+                    <div class="tvEvento__calNum" id="eventoCalNum"></div>
+                    <div class="tvEvento__calMes" id="eventoCalMes"></div>
+                  </div>
+                  <div class="tvEvento__titulos">
+                    <div class="tvEvento__nombre" id="eventoNombre"></div>
+                    <div class="tvEvento__sub" id="eventoSub"></div>
+                  </div>
+                </div>
+                <div class="tvEvento__datos">
+                  <div class="tvEvento__dato tvEvento__dato--hora">
+                    <div class="tvEvento__label">HORA</div>
+                    <div class="tvEvento__valor" id="eventoHora"></div>
+                  </div>
+                  <div class="tvEvento__dato">
+                    <div class="tvEvento__label">LUGAR</div>
+                    <div class="tvEvento__valor" id="eventoLugar"></div>
+                  </div>
+                </div>
+                <div class="tvEvento__sello" id="eventoSello"></div>
+              </div>
+              <div class="tvEvento__foto" id="eventoFoto"></div>
+            </div>
+            <div class="tvEvento__pie">
+              <img class="tvEvento__logo" :src="tvParthenonCharcoal" alt="El Templo" />
+              <div class="tvEvento__reloj" id="eventoReloj">--:--</div>
+              <div class="tvEvento__fecha" id="eventoFecha"></div>
+            </div>
+          </div>
         </div>
         <!-- "El recorrido de hoy" (sketch 004 D): la pantalla de inicio cuando
              hay plani aprobada (poll `idle` con `recorrido`). Cuerpos de mármol
@@ -270,6 +309,7 @@ import tvLogo from 'src/assets/tv-logo.png';
 import tvBarsOpen from 'src/assets/tv-bars-open.webp';
 import tvParthenonBlanco from 'src/assets/tv-parthenon-blanco.png';
 import tvParthenonCharcoal from 'src/assets/tv-parthenon-charcoal.png';
+import 'src/css/tv-evento.css';
 import {
   MARBLE_BG_BASE64,
   CINZEL_REGULAR_BASE64,
@@ -2232,6 +2272,36 @@ onUnmounted(() => {
    ya es legible en las dos. */
 #tvScreenRoot #pantallaAviso .transLogo--dia {
   display: none;
+}
+
+/* Formato evento (2026-11-12): la tarjeta de `src/css/tv-evento.css` reemplaza
+   al marco frase | identidad. `--tvu` es la unidad de ese archivo: acá vale
+   1rem (= 1% del ancho del marco, ver src/tv/scale.ts). El velo crema se abre
+   un poco más que en la pre-clase: el texto va sobre la tarjeta, no sobre la
+   foto del templo. */
+#tvScreenRoot {
+  --tvu: 1rem;
+}
+#tvScreenRoot #pantallaAviso .tvEvento {
+  display: none;
+}
+#tvScreenRoot #pantallaAviso.pantalla--evento .tvEvento {
+  display: flex;
+}
+#tvScreenRoot #pantallaAviso.pantalla--evento .transMarco,
+#tvScreenRoot #pantallaAviso.pantalla--evento .transGlow {
+  display: none;
+}
+#tvScreenRoot #pantallaAviso.pantalla--evento .transFoto {
+  background:
+    linear-gradient(
+      100deg,
+      rgba(242, 236, 226, 0.7) 0%,
+      rgba(242, 236, 226, 0.6) 42%,
+      rgba(240, 232, 220, 0.5) 68%,
+      rgba(238, 229, 214, 0.42) 100%
+    ),
+    var(--trans-foto, none) center / cover no-repeat;
 }
 #tvScreenRoot #pantallaAviso.pantalla--dia .transLogo--dia {
   display: block;

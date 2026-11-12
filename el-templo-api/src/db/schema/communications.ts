@@ -162,6 +162,26 @@ export const avisoEvents = mysqlTable(
  * reemplaza flexibilidad final). `tv_class_state.tv_aviso_id` referencia la
  * fila que se está mostrando cuando `screen = 'aviso'` (D-25).
  */
+
+/**
+ * Formato "evento" de un aviso de TV (2026-11-12, migración 0332): con esta
+ * columna cargada la TV pinta una tarjeta de evento (fecha de calendario,
+ * nombre, hora, lugar, sello y foto) en vez de la placa de título + cuerpo.
+ * El NOMBRE del evento es `title` y el SUBTÍTULO es `body` — así un televisor
+ * que todavía no recargó el bundle muestra una placa legible. `NULL` = placa.
+ */
+export interface TvAvisoEvento {
+  /** Día del evento, `YYYY-MM-DD` (la TV arma "SÁB / 14 / NOV"). */
+  fecha: string;
+  /** Texto libre corto: "10:00 h". */
+  hora: string;
+  lugar: string;
+  /** Sello opcional: "Gratis y abierto a todos". */
+  sello: string | null;
+  /** URL pública de R2 (`tv/avisos/...`), subida desde el editor. */
+  imageUrl: string | null;
+}
+
 export const tvAvisos = mysqlTable(
   "tv_avisos",
   {
@@ -180,6 +200,8 @@ export const tvAvisos = mysqlTable(
       .default("oscuro"),
     isActive: boolean("is_active").notNull().default(false),
     scopeBranchIds: json("scope_branch_ids").$type<number[]>(),
+    // 2026-11-12 (migración 0332): NULL = placa de título + cuerpo.
+    evento: json("evento").$type<TvAvisoEvento>(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
   },

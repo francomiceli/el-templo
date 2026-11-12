@@ -67,6 +67,20 @@ export interface TvAvisoPollPayload {
   body: string;
   /** 2026-10-06 (API migración 0259): fondo de la placa, lo elige el admin. */
   tema: 'claro' | 'oscuro';
+  /** 2026-11-12 (API migración 0332): formato evento — la TV pinta la tarjeta
+   *  de `src/tv/evento.ts` en vez de la placa. `null` = placa. Opcional porque
+   *  un API anterior al cambio no manda la clave. */
+  evento?: TvAvisoEventoPayload | null;
+}
+
+/** Datos del formato evento; el nombre es `title` y el subtítulo `body`. */
+export interface TvAvisoEventoPayload {
+  /** `YYYY-MM-DD`. */
+  fecha: string;
+  hora: string;
+  lugar: string;
+  sello: string | null;
+  imageUrl: string | null;
 }
 
 /** Sesion de semana vs. sabado ROM (D-23). */

@@ -27,6 +27,7 @@ import { beep } from './audio';
 import { createTvLogger } from './logger';
 import { nowCorrected } from './poll';
 import type { TvAvisoPollPayload, TvClassPayload, TvExercise, TvPollResponse } from './poll';
+import { eventoFotoCss, eventoVista } from './evento';
 /* El relleno a dos digitos vive en `scale.ts`: es el unico helper de relleno de todo
    `src/tv/` (reloj, timer y logger). El metodo nativo del string es ES2017 — Pitfall 5. */
 import { pad2 } from './scale';
@@ -108,6 +109,19 @@ interface Nodes {
   avisoCuerpo: HTMLElement;
   avisoReloj: ClockNodes;
   avisoFecha: HTMLElement;
+  /** Tarjeta de evento (2026-11-12): vive dentro de `pantallaAviso` y se
+   *  muestra en lugar de la placa cuando el aviso trae `evento`. */
+  eventoCalDia: HTMLElement;
+  eventoCalNum: HTMLElement;
+  eventoCalMes: HTMLElement;
+  eventoNombre: HTMLElement;
+  eventoSub: HTMLElement;
+  eventoHora: HTMLElement;
+  eventoLugar: HTMLElement;
+  eventoSello: HTMLElement;
+  eventoFoto: HTMLElement;
+  eventoReloj: ClockNodes;
+  eventoFecha: HTMLElement;
   /** Reloj y fecha del recorrido de hoy (pantalla de inicio con plani). */
   recorridoReloj: ClockNodes;
   recorridoFecha: HTMLElement;
@@ -190,6 +204,17 @@ function ensureNodes(): Nodes {
     avisoCuerpo: byId('avisoCuerpo'),
     avisoReloj: clockNodes(byId('avisoReloj')),
     avisoFecha: byId('avisoFecha'),
+    eventoCalDia: byId('eventoCalDia'),
+    eventoCalNum: byId('eventoCalNum'),
+    eventoCalMes: byId('eventoCalMes'),
+    eventoNombre: byId('eventoNombre'),
+    eventoSub: byId('eventoSub'),
+    eventoHora: byId('eventoHora'),
+    eventoLugar: byId('eventoLugar'),
+    eventoSello: byId('eventoSello'),
+    eventoFoto: byId('eventoFoto'),
+    eventoReloj: clockNodes(byId('eventoReloj')),
+    eventoFecha: byId('eventoFecha'),
     recorridoReloj: clockNodes(byId('recorridoReloj')),
     recorridoFecha: byId('recorridoFecha'),
     pantallaRecorrido: byId('pantallaRecorrido'),
@@ -770,6 +795,7 @@ export function renderState(payload: TvPollResponse): void {
   setText(n.reposoFecha, fecha);
   setText(n.cierreFecha, fecha);
   setText(n.avisoFecha, fecha);
+  setText(n.eventoFecha, fecha);
   setText(n.recorridoFecha, fecha);
   setText(n.cierreTitulo, 'SESIÓN COMPLETA');
 
@@ -817,11 +843,7 @@ export function renderState(payload: TvPollResponse): void {
   // dentro de los nodos de la cápsula técnica (`capKicker`/`capEjercicio`/
   // `capCue` están pensados para "NOTAS TÉCNICAS", no para un aviso
   // genérico). El velo (día/noche) sale de `avisoVeloFor` arriba.
-  setVisible(
-    n.pantallaAviso,
-    avisoVelo === 'dia' ? 'pantalla pantalla--dia' : 'pantalla',
-    avisoIsVisible
-  );
+  setVisible(n.pantallaAviso, avisoBaseClass(payload, avisoVelo), avisoIsVisible);
 
   // El recorrido de hoy (2026-10-13): REEMPLAZA a la pantalla de inicio cuando hay
   // plani aprobada (el server manda `recorrido` solo en ese caso). Clave diurna, como
@@ -933,6 +955,7 @@ export function tickClock(): void {
   // (`lastAvisoKey`): repetir la llamada cada 250 ms es gratis.
   if (last.aviso) {
     paintClock(n.avisoReloj, d);
+    paintClock(n.eventoReloj, d);
     paintAviso(n, last.aviso, avisoVeloFor(last));
   } else if (last.screen === 'idle') {
     paintClock(n.reposoReloj, d);
@@ -1052,13 +1075,61 @@ function avisoVeloFor(payload: TvPollResponse): 'dia' | 'noche' {
  * mismo aviso (edge case: manual → reemplazo del mismo texto) igual repinte.
  */
 function paintAviso(n: Nodes, aviso: TvAvisoPollPayload, pantalla: 'dia' | 'noche'): void {
-  const key = pantalla + ':' + aviso.id + ':' + aviso.title.length + ':' + aviso.body.length;
+  const evento = aviso.evento ? aviso.evento : null;
+  const key =
+    pantalla +
+    ':' +
+    aviso.id +
+    ':' +
+    aviso.title.length +
+    ':' +
+    aviso.body.length +
+    // El evento entra ENTERO en el guard: editar la hora o cambiar la foto
+    // conserva el largo de título/cuerpo y sin esto no repintaría.
+    (evento ? ':' + aviso.title + '|' + aviso.body + '|' + JSON.stringify(evento) : '');
   if (key === lastAvisoKey) {
     return;
   }
   lastAvisoKey = key;
+  // La placa se escribe siempre (con evento queda oculta por CSS): si el
+  // aviso deja de ser evento no hay un frame con el texto anterior.
   setText(n.avisoTitulo, aviso.title);
   setText(n.avisoCuerpo, aviso.body);
+  if (!evento) {
+    return;
+  }
+
+  const vista = eventoVista(aviso.title, aviso.body, evento);
+  setText(n.eventoCalDia, vista.calendario ? vista.calendario.dia : '');
+  setText(n.eventoCalNum, vista.calendario ? vista.calendario.num : '');
+  setText(n.eventoCalMes, vista.calendario ? vista.calendario.mes : '');
+  setText(n.eventoNombre, vista.nombre);
+  setClass(n.eventoNombre, vista.nombreClase);
+  setText(n.eventoSub, vista.sub);
+  setClass(n.eventoSub, vista.subClase);
+  setText(n.eventoHora, vista.hora);
+  setText(n.eventoLugar, vista.lugar);
+  setClass(n.eventoLugar, vista.lugarClase);
+  setText(n.eventoSello, vista.sello);
+  setClass(n.eventoSello, vista.selloClase);
+  setClass(n.eventoFoto, vista.fotoClase);
+  const fotoCss = eventoFotoCss(vista.fotoUrl);
+  if (n.eventoFoto.style.backgroundImage !== fotoCss) {
+    n.eventoFoto.style.backgroundImage = fotoCss;
+  }
+}
+
+/**
+ * Clase base de la placa de aviso (`setVisible` reescribe el className
+ * COMPLETO). Con formato evento la pantalla es siempre diurna —la tarjeta es
+ * clara, el `tema` del aviso no aplica— y suma `pantalla--evento`, que en CSS
+ * oculta la placa de título + cuerpo y muestra la tarjeta.
+ */
+function avisoBaseClass(payload: TvPollResponse, velo: 'dia' | 'noche'): string {
+  if (payload.aviso && payload.aviso.evento) {
+    return 'pantalla pantalla--dia pantalla--evento';
+  }
+  return velo === 'dia' ? 'pantalla pantalla--dia' : 'pantalla';
 }
 
 function buildQuote(host: HTMLElement, autor: HTMLElement, quote: SessionQuote): void {

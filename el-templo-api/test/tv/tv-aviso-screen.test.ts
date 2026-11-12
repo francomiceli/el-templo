@@ -164,6 +164,13 @@ async function createTvAviso(
     isActive: boolean;
     tenantId: number;
     scopeBranchIds: number[] | null;
+    evento: {
+      fecha: string;
+      hora: string;
+      lugar: string;
+      sello: string | null;
+      imageUrl: string | null;
+    };
   }> = {},
 ): Promise<number> {
   const [row] = await app.db
@@ -177,6 +184,7 @@ async function createTvAviso(
       ...(overrides.scopeBranchIds !== undefined
         ? { scopeBranchIds: overrides.scopeBranchIds }
         : {}),
+      ...(overrides.evento !== undefined ? { evento: overrides.evento } : {}),
       ...(overrides.tenantId !== undefined
         ? { tenantId: overrides.tenantId }
         : {}),
@@ -254,7 +262,19 @@ interface ControlStateBody {
 interface PollBody {
   screen: string;
   class: unknown;
-  aviso: { id: number; title: string; body: string; tema: string } | null;
+  aviso: {
+    id: number;
+    title: string;
+    body: string;
+    tema: string;
+    evento: {
+      fecha: string;
+      hora: string;
+      lugar: string;
+      sello: string | null;
+      imageUrl: string | null;
+    } | null;
+  } | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -329,6 +349,8 @@ describe("screen 'aviso' — escritura, poll, salida y degradacion (D-25/D-26)",
       body: "Vamos a hacer un cambio en la rutina de hoy",
       // 2026-10-06 (migración 0259): sin tema elegido, la placa es oscura.
       tema: "oscuro",
+      // 2026-11-12 (migración 0332): sin formato evento, es una placa.
+      evento: null,
     });
   });
 
@@ -565,6 +587,69 @@ describe("modo reemplazo — flexibilidad inicial y final (D-28)", () => {
     expect(poll.recorrido?.bloques.length).toBeGreaterThan(0);
   });
 
+  it("(6a-evento) 2026-11-12: un aviso manual con formato evento viaja con `evento` completo en el poll", async () => {
+    const evento = {
+      fecha: "2026-11-14",
+      hora: "10:00 h",
+      lugar: "Cousteau · Gral. Roca 1218",
+      sello: "Gratis y abierto a todos",
+      imageUrl: "https://r2.test.example/tv/avisos/1-cousteau.jpg",
+    };
+    const avisoId = await createTvAviso({
+      title: "Social Run",
+      body: "Aura Club × Cousteau",
+      evento,
+    });
+    await postState(coachToken, { branchId, screen: "aviso", tvAvisoId: avisoId });
+
+    const screenRes = await getScreen(coachToken, branchId);
+    expect(screenRes.statusCode, screenRes.body).toBe(200);
+    const poll = JSON.parse(screenRes.body) as PollBody;
+    expect(poll.screen).toBe("aviso");
+    expect(poll.aviso).toEqual({
+      id: avisoId,
+      title: "Social Run",
+      body: "Aura Club × Cousteau",
+      tema: "oscuro",
+      evento,
+    });
+  });
+
+  it("(6b-evento) 2026-11-12: flex_final con formato evento en 'closing' — `evento` viaja; sin sello ni foto van en null", async () => {
+    const avisoId = await createTvAviso({
+      title: "Social Run",
+      body: "Aura Club × Cousteau",
+      mode: "flex_final",
+      isActive: true,
+      evento: {
+        fecha: "2026-11-14",
+        hora: "10:00 h",
+        lugar: "Cousteau",
+        sello: null,
+        imageUrl: null,
+      },
+    });
+    await postState(coachToken, { branchId, screen: "closing" });
+
+    const screenRes = await getScreen(coachToken, branchId);
+    expect(screenRes.statusCode, screenRes.body).toBe(200);
+    const poll = JSON.parse(screenRes.body) as PollBody;
+    expect(poll.screen).toBe("closing");
+    expect(poll.aviso).toEqual({
+      id: avisoId,
+      title: "Social Run",
+      body: "Aura Club × Cousteau",
+      tema: "oscuro",
+      evento: {
+        fecha: "2026-11-14",
+        hora: "10:00 h",
+        lugar: "Cousteau",
+        sello: null,
+        imageUrl: null,
+      },
+    });
+  });
+
   it("(6b) flex_final activo con screen 'closing': el aviso viaja junto al cierre", async () => {
     await createTvAviso({
       title: "Antes de irte",
@@ -667,6 +752,7 @@ describe("aviso sin plani aprobada (clases de yoga, 2026-10-06)", () => {
       title: "Yoga regenerativo",
       body: "by El Templo",
       tema: "claro",
+      evento: null,
     });
   });
 
