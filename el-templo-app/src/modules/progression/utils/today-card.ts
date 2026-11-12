@@ -185,7 +185,7 @@ export interface TodayCardInput {
    * (`useStretchStore.cardInput`); la card no decide nada. Sin dato o con la consulta fallida es
    * `none`: la card queda como antes de la fase (fase 203, "una falla es 'no sé'").
    */
-  stretch: { status: 'none' | 'available' | 'done'; minutes: number | null }
+  stretch: { status: 'none' | 'available' | 'done' }
   /**
    * Fase 203 (D-08): sesión sin perfil (el boot no lo trajo). Sin perfil no se sabe si el socio
    * es presencial o virtual ni la zona de la sede (`todayStr`). Deja la card en esqueleto AUN con

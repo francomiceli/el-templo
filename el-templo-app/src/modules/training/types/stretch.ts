@@ -11,15 +11,19 @@ export type StretchStatus = 'none' | 'available' | 'done'
 /** Familia de movilidad del ejercicio (catálogo del estiramiento). */
 export type StretchFamily = 'LS' | 'MN' | 'FL' | 'TTB' | 'TS'
 
+/** Dosis de un ejercicio: "30 s" o "10 repeticiones". `max` null = valor único. */
+export interface StretchDose {
+  unit: 'seconds' | 'reps'
+  value: number
+  max: number | null
+}
+
 export interface StretchExercise {
   exerciseId: number
   name: string
   family: StretchFamily
-  /** 1 = un solo lado, 2 = se hace de cada lado */
-  sides: number
-  secondsPerSide: number
-  /** Segundos de pausa/transición antes de este ejercicio */
-  transitionSeconds: number
+  dose: StretchDose
+  /** URL completa del video, o null si no hay */
   videoUrl: string | null
 }
 
@@ -29,8 +33,6 @@ export interface StretchTodayResponse {
   /** Día local de la sede (YYYY-MM-DD); "" cuando el servidor no pudo resolver el día */
   localDate: string
   offerId: number | null
-  minutes: number | null
-  plannedSeconds: number | null
   exercises: StretchExercise[]
   completedAt: string | null
   auraAwarded: boolean
@@ -48,16 +50,17 @@ export interface StretchEventRequest {
 /** Body de `POST /sessions/stretch/complete` */
 export interface StretchCompleteRequest {
   offerId: number
-  exercisesCompleted: number[]
 }
 
 /** Respuesta de `POST /sessions/stretch/complete` */
 export interface StretchCompleteResponse {
   completedAt: string
   durationSeconds: number | null
-  allDone: boolean
   auraAwarded: boolean
   alreadyCompleted: boolean
-  /** Minutos para la pantalla "Listo. X minutos de estiramiento" */
+  /**
+   * Minutos para la pantalla "Listo. X minutos de estiramiento". Solo vale cuando
+   * `durationSeconds` no es null: sin duración medida es una estimación vieja.
+   */
   minutes: number
 }

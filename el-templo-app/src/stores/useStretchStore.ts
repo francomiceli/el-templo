@@ -20,7 +20,7 @@ const log = createLogger('useStretchStore')
  * Fuente única de la card de Mi Templo y del player del estiramiento. La app NO
  * elige nada: lo que muestra sale de `GET /sessions/stretch/today`.
  *
- * - D-09: la card lee `cardInput` (`status` + `minutes`) y nada más.
+ * - D-09: la card lee `cardInput` (solo `status`) y nada más.
  * - D-15: `markCardSeen()` manda `card_seen` una sola vez por día de la sede.
  * - Fase 203, regla 1 ("una falla es 'no sé', nunca 'no'"): `load()` es fail-open.
  *   Si la consulta falla, la card queda como hoy (`status: 'none'`): jamás ofrece
@@ -78,10 +78,10 @@ export const useStretchStore = defineStore('stretch', () => {
   }
 
   /** Lo único que necesita la card (D-09). Sin dato o tras una falla sin dato: `none`. */
-  const cardInput = computed<{ status: StretchStatus; minutes: number | null }>(() => {
+  const cardInput = computed<{ status: StretchStatus }>(() => {
     const t = today.value
-    if (!loaded.value || !t) return { status: 'none', minutes: null }
-    return { status: t.status, minutes: t.minutes }
+    if (!loaded.value || !t) return { status: 'none' }
+    return { status: t.status }
   })
 
   /** D-15: `card_seen` una vez por día, solo con la oferta disponible. Nunca lanza. */
@@ -108,7 +108,6 @@ export const useStretchStore = defineStore('stretch', () => {
     today.value = {
       ...t,
       status: 'done',
-      minutes: res.minutes,
       completedAt: res.completedAt,
       auraAwarded: res.auraAwarded,
     }

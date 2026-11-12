@@ -19,7 +19,10 @@ const MSG_GUARDAR = 'No pudimos guardar el estiramiento'
 
 /** Esperas entre reintentos del aviso de inicio. La última se repite. */
 export const STARTED_RETRY_DELAYS_MS: readonly number[] = [3_000, 8_000, 15_000, 30_000]
-/** Tope de intentos del aviso de inicio (cubre ~8 minutos, más que la rutina) */
+/**
+ * Tope de intentos del aviso de inicio. Con la escalera de esperas son ~8 minutos de
+ * reintentos: sin duración de rutina que cubrir, alcanza para una red que vuelve al rato.
+ */
 export const STARTED_MAX_ATTEMPTS = 20
 
 /** `rejected` = 4xx (no se reintenta). `failed` = red o 5xx (se puede reintentar). */
@@ -30,6 +33,11 @@ export interface UseStretchCompletionReturn {
   isSubmitting: Ref<boolean>
   /** Mensaje del último cierre fallido */
   error: Ref<string | null>
+  /**
+   * `Date.now()` del momento en que el servidor aceptó el `started` (el AURA cuenta desde ahí).
+   * Null mientras no confirmó, tras un 4xx o una falla, y después de `cleanup`.
+   */
+  startedConfirmedAt: Ref<number | null>
   /** Cierra el estiramiento. Devuelve la respuesta del servidor o null si falló */
   complete: (req: StretchCompleteRequest) => Promise<StretchCompleteResponse | null>
   /** Evento del embudo (fire-and-forget): nunca lanza */
@@ -66,6 +74,7 @@ function expiredMessage(err: unknown): string | null {
 export function useStretchCompletion(): UseStretchCompletionReturn {
   const isSubmitting = ref(false)
   const error = ref<string | null>(null)
+  const startedConfirmedAt = ref<number | null>(null)
 
   // Reintentos del aviso de inicio. `startedRun` cambia en cada arranque o corte:
   // un intento en vuelo de una corrida vieja no agenda nada al volver.
@@ -145,6 +154,7 @@ export function useStretchCompletion(): UseStretchCompletionReturn {
 
   function sendStarted(from: StretchEventFrom): void {
     stopStartedRetry()
+    startedConfirmedAt.value = null
     const run = startedRun
     startedUnconfirmed = true
 
@@ -153,6 +163,8 @@ export function useStretchCompletion(): UseStretchCompletionReturn {
       if (run !== startedRun) return
       if (outcome !== 'failed') {
         startedUnconfirmed = false
+        // Un 4xx corta los reintentos pero el servidor NO aceptó el inicio: sin hora de confirmación.
+        if (outcome === 'ok') startedConfirmedAt.value = Date.now()
         return
       }
       // Sin más intentos queda sin confirmar: `complete` lo informa.
@@ -170,9 +182,10 @@ export function useStretchCompletion(): UseStretchCompletionReturn {
 
   function cleanup(): void {
     stopStartedRetry()
+    startedConfirmedAt.value = null
     isSubmitting.value = false
     error.value = null
   }
 
-  return { isSubmitting, error, complete, sendEvent, sendStarted, cleanup }
+  return { isSubmitting, error, startedConfirmedAt, complete, sendEvent, sendStarted, cleanup }
 }
