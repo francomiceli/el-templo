@@ -32,8 +32,10 @@
         />
       </div>
       <q-space />
-      <!-- Registrar movimiento / egreso (fase 139, MOV-01..03). Same RBAC as
-           the /caja hub (gestion/admin/owner = FINANCE_VOID_ROLES). -->
+      <!-- Registrar movimiento entre cajas (fase 139, MOV-01..03). Same RBAC as
+           the /caja hub (gestion/admin/owner = FINANCE_VOID_ROLES). Desde la
+           fase 209 el diálogo ya no carga egresos: los gastos se cargan en
+           Egresos → Nuevo gasto (el diálogo trae el acceso). -->
       <div class="col-12 col-sm-auto">
         <q-btn
           icon="add"
@@ -237,7 +239,7 @@
       </q-card>
     </q-dialog>
 
-    <!-- Registrar movimiento / egreso (fase 139) -->
+    <!-- Registrar movimiento entre cajas (fase 139; los egresos ya no se cargan acá, fase 209) -->
     <RegistrarMovEgresoDialog
       v-model="showRegistrar"
       :selected-country="selectedCountry"
@@ -554,8 +556,10 @@ function showDetails(row: MovEgresoItem) {
 }
 
 // =========================================================================
-// Registrar movimiento / egreso (fase 139). On success the dialog notifies;
-// we just reload the history (and saldos refresh on their own tab).
+// Registrar movimiento entre cajas (fase 139). On success the dialog notifies;
+// we just reload the history (and saldos refresh on their own tab). El listado
+// sigue mostrando los egresos viejos y los pagos de gastos (fase 209), pero acá
+// ya no se registran: eso se hace en Egresos.
 // =========================================================================
 
 const showRegistrar = ref(false);

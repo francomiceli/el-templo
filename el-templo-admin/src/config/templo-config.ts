@@ -156,8 +156,9 @@ export const PLANES_READ_ROLES: AdminRole[] = [
 
 /**
  * Caja (saldos/arqueo/retiros): gestión + dueño (2026-09-07: gestión opera la
- * caja a diario). Mirrors the /caja route allowedRoles. El ABM de cuentas y
- * categorías sigue admin/owner (CuentasTab lo oculta).
+ * caja a diario). Mirrors the /caja route allowedRoles. El ABM de cuentas
+ * sigue admin/owner (CuentasTab lo oculta). Los rubros (ex categorías de egreso)
+ * se mudaron a Egresos → Rubros (fase 209) y siguen admin/owner.
  */
 export const CAJA_SALDOS_ROLES: AdminRole[] = ['gestion', 'admin', 'owner', 'admin_sede'];
 
