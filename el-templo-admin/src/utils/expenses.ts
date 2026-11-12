@@ -268,6 +268,60 @@ export function paymentMethodsForAccount(type: AccountType): ExpensePaymentMetho
 }
 
 // ---------------------------------------------------------------------------
+// Pago de un gasto (DI-05): guardas que la pantalla anticipa (la API decide)
+// ---------------------------------------------------------------------------
+
+/** `YYYY-MM-DD` que existe en el calendario. */
+function isValidIsoDate(s: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const d = new Date(`${s}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+}
+
+/**
+ * Errores de la fecha de un pago, o `null` si está bien: obligatoria, no
+ * futura (`today` es la fecha de hoy del gimnasio) y no anterior al corte de
+ * la cuenta (`cutoffDate`, null si todavía no se eligió cuenta). Las fechas
+ * son strings `YYYY-MM-DD`, que se comparan bien como texto.
+ */
+export function paymentDateError(
+  paidOn: string,
+  today: string,
+  cutoffDate: string | null
+): { kind: 'required' | 'future' | 'beforeCutoff'; cutoffDate?: string } | null {
+  if (!isValidIsoDate(paidOn)) return { kind: 'required' };
+  if (paidOn > today) return { kind: 'future' };
+  if (cutoffDate !== null && paidOn < cutoffDate) return { kind: 'beforeCutoff', cutoffDate };
+  return null;
+}
+
+/**
+ * Qué pasa si el pago cancela más de lo que falta: gasto confirmado = no se
+ * deja (`blocked`), gasto estimado = se deja pero se avisa (`warning`).
+ * `applied` es lo que cancela del gasto (moneda del gasto), null si todavía no
+ * se puede calcular.
+ */
+export function paymentOverpayState(
+  applied: number | null,
+  pending: number,
+  amountStatus: ExpenseAmountStatus
+): 'ok' | 'warning' | 'blocked' {
+  if (applied === null || applied <= pending) return 'ok';
+  return amountStatus === 'estimado' ? 'warning' : 'blocked';
+}
+
+/** Suma lo pendiente por moneda (los gastos pueden estar en ARS, USD o EUR; nunca se mezclan). */
+export function sumPendingByCurrency(
+  rows: ReadonlyArray<{ currency: string; pending: number }>
+): Array<{ currency: string; total: number }> {
+  const totals = new Map<string, number>();
+  for (const r of rows) totals.set(r.currency, (totals.get(r.currency) ?? 0) + r.pending);
+  return [...totals.entries()]
+    .map(([currency, total]) => ({ currency, total }))
+    .sort((a, b) => a.currency.localeCompare(b.currency));
+}
+
+// ---------------------------------------------------------------------------
 // Meses y links
 // ---------------------------------------------------------------------------
 

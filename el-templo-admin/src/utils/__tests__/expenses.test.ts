@@ -20,13 +20,16 @@ import {
   moneyIntegerRule,
   monthLabel,
   needsExpenseFx,
+  paymentDateError,
   paymentMethodsForAccount,
   paymentNeedsFx,
+  paymentOverpayState,
   previewPayment,
   sameAllocations,
   shiftMonth,
   splitEvenly,
   splitEvenlyRemainder,
+  sumPendingByCurrency,
   toNumberOrNull,
 } from '../expenses';
 import type { ExpenseRecordDetail } from '../../types/expense';
@@ -581,5 +584,79 @@ describe('diffExpenseUpdate (DI-09)', () => {
     expect(diffExpenseUpdate(sinDatos, { ...same, beneficiary: '', notes: '' }).hasChanges).toBe(
       false
     );
+  });
+});
+
+describe('paymentDateError (DI-05)', () => {
+  const hoy = '2026-11-12';
+
+  it('hoy y una fecha pasada sin corte están bien', () => {
+    expect(paymentDateError('2026-11-12', hoy, null)).toBeNull();
+    expect(paymentDateError('2026-10-01', hoy, null)).toBeNull();
+  });
+
+  it('una fecha futura se rechaza', () => {
+    expect(paymentDateError('2026-11-13', hoy, null)).toEqual({ kind: 'future' });
+  });
+
+  it('vacía o mal escrita es obligatoria', () => {
+    expect(paymentDateError('', hoy, null)).toEqual({ kind: 'required' });
+    expect(paymentDateError('2026-13-01', hoy, null)).toEqual({ kind: 'required' });
+    expect(paymentDateError('2026-02-30', hoy, null)).toEqual({ kind: 'required' });
+    expect(paymentDateError('12/11/2026', hoy, null)).toEqual({ kind: 'required' });
+  });
+
+  it('anterior al corte de la cuenta se rechaza y trae la fecha del corte', () => {
+    expect(paymentDateError('2026-09-30', hoy, '2026-10-01')).toEqual({
+      kind: 'beforeCutoff',
+      cutoffDate: '2026-10-01',
+    });
+  });
+
+  it('el mismo día del corte está bien', () => {
+    expect(paymentDateError('2026-10-01', hoy, '2026-10-01')).toBeNull();
+  });
+});
+
+describe('paymentOverpayState (DI-05)', () => {
+  it('lo que cancela hasta lo pendiente está bien, sea cual sea el estado del importe', () => {
+    expect(paymentOverpayState(100, 100, 'confirmado')).toBe('ok');
+    expect(paymentOverpayState(40, 100, 'confirmado')).toBe('ok');
+    expect(paymentOverpayState(100, 100, 'estimado')).toBe('ok');
+  });
+
+  it('pasarse en un gasto confirmado se bloquea', () => {
+    expect(paymentOverpayState(101, 100, 'confirmado')).toBe('blocked');
+  });
+
+  it('pasarse en un gasto estimado se avisa pero se deja', () => {
+    expect(paymentOverpayState(101, 100, 'estimado')).toBe('warning');
+  });
+
+  it('sin importe calculable no se evalúa', () => {
+    expect(paymentOverpayState(null, 100, 'confirmado')).toBe('ok');
+  });
+
+  it('un gasto sin saldo pendiente no admite más pagos si está confirmado', () => {
+    expect(paymentOverpayState(1, 0, 'confirmado')).toBe('blocked');
+  });
+});
+
+describe('sumPendingByCurrency', () => {
+  it('suma por moneda sin mezclarlas, ordenadas por código', () => {
+    const rows = [
+      { currency: 'USD', pending: 500 },
+      { currency: 'ARS', pending: 120000 },
+      { currency: 'ARS', pending: 30000 },
+      { currency: 'USD', pending: 250 },
+    ];
+    expect(sumPendingByCurrency(rows)).toEqual([
+      { currency: 'ARS', total: 150000 },
+      { currency: 'USD', total: 750 },
+    ]);
+  });
+
+  it('sin filas no hay totales', () => {
+    expect(sumPendingByCurrency([])).toEqual([]);
   });
 });
