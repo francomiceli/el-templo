@@ -1232,7 +1232,7 @@ Plans:
 - [x] 209-03-PLAN.md — Service: alta de gasto con reparto, idempotencia y auditoría + detalle con estado e historial
 - [x] 209-04-PLAN.md — Service: edición con motivo e historial, anulación de gasto y listado con filtros
 - [x] 209-05-PLAN.md — Service: registrar pago (validaciones, tipo de cambio, fila del ledger, idempotencia) y cuentas para pagar sin saldos
-- [ ] 209-06-PLAN.md — Service: anular pago, guarda de Caja sobre pagos, débito automático saliente y reglas con pagos
+- [x] 209-06-PLAN.md — Service: anular pago, guarda de Caja sobre pagos, débito automático saliente y reglas con pagos
 - [ ] 209-07-PLAN.md — API: 6 rutas de gasto con permisos, país, ISO-01 y batería ISO-03 de Egresos
 - [ ] 209-08-PLAN.md — API: rutas de registrar y anular pago, ISO-01/ISO-03 y pruebas de roles (gestion paga sin ver saldos)
 - [ ] 209-09-PLAN.md — Service del Resumen: pagado en el mes, costo del mes y pendiente por destino, con detalle por rubro
