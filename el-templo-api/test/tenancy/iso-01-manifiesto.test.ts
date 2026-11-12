@@ -431,7 +431,9 @@ import {
 // `GET /api/sessions/:id` (sin clientes) junto con su línea del manifiesto.
 // 2026-11-12: 554 -> 555 por el export a Excel de Renovaciones:
 // `GET /api/admin/renewals/export`, `tenant-scoped`.
-const ENTRADAS_BASELINE = 555;
+// 2026-11-12: 555 -> 556 por el formato evento de los avisos de TV:
+// `POST /api/communications/tv/admin/tv-avisos/image-upload-url`, `templo-module`.
+const ENTRADAS_BASELINE = 556;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -574,7 +576,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 555 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 556 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(

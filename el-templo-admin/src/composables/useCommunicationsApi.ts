@@ -223,6 +223,33 @@ export type TvAvisoMode = 'manual' | 'flex_inicio' | 'flex_final';
 /** 2026-10-06: fondo de la placa en la TV (claro = flexibilidad inicial, oscuro = cierre). */
 export type TvAvisoTema = 'claro' | 'oscuro';
 
+/**
+ * 2026-11-12 (API migración 0332): formato "evento". Con `evento` cargado la
+ * TV pinta una tarjeta (fecha de calendario, hora, lugar, sello y foto) en vez
+ * de la placa; el NOMBRE del evento es `title` y el SUBTÍTULO es `body`.
+ */
+export interface TvAvisoEvento {
+  /** `YYYY-MM-DD`. */
+  fecha: string;
+  hora: string;
+  lugar: string;
+  sello: string | null;
+  /** URL pública de R2, subida con `TV_AVISO_IMAGE_UPLOAD_ENDPOINT`. */
+  imageUrl: string | null;
+}
+
+/** POST `{ filename }` → `{ uploadUrl, publicUrl }` (ver `useImageUpload`). */
+export const TV_AVISO_IMAGE_UPLOAD_ENDPOINT = '/communications/tv/admin/tv-avisos/image-upload-url';
+
+/** Límites del formato evento, espejo de `tv-avisos-service.ts`. */
+export const TV_AVISO_EVENTO_LIMITS = {
+  nombre: 40,
+  subtitulo: 60,
+  hora: 20,
+  lugar: 80,
+  sello: 40,
+} as const;
+
 export interface TvAvisoRow {
   id: number;
   title: string;
@@ -231,6 +258,8 @@ export interface TvAvisoRow {
   tema: TvAvisoTema;
   isActive: boolean;
   scopeBranchIds: number[] | null;
+  /** `null` = placa de título + cuerpo. */
+  evento: TvAvisoEvento | null;
 }
 
 export interface CreateTvAvisoInput {
@@ -240,6 +269,8 @@ export interface CreateTvAvisoInput {
   tema?: TvAvisoTema;
   isActive?: boolean;
   scopeBranchIds?: number[] | null;
+  /** `null` (o ausente) = placa. En un PUT, el objeto reemplaza COMPLETO. */
+  evento?: TvAvisoEvento | null;
 }
 
 export type UpdateTvAvisoInput = Partial<CreateTvAvisoInput>;

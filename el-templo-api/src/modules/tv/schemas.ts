@@ -232,6 +232,17 @@ export const tvControlScreenSchema = {
                 title: { type: "string" },
                 body: { type: "string" },
                 tema: { type: "string", enum: ["claro", "oscuro"] },
+                // 2026-11-12: formato evento, `null` = placa.
+                evento: {
+                  type: ["object", "null"],
+                  properties: {
+                    fecha: { type: "string" },
+                    hora: { type: "string" },
+                    lugar: { type: "string" },
+                    sello: { type: ["string", "null"] },
+                    imageUrl: { type: ["string", "null"] },
+                  },
+                },
               },
             },
           ],

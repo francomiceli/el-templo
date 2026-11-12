@@ -14,13 +14,17 @@ import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { tvAvisos, tvClassState } from "../../db/schema";
+import type { TvAvisoEvento } from "../../db/schema/communications";
 import {
   tenantWhere,
   tenantValues,
   type TenantContext,
 } from "../shared/tenant";
 import { BadRequestError, NotFoundError } from "../shared/errors";
+import { getR2PublicBase } from "../shared/video-url";
+import { isValidIsoDate } from "../shared/week-dates";
 import { assertBranchesBelongToTenant } from "./branch-scope";
+import { TV_AVISO_IMAGE_PREFIX } from "./schemas";
 
 type DbInstance = MySql2Database<typeof schema>;
 
@@ -31,6 +35,13 @@ type TvAvisoRow = typeof tvAvisos.$inferSelect;
 
 const TITLE_MAX_LENGTH = 120;
 const BODY_MAX_LENGTH = 400;
+// Formato evento (2026-11-12): la tarjeta de la TV es mucho más chica que la
+// placa — el nombre va a 7.6rem en UNA línea y el resto en un renglón cada uno.
+const EVENTO_NOMBRE_MAX_LENGTH = 40;
+const EVENTO_SUBTITULO_MAX_LENGTH = 60;
+const EVENTO_HORA_MAX_LENGTH = 20;
+const EVENTO_LUGAR_MAX_LENGTH = 80;
+const EVENTO_SELLO_MAX_LENGTH = 40;
 const VALID_TEMAS: readonly TvAvisoTema[] = ["claro", "oscuro"];
 const VALID_MODES: readonly TvAvisoMode[] = [
   "manual",
@@ -47,6 +58,17 @@ export interface TvAvisoItem {
   tema: TvAvisoTema;
   isActive: boolean;
   scopeBranchIds: number[] | null;
+  /** `null` = placa de título + cuerpo. */
+  evento: TvAvisoEvento | null;
+}
+
+/** Lo que manda el editor: `sello` e `imageUrl` pueden faltar (= sin). */
+export interface TvAvisoEventoInput {
+  fecha: string;
+  hora: string;
+  lugar: string;
+  sello?: string | null;
+  imageUrl?: string | null;
 }
 
 export interface CreateTvAvisoInput {
@@ -57,6 +79,8 @@ export interface CreateTvAvisoInput {
   tema?: TvAvisoTema;
   isActive?: boolean;
   scopeBranchIds?: number[] | null;
+  /** Sin `evento` (o `null`), el aviso es una placa. */
+  evento?: TvAvisoEventoInput | null;
 }
 
 export interface UpdateTvAvisoInput {
@@ -66,6 +90,8 @@ export interface UpdateTvAvisoInput {
   tema?: TvAvisoTema;
   isActive?: boolean;
   scopeBranchIds?: number[] | null;
+  /** `undefined` = no tocar; `null` = volver a placa; objeto = reemplazo COMPLETO. */
+  evento?: TvAvisoEventoInput | null;
 }
 
 export class TvAvisosService {
@@ -97,6 +123,8 @@ export class TvAvisosService {
     this.assertTitleAndBody(input.title, input.body);
     this.assertMode(input.mode);
     if (input.tema !== undefined) this.assertTema(input.tema);
+    const evento = this.normalizeEvento(input.evento ?? null, null);
+    if (evento) this.assertEventoTexts(input.title, input.body);
     await assertBranchesBelongToTenant(
       this.db,
       ctx,
@@ -111,6 +139,7 @@ export class TvAvisosService {
         ...(input.tema !== undefined ? { tema: input.tema } : {}),
         isActive: input.isActive ?? false,
         scopeBranchIds: input.scopeBranchIds ?? null,
+        evento,
       }),
     );
 
@@ -162,6 +191,24 @@ export class TvAvisosService {
     if (input.scopeBranchIds !== undefined) {
       await assertBranchesBelongToTenant(this.db, ctx, input.scopeBranchIds);
     }
+    // El estado FINAL manda: si el aviso queda como evento (porque llega uno
+    // o porque ya lo era y no se toca), título y cuerpo tienen que entrar en
+    // la tarjeta — también cuando lo único que cambia es el texto.
+    const evento =
+      input.evento === undefined
+        ? (existing.evento ?? null)
+        : this.normalizeEvento(input.evento, existing.evento ?? null);
+    if (
+      evento &&
+      (input.evento !== undefined ||
+        input.title !== undefined ||
+        input.body !== undefined)
+    ) {
+      this.assertEventoTexts(
+        input.title ?? existing.title,
+        input.body ?? existing.body,
+      );
+    }
 
     const updates: Record<string, unknown> = {};
     if (input.title !== undefined) updates.title = input.title;
@@ -171,6 +218,7 @@ export class TvAvisosService {
     if (input.isActive !== undefined) updates.isActive = input.isActive;
     if (input.scopeBranchIds !== undefined)
       updates.scopeBranchIds = input.scopeBranchIds;
+    if (input.evento !== undefined) updates.evento = evento;
 
     if (Object.keys(updates).length === 0) {
       throw new BadRequestError("No hay campos para actualizar");
@@ -292,7 +340,93 @@ export class TvAvisosService {
       tema: row.tema,
       isActive: row.isActive,
       scopeBranchIds: row.scopeBranchIds ?? null,
+      evento: row.evento ?? null,
     };
+  }
+
+  /**
+   * Valida y normaliza el formato evento (recorta espacios, vacío → `null` en
+   * los opcionales). `previo` es el evento que ya tenía la fila: una foto que
+   * NO cambia no se vuelve a validar contra `R2_PUBLIC_URL`, así un cambio de
+   * esa variable no traba la edición del resto (mismo criterio que el logo de
+   * las marcas, `SponsorsService.update`).
+   */
+  private normalizeEvento(
+    input: TvAvisoEventoInput | null,
+    previo: TvAvisoEvento | null,
+  ): TvAvisoEvento | null {
+    if (input === null) return null;
+
+    const fecha = input.fecha.trim();
+    if (!isValidIsoDate(fecha)) {
+      throw new BadRequestError(
+        "La fecha del evento tiene que ser un día válido (AAAA-MM-DD)",
+      );
+    }
+    const hora = input.hora.trim();
+    if (hora.length === 0) {
+      throw new BadRequestError("La hora del evento no puede estar vacía");
+    }
+    if (hora.length > EVENTO_HORA_MAX_LENGTH) {
+      throw new BadRequestError(
+        `La hora no puede superar los ${EVENTO_HORA_MAX_LENGTH} caracteres`,
+      );
+    }
+    const lugar = input.lugar.trim();
+    if (lugar.length === 0) {
+      throw new BadRequestError("El lugar del evento no puede estar vacío");
+    }
+    if (lugar.length > EVENTO_LUGAR_MAX_LENGTH) {
+      throw new BadRequestError(
+        `El lugar no puede superar los ${EVENTO_LUGAR_MAX_LENGTH} caracteres`,
+      );
+    }
+    const sello = (input.sello ?? "").trim() || null;
+    if (sello !== null && sello.length > EVENTO_SELLO_MAX_LENGTH) {
+      throw new BadRequestError(
+        `El sello no puede superar los ${EVENTO_SELLO_MAX_LENGTH} caracteres`,
+      );
+    }
+    const imageUrl = (input.imageUrl ?? "").trim() || null;
+    if (imageUrl !== null && imageUrl !== (previo?.imageUrl ?? null)) {
+      this.assertOwnImageUrl(imageUrl);
+    }
+
+    return { fecha, hora, lugar, sello, imageUrl };
+  }
+
+  /**
+   * La foto solo puede ser una subida desde el editor (R2 propio, prefijo
+   * `tv/avisos/`): la TV la carga como fondo, y una URL arbitraria sería un
+   * recurso ajeno pintado en todas las pantallas de la sede. Se compara con
+   * la barra final incluida para que `https://<base>.evil.com/` no pase.
+   */
+  private assertOwnImageUrl(imageUrl: string): void {
+    const base = getR2PublicBase();
+    if (base === "") {
+      throw new BadRequestError(
+        "No hay almacenamiento de imágenes configurado: no se puede asignar una foto",
+      );
+    }
+    if (!imageUrl.startsWith(`${base}/${TV_AVISO_IMAGE_PREFIX}/`)) {
+      throw new BadRequestError(
+        "La foto tiene que subirse desde el editor (almacenamiento de El Templo)",
+      );
+    }
+  }
+
+  /** En formato evento `title` es el nombre y `body` el subtítulo: más cortos. */
+  private assertEventoTexts(title: string, body: string): void {
+    if (title.trim().length > EVENTO_NOMBRE_MAX_LENGTH) {
+      throw new BadRequestError(
+        `El nombre del evento no puede superar los ${EVENTO_NOMBRE_MAX_LENGTH} caracteres`,
+      );
+    }
+    if (body.trim().length > EVENTO_SUBTITULO_MAX_LENGTH) {
+      throw new BadRequestError(
+        `El subtítulo del evento no puede superar los ${EVENTO_SUBTITULO_MAX_LENGTH} caracteres`,
+      );
+    }
   }
 
   private assertTitleAndBody(title: string, body: string): void {
