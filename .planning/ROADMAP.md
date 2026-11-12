@@ -1242,7 +1242,7 @@ Plans:
 - [x] 209-13-PLAN.md — Admin: pestaña Gastos (filtros, alta y edición con editor de reparto)
 - [x] 209-14-PLAN.md — Admin: pestaña Por pagar y diálogo para registrar pagos
 - [x] 209-15-PLAN.md — Admin: detalle del gasto con pagos, historial y anulaciones
-- [ ] 209-16-PLAN.md — Admin: pestaña Resumen con detalle por rubro y export a Excel
+- [x] 209-16-PLAN.md — Admin: pestaña Resumen con detalle por rubro y export a Excel
 - [ ] 209-17-PLAN.md — Cierre: identidades del Resumen y casos del brief, no-regresión, inventario con greps y checklist de UAT
 
 ### Phase 210: Caja — extracto por cuenta, por conciliar y cambio de moneda — EN ESPERA (D-24)
