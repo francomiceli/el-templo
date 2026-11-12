@@ -49,7 +49,14 @@
       </q-tab-panel>
 
       <!-- Por pagar: gastos pendientes y parciales con registro de pago (plan 209-14) -->
-      <q-tab-panel :name="EGRESOS_TABS.porPagar" class="q-px-none" />
+      <q-tab-panel :name="EGRESOS_TABS.porPagar" class="q-px-none">
+        <PorPagarTab
+          :selected-country="selectedCountry"
+          :is-owner="isOwner"
+          :options="expenseOptions"
+          @open-detail="onOpenDetail"
+        />
+      </q-tab-panel>
 
       <!-- Resumen: matriz por destino y Excel (plan 209-16) -->
       <q-tab-panel :name="EGRESOS_TABS.resumen" class="q-px-none" />
@@ -63,8 +70,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { useQuasar } from 'quasar';
 import { useAuthStore } from 'src/stores/useAuthStore';
 import { EGRESOS_ANULAR_ROLES } from 'src/config/templo-config';
 import {
@@ -73,13 +81,20 @@ import {
   EGRESOS_TAB_NAMES,
   type EgresosTab,
 } from 'src/constants/egresos';
-import type { ExpenseCountry } from 'src/types/expense';
+import { useExpensesApi } from 'src/composables/useExpensesApi';
+import { createLogger } from 'src/utils/logger';
+import { extractError } from 'src/utils/extract-error';
+import type { ExpenseCountry, ExpenseFormOptions } from 'src/types/expense';
 import GastosTab from 'src/components/egresos/GastosTab.vue';
+import PorPagarTab from 'src/components/egresos/PorPagarTab.vue';
 import RubrosTab from 'src/components/egresos/RubrosTab.vue';
 
 const route = useRoute();
 const router = useRouter();
 const authStore = useAuthStore();
+const $q = useQuasar();
+const log = createLogger('EgresosPage');
+const expensesApi = useExpensesApi();
 
 // El owner elige el país en el header y se lo pasamos a todas las pestañas;
 // el resto usa el suyo (el server lo fuerza). Default Argentina.
@@ -98,6 +113,38 @@ const countryOptions: Array<{ label: string; value: ExpenseCountry }> = [
 ];
 
 const selectedCountry = ref<ExpenseCountry>('AR');
+
+// Opciones del formulario de Egresos (cuentas de pago, destinos, rubros, hoy) del país
+// elegido: se cargan acá una sola vez y se comparten con Por pagar y con el detalle
+// del gasto (209-15), que las necesita para el diálogo de pago. Null mientras cargan.
+const expenseOptions = ref<ExpenseFormOptions | null>(null);
+let optionsSeq = 0;
+
+async function loadExpenseOptions() {
+  const seq = ++optionsSeq;
+  expenseOptions.value = null;
+  try {
+    const result = await expensesApi.getExpenseFormOptions(selectedCountry.value);
+    if (seq === optionsSeq) expenseOptions.value = result;
+  } catch (err: unknown) {
+    if (seq !== optionsSeq) return;
+    const message = extractError(err, 'Error cargando las opciones de Egresos');
+    log.error('Error cargando form-options', { error: message });
+    $q.notify({ type: 'negative', message });
+  }
+}
+
+onMounted(loadExpenseOptions);
+watch(selectedCountry, loadExpenseOptions);
+
+onUnmounted(() => {
+  expensesApi.cleanup();
+});
+
+// Click en una fila de Por pagar: el detalle del gasto lo monta el plan 209-15.
+function onOpenDetail(_id: number) {
+  // Sin detalle todavía (209-15).
+}
 
 // Pestaña activa, sincronizada con ?tab= para que sobreviva al refresh y al "atrás".
 function tabFromQuery(): EgresosTab {
