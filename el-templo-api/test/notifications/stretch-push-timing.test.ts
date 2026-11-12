@@ -263,22 +263,36 @@ describe("push ¿Estiraste?: momento y elegibilidad (213-07, SPEC 5.2 parte 1)",
       arm: "push_30",
       attend: false,
     });
-    for (const status of ["no_show", "cancelado"] as const) {
-      await app.db.insert(schema.bookings).values(
-        tenantValues(CTX_TEMPLO, {
-          memberId: member.id,
-          scheduleId,
-          bookingDate: date,
-          status,
-        }),
-      );
-    }
+    // `idx_bookings_member_schedule_date` es unico: un socio tiene UNA reserva
+    // por horario y fecha. Se prueba la misma reserva en sus dos estados.
+    await app.db.insert(schema.bookings).values(
+      tenantValues(CTX_TEMPLO, {
+        memberId: member.id,
+        scheduleId,
+        bookingDate: date,
+        status: "no_show",
+      }),
+    );
 
-    const result = await tick(at(date, "21:30"));
-    expect(result.offers).toBe(0);
-    expect(result.queued).toBe(0);
-    expect(await readStretchOffers(app, member.id)).toHaveLength(0);
-    expect(await stretchPendingRows(app, member.id)).toHaveLength(0);
+    for (const status of ["no_show", "cancelado"] as const) {
+      await app.db
+        .update(schema.bookings)
+        .set({ status })
+        .where(
+          and(
+            tenantWhere(schema.bookings, CTX_TEMPLO),
+            eq(schema.bookings.memberId, member.id),
+            eq(schema.bookings.scheduleId, scheduleId),
+            eq(schema.bookings.bookingDate, date),
+          ),
+        );
+
+      const result = await tick(at(date, "21:30"));
+      expect(result.offers, `reserva ${status}`).toBe(0);
+      expect(result.queued, `reserva ${status}`).toBe(0);
+      expect(await readStretchOffers(app, member.id)).toHaveLength(0);
+      expect(await stretchPendingRows(app, member.id)).toHaveLength(0);
+    }
   });
 
   it("(6) asistencia Wellhub sin horario (schedule_id nulo): sin fila ni push", async () => {

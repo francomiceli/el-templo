@@ -55,16 +55,17 @@ describe("Migracion 0342 — fuente de AURA stretch", () => {
     return parseEnumValues(rows[0].columnType);
   }
 
-  it("aura_transactions.source_type termina en stretch", async () => {
+  // No se afirma que sea el ULTIMO valor: la proxima fuente de AURA se agrega
+  // al final y romperia este test (paso con la 0285 al agregar `stretch`). El
+  // orden relativo a `extra_block` lo cubre el test de mas abajo.
+  it("aura_transactions.source_type incluye stretch", async () => {
     const values = await enumValues("aura_transactions", "source_type");
     expect(values).toContain("stretch");
-    expect(values[values.length - 1]).toBe("stretch");
   });
 
-  it("aura_config.aura_config_source_type termina en stretch", async () => {
+  it("aura_config.aura_config_source_type incluye stretch", async () => {
     const values = await enumValues("aura_config", "aura_config_source_type");
     expect(values).toContain("stretch");
-    expect(values[values.length - 1]).toBe("stretch");
   });
 
   it("las dos listas de ENUM son identicas", async () => {
