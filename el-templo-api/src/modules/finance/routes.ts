@@ -24,6 +24,7 @@ import {
   CashCountService,
 } from ".";
 import { SubscriptionService } from "../subscriptions/service";
+import { registerExpenseRoutes } from "./expense-routes";
 import { EnrollmentService } from "../programs/enrollment-service";
 import { handleServiceError } from "../shared/error-handler";
 import {
@@ -2414,6 +2415,10 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
       }
     },
   );
+
+  // Fase 209 (Egresos): rutas del gasto (`/expense-records...`). Se registran
+  // dentro de este plugin para heredar el prefijo y el hook `onRequest`.
+  registerExpenseRoutes(fastify, { transactionService, cashRegisterService });
 };
 
 // =============================================================================

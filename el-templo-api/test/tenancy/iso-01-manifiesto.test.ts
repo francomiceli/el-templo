@@ -438,7 +438,12 @@ import {
 // 2026-11-11: 556 -> 557 por los destinos del retiro (fase 208-06): `GET
 // /api/admin/finance/withdrawals/destinations`, `tenant-scoped` (`assertTenant`
 // + `tenantWhere` en el service; solo nombres, sin saldos).
-const ENTRADAS_BASELINE = 557;
+// 2026-11-11: 557 -> 563 por las rutas del gasto de Egresos (fase 209-07): `GET`
+// y `POST /api/admin/finance/expense-records`, `GET`/`PATCH
+// /expense-records/:id`, `GET /expense-records/form-options` y `POST
+// /expense-records/:id/void`, todas `tenant-scoped` (`assertTenant` + `tenantWhere`
+// en el service; el país sale del scope).
+const ENTRADAS_BASELINE = 563;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -581,7 +586,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 557 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 563 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(
