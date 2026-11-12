@@ -92,8 +92,9 @@
           <th
             v-for="col in summary.columns"
             :key="col.key"
-            class="text-right"
+            class="text-right cursor-pointer"
             :class="{ 'resumen-total': col.key === TOTAL_KEY }"
+            @click="openColumn(col.key)"
           >
             <div class="text-weight-bold">{{ col.name }}</div>
             <div v-if="!col.isActive" class="text-caption text-grey-7">(inactiva)</div>
@@ -106,8 +107,9 @@
           <td
             v-for="col in summary.columns"
             :key="col.key"
-            class="text-right"
+            class="text-right cursor-pointer"
             :class="{ 'resumen-total text-weight-bold': col.key === TOTAL_KEY }"
+            @click="openColumn(col.key)"
           >
             <div>{{ formatPrice(col[row.field], summary.currency) }}</div>
             <!-- Costo del mes: cuánto de eso es estimado y cuánto ya se pagó -->
@@ -127,6 +129,17 @@
       </tbody>
       <q-inner-loading :showing="loading" />
     </q-markup-table>
+
+    <!-- Detalle por rubro y concepto del destino elegido -->
+    <ResumenDetalleDialog
+      v-model="showDetail"
+      :country="selectedCountry"
+      :month="month"
+      :destination="detailKey"
+      :currency="summary?.currency ?? (selectedCountry === 'ES' ? 'EUR' : 'ARS')"
+      :refresh-key="refreshKey"
+      @open-detail="emit('open-detail', $event)"
+    />
   </div>
 </template>
 
@@ -138,6 +151,7 @@ import { extractError } from 'src/utils/extract-error';
 import { formatPrice } from 'src/utils/format-price';
 import { useExpensesApi } from 'src/composables/useExpensesApi';
 import { isValidMonth, monthLabel, shiftMonth } from 'src/utils/expenses';
+import ResumenDetalleDialog from 'src/components/egresos/ResumenDetalleDialog.vue';
 import type {
   ExpenseCountry,
   ExpenseFormOptions,
@@ -169,6 +183,10 @@ const props = withDefaults(
   }>(),
   { options: null, refreshKey: 0 }
 );
+
+const emit = defineEmits<{
+  (e: 'open-detail', id: number): void;
+}>();
 
 const log = createLogger('ResumenTab');
 const $q = useQuasar();
@@ -262,8 +280,22 @@ async function load(keepCurrent: boolean) {
 }
 
 watch([month, () => props.selectedCountry], () => {
+  showDetail.value = false;
   void load(false);
 });
+
+// ---------------------------------------------------------------------------
+// Detalle por rubro y concepto
+// ---------------------------------------------------------------------------
+
+const showDetail = ref(false);
+/** `key` de la columna elegida: id de sede, `casa_matriz` o `total`. */
+const detailKey = ref<string | null>(null);
+
+function openColumn(key: string) {
+  detailKey.value = key;
+  showDetail.value = true;
+}
 
 // ---------------------------------------------------------------------------
 // Estado derivado (solo presentación, sin cuentas de plata)
