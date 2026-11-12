@@ -37,6 +37,7 @@ import {
   isNull,
   sql,
 } from "drizzle-orm";
+// deploy: el push de la fase 213 (182533b10) murio en CI por 3 tests, este fuerza el build del API (2026-11-12)
 import type { FastifyBaseLogger } from "fastify";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../db/schema";
