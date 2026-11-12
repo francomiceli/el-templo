@@ -13,6 +13,7 @@
  * entero con `Math.round`.
  */
 import type {
+  ExpenseAllocationInput,
   ExpenseAmountStatus,
   ExpenseCountry,
   ExpenseCurrency,
@@ -45,6 +46,25 @@ export function splitEvenly(total: number, n: number): number[] {
   return parts;
 }
 
+/**
+ * Valor de un `q-input type="number"` como número: `v-model.number` deja un
+ * string vacío cuando se borra el campo. Cualquier cosa que no sea un número
+ * finito (o un string numérico) da `null`.
+ */
+export function toNumberOrNull(v: unknown): number | null {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+  if (typeof v === 'string' && v.trim() !== '') {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+/** Regla de `q-input` para un importe entero positivo (devuelve `true` o el mensaje). */
+export function moneyIntegerRule(v: unknown): true | string {
+  return isValidMoneyInteger(toNumberOrNull(v)) || 'Ingresá un importe entero mayor a 0';
+}
+
 /** Suma de las partes del reparto; una parte vacía (`null`) cuenta como 0. */
 export function allocationsSum(rows: ReadonlyArray<{ amount: number | null }>): number {
   return rows.reduce((acc, r) => acc + (r.amount ?? 0), 0);
@@ -59,6 +79,35 @@ export function allocationDifference(
   rows: ReadonlyArray<{ amount: number | null }>
 ): number {
   return amount - allocationsSum(rows);
+}
+
+/**
+ * Resto de la división en partes iguales: lo que `splitEvenly` suma de más a
+ * la última parte (`total` menos `floor(total / n)` por `n`). `n <= 0` da 0.
+ */
+export function splitEvenlyRemainder(total: number, n: number): number {
+  if (n <= 0) return 0;
+  const parts = splitEvenly(total, n);
+  return parts[n - 1] - parts[0];
+}
+
+/**
+ * Dos repartos son iguales si tienen los mismos destinos con los mismos
+ * importes, sin importar el orden (mismo criterio que la API al decidir si el
+ * reparto cambió).
+ */
+export function sameAllocations(
+  a: ReadonlyArray<ExpenseAllocationInput>,
+  b: ReadonlyArray<ExpenseAllocationInput>
+): boolean {
+  if (a.length !== b.length) return false;
+  const key = (list: ReadonlyArray<ExpenseAllocationInput>): string =>
+    JSON.stringify(
+      [...list]
+        .sort((x, y) => (x.branchId ?? -1) - (y.branchId ?? -1))
+        .map((r) => [r.branchId, r.amount])
+    );
+  return key(a) === key(b);
 }
 
 // ---------------------------------------------------------------------------

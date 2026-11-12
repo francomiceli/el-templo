@@ -12,13 +12,17 @@ import {
   isHttpUrl,
   isValidMonth,
   isValidMoneyInteger,
+  moneyIntegerRule,
   monthLabel,
   needsExpenseFx,
   paymentMethodsForAccount,
   paymentNeedsFx,
   previewPayment,
+  sameAllocations,
   shiftMonth,
   splitEvenly,
+  splitEvenlyRemainder,
+  toNumberOrNull,
 } from '../expenses';
 
 // Los resultados esperados están escritos a mano, nunca recalculados con la
@@ -44,6 +48,78 @@ describe('splitEvenly (espejo de la API)', () => {
     const parts = splitEvenly(1_999_999_999, 7);
     expect(parts.reduce((a, b) => a + b, 0)).toBe(1_999_999_999);
     expect(parts).toHaveLength(7);
+  });
+});
+
+describe('toNumberOrNull y moneyIntegerRule', () => {
+  it('toNumberOrNull: números, strings numéricos y vacíos', () => {
+    expect(toNumberOrNull(150)).toBe(150);
+    expect(toNumberOrNull(0)).toBe(0);
+    expect(toNumberOrNull('42')).toBe(42);
+    expect(toNumberOrNull('1560.5')).toBe(1560.5);
+    expect(toNumberOrNull('')).toBeNull();
+    expect(toNumberOrNull('  ')).toBeNull();
+    expect(toNumberOrNull('abc')).toBeNull();
+    expect(toNumberOrNull(NaN)).toBeNull();
+    expect(toNumberOrNull(null)).toBeNull();
+    expect(toNumberOrNull(undefined)).toBeNull();
+  });
+
+  it('moneyIntegerRule: true solo con un entero entre 1 y el tope', () => {
+    expect(moneyIntegerRule(1)).toBe(true);
+    expect(moneyIntegerRule('2500')).toBe(true);
+    expect(moneyIntegerRule(2_000_000_000)).toBe(true);
+    expect(moneyIntegerRule(0)).toBe('Ingresá un importe entero mayor a 0');
+    expect(moneyIntegerRule(10.5)).toBe('Ingresá un importe entero mayor a 0');
+    expect(moneyIntegerRule('')).toBe('Ingresá un importe entero mayor a 0');
+    expect(moneyIntegerRule(2_000_000_001)).toBe('Ingresá un importe entero mayor a 0');
+  });
+});
+
+describe('splitEvenlyRemainder', () => {
+  const casos: Array<[number, number, number]> = [
+    [100, 3, 1],
+    [150000, 6, 0],
+    [7, 1, 0],
+    [2, 3, 2],
+    [10, 4, 2],
+    [10, 0, 0],
+  ];
+  for (const [total, n, esperado] of casos) {
+    it(`splitEvenlyRemainder(${total}, ${n}) = ${esperado}`, () => {
+      expect(splitEvenlyRemainder(total, n)).toBe(esperado);
+    });
+  }
+});
+
+describe('sameAllocations', () => {
+  it('mismos destinos e importes en otro orden son iguales', () => {
+    expect(
+      sameAllocations(
+        [
+          { branchId: 1, amount: 60 },
+          { branchId: null, amount: 40 },
+        ],
+        [
+          { branchId: null, amount: 40 },
+          { branchId: 1, amount: 60 },
+        ]
+      )
+    ).toBe(true);
+  });
+
+  it('distinto importe, distinto destino o distinta cantidad son distintos', () => {
+    const base = [{ branchId: 1, amount: 100 }];
+    expect(sameAllocations(base, [{ branchId: 1, amount: 99 }])).toBe(false);
+    expect(sameAllocations(base, [{ branchId: 2, amount: 100 }])).toBe(false);
+    expect(sameAllocations(base, [{ branchId: null, amount: 100 }])).toBe(false);
+    expect(
+      sameAllocations(base, [
+        { branchId: 1, amount: 50 },
+        { branchId: 2, amount: 50 },
+      ])
+    ).toBe(false);
+    expect(sameAllocations([], [])).toBe(true);
   });
 });
 
