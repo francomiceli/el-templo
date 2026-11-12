@@ -1235,7 +1235,7 @@ Plans:
 - [x] 209-06-PLAN.md — Service: anular pago, guarda de Caja sobre pagos, débito automático saliente y reglas con pagos
 - [x] 209-07-PLAN.md — API: 6 rutas de gasto con permisos, país, ISO-01 y batería ISO-03 de Egresos
 - [x] 209-08-PLAN.md — API: rutas de registrar y anular pago, ISO-01/ISO-03 y pruebas de roles (gestion paga sin ver saldos)
-- [ ] 209-09-PLAN.md — Service del Resumen: pagado en el mes, costo del mes y pendiente por destino, con detalle por rubro
+- [x] 209-09-PLAN.md — Service del Resumen: pagado en el mes, costo del mes y pendiente por destino, con detalle por rubro
 - [ ] 209-10-PLAN.md — API: rutas del Resumen, detalle y export a Excel, ISO-01/ISO-03
 - [ ] 209-11-PLAN.md — Admin base: tipos, cálculo puro con test, composable `useExpensesApi`, página Egresos, menú y ruta
 - [ ] 209-12-PLAN.md — Admin: Rubros se muda a Egresos y "Egreso" sale del diálogo de Caja con acceso a Nuevo gasto
