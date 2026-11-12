@@ -3,7 +3,7 @@
     <q-card style="width: 420px; max-width: 95vw">
       <q-card-section class="row items-center q-pb-none">
         <div class="text-h6">
-          {{ isEditMode ? 'Renombrar categoría' : 'Nueva categoría de egreso' }}
+          {{ isEditMode ? 'Renombrar rubro' : 'Nuevo rubro' }}
         </div>
         <q-space />
         <q-btn icon="close" flat round dense v-close-popup />
@@ -28,7 +28,7 @@
         <q-btn
           unelevated
           color="primary"
-          :label="isEditMode ? 'Guardar cambios' : 'Crear categoría'"
+          :label="isEditMode ? 'Guardar cambios' : 'Crear rubro'"
           :disable="!canSubmit || submitting"
           :loading="submitting"
           @click="submit"
@@ -48,7 +48,7 @@ import type { CostCenter } from 'src/types/transaction';
 
 const props = defineProps<{
   modelValue: boolean;
-  /** País del selector de CajaPage — se usa en el alta (nombre único por país, D-08). */
+  /** País del selector de Egresos — se usa en el alta (nombre único por país, D-08). */
   selectedCountry: 'AR' | 'ES';
   /** Presente = modo edición (renombrar); ausente/null = alta. */
   categoria?: CostCenter | null;
@@ -99,18 +99,18 @@ async function submit() {
     const cat = props.categoria;
     if (cat) {
       await transactionsApi.renameCostCenter(cat.id, { name: form.name.trim() });
-      $q.notify({ type: 'positive', message: 'Categoría renombrada' });
+      $q.notify({ type: 'positive', message: 'Rubro renombrado' });
     } else {
       await transactionsApi.createCostCenter({
         name: form.name.trim(),
         country: props.selectedCountry,
       });
-      $q.notify({ type: 'positive', message: 'Categoría creada' });
+      $q.notify({ type: 'positive', message: 'Rubro creado' });
     }
     show.value = false;
     emit('saved');
   } catch (err: unknown) {
-    const message = extractError(err, 'Error guardando la categoría de egreso');
+    const message = extractError(err, 'Error guardando el rubro');
     log.error('Error saving cost center', { error: message });
     $q.notify({ type: 'negative', message });
   } finally {

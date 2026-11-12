@@ -47,8 +47,10 @@
       <!-- Resumen: matriz por destino y Excel (plan 209-16) -->
       <q-tab-panel :name="EGRESOS_TABS.resumen" class="q-px-none" />
 
-      <!-- Rubros: ABM movido desde Caja > Cuentas (plan 209-12) -->
-      <q-tab-panel v-if="canManageRubros" :name="EGRESOS_TABS.rubros" class="q-px-none" />
+      <!-- Rubros: ABM movido desde Caja > Cuentas (plan 209-12), solo owner y admin -->
+      <q-tab-panel v-if="canManageRubros" :name="EGRESOS_TABS.rubros" class="q-px-none">
+        <RubrosTab :selected-country="selectedCountry" />
+      </q-tab-panel>
     </q-tab-panels>
   </q-page>
 </template>
@@ -65,6 +67,7 @@ import {
   type EgresosTab,
 } from 'src/constants/egresos';
 import type { ExpenseCountry } from 'src/types/expense';
+import RubrosTab from 'src/components/egresos/RubrosTab.vue';
 
 const route = useRoute();
 const router = useRouter();
