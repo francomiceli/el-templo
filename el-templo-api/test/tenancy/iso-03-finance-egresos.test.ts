@@ -6,7 +6,7 @@
  * el porqué de cada decisión): esta batería es el GATE de que Egresos no deja
  * ver ni tocar los gastos de otro gimnasio.
  *
- * QUE RUTAS CUBRE (6 del plan 209-07 y 2 del 209-08)
+ * QUE RUTAS CUBRE (6 del plan 209-07, 2 del 209-08 y 3 del 209-10)
  * --------------------------------------------------
  *   GET    /api/admin/finance/expense-records
  *   POST   /api/admin/finance/expense-records
@@ -16,9 +16,13 @@
  *   POST   /api/admin/finance/expense-records/:id/void
  *   POST   /api/admin/finance/expense-records/:id/payments            (209-08)
  *   POST   /api/admin/finance/expense-records/:id/payments/:paymentId/void (209-08)
+ *   GET    /api/admin/finance/expense-records/summary                 (209-10)
+ *   GET    /api/admin/finance/expense-records/summary/detail          (209-10)
+ *   GET    /api/admin/finance/expense-records/summary/export          (209-10)
  *
- * Las rutas del Resumen (209-10) suman sus propios `describe` en este mismo
- * archivo.
+ * Los gastos de los dos gimnasios tienen IMPORTES DISTINTOS (el de El Templo es
+ * distintivo): así un total del Resumen que sume lo ajeno no puede pasar por
+ * casualidad. Los dos están imputados a `MES_RESUMEN`.
  *
  * EL CONTRATO QUE SE AFIRMA (D-09)
  * --------------------------------
@@ -48,6 +52,7 @@
  */
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import { and, count, eq, isNull } from "drizzle-orm";
+import { Workbook } from "exceljs";
 import type { FastifyInstance } from "fastify";
 import { createTestApp, cleanAllTestData, getAuthToken } from "../helpers";
 import * as schema from "../../src/db/schema";
@@ -79,6 +84,14 @@ const ID_INEXISTENTE = 2_000_000_000;
 
 const CONCEPTO_TEMPLO = `${MARCA_ISO03} gasto templo`;
 const CONCEPTO_DOS = `${MARCA_ISO03} gasto g2`;
+
+/** Mes de imputación de los dos gastos sembrados (y el que consulta el Resumen). */
+const MES_RESUMEN = "2026-11";
+/** Importe distintivo del gasto de El Templo y el del gimnasio 2 (distintos entre sí). */
+const IMPORTE_GASTO_TEMPLO = 7000;
+const IMPORTE_GASTO_DOS = 5000;
+/** Mes del pago sembrado (`FECHA_PAGO`). */
+const MES_PAGO = "2026-01";
 const CLAVE_IDEMPOTENCIA = `${MARCA_ISO03.toLowerCase()}-clave-compartida`;
 
 /** Fecha de los pagos sembrados: pasada (no futura) y posterior al corte de las cuentas. */
@@ -156,6 +169,7 @@ beforeEach(async () => {
       concept: CONCEPTO_TEMPLO,
       costCenterId: templo.costCenterId,
       branchId: sedeTemploId,
+      amount: IMPORTE_GASTO_TEMPLO,
       idempotencyKey: CLAVE_IDEMPOTENCIA,
     }),
   });
@@ -219,16 +233,18 @@ function cuerpoDeAlta(datos: {
   concept: string;
   costCenterId: number;
   branchId: number;
+  amount?: number;
   idempotencyKey?: string;
 }): Record<string, unknown> {
+  const amount = datos.amount ?? IMPORTE_GASTO_DOS;
   return {
     concept: datos.concept,
     costCenterId: datos.costCenterId,
-    imputationMonth: "2026-11",
-    amount: 5000,
+    imputationMonth: MES_RESUMEN,
+    amount,
     currency: "ARS",
     amountStatus: "confirmado",
-    allocations: [{ branchId: datos.branchId, amount: 5000 }],
+    allocations: [{ branchId: datos.branchId, amount }],
     ...(datos.idempotencyKey === undefined
       ? {}
       : { idempotencyKey: datos.idempotencyKey }),
@@ -1032,3 +1048,210 @@ describe("anulacion de pago — POST /api/admin/finance/expense-records/:id/paym
     expect(await egresadoDeLaCuenta(TENANT_DOS, dos.bankAccountId)).toBe(0);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RESUMEN MENSUAL (209-10)
+// ═══════════════════════════════════════════════════════════════════════════
+
+interface ResumenResponse {
+  month: string;
+  columns: Array<{
+    key: string;
+    branchId: number | null;
+    name: string;
+    cost: number;
+    pending: number;
+    paidInMonth: number;
+  }>;
+}
+
+interface DetalleResponse {
+  destination: string;
+  groups: Array<{
+    concepts: Array<{ concept: string; cost: number }>;
+  }>;
+}
+
+/** Los ids de las sedes de un gimnasio, leídos de la DB. */
+async function sedesDe(tenantId: number): Promise<number[]> {
+  const filas = await app.db
+    .select({ id: schema.branches.id })
+    .from(schema.branches)
+    .where(tenantWhere(schema.branches, { tenantId }));
+  return filas.map((f) => f.id);
+}
+
+describe("resumen de egresos — GET /api/admin/finance/expense-records/summary", () => {
+  const RUTA = "GET /api/admin/finance/expense-records/summary";
+
+  async function resumenDelDos(mes: string): Promise<ResumenResponse> {
+    const res = await comoGimnasioDos("GET", `/summary?month=${mes}`);
+    expect(res.statusCode, `${RUTA} fallo: ${res.body}`).toBe(200);
+    return JSON.parse(res.body) as ResumenResponse;
+  }
+
+  it("aislamiento: no tiene ninguna columna de una sede de El Templo y sus totales no suman lo ajeno", async () => {
+    const sedesTemplo = await sedesDe(TENANT_TEMPLO);
+    expect(sedesTemplo, "El Templo tiene que tener sedes").toContain(
+      sedeTemploId,
+    );
+
+    const resumen = await resumenDelDos(MES_RESUMEN);
+    for (const columna of resumen.columns) {
+      expect(
+        columna.branchId === null || !sedesTemplo.includes(columna.branchId),
+        fuga(
+          RUTA,
+          `devolvio la columna "${columna.name}" de una sede de El Templo`,
+        ),
+      ).toBe(true);
+    }
+
+    // Costo del mes: solo el gasto propio, nunca el distintivo de El Templo.
+    const total = resumen.columns.find((c) => c.key === "total");
+    expect(
+      total?.cost,
+      fuga(RUTA, "el total de costo incluyo el gasto de El Templo"),
+    ).toBe(IMPORTE_GASTO_DOS);
+    expect(total?.pending).toBe(IMPORTE_GASTO_DOS - IMPORTE_PAGO);
+
+    // Pagado en el mes del pago: solo el pago propio (el de El Templo es igual).
+    const enElMesDelPago = await resumenDelDos(MES_PAGO);
+    expect(
+      enElMesDelPago.columns.find((c) => c.key === "total")?.paidInMonth,
+      fuga(RUTA, "el pagado del mes sumo el pago de El Templo"),
+    ).toBe(IMPORTE_PAGO);
+  });
+
+  it("control: SI refleja el gasto propio en la columna de su sede", async () => {
+    const resumen = await resumenDelDos(MES_RESUMEN);
+    const columna = resumen.columns.find((c) => c.branchId === gym2.branchId);
+    expect(
+      columna,
+      sinControl(RUTA, "no tiene la columna de su propia sede"),
+    ).toBeDefined();
+    expect(columna?.cost).toBe(IMPORTE_GASTO_DOS);
+    expect(columna?.pending).toBe(IMPORTE_GASTO_DOS - IMPORTE_PAGO);
+  });
+});
+
+describe("detalle del resumen de egresos — GET /api/admin/finance/expense-records/summary/detail", () => {
+  const RUTA = "GET /api/admin/finance/expense-records/summary/detail";
+
+  async function detalleDelDos(destino: number | string) {
+    return comoGimnasioDos(
+      "GET",
+      `/summary/detail?month=${MES_RESUMEN}&destination=${destino}`,
+    );
+  }
+
+  it("aislamiento: la sede de El Templo da el mismo rechazo que una inexistente y el total no nombra su concepto", async () => {
+    const ajena = await detalleDelDos(sedeTemploId);
+    const inexistente = await detalleDelDos(ID_INEXISTENTE);
+    expect(
+      ajena.statusCode,
+      fuga(
+        RUTA,
+        `respondio ${ajena.statusCode} con la sede ajena: ${ajena.body}`,
+      ),
+    ).toBe(404);
+    expect(inexistente.statusCode).toBe(404);
+    expect(JSON.parse(ajena.body)).toEqual(JSON.parse(inexistente.body));
+
+    // El detalle del Total tampoco trae el concepto de El Templo.
+    const total = await detalleDelDos("total");
+    expect(total.statusCode, `${RUTA} fallo: ${total.body}`).toBe(200);
+    const conceptos = (
+      JSON.parse(total.body) as DetalleResponse
+    ).groups.flatMap((g) => g.concepts.map((c) => c.concept));
+    expect(
+      conceptos,
+      fuga(RUTA, "el detalle del total nombro el gasto de El Templo"),
+    ).not.toContain(CONCEPTO_TEMPLO);
+  });
+
+  it("control: SI devuelve el concepto propio al pedir su sede", async () => {
+    const res = await detalleDelDos(gym2.branchId);
+    expect(res.statusCode, sinControl(RUTA, res.body)).toBe(200);
+    const conceptos = (JSON.parse(res.body) as DetalleResponse).groups.flatMap(
+      (g) => g.concepts,
+    );
+    expect(conceptos.map((c) => c.concept)).toEqual([CONCEPTO_DOS]);
+    expect(conceptos[0]?.cost).toBe(IMPORTE_GASTO_DOS);
+  });
+});
+
+describe("export del resumen de egresos — GET /api/admin/finance/expense-records/summary/export", () => {
+  const RUTA = "GET /api/admin/finance/expense-records/summary/export";
+
+  /** Todas las celdas de las dos hojas del export, como texto. */
+  async function celdasDelExport(): Promise<string[]> {
+    const res = await comoGimnasioDos(
+      "GET",
+      `/summary/export?month=${MES_RESUMEN}`,
+    );
+    expect(res.statusCode, `${RUTA} fallo: ${res.body}`).toBe(200);
+    const wb = new Workbook();
+    // El export es un binario: se PARSEA (ver iso-03-finance-cajas). Mirar solo
+    // el status dejaria sin ninguna asercion de contenido a la ruta que entrega
+    // todo el mes de una sola vez.
+    await wb.xlsx.load(
+      res.rawPayload as unknown as Parameters<typeof wb.xlsx.load>[0],
+    );
+    expect(
+      wb.getWorksheet("Resumen"),
+      `${RUTA} sin hoja Resumen`,
+    ).toBeDefined();
+    expect(
+      wb.getWorksheet("Detalle"),
+      `${RUTA} sin hoja Detalle`,
+    ).toBeDefined();
+    const celdas: string[] = [];
+    wb.eachSheet((hoja) => {
+      hoja.eachRow((row) => {
+        row.eachCell((cell) => celdas.push(String(cell.value ?? "")));
+      });
+    });
+    return celdas;
+  }
+
+  it("aislamiento: el .xlsx no contiene el concepto ni la sede de El Templo", async () => {
+    const celdas = await celdasDelExport();
+    expect(
+      celdas,
+      fuga(RUTA, "el Excel nombro el gasto de El Templo"),
+    ).not.toContain(CONCEPTO_TEMPLO);
+    const nombreSedeTemplo = await nombreDeLaSede(sedeTemploId);
+    expect(
+      celdas,
+      fuga(RUTA, `el Excel nombro la sede ${nombreSedeTemplo} de El Templo`),
+    ).not.toContain(nombreSedeTemplo);
+    expect(
+      celdas,
+      fuga(RUTA, "el Excel trajo el importe distintivo de El Templo"),
+    ).not.toContain(String(IMPORTE_GASTO_TEMPLO));
+  });
+
+  it("control: SI contiene el concepto propio", async () => {
+    const celdas = await celdasDelExport();
+    expect(
+      celdas,
+      sinControl(RUTA, "el Excel no trae el gasto del propio gimnasio"),
+    ).toContain(CONCEPTO_DOS);
+    expect(celdas).toContain(String(IMPORTE_GASTO_DOS));
+  });
+});
+
+/** Nombre de una sede de El Templo, leído de la DB. */
+async function nombreDeLaSede(branchId: number): Promise<string> {
+  const [fila] = await app.db
+    .select({ name: schema.branches.name })
+    .from(schema.branches)
+    .where(
+      and(
+        tenantWhere(schema.branches, { tenantId: TENANT_TEMPLO }),
+        eq(schema.branches.id, branchId),
+      ),
+    );
+  return fila?.name ?? "";
+}
