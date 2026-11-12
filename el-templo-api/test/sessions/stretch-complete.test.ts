@@ -51,6 +51,7 @@ import {
   arrangeStretchScenario,
   restoreStretchScenario,
   localClock,
+  seedAttendance,
   type ArrangeOpts,
   type Arranged,
 } from "./_stretch-fixtures";
@@ -147,16 +148,11 @@ describe("eventos y cierre del estiramiento: POST /api/sessions/stretch/{events,
   }
 
   /** Oferta del día creada como en producción (la card llama a /today). */
-  async function crearOferta(
-    token: string,
-  ): Promise<{ offerId: number; ids: number[] }> {
+  async function crearOferta(token: string): Promise<{ offerId: number }> {
     const today = await getToday(token);
     expect(today.status).toBe("available");
     expect(today.offerId).not.toBeNull();
-    return {
-      offerId: today.offerId as number,
-      ids: today.exercises.map((e) => e.exerciseId),
-    };
+    return { offerId: today.offerId as number };
   }
 
   async function offerRow(offerId: number) {
@@ -274,21 +270,18 @@ describe("eventos y cierre del estiramiento: POST /api/sessions/stretch/{events,
 
   // ─── casos ─────────────────────────────────────────────────────────────
 
-  it("(a) started y complete con todos los ejercicios 4 minutos después: acredita +5 AURA stretch y marca la fila", async () => {
+  it("(a) started y complete 4 minutos después: acredita +5 AURA stretch y marca la fila", async () => {
     const { member } = await arrange();
-    const { offerId, ids } = await crearOferta(member.token);
+    const { offerId } = await crearOferta(member.token);
 
     expect((await postEvent(member.token, { type: "started" })).status).toBe(
       200,
     );
     avanzar(4 * MIN);
-    const res = await postComplete(member.token, {
-      offerId,
-      exercisesCompleted: ids,
-    });
+    const res = await postComplete(member.token, { offerId });
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);
-    expect(res.body.allDone).toBe(true);
+    expect(res.body).not.toHaveProperty("allDone");
     expect(res.body.auraAwarded).toBe(true);
     expect(res.body.alreadyCompleted).toBe(false);
     expect(res.body.durationSeconds).toBeGreaterThanOrEqual(239);
@@ -303,7 +296,6 @@ describe("eventos y cierre del estiramiento: POST /api/sessions/stretch/{events,
     const row = await offerRow(offerId);
     expect(row.completedAt).not.toBeNull();
     expect(row.auraAwarded).toBe(true);
-    expect(row.exercisesCompleted).toEqual(ids);
     expect(row.durationSeconds).toBe(res.body.durationSeconds);
     expect(row.startedFrom).toBe("card");
   });
@@ -336,7 +328,7 @@ describe("eventos y cierre del estiramiento: POST /api/sessions/stretch/{events,
       }),
     );
 
-    const { offerId, ids } = await crearOferta(member.token);
+    const { offerId } = await crearOferta(member.token);
     const sesionesAntes = await contarCompletedSessions(member.id);
     const rachaAntes = await racha(member.id);
     const sorenessAntes = await contarSoreness(member.id);
@@ -344,10 +336,7 @@ describe("eventos y cierre del estiramiento: POST /api/sessions/stretch/{events,
 
     await postEvent(member.token, { type: "started" });
     avanzar(4 * MIN);
-    const res = await postComplete(member.token, {
-      offerId,
-      exercisesCompleted: ids,
-    });
+    const res = await postComplete(member.token, { offerId });
     expect(res.status, JSON.stringify(res.body)).toBe(200);
     expect(res.body.auraAwarded).toBe(true);
 
@@ -357,19 +346,15 @@ describe("eventos y cierre del estiramiento: POST /api/sessions/stretch/{events,
     expect(sorenessAntes).toBe(0);
   });
 
-  it("(c) complete a los 2 minutos con todos marcados: completado pero sin AURA", async () => {
+  it("(c) complete a los 2 minutos: completado pero sin AURA", async () => {
     const { member } = await arrange();
-    const { offerId, ids } = await crearOferta(member.token);
+    const { offerId } = await crearOferta(member.token);
 
     await postEvent(member.token, { type: "started" });
     avanzar(2 * MIN);
-    const res = await postComplete(member.token, {
-      offerId,
-      exercisesCompleted: ids,
-    });
+    const res = await postComplete(member.token, { offerId });
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);
-    expect(res.body.allDone).toBe(true);
     expect(res.body.auraAwarded).toBe(false);
     expect(res.body.durationSeconds).toBeGreaterThanOrEqual(119);
     expect(res.body.durationSeconds).toBeLessThanOrEqual(121);
@@ -380,47 +365,50 @@ describe("eventos y cierre del estiramiento: POST /api/sessions/stretch/{events,
     expect(row.auraAwarded).toBe(false);
   });
 
-  it("(d) complete a los 4 minutos con un ejercicio sin marcar: allDone false y sin AURA", async () => {
-    const { member } = await arrange();
-    const { offerId, ids } = await crearOferta(member.token);
-    expect(ids.length).toBeGreaterThan(1);
-
-    await postEvent(member.token, { type: "started" });
-    avanzar(4 * MIN);
-    const marcados = ids.slice(0, -1);
-    const res = await postComplete(member.token, {
-      offerId,
-      exercisesCompleted: marcados,
+  it("(d) justo en el umbral: 180 s dan AURA y 179 s no (solo cuenta el tiempo)", async () => {
+    const justo = await arrange();
+    const ofertaJusto = await crearOferta(justo.member.token);
+    await postEvent(justo.member.token, { type: "started" });
+    avanzar(3 * MIN);
+    const conAura = await postComplete(justo.member.token, {
+      offerId: ofertaJusto.offerId,
     });
+    expect(conAura.status, JSON.stringify(conAura.body)).toBe(200);
+    expect(conAura.body.durationSeconds).toBe(180);
+    expect(conAura.body.auraAwarded).toBe(true);
+    expect(await auraStretch(justo.member.id)).toHaveLength(1);
 
-    expect(res.status, JSON.stringify(res.body)).toBe(200);
-    expect(res.body.allDone).toBe(false);
-    expect(res.body.auraAwarded).toBe(false);
-    expect(await auraStretch(member.id)).toHaveLength(0);
-
-    const row = await offerRow(offerId);
-    expect(row.completedAt).not.toBeNull();
-    expect(row.exercisesCompleted).toEqual(marcados);
+    const corto = await createPresencialMember(app, { level: LEVEL });
+    await seedAttendance(app, {
+      memberId: corto.id,
+      branchId: BRANCH_ID,
+      scheduleId: justo.scheduleId,
+      sessionDate: justo.date,
+    });
+    const ofertaCorta = await crearOferta(corto.token);
+    await postEvent(corto.token, { type: "started" });
+    avanzar(179 * 1000);
+    const sinAura = await postComplete(corto.token, {
+      offerId: ofertaCorta.offerId,
+    });
+    expect(sinAura.status, JSON.stringify(sinAura.body)).toBe(200);
+    expect(sinAura.body.durationSeconds).toBe(179);
+    expect(sinAura.body.auraAwarded).toBe(false);
+    expect(await auraStretch(corto.id)).toHaveLength(0);
   });
 
   it("(e) un segundo complete devuelve alreadyCompleted y sigue habiendo una sola transacción de AURA", async () => {
     const { member } = await arrange();
-    const { offerId, ids } = await crearOferta(member.token);
+    const { offerId } = await crearOferta(member.token);
 
     await postEvent(member.token, { type: "started" });
     avanzar(4 * MIN);
-    const primera = await postComplete(member.token, {
-      offerId,
-      exercisesCompleted: ids,
-    });
+    const primera = await postComplete(member.token, { offerId });
     expect(primera.body.auraAwarded).toBe(true);
     const rowAntes = await offerRow(offerId);
 
     avanzar(MIN);
-    const segunda = await postComplete(member.token, {
-      offerId,
-      exercisesCompleted: ids,
-    });
+    const segunda = await postComplete(member.token, { offerId });
 
     expect(segunda.status, JSON.stringify(segunda.body)).toBe(200);
     expect(segunda.body.alreadyCompleted).toBe(true);
@@ -436,14 +424,11 @@ describe("eventos y cierre del estiramiento: POST /api/sessions/stretch/{events,
 
   it("(f) AURA una vez por día: reabrir la oferta y completar de nuevo no acredita otra", async () => {
     const { member } = await arrange();
-    const { offerId, ids } = await crearOferta(member.token);
+    const { offerId } = await crearOferta(member.token);
 
     await postEvent(member.token, { type: "started" });
     avanzar(4 * MIN);
-    const primera = await postComplete(member.token, {
-      offerId,
-      exercisesCompleted: ids,
-    });
+    const primera = await postComplete(member.token, { offerId });
     expect(primera.body.auraAwarded).toBe(true);
 
     // Se borra la marca de completado a mano: el candado que queda es el unique
@@ -459,10 +444,7 @@ describe("eventos y cierre del estiramiento: POST /api/sessions/stretch/{events,
       );
 
     avanzar(MIN);
-    const segunda = await postComplete(member.token, {
-      offerId,
-      exercisesCompleted: ids,
-    });
+    const segunda = await postComplete(member.token, { offerId });
 
     expect(segunda.status, JSON.stringify(segunda.body)).toBe(200);
     expect(segunda.body.alreadyCompleted).toBe(false);
@@ -472,20 +454,18 @@ describe("eventos y cierre del estiramiento: POST /api/sessions/stretch/{events,
 
   it("(f2) reintento tras un premio fallido: la oferta completada con condiciones cumplidas y aura_awarded false acredita una sola vez", async () => {
     const { member, date } = await arrange();
-    // Simula el fallo previo: completada con todo marcado y 4 min medidos, pero
+    // Simula el fallo previo: completada con 4 min medidos, pero
     // el premio no llego a acreditarse (aura_awarded false, sin ledger).
     const offerId = await insertarOferta(member.id, date, {
       startedAt: new Date(Date.now() - 4 * MIN),
       completedAt: new Date(),
       durationSeconds: 240,
-      exercisesCompleted: [1],
       auraAwarded: false,
     });
     expect(await auraStretch(member.id)).toHaveLength(0);
 
     const primera = await postComplete(member.token, {
       offerId,
-      exercisesCompleted: [1],
     });
     expect(primera.status, JSON.stringify(primera.body)).toBe(200);
     expect(primera.body.alreadyCompleted).toBe(true);
@@ -496,26 +476,23 @@ describe("eventos y cierre del estiramiento: POST /api/sessions/stretch/{events,
     // Un tercer intento ya no acredita nada mas.
     const segunda = await postComplete(member.token, {
       offerId,
-      exercisesCompleted: [1],
     });
     expect(segunda.body.alreadyCompleted).toBe(true);
     expect(segunda.body.auraAwarded).toBe(true);
     expect(await auraStretch(member.id)).toHaveLength(1);
   });
 
-  it("(f3) reintento sin condiciones de AURA (menos de 180 s o ejercicios sin marcar): no acredita", async () => {
+  it("(f3) reintento sin condiciones de AURA (menos de 180 s): no acredita", async () => {
     const { member, date } = await arrange();
     const corta = await insertarOferta(member.id, date, {
       startedAt: new Date(Date.now() - 2 * MIN),
       completedAt: new Date(),
       durationSeconds: 120,
-      exercisesCompleted: [1],
       auraAwarded: false,
     });
 
     const res = await postComplete(member.token, {
       offerId: corta,
-      exercisesCompleted: [1],
     });
     expect(res.status, JSON.stringify(res.body)).toBe(200);
     expect(res.body.alreadyCompleted).toBe(true);
@@ -533,7 +510,6 @@ describe("eventos y cierre del estiramiento: POST /api/sessions/stretch/{events,
 
     const res = await postComplete(member.token, {
       offerId,
-      exercisesCompleted: [1],
     });
 
     expect(res.status).toBe(410);
@@ -541,20 +517,16 @@ describe("eventos y cierre del estiramiento: POST /api/sessions/stretch/{events,
     const row = await offerRow(offerId);
     expect(row.completedAt).toBeNull();
     expect(row.durationSeconds).toBeNull();
-    expect(row.exercisesCompleted).toBeNull();
     expect(row.auraAwarded).toBe(false);
     expect(await auraStretch(member.id)).toHaveLength(0);
   });
 
   it("(h) complete del offerId de otro socio responde 404 y no toca la fila", async () => {
     const { member } = await arrange();
-    const { offerId, ids } = await crearOferta(member.token);
+    const { offerId } = await crearOferta(member.token);
     const otro = await createPresencialMember(app, { level: LEVEL });
 
-    const res = await postComplete(otro.token, {
-      offerId,
-      exercisesCompleted: ids,
-    });
+    const res = await postComplete(otro.token, { offerId });
 
     expect(res.status).toBe(404);
     expect(res.body.error).toBe("No encontramos ese estiramiento");
@@ -566,13 +538,10 @@ describe("eventos y cierre del estiramiento: POST /api/sessions/stretch/{events,
 
   it("(i) complete sin started: se registra sin duración y sin AURA", async () => {
     const { member } = await arrange();
-    const { offerId, ids } = await crearOferta(member.token);
+    const { offerId } = await crearOferta(member.token);
 
     avanzar(5 * MIN);
-    const res = await postComplete(member.token, {
-      offerId,
-      exercisesCompleted: ids,
-    });
+    const res = await postComplete(member.token, { offerId });
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);
     expect(res.body.durationSeconds).toBeNull();
@@ -627,22 +596,18 @@ describe("eventos y cierre del estiramiento: POST /api/sessions/stretch/{events,
     expect(despues.startedFrom).toBe("push");
   });
 
-  it("(k2) reingreso: con todo marcado a menos de 180 s del último ingreso no hay AURA, aunque el primer ingreso fuera hace 10 minutos", async () => {
+  it("(k2) reingreso: a menos de 180 s del último ingreso no hay AURA, aunque el primer ingreso fuera hace 10 minutos", async () => {
     const { member } = await arrange();
-    const { offerId, ids } = await crearOferta(member.token);
+    const { offerId } = await crearOferta(member.token);
 
     await postEvent(member.token, { type: "started", from: "card" });
     avanzar(10 * MIN);
     // Sale y vuelve a entrar: la medicion arranca de nuevo.
     await postEvent(member.token, { type: "started", from: "push" });
     avanzar(60 * 1000);
-    const res = await postComplete(member.token, {
-      offerId,
-      exercisesCompleted: ids,
-    });
+    const res = await postComplete(member.token, { offerId });
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);
-    expect(res.body.allDone).toBe(true);
     expect(res.body.auraAwarded).toBe(false);
     expect(res.body.durationSeconds).toBeGreaterThanOrEqual(59);
     expect(res.body.durationSeconds).toBeLessThanOrEqual(61);
@@ -655,14 +620,11 @@ describe("eventos y cierre del estiramiento: POST /api/sessions/stretch/{events,
 
   it("(k3) started con la oferta completada no mueve started_at", async () => {
     const { member } = await arrange();
-    const { offerId, ids } = await crearOferta(member.token);
+    const { offerId } = await crearOferta(member.token);
 
     await postEvent(member.token, { type: "started" });
     avanzar(4 * MIN);
-    const cierre = await postComplete(member.token, {
-      offerId,
-      exercisesCompleted: ids,
-    });
+    const cierre = await postComplete(member.token, { offerId });
     expect(cierre.body.auraAwarded).toBe(true);
     const antes = await offerRow(offerId);
 
@@ -710,7 +672,7 @@ describe("eventos y cierre del estiramiento: POST /api/sessions/stretch/{events,
 
   it("(m) las propiedades fuera del contrato se podan (removeAdditional): ni tenantId ni startedAt tienen efecto", async () => {
     const { member } = await arrange();
-    const { offerId, ids } = await crearOferta(member.token);
+    const { offerId } = await crearOferta(member.token);
 
     // Fastify poda la clave ajena en vez de rechazarla: 200 y sin efecto.
     const evento = await postEvent(member.token, {
@@ -730,7 +692,6 @@ describe("eventos y cierre del estiramiento: POST /api/sessions/stretch/{events,
     avanzar(2 * MIN);
     const cierre = await postComplete(member.token, {
       offerId,
-      exercisesCompleted: ids,
       startedAt: new Date(Date.now() - 10 * MIN).toISOString(),
     });
     expect(cierre.status, JSON.stringify(cierre.body)).toBe(200);
@@ -744,41 +705,50 @@ describe("eventos y cierre del estiramiento: POST /api/sessions/stretch/{events,
     expect(row.durationSeconds).toBe(cierre.body.durationSeconds);
   });
 
-  it("(n) los ids que no son de la rutina se ignoran: no inflan allDone ni se guardan", async () => {
+  it("(n) un body viejo con exercisesCompleted de más se poda y responde 200", async () => {
     const { member } = await arrange();
-    const { offerId, ids } = await crearOferta(member.token);
+    const { offerId } = await crearOferta(member.token);
 
     await postEvent(member.token, { type: "started" });
     avanzar(4 * MIN);
-    // La rutina completa más un id ajeno: solo cuentan los de la rutina.
-    const ajeno = Math.max(...ids) + 100_000;
+    // El player viejo mandaba el marcado: ahora se descarta y no pesa.
     const res = await postComplete(member.token, {
       offerId,
-      exercisesCompleted: [...ids, ids[0], ajeno],
+      exercisesCompleted: [1, 2, 3],
     });
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);
-    expect(res.body.allDone).toBe(true);
+    expect(res.body.auraAwarded).toBe(true);
+    expect(res.body).not.toHaveProperty("allDone");
     const row = await offerRow(offerId);
-    expect(row.exercisesCompleted).toEqual(ids);
+    expect(row).not.toHaveProperty("exercisesCompleted");
   });
 
-  it("(o) un id ajeno no reemplaza a uno de la rutina: con uno faltante allDone sigue en false", async () => {
+  it("(o) la respuesta del cierre trae solo el contrato nuevo", async () => {
     const { member } = await arrange();
-    const { offerId, ids } = await crearOferta(member.token);
+    const { offerId } = await crearOferta(member.token);
 
     await postEvent(member.token, { type: "started" });
     avanzar(4 * MIN);
-    const ajeno = Math.max(...ids) + 100_000;
-    const res = await postComplete(member.token, {
-      offerId,
-      exercisesCompleted: [...ids.slice(0, -1), ajeno],
-    });
+    const res = await postComplete(member.token, { offerId });
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);
-    expect(res.body.allDone).toBe(false);
-    expect(res.body.auraAwarded).toBe(false);
-    expect(await auraStretch(member.id)).toHaveLength(0);
+    expect(Object.keys(res.body).sort()).toEqual([
+      "alreadyCompleted",
+      "auraAwarded",
+      "completedAt",
+      "durationSeconds",
+      "minutes",
+    ]);
+  });
+
+  it("(o2) sin offerId el body se rechaza con 400", async () => {
+    const { member } = await arrange();
+    await crearOferta(member.token);
+
+    const res = await postComplete(member.token, {});
+
+    expect(res.status).toBe(400);
   });
 
   it("(p) card_seen y started sin oferta del día responden 404 y no crean filas", async () => {
@@ -813,7 +783,7 @@ describe("eventos y cierre del estiramiento: POST /api/sessions/stretch/{events,
     const cierre = await app.inject({
       method: "POST",
       url: "/api/sessions/stretch/complete",
-      payload: { offerId: 1, exercisesCompleted: [] },
+      payload: { offerId: 1 },
     });
     expect(cierre.statusCode).toBe(401);
   });

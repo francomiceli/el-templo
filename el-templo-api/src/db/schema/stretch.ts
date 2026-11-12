@@ -99,8 +99,8 @@ export const stretchCatalog = mysqlTable(
  *   cola se purga a 24 h), `pushSentAt`, `pushOpenedAt`.
  * - App: `cardSeenAt`, `startedAt` (ULTIMO ingreso al player), `startedFrom`
  *   (`card` | `push`, el del primer ingreso).
- * - Al terminar: `completedAt`, `durationSeconds`, `exercisesCompleted`
- *   (índices de la rutina congelada), `auraAwarded`.
+ * - Al terminar: `completedAt`, `durationSeconds`, `auraAwarded`. No hay
+ *   marcado de ejercicios (plan 213-14).
  * - UNIQUE (tenant_id, user_id, local_date): tenant primero.
  */
 export const stretchOffers = mysqlTable(
@@ -137,7 +137,6 @@ export const stretchOffers = mysqlTable(
     startedFrom: varchar("started_from", { length: 10 }),
     completedAt: timestamp("completed_at"),
     durationSeconds: int("duration_seconds"),
-    exercisesCompleted: json("exercises_completed").$type<number[]>(),
     auraAwarded: boolean("aura_awarded").default(false).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),

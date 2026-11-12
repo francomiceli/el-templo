@@ -107,7 +107,7 @@ export const stretchRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       const { userId } = request.user;
-      const { offerId, exercisesCompleted } = request.body;
+      const { offerId } = request.body;
 
       await attachCountryScope(request, fastify.db);
       const ctx = assertTenant(request.scope, "sessions.stretch");
@@ -115,7 +115,7 @@ export const stretchRoutes: FastifyPluginAsync = async (fastify) => {
       const result = await service.complete(
         ctx,
         userId,
-        { offerId, exercisesCompleted },
+        { offerId },
         new Date(),
       );
       if (result.kind === "error") {

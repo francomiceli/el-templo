@@ -65,7 +65,6 @@ CREATE TABLE `stretch_offers` (
   `started_from` varchar(10) NULL,
   `completed_at` timestamp NULL DEFAULT NULL,
   `duration_seconds` int NULL,
-  `exercises_completed` json NULL,
   `aura_awarded` boolean NOT NULL DEFAULT false,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

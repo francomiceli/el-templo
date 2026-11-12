@@ -3,8 +3,8 @@
 --
 -- Agrega el valor 'stretch' AL FINAL del enum en las dos tablas de Aura.
 -- Completar el estiramiento suma 5 Aura una sola vez por dia, solo si el socio
--- marco todos los estiramientos y pasaron al menos 3 minutos medidos por el
--- servidor. El candado "uno por dia" es el unique unique_user_source_ref de
+-- pasaron al menos 3 minutos medidos por el servidor (no hay marcado de
+-- ejercicios, decision del 2026-11-12). El candado "uno por dia" es el unique unique_user_source_ref de
 -- aura_transactions con reference_type='stretch_day' y reference_id = fecha
 -- local de la sede como entero YYYYMMDD.
 --

@@ -18,9 +18,10 @@
  *   upsert no-op sobre `uq_stretch_offers_tenant_user_date`.
  * - D-16: el grupo del experimento (`arm`) se fija al crear la fila.
  *
- * - D-08: completar acredita +5 AURA (fuente `stretch`) una vez por dia local,
- *   solo con todos los estiramientos marcados y al menos 3 minutos medidos por
- *   el servidor entre `started_at` (ultimo ingreso al player) y `completed_at`.
+ * - D-08 (reabierta el 2026-11-12): completar acredita +5 AURA (fuente
+ *   `stretch`) una vez por dia local, solo por el tiempo: al menos 3 minutos
+ *   medidos por el servidor entre `started_at` (ultimo ingreso al player) y
+ *   `completed_at`. No hay marcado de ejercicios.
  *
  * Solo LEE `completed_sessions` (el espejo presencial) para el nivel del
  * socio. Toda consulta lleva `tenantWhere`; el reloj entra por parametro `now`.
@@ -98,13 +99,11 @@ export type StretchEventResult = { kind: "ok" } | { kind: "not_found" };
 
 export interface CompleteStretchInput {
   offerId: number;
-  exercisesCompleted: number[];
 }
 
 export interface StretchCompleteView {
   completedAt: string;
   durationSeconds: number | null;
-  allDone: boolean;
   auraAwarded: boolean;
   alreadyCompleted: boolean;
   /** Minutos para la pantalla "Listo. X minutos de estiramiento". */
@@ -703,9 +702,10 @@ export class StretchService {
   /**
    * Fase 213 D-08/D-12: cierre del estiramiento.
    *
-   * Guarda `completed_at`, la duracion y los ejercicios marcados, y acredita
-   * +5 AURA (fuente `stretch`) una vez por dia local. La duracion sale de dos
-   * marcas del SERVIDOR (`started_at` y `now`): el body no acepta tiempos.
+   * Guarda `completed_at` y la duracion, y acredita +5 AURA (fuente `stretch`)
+   * una vez por dia local si la duracion llega a `STRETCH_AURA_MIN_SECONDS`. No
+   * hay marcado de ejercicios. La duracion sale de dos marcas del SERVIDOR
+   * (`started_at` y `now`): el body solo trae el `offerId`.
    *
    * Invariantes: NO escribe `completed_sessions` ni toca racha, programa ni RPE
    * ni encola `post_session_soreness` (solo escribe `stretch_offers` y, via
@@ -746,19 +746,12 @@ export class StretchService {
       // timeout), el reintento del cliente lo vuelve a intentar. Es idempotente
       // por dia local (`awardOncePerLocalDay`), asi que no puede duplicar.
       let view = this.toCompleteView(row, true);
-      if (!row.auraAwarded && this.meetsAuraCondition(row)) {
+      if (!row.auraAwarded && this.meetsAuraCondition(row.durationSeconds)) {
         const awarded = await this.awardAura(ctx, userId, row);
         if (awarded) view = { ...view, auraAwarded: true };
       }
       return { kind: "ok", view };
     }
-
-    // Solo ejercicios de la rutina congelada, sin duplicados, en orden de rutina.
-    const marcados = new Set(input.exercisesCompleted);
-    const done = row.exercises
-      .map((e) => e.exerciseId)
-      .filter((id) => marcados.has(id));
-    const allDone = done.length === row.exercises.length;
 
     const durationSeconds = row.startedAt
       ? Math.max(
@@ -778,7 +771,6 @@ export class StretchService {
       .set({
         completedAt: now,
         durationSeconds,
-        exercisesCompleted: done,
       })
       .where(
         and(
@@ -801,19 +793,15 @@ export class StretchService {
       return { kind: "ok", view: this.toCompleteView(fresh, true) };
     }
 
-    const auraAwarded =
-      allDone &&
-      durationSeconds !== null &&
-      durationSeconds >= STRETCH_AURA_MIN_SECONDS
-        ? await this.awardAura(ctx, userId, row)
-        : false;
+    const auraAwarded = this.meetsAuraCondition(durationSeconds)
+      ? await this.awardAura(ctx, userId, row)
+      : false;
 
     return {
       kind: "ok",
       view: {
         completedAt: now.toISOString(),
         durationSeconds,
-        allDone,
         auraAwarded,
         alreadyCompleted: false,
         minutes: this.minutesFor(durationSeconds, row.plannedSeconds),
@@ -822,15 +810,13 @@ export class StretchService {
   }
 
   /**
-   * D-08: condicion de AURA de una oferta YA completada: todos los ejercicios
-   * de la rutina marcados y al menos `STRETCH_AURA_MIN_SECONDS` medidos.
+   * D-08: unica condicion de AURA, la duracion medida por el servidor. Sin
+   * duracion (complete sin `started`) no hay AURA. Sirve al cierre normal y al
+   * reintento de una oferta ya completada.
    */
-  private meetsAuraCondition(row: StretchOfferRow): boolean {
-    const hechos = new Set(row.exercisesCompleted ?? []);
+  private meetsAuraCondition(durationSeconds: number | null): boolean {
     return (
-      row.durationSeconds !== null &&
-      row.durationSeconds >= STRETCH_AURA_MIN_SECONDS &&
-      row.exercises.every((e) => hechos.has(e.exerciseId))
+      durationSeconds !== null && durationSeconds >= STRETCH_AURA_MIN_SECONDS
     );
   }
 
@@ -888,11 +874,9 @@ export class StretchService {
     row: StretchOfferRow,
     alreadyCompleted: boolean,
   ): StretchCompleteView {
-    const hechos = new Set(row.exercisesCompleted ?? []);
     return {
       completedAt: (row.completedAt ?? new Date()).toISOString(),
       durationSeconds: row.durationSeconds,
-      allDone: row.exercises.every((e) => hechos.has(e.exerciseId)),
       auraAwarded: row.auraAwarded,
       alreadyCompleted,
       minutes: this.minutesFor(row.durationSeconds, row.plannedSeconds),

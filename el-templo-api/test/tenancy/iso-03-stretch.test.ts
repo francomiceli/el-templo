@@ -201,16 +201,12 @@ async function postEvent(socio: Socio, payload: Record<string, unknown>) {
   return { status: res.statusCode, raw: res.body };
 }
 
-async function postComplete(
-  socio: Socio,
-  offerId: number,
-  exercisesCompleted: number[],
-) {
+async function postComplete(socio: Socio, offerId: number) {
   const res = await app.inject({
     method: "POST",
     url: `${BASE}/complete`,
     headers: { authorization: `Bearer ${socio.token}` },
-    payload: { offerId, exercisesCompleted },
+    payload: { offerId },
   });
   return { status: res.statusCode, raw: res.body };
 }
@@ -302,21 +298,13 @@ describe("POST /api/sessions/stretch/complete", () => {
     const offerTemplo = deTemplo.offerId as number;
     const offerDos = deDos.offerId as number;
 
-    const dosSobreTemplo = await postComplete(
-      dos,
-      offerTemplo,
-      deTemplo.exercises.map((e) => e.exerciseId),
-    );
+    const dosSobreTemplo = await postComplete(dos, offerTemplo);
     expect(
       dosSobreTemplo.status,
       `POST ${BASE}/complete: el gimnasio ${TENANT_DOS} cerró una oferta de El Templo.`,
     ).toBe(404);
 
-    const temploSobreDos = await postComplete(
-      templo,
-      offerDos,
-      deDos.exercises.map((e) => e.exerciseId),
-    );
+    const temploSobreDos = await postComplete(templo, offerDos);
     expect(
       temploSobreDos.status,
       `POST ${BASE}/complete: El Templo cerró una oferta del gimnasio ${TENANT_DOS}.`,
@@ -330,11 +318,7 @@ describe("POST /api/sessions/stretch/complete", () => {
     const deTemplo = await hoy(templo);
     const deDos = await hoy(dos);
 
-    const res = await postComplete(
-      dos,
-      deDos.offerId as number,
-      deDos.exercises.map((e) => e.exerciseId),
-    );
+    const res = await postComplete(dos, deDos.offerId as number);
     expect(res.status, res.raw).toBe(200);
     const body = JSON.parse(res.raw) as StretchCompleteView;
     expect(body.alreadyCompleted).toBe(false);
@@ -351,11 +335,10 @@ describe("POST /api/sessions/stretch/complete", () => {
 
   it("guard: con templo-training OFF para el gimnasio 2, cerrar su propia oferta da 404 y no escribe", async () => {
     const deDos = await hoy(dos);
-    const ids = deDos.exercises.map((e) => e.exerciseId);
     const offerDos = deDos.offerId as number;
 
     // Con el flag ON la misma request cierra la oferta (200).
-    expect((await postComplete(dos, offerDos, ids)).status).toBe(200);
+    expect((await postComplete(dos, offerDos)).status).toBe(200);
     // Se borra la marca para medir el OFF sobre una oferta sin cerrar.
     await app.db
       .update(schema.stretchOffers)
@@ -368,7 +351,7 @@ describe("POST /api/sessions/stretch/complete", () => {
       );
 
     await conModuloApagado(async () => {
-      const res = await postComplete(dos, offerDos, ids);
+      const res = await postComplete(dos, offerDos);
       expect(
         res.status,
         `POST ${BASE}/complete: con el módulo OFF el guard tiene que cortar antes del service. ${res.raw}`,

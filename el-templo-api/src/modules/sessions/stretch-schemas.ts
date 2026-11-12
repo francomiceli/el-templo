@@ -104,7 +104,6 @@ export const stretchEventResponse = {
 
 export interface StretchCompleteBody {
   offerId: number;
-  exercisesCompleted: number[];
 }
 
 export type StretchCompleteResponse = StretchCompleteView;
@@ -112,15 +111,10 @@ export type StretchCompleteResponse = StretchCompleteView;
 export const stretchCompleteSchema = {
   body: {
     type: "object",
-    required: ["offerId", "exercisesCompleted"],
+    required: ["offerId"],
     additionalProperties: false,
     properties: {
       offerId: { type: "integer", minimum: 1 },
-      exercisesCompleted: {
-        type: "array",
-        maxItems: 20,
-        items: { type: "integer", minimum: 1 },
-      },
     },
   },
 };
@@ -131,7 +125,6 @@ export const stretchCompleteResponse = {
     properties: {
       completedAt: { type: "string" },
       durationSeconds: { type: ["integer", "null"] },
-      allDone: { type: "boolean" },
       auraAwarded: { type: "boolean" },
       alreadyCompleted: { type: "boolean" },
       minutes: { type: "integer" },
