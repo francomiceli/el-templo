@@ -341,3 +341,75 @@ describe("domiciliación (direct_debit) — rechazo del banco", () => {
     expect(row?.voidReason).toMatch(/Devolución SEPA/);
   });
 });
+
+describe("fase 209 (DI-06): direct_debit saliente", () => {
+  let bancoSalidaId: number;
+
+  beforeAll(async () => {
+    // Banco propio para las salidas: el saldo arranca en 0 y no se afirma.
+    const [row] = await app.db
+      .insert(schema.cashRegisters)
+      .values(
+        tenantValues(TEMPLO_CTX, {
+          name: "DD-Test banco ARS salidas",
+          type: "banco",
+          branchId: null,
+          currency: "ARS",
+          cutoffDate: CUTOFF,
+        }),
+      )
+      .$returningId();
+    bancoSalidaId = row.id;
+    seededCajaIds.push(bancoSalidaId);
+  });
+
+  it("el cobro (inflow) en una sede de Argentina sigue dando 400 con el mismo mensaje", async () => {
+    await expect(
+      txService.create(
+        TEMPLO_CTX,
+        directDebitCharge({
+          memberId: arMemberId,
+          branchId: arBranchId,
+          currency: "ARS",
+        }),
+        adminId,
+      ),
+    ).rejects.toThrow(
+      "La domiciliación bancaria solo está disponible en sedes de España",
+    );
+  });
+
+  it("el cobro (inflow) sin sede sigue dando 400 con el mismo mensaje", async () => {
+    await expect(
+      txService.create(
+        TEMPLO_CTX,
+        directDebitCharge({ branchId: null }),
+        adminId,
+      ),
+    ).rejects.toThrow("La domiciliación bancaria requiere una sucursal");
+  });
+
+  it("una salida (expense) con direct_debit y sin sede se crea desde un banco", async () => {
+    const result = await txService.create(
+      TEMPLO_CTX,
+      {
+        memberId: null,
+        kind: "expense" as const,
+        direction: "outflow" as const,
+        amount: 4200,
+        currency: "ARS",
+        paymentMethod: "direct_debit" as const,
+        transactionDate: "2026-02-01",
+        effectiveDate: "2026-02-01",
+        branchId: null,
+        cashRegisterId: bancoSalidaId,
+        notes: "DD-Test débito automático de un gasto",
+        links: [],
+      },
+      adminId,
+    );
+    expect(result.paymentMethod).toBe("direct_debit");
+    expect(result.direction).toBe("outflow");
+    expect(result.cashRegisterId).toBe(bancoSalidaId);
+  });
+});
