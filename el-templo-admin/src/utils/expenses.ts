@@ -17,12 +17,14 @@ import type {
   ExpenseAmountStatus,
   ExpenseCountry,
   ExpenseCurrency,
+  ExpenseHistoryItem,
   ExpensePaymentMethod,
   ExpensePaymentStatus,
   ExpenseRecordDetail,
   ReceiptLink,
   UpdateExpenseRecordInput,
 } from '../types/expense';
+import { formatPrice } from './format-price';
 import { isMethodAllowedForAccount, type AccountType } from './payment-method-rules';
 
 /** Tope de un importe (`int` de MySQL con margen). Igual que la API. */
@@ -456,4 +458,197 @@ export function diffExpenseUpdate(
     needsReason: amountChanged || statusChanged || fxChanged,
     hasChanges: Object.keys(changes).length > 0,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Historial del gasto (DI-09): texto legible de cada entrada del audit_log
+// ---------------------------------------------------------------------------
+
+/** Contexto para redactar el historial: moneda del gasto y nombres de rubros (si se tienen). */
+export interface HistoryContext {
+  /** moneda del gasto (los importes del historial se muestran en ella) */
+  currency: string;
+  /** id de rubro -> nombre; sin el id se muestra "rubro #id" */
+  costCenterNames?: Record<number, string>;
+}
+
+type UnknownRecord = Record<string, unknown>;
+
+function isRecord(v: unknown): v is UnknownRecord {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+/** Número finito, venga como número o como string numérico (un DECIMAL puede llegar así). */
+function asNumber(v: unknown): number | null {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+  if (typeof v === 'string' && v.trim() !== '') {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+function asText(v: unknown): string | null {
+  return typeof v === 'string' && v.trim() !== '' ? v : null;
+}
+
+const FX_FORMAT = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 4, useGrouping: true });
+
+/** Tipo de cambio para mostrar: `1.560` o `1.560,5`. Lo que no es número se ve como "—". */
+function fxText(v: unknown): string {
+  const n = asNumber(v);
+  return n === null ? '—' : FX_FORMAT.format(n);
+}
+
+function moneyText(v: unknown, currency: string): string {
+  const n = asNumber(v);
+  return n === null ? '—' : formatPrice(n, currency);
+}
+
+/** `2026-11-05` -> `05/11/2026`; cualquier otra cosa se devuelve tal cual (o "—"). */
+function dateText(v: unknown): string {
+  const s = asText(v);
+  if (s === null) return '—';
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : s;
+}
+
+function amountStatusText(v: unknown): string {
+  if (v === 'estimado' || v === 'confirmado') return AMOUNT_STATUS_LABELS[v];
+  return '—';
+}
+
+function textOrDash(v: unknown, empty = '—'): string {
+  return asText(v) ?? empty;
+}
+
+function linksCount(v: unknown): number {
+  return Array.isArray(v) ? v.length : 0;
+}
+
+/** Texto de `before → after` de un campo editado (`{ before, after }` del payload). */
+function changeLine(field: string, change: UnknownRecord, ctx: HistoryContext): string | null {
+  const { before, after } = change;
+  switch (field) {
+    case 'concept':
+      return `Concepto: ${textOrDash(before)} → ${textOrDash(after)}`;
+    case 'beneficiary':
+      return `Beneficiario: ${textOrDash(before, 'sin beneficiario')} → ${textOrDash(after, 'sin beneficiario')}`;
+    case 'amount':
+      return `Importe: ${moneyText(before, ctx.currency)} → ${moneyText(after, ctx.currency)}`;
+    case 'amountStatus':
+      return `Estado del importe: ${amountStatusText(before)} → ${amountStatusText(after)}`;
+    case 'fxRate':
+      return `Tipo de cambio: ${fxText(before)} → ${fxText(after)}`;
+    case 'imputationMonth': {
+      const b = asText(before);
+      const a = asText(after);
+      return `Mes de imputación: ${b === null ? '—' : monthLabel(b)} → ${a === null ? '—' : monthLabel(a)}`;
+    }
+    case 'costCenterId': {
+      const name = (id: unknown): string => {
+        const n = asNumber(id);
+        if (n === null) return '—';
+        return ctx.costCenterNames?.[n] ?? `rubro #${n}`;
+      };
+      return `Rubro: ${name(before)} → ${name(after)}`;
+    }
+    case 'receiptLinks':
+      return `Comprobantes: ${linksCount(before)} → ${linksCount(after)}`;
+    case 'notes':
+      return 'Observaciones modificadas';
+    default:
+      // Un campo que esta pantalla no conoce no rompe: se avisa que cambió.
+      return `${field}: modificado`;
+  }
+}
+
+/** Orden en que se muestran los campos corregidos (los desconocidos van al final). */
+const CHANGE_FIELD_ORDER = [
+  'concept',
+  'beneficiary',
+  'costCenterId',
+  'imputationMonth',
+  'amount',
+  'amountStatus',
+  'fxRate',
+  'receiptLinks',
+  'notes',
+];
+
+/**
+ * Arma el título y las líneas de una entrada del historial del gasto a partir
+ * de su `action` y `payload` (los que escribe la API en `audit_log`). Pura y
+ * tolerante: una acción desconocida o un payload con otra forma dan un título
+ * genérico y nunca tiran. El motivo (`item.reason`) y quién/cuándo los muestra
+ * la pantalla.
+ */
+export function historyEntryLines(
+  item: ExpenseHistoryItem,
+  ctx: HistoryContext
+): { title: string; lines: string[] } {
+  const payload: UnknownRecord = isRecord(item.payload) ? item.payload : {};
+
+  switch (item.action) {
+    case 'expense_record_created': {
+      const currency = asText(payload.currency) ?? ctx.currency;
+      const status = amountStatusText(payload.amountStatus);
+      return {
+        title: 'Alta del gasto',
+        lines: [`Importe: ${moneyText(payload.amount, currency)} · ${status}`],
+      };
+    }
+
+    case 'expense_record_update': {
+      const lines: string[] = [];
+      const changes = isRecord(payload.changes) ? payload.changes : {};
+      const fields = Object.keys(changes).sort((a, b) => {
+        const ia = CHANGE_FIELD_ORDER.indexOf(a);
+        const ib = CHANGE_FIELD_ORDER.indexOf(b);
+        return (
+          (ia === -1 ? CHANGE_FIELD_ORDER.length : ia) -
+          (ib === -1 ? CHANGE_FIELD_ORDER.length : ib)
+        );
+      });
+      for (const field of fields) {
+        const change = changes[field];
+        if (!isRecord(change)) continue;
+        const line = changeLine(field, change, ctx);
+        if (line !== null) lines.push(line);
+      }
+      if (isRecord(payload.allocations)) lines.push('Reparto corregido');
+      return { title: 'Corrección', lines };
+    }
+
+    case 'expense_payment_registered': {
+      const accountCurrency = asText(payload.currency) ?? ctx.currency;
+      const lines = [
+        `Importe: ${moneyText(payload.amount, accountCurrency)} · Fecha de pago: ${dateText(payload.paidOn)}`,
+      ];
+      const method = asText(payload.paymentMethod);
+      if (method !== null && method in EXPENSE_PAYMENT_METHOD_LABELS) {
+        lines.push(`Medio: ${EXPENSE_PAYMENT_METHOD_LABELS[method as ExpensePaymentMethod]}`);
+      }
+      if (asNumber(payload.fxRate) !== null)
+        lines.push(`Tipo de cambio: ${fxText(payload.fxRate)}`);
+      if (accountCurrency !== ctx.currency && asNumber(payload.appliedAmount) !== null) {
+        lines.push(`Cancela ${moneyText(payload.appliedAmount, ctx.currency)} del gasto`);
+      }
+      return { title: 'Pago registrado', lines };
+    }
+
+    case 'expense_payment_voided': {
+      const accountCurrency = asText(payload.currency) ?? ctx.currency;
+      return {
+        title: 'Pago anulado',
+        lines: [`Importe: ${moneyText(payload.amount, accountCurrency)}`],
+      };
+    }
+
+    case 'expense_record_voided':
+      return { title: 'Gasto anulado', lines: [] };
+
+    default:
+      return { title: textOrDash(item.action, 'Movimiento del gasto'), lines: [] };
+  }
 }

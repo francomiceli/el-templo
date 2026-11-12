@@ -12,6 +12,7 @@ import {
   cleanReceiptLinks,
   diffExpenseUpdate,
   expenseStatusOf,
+  historyEntryLines,
   type ExpenseFormValues,
   isHttpUrl,
   isValidFxRate,
@@ -32,7 +33,7 @@ import {
   sumPendingByCurrency,
   toNumberOrNull,
 } from '../expenses';
-import type { ExpenseRecordDetail } from '../../types/expense';
+import type { ExpenseHistoryItem, ExpenseRecordDetail } from '../../types/expense';
 
 // Los resultados esperados están escritos a mano, nunca recalculados con la
 // función bajo prueba. splitEvenly, expenseStatusOf y previewPayment usan los
@@ -658,5 +659,225 @@ describe('sumPendingByCurrency', () => {
 
   it('sin filas no hay totales', () => {
     expect(sumPendingByCurrency([])).toEqual([]);
+  });
+});
+
+describe('historyEntryLines (DI-09)', () => {
+  // Intl pone un espacio duro entre el símbolo y el número: se normaliza lo que
+  // sale de la función; los textos esperados están escritos a mano.
+  const norm = (r: { title: string; lines: string[] }) => ({
+    title: r.title,
+    lines: r.lines.map((l) => l.replace(/\u00a0/g, ' ')),
+  });
+  const entry = (action: string, payload: Record<string, unknown>): ExpenseHistoryItem => ({
+    id: 1,
+    at: '2026-11-05T12:00:00.000Z',
+    actorName: 'Ana',
+    action,
+    reason: null,
+    payload,
+  });
+  const ars = { currency: 'ARS' };
+
+  it('alta: título e importe con su estado', () => {
+    const r = historyEntryLines(
+      entry('expense_record_created', {
+        concept: 'Alquiler',
+        amount: 150000,
+        currency: 'ARS',
+        amountStatus: 'estimado',
+      }),
+      ars
+    );
+    expect(norm(r)).toEqual({
+      title: 'Alta del gasto',
+      lines: ['Importe: $ 150.000 · Estimado'],
+    });
+  });
+
+  it('alta en USD usa la moneda del payload y "Confirmado"', () => {
+    const r = historyEntryLines(
+      entry('expense_record_created', { amount: 600, currency: 'USD', amountStatus: 'confirmado' }),
+      ars
+    );
+    expect(norm(r).lines).toEqual(['Importe: US$ 600 · Confirmado']);
+  });
+
+  it('corrección de importe: anterior → nuevo', () => {
+    const r = historyEntryLines(
+      entry('expense_record_update', { changes: { amount: { before: 100000, after: 120000 } } }),
+      ars
+    );
+    expect(norm(r)).toEqual({
+      title: 'Corrección',
+      lines: ['Importe: $ 100.000 → $ 120.000'],
+    });
+  });
+
+  it('corrección de estado del importe y de tipo de cambio', () => {
+    const r = historyEntryLines(
+      entry('expense_record_update', {
+        changes: {
+          fxRate: { before: 1560, after: 1580 },
+          amountStatus: { before: 'estimado', after: 'confirmado' },
+        },
+      }),
+      { currency: 'USD' }
+    );
+    // Orden fijo: estado del importe antes que tipo de cambio.
+    expect(r.lines).toEqual([
+      'Estado del importe: Estimado → Confirmado',
+      'Tipo de cambio: 1.560 → 1.580',
+    ]);
+  });
+
+  it('tipo de cambio que llega como string de DECIMAL y valor nulo', () => {
+    const r = historyEntryLines(
+      entry('expense_record_update', { changes: { fxRate: { before: '1560.0000', after: null } } }),
+      { currency: 'USD' }
+    );
+    expect(r.lines).toEqual(['Tipo de cambio: 1.560 → —']);
+  });
+
+  it('rubro: usa el nombre si se pasa y "rubro #id" si no', () => {
+    const e = entry('expense_record_update', {
+      changes: { costCenterId: { before: 3, after: 7 } },
+    });
+    expect(
+      historyEntryLines(e, { currency: 'ARS', costCenterNames: { 3: 'Alquileres', 7: 'Limpieza' } })
+        .lines
+    ).toEqual(['Rubro: Alquileres → Limpieza']);
+    expect(historyEntryLines(e, ars).lines).toEqual(['Rubro: rubro #3 → rubro #7']);
+    expect(
+      historyEntryLines(e, { currency: 'ARS', costCenterNames: { 3: 'Alquileres' } }).lines
+    ).toEqual(['Rubro: Alquileres → rubro #7']);
+  });
+
+  it('otros campos: concepto, beneficiario, mes, comprobantes y observaciones', () => {
+    const r = historyEntryLines(
+      entry('expense_record_update', {
+        changes: {
+          notes: { before: null, after: 'Texto largo' },
+          receiptLinks: { before: [], after: [{ label: '', url: 'https://a.com' }] },
+          imputationMonth: { before: '2026-10', after: '2026-11' },
+          beneficiary: { before: null, after: 'Proveedor SA' },
+          concept: { before: 'Luz', after: 'Luz octubre' },
+        },
+      }),
+      ars
+    );
+    expect(r.lines).toEqual([
+      'Concepto: Luz → Luz octubre',
+      'Beneficiario: sin beneficiario → Proveedor SA',
+      'Mes de imputación: Octubre 2026 → Noviembre 2026',
+      'Comprobantes: 0 → 1',
+      'Observaciones modificadas',
+    ]);
+  });
+
+  it('reparto corregido se agrega al final', () => {
+    const r = historyEntryLines(
+      entry('expense_record_update', {
+        changes: { amount: { before: 10, after: 20 } },
+        allocations: {
+          before: [{ branchId: 1, amount: 10 }],
+          after: [{ branchId: 1, amount: 20 }],
+        },
+      }),
+      ars
+    );
+    expect(norm(r).lines).toEqual(['Importe: $ 10 → $ 20', 'Reparto corregido']);
+  });
+
+  it('solo reparto (sin changes): "Reparto corregido"', () => {
+    const r = historyEntryLines(
+      entry('expense_record_update', { allocations: { before: [], after: [] } }),
+      ars
+    );
+    expect(r).toEqual({ title: 'Corrección', lines: ['Reparto corregido'] });
+  });
+
+  it('un campo desconocido en changes no rompe', () => {
+    const r = historyEntryLines(
+      entry('expense_record_update', { changes: { campoNuevo: { before: 1, after: 2 } } }),
+      ars
+    );
+    expect(r.lines).toEqual(['campoNuevo: modificado']);
+  });
+
+  it('pago registrado: importe en la moneda de la cuenta y fecha', () => {
+    const r = historyEntryLines(
+      entry('expense_payment_registered', {
+        paymentId: 5,
+        paidOn: '2026-11-05',
+        paymentMethod: 'transfer',
+        amount: 90000,
+        currency: 'ARS',
+        appliedAmount: 90000,
+        fxRate: null,
+      }),
+      ars
+    );
+    expect(norm(r)).toEqual({
+      title: 'Pago registrado',
+      lines: ['Importe: $ 90.000 · Fecha de pago: 05/11/2026', 'Medio: Transferencia'],
+    });
+  });
+
+  it('pago en otra moneda: muestra el tipo de cambio y cuánto canceló del gasto', () => {
+    const r = historyEntryLines(
+      entry('expense_payment_registered', {
+        paidOn: '2026-11-05',
+        paymentMethod: 'cash',
+        amount: 156000,
+        currency: 'ARS',
+        appliedAmount: 100,
+        fxRate: 1560,
+      }),
+      { currency: 'USD' }
+    );
+    expect(norm(r).lines).toEqual([
+      'Importe: $ 156.000 · Fecha de pago: 05/11/2026',
+      'Medio: Efectivo',
+      'Tipo de cambio: 1.560',
+      'Cancela US$ 100 del gasto',
+    ]);
+  });
+
+  it('pago anulado y gasto anulado', () => {
+    expect(
+      norm(
+        historyEntryLines(
+          entry('expense_payment_voided', { paymentId: 5, amount: 90000, currency: 'ARS' }),
+          ars
+        )
+      )
+    ).toEqual({ title: 'Pago anulado', lines: ['Importe: $ 90.000'] });
+    expect(
+      historyEntryLines(entry('expense_record_voided', { concept: 'X', amount: 1 }), ars)
+    ).toEqual({
+      title: 'Gasto anulado',
+      lines: [],
+    });
+  });
+
+  it('acción desconocida: título con el texto de la acción, sin romper', () => {
+    expect(historyEntryLines(entry('expense_algo_nuevo', { x: 1 }), ars)).toEqual({
+      title: 'expense_algo_nuevo',
+      lines: [],
+    });
+    expect(historyEntryLines(entry('', {}), ars).title).toBe('Movimiento del gasto');
+  });
+
+  it('payload con otra forma (null, array, changes no objeto) no rompe', () => {
+    const bad = (payload: unknown): ExpenseHistoryItem =>
+      ({ ...entry('expense_record_update', {}), payload }) as unknown as ExpenseHistoryItem;
+    expect(historyEntryLines(bad(null), ars)).toEqual({ title: 'Corrección', lines: [] });
+    expect(historyEntryLines(bad([1, 2]), ars)).toEqual({ title: 'Corrección', lines: [] });
+    expect(historyEntryLines(bad({ changes: 'x' }), ars)).toEqual({
+      title: 'Corrección',
+      lines: [],
+    });
+    expect(norm(historyEntryLines(bad({ changes: { amount: 5 } }), ars)).lines).toEqual([]);
   });
 });
