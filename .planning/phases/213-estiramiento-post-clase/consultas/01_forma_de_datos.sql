@@ -1,0 +1,10 @@
+SELECT tenant_id, COUNT(*) n, MIN(week) wmin, MAX(week) wmax, GROUP_CONCAT(DISTINCT level_group) lg, GROUP_CONCAT(DISTINCT session_mode) modes, GROUP_CONCAT(DISTINCT status) st, GROUP_CONCAT(DISTINCT IFNULL(goal_plan_type,'-')) gp FROM sessions GROUP BY tenant_id;
+SELECT day_id, week, day, level_group, block_count, status, session_mode, goal_plan_type FROM sessions WHERE tenant_id=1 ORDER BY id DESC LIMIT 14;
+SELECT exercise_type, COUNT(*) n FROM session_prescriptions GROUP BY exercise_type;
+SELECT role, COUNT(*) n, GROUP_CONCAT(DISTINCT format_name) fmts FROM session_blocks GROUP BY role;
+SELECT pattern, COUNT(*) n, SUM(video_url IS NOT NULL AND video_url<>'') con_video, SUM(equipment='ninguno') eq_ninguno, SUM(equipment IS NULL) eq_null, SUM(mobility_related IS NOT NULL AND mobility_related<>'') con_mobrel FROM exercises WHERE tenant_id=1 AND pattern LIKE '%MOVIL%' GROUP BY pattern;
+SELECT equipment, COUNT(*) n FROM exercises WHERE tenant_id=1 GROUP BY equipment;
+SELECT attendance_source, COUNT(*) n, SUM(schedule_id IS NULL) sin_schedule, MIN(session_date) dmin, MAX(session_date) dmax FROM attendance WHERE session_date >= CURDATE() - INTERVAL 56 DAY GROUP BY attendance_source;
+SELECT tenant_id, COUNT(*) FROM attendance WHERE session_date >= CURDATE() - INTERVAL 56 DAY GROUP BY tenant_id;
+SELECT NOW() utc_now, @@time_zone tz, @@system_time_zone stz;
+SELECT * FROM tenant_settings;

@@ -41,6 +41,7 @@ function extractSections(filePath: string): ExtractedSection[] {
 }
 
 // 2026-10-22 (Fase 201 D-11): 9 -> 10 secciones con el destino `conquer`.
+// 2026-11-11 (Fase 213 D-12): 10 -> 11 secciones con el destino `estirar`.
 describe("communications/destinations-sync", () => {
   const apiSections: ExtractedSection[] = APP_SECTIONS.map((section) => ({
     key: section.key,
@@ -60,16 +61,16 @@ describe("communications/destinations-sync", () => {
   const adminSections = extractSections(adminPath);
   const appSections = extractSections(appPath);
 
-  it("la API tiene exactamente 10 secciones", () => {
-    expect(apiSections).toHaveLength(10);
+  it("la API tiene exactamente 11 secciones", () => {
+    expect(apiSections).toHaveLength(11);
   });
 
-  it("el espejo del admin tiene exactamente 10 secciones", () => {
-    expect(adminSections).toHaveLength(10);
+  it("el espejo del admin tiene exactamente 11 secciones", () => {
+    expect(adminSections).toHaveLength(11);
   });
 
-  it("el espejo de la app tiene exactamente 10 secciones", () => {
-    expect(appSections).toHaveLength(10);
+  it("el espejo de la app tiene exactamente 11 secciones", () => {
+    expect(appSections).toHaveLength(11);
   });
 
   it("el espejo del admin es profundamente igual a la API", () => {

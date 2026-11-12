@@ -195,6 +195,7 @@ import { useNovedadesStore } from 'src/stores/useNovedadesStore'
 import { useSponsorsStore, type Sponsor } from 'src/stores/useSponsorsStore'
 import { useNotificationStore } from 'src/stores/useNotificationStore'
 import { useTodayBookingStore } from 'src/stores/useTodayBookingStore'
+import { useStretchStore } from 'src/stores/useStretchStore'
 import { useLoadDeadline } from 'src/composables/useLoadDeadline'
 import { addDaysStr, formatHHMM, weekStartsFor } from 'src/utils/check-in-window'
 import { dowInTz, todayInTz } from 'src/utils/tz'
@@ -226,6 +227,7 @@ const cardFlags = useCardHadContentStore()
 const { fetchStats, requestEvaluation } = useProgressionApi()
 const { fetchTodayCheckIns, submitCheckIn } = useCheckInApi()
 const todayBookingStore = useTodayBookingStore()
+const stretchStore = useStretchStore()
 // Fase 203 (D-07): tope de carga de la página. Se arma UNA vez al montar (en `onMounted`), nunca
 // dentro de un `watch`: cada `start()` vuelve `passed` a false.
 const deadline = useLoadDeadline()
@@ -488,6 +490,9 @@ const todayCard = computed(() => {
     hasExtraPrograms: programProgressCard.value !== null && !isVirtual.value,
     trialEligible: userStore.trialEligible,
     libreEnabled: FREE_BLOCKS_ENABLED,
+    // Fase 213 (D-09): oferta de estiramiento de hoy. La calcula el servidor; sin dato o con la
+    // consulta fallida es `none` y la card queda como siempre (fase 203, sin parpadeo).
+    stretch: stretchStore.cardInput,
     // Fase 203: "todavía no sé" (*Loading = no llegó por primera vez) y "falló" (*Failed = falló y no hay
     // dato previo). Una falla es "no sé", nunca "no": las banderas *Failed van a la card, que sale enseguida
     // a neutral / a lo que se sabe (una falla no espera el tope; el tope es solo para lo que tarda).
@@ -547,6 +552,16 @@ const slots = computed(() => {
   })
 })
 
+// Fase 213 (D-15): `card_seen` la primera vez que la card muestra "Estirar". `markCardSeen` es
+// idempotente por día y fail-open, así que este watch solo avisa cuando el botón aparece.
+watch(
+  () => todayCard.value.primary?.label,
+  (label) => {
+    if (label === 'Estirar') void stretchStore.markCardSeen()
+  },
+  { immediate: true },
+)
+
 // Pitfall 6: `records` solo trae las cards cuya fuente respondió bien (nunca tras un error); `record()`
 // ignora los valores que no cambian, así que este watch no entra en bucle con `cardFlags.map`.
 watch(
@@ -573,6 +588,9 @@ onMounted(() => {
   void novedadesStore.load()
   // Patrocinadores (D-20): fail-open; el feed ya viene filtrado por país y vigencia.
   void sponsorsStore.load()
+  // Estiramiento post-clase (fase 213): fail-open y sin `await`. La card arranca en `none` (= como
+  // hoy) y pasa a "Estirar" cuando llega el dato; un dato previo del día se conserva (sin parpadeo).
+  void stretchStore.load()
 
   // Estado del socio (suscripción, plan-status, trial-eligibility, my-progress, current-program y
   // enrollments): reusa la carga del boot/layout si está en vuelo o fresca, y refresca si está

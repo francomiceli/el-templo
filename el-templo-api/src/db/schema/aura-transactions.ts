@@ -27,6 +27,8 @@ export const sourceTypeEnum = mysqlEnum("source_type", [
   "tenure_milestone",
   // Fase 197 D-12: primer bloque libre del día que llega a 10 minutos
   "extra_block",
+  // Fase 213 D-08: estiramiento post-clase completo (todos marcados y 3 minutos)
+  "stretch",
 ]);
 
 export const auraTransactions = mysqlTable(

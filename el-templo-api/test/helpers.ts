@@ -245,6 +245,8 @@ const TABLES_TO_CLEAN = [
   schema.memberLogins,
   schema.refreshTokens,
   schema.userStatusHistory,
+  // Estiramiento post-clase (0340): FK a users, attendance y branches, sale antes.
+  schema.stretchOffers,
   // Tables referencing layer-3 parents
   schema.attendance,
   // Bloque libre (0286): FK a users, basura de test genuina.
@@ -356,6 +358,9 @@ const TABLES_TO_CLEAN = [
   schema.gladiusProducts,
   schema.systemSettings,
   // SPOM reference tables
+  // Lista curada de estiramientos (0340): FK a exercises, la siembra la 0341 pero
+  // exercises se limpia entera, así que sale antes.
+  schema.stretchCatalog,
   schema.exercises,
   schema.formats,
   schema.routes,

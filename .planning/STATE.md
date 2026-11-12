@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v6.1
 milestone_name: Módulo Gimnasio
 status: executing
-stopped_at: Rescate de docs del master local (2026-10-28) — ver Current Position
-last_updated: "2026-11-03T18:00:00.000Z"
-last_activity: 2026-11-03 -- Fase 205 Oficina ejecutada (5/5) en `feat/oficina`, sin push
+stopped_at: Completed 213-13-PLAN.md (fase 213 ejecutada 13/13, pendiente UAT de Franco)
+last_updated: "2026-11-11T20:27:17.931Z"
+last_activity: 2026-11-11
 progress:
-  total_phases: 12
-  completed_phases: 1
-  total_plans: 16
-  completed_plans: 6
-  percent: 8
+  total_phases: 31
+  completed_phases: 10
+  total_plans: 300
+  completed_plans: 256
+  percent: 32
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 
 **Core value (v6.0):** El Templo pasa de "una gimnasia hardcodeada" a "el tenant #1 de una plataforma multi-tenant", **sin downtime y sin que el staff note nada**. Alcance: tablas `tenants`/`tenant_settings` + `tenant_id` denormalizado en las 87 tablas gym-owned + las 5 capas de enforcement (scope server-side, helpers `tenantWhere`/`tenantValues` + `TenantContext`, sentinel de pool mysql2, lint en CI, manifiesto de rutas fail-closed + batería de aislamiento), y adopción módulo a módulo en orden estricto de criticidad: finance → members → subscriptions → scheduling → analytics → resto core. 11 fases (166-176), 24 REQ-IDs (FUND/COL/CON/ISO/ADO/MOD). Reglas duras: `tenant_id` SIEMPRE server-side (jamás payload ni JWT); migraciones incrementales compatibles con código viejo (nullable → backfill → NOT NULL); staging-first estricto; reservar bloque de numeración al arrancar la 166 (**actualizado 2026-07-27: la 166 aplicó 0190 y 0191 en `eltemplo_staging` y en `eltemplo` — el tope en producción es 0191 y las fases siguientes reservan desde 0192**). **Gate del MILESTONE (no de una fase): el tenant 2 no se onboardea hasta que la batería de aislamiento (ISO-03) esté verde sobre el 100% de las rutas core `tenant-scoped`.** Diseño CERRADO en `.docs/saas-multitenancy/` (README + docs 03/04/05/06, §8 resuelto 2026-07-26) — no re-litigar en discuss/plan-phase.
-**Current focus:** v6.0 cerrado — aterrizar 179/180 (fuera del milestone) y planificar el próximo milestone (Módulo Gimnasio / onboarding tenant 2)
+**Current focus:** Phase 213 — Estiramiento post-clase
 
 ## Current Position
 
-Phase: varias en paralelo (ver estado real abajo). Milestone v6.1 (181-192.3): 181 en master; 182-192.2 en el tren `feat/v6.1-gimnasio` (SIN PUSH); 192.3 en `feat/192.3-workout-engine`, por integrar.
-Plan: —
-Status: Sin fase única en ejecución. Fuera de v6.1 la última entrega es 203 Carga sin parpadeos (master 2026-10-28, app 1.9.2).
-Last activity: 2026-11-03 -- Fase 205 Oficina (central de temas de gestión del admin) ejecutada 5/5 en el worktree `et-oficina`, rama `feat/oficina` sobre `origin/master` `9b5f64784` (mig 0316, módulo `office`, job cada 30 min). Pendiente: CI (tests de integración), push a staging, UAT con gerencia. Decisiones en `.planning/phases/205-oficina/205-CONTEXT.md`.
+Phase: 213 (Estiramiento post-clase) — EJECUTADA 13/13, pendiente UAT (213-UAT.md) y OK de Franco para push a staging
+Plan: 13 of 13 (completo)
+Status: Phase complete — ready for verification
+Last activity: 2026-11-11
 
 **Estado real al 2026-10-28** (detalle fase por fase en `ROADMAP.md`, tabla Progress):
 
@@ -39,7 +39,6 @@ Last activity: 2026-11-03 -- Fase 205 Oficina (central de temas de gestión del 
 - **Sin subir, en el tren `feat/v6.1-gimnasio`:** 182-192.2 (incl. 188.1, 192.1, 192.2); 192.3 Workout Engine ejecutada aparte, a integrar (renumerar mig 0253).
 - **Archivada:** 196 Personalizados + Conquer v1, reemplazada por 201 (tag `archive/196-personalizados`).
 - **En espera, sin planificar:** 198 AURA configurable por fuente.
-
 
 **Milestone v6.1 — Módulo Gimnasio.** Fases **181-192** (179-180 tomadas por fases en vuelo fuera del milestone; no se renumeran). Migraciones reservan desde **0216** (prod en 0215 tras el tren 179+180). Orden: 181 diseño bloqueante → 182/183 plataforma super-owner (wizard + panel) → 184/185/186 catálogo (modelo+taxonomías → ciclo de vida+buscador → carga inicial) → 187/188 plantillas y asignación → 189 ejecución y registro (el corazón) → 190 valoración/evolución/recálculo → 191 panel del profe → **192 onboarding del tenant 2 = cierre del milestone**. Regla dura transversal: **módulo duro A1** (tablas y rutas propias, cero imports desde/hacia el SPOM, `exercises` intacta), gateado por `module.gimnasio.enabled`, todo parámetro en `tenant_settings`, staging-first estricto.
 
@@ -429,6 +428,7 @@ _Updated after each plan completion_
 
 ### Roadmap Evolution
 
+- Phase 213 added (2026-11-11, fuera del milestone, standalone api+app+admin): Estiramiento post-clase. Disparador: idea de Franco de ofrecer estiramiento después de la clase con la movilidad del día + push. Spec con datos de producción (8 semanas, 13.566 asistencias) y 16 decisiones cerradas con Franco en `213-SPEC.md`; hallazgo clave: solo el 24 % de las asistencias tiene 3 o más ejercicios de movilidad con video, así que la sesión aporta las familias y los ejercicios salen de una lista curada de 20 ya existentes. Sin firma del kinesiólogo (decisión de Franco). Rama `feat/estiramiento-post-clase`, worktree `et-estiramiento`, SIN PLANIFICAR, SIN PUSH. Numerada 213 porque 207-212 viven en `feat/egresos-rendiciones`.
 - Phase 206 ejecutada 2026-11-03 (sesión autónoma, Franco ausente): research → 10 planes → revisor de planes (1 bloqueante + 5 advertencias corregidos en los planes) → 10/10 ejecutados (sonnet, secuencial, verificación tsc + lint:tenant + vue-tsc por plan) → revisión de código (CR-01/WR-01/WR-02 corregidos). Mig 0319, 2 tablas strict, módulo `weekly-board`, job `weekly-board-close` (horario, minuto 5 AR). Margen de 4 días decidido por Franco. Rama `feat/tablero-semanal` SIN PUSH. Tests de integración pendientes de CI. vue-tsc del admin corre con el binario de `el-templo-test-gsd` (26 errores previos, ninguno de la fase).
 - Phase 206 added (2026-11-03, fuera del milestone, standalone api+admin): Tablero semanal de gerencia (`/tablero`). Disparador: con la reestructuración, la reunión de gerencia de los lunes necesita en una sola pantalla lo que hoy se carga a mano en la pestaña Tablero de la planilla. Definiciones de Nacho en `.docs/tablero-semanal-respuestas-fran.md`. Numerada 206 porque la 205 (Oficina) vive en `feat/oficina`.
 - Phase 204 added (2026-10-27, fuera del milestone, standalone api+admin): Usuarios Wellhub como tipo de usuario. Disparador: piloto Wellhub en Moreno en prod, el primer usuario real (Palladino) era ex-alumno vinculado por email y quedó invisible como Wellhub. Numerada 204 porque 201/202 (Conquer) y 203 (carga) viven en sus ramas.
@@ -1044,9 +1044,9 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-10-28
-Stopped at: Rescate de docs del master local (ROADMAP/STATE unificados)
-Resume file: .planning/ROADMAP.md (tabla Progress = estado real por fase)
+Last session: 2026-11-11T20:27:17.894Z
+Stopped at: Completed 213-13-PLAN.md
+Resume file: .planning/phases/213-estiramiento-post-clase/213-UAT.md
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
 

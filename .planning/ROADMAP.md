@@ -1147,4 +1147,41 @@ Plans:
 - [x] 205-04-PLAN.md — Admin: menú con badge, rutas, composable, página lista+detalle, compositor con menciones, diálogo
 - [x] 205-05-PLAN.md — Admin: pestaña Oficina en la ficha del socio
 
+### Phase 213: Estiramiento post-clase (fuera del milestone v6.1)
+
+**Estado (2026-11-11)**: fase EJECUTADA 13/13 (11-11) + arreglos de la revisión de código (`213-REVIEW.md`); verificación `human_needed` (`213-VERIFICATION.md`), pendiente UAT de Franco (`213-UAT.md`) y primer CI de los tests de integración. Rama `feat/estiramiento-post-clase` (worktree `et-estiramiento`, base `origin/master` `bc231c4de`), migraciones 0340-0342, SIN PUSH. Spec con datos de producción y 16 decisiones cerradas con Franco en `213-SPEC.md`; contexto para el planificador en `213-CONTEXT.md`. Numerada 213 porque 207-212 viven en `feat/egresos-rendiciones`.
+
+**Goal**: Después de la clase presencial, el alumno puede hacer desde Mi Templo una sesión de estiramiento de 5 a 8 minutos armada con la movilidad de la sesión de ese día, y un push lo invita y lo lleva directo al player
+**Depends on**: nada. Reusa el cron de notificaciones, el patrón de `FreeBlockPlayer` y la card `TodayCard`. Decisiones en `213-CONTEXT.md`
+**Success Criteria** (what must be TRUE):
+
+1. La regla de selección es una función pura y determinística que, para las 11 sesiones de la tabla de referencia de `213-SPEC.md`, devuelve exactamente los estiramientos esperados, solo con ejercicios de `stretch_catalog`
+2. Con la asistencia registrada y la clase terminada, la card de Mi Templo muestra "Estirar" como botón principal; nunca antes ni durante la clase, y nunca en días ROM
+3. El player reproduce la rutina del día y, al completarla, no crea fila en `completed_sessions`, no cambia la racha ni el RPE y acredita +5 AURA una sola vez por día
+4. `FreeBlockPlayer` y el player de estiramiento usan la misma abstracción, y Libre se comporta igual que antes (tests de caracterización)
+5. El push "¿Estiraste?" sale a fin de clase + 60 min con tope 21:30 hora de la sede (o + 30 min según el grupo), respeta el tope de 3 en 7 días, no sale si el alumno ya empezó, y su texto se edita desde Comunicaciones
+6. Tocar el push abre el player con la app cerrada, en iOS y en Android, también cuando hay que pasar por el login
+7. Cada alumno queda en un grupo fijo (solo card, push +30, push +60) y `stretch_offers` guarda el embudo completo por alumno y día
+8. Un gimnasio sin el módulo `templo-training` no recibe ofertas, filas ni pushes
+9. Tests de integración con reloj fijo cubren los casos de `213-SPEC.md` §5.2
+
+**Plans:** 13/13 plans executed
+
+Plans:
+- [x] 213-01-PLAN.md — node_modules por symlink + tablas `stretch_catalog`/`stretch_offers`, semilla de la lista curada y gates de tenancy
+- [x] 213-02-PLAN.md — Regla pura de selección con la tabla de referencia del SPEC (TDD)
+- [x] 213-03-PLAN.md — Reglas puras de grupo (crc32), momento del push con tope 21:30, ventana y tope de frecuencia (TDD)
+- [x] 213-04-PLAN.md — StretchService (elegibilidad, sesión, rutina congelada) + `GET /api/sessions/stretch/today` + manifiesto + tests
+- [x] 213-05-PLAN.md — Fuente AURA `stretch` + `POST /stretch/events` y `/stretch/complete` + invariantes + ISO-03
+- [x] 213-06-PLAN.md — Sección curada `estirar` (API + 2 espejos) + plantilla `stretch_followup` (nace apagada) + textos del admin
+- [x] 213-07-PLAN.md — Push en el tick de `notification-cron.ts` con motivos, tope, segundo gimnasio y reconciliación + tests §5.2
+- [x] 213-08-PLAN.md — Tests de caracterización + `useSingleBlockPlayer` + `FreeBlockPlayer` migrado
+- [x] 213-09-PLAN.md — App: tipos, `useStretchStore`, `useStretchCompletion`, Session sintética y reloj puro
+- [x] 213-10-PLAN.md — Sketch del reloj (decisión documentada) + reloj elegido + `StretchPlayer` y ruta `training/estirar`
+- [x] 213-11-PLAN.md — Card de Mi Templo: "Estirar" como principal + cableado y `card_seen`
+- [x] 213-12-PLAN.md — Deep link del push con la app cerrada y sin sesión
+- [x] 213-13-PLAN.md — Checklist de UAT + consulta de medición a 4 semanas + gates finales
+
+---
+
 _Unificado el 2026-10-28 (rescate de docs del master local): sobre el ROADMAP de origin/master se sumaron las fases 188.1, 192.1-192.3, 193, 195, 196 (archivada), 198 y 199, 203, con su estado real. Textos de fase tomados de master local (193, 199), `origin/staging` (195), `feat/203-carga-sin-parpadeos` (203), `archive/196-personalizados` (196, 198) y el tren `feat/v6.1-gimnasio` / `feat/192.3-workout-engine` (188.1, 192.x)._

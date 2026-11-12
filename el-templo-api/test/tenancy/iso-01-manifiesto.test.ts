@@ -433,7 +433,12 @@ import {
 // `GET /api/admin/renewals/export`, `tenant-scoped`.
 // 2026-11-12: 555 -> 556 por el formato evento de los avisos de TV:
 // `POST /api/communications/tv/admin/tv-avisos/image-upload-url`, `templo-module`.
-const ENTRADAS_BASELINE = 556;
+// 2026-11-12: 556 -> 557 por el estiramiento post-clase (fase 213): GET
+// /api/sessions/stretch/today, `templo-module`.
+// 2026-11-12: 557 -> 559 por el player del estiramiento (fase 213): POST
+// /api/sessions/stretch/events y POST /api/sessions/stretch/complete,
+// `templo-module`.
+const ENTRADAS_BASELINE = 559;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -576,7 +581,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 556 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 559 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(

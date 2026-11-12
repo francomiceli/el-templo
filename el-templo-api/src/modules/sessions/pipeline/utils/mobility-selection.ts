@@ -26,7 +26,7 @@ import type { ExercisePrescription } from '../../types';
 // Defaults derived from examples.txt analysis:
 // ISO exercises: 20 seconds (most common across 21 examples)
 // CON exercises: 10 reps (middle ground between 6-12 range)
-const MOBILITY_DEFAULTS = {
+export const MOBILITY_DEFAULTS = {
   ISO_SECONDS: 20,
   CON_REPS: 10,
 };

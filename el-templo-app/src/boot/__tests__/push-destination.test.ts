@@ -19,6 +19,10 @@ vi.mock('@capacitor-firebase/messaging', () => ({
 vi.mock('src/utils/logger', () => ({
   createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
 }))
+// El boot importa el store de auth (plan 213-12) y este test solo ejercita la función pura.
+vi.mock('src/stores/useAuthStore', () => ({
+  useAuthStore: () => ({ isAuthenticated: false }),
+}))
 
 import { resolveTapRoute } from '../push-notifications'
 
@@ -46,6 +50,22 @@ describe('resolveTapRoute (D-03/D-04 — destino nuevo con fallback, nunca 404)'
         route: '/reservas',
       }),
     ).toBe('/reservas')
+  })
+
+  it('destination app_section con la sección estirar → el player de estiramiento (Fase 213 D-12)', () => {
+    expect(
+      resolveTapRoute({ destination: 'app_section', destinationSection: 'estirar' }),
+    ).toBe('/training/estirar?from=push')
+  })
+
+  it('un build viejo que no conoce estirar cae al route de la plantilla (Fase 213 D-12)', () => {
+    expect(
+      resolveTapRoute({
+        destination: 'app_section',
+        destinationSection: 'seccion_que_no_existe',
+        route: '/training/estirar?from=push',
+      }),
+    ).toBe('/training/estirar?from=push')
   })
 
   it('destination whatsapp_sales → /contacto-ventas con el texto escapado', () => {
