@@ -6,7 +6,7 @@
  * el porqué de cada decisión): esta batería es el GATE de que Egresos no deja
  * ver ni tocar los gastos de otro gimnasio.
  *
- * QUE RUTAS CUBRE (6 del plan 209-07, 2 del 209-08 y 3 del 209-10)
+ * QUE RUTAS CUBRE (6 del plan 209-07, 2 del 209-08, 3 del 209-10 y 2 del 211-03)
  * --------------------------------------------------
  *   GET    /api/admin/finance/expense-records
  *   POST   /api/admin/finance/expense-records
@@ -19,6 +19,8 @@
  *   GET    /api/admin/finance/expense-records/summary                 (209-10)
  *   GET    /api/admin/finance/expense-records/summary/detail          (209-10)
  *   GET    /api/admin/finance/expense-records/summary/export          (209-10)
+ *   GET    /api/admin/finance/expense-records/result                  (211-03)
+ *   GET    /api/admin/finance/expense-records/result/export           (211-03)
  *
  * Los gastos de los dos gimnasios tienen IMPORTES DISTINTOS (el de El Templo es
  * distintivo): así un total del Resumen que sume lo ajeno no puede pasar por
@@ -1241,6 +1243,164 @@ describe("export del resumen de egresos — GET /api/admin/finance/expense-recor
     expect(celdas).toContain(String(IMPORTE_GASTO_DOS));
   });
 });
+
+// ─── Resultado por sede (211-03) ─────────────────────────────────────────────
+
+/** Mes del cobro sembrado por el fixture (`FECHA` = 2026-01-15). */
+const MES_COBRO = "2026-01";
+/** Importe del cobro firme sembrado en CADA gimnasio (`IMPORTE_SEMBRADO` del fixture). */
+const IMPORTE_COBRO = 12345;
+/** Lo que daria el Consolidado si sumara el cobro de El Templo: 12345 + 12345. */
+const IMPORTE_COBRO_SUMANDO_AJENO = 24690;
+/** Lo que daria el costo del Consolidado si sumara el gasto de El Templo: 5000 + 7000. */
+const COSTO_SUMANDO_AJENO = 12000;
+
+interface ResultadoResponse {
+  columns: Array<{
+    key: string;
+    kind: string;
+    branchId: number | null;
+    name: string;
+    income: number;
+    cost: number;
+  }>;
+}
+
+describe("resultado por sede — GET /api/admin/finance/expense-records/result", () => {
+  const RUTA = "GET /api/admin/finance/expense-records/result";
+
+  async function resultadoDelDos(mes: string): Promise<ResultadoResponse> {
+    const res = await comoGimnasioDos("GET", `/result?month=${mes}`);
+    expect(res.statusCode, `${RUTA} fallo: ${res.body}`).toBe(200);
+    return JSON.parse(res.body) as ResultadoResponse;
+  }
+
+  it("aislamiento: ninguna columna es una sede de El Templo y el Consolidado no suma lo ajeno", async () => {
+    const sedesTemplo = await sedesDe(TENANT_TEMPLO);
+    expect(sedesTemplo, "El Templo tiene que tener sedes").toContain(
+      sedeTemploId,
+    );
+
+    const delCobro = await resultadoDelDos(MES_COBRO);
+    for (const columna of delCobro.columns) {
+      expect(
+        columna.branchId === null || !sedesTemplo.includes(columna.branchId),
+        fuga(
+          RUTA,
+          `devolvio la columna "${columna.name}" de una sede de El Templo`,
+        ),
+      ).toBe(true);
+    }
+    const consolidadoCobros = delCobro.columns.find(
+      (c) => c.kind === "consolidado",
+    );
+    // Solo el cobro propio: 12345. Si sumara el de El Templo daria 24690.
+    expect(
+      consolidadoCobros?.income,
+      fuga(
+        RUTA,
+        `el Consolidado sumo el cobro de El Templo (${IMPORTE_COBRO_SUMANDO_AJENO})`,
+      ),
+    ).toBe(IMPORTE_COBRO);
+
+    const delGasto = await resultadoDelDos(MES_RESUMEN);
+    // Solo el gasto propio: 5000. Con el de El Templo daria 12000.
+    expect(
+      delGasto.columns.find((c) => c.kind === "consolidado")?.cost,
+      fuga(
+        RUTA,
+        `el costo del Consolidado sumo el gasto de El Templo (${COSTO_SUMANDO_AJENO})`,
+      ),
+    ).toBe(IMPORTE_GASTO_DOS);
+  });
+
+  it("control: SI refleja el cobro y el gasto propios en la columna de su sede", async () => {
+    const delCobro = await resultadoDelDos(MES_COBRO);
+    const columnaCobro = delCobro.columns.find(
+      (c) => c.branchId === gym2.branchId,
+    );
+    expect(
+      columnaCobro,
+      sinControl(RUTA, "no tiene la columna de su propia sede"),
+    ).toBeDefined();
+    expect(columnaCobro?.income).toBe(IMPORTE_COBRO);
+
+    const delGasto = await resultadoDelDos(MES_RESUMEN);
+    expect(
+      delGasto.columns.find((c) => c.branchId === gym2.branchId)?.cost,
+    ).toBe(IMPORTE_GASTO_DOS);
+  });
+});
+
+describe("export del resultado por sede — GET /api/admin/finance/expense-records/result/export", () => {
+  const RUTA = "GET /api/admin/finance/expense-records/result/export";
+
+  /** La hoja "Resultado" como filas de texto (la fila 1 es el encabezado). */
+  async function filasDelExport(mes: string): Promise<string[][]> {
+    const res = await comoGimnasioDos("GET", `/result/export?month=${mes}`);
+    expect(res.statusCode, `${RUTA} fallo: ${res.body}`).toBe(200);
+    const wb = new Workbook();
+    // Binario: se PARSEA, igual que el export del Resumen.
+    await wb.xlsx.load(
+      res.rawPayload as unknown as Parameters<typeof wb.xlsx.load>[0],
+    );
+    const hoja = wb.getWorksheet("Resultado");
+    expect(hoja, `${RUTA} sin hoja Resultado`).toBeDefined();
+    const filas: string[][] = [];
+    hoja?.eachRow((row) => {
+      const celdas: string[] = [];
+      row.eachCell({ includeEmpty: true }, (cell) =>
+        celdas.push(String(cell.value ?? "")),
+      );
+      filas.push(celdas);
+    });
+    return filas;
+  }
+
+  it("aislamiento: el encabezado no nombra ninguna sede de El Templo y el Consolidado de cobros es solo el propio", async () => {
+    const filas = await filasDelExport(MES_COBRO);
+    const encabezado = filas[0] ?? [];
+    const nombreSedeTemplo = await nombreDeLaSede(sedeTemploId);
+    expect(
+      encabezado.some((c) => c.includes(nombreSedeTemplo)),
+      fuga(RUTA, `el Excel nombro la sede ${nombreSedeTemplo} de El Templo`),
+    ).toBe(false);
+
+    const cobros = filas.find((f) => f[0] === "Cobros a alumnos") ?? [];
+    // El Consolidado es la ultima columna: 12345 (con el cobro de El Templo daria 24690).
+    expect(
+      cobros.at(-1),
+      fuga(RUTA, "el Consolidado del Excel sumo el cobro de El Templo"),
+    ).toBe(String(IMPORTE_COBRO));
+  });
+
+  it("control: SI trae la sede propia en el encabezado y su cobro", async () => {
+    const filas = await filasDelExport(MES_COBRO);
+    const encabezado = filas[0] ?? [];
+    const nombreSedeDos = await nombreDeLaSedeDelDos(gym2.branchId);
+    const indice = encabezado.findIndex((c) => c.includes(nombreSedeDos));
+    expect(
+      indice,
+      sinControl(RUTA, "el encabezado no trae la sede del propio gimnasio"),
+    ).toBeGreaterThan(0);
+    const cobros = filas.find((f) => f[0] === "Cobros a alumnos") ?? [];
+    expect(cobros[indice]).toBe(String(IMPORTE_COBRO));
+  });
+});
+
+/** Nombre de una sede del gimnasio 2, leído de la DB. */
+async function nombreDeLaSedeDelDos(branchId: number): Promise<string> {
+  const [fila] = await app.db
+    .select({ name: schema.branches.name })
+    .from(schema.branches)
+    .where(
+      and(
+        tenantWhere(schema.branches, { tenantId: TENANT_DOS }),
+        eq(schema.branches.id, branchId),
+      ),
+    );
+  return fila?.name ?? "";
+}
 
 /** Nombre de una sede de El Templo, leído de la DB. */
 async function nombreDeLaSede(branchId: number): Promise<string> {
