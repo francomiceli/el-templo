@@ -276,8 +276,7 @@
 </template>
 
 <script setup lang="ts">
-// deploy: forzar build del admin tras el CI rojo del hotfix de renovación fin de mes (tests de prorrateo, paths-filter, 2026-10-30)
-// deploy: fase 213 estiramiento, redeploy tras CI rojo por 3 tests del API (paths-filter, 2026-11-12)
+// deploy: Egresos + Resultado por sede + Excel de recategorizaciones, redeploy tras CI rojo de egresos-identidades (paths-filter, 2026-11-13)
 import { ref, computed, onMounted, watch } from 'vue';
 import { useQuasar, type QTableProps } from 'quasar';
 import { createLogger } from 'src/utils/logger';

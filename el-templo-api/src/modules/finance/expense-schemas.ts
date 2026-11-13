@@ -131,6 +131,9 @@ export const createExpenseRecordSchema = {
       allocations: {
         type: "array",
         minItems: 1,
+        // Tope de destinos por gasto (sedes + Casa Matriz): holgado para un
+        // gimnasio real. Los tests no reparten entre todas las sedes de la DB
+        // de test (2026-11-13: CI rojo de egresos-identidades).
         maxItems: 50,
         items: expenseAllocationSchema,
       },
@@ -169,6 +172,9 @@ export const updateExpenseRecordSchema = {
       allocations: {
         type: "array",
         minItems: 1,
+        // Tope de destinos por gasto (sedes + Casa Matriz): holgado para un
+        // gimnasio real. Los tests no reparten entre todas las sedes de la DB
+        // de test (2026-11-13: CI rojo de egresos-identidades).
         maxItems: 50,
         items: expenseAllocationSchema,
       },
