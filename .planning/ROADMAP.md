@@ -1258,7 +1258,7 @@ Plans:
 
 Plans:
 - [x] 209.1-01-PLAN.md — API: el arqueo de apertura acepta cuentas banco (saldo según el banco, fecha del país, audit `bank_opening_balance`) + test de saldo exacto, permisos e ingresos intactos
-- [ ] 209.1-02-PLAN.md — Admin: botón "Saldo de apertura" por banco activo (owner) y `ArqueoAperturaDialog` con modo banco
+- [x] 209.1-02-PLAN.md — Admin: botón "Saldo de apertura" por banco activo (owner) y `ArqueoAperturaDialog` con modo banco
 - [ ] 209.1-03-PLAN.md — Cierre: inventario con greps, no-regresión, gates y SUMMARY para Franco con checklist y paso operativo del día de arranque
 
 ### Phase 210: Caja — extracto por cuenta, por conciliar y cambio de moneda — EN ESPERA (D-24)
