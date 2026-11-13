@@ -21,6 +21,9 @@ import type {
   ExpensePaymentMethod,
   ExpensePaymentStatus,
   ExpenseRecordDetail,
+  ExpenseResultColumn,
+  ExpenseResultForeignIncome,
+  ExpenseSummary,
   ReceiptLink,
   UpdateExpenseRecordInput,
 } from '../types/expense';
@@ -656,4 +659,89 @@ export function historyEntryLines(
     default:
       return { title: textOrDash(item.action, 'Movimiento del gasto'), lines: [] };
   }
+}
+
+// ---------------------------------------------------------------------------
+// Resultado por sede (fase 211)
+// ---------------------------------------------------------------------------
+
+/** Clave de la columna Consolidado (la API la manda como `key`). */
+export const RESULT_CONSOLIDATED_KEY = 'consolidado';
+
+/** Nota al pie del Resultado (DI-12). Igual a `RESULT_FOOTNOTE` de la API. */
+export const RESULT_FOOTNOTE =
+  'Cobros: pagos de alumnos por fecha de pago, según la sede del alumno. Costos: gastos imputados al mes, incluidos los estimados. Las devoluciones no se restan.';
+
+/** "12,3 %": 1 decimal con coma, sin separador de miles. */
+export function formatMarginPct(marginPct: number): string {
+  const text = Math.abs(marginPct).toFixed(1).replace('.', ',');
+  // Un valor que redondea a 0,0 no lleva signo.
+  const negative = marginPct < 0 && text !== '0,0';
+  return `${negative ? '-' : ''}${text} %`;
+}
+
+/** Margen de una columna: Casa Matriz "—", sin base de cálculo, o el porcentaje. */
+export function resultMarginLabel(column: Pick<ExpenseResultColumn, 'kind' | 'marginPct'>): string {
+  if (column.kind === 'casa_matriz') return '—';
+  if (column.marginPct === null) return 'sin base de cálculo';
+  return formatMarginPct(column.marginPct);
+}
+
+/** Encabezado de columna con la marca de sede cerrada o virtual (igual que el Excel). */
+export function resultColumnLabel(
+  column: Pick<ExpenseResultColumn, 'name' | 'isActive' | 'isVirtual'>
+): string {
+  const marks: string[] = [];
+  if (!column.isActive) marks.push('inactiva');
+  if (column.isVirtual) marks.push('virtual');
+  return marks.length > 0 ? `${column.name} (${marks.join(', ')})` : column.name;
+}
+
+/**
+ * Destino que se le pide al detalle del Resumen: el Consolidado equivale al
+ * 'total' del Resumen; el resto usa su propia clave.
+ */
+export function resultDetailDestination(column: Pick<ExpenseResultColumn, 'kind' | 'key'>): string {
+  return column.kind === 'consolidado' ? 'total' : column.key;
+}
+
+/** Aviso de cobros en otra moneda que no entran en el resultado; '' si no hay. */
+export function foreignIncomeNotice(
+  items: ReadonlyArray<
+    Pick<ExpenseResultForeignIncome, 'branchName' | 'currency' | 'count' | 'amount'>
+  >
+): string {
+  if (items.length === 0) return '';
+  const total = items.reduce((sum, item) => sum + item.count, 0);
+  const head =
+    total === 1
+      ? '1 cobro en otra moneda no incluido: '
+      : `${total} cobros en otra moneda no incluidos: `;
+  const parts = items.map((item) => {
+    const base = `${item.branchName} ${formatPrice(item.amount, item.currency)}`;
+    return item.count > 1 ? `${base} (${item.count} cobros)` : base;
+  });
+  return `${head}${parts.join(', ')}.`;
+}
+
+/** "{total} gastos de este mes tienen datos incompletos: …", solo con las partes que no son 0. */
+export function incompleteExpensesText(inc: ExpenseSummary['incomplete']): string {
+  if (inc.total <= 0) return '';
+  const parts: string[] = [];
+  if (inc.estimated > 0)
+    parts.push(`${inc.estimated} ${inc.estimated === 1 ? 'estimado' : 'estimados'}`);
+  if (inc.missingReceipts > 0) parts.push(`${inc.missingReceipts} sin comprobante`);
+  if (inc.missingFxRate > 0) parts.push(`${inc.missingFxRate} sin tipo de cambio`);
+  const subject =
+    inc.total === 1 ? '1 gasto de este mes tiene' : `${inc.total} gastos de este mes tienen`;
+  return parts.length > 0
+    ? `${subject} datos incompletos: ${parts.join(', ')}.`
+    : `${subject} datos incompletos.`;
+}
+
+/** Nota de moneda de los tabs de Egresos por país. */
+export function expenseCurrencyNote(country: ExpenseCountry): string {
+  return country === 'ES'
+    ? 'Importes en euros.'
+    : 'Importes en pesos. Los gastos en dólares se convierten con su tipo de cambio de referencia.';
 }

@@ -6,6 +6,15 @@ import {
   AMOUNT_STATUS_LABELS,
   EXPENSE_PAYMENT_METHOD_LABELS,
   EXPENSE_STATUS_META,
+  RESULT_CONSOLIDATED_KEY,
+  RESULT_FOOTNOTE,
+  expenseCurrencyNote,
+  foreignIncomeNotice,
+  formatMarginPct,
+  incompleteExpensesText,
+  resultColumnLabel,
+  resultDetailDestination,
+  resultMarginLabel,
   allocationDifference,
   allocationsSum,
   amountAtRate,
@@ -35,6 +44,7 @@ import {
   toNumberOrNull,
 } from '../expenses';
 import type { ExpenseHistoryItem, ExpenseRecordDetail } from '../../types/expense';
+import { formatPrice } from '../format-price';
 
 // Los resultados esperados están escritos a mano, nunca recalculados con la
 // función bajo prueba. splitEvenly, expenseStatusOf y previewPayment usan los
@@ -888,5 +898,93 @@ describe('formatFxRate', () => {
     expect(formatFxRate(1560)).toBe('1.560');
     expect(formatFxRate(1560.5)).toBe('1.560,5');
     expect(formatFxRate(0.8765)).toBe('0,8765');
+  });
+});
+
+describe('resultado por sede', () => {
+  it('formatMarginPct: 1 decimal con coma, sin miles', () => {
+    expect(formatMarginPct(12.3)).toBe('12,3 %');
+    expect(formatMarginPct(-50)).toBe('-50,0 %');
+    expect(formatMarginPct(0)).toBe('0,0 %');
+    expect(formatMarginPct(100)).toBe('100,0 %');
+    expect(formatMarginPct(1234.5)).toBe('1234,5 %');
+  });
+
+  it('formatMarginPct: un negativo que redondea a cero no lleva signo', () => {
+    expect(formatMarginPct(-0.04)).toBe('0,0 %');
+  });
+
+  it('resultMarginLabel: Casa Matriz, sin base de cálculo y porcentaje', () => {
+    expect(resultMarginLabel({ kind: 'casa_matriz', marginPct: null })).toBe('—');
+    expect(resultMarginLabel({ kind: 'branch', marginPct: null })).toBe('sin base de cálculo');
+    expect(resultMarginLabel({ kind: 'consolidado', marginPct: 22.2 })).toBe('22,2 %');
+    expect(resultMarginLabel({ kind: 'branch', marginPct: -6.5 })).toBe('-6,5 %');
+  });
+
+  it('resultColumnLabel: marca de inactiva y de virtual', () => {
+    expect(resultColumnLabel({ name: 'Sede A', isActive: true, isVirtual: false })).toBe('Sede A');
+    expect(resultColumnLabel({ name: 'Online', isActive: true, isVirtual: true })).toBe(
+      'Online (virtual)'
+    );
+    expect(resultColumnLabel({ name: 'Cerrada', isActive: false, isVirtual: false })).toBe(
+      'Cerrada (inactiva)'
+    );
+    expect(resultColumnLabel({ name: 'Vieja online', isActive: false, isVirtual: true })).toBe(
+      'Vieja online (inactiva, virtual)'
+    );
+  });
+
+  it("resultDetailDestination: el Consolidado pide 'total'", () => {
+    expect(resultDetailDestination({ kind: 'consolidado', key: 'consolidado' })).toBe('total');
+    expect(resultDetailDestination({ kind: 'casa_matriz', key: 'casa_matriz' })).toBe(
+      'casa_matriz'
+    );
+    expect(resultDetailDestination({ kind: 'branch', key: '12' })).toBe('12');
+  });
+
+  it('foreignIncomeNotice: vacío, un cobro y varios cobros', () => {
+    expect(foreignIncomeNotice([])).toBe('');
+    expect(
+      foreignIncomeNotice([{ branchName: 'Sede A', currency: 'EUR', count: 1, amount: 100 }])
+    ).toBe(`1 cobro en otra moneda no incluido: Sede A ${formatPrice(100, 'EUR')}.`);
+    expect(
+      foreignIncomeNotice([
+        { branchName: 'Sede A', currency: 'USD', count: 2, amount: 300 },
+        { branchName: 'Sede B', currency: 'EUR', count: 1, amount: 40 },
+      ])
+    ).toBe(
+      `3 cobros en otra moneda no incluidos: Sede A ${formatPrice(300, 'USD')} (2 cobros), Sede B ${formatPrice(40, 'EUR')}.`
+    );
+  });
+
+  it('incompleteExpensesText: los textos que ya mostraba el Resumen', () => {
+    expect(
+      incompleteExpensesText({ total: 0, estimated: 0, missingReceipts: 0, missingFxRate: 0 })
+    ).toBe('');
+    expect(
+      incompleteExpensesText({ total: 1, estimated: 1, missingReceipts: 0, missingFxRate: 0 })
+    ).toBe('1 gasto de este mes tiene datos incompletos: 1 estimado.');
+    expect(
+      incompleteExpensesText({ total: 3, estimated: 2, missingReceipts: 1, missingFxRate: 1 })
+    ).toBe(
+      '3 gastos de este mes tienen datos incompletos: 2 estimados, 1 sin comprobante, 1 sin tipo de cambio.'
+    );
+    expect(
+      incompleteExpensesText({ total: 2, estimated: 0, missingReceipts: 0, missingFxRate: 0 })
+    ).toBe('2 gastos de este mes tienen datos incompletos.');
+  });
+
+  it('expenseCurrencyNote: pesos con dólares convertidos o euros', () => {
+    expect(expenseCurrencyNote('AR')).toBe(
+      'Importes en pesos. Los gastos en dólares se convierten con su tipo de cambio de referencia.'
+    );
+    expect(expenseCurrencyNote('ES')).toBe('Importes en euros.');
+  });
+
+  it('constantes: clave del Consolidado y nota al pie de DI-12', () => {
+    expect(RESULT_CONSOLIDATED_KEY).toBe('consolidado');
+    expect(RESULT_FOOTNOTE).toBe(
+      'Cobros: pagos de alumnos por fecha de pago, según la sede del alumno. Costos: gastos imputados al mes, incluidos los estimados. Las devoluciones no se restan.'
+    );
   });
 });

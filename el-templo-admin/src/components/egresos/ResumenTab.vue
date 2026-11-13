@@ -150,7 +150,13 @@ import { createLogger } from 'src/utils/logger';
 import { extractError } from 'src/utils/extract-error';
 import { formatPrice } from 'src/utils/format-price';
 import { useExpensesApi } from 'src/composables/useExpensesApi';
-import { isValidMonth, monthLabel, shiftMonth } from 'src/utils/expenses';
+import {
+  expenseCurrencyNote,
+  incompleteExpensesText,
+  isValidMonth,
+  monthLabel,
+  shiftMonth,
+} from 'src/utils/expenses';
 import ResumenDetalleDialog from 'src/components/egresos/ResumenDetalleDialog.vue';
 import type {
   ExpenseCountry,
@@ -301,11 +307,7 @@ function openColumn(key: string) {
 // Estado derivado (solo presentación, sin cuentas de plata)
 // ---------------------------------------------------------------------------
 
-const currencyNote = computed(() =>
-  props.selectedCountry === 'ES'
-    ? 'Importes en euros.'
-    : 'Importes en pesos. Los gastos en dólares se convierten con su tipo de cambio de referencia.'
-);
+const currencyNote = computed(() => expenseCurrencyNote(props.selectedCountry));
 
 /** Mes sin nada: ninguna columna tiene pagos, costo ni pendiente. */
 const isEmpty = computed(
@@ -314,21 +316,10 @@ const isEmpty = computed(
     summary.value.columns.every((c) => c.paidInMonth === 0 && c.cost === 0 && c.pending === 0)
 );
 
-/** "{total} gastos de este mes tienen datos incompletos: …", solo con las partes que no son 0. */
-const incompleteText = computed(() => {
-  const inc = summary.value?.incomplete;
-  if (!inc || inc.total <= 0) return '';
-  const parts: string[] = [];
-  if (inc.estimated > 0)
-    parts.push(`${inc.estimated} ${inc.estimated === 1 ? 'estimado' : 'estimados'}`);
-  if (inc.missingReceipts > 0) parts.push(`${inc.missingReceipts} sin comprobante`);
-  if (inc.missingFxRate > 0) parts.push(`${inc.missingFxRate} sin tipo de cambio`);
-  const subject =
-    inc.total === 1 ? '1 gasto de este mes tiene' : `${inc.total} gastos de este mes tienen`;
-  return parts.length > 0
-    ? `${subject} datos incompletos: ${parts.join(', ')}.`
-    : `${subject} datos incompletos.`;
-});
+/** Texto de gastos incompletos (helper compartido con el Resultado). */
+const incompleteText = computed(() =>
+  summary.value ? incompleteExpensesText(summary.value.incomplete) : ''
+);
 
 // ---------------------------------------------------------------------------
 // Excel

@@ -287,3 +287,55 @@ export interface ExpenseSummaryDetail {
   destinationName: string;
   groups: ExpenseSummaryDetailGroup[];
 }
+
+// ---------------------------------------------------------------------------
+// Resultado por sede (fase 211): espejo de `ExpenseResult` de la API
+// ---------------------------------------------------------------------------
+
+export type ExpenseResultColumnKind = 'branch' | 'casa_matriz' | 'consolidado';
+
+export interface ExpenseResultColumn {
+  /** id de sede como string, 'casa_matriz' o 'consolidado' */
+  key: string;
+  kind: ExpenseResultColumnKind;
+  branchId: number | null;
+  name: string;
+  isActive: boolean;
+  isVirtual: boolean;
+  /** entero, en la moneda del país: cobros a alumnos del mes */
+  income: number;
+  /** entero por rubro, en la moneda del país; la clave es el id del rubro */
+  costsByCostCenter: Record<string, number>;
+  /** entero, en la moneda del país */
+  cost: number;
+  /** entero, en la moneda del país: parte del costo que viene de importes estimados */
+  costEstimated: number;
+  /** entero, en la moneda del país: cobros menos costo */
+  result: number;
+  /** porcentaje con 1 decimal; null cuando no hay base de cálculo */
+  marginPct: number | null;
+}
+
+export interface ExpenseResultCostCenter {
+  id: number;
+  name: string;
+}
+
+export interface ExpenseResultForeignIncome {
+  branchId: number;
+  branchName: string;
+  currency: string;
+  count: number;
+  /** entero, en la moneda del cobro (no entra en el resultado) */
+  amount: number;
+}
+
+export interface ExpenseResult {
+  month: string;
+  country: ExpenseCountry;
+  currency: 'ARS' | 'EUR';
+  columns: ExpenseResultColumn[];
+  costCenters: ExpenseResultCostCenter[];
+  incomplete: ExpenseSummary['incomplete'];
+  foreignIncome: ExpenseResultForeignIncome[];
+}
