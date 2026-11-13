@@ -288,3 +288,58 @@ export interface ExpenseSummaryDetail {
   destinationName: string;
   groups: ExpenseSummaryDetailGroup[];
 }
+
+// ── Resultado por sede y consolidado (fase 211) ─────────────────────────────
+
+/** Tipo de columna del Resultado: una sede, Casa Matriz o el Consolidado. */
+export type ExpenseResultColumnKind = "branch" | "casa_matriz" | "consolidado";
+
+export interface ExpenseResultColumn {
+  /** id de sede como string, "casa_matriz" o "consolidado" */
+  key: string;
+  kind: ExpenseResultColumnKind;
+  branchId: number | null;
+  name: string;
+  isActive: boolean;
+  isVirtual: boolean;
+  /** entero, en la moneda del país: cobros firmes a alumnos del mes (0 en Casa Matriz) */
+  income: number;
+  /**
+   * entero, en la moneda del país. Clave = id del rubro como string; trae TODOS
+   * los rubros de `costCenters`, con 0 si la columna no tiene costo en ese rubro.
+   */
+  costsByCostCenter: Record<string, number>;
+  /** entero, en la moneda del país: Σ de los rubros */
+  cost: number;
+  /** entero, en la moneda del país: parte del costo que viene de importes estimados */
+  costEstimated: number;
+  /** entero, en la moneda del país: income − cost */
+  result: number;
+  /** único número no entero del informe (un decimal, solo presentación); null si no hay cobros */
+  marginPct: number | null;
+}
+
+export interface ExpenseResultCostCenter {
+  id: number;
+  name: string;
+}
+
+/** Cobros de una sede del país en otra moneda: no se suman ni se convierten (DI-04). */
+export interface ExpenseResultForeignIncome {
+  branchId: number;
+  branchName: string;
+  currency: string;
+  count: number;
+  /** entero, en la moneda del cobro */
+  amount: number;
+}
+
+export interface ExpenseResult {
+  month: string;
+  country: ExpenseCountry;
+  currency: "ARS" | "EUR";
+  columns: ExpenseResultColumn[];
+  costCenters: ExpenseResultCostCenter[];
+  incomplete: ExpenseSummary["incomplete"];
+  foreignIncome: ExpenseResultForeignIncome[];
+}
