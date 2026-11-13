@@ -140,12 +140,7 @@
               <!-- Desglose (solo informativo): solo la card de activos lo tiene -->
               <template v-if="kpi.key === 'activeMembers' && activeBreakdown">
                 <q-space />
-                <q-icon
-                  name="info"
-                  size="18px"
-                  color="grey-6"
-                  class="cursor-pointer"
-                >
+                <q-icon name="info" size="18px" color="grey-6" class="cursor-pointer">
                   <q-menu anchor="bottom right" self="top right">
                     <div class="q-pa-md" style="min-width: 260px">
                       <div class="text-subtitle2 q-mb-xs">Desglose de activos</div>
@@ -193,19 +188,41 @@
                 </q-icon>
               </template>
             </div>
-            <div class="text-h5 q-mb-xs">{{ kpi.formattedValue }}</div>
+            <!-- Número + tendencia a la izquierda. En la card de activos, el
+                 apartado Wellhub va AL COSTADO (no debajo) para no agregar alto
+                 y que las 3 cards de la fila queden parejas. Fuera del número
+                 grande (no pagan membresía); solo si hubo visitas, así no
+                 aparece en gimnasios sin Wellhub. -->
             <div class="row items-center no-wrap">
-              <q-icon
-                :name="trendIcon(kpi.trend.direction)"
-                :color="trendColor(kpi.key, kpi.trend.direction)"
-                size="18px"
-              />
-              <span
-                class="text-caption q-ml-xs"
-                :class="'text-' + trendColor(kpi.key, kpi.trend.direction)"
-              >
-                {{ kpi.trend.percentage.toFixed(1) }}%
-              </span>
+              <div class="col">
+                <div class="text-h5 q-mb-xs">{{ kpi.formattedValue }}</div>
+                <div class="row items-center no-wrap">
+                  <q-icon
+                    :name="trendIcon(kpi.trend.direction)"
+                    :color="trendColor(kpi.key, kpi.trend.direction)"
+                    size="18px"
+                  />
+                  <span
+                    class="text-caption q-ml-xs"
+                    :class="'text-' + trendColor(kpi.key, kpi.trend.direction)"
+                  >
+                    {{ kpi.trend.percentage.toFixed(1) }}%
+                  </span>
+                </div>
+              </div>
+              <template v-if="kpi.key === 'activeMembers' && wellhubVisitors > 0">
+                <q-separator vertical class="q-mx-md" />
+                <div class="col-auto wellhub-aside">
+                  <div class="row items-center no-wrap text-body2">
+                    <q-icon name="confirmation_number" size="16px" color="grey-7" class="q-mr-xs" />
+                    <span class="text-weight-bold q-mr-xs">{{ wellhubVisitors }}</span>
+                    por Wellhub
+                  </div>
+                  <div class="text-caption text-grey-6 wellhub-aside__caption">
+                    Vinieron en el período, sin membresía vigente
+                  </div>
+                </div>
+              </template>
             </div>
           </q-card-section>
         </q-card>
@@ -705,6 +722,10 @@ function formatCurrency(value: number): string {
 
 const activeBreakdown = computed(() => kpis.value?.activeMembers.breakdown ?? null);
 
+// Visitantes Wellhub del período sin membresía vigente. Va como apartado
+// dentro de la card de activos, nunca sumado al número grande.
+const wellhubVisitors = computed(() => kpis.value?.activeMembers.wellhubVisitors ?? 0);
+
 const kpiCards = computed<KpiCard[]>(() => {
   if (!kpis.value) return [];
   const k = kpis.value;
@@ -1003,3 +1024,14 @@ onUnmounted(() => {
   membersApi.cleanup();
 });
 </script>
+
+<style scoped>
+/* Apartado Wellhub al costado del número de activos: angosto y compacto para
+   que la card no crezca a lo alto (2 líneas de leyenda como máximo). */
+.wellhub-aside {
+  max-width: 150px;
+}
+.wellhub-aside__caption {
+  line-height: 1.2;
+}
+</style>

@@ -52,6 +52,7 @@ import {
   chargeExportSchema,
   expiringExportSchema,
   inactiveExportSchema,
+  multibranchReassignmentsSchema,
 } from "./schemas";
 
 import { CAJA_ROLES, ADMIN_ROLES } from "../shared/permissions";
@@ -512,6 +513,51 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
       );
     }
   });
+
+  // GET /multibranch-reassignments — histórico de recategorizaciones (mig 0334).
+  // Solo lectura sobre `branch_reassignments`. Hereda el gate CAJA_ROLES del
+  // onRequest del plugin. Mismo patrón de scope que el preview (excluido para
+  // roles de alcance forzado por sede) más el candado de país de los demás
+  // reportes: un no-owner ve solo las recategorizaciones hacia sedes de su país.
+  fastify.get<{ Querystring: { months?: number } }>(
+    "/multibranch-reassignments",
+    { schema: multibranchReassignmentsSchema },
+    async (request, reply) => {
+      try {
+        if (enforcedBranchIds(request.scope) !== null) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "Esta vista es de todas las sedes",
+          });
+        }
+        // Fail-closed: admin/gestion con país corrupto (null) NO ve todos los
+        // países. Mismo criterio que outstanding-balances.
+        if (!request.scope.isOwner && request.scope.country === null) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "Acceso requerido",
+          });
+        }
+        const ctx = assertTenant(
+          request.scope,
+          "reports.multibranch-reassignments",
+        );
+        return await reportsService.getMultibranchReassignments(ctx, {
+          months: request.query.months ?? 12,
+          country: request.scope.isOwner
+            ? undefined
+            : (request.scope.country ?? undefined),
+        });
+      } catch (err: unknown) {
+        handleServiceError(
+          err,
+          reply,
+          request.log,
+          "get multibranch reassignments",
+        );
+      }
+    },
+  );
 
   // =========================================================================
   // Export Endpoints

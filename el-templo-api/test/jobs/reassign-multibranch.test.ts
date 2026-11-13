@@ -194,6 +194,79 @@ describe("cron recategorización multisucursal", () => {
     expect(sub.branchId).toBe(branchB);
   });
 
+  /** Eventos del histórico (mig 0334) del gimnasio El Templo, más viejos primero. */
+  async function reassignmentEvents() {
+    return app.db
+      .select()
+      .from(schema.branchReassignments)
+      .where(tenantWhere(schema.branchReassignments, CTX_TEMPLO))
+      .orderBy(schema.branchReassignments.id);
+  }
+
+  it("la corrida real registra UN evento por alumno movido (from/to/conteos/source cron)", async () => {
+    const m = await insertMember({ branchId: branchA });
+    await insertSub(m, multiPlanId, branchA);
+    await addAttendance(m, branchB, 5); // 5 en B
+    await addAttendance(m, branchA, 1); // 1 en A → total 6
+
+    await runReassignMultibranch(app.db);
+
+    const events = await reassignmentEvents();
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      tenantId: TENANT_TEMPLO,
+      memberId: m,
+      fromBranchId: branchA,
+      toBranchId: branchB,
+      toBranchAttendances: 5,
+      totalAttendances: 6,
+      source: "cron",
+    });
+
+    // El evento lleva el MISMO instante que users.branch_updated_at.
+    const [user] = await app.db
+      .select({ branchUpdatedAt: schema.users.branchUpdatedAt })
+      .from(schema.users)
+      .where(
+        and(tenantWhere(schema.users, CTX_TEMPLO), eq(schema.users.id, m)),
+      );
+    expect(user.branchUpdatedAt).not.toBeNull();
+    expect(events[0].reassignedAt.getTime()).toBe(
+      user.branchUpdatedAt?.getTime(),
+    );
+  });
+
+  it("un alumno que NO se mueve no genera evento (y el que sí, uno solo)", async () => {
+    const moved = await insertMember({ branchId: branchA });
+    await insertSub(moved, multiPlanId, branchA);
+    await addAttendance(moved, branchB, 5);
+
+    const alreadyTop = await insertMember({ branchId: branchB });
+    await insertSub(alreadyTop, multiPlanId, branchB);
+    await addAttendance(alreadyTop, branchB, 6); // ya está en su top
+
+    const fewAttendances = await insertMember({ branchId: branchA });
+    await insertSub(fewAttendances, multiPlanId, branchA);
+    await addAttendance(fewAttendances, branchB, 3); // < 4 en la ventana
+
+    const res = await runReassignMultibranch(app.db);
+    expect(res.changes).toHaveLength(1);
+
+    const events = await reassignmentEvents();
+    expect(events.map((e) => e.memberId)).toEqual([moved]);
+  });
+
+  it("dry-run NO registra eventos en el histórico", async () => {
+    const m = await insertMember({ branchId: branchA });
+    await insertSub(m, multiPlanId, branchA);
+    await addAttendance(m, branchB, 5);
+
+    const res = await runReassignMultibranch(app.db, { dryRun: true });
+
+    expect(res.changes).toHaveLength(1);
+    expect(await reassignmentEvents()).toHaveLength(0);
+  });
+
   it("dry-run NO escribe (reporta el cambio pero deja la sede intacta)", async () => {
     const m = await insertMember({ branchId: branchA });
     await insertSub(m, multiPlanId, branchA);

@@ -38,6 +38,28 @@ export function useRenewalsApi() {
     }
   }
 
+  /**
+   * El mismo listado + KPIs como XLSX (dos hojas: Renovaciones y Resumen).
+   * Mismos filtros que `listRenewals`: el archivo trae las filas del período,
+   * sede y tipo de actividad que se están viendo.
+   */
+  async function exportRenewals(params: RenewalListParams): Promise<Blob> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<Blob>('/admin/renewals/export', {
+        params,
+        responseType: 'blob',
+      });
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error exportando renovaciones');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   async function updateFollowup(
     subscriptionId: number,
     input: RenewalFollowupUpdateInput
@@ -101,10 +123,7 @@ export function useRenewalsApi() {
     }
   }
 
-  async function updateReason(
-    id: number,
-    input: RenewalReasonUpdateInput
-  ): Promise<RenewalReason> {
+  async function updateReason(id: number, input: RenewalReasonUpdateInput): Promise<RenewalReason> {
     loading.value = true;
     error.value = null;
     try {
@@ -127,6 +146,7 @@ export function useRenewalsApi() {
     loading,
     error,
     listRenewals,
+    exportRenewals,
     updateFollowup,
     addNote,
     listReasons,

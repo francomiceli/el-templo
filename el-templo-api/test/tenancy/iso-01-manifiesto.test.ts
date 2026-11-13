@@ -455,7 +455,14 @@ import {
 // /expense-records/result y /result/export, tenant-scoped (assertTenant +
 // tenantWhere en el service; el país sale del scope y el Excel sale del mismo
 // cálculo que el JSON).
-const ENTRADAS_BASELINE = 570;
+// 2026-11-12: 554 -> 555 por el export a Excel de Renovaciones:
+// `GET /api/admin/renewals/export`, `tenant-scoped`.
+// 2026-11-12: 555 -> 556 por el formato evento de los avisos de TV:
+// `POST /api/communications/tv/admin/tv-avisos/image-upload-url`, `templo-module`.
+// 2026-11-13: 556 -> 557 por el histórico de recategorizaciones multisucursal
+// (mig 0334): GET /api/admin/reports/multibranch-reassignments, `tenant-scoped`.
+// 2026-11-13: merge de master en la rama de Egresos: 570 + 3 = 573.
+const ENTRADAS_BASELINE = 573;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -598,7 +605,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 570 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 573 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(

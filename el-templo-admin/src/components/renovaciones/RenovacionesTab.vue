@@ -98,6 +98,23 @@
           @update:model-value="fetchRows()"
         />
       </div>
+      <q-space />
+      <div class="col-auto">
+        <q-btn
+          outline
+          dense
+          color="primary"
+          icon="download"
+          label="Exportar Excel"
+          :loading="exporting"
+          :disable="loading"
+          @click="onExport"
+        >
+          <q-tooltip>
+            Descarga todos los vencimientos del período, sede y tipo elegidos (con el resumen)
+          </q-tooltip>
+        </q-btn>
+      </div>
     </div>
 
     <!-- ============================================================== -->
@@ -389,6 +406,7 @@ import { useQuasar, type QTable, type QTableColumn } from 'quasar';
 import { useRoute, useRouter } from 'vue-router';
 import { createLogger } from 'src/utils/logger';
 import { formatDate } from 'src/utils/format-date';
+import { downloadBlob } from 'src/utils/download-blob';
 import { useRenewalsApi } from 'src/composables/useRenewalsApi';
 import { useAuthStore } from 'src/stores/useAuthStore';
 import { DUENO_ROLES } from 'src/config/templo-config';
@@ -404,6 +422,7 @@ import type {
   RenewalReason,
   RenewalFollowupUpdateInput,
   RenewalActivityType,
+  RenewalListParams,
 } from 'src/types/renewals';
 
 // La sede viene del selector global de Reportes (`selectedBranchId`), no de
@@ -582,14 +601,19 @@ async function fetchRows() {
  * página queda donde estaba (feedback 2026-09-25: al marcar un mensaje abajo
  * de todo, saltaba arriba).
  */
+/** Filtros server-side vigentes — los comparten el listado y el export a Excel. */
+function currentListParams(): RenewalListParams {
+  return {
+    dateFrom: dateFrom.value,
+    dateTo: dateTo.value,
+    branchId: props.branchId,
+    activityType: activityType.value === 'todas' ? undefined : activityType.value,
+  };
+}
+
 async function loadRows(opts: { background?: boolean } = {}) {
   try {
-    const result = await renewalsApi.listRenewals({
-      dateFrom: dateFrom.value,
-      dateTo: dateTo.value,
-      branchId: props.branchId,
-      activityType: activityType.value === 'todas' ? undefined : activityType.value,
-    });
+    const result = await renewalsApi.listRenewals(currentListParams());
     rows.value = result.rows;
     kpis.value = result.kpis;
   } catch (err: unknown) {
@@ -602,6 +626,35 @@ async function loadRows(opts: { background?: boolean } = {}) {
     }
     log.error('Error cargando renovaciones', { error });
     $q.notify({ type: 'negative', message: 'No se pudieron cargar las renovaciones' });
+  }
+}
+
+// ============================================================================
+// Export a Excel — el backend arma el .xlsx, acá solo se dispara la descarga
+// ============================================================================
+
+const exporting = ref(false);
+
+/**
+ * Descarga TODOS los vencimientos del período/sede/tipo elegidos. El filtro
+ * rápido por estado (tarjetas) no recorta el archivo a propósito: la planilla
+ * trae la columna "Estado" con filtro, y así el resumen de KPIs coincide con
+ * las filas.
+ */
+async function onExport(): Promise<void> {
+  exporting.value = true;
+  try {
+    const params = currentListParams();
+    const blob = await renewalsApi.exportRenewals(params);
+    downloadBlob(blob, `renovaciones-${params.dateFrom}_${params.dateTo}.xlsx`);
+    $q.notify({ type: 'positive', message: 'Excel exportado' });
+  } catch (err: unknown) {
+    log.error('Error exportando renovaciones', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    $q.notify({ type: 'negative', message: 'No se pudo exportar el Excel' });
+  } finally {
+    exporting.value = false;
   }
 }
 

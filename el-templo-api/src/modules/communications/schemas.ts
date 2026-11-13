@@ -399,6 +399,43 @@ const TV_AVISO_MODE_ENUM = ["manual", "flex_inicio", "flex_final"] as const;
 // 2026-10-06 (migración 0259): fondo de la placa en la TV.
 const TV_AVISO_TEMA_ENUM = ["claro", "oscuro"] as const;
 
+/** Prefijo de R2 de las fotos de los avisos de TV con formato evento. */
+export const TV_AVISO_IMAGE_PREFIX = "tv/avisos";
+
+// 2026-11-12 (migración 0332): formato "evento". Acá solo van cotas gruesas;
+// los largos reales, la fecha y el origen de la foto los valida el service.
+const tvAvisoEventoBodySchema = {
+  type: ["object", "null"],
+  required: ["fecha", "hora", "lugar"],
+  properties: {
+    fecha: { type: "string", maxLength: 10 },
+    hora: { type: "string", maxLength: 40 },
+    lugar: { type: "string", maxLength: 200 },
+    sello: { type: ["string", "null"], maxLength: 120 },
+    imageUrl: { type: ["string", "null"], maxLength: 500 },
+  },
+  additionalProperties: false,
+};
+
+const tvAvisoEventoResponseSchema = {
+  type: ["object", "null"],
+  properties: {
+    fecha: { type: "string" },
+    hora: { type: "string" },
+    lugar: { type: "string" },
+    sello: { type: ["string", "null"] },
+    imageUrl: { type: ["string", "null"] },
+  },
+};
+
+export interface TvAvisoEventoBody {
+  fecha: string;
+  hora: string;
+  lugar: string;
+  sello?: string | null;
+  imageUrl?: string | null;
+}
+
 // ── GET /admin/tv-avisos ─────────────────────────────────────────────────
 
 const tvAvisoResponseProperties = {
@@ -409,6 +446,7 @@ const tvAvisoResponseProperties = {
   tema: { type: "string", enum: TV_AVISO_TEMA_ENUM },
   isActive: { type: "boolean" },
   scopeBranchIds: { type: ["array", "null"], items: { type: "integer" } },
+  evento: tvAvisoEventoResponseSchema,
 };
 
 export const listTvAvisosResponseSchema = {
@@ -444,6 +482,7 @@ export const createTvAvisoSchema = {
         type: ["array", "null"],
         items: { type: "integer" },
       },
+      evento: tvAvisoEventoBodySchema,
     },
     additionalProperties: false,
   },
@@ -456,6 +495,7 @@ export interface CreateTvAvisoBody {
   tema?: "claro" | "oscuro";
   isActive?: boolean;
   scopeBranchIds?: number[] | null;
+  evento?: TvAvisoEventoBody | null;
 }
 
 // ── PUT /admin/tv-avisos/:id ─────────────────────────────────────────────
@@ -483,6 +523,7 @@ export const updateTvAvisoSchema = {
         type: ["array", "null"],
         items: { type: "integer" },
       },
+      evento: tvAvisoEventoBodySchema,
     },
     additionalProperties: false,
   },
@@ -495,7 +536,42 @@ export interface UpdateTvAvisoBody {
   tema?: "claro" | "oscuro";
   isActive?: boolean;
   scopeBranchIds?: number[] | null;
+  evento?: TvAvisoEventoBody | null;
 }
+
+// ── POST /admin/tv-avisos/image-upload-url ───────────────────────────────
+
+export const tvAvisoImageUploadSchema = {
+  body: {
+    type: "object",
+    required: ["filename"],
+    properties: {
+      filename: {
+        type: "string",
+        minLength: 1,
+        maxLength: 200,
+        // Sin AVIF a propósito: el Chromium de los televisores no lo decodifica.
+        // `(?i)` no está soportado: se expande a mano cada letra.
+        pattern: "\\.([jJ][pP][eE]?[gG]|[pP][nN][gG]|[wW][eE][bB][pP])$",
+      },
+    },
+    additionalProperties: false,
+  },
+};
+
+export interface TvAvisoImageUploadBody {
+  filename: string;
+}
+
+export const tvAvisoImageUploadResponseSchema = {
+  200: {
+    type: "object",
+    properties: {
+      uploadUrl: { type: "string" },
+      publicUrl: { type: "string" },
+    },
+  },
+};
 
 // ── GET /control/tv-aviso-activo ─────────────────────────────────────────
 

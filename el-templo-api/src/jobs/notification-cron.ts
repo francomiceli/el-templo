@@ -10,8 +10,11 @@
  *
  * Jobs 3 and 4 are user-facing: they fire at the member's branch local time,
  * so a BCN member gets their morning ping at 08:00 Madrid, not 08:00 AR.
- * Internal batch jobs (1, 2, 5) stay anchored to AR to avoid redundant runs
- * — they don't surface a time-of-day to users.
+ * Internal batch jobs (1, 2, 5) stay anchored to AR to avoid redundant runs.
+ * The pushes they ENQUEUE (segment transition, ghost re-attempt, program and
+ * plan renewal) are user-facing, though: they are scheduled for
+ * BATCH_PUSH_LOCAL_TIME in the member's branch timezone (see
+ * `resolveBatchPushDeliveryAt`) instead of going out at 03:00.
  */
 
 import cron from "node-cron";
@@ -33,7 +36,10 @@ import {
   type AnticipatedBooking,
 } from "../modules/notifications/anticipated-bookings";
 import { slotFromStartTime } from "../modules/ratings/roster-attribution";
-import { buildClassDateTime } from "../modules/shared/date-utils";
+import {
+  buildClassDateTime,
+  todayInTz,
+} from "../modules/shared/date-utils";
 import {
   forEachActiveTenant,
   tenantWhere,
@@ -82,6 +88,52 @@ const log = pino({ name: "notification-cron" });
 
 /** Thirty days in milliseconds — ghost re-attempt interval */
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+
+/** Fallback timezone for members without a branch (same as the batch cron). */
+const DEFAULT_TZ = "America/Argentina/Buenos_Aires";
+
+/**
+ * Local wall-clock time at which the pushes enqueued by the 03:00 AR batch
+ * (segment transition, ghost re-attempt, program and plan renewal) are
+ * delivered. Before this they had no `scheduledAt`, so the 5-min queue tick
+ * sent them at ~03:00-03:05 AR — in the middle of the night.
+ */
+export const BATCH_PUSH_LOCAL_TIME = "10:00";
+
+/**
+ * Pure: the instant of BATCH_PUSH_LOCAL_TIME today in `tz`, or `now` if that
+ * instant already passed (a late/manual run must not schedule into the past —
+ * it would be the same as sending now — nor push the notice to tomorrow, which
+ * would shift the 7d/3d/expiry bands by a day).
+ */
+export function batchPushDeliveryAt(tz: string, now: Date = new Date()): Date {
+  const target = buildClassDateTime(
+    todayInTz(tz, now),
+    BATCH_PUSH_LOCAL_TIME,
+    tz,
+  );
+  return target.getTime() > now.getTime() ? target : now;
+}
+
+/**
+ * Resolve the delivery instant for a member from their branch timezone
+ * (`users.branch_id` → `branches.timezone`, same mapping as the morning energy
+ * job). Members without a branch fall back to Argentina.
+ */
+export async function resolveBatchPushDeliveryAt(
+  db: MySql2Database<typeof schema>,
+  ctx: TenantContext,
+  userId: number,
+  now: Date = new Date(),
+): Promise<Date> {
+  const [row] = await db
+    .select({ tz: s.branches.timezone })
+    .from(s.users)
+    .innerJoin(s.branches, eq(s.branches.id, s.users.branchId))
+    .where(and(tenantWhere(s.users, ctx), eq(s.users.id, userId)))
+    .limit(1);
+  return batchPushDeliveryAt(row?.tz ?? DEFAULT_TZ, now);
+}
 
 /**
  * Determine the transition key for the SEGMENT_TRANSITION_TEMPLATES map.
@@ -556,6 +608,11 @@ export async function runPlanRenewalWarnings(
         const queued = await notificationService.queueNotification({
           userId: candidate.userId,
           templateKey: key,
+          scheduledAt: await resolveBatchPushDeliveryAt(
+            db,
+            ctx,
+            candidate.userId,
+          ),
         });
         if (queued >= 0) {
           totalQueued++;
@@ -726,6 +783,11 @@ async function runBatchSegmentRecalculationForTenant(
             await notificationService.queueNotification({
               userId: profile.userId,
               templateKey,
+              scheduledAt: await resolveBatchPushDeliveryAt(
+                db,
+                ctx,
+                profile.userId,
+              ),
             });
             notificationsQueued++;
           } catch (queueErr: unknown) {
@@ -759,6 +821,11 @@ async function runBatchSegmentRecalculationForTenant(
             await notificationService.queueNotification({
               userId: profile.userId,
               templateKey: "ghost_monthly_reattempt",
+              scheduledAt: await resolveBatchPushDeliveryAt(
+                db,
+                ctx,
+                profile.userId,
+              ),
             });
 
             // Update ghost reattempt tracking
@@ -836,6 +903,11 @@ async function runBatchSegmentRecalculationForTenant(
         await notificationService.queueNotification({
           userId: enrollment.userId,
           templateKey: "program_renewal_warning",
+          scheduledAt: await resolveBatchPushDeliveryAt(
+            db,
+            ctx,
+            enrollment.userId,
+          ),
         });
         renewalWarnings++;
       } catch (renewErr: unknown) {

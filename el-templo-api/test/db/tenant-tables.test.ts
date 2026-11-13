@@ -96,7 +96,7 @@ describe("tenant-tables — clasificación canónica de tablas (COL-01)", () => 
     ).toEqual([]);
   });
 
-  it("los conteos son 132 gym-owned + 5 exentas y cubren las 137 tablas del schema", () => {
+  it("los conteos son 133 gym-owned + 5 exentas y cubren las 138 tablas del schema", () => {
     // Fase 159 (SEM-05) sumó `session_week_regime` a GYM_OWNED_TABLES (era 87,
     // ver el comentario de src/db/tenant-tables.ts:32-41): 87 -> 88, 91 -> 92.
     // Fase 179 sumó `referral_partners`, `partner_referrals`,
@@ -138,19 +138,24 @@ describe("tenant-tables — clasificación canónica de tablas (COL-01)", () => 
     // sobre los conteos de master: 117 -> 121 gym-owned, 122 -> 126 tablas.
     // 2026-11-03 sumó `weekly_board_snapshots` y `weekly_board_leads` (fase 206,
     // mig 0319, nacen strict en `weekly-board`): 121 -> 123, 126 -> 128.
-    
+
     // 2026-11-03: +5 office_* (fase 205, 0320) nacen tenancy-native en el módulo
     // nuevo `office`: 123 -> 128, 128 -> 133.
     // 2026-11-04: +1 `office_auto_topic_mutes` (fase 205, 0321, avisos automáticos
     // de Oficina por sede): 128 -> 129, 133 -> 134.
     // 2026-11-11: +3 expense_records/expense_allocations/expense_payments (fase
     // 209, 0331, Egresos) nacen tenancy-native en `finance`: 129 -> 132, 134 -> 137.
-    expect(GYM_OWNED_TABLES.length).toBe(132);
+    
+    // 2026-11-13 sumó `branch_reassignments` (histórico de recategorizaciones
+    // multisucursal, mig 0334, nace strict en `branch-reassignments`):
+    // 129 -> 130, 134 -> 135.
+    // Merge 2026-11-13 de las dos ramas: 132 + 1 = 133, 137 + 1 = 138.
+    expect(GYM_OWNED_TABLES.length).toBe(133);
     expect(TENANT_EXEMPT_TABLES.length).toBe(5);
     // Sin duplicados dentro de cada lista.
     expect(gymOwned.size).toBe(GYM_OWNED_TABLES.length);
     expect(exempt.size).toBe(TENANT_EXEMPT_TABLES.length);
-    expect(schemaTables.size).toBe(137);
+    expect(schemaTables.size).toBe(138);
     expect(gymOwned.size + exempt.size).toBe(schemaTables.size);
   });
 
@@ -468,6 +473,8 @@ describe("TENANT_STRICT_MODULES (fase 170, D-05/D-06)", () => {
     ],
     scheduling: ["bookings", "holidays", "schedule_exceptions", "schedules"],
     auth: ["promo_plans", "refresh_tokens"],
+    // 2026-11-13 (mig 0334): histórico de recategorizaciones. Nace strict.
+    "branch-reassignments": ["branch_reassignments"],
     campaigns: [
       "campaign_events",
       "campaign_sends",

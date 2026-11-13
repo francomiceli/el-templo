@@ -13,6 +13,8 @@
  */
 import { FastifyPluginAsync } from "fastify";
 import { RenewalsService, REASON_REQUIRED } from "./service";
+import { buildRenewalsWorkbook } from "./excel";
+import { sendExcelReply } from "../shared/excel";
 import { handleServiceError } from "../shared/error-handler";
 import { AppError } from "../shared/errors";
 import { CAJA_ROLES, ADMIN_ROLES } from "../shared/permissions";
@@ -25,6 +27,7 @@ import {
 } from "../shared/branch-access";
 import {
   renewalListSchema,
+  renewalExportSchema,
   renewalFollowupUpdateSchema,
   renewalNoteCreateSchema,
   renewalReasonListSchema,
@@ -39,6 +42,7 @@ import {
   type RenewalReasonParams,
   type RenewalReasonUpdateBody,
 } from "./schemas";
+import type { RenewalListFilters } from "./types";
 import type { FastifyRequest, FastifyReply } from "fastify";
 
 /** Preferido a un preHandler inline repetido — 403 con el mismo formato del resto del repo. */
@@ -53,6 +57,29 @@ async function requireAdminRole(
     });
   }
 }
+
+/**
+ * Filtros del listado desde la request — los comparten `GET /` y
+ * `GET /export` para que el Excel traiga EXACTAMENTE las filas de la
+ * pantalla. El país sale siempre del scope server-side, nunca de la query.
+ */
+function listFiltersFrom(
+  request: FastifyRequest<{ Querystring: RenewalListQuery }>,
+): RenewalListFilters {
+  return {
+    dateFrom: request.query.dateFrom,
+    dateTo: request.query.dateTo,
+    branchId: request.query.branchId,
+    country: request.scope.country ?? undefined,
+    activityType: request.query.activityType,
+  };
+}
+
+/** Recorte por sede de las lecturas con `branchId` opcional en la query (listado y export). */
+const listBranchScope = [
+  requireBranchAccess({ from: "query.branchId", optional: true }),
+  enforceBranchScope({ from: "query.branchId" }),
+];
 
 export const renewalsRoutes: FastifyPluginAsync = async (fastify) => {
   const service = new RenewalsService(fastify.db, fastify.log);
@@ -71,26 +98,37 @@ export const renewalsRoutes: FastifyPluginAsync = async (fastify) => {
   // GET / — listado + KPIs.
   fastify.get<{ Querystring: RenewalListQuery }>(
     "/",
-    {
-      schema: renewalListSchema,
-      preHandler: [
-        requireBranchAccess({ from: "query.branchId", optional: true }),
-        enforceBranchScope({ from: "query.branchId" }),
-      ],
-    },
+    { schema: renewalListSchema, preHandler: listBranchScope },
     async (request, reply) => {
       try {
         const ctx = assertTenant(request.scope, "renewals.list");
-        const result = await service.listRenewals(ctx, {
-          dateFrom: request.query.dateFrom,
-          dateTo: request.query.dateTo,
-          branchId: request.query.branchId,
-          country: request.scope.country ?? undefined,
-          activityType: request.query.activityType,
-        });
+        const result = await service.listRenewals(
+          ctx,
+          listFiltersFrom(request),
+        );
         return reply.send(result);
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "list renewals");
+      }
+    },
+  );
+
+  // GET /export — el mismo listado + KPIs como XLSX (pedido de gestión,
+  // 2026-11-12). Mismos filtros, mismo guard de rol (CAJA_ROLES) y mismo
+  // recorte por sede que `GET /`: reusa `listRenewals`, así el archivo no
+  // puede divergir de la pantalla. Filename: renovaciones-<YYYY-MM-DD>.xlsx.
+  fastify.get<{ Querystring: RenewalListQuery }>(
+    "/export",
+    { schema: renewalExportSchema, preHandler: listBranchScope },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(request.scope, "renewals.export");
+        const filters = listFiltersFrom(request);
+        const result = await service.listRenewals(ctx, filters);
+        const workbook = buildRenewalsWorkbook(result, filters);
+        return sendExcelReply(workbook, reply, "renovaciones");
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "export renewals");
       }
     },
   );

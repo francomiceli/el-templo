@@ -31,6 +31,7 @@ import * as schema from "../db/schema";
 import { resolveBranchDelGimnasio } from "../modules/shared/branch-consistency";
 import {
   forEachActiveTenant,
+  tenantValues,
   tenantWhere,
   type TenantContext,
 } from "../modules/shared/tenant";
@@ -297,13 +298,14 @@ async function runReassignMultibranchForTenant(
       continue;
     }
 
-    result.changes.push({
+    const change: ReassignChange = {
       memberId,
       fromBranchId: member.branchId,
       toBranchId: top.branchId,
       toBranchCount: top.count,
       totalAttendances: total,
-    });
+    };
+    result.changes.push(change);
 
     if (!dryRun) {
       // D-07 — guarda ANTES del UPDATE, además del filtro de arriba (defensa
@@ -312,7 +314,7 @@ async function runReassignMultibranchForTenant(
       // es del gimnasio (carrera, dato que cambió entre el SELECT y acá), NO
       // escribe nada, el "change" recién agregado se revierte a "skipped", se
       // loguea con campos estructurados y el barrido SIGUE con el resto.
-      const moved = await reassignMemberBranch(ctx, db, memberId, top.branchId);
+      const moved = await reassignMemberBranch(ctx, db, change);
       if (!moved) {
         result.changes.pop();
         result.skipped.push({ memberId, reason: "cross_tenant" });
@@ -334,6 +336,12 @@ async function runReassignMultibranchForTenant(
  * miembro es multi_branch, así que NO se tocan bookings ni turnos fijos (a
  * diferencia del path single-branch de la edición admin).
  *
+ * HISTÓRICO (mig 0334): en la MISMA transacción inserta el evento en
+ * `branch_reassignments` (source 'cron'), con `from` = la sede que tenía el
+ * miembro al evaluarlo y el MISMO instante que `users.branch_updated_at`. Si la
+ * transacción falla o la guarda devuelve `false`, no queda ni el cambio ni el
+ * evento. Con `dryRun` esta función ni se llama, así que el preview no escribe.
+ *
  * D-07 (mina M10) — GUARDA ANTES DEL UPDATE: resuelve la sede con
  * `resolveBranchDelGimnasio` filtrada por `ctx` ANTES de escribir. Si no
  * resuelve (la sede ya no es del gimnasio, o no existe), NO escribe nada y
@@ -348,18 +356,20 @@ async function runReassignMultibranchForTenant(
 async function reassignMemberBranch(
   ctx: TenantContext,
   db: MySql2Database<typeof schema>,
-  memberId: number,
-  branchId: number,
+  change: ReassignChange,
 ): Promise<boolean> {
+  const { memberId, toBranchId: branchId } = change;
   return db.transaction(async (tx) => {
     const branch = await resolveBranchDelGimnasio(ctx, branchId, tx);
     if (!branch) return false;
 
+    // Un solo instante para el UPDATE y para el evento del histórico.
+    const reassignedAt = new Date();
     await tx
       .update(schema.users)
       .set({
         branchId: branch.id,
-        branchUpdatedAt: new Date(),
+        branchUpdatedAt: reassignedAt,
         branchSource: "auto",
       })
       .where(
@@ -379,6 +389,17 @@ async function reassignMemberBranch(
           ]),
         ),
       );
+    await tx.insert(schema.branchReassignments).values(
+      tenantValues(ctx, {
+        memberId,
+        fromBranchId: change.fromBranchId,
+        toBranchId: branch.id,
+        toBranchAttendances: change.toBranchCount,
+        totalAttendances: change.totalAttendances,
+        source: "cron" as const,
+        reassignedAt,
+      }),
+    );
     return true;
   });
 }

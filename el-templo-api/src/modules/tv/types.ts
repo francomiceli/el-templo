@@ -299,6 +299,18 @@ export interface TvAvisoPollPayload {
   body: string;
   /** 2026-10-06: fondo de la placa (lo elige el admin por aviso). */
   tema: "claro" | "oscuro";
+  /** 2026-11-12: formato evento (tarjeta con fecha, lugar y foto). `null` =
+   *  placa de título + cuerpo. Un bundle viejo del kiosco lo ignora. */
+  evento: TvAvisoEventoPollPayload | null;
+}
+
+export interface TvAvisoEventoPollPayload {
+  /** `YYYY-MM-DD`. */
+  fecha: string;
+  hora: string;
+  lugar: string;
+  sello: string | null;
+  imageUrl: string | null;
 }
 
 // =============================================================================

@@ -39,6 +39,27 @@ export interface MultibranchReassignmentPreview {
   wouldReassign: number;
 }
 
+/**
+ * Un evento del histórico de recategorizaciones multisucursal (mig 0334).
+ * Espejo de `MultibranchReassignmentRow` en `el-templo-api/src/modules/reports/types.ts`.
+ * `fromBranchId`/`fromBranchName` son null cuando no se conoce la sede de origen.
+ */
+export interface MultibranchReassignmentRow {
+  id: number;
+  memberId: number;
+  memberName: string;
+  fromBranchId: number | null;
+  fromBranchName: string | null;
+  toBranchId: number;
+  toBranchName: string;
+  toBranchAttendances: number;
+  totalAttendances: number;
+  /** 'cron' = lo escribió el job; 'backfill' = reconstruido por la migración. */
+  source: 'cron' | 'backfill';
+  /** ISO 8601. */
+  reassignedAt: string;
+}
+
 // ─── Cadencia de mensajes en Sesiones de Prueba (brief Nacho, 2026-09-26) ──
 //
 // Ver `el-templo-api/src/modules/reports/trial-cadence.ts` (motor) y
@@ -309,6 +330,23 @@ export function useReportsApi() {
       return data;
     } catch (err: unknown) {
       error.value = extractError(err, 'Error cargando la recategorización');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function getMultibranchReassignments(months = 12): Promise<MultibranchReassignmentRow[]> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<MultibranchReassignmentRow[]>(
+        '/admin/reports/multibranch-reassignments',
+        { params: { months } }
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando el histórico de recategorizaciones');
       throw err;
     } finally {
       loading.value = false;
@@ -612,6 +650,7 @@ export function useReportsApi() {
     getInactiveMembers,
     getTrialConversion,
     getMultibranchReassignmentPreview,
+    getMultibranchReassignments,
     exportAccessLog,
     exportChargeHistory,
     exportExpiringMemberships,

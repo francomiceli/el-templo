@@ -9,13 +9,56 @@
      la flexibilidad inicial (`.pantalla--dia`), "oscuro" = charcoal del
      cierre — igual que `avisoVeloFor` en `render.ts`.
 
+     Formato evento (2026-11-12): con `evento` se muestra la tarjeta de evento.
+     Esa SÍ comparte código con la TV: los estilos (`src/css/tv-evento.css`,
+     escalados con `--tvu`) y las reglas de armado (`src/tv/evento.ts`), así la
+     vista previa no puede desfasarse de lo que sale en el televisor.
+
      Texto plano interpolado con `{{ }}` (Vue escapa por defecto) — PROHIBIDA
      la directiva de HTML crudo de Vue acá: un aviso con marcado en el título
      o el cuerpo nunca debe ejecutarse en el admin. -->
 <template>
   <div class="tv-aviso-preview" :class="{ 'tv-aviso-preview--dia': tema === 'claro' }">
     <div class="tv-aviso-preview__label">Vista previa de la placa</div>
-    <div class="tv-aviso-preview__placa">
+
+    <div v-if="vista" class="tv-aviso-preview__placa tv-aviso-preview__placa--evento">
+      <div class="tvEvento">
+        <div class="tvEvento__card">
+          <div class="tvEvento__cuerpo">
+            <div class="tvEvento__fila">
+              <div class="tvEvento__cal">
+                <div class="tvEvento__calDia">{{ vista.calendario?.dia ?? '—' }}</div>
+                <div class="tvEvento__calNum">{{ vista.calendario?.num ?? '?' }}</div>
+                <div class="tvEvento__calMes">{{ vista.calendario?.mes ?? '—' }}</div>
+              </div>
+              <div class="tvEvento__titulos">
+                <div :class="vista.nombreClase">{{ vista.nombre || 'Nombre del evento' }}</div>
+                <div :class="vista.subClase">{{ vista.sub || 'Subtítulo' }}</div>
+              </div>
+            </div>
+            <div class="tvEvento__datos">
+              <div class="tvEvento__dato tvEvento__dato--hora">
+                <div class="tvEvento__label">HORA</div>
+                <div class="tvEvento__valor">{{ vista.hora || '—' }}</div>
+              </div>
+              <div class="tvEvento__dato">
+                <div class="tvEvento__label">LUGAR</div>
+                <div :class="vista.lugarClase">{{ vista.lugar || '—' }}</div>
+              </div>
+            </div>
+            <div :class="vista.selloClase">{{ vista.sello }}</div>
+          </div>
+          <div :class="vista.fotoClase" :style="{ backgroundImage: fotoCss }"></div>
+        </div>
+        <div class="tvEvento__pie">
+          <img class="tvEvento__logo" :src="tvParthenonCharcoal" alt="" />
+          <div class="tvEvento__reloj">10:00</div>
+          <div class="tvEvento__fecha">DÍA Y FECHA DE HOY</div>
+        </div>
+      </div>
+    </div>
+
+    <div v-else class="tv-aviso-preview__placa">
       <div class="tv-aviso-preview__titulo">{{ title || 'Título del aviso' }}</div>
       <div class="tv-aviso-preview__cuerpo">{{ body || 'Cuerpo del aviso.' }}</div>
     </div>
@@ -23,13 +66,24 @@
 </template>
 
 <script setup lang="ts">
-import type { TvAvisoTema } from 'src/composables/useCommunicationsApi';
+import { computed } from 'vue';
+import type { TvAvisoEvento, TvAvisoTema } from 'src/composables/useCommunicationsApi';
+import { eventoFotoCss, eventoVista } from 'src/tv/evento';
+import tvParthenonCharcoal from 'src/assets/tv-parthenon-charcoal.png';
+import 'src/css/tv-evento.css';
 
-defineProps<{
+const props = defineProps<{
   tema: TvAvisoTema;
   title: string;
   body: string;
+  /** `null`/ausente = placa de título + cuerpo. */
+  evento?: TvAvisoEvento | null;
 }>();
+
+const vista = computed(() =>
+  props.evento ? eventoVista(props.title, props.body, props.evento) : null
+);
+const fotoCss = computed(() => (vista.value ? eventoFotoCss(vista.value.fotoUrl) : 'none'));
 </script>
 
 <style lang="scss" scoped>
@@ -41,6 +95,7 @@ $cream: #f2ebe1;
 $navy: #3d3732;
 $gold: #b08d6e;
 $cinzel: 'Cinzel', Georgia, serif;
+$placa-width: 420px;
 
 .tv-aviso-preview {
   display: flex;
@@ -60,7 +115,7 @@ $cinzel: 'Cinzel', Georgia, serif;
 // Velo noche (charcoal, TvScreenPage.vue .pantalla): manual + flex_final.
 .tv-aviso-preview__placa {
   width: 100%;
-  max-width: 420px;
+  max-width: $placa-width;
   aspect-ratio: 16 / 9;
   display: flex;
   flex-direction: column;
@@ -69,6 +124,18 @@ $cinzel: 'Cinzel', Georgia, serif;
   background: $trans-noche;
   border-radius: 8px;
   overflow: hidden;
+}
+
+// Formato evento: caja 16:9 de ancho FIJO (la unidad `--tvu` es su 1%) con el
+// crema del velo diurno de fondo; la tarjeta se posiciona sola (absolute).
+.tv-aviso-preview__placa--evento {
+  // 1% de `$placa-width`: la unidad de src/css/tv-evento.css.
+  --tvu: 4.2px;
+  position: relative;
+  width: $placa-width;
+  max-width: none;
+  padding: 0;
+  background: #e9dfd0;
 }
 
 .tv-aviso-preview__titulo {
@@ -94,7 +161,7 @@ $cinzel: 'Cinzel', Georgia, serif;
 // Tema claro (crema, TvScreenPage.vue .pantalla--dia): colores de la
 // flexibilidad inicial — título dorado, cuerpo en tinta, sin sombras
 // (TvScreenPage.vue `#pantallaAviso.pantalla--dia .avisoTitulo/.avisoCuerpo`).
-.tv-aviso-preview--dia .tv-aviso-preview__placa {
+.tv-aviso-preview--dia .tv-aviso-preview__placa:not(.tv-aviso-preview__placa--evento) {
   background: $cream;
 }
 .tv-aviso-preview--dia .tv-aviso-preview__titulo {

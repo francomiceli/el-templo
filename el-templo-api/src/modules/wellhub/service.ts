@@ -51,7 +51,8 @@ import {
 } from "../shared/wellhub-sources";
 import type { BookingService } from "../scheduling/booking-service";
 import type { WellhubClient } from "./client";
-import { WellhubApiError } from "./client";
+import { WellhubApiError, isCheckinAlreadyValidated } from "./client";
+import { resolveWalkInSchedule } from "./walk-in-schedule";
 import type {
   WellhubBookingEventData,
   WellhubCheckinEventData,
@@ -399,11 +400,15 @@ export class WellhubService {
     // Punto final de validación: confirma el ticket del día y genera la
     // transacción por la que Wellhub nos paga. Si falla con 4xx el ticket no
     // es válido (skipped, no reintentar); 5xx/red se propaga como error 500
-    // para que Wellhub reintente.
+    // para que Wellhub reintente. Excepción: "ya validado" es un check-in
+    // bueno (ver `isCheckinAlreadyValidated`) y la visita se registra igual.
+    let yaValidado = false;
     try {
       await this.client.validateCheckin(gymId, uniqueToken);
     } catch (err: unknown) {
-      if (
+      if (isCheckinAlreadyValidated(err)) {
+        yaValidado = true;
+      } else if (
         err instanceof WellhubApiError &&
         err.status >= 400 &&
         err.status < 500
@@ -418,8 +423,9 @@ export class WellhubService {
           detail: "ticket_invalido",
           tenantId: ctx.tenantId,
         };
+      } else {
+        throw err;
       }
-      throw err;
     }
 
     // Reserva del día en esta sede (flujo checkin-booking-occurred, o un
@@ -456,8 +462,27 @@ export class WellhubService {
     // la confirmación de esa reserva. Nada de classesRemaining / AURA /
     // completed_sessions (no es socio).
     const now = new Date();
+    // Check-in sin reserva: el aviso de Wellhub no dice a qué clase vino, así
+    // que se ubica por la hora con la regla del QR (±20 min del inicio, solo
+    // clases que Wellhub vende hoy). Fuera de clase queda sin horario.
+    const scheduleId =
+      todayBooking?.scheduleId ??
+      (await resolveWalkInSchedule(this.db, ctx, branch, todayStr, now));
     let upgradedManual = false;
+    // El otro aviso del mismo check-in ganó el lock y ya registró la visita.
+    let alreadyRecorded = false;
     await this.db.transaction(async (tx) => {
+      // Serializa por persona: los dos avisos del mismo check-in llegan en el
+      // mismo segundo y, con "ya validado" aceptado, los dos llegan hasta acá.
+      // Sin este lock ambos pasarían el recheck y habría dos visitas. Va
+      // PRIMERO para que el recheck (lectura sin lock) arme su snapshot
+      // después de esperar el lock y vea la fila del otro aviso.
+      await tx
+        .select({ id: schema.users.id })
+        .from(schema.users)
+        .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)))
+        .for("update");
+
       const [recheck] = await tx
         .select({ id: schema.attendance.id, source: schema.attendance.source })
         .from(schema.attendance)
@@ -472,7 +497,10 @@ export class WellhubService {
         )
         .limit(1);
       // Solo una visita ya validada ('wellhub') corta acá.
-      if (recheck && recheck.source !== "wellhub_manual") return;
+      if (recheck && recheck.source !== "wellhub_manual") {
+        alreadyRecorded = true;
+        return;
+      }
 
       // Fase 204 (D-19): la visita a mano se promueve a validada, sin fila
       // nueva (checked_in_at original). La reserva ya está 'confirmado'.
@@ -494,7 +522,7 @@ export class WellhubService {
         tenantValues(ctx, {
           memberId: userId,
           branchId: branch.id,
-          scheduleId: todayBooking?.scheduleId ?? null,
+          scheduleId,
           sessionDate: todayStr,
           status: "confirmado",
           source: "wellhub",
@@ -515,6 +543,18 @@ export class WellhubService {
       }
     });
 
+    if (alreadyRecorded) {
+      this.log.info(
+        { userId, gymId, sessionDate: todayStr, yaValidado },
+        "Checkin Wellhub ignorado: el otro aviso del mismo check-in ya registró la visita",
+      );
+      return {
+        httpStatus: 200,
+        outcome: "already_checked_in",
+        tenantId: ctx.tenantId,
+      };
+    }
+
     this.log.info(
       {
         userId,
@@ -522,6 +562,9 @@ export class WellhubService {
         gymId,
         tenantId: ctx.tenantId,
         sessionDate: todayStr,
+        yaValidado,
+        scheduleId,
+        conReserva: Boolean(todayBooking),
       },
       upgradedManual
         ? "Visita Wellhub a mano validada luego por Wellhub"
@@ -1003,6 +1046,7 @@ export class WellhubService {
   private async findBranchByGymId(gymId: number): Promise<{
     id: number;
     timezone: string;
+    country: string;
     tenantId: number;
     tenantStatus: string | null;
   } | null> {
@@ -1010,6 +1054,7 @@ export class WellhubService {
       .select({
         id: schema.branches.id,
         timezone: schema.branches.timezone,
+        country: schema.branches.country,
         tenantId: schema.branches.tenantId,
         tenantStatus: schema.tenants.status,
       })

@@ -615,6 +615,7 @@ export class TvService {
         title: schema.tvAvisos.title,
         body: schema.tvAvisos.body,
         tema: schema.tvAvisos.tema,
+        evento: schema.tvAvisos.evento,
         isActive: schema.tvAvisos.isActive,
       })
       .from(schema.tvAvisos)
@@ -627,7 +628,13 @@ export class TvService {
       .limit(1);
 
     if (!row || !row.isActive) return null;
-    return { id: row.id, title: row.title, body: row.body, tema: row.tema };
+    return {
+      id: row.id,
+      title: row.title,
+      body: row.body,
+      tema: row.tema,
+      evento: row.evento ?? null,
+    };
   }
 
   /**
@@ -652,6 +659,7 @@ export class TvService {
         title: schema.tvAvisos.title,
         body: schema.tvAvisos.body,
         tema: schema.tvAvisos.tema,
+        evento: schema.tvAvisos.evento,
         scopeBranchIds: schema.tvAvisos.scopeBranchIds,
       })
       .from(schema.tvAvisos)
@@ -671,7 +679,13 @@ export class TvService {
     });
 
     return match
-      ? { id: match.id, title: match.title, body: match.body, tema: match.tema }
+      ? {
+          id: match.id,
+          title: match.title,
+          body: match.body,
+          tema: match.tema,
+          evento: match.evento ?? null,
+        }
       : null;
   }
 
