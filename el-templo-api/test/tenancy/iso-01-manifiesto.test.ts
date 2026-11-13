@@ -429,6 +429,32 @@ import {
 // criterio que sus hermanas de /api/auth/me).
 // 2026-11-09: 555 -> 554 por la Tanda 2 de seguridad (hallazgo #19): se borra
 // `GET /api/sessions/:id` (sin clientes) junto con su línea del manifiesto.
+// 2026-11-11: 554 -> 555 por el Tesoro (fase 208-02): `POST
+// /api/admin/finance/cash-registers/treasury`, `tenant-scoped` (owner-only,
+// `assertTenant` + `tenantWhere`/`tenantValues` en el service).
+// 2026-11-11: 555 -> 556 por el arqueo de apertura (fase 208-04): `POST
+// /api/admin/finance/cash-registers/:id/opening-count`, `tenant-scoped`
+// (owner-only, `assertTenant` + `tenantWhere`/`tenantValues` en el service).
+// 2026-11-11: 556 -> 557 por los destinos del retiro (fase 208-06): `GET
+// /api/admin/finance/withdrawals/destinations`, `tenant-scoped` (`assertTenant`
+// + `tenantWhere` en el service; solo nombres, sin saldos).
+// 2026-11-11: 557 -> 563 por las rutas del gasto de Egresos (fase 209-07): `GET`
+// y `POST /api/admin/finance/expense-records`, `GET`/`PATCH
+// /expense-records/:id`, `GET /expense-records/form-options` y `POST
+// /expense-records/:id/void`, todas `tenant-scoped` (`assertTenant` + `tenantWhere`
+// en el service; el país sale del scope).
+// 2026-11-11: 563 -> 565 por los pagos de Egresos (fase 209-08): `POST
+// /expense-records/:id/payments` y `POST /expense-records/:id/payments/:paymentId/void`,
+// `tenant-scoped` (`assertTenant` + `tenantWhere` en el service; la cuenta y el
+// gasto ajenos dan la misma respuesta que los inexistentes).
+// 2026-11-11: 565 -> 568 por el Resumen de Egresos (fase 209-10): `GET
+// /expense-records/summary`, `/summary/detail` y `/summary/export`,
+// `tenant-scoped` (`assertTenant` + `tenantWhere` en el service; el país sale
+// del scope y el Excel sale del mismo cálculo que el JSON).
+// 2026-11-13: 568 -> 570 por el Resultado por sede (fase 211-02): GET
+// /expense-records/result y /result/export, tenant-scoped (assertTenant +
+// tenantWhere en el service; el país sale del scope y el Excel sale del mismo
+// cálculo que el JSON).
 // 2026-11-12: 554 -> 555 por el export a Excel de Renovaciones:
 // `GET /api/admin/renewals/export`, `tenant-scoped`.
 // 2026-11-12: 555 -> 556 por el formato evento de los avisos de TV:
@@ -440,7 +466,8 @@ import {
 // `templo-module`.
 // 2026-11-13: 559 -> 560 por el histórico de recategorizaciones multisucursal
 // (mig 0334): GET /api/admin/reports/multibranch-reassignments, `tenant-scoped`.
-const ENTRADAS_BASELINE = 560;
+// 2026-11-13: merge de Egresos (fases 208, 209 y 211: +16 rutas) en staging: 560 + 16 = 576.
+const ENTRADAS_BASELINE = 576;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -583,7 +610,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 560 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 576 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(

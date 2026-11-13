@@ -1,0 +1,596 @@
+/**
+ * Rutas del gasto de Egresos (fase 209, DI-13).
+ *
+ * Viven DENTRO del plugin finance (`registerExpenseRoutes` se llama desde
+ * `financeRoutes`): heredan el prefijo `/api/admin/finance` y el hook
+ * `onRequest` (autenticación, rol de lectura de finance y `attachCountryScope`).
+ *
+ * Permisos (DI-14): el hook del plugin deja pasar a `admin_sede` y `recepcion`
+ * (están en FINANCE_READ_ROLES), así que CADA handler chequea por su cuenta
+ * `EXPENSES_ROLES` (operar) o `EXPENSES_VOID_ROLES` (anular) y responde 403.
+ *
+ * Las rutas del Resultado por sede (fase 211) chequean `EXPENSES_RESULT_ROLES`
+ * (owner y admin), NO `EXPENSES_ROLES`: gestion opera Egresos pero no ve el
+ * Resultado.
+ *
+ * Sin el guard de alcance por caja (DI-07): da 404 a un no-owner en cuentas sin
+ * sede (bancos, Caja central) y gestion tiene que verlas al elegir de dónde
+ * pagar. Estas rutas validan país y gimnasio en el service (`assertTenant` acá
+ * + `tenantWhere` allá).
+ *
+ * País: sale del scope, nunca del body. El owner elige con `?country=` (lo lee
+ * el hook del plugin); el resto usa el suyo. Por id, el owner ve gastos de
+ * cualquier país y el resto solo los del suyo (un gasto de otro país es 404).
+ */
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import { handleServiceError } from "../shared/error-handler";
+import { BadRequestError } from "../shared/errors";
+import {
+  EXPENSES_RESULT_ROLES,
+  EXPENSES_ROLES,
+  EXPENSES_VOID_ROLES,
+} from "../shared/permissions";
+import { assertTenant } from "../shared/tenant";
+import type { TransactionService } from "./transaction-service";
+import type { CashRegisterService } from "./cash-register-service";
+import { ExpenseRecordService } from "./expense-record-service";
+import { ExpensePaymentService } from "./expense-payment-service";
+import { ExpenseSummaryService } from "./expense-summary-service";
+import { buildExpenseSummaryWorkbook } from "./expense-summary-excel";
+import { ExpenseResultService } from "./expense-result-service";
+import { buildExpenseResultWorkbook } from "./expense-result-excel";
+import { sendExcelReply } from "../shared/excel";
+import {
+  createExpenseRecordSchema,
+  expenseFormOptionsSchema,
+  expenseRecordIdSchema,
+  expenseResultExportSchema,
+  expenseResultSchema,
+  expenseSummaryDetailSchema,
+  expenseSummaryExportSchema,
+  expenseSummarySchema,
+  listExpenseRecordsSchema,
+  registerExpensePaymentSchema,
+  updateExpenseRecordSchema,
+  voidExpensePaymentSchema,
+  voidExpenseRecordSchema,
+} from "./expense-schemas";
+import type {
+  CreateExpenseRecordInput,
+  ExpenseCountry,
+  ExpenseListFilters,
+  ExpensePaymentStatus,
+  RegisterExpensePaymentInput,
+  UpdateExpenseRecordInput,
+} from "./expense-types";
+
+interface CountryQuery {
+  country?: ExpenseCountry;
+}
+
+interface IdParams {
+  id: number;
+}
+
+interface PaymentParams extends IdParams {
+  paymentId: number;
+}
+
+interface SummaryQuery extends CountryQuery {
+  month: string;
+}
+
+interface SummaryDetailQuery extends SummaryQuery {
+  destination: string;
+}
+
+interface ListQuery extends CountryQuery {
+  month?: string;
+  destination?: string;
+  costCenterId?: number;
+  status?: ExpensePaymentStatus | "por_pagar";
+  q?: string;
+  includeVoided?: boolean;
+  page?: number;
+  limit?: number;
+}
+
+const FORBIDDEN_MESSAGE = "No tenés permiso para Egresos";
+const FORBIDDEN_RESULT_MESSAGE = "Solo owner y admin ven el Resultado por sede";
+const FORBIDDEN_VOID_MESSAGE = "Solo owner y admin pueden anular en Egresos";
+const COUNTRY_ERROR_MESSAGE = "No se pudo determinar el país";
+
+/**
+ * Chequea el rol del handler. Devuelve `true` si ya respondió 403 (el handler
+ * tiene que cortar).
+ */
+function denyUnlessRole(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  roles: readonly string[],
+  message: string,
+): boolean {
+  if (roles.includes(request.user.role)) return false;
+  void reply.code(403).send({ error: "Acceso denegado", message });
+  return true;
+}
+
+/** País del request para escribir y listar: el del scope (owner: `?country=`). */
+function resolveCountry(request: FastifyRequest): ExpenseCountry {
+  const country = request.scope.country;
+  if (country === "AR" || country === "ES") return country;
+  throw new BadRequestError(COUNTRY_ERROR_MESSAGE);
+}
+
+/**
+ * País para leer o tocar un gasto por id: `null` para el owner (ve cualquier
+ * país), el del scope para el resto (un gasto de otro país es 404). Un no-owner
+ * sin país resoluble falla cerrado, nunca queda como "cualquiera".
+ */
+function byIdCountry(request: FastifyRequest): ExpenseCountry | null {
+  if (request.scope.isOwner) return null;
+  return resolveCountry(request);
+}
+
+function parseDestination(
+  destination: string | undefined,
+): ExpenseListFilters["destination"] {
+  if (destination === undefined) return undefined;
+  return destination === "casa_matriz" ? "casa_matriz" : Number(destination);
+}
+
+/**
+ * Destino del detalle del Resumen: `"total"`, `"casa_matriz"` o el id de una
+ * sede (el schema ya garantiza el formato).
+ */
+function parseSummaryDestination(
+  destination: string,
+): "total" | "casa_matriz" | number {
+  if (destination === "total" || destination === "casa_matriz") {
+    return destination;
+  }
+  return Number(destination);
+}
+
+export function registerExpenseRoutes(
+  fastify: FastifyInstance,
+  deps: {
+    transactionService: TransactionService;
+    cashRegisterService: CashRegisterService;
+  },
+): void {
+  const recordService = new ExpenseRecordService(fastify.db, fastify.log);
+  const paymentService = new ExpensePaymentService(
+    fastify.db,
+    fastify.log,
+    deps.transactionService,
+    deps.cashRegisterService,
+    recordService,
+  );
+
+  // GET /expense-records/form-options — cuentas (sin saldos), destinos del
+  // reparto y rubros activos del país. Estática: va ANTES de /:id.
+  fastify.get<{ Querystring: CountryQuery }>(
+    "/expense-records/form-options",
+    { schema: expenseFormOptionsSchema },
+    async (request, reply) => {
+      try {
+        if (denyUnlessRole(request, reply, EXPENSES_ROLES, FORBIDDEN_MESSAGE)) {
+          return reply;
+        }
+        const ctx = assertTenant(
+          request.scope,
+          "finance.expense-records.form-options",
+        );
+        const country = resolveCountry(request);
+        return await paymentService.getFormOptions(ctx, country);
+      } catch (err: unknown) {
+        handleServiceError(
+          err,
+          reply,
+          request.log,
+          "expense records form options",
+        );
+        return reply;
+      }
+    },
+  );
+
+  // Resumen mensual (DI-12, DI-13). Estáticas: van ANTES de /:id.
+  const summaryService = new ExpenseSummaryService(
+    fastify.db,
+    fastify.log,
+    recordService,
+  );
+
+  // GET /expense-records/summary — Resumen del mes por destino (una columna por
+  // sede, Casa Matriz solo en Argentina y el Total). `?month=AAAA-MM` obligatorio.
+  fastify.get<{ Querystring: SummaryQuery }>(
+    "/expense-records/summary",
+    { schema: expenseSummarySchema },
+    async (request, reply) => {
+      try {
+        if (denyUnlessRole(request, reply, EXPENSES_ROLES, FORBIDDEN_MESSAGE)) {
+          return reply;
+        }
+        const ctx = assertTenant(
+          request.scope,
+          "finance.expense-records.summary",
+        );
+        const country = resolveCountry(request);
+        return await summaryService.getSummary(
+          ctx,
+          country,
+          request.query.month,
+        );
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "expense summary");
+        return reply;
+      }
+    },
+  );
+
+  // GET /expense-records/summary/detail — detalle de un destino (o del Total)
+  // por rubro y concepto. `?destination=` es un id de sede, "casa_matriz" o "total".
+  fastify.get<{ Querystring: SummaryDetailQuery }>(
+    "/expense-records/summary/detail",
+    { schema: expenseSummaryDetailSchema },
+    async (request, reply) => {
+      try {
+        if (denyUnlessRole(request, reply, EXPENSES_ROLES, FORBIDDEN_MESSAGE)) {
+          return reply;
+        }
+        const ctx = assertTenant(
+          request.scope,
+          "finance.expense-records.summary.detail",
+        );
+        const country = resolveCountry(request);
+        return await summaryService.getDetail(
+          ctx,
+          country,
+          request.query.month,
+          parseSummaryDestination(request.query.destination),
+        );
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "expense summary detail");
+        return reply;
+      }
+    },
+  );
+
+  // GET /expense-records/summary/export — el mismo Resumen en un .xlsx (hojas
+  // "Resumen" y "Detalle"), desde el mismo cálculo que el JSON.
+  fastify.get<{ Querystring: SummaryQuery }>(
+    "/expense-records/summary/export",
+    { schema: expenseSummaryExportSchema },
+    async (request, reply) => {
+      try {
+        if (denyUnlessRole(request, reply, EXPENSES_ROLES, FORBIDDEN_MESSAGE)) {
+          return reply;
+        }
+        const ctx = assertTenant(
+          request.scope,
+          "finance.expense-records.summary.export",
+        );
+        const country = resolveCountry(request);
+        const { month } = request.query;
+        const data = await summaryService.getExportData(ctx, country, month);
+        await sendExcelReply(
+          buildExpenseSummaryWorkbook(data),
+          reply,
+          `egresos-resumen-${country}-${month}`,
+        );
+        return reply;
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "export expense summary");
+        return reply;
+      }
+    },
+  );
+
+  // Resultado por sede (fase 211, DI-01/DI-09/DI-10). Solo owner y admin.
+  // Reusa la MISMA instancia del Resumen: el costo sale de su `computeMonth`.
+  // Estáticas: van ANTES de /:id.
+  const resultService = new ExpenseResultService(
+    fastify.db,
+    fastify.log,
+    summaryService,
+    deps.transactionService,
+  );
+
+  // GET /expense-records/result — cobros, costo y resultado del mes por sede,
+  // Casa Matriz (solo AR) y Consolidado. `?month=AAAA-MM` obligatorio.
+  fastify.get<{ Querystring: SummaryQuery }>(
+    "/expense-records/result",
+    { schema: expenseResultSchema },
+    async (request, reply) => {
+      try {
+        if (
+          denyUnlessRole(
+            request,
+            reply,
+            EXPENSES_RESULT_ROLES,
+            FORBIDDEN_RESULT_MESSAGE,
+          )
+        ) {
+          return reply;
+        }
+        const ctx = assertTenant(
+          request.scope,
+          "finance.expense-records.result",
+        );
+        const country = resolveCountry(request);
+        return await resultService.getResult(ctx, country, request.query.month);
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "expense result");
+        return reply;
+      }
+    },
+  );
+
+  // GET /expense-records/result/export — el mismo Resultado en un .xlsx (hoja
+  // "Resultado"), desde la misma función que el JSON.
+  fastify.get<{ Querystring: SummaryQuery }>(
+    "/expense-records/result/export",
+    { schema: expenseResultExportSchema },
+    async (request, reply) => {
+      try {
+        if (
+          denyUnlessRole(
+            request,
+            reply,
+            EXPENSES_RESULT_ROLES,
+            FORBIDDEN_RESULT_MESSAGE,
+          )
+        ) {
+          return reply;
+        }
+        const ctx = assertTenant(
+          request.scope,
+          "finance.expense-records.result.export",
+        );
+        const country = resolveCountry(request);
+        const { month } = request.query;
+        const result = await resultService.getResult(ctx, country, month);
+        await sendExcelReply(
+          buildExpenseResultWorkbook(result),
+          reply,
+          `egresos-resultado-${country}-${month}`,
+        );
+        return reply;
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "export expense result");
+        return reply;
+      }
+    },
+  );
+
+  // GET /expense-records — listado paginado con filtros. Lectura.
+  fastify.get<{ Querystring: ListQuery }>(
+    "/expense-records",
+    { schema: listExpenseRecordsSchema },
+    async (request, reply) => {
+      try {
+        if (denyUnlessRole(request, reply, EXPENSES_ROLES, FORBIDDEN_MESSAGE)) {
+          return reply;
+        }
+        const ctx = assertTenant(request.scope, "finance.expense-records.list");
+        const country = resolveCountry(request);
+        const { destination, ...query } = request.query;
+        return await recordService.list(ctx, {
+          month: query.month,
+          costCenterId: query.costCenterId,
+          status: query.status,
+          q: query.q,
+          includeVoided: query.includeVoided,
+          page: query.page,
+          limit: query.limit,
+          country,
+          destination: parseDestination(destination),
+        });
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "list expense records");
+        return reply;
+      }
+    },
+  );
+
+  // POST /expense-records — alta. 201 si lo creó, 200 si la `idempotencyKey`
+  // ya existía (devuelve el mismo gasto).
+  fastify.post<{ Body: CreateExpenseRecordInput; Querystring: CountryQuery }>(
+    "/expense-records",
+    { schema: createExpenseRecordSchema },
+    async (request, reply) => {
+      try {
+        if (denyUnlessRole(request, reply, EXPENSES_ROLES, FORBIDDEN_MESSAGE)) {
+          return reply;
+        }
+        const ctx = assertTenant(
+          request.scope,
+          "finance.expense-records.create",
+        );
+        const country = resolveCountry(request);
+        const { record, created } = await recordService.create(
+          ctx,
+          country,
+          request.body,
+          request.user.userId,
+        );
+        return reply.code(created ? 201 : 200).send({ record });
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "create expense record");
+        return reply;
+      }
+    },
+  );
+
+  // GET /expense-records/:id — detalle con pagos e historial. Lectura.
+  fastify.get<{ Params: IdParams; Querystring: CountryQuery }>(
+    "/expense-records/:id",
+    { schema: expenseRecordIdSchema },
+    async (request, reply) => {
+      try {
+        if (denyUnlessRole(request, reply, EXPENSES_ROLES, FORBIDDEN_MESSAGE)) {
+          return reply;
+        }
+        const ctx = assertTenant(
+          request.scope,
+          "finance.expense-records.detail",
+        );
+        const record = await recordService.getDetail(ctx, request.params.id, {
+          country: byIdCountry(request),
+        });
+        return { record };
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "expense record detail");
+        return reply;
+      }
+    },
+  );
+
+  // PATCH /expense-records/:id — edición (DI-09).
+  fastify.patch<{
+    Params: IdParams;
+    Body: UpdateExpenseRecordInput;
+    Querystring: CountryQuery;
+  }>(
+    "/expense-records/:id",
+    { schema: updateExpenseRecordSchema },
+    async (request, reply) => {
+      try {
+        if (denyUnlessRole(request, reply, EXPENSES_ROLES, FORBIDDEN_MESSAGE)) {
+          return reply;
+        }
+        const ctx = assertTenant(
+          request.scope,
+          "finance.expense-records.update",
+        );
+        const record = await recordService.update(
+          ctx,
+          request.params.id,
+          request.body,
+          request.user.userId,
+          { country: byIdCountry(request) },
+        );
+        return { record };
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "update expense record");
+        return reply;
+      }
+    },
+  );
+
+  // POST /expense-records/:id/void — anulación (DI-10). Solo owner y admin;
+  // 409 si el gasto tiene pagos vigentes.
+  fastify.post<{
+    Params: IdParams;
+    Body: { reason: string };
+    Querystring: CountryQuery;
+  }>(
+    "/expense-records/:id/void",
+    { schema: voidExpenseRecordSchema },
+    async (request, reply) => {
+      try {
+        if (
+          denyUnlessRole(
+            request,
+            reply,
+            EXPENSES_VOID_ROLES,
+            FORBIDDEN_VOID_MESSAGE,
+          )
+        ) {
+          return reply;
+        }
+        const ctx = assertTenant(request.scope, "finance.expense-records.void");
+        const record = await recordService.void(
+          ctx,
+          request.params.id,
+          request.body.reason,
+          request.user.userId,
+          { country: byIdCountry(request) },
+        );
+        return { record };
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "void expense record");
+        return reply;
+      }
+    },
+  );
+
+  // POST /expense-records/:id/payments — registrar un pago (DI-04, DI-05,
+  // DI-13). Owner, admin y gestion. gestion puede pagar desde cualquier cuenta
+  // activa del gimnasio aunque no vea su saldo (DI-07): la ruta no devuelve
+  // saldos. 201 si creó el pago, 200 si la `idempotencyKey` ya existía.
+  fastify.post<{
+    Params: IdParams;
+    Body: RegisterExpensePaymentInput;
+    Querystring: CountryQuery;
+  }>(
+    "/expense-records/:id/payments",
+    { schema: registerExpensePaymentSchema },
+    async (request, reply) => {
+      try {
+        if (denyUnlessRole(request, reply, EXPENSES_ROLES, FORBIDDEN_MESSAGE)) {
+          return reply;
+        }
+        const ctx = assertTenant(
+          request.scope,
+          "finance.expense-records.payments.create",
+        );
+        const { record, payment, created } =
+          await paymentService.registerPayment(
+            ctx,
+            request.params.id,
+            request.body,
+            request.user.userId,
+            { country: byIdCountry(request) },
+          );
+        return reply.code(created ? 201 : 200).send({ record, payment });
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "register expense payment");
+        return reply;
+      }
+    },
+  );
+
+  // POST /expense-records/:id/payments/:paymentId/void — anular un pago
+  // (DI-10). Solo owner y admin: gestion carga pagos pero no los anula.
+  fastify.post<{
+    Params: PaymentParams;
+    Body: { reason: string };
+    Querystring: CountryQuery;
+  }>(
+    "/expense-records/:id/payments/:paymentId/void",
+    { schema: voidExpensePaymentSchema },
+    async (request, reply) => {
+      try {
+        if (
+          denyUnlessRole(
+            request,
+            reply,
+            EXPENSES_VOID_ROLES,
+            FORBIDDEN_VOID_MESSAGE,
+          )
+        ) {
+          return reply;
+        }
+        const ctx = assertTenant(
+          request.scope,
+          "finance.expense-records.payments.void",
+        );
+        const record = await paymentService.voidPayment(
+          ctx,
+          request.params.id,
+          request.params.paymentId,
+          request.body.reason,
+          request.user.userId,
+          { country: byIdCountry(request) },
+        );
+        return { record };
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "void expense payment");
+        return reply;
+      }
+    },
+  );
+}

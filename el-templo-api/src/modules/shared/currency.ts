@@ -15,3 +15,25 @@ export type CountryCurrency = "ARS" | "EUR";
 export function currencyForCountry(country: string): CountryCurrency {
   return country === "ES" ? "EUR" : "ARS";
 }
+
+/**
+ * Monedas en que puede existir una caja o cuenta (fase 208, DI-02): ARS, EUR y
+ * USD. Los cobros siguen en la moneda del plan (ARS/EUR) y la moneda de una
+ * SEDE sigue saliendo del país (`currencyForCountry`). Lista única: la usan los
+ * schemas Ajv de las altas de cuentas y el espejo del admin.
+ */
+export const SUPPORTED_ACCOUNT_CURRENCIES = ["ARS", "EUR", "USD"] as const;
+
+export type AccountCurrency = (typeof SUPPORTED_ACCOUNT_CURRENCIES)[number];
+
+export function isSupportedAccountCurrency(
+  value: string,
+): value is AccountCurrency {
+  return (SUPPORTED_ACCOUNT_CURRENCIES as readonly string[]).includes(value);
+}
+
+/** Schema Ajv de la moneda de una cuenta (enum cerrado, mayúsculas). */
+export const ACCOUNT_CURRENCY_SCHEMA = {
+  type: "string",
+  enum: SUPPORTED_ACCOUNT_CURRENCIES,
+} as const;

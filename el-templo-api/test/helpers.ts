@@ -305,6 +305,11 @@ const TABLES_TO_CLEAN = [
   // Phase 117: finance tables were missing here, leaking financial_transactions
   // across tests and polluting exact-total assertions (revenue per currency).
   // FK checks are disabled below, so order vs subscriptions/balances is moot.
+  // Egresos (0331): FK a financial_transactions, cash_registers, cost_centers y
+  // users → antes que ellas.
+  schema.expensePayments,
+  schema.expenseAllocations,
+  schema.expenseRecords,
   schema.transactionLinks,
   schema.balances,
   schema.financialTransactions,

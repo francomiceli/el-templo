@@ -613,7 +613,7 @@ describe("Verificador de uniques e índices por tenant — gate fail-closed (CON
     ).toEqual([]);
   });
 
-  it("Test 10: el reporte cierra en 0 discrepancias y cubre las 132 tablas gym-owned", () => {
+  it("Test 10: el reporte cierra en 0 discrepancias y cubre las 135 tablas gym-owned", () => {
     // El reporte completo va DENTRO del mensaje: un fallo en CI trae el detalle
     // en el log y nadie tiene que reproducirlo local para saber qué pasó.
     expect(
@@ -650,14 +650,15 @@ describe("Verificador de uniques e índices por tenant — gate fail-closed (CON
     // + office_auto_topic_mutes (fase 205, 2026-11-04, tenancy-native en la 0321) = 129.
     // + stretch_catalog y stretch_offers (fase 213, 2026-11-11, mig 0340, nacen strict) = 131.
     // + branch_reassignments (historico de recategorizaciones, 2026-11-13, mig 0334, nace strict) = 132.
+    // + expense_records, expense_allocations, expense_payments (fase 209, mig 0331) = 135.
     expect(
       report.gymOwnedChecked,
-      `El verificador solo pudo mirar ${report.gymOwnedChecked} de las 132 tablas gym-owned ` +
+      `El verificador solo pudo mirar ${report.gymOwnedChecked} de las 135 tablas gym-owned ` +
         `(87 de la fase 167 + session_week_regime de la 159 + 3 de partners de la 179 ` +
         `+ 3 de comunicaciones de la 193 + staff_shifts de la 0223 + cash_counts de la 0226 ` +
-        `+ 2 de renovaciones de la 0237 + trial_followups de la 0241 + invitations de la 0255 + 2 de novedades de la 0275 + sponsor_views de la 0279 + extra_blocks_completed de la 0286 + 10 de conquer de la 0290-0291 + 2 de conquer de la 0298-0299 + wellhub_conversions de la 0300 + signup_attributions de la 0272 + meta_capi_events y ad_spend_daily de la 0273 + search_console_stats de la 0274 + weekly_board_snapshots y weekly_board_leads de la 0319 + 5 de office de la 0320 + office_auto_topic_mutes de la 0321 + stretch_catalog y stretch_offers de la fase 213 mig 0340): faltan tablas en ` +
+        `+ 2 de renovaciones de la 0237 + trial_followups de la 0241 + invitations de la 0255 + 2 de novedades de la 0275 + sponsor_views de la 0279 + extra_blocks_completed de la 0286 + 10 de conquer de la 0290-0291 + 2 de conquer de la 0298-0299 + wellhub_conversions de la 0300 + signup_attributions de la 0272 + meta_capi_events y ad_spend_daily de la 0273 + search_console_stats de la 0274 + weekly_board_snapshots y weekly_board_leads de la 0319 + 5 de office de la 0320 + office_auto_topic_mutes de la 0321 + stretch_catalog y stretch_offers de la fase 213 mig 0340 + 3 de egresos de la 0331): faltan tablas en ` +
         `${report.database} y el resultado no es concluyente.`,
-    ).toBe(132);
+    ).toBe(135);
     expect(
       report.uniquesChecked,
       `El verificador evaluó ${report.uniquesChecked} uniques de tablas gym-owned. Tienen que ` +

@@ -24,6 +24,7 @@ import {
   CashCountService,
 } from ".";
 import { SubscriptionService } from "../subscriptions/service";
+import { registerExpenseRoutes } from "./expense-routes";
 import { EnrollmentService } from "../programs/enrollment-service";
 import { handleServiceError } from "../shared/error-handler";
 import {
@@ -43,6 +44,7 @@ import {
   pendingTrayExportSchema,
   cashBalancesSchema,
   createEfectivoCajaSchema,
+  createTreasurySchema,
   costCentersSchema,
   cashBalancesExportSchema,
   movementsHistorySchema,
@@ -57,6 +59,7 @@ import {
   costCentersAllSchema,
   pendingWithdrawalsSchema,
   registerWithdrawalSchema,
+  withdrawalDestinationsSchema,
   listWithdrawalsSchema,
   withdrawalByIdSchema,
   incomeByBranchSchema,
@@ -64,6 +67,7 @@ import {
   registerCashCountSchema,
   listCashCountsSchema,
   setChangeFundSchema,
+  openingCountSchema,
 } from "./schemas";
 import {
   FINANCE_READ_ROLES,
@@ -71,6 +75,7 @@ import {
   FINANCE_VOID_ROLES,
   FINANCE_ADJUSTMENT_ROLES,
   ADMIN_ROLES,
+  OWNER_ROLES,
 } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
 import {
@@ -781,9 +786,10 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // ===================================================================
-  // Retiros de caja (feedback 2026-09-07). Un retiro = expense "Retiros" con
-  // responsable obligatorio y, en efectivo, los cobros que se llevó. La
-  // anulación reusa POST /expenses/:id/void (libera los cobros).
+  // Retiros de caja (feedback 2026-09-07). Desde la fase 208 un retiro nuevo
+  // = traslado a Caja central/Tesoro con responsable obligatorio y, en
+  // efectivo, los cobros que se llevó (los viejos son un expense "Retiros").
+  // La anulación reusa POST /expenses/:id/void (libera los cobros).
   // ===================================================================
 
   // GET /withdrawals/pending?cashRegisterId=&dateTo= — lo que debería estar
@@ -818,6 +824,44 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         );
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "withdrawals pending");
+        return reply;
+      }
+    },
+  );
+
+  // GET /withdrawals/destinations?cashRegisterId= — Central/Tesoros adonde se
+  // puede retirar desde esa caja (fase 208). Solo nombres, sin saldos: aunque
+  // Central y Tesoro sean owner-only en Saldos, quien carga retiros los elige.
+  // Va ANTES de /withdrawals/:id. Lectura.
+  fastify.get<{ Querystring: { cashRegisterId: number } }>(
+    "/withdrawals/destinations",
+    { schema: withdrawalDestinationsSchema },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(
+          request.scope,
+          "finance.withdrawals.destinations",
+        );
+        // El alcance se evalúa sobre el ORIGEN (la caja desde la que se retira).
+        const scopeErr = await enforceCajaScope(
+          ctx,
+          request.query.cashRegisterId,
+          request.scope.isOwner,
+          request.scope.country ?? null,
+        );
+        if (scopeErr) {
+          return reply
+            .code(scopeErr.code)
+            .send({ error: "No encontrado", message: scopeErr.message });
+        }
+        const destinations = await withdrawalService.listDestinations(
+          ctx,
+          request.query.cashRegisterId,
+          enforcedBranchIds(request.scope) ?? undefined,
+        );
+        return { destinations };
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "withdrawal destinations");
         return reply;
       }
     },
@@ -949,6 +993,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           ctx,
           {
             cajaId: request.body.cajaId,
+            destinationCashRegisterId: request.body.destinationCashRegisterId,
             responsibleName: request.body.responsibleName,
             transactionDate: request.body.transactionDate,
             notes: request.body.notes ?? null,
@@ -1112,6 +1157,54 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.send(result);
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "set change fund");
+      }
+    },
+  );
+
+  // Arqueo de apertura (fase 208, DI-06): el owner deja la Caja central, un
+  // Tesoro o una cuenta banco (209.1) en el saldo real, con un ajuste trazable.
+  // OWNER-ONLY.
+  fastify.post<{
+    Params: { id: number };
+    Body: { countedAmount: number; notes?: string | null };
+  }>(
+    "/cash-registers/:id/opening-count",
+    { schema: openingCountSchema },
+    async (request, reply) => {
+      try {
+        if (!(OWNER_ROLES as readonly string[]).includes(request.user.role)) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "Solo el dueño puede registrar el arqueo de apertura",
+          });
+        }
+        const ctx = assertTenant(
+          request.scope,
+          "finance.cash-registers.opening-count",
+        );
+        const scopeErr = await enforceCajaScope(
+          ctx,
+          request.params.id,
+          request.scope.isOwner,
+          request.scope.country ?? null,
+        );
+        if (scopeErr) {
+          return reply
+            .code(scopeErr.code)
+            .send({ error: "No encontrado", message: scopeErr.message });
+        }
+        const openingCount = await movementService.registerOpeningCount(
+          ctx,
+          request.params.id,
+          {
+            countedAmount: request.body.countedAmount,
+            notes: request.body.notes ?? null,
+          },
+          request.user.userId,
+        );
+        return reply.code(201).send({ openingCount });
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "register opening count");
       }
     },
   );
@@ -1972,6 +2065,34 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
+  // POST /cash-registers/treasury — crear el Tesoro de una moneda (fase 208,
+  // DI-01). OWNER-ONLY, como la Caja central: es plata sin sede y el
+  // openingBalance entra directo al saldo firme. A lo sumo uno activo por
+  // (gimnasio, moneda): lo sostiene el service.
+  fastify.post<{
+    Body: { name: string; currency: string; openingBalance?: number };
+  }>(
+    "/cash-registers/treasury",
+    { schema: createTreasurySchema },
+    async (request, reply) => {
+      try {
+        if (!(OWNER_ROLES as readonly string[]).includes(request.user.role)) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "Solo el dueño puede crear un Tesoro",
+          });
+        }
+        const caja = await cashRegisterService.createTreasury(
+          assertTenant(request.scope, "finance.cash-registers.treasury"),
+          request.body,
+        );
+        return reply.code(201).send({ caja });
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "create treasury");
+      }
+    },
+  );
+
   // PATCH /cash-registers/:id — editar cuenta banco (CTA-01, D-04 moneda fija)
   fastify.patch<{ Params: { id: number }; Body: UpdateBankAccountInput }>(
     "/cash-registers/:id",
@@ -2108,7 +2229,10 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         for (const row of rows) {
           sheet.addRow({
             caja: row.name,
-            tipo: CAJA_TYPE_LABELS_ES[row.type] ?? row.type,
+            // El Tesoro se distingue de Central (DI-09): Central sigue "Efectivo".
+            tipo: row.isTreasury
+              ? "Tesoro"
+              : (CAJA_TYPE_LABELS_ES[row.type] ?? row.type),
             moneda: row.currency,
             firme: row.firmeBalance,
             pendiente: row.pendienteAmount,
@@ -2257,7 +2381,13 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         for (const row of result.rows) {
           sheet.addRow({
             fecha: row.transactionDate,
-            tipo: KIND_LABELS_ES[row.kind] ?? row.kind,
+            // Fase 208: las patas de un retiro nuevo (traslado con
+            // responsable) se rotulan "Retiro". Los retiros viejos siguen
+            // "Egreso" (DI-09: nada de lo existente cambia).
+            tipo:
+              row.kind === "cash_transfer" && row.responsibleName
+                ? "Retiro"
+                : (KIND_LABELS_ES[row.kind] ?? row.kind),
             direccion: DIRECTION_LABELS_ES[row.direction] ?? row.direction,
             concepto: row.notes ?? "",
             monto: row.amount,
@@ -2286,6 +2416,10 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
       }
     },
   );
+
+  // Fase 209 (Egresos): rutas del gasto (`/expense-records...`). Se registran
+  // dentro de este plugin para heredar el prefijo y el hook `onRequest`.
+  registerExpenseRoutes(fastify, { transactionService, cashRegisterService });
 };
 
 // =============================================================================
@@ -2345,6 +2479,7 @@ const PAYMENT_METHOD_LABELS_ES: Record<PaymentMethod, string> = {
   aura_credit: "AURA",
   internal: "Interno",
   direct_debit: "Domiciliación",
+  cheque: "Cheque",
 };
 
 /**

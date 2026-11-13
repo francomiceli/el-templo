@@ -172,13 +172,28 @@ export const EXCEPCIONES_NOMBRADAS: Readonly<Record<string, string>> = {
  * que hace que 0 rutas cubiertas se ponga tan rojo como 37.
  */
 // 2026-09-08: 44 -> 50 por el arqueo / cierre de caja (coach-load ×2, cajas ×4).
-const CASOS_BASELINE = 50;
+// 2026-11-11: 50 -> 51 por el alta de Tesoro (fase 208-02), con su par
+// aislamiento+control en iso-03-finance-cajas.
+// 2026-11-11: 51 -> 52 por el arqueo de apertura (fase 208-04), con su par
+// aislamiento+control en iso-03-finance-cajas.
+// 2026-11-11: 52 -> 53 por los destinos del retiro (fase 208-06), con su par
+// aislamiento+control en iso-03-finance-cajas.
+// 2026-11-11: 53 -> 59 por las 6 rutas del gasto de Egresos (fase 209-07), con su
+// par aislamiento+control cada una en iso-03-finance-egresos.
+// 2026-11-11: 59 -> 61 por los 2 pagos de Egresos (fase 209-08: registrar y anular),
+// con su par aislamiento+control cada una en iso-03-finance-egresos.
+// 2026-11-11: 61 -> 64 por el Resumen de Egresos (fase 209-10: resumen, detalle y
+// export a Excel), con su par aislamiento+control cada una en iso-03-finance-egresos.
+// 2026-11-13: 64 -> 66 por el Resultado por sede (fase 211-03: resultado y export a
+// Excel), con su par aislamiento+control cada una en iso-03-finance-egresos.
+const CASOS_BASELINE = 66;
 
-/** Los tres archivos de la batería ISO-03, en el orden en que se escribieron. */
+/** Los archivos de la batería ISO-03, en el orden en que se escribieron. */
 const ARCHIVOS_BATERIA = [
   "iso-03-finance-cajas.test.ts", // plan 172-17 — 14 rutas
   "iso-03-finance-transacciones.test.ts", // plan 172-18 — 13 rutas
   "iso-03-finance-coach-load.test.ts", // plan 172-19 — 11 rutas
+  "iso-03-finance-egresos.test.ts", // planes 209-07, 209-08, 209-10 y 211-03 — Egresos
 ] as const;
 
 /**
@@ -315,7 +330,7 @@ describe("cobertura de la batería ISO-03 — contra el manifiesto real", () => 
     ).toEqual([]);
   });
 
-  it("la batería cubre exactamente las 50 rutas finance del baseline", () => {
+  it("la batería cubre exactamente las rutas finance del baseline", () => {
     expect(
       RUTAS_FINANCE.length,
       `El manifiesto tiene ${RUTAS_FINANCE.length} rutas finance ` +
@@ -347,8 +362,8 @@ describe("cobertura de la batería ISO-03 — contra el manifiesto real", () => 
         claves.length,
         `${archivo} no declaró ni una sola ruta en sus describe. O el archivo ` +
           `se vació, o se renombró, o sus describe perdieron la clave del ` +
-          `manifiesto. Los tres archivos aportan (14 + 13 + 11 = ` +
-          `${CASOS_BASELINE}), así que un 0 acá es una lectura rota, no una ` +
+          `manifiesto. Los cuatro archivos aportan (cajas + transacciones + ` +
+          `coach-load + egresos = ${CASOS_BASELINE}), así que un 0 acá es una lectura rota, no una ` +
           `decisión.`,
       ).toBeGreaterThan(0);
     }

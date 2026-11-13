@@ -149,6 +149,14 @@ export interface CreateTransactionInput {
    * de crash. NULL para todo path admin/histórico (FK nullable a users.id).
    */
   createdMemberId?: number | null;
+  /**
+   * Fase 207 (D-14 / DI-07): sede del alumno AL MOMENTO del cobro (snapshot en
+   * `financial_transactions.member_branch_id`). Override INTERNO (solo lo pasa
+   * `correct()`), NUNCA del body. `undefined` = create() toma `users.branch_id`
+   * del socio dentro de la misma tx. `null` = sin sede de alumno (egresos y
+   * traslados sin socio).
+   */
+  memberBranchId?: number | null;
   links: CreateTransactionLinkInput[];
 }
 
@@ -338,6 +346,8 @@ export interface FinanceSummary {
     aura_credit: number;
     internal: number;
     direct_debit: number;
+    // fase 208: siempre 0 mientras los cobros no acepten cheque (medio de egresos)
+    cheque: number;
   };
   revenueByBranch: Array<{
     branchId: number;
@@ -420,6 +430,12 @@ export interface RegisterExpenseInput {
   cajaId: number;
   amount: number;
   costCenterId: number;
+  /**
+   * Fase 208: medio con el que se paga el egreso. Solo a nivel service: la ruta
+   * POST /expenses no lo expone en la 208 y sigue en `internal` (exento de la
+   * regla medio-cuenta). La 209 lo abre para los pagos.
+   */
+  paymentMethod?: PaymentMethod;
   notes?: string | null;
 }
 
@@ -457,6 +473,27 @@ export interface MovementDetail {
   adjustmentTxId: number | null; // ajuste de reconciliación (solo si counted != expected)
   expectedAmount: number; // saldo firme de origen al momento (D-04)
   countedAmount: number | null; // conteo físico, si se proveyó
+}
+
+/**
+ * Fase 208 (DI-06): input del arqueo de apertura de Caja central / Tesoro. El
+ * owner informa el efectivo real contado; el servicio deja el saldo firme en
+ * ese valor con un ajuste trazable.
+ */
+export interface OpeningCountInput {
+  countedAmount: number;
+  notes?: string | null;
+}
+
+/** Fase 208 (DI-06): resultado del arqueo de apertura. */
+export interface OpeningCountResult {
+  cashRegisterId: number;
+  expectedAmount: number;
+  countedAmount: number;
+  difference: number;
+  adjustmentTxId: number | null;
+  /** Saldo firme de la caja leido despues del commit. */
+  firmeBalance: number;
 }
 
 // -- Phase 141: reportes para la admin (REP-01 / REP-02) --------------------
@@ -523,6 +560,11 @@ export interface CajaSaldoRow {
   type: "efectivo" | "banco";
   branchId: number | null;
   currency: string;
+  /**
+   * Fase 208 (DI-01): true para el Tesoro (efectivo sin sede, aparte de la Caja
+   * central). Central y el resto de las cajas: false.
+   */
+  isTreasury: boolean;
   firmeBalance: number;
   pendienteAmount: number;
   /** Arqueo (2026-09-08): fondo de cambio fijo de la caja (0 en banco). */
@@ -582,6 +624,11 @@ export interface MovEgresoItem {
   // Phase 147 (EGR-03): nombre del centro de costo (LEFT JOIN cost_centers).
   // Solo las filas expense lo tienen; el resto de kinds queda null.
   costCenterName: string | null;
+  /**
+   * Fase 208: responsable de un retiro (viejo = expense, nuevo = patas del
+   * traslado). null en el resto de las filas.
+   */
+  responsibleName: string | null;
 }
 
 /**
@@ -695,14 +742,30 @@ export interface CashRegisterBalance {
 }
 
 // -- Retiros de caja (feedback 2026-09-07, rediseño 2026-09-23) -------------
-// Un retiro es un `expense` con centro de costo "Retiros" + responsable
-// obligatorio. En efectivo lleva monto libre con tope en el saldo firme,
+// Un retiro es un traslado a Central/Tesoro con responsable obligatorio (fase
+// 208; los retiros viejos son un `expense` con centro de costo "Retiros"). En efectivo lleva monto libre con tope en el saldo firme,
 // conteo opcional (ajuste por faltante/sobrante) y se auto-vincula a los
 // cobros firmes sin retiro (procedencia: un cobro retirado no se anula ni se
 // vuelve a retirar). Ver withdrawal-service.ts.
 
+/**
+ * Destino posible de un retiro (GET /withdrawals/destinations): solo
+ * identificación, sin saldos (Central y Tesoro son owner-only en Saldos).
+ */
+export interface WithdrawalDestination {
+  id: number;
+  name: string;
+  isTreasury: boolean;
+  currency: string;
+}
+
 export interface RegisterWithdrawalInput {
   cajaId: number;
+  /**
+   * Fase 208 (D-19): Caja central o Tesoro adonde va la plata. Obligatorio:
+   * el retiro es un traslado (la caja de origen baja y el destino sube).
+   */
+  destinationCashRegisterId: number;
   /** Quién se llevó la plata. Texto libre, obligatorio. */
   responsibleName: string;
   /** YYYY-MM-DD. Default hoy. Nunca futura. */
@@ -843,6 +906,14 @@ export interface WithdrawalListItem {
   notes: string | null;
   /** Cantidad de cobros vinculados (0 en retiros de cuenta banco). */
   paymentCount: number;
+  /**
+   * Formato del retiro (fase 208): "legacy_expense" = expense con responsable
+   * (los retiros viejos), "transfer" = traslado con responsable (los nuevos).
+   */
+  format: "legacy_expense" | "transfer";
+  /** Caja destino del retiro nuevo (Central o Tesoro). null en los viejos. */
+  destinationCashRegisterId: number | null;
+  destinationName: string | null;
   voidedAt: string | null;
   voidReason: string | null;
   createdAt: string; // ISO

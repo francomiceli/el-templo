@@ -19,6 +19,7 @@ import {
   ConflictError,
   NotFoundError,
 } from "../shared/errors";
+import { isSupportedAccountCurrency } from "../shared/currency";
 import { firmMoneyConditions } from "./firm-money";
 import {
   tenantValues,
@@ -52,7 +53,7 @@ export class CashRegisterService {
    * Rule:
    *   - aura_credit / internal → NULL (not firm cash in any caja).
    *   - transfer / card /      → banco caja of `currency` (resolved BY currency,
-   *     direct_debit             so a currency mismatch is structurally
+   *     direct_debit / cheque    so a currency mismatch is structurally
    *                              impossible — no guard needed). La domiciliación
    *                              entra por el banco igual que una transferencia:
    *                              nunca toca la caja efectivo de la sede.
@@ -79,7 +80,9 @@ export class CashRegisterService {
     if (
       paymentMethod === "transfer" ||
       paymentMethod === "card" ||
-      paymentMethod === "direct_debit"
+      paymentMethod === "direct_debit" ||
+      // Fase 208 (DI-03): el cheque solo se opera con cuenta banco.
+      paymentMethod === "cheque"
     ) {
       // Phase 146 (CAJA-03 / LOW 1): con multiples cajas banco de la misma moneda
       // (Banco ARS + Galicia + Mercado Pago), el destructuring [banco] sin orden
@@ -117,11 +120,30 @@ export class CashRegisterService {
         "No se puede resolver la caja efectivo sin sucursal",
       );
     }
+    // Fase 208 (DI-02): una sede puede tener caja efectivo ARS y USD a la vez.
+    // Sin filtrar la moneda, el `.limit(1)` elegía una al azar y rebotaba cobros
+    // legítimos con "Moneda inconsistente". Se resuelve por moneda y orden de id
+    // (determinista); la guarda de moneda queda solo para elegir el mensaje.
     const [efectivo] = await this.db
-      .select({
-        id: schema.cashRegisters.id,
-        currency: schema.cashRegisters.currency,
-      })
+      .select({ id: schema.cashRegisters.id })
+      .from(schema.cashRegisters)
+      .where(
+        and(
+          tenantWhere(schema.cashRegisters, ctx),
+          eq(schema.cashRegisters.type, "efectivo"),
+          eq(schema.cashRegisters.branchId, branchId),
+          eq(schema.cashRegisters.currency, currency),
+          eq(schema.cashRegisters.isActive, true),
+        ),
+      )
+      .orderBy(schema.cashRegisters.id)
+      .limit(1);
+    if (efectivo) return efectivo.id;
+
+    // No hay caja en esa moneda: distinguir "no hay ninguna" de "hay, pero en
+    // otra moneda" (D-09/CAJA-04: una caja nunca mezcla monedas).
+    const [otra] = await this.db
+      .select({ currency: schema.cashRegisters.currency })
       .from(schema.cashRegisters)
       .where(
         and(
@@ -131,19 +153,16 @@ export class CashRegisterService {
           eq(schema.cashRegisters.isActive, true),
         ),
       )
+      .orderBy(schema.cashRegisters.id)
       .limit(1);
-    if (!efectivo) {
+    if (!otra) {
       throw new BadRequestError(
         `No existe caja efectivo para la sucursal ${branchId}`,
       );
     }
-    // Currency guard (D-09/CAJA-04): a caja never mixes currencies.
-    if (efectivo.currency !== currency) {
-      throw new BadRequestError(
-        `Moneda inconsistente: la caja es ${efectivo.currency}, el cobro es ${currency}`,
-      );
-    }
-    return efectivo.id;
+    throw new BadRequestError(
+      `Moneda inconsistente: la caja es ${otra.currency}, el cobro es ${currency}`,
+    );
   }
 
   /**
@@ -447,6 +466,7 @@ export class CashRegisterService {
         type: schema.cashRegisters.type,
         branchId: schema.cashRegisters.branchId,
         currency: schema.cashRegisters.currency,
+        isTreasury: schema.cashRegisters.isTreasury,
         changeFund: schema.cashRegisters.changeFund,
         branchCountry: schema.branches.country,
       })
@@ -491,6 +511,7 @@ export class CashRegisterService {
         type: c.type,
         branchId: c.branchId,
         currency: c.currency,
+        isTreasury: c.isTreasury,
         firmeBalance: bal.firmeBalance,
         pendienteAmount: bal.pendienteAmount,
         changeFund: c.changeFund,
@@ -802,7 +823,9 @@ export class CashRegisterService {
       .limit(1);
     if (!caja) throw new NotFoundError("Caja no encontrada");
     if (caja.type !== "efectivo") {
-      throw new BadRequestError("Solo una caja de efectivo tiene fondo de cambio");
+      throw new BadRequestError(
+        "Solo una caja de efectivo tiene fondo de cambio",
+      );
     }
     await this.db
       .update(schema.cashRegisters)
@@ -813,7 +836,10 @@ export class CashRegisterService {
           eq(schema.cashRegisters.id, cashRegisterId),
         ),
       );
-    this.log.info({ cashRegisterId, changeFund: amount }, "Fondo de cambio actualizado");
+    this.log.info(
+      { cashRegisterId, changeFund: amount },
+      "Fondo de cambio actualizado",
+    );
     return { cashRegisterId, changeFund: amount };
   }
 
@@ -927,6 +953,11 @@ export class CashRegisterService {
     ctx: TenantContext,
     input: CreateBankAccountInput,
   ): Promise<BankAccountRow> {
+    if (!isSupportedAccountCurrency(input.currency)) {
+      throw new BadRequestError(
+        `Moneda no soportada para una cuenta: ${input.currency}`,
+      );
+    }
     const bankName = input.bankName.trim();
     const accountHolder = input.accountHolder.trim();
     const cbuCvu = input.cbuCvu?.trim() || null;
@@ -1001,6 +1032,11 @@ export class CashRegisterService {
       openingBalance?: number;
     },
   ): Promise<CajaSaldoRow> {
+    if (!isSupportedAccountCurrency(input.currency)) {
+      throw new BadRequestError(
+        `Moneda no soportada para una caja: ${input.currency}`,
+      );
+    }
     const [branch] = await this.db
       .select({
         id: schema.branches.id,
@@ -1086,6 +1122,128 @@ export class CashRegisterService {
       type: "efectivo",
       branchId: input.branchId,
       currency: input.currency,
+      isTreasury: false,
+      firmeBalance: bal.firmeBalance,
+      pendienteAmount: bal.pendienteAmount,
+      changeFund: 0,
+      period: null,
+    };
+  }
+
+  /**
+   * Invariante del Tesoro (fase 208, DI-01): `is_treasury` solo existe en una
+   * cuenta de EFECTIVO y SIN sede. Se valida en el service (no con CHECK) y se
+   * llama antes de todo INSERT de un Tesoro: hoy `createTreasury` siempre lo
+   * cumple, es la red para quien toque el alta después.
+   *
+   * @throws BadRequestError cuando se pretende un Tesoro banco o con sede.
+   */
+  private assertTreasuryShape(shape: {
+    type: "efectivo" | "banco";
+    branchId: number | null;
+    isTreasury: boolean;
+  }): void {
+    if (
+      shape.isTreasury &&
+      (shape.type !== "efectivo" || shape.branchId !== null)
+    ) {
+      throw new BadRequestError("El Tesoro es una cuenta de efectivo sin sede");
+    }
+  }
+
+  /**
+   * Crea el Tesoro de una moneda (fase 208, DI-01): cuenta de efectivo SIN sede
+   * (`branch_id` NULL) e `is_treasury`, aparte de la Caja central. Owner-only
+   * por el scope de listados (igual que Central) y por el gate de la ruta.
+   *
+   * Unicidad: a lo sumo UN Tesoro ACTIVO por (gimnasio, moneda). Se valida acá
+   * con `tenantWhere` (no con un UNIQUE: un Tesoro cerrado no debe bloquear al
+   * siguiente, y el filtro por gimnasio evita que el Tesoro de otro gimnasio
+   * dispare un 409 que delataría su existencia).
+   *
+   * Para una cuenta NUEVA alcanza con `opening_balance` + `cutoff_date` = hoy
+   * (DI-06): el saldo de apertura declarado ES el arqueo, no se registra otro.
+   *
+   * @throws BadRequestError nombre vacío/largo, moneda no soportada o saldo inválido.
+   * @throws ConflictError cuando ya hay un Tesoro activo en esa moneda.
+   */
+  async createTreasury(
+    ctx: TenantContext,
+    input: { name: string; currency: string; openingBalance?: number },
+  ): Promise<CajaSaldoRow> {
+    const name = input.name.trim();
+    if (name.length < 1 || name.length > 100) {
+      throw new BadRequestError(
+        "El nombre del Tesoro es obligatorio (hasta 100 caracteres)",
+      );
+    }
+    if (!isSupportedAccountCurrency(input.currency)) {
+      throw new BadRequestError(
+        `Moneda no soportada para un Tesoro: ${input.currency}`,
+      );
+    }
+    const currency = input.currency;
+    const openingBalance = input.openingBalance ?? 0;
+    if (!Number.isInteger(openingBalance) || openingBalance < 0) {
+      throw new BadRequestError(
+        "El saldo de apertura debe ser un número entero mayor o igual a 0",
+      );
+    }
+
+    this.assertTreasuryShape({
+      type: "efectivo",
+      branchId: null,
+      isTreasury: true,
+    });
+
+    const [existing] = await this.db
+      .select({ id: schema.cashRegisters.id })
+      .from(schema.cashRegisters)
+      .where(
+        and(
+          tenantWhere(schema.cashRegisters, ctx),
+          eq(schema.cashRegisters.type, "efectivo"),
+          isNull(schema.cashRegisters.branchId),
+          eq(schema.cashRegisters.isTreasury, true),
+          eq(schema.cashRegisters.currency, currency),
+          eq(schema.cashRegisters.isActive, true),
+        ),
+      )
+      .limit(1);
+    if (existing) {
+      throw new ConflictError(`Ya hay un Tesoro activo en ${currency}`);
+    }
+
+    const inserted = await this.db.insert(schema.cashRegisters).values(
+      tenantValues(ctx, {
+        name,
+        type: "efectivo",
+        branchId: null,
+        isTreasury: true,
+        currency,
+        openingBalance,
+        cutoffDate: this.today(),
+      }),
+    );
+    const id = Number(inserted[0].insertId);
+    this.log.info(
+      {
+        cashRegisterId: id,
+        currency,
+        openingBalance,
+        tenantId: ctx.tenantId,
+      },
+      "Tesoro creado",
+    );
+
+    const bal = await this.getBalance(ctx, id);
+    return {
+      cashRegisterId: id,
+      name,
+      type: "efectivo",
+      branchId: null,
+      currency,
+      isTreasury: true,
       firmeBalance: bal.firmeBalance,
       pendienteAmount: bal.pendienteAmount,
       changeFund: 0,

@@ -451,6 +451,7 @@ describe("Finance API — summary cross-aggregation sanity invariants (Phase 109
       aura_credit: 0,
       internal: 15000,
       direct_debit: 0,
+      cheque: 0,
     });
   });
 

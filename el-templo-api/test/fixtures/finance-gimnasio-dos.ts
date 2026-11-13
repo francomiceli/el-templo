@@ -82,7 +82,7 @@
  *
  * @see .docs/saas-multitenancy/07-receta-adopcion.md (lo escribe el plan 172-23)
  */
-import { and, eq, like, sql, type SQL } from "drizzle-orm";
+import { and, eq, inArray, like, sql, type SQL } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import * as schema from "../../src/db/schema";
 import {
@@ -149,6 +149,11 @@ export interface FinanzasDelGimnasioDos {
   cajaId: number;
   /** Cuenta banco (`cash_registers.type = 'banco'`, sin sede). */
   bankAccountId: number;
+  /**
+   * Caja central del gimnasio 2 (efectivo SIN sede, activa): el destino de un
+   * retiro (fase 208-06).
+   */
+  centralId: number;
   costCenterId: number;
   transactionId: number;
   linkId: number;
@@ -170,6 +175,8 @@ export interface FinanzasDeElTemplo {
   cajaId: number;
   /** Cuenta banco creada por este fixture (marcada). */
   bankAccountId: number;
+  /** Caja central de El Templo creada por este fixture (marcada): destino ajeno. */
+  centralId: number;
   /** Centro de costo creado por este fixture (marcado). */
   costCenterId: number;
   transactionId: number;
@@ -388,6 +395,21 @@ export async function sembrarFinanzasTemplo(
     )
     .$returningId();
 
+  // Caja central (efectivo sin sede): destino posible de un retiro (208-06).
+  const [central] = await app.db
+    .insert(schema.cashRegisters)
+    .values(
+      tenantValues(CTX_TEMPLO, {
+        name: `${MARCA_ISO03} Central Templo ${suf}`,
+        type: "efectivo",
+        branchId: null,
+        currency: MONEDA_SEMBRADA,
+        openingBalance: 0,
+        cutoffDate: "2020-01-01",
+      }),
+    )
+    .$returningId();
+
   const costCenterName = `${MARCA_ISO03} Centro Templo ${suf}`;
   const [centro] = await app.db
     .insert(schema.costCenters)
@@ -406,6 +428,7 @@ export async function sembrarFinanzasTemplo(
     branchId: sede.id,
     cajaId: caja.id,
     bankAccountId: banco.id,
+    centralId: central.id,
     costCenterId: centro.id,
     transactionId,
     linkId,
@@ -469,6 +492,21 @@ export async function sembrarFinanzasGimnasioDos(
     )
     .$returningId();
 
+  // Caja central (efectivo sin sede): destino posible de un retiro (208-06).
+  const [central] = await app.db
+    .insert(schema.cashRegisters)
+    .values(
+      tenantValues(CTX_DOS, {
+        name: `${MARCA_ISO03} Central G2 ${suf}`,
+        type: "efectivo",
+        branchId: null,
+        currency: MONEDA_SEMBRADA,
+        openingBalance: 0,
+        cutoffDate: "2020-01-01",
+      }),
+    )
+    .$returningId();
+
   const costCenterName = `${MARCA_ISO03} Centro G2 ${suf}`;
   const [centro] = await app.db
     .insert(schema.costCenters)
@@ -486,6 +524,7 @@ export async function sembrarFinanzasGimnasioDos(
   return {
     cajaId: caja.id,
     bankAccountId: banco.id,
+    centralId: central.id,
     costCenterId: centro.id,
     transactionId,
     linkId,
@@ -590,6 +629,49 @@ async function sembrarElAsiento(
 export async function limpiarFinanzasDeLaBateria(
   app: FastifyInstance,
 ): Promise<void> {
+  // Egresos (fase 209-07): los gastos, sus repartos y sus pagos tienen FK a los
+  // rubros y a las cajas que se borran mas abajo, asi que salen PRIMERO (pagos,
+  // reparto, gastos). Del gimnasio 2 se van todos y, de El Templo, solo los
+  // gastos marcados con MARCA_ISO03 en el concepto.
+  for (const ctx of [CTX_DOS, CTX_TEMPLO]) {
+    const gastos = await app.db
+      .select({ id: schema.expenseRecords.id })
+      .from(schema.expenseRecords)
+      .where(
+        ctx === CTX_DOS
+          ? tenantWhere(schema.expenseRecords, ctx)
+          : and(
+              tenantWhere(schema.expenseRecords, ctx),
+              like(schema.expenseRecords.concept, `${MARCA_ISO03}%`),
+            ),
+      );
+    const ids = gastos.map((g) => g.id);
+    if (ids.length === 0) continue;
+    await app.db
+      .delete(schema.expensePayments)
+      .where(
+        and(
+          tenantWhere(schema.expensePayments, ctx),
+          inArray(schema.expensePayments.expenseRecordId, ids),
+        ),
+      );
+    await app.db
+      .delete(schema.expenseAllocations)
+      .where(
+        and(
+          tenantWhere(schema.expenseAllocations, ctx),
+          inArray(schema.expenseAllocations.expenseRecordId, ids),
+        ),
+      );
+    await app.db
+      .delete(schema.expenseRecords)
+      .where(
+        and(
+          tenantWhere(schema.expenseRecords, ctx),
+          inArray(schema.expenseRecords.id, ids),
+        ),
+      );
+  }
   await app.db
     .delete(schema.costCenters)
     .where(tenantWhere(schema.costCenters, CTX_DOS));

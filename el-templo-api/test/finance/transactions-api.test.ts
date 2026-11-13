@@ -1462,6 +1462,7 @@ describe("Finance API — GET /transactions/summary", () => {
       aura_credit: 0,
       internal: 0,
       direct_debit: 0,
+      cheque: 0,
     });
   });
 

@@ -1249,6 +1249,7 @@ describe("TransactionService.getSummary()", () => {
       aura_credit: 0,
       internal: 0,
       direct_debit: 0,
+      cheque: 0,
     });
   });
 
@@ -1597,6 +1598,7 @@ describe("TransactionService.getSummary()", () => {
       aura_credit: 3000,
       internal: 0,
       direct_debit: 0,
+      cheque: 0,
     });
   });
 

@@ -58,6 +58,8 @@ export const financialTransactions = mysqlTable(
       "aura_credit",
       "internal",
       "direct_debit",
+      // Fase 208 (D-09): medio de pago de egresos. Orden byte-for-byte con 0329.
+      "cheque",
     ]).notNull(),
     transactionDate: date("transaction_date", { mode: "string" }).notNull(),
     effectiveDate: date("effective_date", { mode: "string" }).notNull(),
@@ -66,6 +68,12 @@ export const financialTransactions = mysqlTable(
     // sucursal, el modelo honesto guarda NULL. Las lecturas branch-keyed
     // (revenueByBranch/getSummary) INNER JOIN branches y descartan las filas NULL.
     branchId: int("branch_id").references(() => branches.id),
+    // Fase 207 (D-14/DI-07): sede del alumno AL MOMENTO del cobro, snapshot que
+    // no cambia si el alumno se muda. Lo escribe SOLO TransactionService.create()
+    // (plan 207-06). NULL en egresos/movimientos sin socio. Los lectores caen a
+    // users.branch_id y despues a branch_id si es NULL. Nombre SQL byte-for-byte
+    // con la migracion 0327 (backfill de historicos en 0328).
+    memberBranchId: int("member_branch_id").references(() => branches.id),
     // Phase 138: caja a la que fue la plata (D-04). NULLABLE — NULL para
     // aura_credit/internal (no es plata firme de caja) e históricos sin
     // backfillear. branchId (dónde se cobró) NO mapea 1:1 con cash_register_id
@@ -141,6 +149,12 @@ export const financialTransactions = mysqlTable(
       table.branchId,
       table.transactionDate,
     ),
+    // Fase 207: reportes por sede del alumno y mes (migracion 0327).
+    index("idx_financial_tx_tenant_member_branch_date").on(
+      table.tenantId,
+      table.memberBranchId,
+      table.transactionDate,
+    ),
     index("idx_financial_tx_kind_voided").on(table.kind, table.voidedAt),
     // Phase 137: firm-money read path (validation_status='validado' AND voided_at IS NULL).
     index("idx_financial_tx_validation_voided").on(
@@ -184,6 +198,11 @@ export const financialTransactionsRelations = relations(
     branch: one(branches, {
       fields: [financialTransactions.branchId],
       references: [branches.id],
+    }),
+    memberBranch: one(branches, {
+      fields: [financialTransactions.memberBranchId],
+      references: [branches.id],
+      relationName: "financialTxMemberBranch",
     }),
     cashRegister: one(cashRegisters, {
       fields: [financialTransactions.cashRegisterId],

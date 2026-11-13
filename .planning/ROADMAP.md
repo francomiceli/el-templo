@@ -1185,3 +1185,161 @@ Plans:
 ---
 
 _Unificado el 2026-10-28 (rescate de docs del master local): sobre el ROADMAP de origin/master se sumaron las fases 188.1, 192.1-192.3, 193, 195, 196 (archivada), 198 y 199, 203, con su estado real. Textos de fase tomados de master local (193, 199), `origin/staging` (195), `feat/203-carga-sin-parpadeos` (203), `archive/196-personalizados` (196, 198) y el tren `feat/v6.1-gimnasio` / `feat/192.3-workout-engine` (188.1, 192.x)._
+
+---
+
+## Milestone: Egresos y rendiciones (fases 207-212, fuera de v6.1)
+
+Pedido de administración del 2026-11-10. Decisiones D-01..D-24 en `.planning/egresos-rendiciones/DECISIONES.md` (el §20 revoca los centavos y recorta el milestone); método y alcance en `.planning/egresos-rendiciones/MILESTONE.md`. Rama `feat/egresos-rendiciones` (worktree `et-egresos`), fases secuenciales.
+
+### Phase 207: Centavos en el sistema de plata + sede del alumno en cada cobro
+
+> **D-23 (2026-11-11): el cambio a centavos se revirtió en `9a342ad84`.** De esta fase queda solo la sede del alumno guardada en cada cobro (criterios 3 y 4). Los criterios 1, 2 y 5 de centavos ya no aplican. Detalle en `.planning/egresos-rendiciones/SIN-CENTAVOS-SUMMARY.md`.
+
+**Goal**: El ledger y las cajas guardan importes con centavos exactos de punta a punta, y cada cobro guarda la sede del alumno al momento del pago
+**Depends on**: nada. Decisiones en `207-CONTEXT.md`
+**Success Criteria**:
+1. Cobros, traslados, ajustes, retiros, arqueos y saldos aceptan y muestran centavos (hasta 2 decimales) en ARS y EUR
+2. Con datos enteros, Caja, Reportes, Analíticas y Tablero dan exactamente lo mismo que antes
+3. Cada cobro nuevo guarda la sede del alumno en ese momento; los históricos se completan con la sede actual; cambiar la sede de un alumno no altera los cobros pasados
+4. Tablero y Reportes → Cobros usan la sede guardada en el cobro
+5. Tests de integración cubren centavos, validación de 2 decimales, snapshot de sede y no-regresión
+
+**Plans:** 12 plans (secuenciales, una wave cada uno)
+
+Plans:
+- [x] 207-01-PLAN.md — Base: migraciones 0327 (15 columnas a DECIMAL(14,2) + `member_branch_id`) y 0328 (backfill), schemas Drizzle, helper `shared/money.ts` y keyword Ajv `moneyTwoDecimals`
+- [x] 207-02-PLAN.md — Ledger: `TransactionService`/`BalanceService` en centavos y schemas de las rutas de transacciones (body y respuesta)
+- [x] 207-03-PLAN.md — Cajas I: saldos, saldo inicial, fondo de cambio, arqueos (gestión y cierre de jornada) y guard de efectivo
+- [x] 207-04-PLAN.md — Cajas II: traslados, egresos y retiros (ajustes por conteo al centavo)
+- [x] 207-05-PLAN.md — Cobros: PoS del profe y ficha del admin (monto recibido con centavos, precios enteros)
+- [x] 207-06-PLAN.md — Sede del alumno: snapshot en `create()`/`correct()` y lectores (Tablero, Reportes → Cobros)
+- [x] 207-07-PLAN.md — Lectores: Deudas, Alumnos, Tablero, Oficina y panel del profe sin CAST ni `integer`
+- [x] 207-08-PLAN.md — Excel: formato `#,##0.00` en las 7 exportaciones del circuito de caja
+- [x] 207-09-PLAN.md — Admin base: `utils/money.ts`, regla de `formatPrice` (admin + app), `MoneyInput.vue`
+- [x] 207-10-PLAN.md — Admin: inputs de la PoS y la ficha (Cobros, Asignar plan, Renovar, Registrar pago)
+- [x] 207-11-PLAN.md — Admin: inputs de Caja (Cerrar caja, Retiro, Traslado/Egreso, Bandeja, caja efectivo, fondo de cambio)
+- [x] 207-12-PLAN.md — Cierre: auditoría de Analíticas, guard estático del contrato de plata y no-regresión con enteros + punta a punta
+
+### Phase 208: Cuentas — USD, Tesoro, cheque, retiro con destino
+
+**Goal**: Las cuentas reflejan dónde está la plata: cuentas en dólares, Tesoro como efectivo sin sede, cheque como medio, y los retiros de sede entran a Caja central o Tesoro
+**Depends on**: 207
+**Success Criteria**:
+1. Se pueden crear cajas/cuentas en USD; los saldos y reportes por moneda incluyen USD
+2. Se puede crear el Tesoro (efectivo sin sede, una por moneda) con saldo de apertura
+3. Cheque existe como medio; hay una regla única de coherencia medio↔cuenta (efectivo solo desde efectivo/Tesoro; transferencia/débito/tarjeta/cheque solo desde banco)
+4. Un retiro nuevo exige destino (Caja central o Tesoro) y se guarda como traslado: la sede baja y el destino sube; se conservan responsable, conteo y resumen; los retiros viejos no cambian
+5. Central y Tesoro pueden arrancar con un arqueo de apertura del efectivo real
+
+**Plans:** 11 plans (secuenciales, una wave cada uno)
+
+Plans:
+- [x] 208-01-PLAN.md — Base: migración 0329 (`is_treasury` + `cheque`), schemas, lista única de monedas ARS/EUR/USD y regla pura medio↔cuenta
+- [x] 208-02-PLAN.md — API: cuentas en USD, alta de Tesoro (owner) con saldo de apertura, `isTreasury` en Saldos/Excel, resolver de caja por moneda
+- [x] 208-03-PLAN.md — API: aplicar la regla medio↔cuenta en egresos, traslados, cobros y resolver de caja (cheque → banco)
+- [x] 208-04-PLAN.md — API: arqueo de apertura de Caja central y Tesoro con helper `count-adjustment.ts`
+- [x] 208-05-PLAN.md — API: lectores de retiros y anulaciones preparados para formato viejo (expense) y nuevo (cash_transfer)
+- [x] 208-06-PLAN.md — API: el alta de retiro pasa a traslado con destino obligatorio + ruta de destinos posibles
+- [x] 208-07-PLAN.md — Tests: adaptar withdrawals/cash-counts/centavos-traslados-retiros al alta nueva o a retiros viejos sembrados
+- [x] 208-08-PLAN.md — Admin base: USD en monedas y `formatPrice` (admin + app), espejo medio↔cuenta, `cheque`, composable de Tesoro/destinos/arqueo
+- [x] 208-09-PLAN.md — Admin: Cuentas y Saldos (USD, sección Caja central y Tesoro, grupo Tesoro)
+- [x] 208-10-PLAN.md — Admin: Retiros con destino obligatorio, destino en historial y patas del retiro en Mov./Egresos
+- [x] 208-11-PLAN.md — Cierre: no-regresión "como prod hoy", inventario con greps, gates y checklist de UAT
+
+### Phase 209: Egresos — gasto, reparto y pagos (recortada por D-24)
+
+**Goal**: Administración registra gastos con reparto entre sedes y Casa Matriz y uno o varios pagos desde distintas cuentas, y ve lo pagado y lo imputado por mes, en una sección propia del admin
+**Depends on**: 207 (sede del alumno), 208. Decisiones en `209-CONTEXT.md`. Plata en unidades enteras (D-23)
+**Success Criteria**:
+1. Sección "Egresos" en Finanzas (Gastos, Por pagar, Resumen, Rubros). "Egreso" sale del diálogo de Caja
+2. Gasto: concepto, beneficiario, rubro, mes de imputación, importe entero, moneda, estimado o confirmado con historial de correcciones, links de comprobante, observaciones
+3. Reparto directo, en partes iguales entre las sedes del país o por montos. Suma exacta. Casa Matriz como destino
+4. Pagos parciales desde varias cuentas, con fecha, medio y tipo de cambio cargado a mano cuando hace falta. Estado pendiente, parcial o pagado y saldo pendiente. Cada pago baja el saldo de su cuenta
+5. Resumen por sede: pagado en el mes, costo del mes (incluye estimados y pendientes) y pendiente, con detalle por rubro y concepto y export Excel
+6. Permisos: operan owner, admin y gestion. Anulan y administran rubros owner y admin
+
+Fuera de alcance por D-24: tipo de cambio por API, repartos guardados, reparto por porcentajes, cerrar mes, importar planilla.
+
+**Plans:** 17 plans (secuenciales, una wave cada uno)
+
+Plans:
+- [x] 209-01-PLAN.md — Base: migración 0331 (3 tablas de gastos, repartos y pagos), schema, los 5 conteos de tenancy, roles de Egresos y acciones de audit
+- [x] 209-02-PLAN.md — Contratos (`expense-types.ts`), cálculo puro con test (reparto, estado, tipo de cambio, prorrateos) y helper de sedes operativas
+- [x] 209-03-PLAN.md — Service: alta de gasto con reparto, idempotencia y auditoría + detalle con estado e historial
+- [x] 209-04-PLAN.md — Service: edición con motivo e historial, anulación de gasto y listado con filtros
+- [x] 209-05-PLAN.md — Service: registrar pago (validaciones, tipo de cambio, fila del ledger, idempotencia) y cuentas para pagar sin saldos
+- [x] 209-06-PLAN.md — Service: anular pago, guarda de Caja sobre pagos, débito automático saliente y reglas con pagos
+- [x] 209-07-PLAN.md — API: 6 rutas de gasto con permisos, país, ISO-01 y batería ISO-03 de Egresos
+- [x] 209-08-PLAN.md — API: rutas de registrar y anular pago, ISO-01/ISO-03 y pruebas de roles (gestion paga sin ver saldos)
+- [x] 209-09-PLAN.md — Service del Resumen: pagado en el mes, costo del mes y pendiente por destino, con detalle por rubro
+- [x] 209-10-PLAN.md — API: rutas del Resumen, detalle y export a Excel, ISO-01/ISO-03
+- [x] 209-11-PLAN.md — Admin base: tipos, cálculo puro con test, composable `useExpensesApi`, página Egresos, menú y ruta
+- [x] 209-12-PLAN.md — Admin: Rubros se muda a Egresos y "Egreso" sale del diálogo de Caja con acceso a Nuevo gasto
+- [x] 209-13-PLAN.md — Admin: pestaña Gastos (filtros, alta y edición con editor de reparto)
+- [x] 209-14-PLAN.md — Admin: pestaña Por pagar y diálogo para registrar pagos
+- [x] 209-15-PLAN.md — Admin: detalle del gasto con pagos, historial y anulaciones
+- [x] 209-16-PLAN.md — Admin: pestaña Resumen con detalle por rubro y export a Excel
+- [x] 209-17-PLAN.md — Cierre: identidades del Resumen y casos del brief, no-regresión, inventario con greps y checklist de UAT
+
+### Phase 209.1: Saldo de apertura de los bancos (D-24, punto 5)
+
+**Goal**: El día que arranca Egresos, el dueño deja cada cuenta bancaria en el saldo real del banco con un ajuste trazable, igual que el arqueo de apertura de Caja central y Tesoro
+**Depends on**: 209. Decisiones en `209.1-CONTEXT.md`. Sin migración
+**Success Criteria**:
+1. Caja → Cuentas: acción "Saldo de apertura" en cada banco activo (solo owner), con el saldo de la app y la diferencia antes de confirmar
+2. Confirmar deja el saldo exacto con un ajuste interno y rastro en audit, sin tocar historial ni corte
+3. Los cobros no cambian (Resumen de cobros, Tablero, Reportes)
+
+**Plans:** 3 plans (secuenciales)
+
+Plans:
+- [x] 209.1-01-PLAN.md — API: el arqueo de apertura acepta cuentas banco (saldo según el banco, fecha del país, audit `bank_opening_balance`) + test de saldo exacto, permisos e ingresos intactos
+- [x] 209.1-02-PLAN.md — Admin: botón "Saldo de apertura" por banco activo (owner) y `ArqueoAperturaDialog` con modo banco
+- [x] 209.1-03-PLAN.md — Cierre: inventario con greps, no-regresión, gates y SUMMARY para Franco con checklist y paso operativo del día de arranque
+
+### Phase 210: Caja — extracto por cuenta, por conciliar y cambio de moneda — EN ESPERA (D-24)
+
+**Estado**: en espera, no planificar. Sin cuentas en USD y con 0 traslados históricos el cambio de moneda no tiene uso, y el extracto no sirve mientras los bancos no tengan saldo real.
+
+**Goal**: Cada cuenta se puede conciliar contra el efectivo o el extracto bancario, y los cambios de moneda quedan registrados con su comisión
+**Depends on**: 209
+**Success Criteria**:
+1. Extracto por cuenta y período: apertura, cobros, pagos, traslados recibidos/enviados, ajustes, saldo final, con drill-down a cada movimiento y quién lo registró/corrigió y por qué
+2. "Cobros por conciliar" visible en el extracto y el Resumen, con acceso a la bandeja
+3. Cambio de moneda: entregado, recibido, comisión (gasto automático "Gastos bancarios" a Casa Matriz), cotización real a la vista
+
+### Phase 211: Resultado por sede y consolidado (informe chico, D-24)
+
+**Goal**: Owner/admin leen, por mes, el resultado y margen de cada sede y el consolidado argentino
+**Depends on**: 209
+**Success Criteria**:
+1. Por sede: cobros a sus alumnos (sede guardada en el cobro), costos asignados por rubro, resultado, margen ("sin base de cálculo" si no hubo cobros)
+2. Casa Matriz con sus costos; consolidado AR descuenta Casa Matriz una vez; Barcelona aparte en EUR
+3. Solo owner/admin
+4. Excel con los mismos números (D-24: la rendición se sigue armando en planilla a partir de este informe)
+
+Decisiones de implementación en `211-CONTEXT.md` (2026-11-13).
+
+**Plans:** 6 plans (secuenciales, una wave cada uno)
+
+Plans:
+- [x] 211-01-PLAN.md — Contratos del Resultado, cálculo puro con test unitario (columnas, consolidado, margen, monedas) y lector nuevo de cobros a alumnos por sede en `TransactionService` (solo agregados) con su test
+- [x] 211-02-PLAN.md — API: `ExpenseResultService` sobre `computeMonth`, Excel de una hoja, `EXPENSES_RESULT_ROLES`, schemas, rutas `/expense-records/result` y `/result/export`, manifiesto ISO-01 (+2)
+- [x] 211-03-PLAN.md — Tests de la API: ISO-03 (+2 casos con control positivo) y escenario HTTP con literales (qué cobro cuenta, sede, moneda, identidades contra el Resumen y los cobros, Excel = JSON, roles, 400)
+- [x] 211-04-PLAN.md — Admin: tipos, llamadas del composable, helpers puros con test (margen, etiquetas, aviso de otra moneda) y textos de incompletos y moneda compartidos con Resumen
+- [x] 211-05-PLAN.md — Admin: `ResultadoTab.vue` (matriz, avisos, detalle por columna, Excel) y pestaña "Resultado" solo para owner y admin
+- [x] 211-06-PLAN.md — Cierre: no-regresión (208, Resumen, identidades, Tablero, tenancy), inventario con greps, gates y SUMMARY con checklist de prueba manual para Franco
+
+### Phase 212: Rendiciones a inversores — EN ESPERA (D-24)
+
+**Estado**: en espera, no planificar. Son 2 sedes, el criterio de Alberti sigue en revisión y todavía no hay un mes de gastos cargado.
+
+**Goal**: Administración prepara, compara, aprueba y emite la rendición mensual de cada sede con inversores, y registra sus pagos
+**Depends on**: 211
+**Success Criteria**:
+1. Acuerdo por sede con vigencia: participación, beneficiarios, impuestos pactados con fórmula de piezas fijas
+2. Borrador mensual con inclusión/exclusión de cada gasto con motivo y variantes comparables
+3. Aprobar congela los números (snapshot) y genera la versión breve en PDF
+4. Pagos al inversor vinculados a la rendición que cancelan, fuera de la base de la siguiente
+5. Solo owner/admin

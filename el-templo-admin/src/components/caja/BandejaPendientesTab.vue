@@ -407,6 +407,7 @@ import type { QTableProps } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { extractError, isExpectedClientError } from 'src/utils/extract-error';
 import { formatPrice } from 'src/utils/format-price';
+import { isMethodAllowedForAccount } from 'src/utils/payment-method-rules';
 import { useTransactionsApi } from 'src/composables/useTransactionsApi';
 import {
   PAYMENT_METHOD_LABELS,
@@ -579,26 +580,17 @@ const SIN_PLAN_CON_PLAN_HINT =
   'El socio ya tiene un plan vigente. Si este cobro se volvió a cargar al asignar el plan, ' +
   'anulalo como duplicado. Si es un cobro extra legítimo, anulalo y volvé a cargarlo con motivo "Otro".';
 
-// Opciones filtradas por la moneda de la fila y acotadas por el medio de pago:
-// transferencia/tarjeta → cuentas banco (Galicia / Mercado Pago); efectivo →
-// cajas de efectivo; otros medios → todas las cajas de esa moneda. El backend
-// (plan 02) valida coherencia igual (defensa en profundidad).
+// Opciones filtradas por la moneda de la fila y acotadas por el medio de pago con
+// la regla única medio↔cuenta (utils/payment-method-rules.ts, espejo de la API,
+// que además la valida al validar el cobro): transferencia/tarjeta/débito →
+// cuentas banco; efectivo → cajas de efectivo; medios exentos (interno, AURA) →
+// todas las cajas de esa moneda.
 const cajaOptions = computed<Array<{ label: string; value: number }>>(() => {
   const row = actionRow.value;
   if (!row) return [];
   return cashRegisters.value
     .filter((c) => c.currency === row.currency)
-    .filter((c) => {
-      if (
-        row.paymentMethod === 'transfer' ||
-        row.paymentMethod === 'card' ||
-        row.paymentMethod === 'direct_debit'
-      ) {
-        return c.type === 'banco';
-      }
-      if (row.paymentMethod === 'cash') return c.type === 'efectivo';
-      return true;
-    })
+    .filter((c) => isMethodAllowedForAccount(row.paymentMethod, c.type))
     .map((c) => ({ label: c.name, value: c.cashRegisterId }));
 });
 
@@ -715,9 +707,11 @@ async function submitCorregir() {
     corregirDialog.value = false;
     await loadBandeja();
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error desconocido';
+    // Se muestra el mensaje del servidor (p. ej. "Este movimiento es el pago de un
+    // gasto: anulalo desde Egresos…", fase 209) y, si no hay, el texto genérico.
+    const message = extractError(err, 'Error al corregir el pago');
     log.error('Error correcting transaction', { error: message });
-    $q.notify({ type: 'negative', message: 'Error al corregir el pago' });
+    $q.notify({ type: 'negative', message, timeout: 5000 });
   } finally {
     dialogLoading.value = false;
   }

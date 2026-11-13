@@ -5,6 +5,7 @@
  * reports/schemas.ts. NO Zod (project does not use Zod in API modules).
  */
 
+import { ACCOUNT_CURRENCY_SCHEMA } from "../shared/currency";
 // -- Shared fragments -------------------------------------------------------
 
 const errorSchema = {
@@ -33,6 +34,8 @@ const KIND_ENUM = [
 
 const DIRECTION_ENUM = ["inflow", "outflow"] as const;
 
+// Sin 'cheque' a propósito: es medio de egresos (fase 208). Los filtros y
+// respuestas de cobros no lo necesitan mientras no haya cobros con cheque.
 const PAYMENT_METHOD_ENUM = [
   "cash",
   "transfer",
@@ -382,6 +385,7 @@ export const transactionsSummarySchema = {
             aura_credit: { type: "integer" },
             internal: { type: "integer" },
             direct_debit: { type: "integer" },
+            cheque: { type: "integer" },
           },
         },
         revenueByBranch: {
@@ -728,6 +732,33 @@ export const pendingTrayExportSchema = {
 } as const;
 
 /**
+ * POST /cash-registers/treasury — crear el Tesoro de una moneda (fase 208,
+ * DI-01). Owner-only (lo gatea la ruta). `openingBalance` es el efectivo real
+ * con el que arranca, en unidades enteras; opcional, default 0. La unicidad
+ * por (gimnasio, moneda) entre Tesoros activos la valida el service.
+ */
+export const createTreasurySchema = {
+  body: {
+    type: "object",
+    required: ["name", "currency"],
+    additionalProperties: false,
+    properties: {
+      name: { type: "string", minLength: 1, maxLength: 100 },
+      currency: ACCOUNT_CURRENCY_SCHEMA,
+      openingBalance: { type: "integer", minimum: 0 },
+    },
+  },
+  response: {
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
+    409: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+/**
  * GET /cash-registers/balances — saldos por caja (REP-02). Querystring: only
  * `country` (owner override; non-owner scope is pinned server-side). Loose
  * response (flat CajaSaldoRow array).
@@ -735,8 +766,9 @@ export const pendingTrayExportSchema = {
 /**
  * POST /cash-registers/efectivo — abrir la caja de efectivo de una sucursal
  * (UAT caja/cobros 2026-07-21). `openingBalance` es el arqueo inicial en
- * centavos/unidad mínima, igual que el resto del ledger; opcional, default 0.
- * La unicidad por (sucursal, moneda) la valida el service.
+ * unidades enteras, igual que el resto del ledger; opcional, default 0.
+ * La unicidad por (sucursal, moneda) la valida el service. La moneda es ARS, EUR
+ * o USD (fase 208): antes aceptaba cualquier código de 3 letras.
  */
 export const createEfectivoCajaSchema = {
   body: {
@@ -745,7 +777,7 @@ export const createEfectivoCajaSchema = {
     additionalProperties: false,
     properties: {
       branchId: { type: "integer", minimum: 1 },
-      currency: { type: "string", minLength: 3, maxLength: 3 },
+      currency: ACCOUNT_CURRENCY_SCHEMA,
       openingBalance: { type: "integer", minimum: 0 },
     },
   },
@@ -890,7 +922,7 @@ const BANK_ACCOUNT_ID_PARAMS = {
 /**
  * POST /bank-accounts — crear cuenta banco (CTA-01 / D-02). Solo 3 obligatorios
  * a nivel schema (bankName/accountHolder/currency); `name` se autogenera en el
- * service (D-03). currency restringido a ARS/EUR y FIJA post-creación (D-04).
+ * service (D-03). currency restringido a ARS/EUR/USD y FIJA post-creación (D-04).
  * La regla uno-de-dos (CBU/CVU o Alias) vive en el service. RBAC server-side.
  */
 export const createBankAccountSchema = {
@@ -900,7 +932,7 @@ export const createBankAccountSchema = {
     properties: {
       bankName: { type: "string", minLength: 1, maxLength: 100 },
       accountHolder: { type: "string", minLength: 1, maxLength: 120 },
-      currency: { type: "string", enum: ["ARS", "EUR"] },
+      currency: ACCOUNT_CURRENCY_SCHEMA,
       ...BANK_ACCOUNT_OPTIONAL_PROPS,
     },
     additionalProperties: false,
@@ -1100,7 +1132,51 @@ export const pendingWithdrawalsSchema = {
 } as const;
 
 /**
- * POST /withdrawals — registrar un retiro. `amount` siempre (2026-09-23: el
+ * GET /withdrawals/destinations?cashRegisterId= — adónde puede ir un retiro
+ * desde esa caja (Central o Tesoro activos de la misma moneda). Solo
+ * identificación: id, nombre, si es Tesoro y moneda. Sin saldos.
+ */
+export const withdrawalDestinationsSchema = {
+  querystring: {
+    type: "object",
+    required: ["cashRegisterId"],
+    properties: {
+      cashRegisterId: { type: "integer", minimum: 1 },
+    },
+    additionalProperties: false,
+  },
+  response: {
+    200: {
+      type: "object",
+      required: ["destinations"],
+      properties: {
+        destinations: {
+          type: "array",
+          items: {
+            type: "object",
+            required: ["id", "name", "isTreasury", "currency"],
+            properties: {
+              id: { type: "integer" },
+              name: { type: "string" },
+              isTreasury: { type: "boolean" },
+              currency: { type: "string" },
+            },
+          },
+        },
+      },
+    },
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+/**
+ * POST /withdrawals — registrar un retiro. Fase 208 (D-19): el retiro es un
+ * traslado a la Caja central o a un Tesoro, así que `destinationCashRegisterId`
+ * es obligatorio (la caja y la moneda se validan en el service). `amount` siempre (2026-09-23: el
  * retiro en efectivo es una masa de plata, ya no la suma de cobros tildados).
  * `countedAmount` (conteo físico) solo en efectivo y con fecha de hoy — se
  * valida en el service. `transactionIds` ya no existe (Fastify descarta las
@@ -1110,9 +1186,15 @@ export const pendingWithdrawalsSchema = {
 export const registerWithdrawalSchema = {
   body: {
     type: "object",
-    required: ["cajaId", "responsibleName", "amount"],
+    required: [
+      "cajaId",
+      "destinationCashRegisterId",
+      "responsibleName",
+      "amount",
+    ],
     properties: {
       cajaId: { type: "integer", minimum: 1 },
+      destinationCashRegisterId: { type: "integer", minimum: 1 },
       responsibleName: { type: "string", minLength: 1, maxLength: 120 },
       transactionDate: { type: "string", format: "date" },
       notes: { type: ["string", "null"], maxLength: 2000 },
@@ -1242,4 +1324,49 @@ export const setChangeFundSchema = {
     additionalProperties: false,
   },
   response: { 400: errorSchema, 401: errorSchema, 403: errorSchema, 404: errorSchema, 500: errorSchema },
+} as const;
+
+/**
+ * POST /cash-registers/:id/opening-count — arqueo de apertura de Caja central
+ * o Tesoro (fase 208, DI-06). Owner-only (lo gatea la ruta). `countedAmount` es
+ * el efectivo real contado, en unidades enteras.
+ */
+export const openingCountSchema = {
+  params: {
+    type: "object",
+    required: ["id"],
+    properties: { id: { type: "integer", minimum: 1 } },
+  },
+  body: {
+    type: "object",
+    required: ["countedAmount"],
+    additionalProperties: false,
+    properties: {
+      countedAmount: { type: "integer", minimum: 0 },
+      notes: { type: ["string", "null"], maxLength: 2000 },
+    },
+  },
+  response: {
+    201: {
+      type: "object",
+      properties: {
+        openingCount: {
+          type: "object",
+          properties: {
+            cashRegisterId: { type: "integer" },
+            expectedAmount: { type: "integer" },
+            countedAmount: { type: "integer" },
+            difference: { type: "integer" },
+            adjustmentTxId: { type: ["integer", "null"] },
+            firmeBalance: { type: "integer" },
+          },
+        },
+      },
+    },
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
+    500: errorSchema,
+  },
 } as const;

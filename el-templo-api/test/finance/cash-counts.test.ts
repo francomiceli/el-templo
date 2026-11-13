@@ -21,7 +21,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { sql, eq, and } from "drizzle-orm";
+import { sql, eq, and, inArray } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import {
   createTestApp,
@@ -45,6 +45,8 @@ let branchId: number;
 let memberId: number;
 let cajaId: number;
 let bankCajaId: number;
+// Caja central propia: destino del retiro (fase 208: el retiro es un traslado).
+let centralId: number;
 let adminToken: string;
 let coachToken: string;
 
@@ -214,6 +216,21 @@ beforeAll(async () => {
     )
     .$returningId();
   bankCajaId = bank.id;
+  const [central] = await app.db
+    .insert(schema.cashRegisters)
+    .values(
+      tenantValues(TEMPLO_CTX, {
+        name: `Arqueo-Central ${Date.now()}`,
+        type: "efectivo" as const,
+        branchId: null,
+        currency: "ARS",
+        openingBalance: 0,
+        cutoffDate: "2020-01-01",
+        isTreasury: false,
+      }),
+    )
+    .$returningId();
+  centralId = central.id;
 });
 
 afterAll(async () => {
@@ -226,7 +243,12 @@ afterAll(async () => {
     .where(and(tenantWhere(schema.cashRegisters, TEMPLO_CTX), eq(schema.cashRegisters.id, cajaId)));
   await app.db
     .delete(schema.cashRegisters)
-    .where(and(tenantWhere(schema.cashRegisters, TEMPLO_CTX), eq(schema.cashRegisters.id, bankCajaId)));
+    .where(
+      and(
+        tenantWhere(schema.cashRegisters, TEMPLO_CTX),
+        inArray(schema.cashRegisters.id, [bankCajaId, centralId]),
+      ),
+    );
   await app.close();
 });
 
@@ -265,7 +287,12 @@ describe("GET /coach-load/caja-expected", () => {
       method: "POST",
       url: `${FIN}/withdrawals`,
       headers: { authorization: `Bearer ${adminToken}` },
-      payload: { cajaId, responsibleName: "Martín", amount: 65000 },
+      payload: {
+        cajaId,
+        destinationCashRegisterId: centralId,
+        responsibleName: "Martín",
+        amount: 65000,
+      },
     });
     expect(w.statusCode).toBe(201);
     const e = await expected();

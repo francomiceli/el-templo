@@ -32,8 +32,10 @@
         />
       </div>
       <q-space />
-      <!-- Registrar movimiento / egreso (fase 139, MOV-01..03). Same RBAC as
-           the /caja hub (gestion/admin/owner = FINANCE_VOID_ROLES). -->
+      <!-- Registrar movimiento entre cajas (fase 139, MOV-01..03). Same RBAC as
+           the /caja hub (gestion/admin/owner = FINANCE_VOID_ROLES). Desde la
+           fase 209 el diálogo ya no carga egresos: los gastos se cargan en
+           Egresos → Nuevo gasto (el diálogo trae el acceso). -->
       <div class="col-12 col-sm-auto">
         <q-btn
           icon="add"
@@ -85,7 +87,7 @@
       <!-- Tipo badge -->
       <template #body-cell-tipo="slotProps">
         <q-td :props="slotProps">
-          <q-badge :color="kindColor(slotProps.row.kind)" :label="kindLabel(slotProps.row.kind)" />
+          <q-badge :color="rowColor(slotProps.row)" :label="rowLabel(slotProps.row)" />
         </q-td>
       </template>
 
@@ -158,7 +160,7 @@
     <q-dialog v-model="showDetailDialog">
       <q-card v-if="detailRow" style="width: 480px; max-width: 95vw">
         <q-card-section>
-          <div class="text-h6">{{ kindLabel(detailRow.kind) }} #{{ detailRow.id }}</div>
+          <div class="text-h6">{{ rowLabel(detailRow) }} #{{ detailRow.id }}</div>
         </q-card-section>
         <q-separator />
         <q-card-section>
@@ -166,7 +168,7 @@
             <q-item>
               <q-item-section>Tipo</q-item-section>
               <q-item-section side>
-                <q-badge :color="kindColor(detailRow.kind)" :label="kindLabel(detailRow.kind)" />
+                <q-badge :color="rowColor(detailRow)" :label="rowLabel(detailRow)" />
               </q-item-section>
             </q-item>
             <q-item>
@@ -237,7 +239,7 @@
       </q-card>
     </q-dialog>
 
-    <!-- Registrar movimiento / egreso (fase 139) -->
+    <!-- Registrar movimiento entre cajas (fase 139; los egresos ya no se cargan acá, fase 209) -->
     <RegistrarMovEgresoDialog
       v-model="showRegistrar"
       :selected-country="selectedCountry"
@@ -306,6 +308,25 @@ function kindColor(kind: string): string {
   return 'warning'; // adjustment
 }
 
+/**
+ * Retiro nuevo (fase 208): sus patas son cash_transfer con responsable (los
+ * retiros viejos son expense y siguen como "Egreso"). Las demás cash_transfer
+ * (traslados comunes) no traen responsable y siguen como "Movimiento".
+ */
+function isWithdrawalLeg(row: MovEgresoItem): boolean {
+  return row.kind === 'cash_transfer' && row.responsibleName !== null;
+}
+
+function rowLabel(row: MovEgresoItem): string {
+  return isWithdrawalLeg(row) ? 'Retiro' : kindLabel(row.kind);
+}
+
+/** La pata de salida de un retiro va con color de egreso, la de entrada neutra. */
+function rowColor(row: MovEgresoItem): string {
+  if (isWithdrawalLeg(row)) return row.direction === 'outflow' ? 'negative' : 'grey-7';
+  return kindColor(row.kind);
+}
+
 // Estado de validación (ARQUEO-02): validationLabel/validationColor viven en
 // src/utils/validation-status.ts (compartido con el Historial de cobros, 152-05).
 
@@ -321,6 +342,10 @@ function isEgreso(row: MovEgresoItem): boolean {
  * for an egreso show the concepto/notes. Falls back to "—" when nothing.
  */
 function conceptoText(row: MovEgresoItem): string {
+  if (isWithdrawalLeg(row)) {
+    const base = `Retiro · ${row.responsibleName}`;
+    return row.notes ? `${base} · ${row.notes}` : base;
+  }
   if (row.kind === 'cash_transfer') {
     // Transfer notes encode the origen/destino narrative; show them as-is.
     return row.notes || `${row.cashRegisterName}`;
@@ -398,6 +423,7 @@ const filteredRows = computed<MovEgresoItem[]>(() => {
     return rows.value.filter((r) => COBRO_KINDS.includes(r.kind));
   }
   if (filters.tipo === 'movimientos') {
+    // Incluye las patas de los retiros nuevos (cash_transfer con responsable).
     return rows.value.filter((r) => r.kind === 'cash_transfer');
   }
   if (filters.tipo === 'egresos') {
@@ -530,8 +556,10 @@ function showDetails(row: MovEgresoItem) {
 }
 
 // =========================================================================
-// Registrar movimiento / egreso (fase 139). On success the dialog notifies;
-// we just reload the history (and saldos refresh on their own tab).
+// Registrar movimiento entre cajas (fase 139). On success the dialog notifies;
+// we just reload the history (and saldos refresh on their own tab). El listado
+// sigue mostrando los egresos viejos y los pagos de gastos (fase 209), pero acá
+// ya no se registran: eso se hace en Egresos.
 // =========================================================================
 
 const showRegistrar = ref(false);

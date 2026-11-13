@@ -38,7 +38,7 @@
       <q-tab :name="CAJA_TABS.retiros" label="Retiros" icon="payments" />
       <q-tab :name="CAJA_TABS.transacciones" label="Historial de cobros" icon="receipt_long" />
       <q-tab :name="CAJA_TABS.saldos" label="Saldos" icon="account_balance_wallet" />
-      <!-- Cuentas: ABM de cajas, cuentas bancarias y categorías. Todo su
+      <!-- Cuentas: ABM de cajas y cuentas bancarias. Todo su
            contenido es admin/owner en el API (ADMIN_ROLES), así que a gestión
            y admin_sede se les oculta la pestaña entera en vez de mostrarles
            "No tienes permiso…" (feedback UAT admin_sede 2026-09-18). -->
@@ -114,7 +114,8 @@ const authStore = useAuthStore();
 const isOwner = computed(() => authStore.user?.role === 'owner');
 
 // Mirrors ADMIN_ROLES del API: únicos roles que pueden cargar el ABM de la
-// pestaña Cuentas (cajas, cuentas bancarias, categorías de egreso).
+// pestaña Cuentas (cajas y cuentas bancarias). Los rubros de egreso se
+// mudaron a Egresos > Rubros (fase 209).
 const canManageCatalog = computed(() => {
   const role = authStore.user?.role;
   return role === 'admin' || role === 'owner';

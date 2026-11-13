@@ -69,6 +69,71 @@
 
     <q-separator class="q-my-lg" />
 
+    <!-- Caja central y Tesoro (fase 208, DI-07): efectivo sin sede, solo dueño.
+         La API también restringe a owner (la UI no es la barrera). -->
+    <template v-if="isOwner">
+      <div class="row items-center q-mb-md">
+        <div class="text-subtitle1 text-weight-medium col">Caja central y Tesoro</div>
+        <q-btn
+          icon="add"
+          label="Nuevo Tesoro"
+          color="primary"
+          unelevated
+          dense
+          @click="showTesoroDialog = true"
+        />
+      </div>
+
+      <q-table
+        :rows="cajasCentral"
+        :columns="centralColumns"
+        row-key="cashRegisterId"
+        flat
+        bordered
+        :loading="loadingCajas"
+        :pagination="{ rowsPerPage: 0 }"
+        hide-bottom
+      >
+        <template #body-cell-name="cellProps">
+          <q-td :props="cellProps">
+            <div class="row items-center q-gutter-xs no-wrap">
+              <span>{{ cellProps.row.name }}</span>
+              <q-badge
+                :color="cellProps.row.isTreasury ? 'amber-3' : 'grey-4'"
+                text-color="grey-9"
+                :label="cellProps.row.isTreasury ? 'Tesoro' : 'Central'"
+              />
+            </div>
+          </q-td>
+        </template>
+        <template #body-cell-firmeBalance="cellProps">
+          <q-td :props="cellProps" class="text-weight-medium">
+            {{ formatPrice(cellProps.row.firmeBalance, cellProps.row.currency) }}
+          </q-td>
+        </template>
+        <template #body-cell-actions="cellProps">
+          <q-td :props="cellProps">
+            <q-btn
+              flat
+              dense
+              no-caps
+              icon="fact_check"
+              label="Arqueo de apertura"
+              color="secondary"
+              @click="openArqueo(cellProps.row)"
+            />
+          </q-td>
+        </template>
+        <template #no-data>
+          <div class="full-width text-center text-grey-6 q-pa-md">
+            Todavía no hay Caja central ni Tesoro. Creá el primer Tesoro con "Nuevo Tesoro".
+          </div>
+        </template>
+      </q-table>
+    </template>
+
+    <q-separator class="q-my-lg" />
+
     <!-- Header: alta de cuenta (CTA-01) -->
     <div class="row items-center q-mb-md">
       <div class="text-subtitle1 text-weight-medium col">Cuentas bancarias</div>
@@ -126,6 +191,18 @@
               >
                 <q-tooltip>Editar</q-tooltip>
               </q-btn>
+              <!-- Saldo de apertura (fase 209.1): solo owner, la API también lo exige.
+                   Deja el banco en el saldo real con un ajuste trazable. -->
+              <q-btn
+                v-if="isOwner && tableProps.row.isActive"
+                flat
+                dense
+                no-caps
+                icon="fact_check"
+                label="Saldo de apertura"
+                color="secondary"
+                @click="openSaldoBanco(tableProps.row)"
+              />
               <!-- Retiro de cuenta banco: monto explícito, con responsable (2026-09-07).
                    Mismos roles que la API (owner/admin/gestion). -->
               <q-btn
@@ -173,107 +250,28 @@
       </template>
     </q-table>
 
-    <q-separator class="q-my-lg" />
-
-    <!-- Categorías de egreso (CAJA-05 / D-07) — sección apilada bajo cuentas.
-         País-scoped (D-08, nombre único por país): reactiva al selector de país. -->
-    <div class="row items-center q-mb-md">
-      <div class="text-subtitle1 text-weight-medium col">Categorías de egreso</div>
-      <q-btn
-        v-if="canManage"
-        icon="add"
-        label="Nueva categoría"
-        color="primary"
-        unelevated
-        dense
-        @click="openCreateCategoria"
-      />
-    </div>
-
-    <q-table
-      :rows="costCenters"
-      :columns="categoriaColumns"
-      row-key="id"
-      flat
-      bordered
-      :loading="loadingCategorias"
-      :pagination="{ rowsPerPage: 0 }"
-      hide-bottom
-    >
-      <!-- Cerradas atenuadas (D-08) -->
-      <template #body="tableProps">
-        <q-tr :props="tableProps" :class="{ 'text-grey-5': !tableProps.row.isActive }">
-          <q-td key="name" :props="tableProps">
-            <div class="row items-center q-gutter-xs no-wrap">
-              <span>{{ tableProps.row.name }}</span>
-              <q-badge
-                v-if="!tableProps.row.isActive"
-                color="grey-4"
-                text-color="grey-8"
-                label="Cerrada"
-              />
-            </div>
-          </q-td>
-          <q-td key="actions" :props="tableProps">
-            <div class="row items-center q-gutter-xs no-wrap justify-end">
-              <q-btn
-                v-if="canManage"
-                flat
-                dense
-                round
-                icon="edit"
-                color="primary"
-                @click="openEditCategoria(tableProps.row)"
-              >
-                <q-tooltip>Renombrar</q-tooltip>
-              </q-btn>
-              <q-btn
-                v-if="canManage && tableProps.row.isActive"
-                flat
-                dense
-                round
-                icon="lock"
-                color="negative"
-                @click="onDeactivateCategoria(tableProps.row)"
-              >
-                <q-tooltip>Desactivar categoría</q-tooltip>
-              </q-btn>
-              <q-btn
-                v-else-if="canManage"
-                flat
-                dense
-                round
-                icon="lock_open"
-                color="positive"
-                @click="onReactivateCategoria(tableProps.row)"
-              >
-                <q-tooltip>Reactivar categoría</q-tooltip>
-              </q-btn>
-            </div>
-          </q-td>
-        </q-tr>
-      </template>
-
-      <template #no-data>
-        <div class="full-width text-center text-grey-6 q-pa-md">
-          Todavía no hay categorías de egreso. Creá la primera con "Nueva categoría".
-        </div>
-      </template>
-    </q-table>
-
-    <!-- Alta / renombre de categoría (CAJA-05) -->
-    <CategoriaEgresoFormDialog
-      v-model="showCategoriaForm"
-      :selected-country="selectedCountry"
-      :categoria="editingCategoria"
-      @saved="onSavedCategoria"
-    />
-
     <!-- Apertura de caja de efectivo (una por sucursal y moneda) -->
     <CajaEfectivoFormDialog
       v-model="showCajaDialog"
       :selected-country="selectedCountry"
       @saved="loadCajas"
+    />
+
+    <!-- Alta de Tesoro (owner) -->
+    <TesoroFormDialog
+      v-if="isOwner"
+      v-model="showTesoroDialog"
+      :default-currency="selectedCountry === 'ES' ? 'EUR' : 'ARS'"
+      @created="loadCajas"
+    />
+
+    <!-- Arqueo de apertura de Central / Tesoro y saldo de apertura de bancos (owner) -->
+    <ArqueoAperturaDialog
+      v-if="isOwner"
+      v-model="showArqueoDialog"
+      :caja="arqueoCaja"
+      :mode="arqueoMode"
+      @registered="onAperturaRegistered"
     />
 
     <!-- Alta / edición (CTA-01) -->
@@ -306,11 +304,13 @@ import { createLogger } from 'src/utils/logger';
 import { extractError } from 'src/utils/extract-error';
 import { formatPrice } from 'src/utils/format-price';
 import { useTransactionsApi } from 'src/composables/useTransactionsApi';
-import type { BankAccount, CajaSaldoRow, CostCenter } from 'src/types/transaction';
+import type { BankAccount, CajaSaldoRow } from 'src/types/transaction';
 import CuentaBancariaFormDialog from 'src/components/caja/CuentaBancariaFormDialog.vue';
 import CajaEfectivoFormDialog from 'src/components/caja/CajaEfectivoFormDialog.vue';
-import CategoriaEgresoFormDialog from 'src/components/caja/CategoriaEgresoFormDialog.vue';
 import RegistrarRetiroDialog from 'src/components/caja/RegistrarRetiroDialog.vue';
+import TesoroFormDialog from 'src/components/caja/TesoroFormDialog.vue';
+import type { OpeningMode } from 'src/utils/opening-count';
+import ArqueoAperturaDialog from 'src/components/caja/ArqueoAperturaDialog.vue';
 
 const props = defineProps<{
   selectedCountry: 'AR' | 'ES';
@@ -322,7 +322,7 @@ const $q = useQuasar();
 const transactionsApi = useTransactionsApi();
 const authStore = useAuthStore();
 
-// El ABM de cajas, cuentas y categorías es admin/owner en la API (ADMIN_ROLES).
+// El ABM de cajas y cuentas es admin/owner en la API (ADMIN_ROLES).
 // Gestión entra a /caja desde 2026-09-07 para operar (retiros, validar), no
 // para administrar el catálogo: se le ocultan esos botones.
 const canManage = computed(() => {
@@ -351,6 +351,51 @@ const columns: QTableColumn<BankAccount>[] = [
 const cajasEfectivo = ref<CajaSaldoRow[]>([]);
 const loadingCajas = ref(false);
 const showCajaDialog = ref(false);
+
+// Caja central y Tesoro (fase 208): efectivo sin sede, de la MISMA carga de
+// saldos (sin otra llamada). Solo se muestran al dueño.
+const cajasCentral = ref<CajaSaldoRow[]>([]);
+const showTesoroDialog = ref(false);
+const showArqueoDialog = ref(false);
+const arqueoCaja = ref<CajaSaldoRow | null>(null);
+const arqueoMode = ref<OpeningMode>('efectivo');
+// Saldos de las cuentas bancarias por id, de la MISMA carga de saldos (sin otra llamada).
+const bancosSaldo = ref<Map<number, CajaSaldoRow>>(new Map());
+
+const centralColumns: QTableColumn<CajaSaldoRow>[] = [
+  { name: 'name', label: 'Cuenta', field: 'name', align: 'left' },
+  { name: 'currency', label: 'Moneda', field: 'currency', align: 'left' },
+  { name: 'firmeBalance', label: 'Saldo firme', field: 'firmeBalance', align: 'left' },
+  { name: 'actions', label: 'Acciones', field: 'cashRegisterId', align: 'right' },
+];
+
+function openArqueo(caja: CajaSaldoRow) {
+  arqueoCaja.value = caja;
+  arqueoMode.value = 'efectivo';
+  showArqueoDialog.value = true;
+}
+
+function openSaldoBanco(account: BankAccount) {
+  const fila = bancosSaldo.value.get(account.id);
+  if (!fila) {
+    $q.notify({
+      type: 'negative',
+      message: 'No encontré el saldo de la cuenta. Recargá la página e intentá de nuevo.',
+    });
+    log.warn('Saldo de la cuenta bancaria no encontrado para el saldo de apertura', {
+      cashRegisterId: account.id,
+    });
+    return;
+  }
+  arqueoCaja.value = fila;
+  arqueoMode.value = 'banco';
+  showArqueoDialog.value = true;
+}
+
+// La columna "Saldo firme" de bancos sale de load(), la de Central/Tesoro de loadCajas().
+function onAperturaRegistered() {
+  void Promise.all([load(), loadCajas()]);
+}
 
 const cajaColumns: QTableColumn<CajaSaldoRow>[] = [
   { name: 'name', label: 'Caja', field: 'name', align: 'left' },
@@ -398,6 +443,10 @@ async function loadCajas() {
       country: props.isOwner ? props.selectedCountry : undefined,
     });
     cajasEfectivo.value = rows.filter((r) => r.type === 'efectivo' && r.branchId !== null);
+    cajasCentral.value = rows.filter((r) => r.type === 'efectivo' && r.branchId === null);
+    bancosSaldo.value = new Map(
+      rows.filter((r) => r.type === 'banco').map((r) => [r.cashRegisterId, r])
+    );
   } catch (err: unknown) {
     const message = extractError(err, 'Error cargando cajas');
     log.error('Error loading cash registers', { error: message });
@@ -523,99 +572,11 @@ function onRetiroRegistered() {
 }
 
 // =========================================================================
-// Categorías de egreso (CAJA-05 / D-07 / D-08) — ABM país-scoped: alta,
-// renombre y baja/alta lógica (sin borrado físico). Reactivo al selector de
-// país (a diferencia de las cuentas bancarias, que son país-agnósticas).
-// =========================================================================
-
-const costCenters = ref<CostCenter[]>([]);
-const loadingCategorias = ref(false);
-
-const categoriaColumns: QTableColumn<CostCenter>[] = [
-  { name: 'name', label: 'Categoría', field: 'name', align: 'left' },
-  { name: 'actions', label: 'Acciones', field: 'id', align: 'right' },
-];
-
-async function loadCostCenters() {
-  loadingCategorias.value = true;
-  try {
-    costCenters.value = await transactionsApi.listAllCostCenters(props.selectedCountry);
-  } catch (err: unknown) {
-    const message = extractError(err, 'Error cargando categorías de egreso');
-    log.error('Error loading cost centers', { error: message });
-    $q.notify({ type: 'negative', message });
-  } finally {
-    loadingCategorias.value = false;
-  }
-}
-
-const showCategoriaForm = ref(false);
-const editingCategoria = ref<CostCenter | null>(null);
-
-function openCreateCategoria() {
-  editingCategoria.value = null;
-  showCategoriaForm.value = true;
-}
-
-function openEditCategoria(categoria: CostCenter) {
-  editingCategoria.value = categoria;
-  showCategoriaForm.value = true;
-}
-
-function onSavedCategoria() {
-  void loadCostCenters();
-}
-
-function onDeactivateCategoria(categoria: CostCenter) {
-  $q.dialog({
-    title: 'Desactivar categoría',
-    message:
-      `¿Desactivar la categoría "${categoria.name}"? ` +
-      'Dejará de aparecer al registrar egresos, pero los egresos ya imputados se conservan. ' +
-      'Podrás reactivarla más adelante.',
-    cancel: true,
-    persistent: true,
-    ok: { label: 'Desactivar', color: 'negative' },
-  }).onOk(() => {
-    void deactivateCategoria(categoria.id);
-  });
-}
-
-async function deactivateCategoria(id: number) {
-  try {
-    await transactionsApi.deactivateCostCenter(id);
-    $q.notify({ type: 'positive', message: 'Categoría desactivada' });
-    await loadCostCenters();
-  } catch (err: unknown) {
-    const message = extractError(err, 'Error desactivando la categoría');
-    log.error('Error deactivating cost center', { error: message });
-    $q.notify({ type: 'negative', message });
-  }
-}
-
-function onReactivateCategoria(categoria: CostCenter) {
-  void reactivateCategoria(categoria.id);
-}
-
-async function reactivateCategoria(id: number) {
-  try {
-    await transactionsApi.reactivateCostCenter(id);
-    $q.notify({ type: 'positive', message: 'Categoría reactivada' });
-    await loadCostCenters();
-  } catch (err: unknown) {
-    const message = extractError(err, 'Error reactivando la categoría');
-    log.error('Error reactivating cost center', { error: message });
-    $q.notify({ type: 'negative', message });
-  }
-}
-
-// =========================================================================
 // Lifecycle
 // =========================================================================
 
 onMounted(() => {
   void load();
-  void loadCostCenters();
   void loadCajas();
 });
 
@@ -623,7 +584,6 @@ watch(
   () => props.selectedCountry,
   () => {
     void load();
-    void loadCostCenters();
     void loadCajas();
   }
 );

@@ -1,18 +1,31 @@
 /**
- * Retiros de caja (feedback caja/cobros 2026-09-07, rediseño 2026-09-23).
+ * Retiros de caja (feedback caja/cobros 2026-09-07, rediseño 2026-09-23;
+ * fase 208: el retiro nuevo es un traslado con destino).
  *
- * Un retiro es un `expense` con centro de costo "Retiros" + `responsible_name`
- * obligatorio. Desde 2026-09-23 el retiro en EFECTIVO es "una masa de plata":
- * monto libre con tope en el saldo firme (que ya resta las salidas), conteo
- * opcional con ajuste por faltante/sobrante, y auto-vínculo a los cobros
- * firmes sin retiro (procedencia). En una cuenta BANCO lleva monto explícito.
+ * FORMATO NUEVO (fase 208, el que crea la API): un retiro es un par
+ * `cash_transfer` (la salida en la caja de origen = el retiro, la entrada en la
+ * Caja central / Tesoro de destino) con `responsible_name` obligatorio, sin
+ * `expense` ni centro de costo. `destinationCashRegisterId` es obligatorio.
+ * FORMATO VIEJO (los 48 de prod, no se migran): un `expense` con centro
+ * "Retiros". Estos tests lo siembran con `seedLegacyWithdrawal` y verifican que
+ * se listan y se anulan igual (DI-09).
+ *
+ * El retiro en EFECTIVO es "una masa de plata": monto libre con tope en el
+ * saldo firme (que ya resta las salidas), conteo opcional con ajuste por
+ * faltante/sobrante, y auto-vínculo a los cobros firmes sin retiro
+ * (procedencia). En una cuenta BANCO lleva monto explícito.
+ *
+ * Casos que usan el fixture del formato viejo: "retiro viejo sembrado: se lista
+ * con su detalle..." y "un retiro viejo sembrado se anula por /expenses/:id/void".
+ * El resto afirma comportamiento sobre el alta nueva (destino = una Central
+ * propia del archivo, `centralId`).
  *
  * Cubre:
  *   - GET /withdrawals/pending: listado de cobros sin retiro (filtros, orden,
  *     concepto, dateTo, corte, sin validar aparte, banco 400) y el `summary`
  *     del cajón: quedó al último retiro + ingresos − salidas = disponible;
  *     fondo de cambio y esperado en el cajón.
- *   - POST /withdrawals (efectivo): monto libre; el caso de Martín (un gasto
+ *   - POST /withdrawals (efectivo, hacia una Central): monto libre; el caso de Martín (un gasto
  *     pagado desde la caja baja el tope); retiro parcial y lo que queda;
  *     auto-vínculo (solo firmes, de la caja, hasta la fecha, desde el corte,
  *     nunca dos veces); conteo (igual, faltante sin/con nota, sobrante) con
@@ -27,7 +40,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { sql, eq, and, inArray, isNull } from "drizzle-orm";
+import { sql, eq, and, inArray, isNull, ne } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import {
   createTestApp,
@@ -38,6 +51,7 @@ import {
 } from "../helpers";
 import * as schema from "../../src/db/schema";
 import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { seedLegacyWithdrawal } from "../fixtures/withdrawal-fixtures";
 import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
 
 const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
@@ -52,6 +66,9 @@ let subscriptionId: number;
 let cajaId: number;
 let otherCajaId: number;
 let bankCajaId: number;
+// Caja central propia del archivo (efectivo, sin sede, no Tesoro): destino por
+// defecto de los retiros nuevos.
+let centralId: number;
 let retirosCostCenterId: number;
 let variosCostCenterId: number;
 
@@ -109,6 +126,9 @@ interface WithdrawalBody {
   cashRegisterType: string;
   voidedAt: string | null;
   payments: PaymentRow[];
+  format: "legacy_expense" | "transfer";
+  destinationCashRegisterId: number | null;
+  destinationName: string | null;
 }
 
 async function seedCobro(opts: {
@@ -178,7 +198,9 @@ async function postWithdrawal(
     method: "POST",
     url: `${BASE}/withdrawals`,
     headers: { authorization: `Bearer ${token}` },
-    payload,
+    // Destino por defecto: la Central del archivo. Un caso que prueba su
+    // ausencia lo pisa con `destinationCashRegisterId: undefined`.
+    payload: { destinationCashRegisterId: centralId, ...payload },
   });
   return { statusCode: res.statusCode, body: JSON.parse(res.body) };
 }
@@ -293,6 +315,10 @@ async function cashCountsOfCaja(): Promise<
     );
 }
 
+/**
+ * Cobros vinculados al retiro. En el formato nuevo la salida también tiene un
+ * link a su pata de entrada (`cash_transfer`): no es un cobro, se descarta.
+ */
 async function linkedPaymentIds(withdrawalId: number): Promise<number[]> {
   const rows = await app.db
     .select({ targetId: schema.transactionLinks.targetId })
@@ -304,7 +330,51 @@ async function linkedPaymentIds(withdrawalId: number): Promise<number[]> {
         eq(schema.transactionLinks.targetKind, "transaction"),
       ),
     );
-  return rows.map((r) => r.targetId).sort((a, b) => a - b);
+  const targetIds = rows.map((r) => r.targetId);
+  if (targetIds.length === 0) return [];
+  const payments = await app.db
+    .select({ id: schema.financialTransactions.id })
+    .from(schema.financialTransactions)
+    .where(
+      and(
+        tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+        inArray(schema.financialTransactions.id, targetIds),
+        ne(schema.financialTransactions.kind, "cash_transfer"),
+      ),
+    );
+  return payments.map((r) => r.id).sort((a, b) => a - b);
+}
+
+/** Filas no anuladas de un kind/dirección en una caja cualquiera. */
+async function liveRowsInCaja(
+  cashRegisterId: number,
+  kind: "cash_transfer" | "expense",
+): Promise<
+  Array<{
+    id: number;
+    direction: string;
+    amount: number;
+    costCenterId: number | null;
+    responsibleName: string | null;
+  }>
+> {
+  return app.db
+    .select({
+      id: schema.financialTransactions.id,
+      direction: schema.financialTransactions.direction,
+      amount: schema.financialTransactions.amount,
+      costCenterId: schema.financialTransactions.costCenterId,
+      responsibleName: schema.financialTransactions.responsibleName,
+    })
+    .from(schema.financialTransactions)
+    .where(
+      and(
+        tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+        eq(schema.financialTransactions.cashRegisterId, cashRegisterId),
+        eq(schema.financialTransactions.kind, kind),
+        isNull(schema.financialTransactions.voidedAt),
+      ),
+    );
 }
 
 beforeAll(async () => {
@@ -422,6 +492,24 @@ beforeAll(async () => {
     .$returningId();
   bankCajaId = bank.id;
 
+  // Caja central propia: efectivo, sin sede, no Tesoro, ARS. Destino de los
+  // retiros. Los saldos se reinician en cada caso (beforeEach borra las filas).
+  const [central] = await app.db
+    .insert(schema.cashRegisters)
+    .values(
+      tenantValues(TEMPLO_CTX, {
+        name: `Retiros-Central ${Date.now()}`,
+        type: "efectivo" as const,
+        branchId: null,
+        currency: "ARS",
+        openingBalance: 0,
+        cutoffDate: "2020-01-01",
+        isTreasury: false,
+      }),
+    )
+    .$returningId();
+  centralId = central.id;
+
   // Centros de costo: "Retiros" (sembrado por la mig 0163 para AR; si el
   // orden de la suite lo borró, el service lo recrea) y "Varios" para el
   // egreso de control.
@@ -459,7 +547,7 @@ afterAll(async () => {
   await app.db.execute(
     sql`DELETE FROM financial_transactions WHERE tenant_id = ${TENANT_TEMPLO}`,
   );
-  const extraCajas = [otherCajaId, bankCajaId].filter(
+  const extraCajas = [otherCajaId, bankCajaId, centralId].filter(
     (id): id is number => typeof id === "number",
   );
   if (extraCajas.length > 0) {
@@ -716,7 +804,7 @@ describe("POST /withdrawals — caja efectivo", () => {
     expect(await firmeBalance(cajaId)).toBe(0);
   });
 
-  it("registra por monto: centro Retiros, responsable, notas; auto-vincula solo cobros firmes de la caja desde el corte; el saldo baja por el monto", async () => {
+  it("registra por monto como traslado a la Central: responsable, notas; auto-vincula solo cobros firmes de la caja desde el corte; la sede baja y la Central sube por el monto", async () => {
     const a = await seedCobro({ amount: 65000, transactionDate: daysAgo(13) });
     const b = await seedCobro({ amount: 65000, transactionDate: daysAgo(11) });
     // Ruido que NO se vincula:
@@ -742,7 +830,12 @@ describe("POST /withdrawals — caja efectivo", () => {
     expect(w.cashRegisterType).toBe("efectivo");
     expect(w.transactionDate).toBe(daysAgo(0));
     expect(w.payments.map((p) => p.id).sort((x, y) => x - y)).toEqual([a, b].sort((x, y) => x - y));
+    // Formato nuevo (fase 208): el retiro es un traslado a la Central.
+    expect(w.format).toBe("transfer");
+    expect(w.destinationCashRegisterId).toBe(centralId);
+    expect(w.destinationName).toMatch(/^Retiros-Central/);
 
+    // La pata de salida (= el retiro): traslado, sin centro de costo.
     const [row] = await app.db
       .select({
         kind: schema.financialTransactions.kind,
@@ -762,15 +855,28 @@ describe("POST /withdrawals — caja efectivo", () => {
         ),
       );
     expect(row).toMatchObject({
-      kind: "expense",
+      kind: "cash_transfer",
       direction: "outflow",
       amount: 100000,
-      costCenterId: retirosCostCenterId,
+      costCenterId: null,
       responsibleName: "Matías Mamana",
       cashRegisterId: cajaId,
       validationStatus: "validado",
       notes: "Retiro semanal",
     });
+    // La pata de entrada en la Central, y ningún `expense` nuevo (no es costo).
+    const centralRows = await liveRowsInCaja(centralId, "cash_transfer");
+    expect(centralRows).toHaveLength(1);
+    expect(centralRows[0]).toMatchObject({
+      direction: "inflow",
+      amount: 100000,
+      costCenterId: null,
+      responsibleName: "Matías Mamana",
+    });
+    expect(await liveRowsOfKind("expense")).toHaveLength(0);
+    expect(await firmeBalance(centralId)).toBe(100000);
+    // El auto-vínculo cuelga de la salida (el link a la pata de entrada no
+    // cuenta como cobro: linkedPaymentIds lo descarta).
     expect(await linkedPaymentIds(w.id)).toEqual([a, b].sort((x, y) => x - y));
 
     // Todo vinculado: no quedan cobros sin retiro; queda el remanente.
@@ -798,6 +904,90 @@ describe("POST /withdrawals — caja efectivo", () => {
     expect(byId.get(a)?.withdrawalId).toBe(w.id);
     expect(byId.get(a)?.withdrawnAt).toBe(daysAgo(0));
     expect(byId.get(b)?.withdrawalId).toBe(w.id);
+  });
+
+  it("retiro viejo sembrado (expense con centro Retiros): se lista y se detalla con sus cobros, sin destino", async () => {
+    // Formato VIEJO (los 48 de prod): lo que antes creaba la API, ahora
+    // sembrado con el fixture. DI-09: se sigue listando igual.
+    const a = await seedCobro({ amount: 65000, transactionDate: daysAgo(13) });
+    const b = await seedCobro({ amount: 65000, transactionDate: daysAgo(11) });
+    const legacy = await seedLegacyWithdrawal(app, TEMPLO_CTX, {
+      cashRegisterId: cajaId,
+      branchId,
+      amount: 100000,
+      responsibleName: "Matías Mamana",
+      recordedBy: adminId,
+      transactionDate: daysAgo(0),
+      notes: "Retiro semanal",
+      payments: [
+        { id: a, amount: 65000 },
+        { id: b, amount: 65000 },
+      ],
+    });
+
+    const [row] = await app.db
+      .select({
+        kind: schema.financialTransactions.kind,
+        direction: schema.financialTransactions.direction,
+        costCenterId: schema.financialTransactions.costCenterId,
+      })
+      .from(schema.financialTransactions)
+      .where(
+        and(
+          tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+          eq(schema.financialTransactions.id, legacy.withdrawalId),
+        ),
+      );
+    expect(row).toMatchObject({
+      kind: "expense",
+      direction: "outflow",
+      costCenterId: retirosCostCenterId,
+    });
+
+    const detail = await app.inject({
+      method: "GET",
+      url: `${BASE}/withdrawals/${legacy.withdrawalId}`,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(detail.statusCode).toBe(200);
+    const d = JSON.parse(detail.body) as WithdrawalBody;
+    expect(d).toMatchObject({
+      id: legacy.withdrawalId,
+      amount: 100000,
+      responsibleName: "Matías Mamana",
+      paymentCount: 2,
+      cashRegisterType: "efectivo",
+      format: "legacy_expense",
+      destinationCashRegisterId: null,
+      destinationName: null,
+    });
+    expect(d.payments.map((p) => p.id).sort((x, y) => x - y)).toEqual(
+      [a, b].sort((x, y) => x - y),
+    );
+
+    const list = await app.inject({
+      method: "GET",
+      url: `${BASE}/withdrawals?cashRegisterId=${cajaId}`,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    const rows = (JSON.parse(list.body) as { rows: WithdrawalBody[] }).rows;
+    expect(rows.map((r) => r.id)).toEqual([legacy.withdrawalId]);
+    expect(rows[0]).toMatchObject({
+      format: "legacy_expense",
+      destinationName: null,
+      paymentCount: 2,
+    });
+
+    // Todo vinculado y retirado: no quedan cobros pendientes; la sede baja
+    // por el monto y no hay Central involucrada.
+    const pending = await getPending(adminToken, `?cashRegisterId=${cajaId}`);
+    expect(pending.body.rows).toHaveLength(0);
+    expect(pending.body.summary.lastWithdrawal).toMatchObject({
+      id: legacy.withdrawalId,
+      amount: 100000,
+    });
+    expect(await firmeBalance(cajaId)).toBe(30000);
+    expect(await firmeBalance(centralId)).toBe(0);
   });
 
   it("retiro parcial: el remanente queda en la caja y un cobro nunca se vincula dos veces", async () => {
@@ -968,22 +1158,29 @@ describe("POST /withdrawals — caja efectivo", () => {
       { cajaId, responsibleName: "   ", amount: 10 },
       { cajaId, amount: 10 },
       { cajaId, responsibleName: "A", amount: 10, countedAmount: -1 },
+      // Fase 208: el destino es obligatorio (falta, o no es un id válido).
+      { cajaId, responsibleName: "A", amount: 10, destinationCashRegisterId: undefined },
+      { cajaId, responsibleName: "A", amount: 10, destinationCashRegisterId: 0 },
     ];
     for (const payload of cases) {
       const res = await postWithdrawal(adminToken, payload);
       expect(res.statusCode, JSON.stringify(payload)).toBe(400);
     }
     expect(await firmeBalance(cajaId)).toBe(100);
+    expect(await firmeBalance(centralId)).toBe(0);
   });
 
   it("coach → 403", async () => {
     await seedCobro({ amount: 100 });
+    // Body completo (con destino): el rol se chequea después del schema.
     const res = await postWithdrawal(coachToken, {
       cajaId,
       responsibleName: "A",
       amount: 100,
+      destinationCashRegisterId: centralId,
     });
     expect(res.statusCode).toBe(403);
+    expect(await firmeBalance(centralId)).toBe(0);
   });
 });
 
@@ -999,8 +1196,11 @@ describe("anulación y retiros", () => {
     expect(blocked.statusCode).toBe(409);
     expect(blocked.body.message).toContain(`retiro #${w.id}`);
 
+    expect(await firmeBalance(centralId)).toBe(300);
     const voidW = await voidTx(w.id, "expenses");
     expect(voidW.statusCode).toBe(200);
+    // Anular el retiro nuevo devuelve la plata: la Central vuelve a cero.
+    expect(await firmeBalance(centralId)).toBe(0);
 
     const pending = await getPending(adminToken, `?cashRegisterId=${cajaId}`);
     expect(pending.body.rows.map((r) => r.id).sort((x, y) => x - y)).toEqual(
@@ -1021,6 +1221,39 @@ describe("anulación y retiros", () => {
     expect(rows[0].id).toBe(w.id);
     expect(rows[0].voidedAt).not.toBeNull();
     expect(rows[0].paymentCount).toBe(2);
+  });
+
+  it("un retiro viejo sembrado se anula por POST /expenses/:id/void como siempre y libera sus cobros", async () => {
+    // Formato VIEJO (expense con centro Retiros): DI-09, se anula igual.
+    const a = await seedCobro({ amount: 100 });
+    const b = await seedCobro({ amount: 200 });
+    const legacy = await seedLegacyWithdrawal(app, TEMPLO_CTX, {
+      cashRegisterId: cajaId,
+      branchId,
+      amount: 300,
+      responsibleName: "A",
+      recordedBy: adminId,
+      transactionDate: daysAgo(0),
+      payments: [
+        { id: a, amount: 100 },
+        { id: b, amount: 200 },
+      ],
+    });
+    expect(await firmeBalance(cajaId)).toBe(0);
+
+    // Mientras el retiro vive, el cobro retirado no se anula.
+    const blocked = await voidTx(a, "transactions");
+    expect(blocked.statusCode).toBe(409);
+    expect(blocked.body.message).toContain(`retiro #${legacy.withdrawalId}`);
+
+    expect((await voidTx(legacy.withdrawalId, "expenses")).statusCode).toBe(200);
+    expect(await firmeBalance(cajaId)).toBe(300);
+    expect(await firmeBalance(centralId)).toBe(0);
+    const pending = await getPending(adminToken, `?cashRegisterId=${cajaId}`);
+    expect(pending.body.rows.map((r) => r.id).sort((x, y) => x - y)).toEqual(
+      [a, b].sort((x, y) => x - y),
+    );
+    expect((await voidTx(a, "transactions")).statusCode).toBe(200);
   });
 
   it("anular un retiro con faltante anula también su ajuste (recargarlo no duplica la diferencia)", async () => {
@@ -1082,7 +1315,12 @@ describe("POST /withdrawals — cuenta banco", () => {
     expect(res.body.withdrawal!.amount).toBe(300);
     expect(res.body.withdrawal!.paymentCount).toBe(0);
     expect(res.body.withdrawal!.cashRegisterType).toBe("banco");
+    expect(res.body.withdrawal!.format).toBe("transfer");
+    expect(res.body.withdrawal!.destinationCashRegisterId).toBe(centralId);
+    // La cuenta baja y la Central sube por el monto; no queda como egreso.
     expect(await firmeBalance(bankCajaId)).toBe(200);
+    expect(await firmeBalance(centralId)).toBe(300);
+    expect(await liveRowsInCaja(bankCajaId, "expense")).toHaveLength(0);
   });
 
   it("sin amount → 400; con conteo → 400", async () => {

@@ -343,6 +343,31 @@ export const FINANCE_READ_ROLES = [
   "admin_sede",
 ] as const;
 
+/**
+ * Roles que operan Egresos (fase 209, DI-14): Gastos, Por pagar, Resumen, cargar
+ * pagos y las opciones del formulario. `admin_sede`, `recepcion`, `coach` y
+ * `coach_actividad` NO entran. OJO: el hook del plugin finance deja pasar a
+ * `admin_sede` y `recepcion` (están en FINANCE_READ_ROLES), así que cada ruta
+ * de Egresos tiene que chequear este set y responder 403.
+ */
+export const EXPENSES_ROLES = ["owner", "admin", "gestion"] as const;
+
+/**
+ * Roles que anulan un gasto o un pago de Egresos (fase 209, DI-14). Rubros ya
+ * usa `ADMIN_ROLES` en las rutas de cost-centers. Es un literal propio (no un
+ * alias de `ADMIN_ROLES`) para que abrir o cerrar Egresos sea una decisión
+ * visible en el diff.
+ */
+export const EXPENSES_VOID_ROLES = ["owner", "admin"] as const;
+
+/**
+ * Resultado por sede (fase 211, D-17/DI-01): solo owner y admin. Literal propio
+ * (no alias de `EXPENSES_VOID_ROLES`) para que abrir o cerrar el Resultado sea
+ * una decisión visible en el diff. Gestión pasa `EXPENSES_ROLES` (opera
+ * Egresos), así que cada ruta del Resultado chequea ESTE set.
+ */
+export const EXPENSES_RESULT_ROLES = ["owner", "admin"] as const;
+
 /** Roles that can soft-delete a member and reset member passwords. */
 export const MEMBER_LIFECYCLE_ROLES = [
   "owner",

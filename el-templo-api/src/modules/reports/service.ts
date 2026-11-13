@@ -831,7 +831,9 @@ export class ReportsService {
     const fromWhere = sql`
       FROM financial_transactions ft
       INNER JOIN users m ON m.id = ft.member_id
-      INNER JOIN branches b ON b.id = m.branch_id
+      -- Fase 207 (D-14): sede del alumno AL COBRAR (snapshot). Las filas sin
+      -- snapshot caen a la sede actual del socio, que nunca es NULL.
+      INNER JOIN branches b ON b.id = COALESCE(ft.member_branch_id, m.branch_id)
       -- Sede donde se registró el cobro. LEFT: financial_transactions.branch_id
       -- es NULLABLE, y el filtro de sede sigue yendo por la sede del alumno (b).
       LEFT JOIN branches fb ON fb.id = ft.branch_id
@@ -3611,7 +3613,10 @@ export class ReportsService {
     const parts: ReturnType<typeof sql>[] = [sql`1 = 1`];
 
     if (filters.branchId !== undefined) {
-      parts.push(sql`m.branch_id = ${filters.branchId}`);
+      // Coherente con la columna mostrada: sede del alumno al cobrar (D-14).
+      parts.push(
+        sql`COALESCE(ft.member_branch_id, m.branch_id) = ${filters.branchId}`,
+      );
     }
 
     if (filters.country !== undefined) {

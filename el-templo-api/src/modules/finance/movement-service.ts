@@ -27,8 +27,9 @@ import { eq, and, isNull } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
-import { BadRequestError } from "../shared/errors";
+import { BadRequestError, NotFoundError } from "../shared/errors";
 import { auditLog } from "../shared/audit-log";
+
 import {
   tenantValues,
   tenantWhere,
@@ -38,8 +39,15 @@ import type { CashRegisterService } from "./cash-register-service";
 import type { TransactionService } from "./transaction-service";
 import { RETIROS_COST_CENTER_NAME } from "./withdrawal-service";
 import { assertEfectivoCoversOutflow } from "./efectivo-guard";
+import { assertNotExpensePaymentRow } from "./expense-payment-guard";
+import { assertMethodAllowedForAccount } from "./payment-method-rules";
+import { createCountAdjustment } from "./count-adjustment";
+import { countryToday } from "./expense-branches";
+import { collectTransferGroupIds, createTransferPair } from "./transfer-pair";
 import type {
   MovementDetail,
+  OpeningCountInput,
+  OpeningCountResult,
   RegisterExpenseInput,
   RegisterMovementInput,
 } from "./types";
@@ -51,8 +59,14 @@ type DbInstance = MySql2Database<typeof schema>;
 interface CajaRef {
   id: number;
   type: "efectivo" | "banco";
+  name: string;
   currency: string;
   branchId: number | null;
+  // Fase 208-04: los usa el arqueo de apertura (estado, fondo de cambio, corte).
+  isActive: boolean;
+  isTreasury: boolean;
+  changeFund: number;
+  cutoffDate: string;
 }
 
 export class MovementService {
@@ -73,8 +87,13 @@ export class MovementService {
       .select({
         id: schema.cashRegisters.id,
         type: schema.cashRegisters.type,
+        name: schema.cashRegisters.name,
         currency: schema.cashRegisters.currency,
         branchId: schema.cashRegisters.branchId,
+        isActive: schema.cashRegisters.isActive,
+        isTreasury: schema.cashRegisters.isTreasury,
+        changeFund: schema.cashRegisters.changeFund,
+        cutoffDate: schema.cashRegisters.cutoffDate,
       })
       .from(schema.cashRegisters)
       .where(
@@ -129,6 +148,10 @@ export class MovementService {
         `Moneda inconsistente: el origen es ${origen.currency}, el destino es ${destino.currency}`,
       );
     }
+    // Las patas de un traslado son asientos internos (exentos de la regla): el
+    // assert deja escrito dónde aplica la regla medio-cuenta (DI-04).
+    assertMethodAllowedForAccount("internal", origen);
+    assertMethodAllowedForAccount("internal", destino);
 
     // D-04: snapshot the expected origen saldo BEFORE opening the tx (the firm
     // balance as the ledger stands now). The reconciliation diff is measured
@@ -149,73 +172,29 @@ export class MovementService {
     );
 
     return await this.db.transaction(async (tx) => {
-      // Pata A: outflow en origen. cashRegisterId explícito (override) — NO se
-      // resuelve por paymentMethod (las cajas son explícitas en un movimiento).
-      // branchId = la sucursal de la caja (null para central/banco — Plan 01
-      // hizo branch_id NULLABLE para esto).
-      const outflow = await this.txnService.create(
+      // Par de traslado (salida en origen + entrada en destino + links ida y
+      // vuelta): armado único en transfer-pair.ts, compartido con el retiro.
+      const { outflowId, inflowId } = await createTransferPair(
         ctx,
+        tx,
+        this.txnService,
         {
-          memberId: null,
-          kind: "cash_transfer",
-          direction: "outflow",
+          origen: {
+            id: origenCajaId,
+            currency: origen.currency,
+            branchId: origen.branchId,
+          },
+          destino: {
+            id: destinoCajaId,
+            currency: destino.currency,
+            branchId: destino.branchId,
+          },
           amount,
-          currency: origen.currency,
-          paymentMethod: "internal",
           transactionDate: this.today(),
-          effectiveDate: this.today(),
-          branchId: origen.branchId,
-          cashRegisterId: origenCajaId,
           notes: notes ?? null,
-          links: [],
         },
         adminId,
-        tx,
       );
-
-      // Pata B: inflow en destino.
-      const inflow = await this.txnService.create(
-        ctx,
-        {
-          memberId: null,
-          kind: "cash_transfer",
-          direction: "inflow",
-          amount,
-          currency: destino.currency,
-          paymentMethod: "internal",
-          transactionDate: this.today(),
-          effectiveDate: this.today(),
-          branchId: destino.branchId,
-          cashRegisterId: destinoCajaId,
-          notes: notes ?? null,
-          links: [],
-        },
-        adminId,
-        tx,
-      );
-
-      // Link the 2 legs both-ways (target_kind='transaction', allocatedAmount 0
-      // — provenance link, not a money allocation; applyDelta ignores tx-to-tx
-      // links). voidMovement walks these to find the sibling leg.
-      await tx.insert(schema.transactionLinks).values([
-        // `as const` SOLO acá: dentro de un array literal el elemento pierde el
-        // tipo contextual de `.values()`, asi que `tenantValues` infiere
-        // `targetKind: string` y el enum de Drizzle deja de compilar. En el
-        // insert de un objeto suelto (el del ajuste, abajo) no hace falta —
-        // es el matiz que el hallazgo 169-07 no cubria.
-        tenantValues(ctx, {
-          transactionId: outflow.id,
-          targetKind: "transaction" as const,
-          targetId: inflow.id,
-          allocatedAmount: 0,
-        }),
-        tenantValues(ctx, {
-          transactionId: inflow.id,
-          targetKind: "transaction" as const,
-          targetId: outflow.id,
-          allocatedAmount: 0,
-        }),
-      ]);
 
       // D-04 reconciliation. Only materialize an adjustment when the physical
       // count differs from expected. The adjustment row corrects origen's saldo
@@ -238,7 +217,7 @@ export class MovementService {
             effectiveDate: this.today(),
             branchId: origen.branchId,
             cashRegisterId: origenCajaId,
-            notes: `Reconciliación movimiento #${outflow.id}: esperado ${expectedAmount}, contado ${countedAmount}`,
+            notes: `Reconciliación movimiento #${outflowId}: esperado ${expectedAmount}, contado ${countedAmount}`,
             links: [],
           },
           adminId,
@@ -252,7 +231,7 @@ export class MovementService {
           tenantValues(ctx, {
             transactionId: adjustment.id,
             targetKind: "transaction",
-            targetId: outflow.id,
+            targetId: outflowId,
             allocatedAmount: 0,
           }),
         );
@@ -265,10 +244,10 @@ export class MovementService {
         actorId: adminId,
         action: "reconciliation",
         targetKind: "transaction",
-        targetId: outflow.id,
+        targetId: outflowId,
         payload: {
-          movementId: outflow.id,
-          inflowTxId: inflow.id,
+          movementId: outflowId,
+          inflowTxId: inflowId,
           adjustmentId: adjustmentTxId,
           expected: expectedAmount,
           counted: countedAmount ?? null,
@@ -279,8 +258,8 @@ export class MovementService {
 
       this.log.info(
         {
-          outflowTxId: outflow.id,
-          inflowTxId: inflow.id,
+          outflowTxId: outflowId,
+          inflowTxId: inflowId,
           adjustmentTxId,
           origenCajaId,
           destinoCajaId,
@@ -293,13 +272,155 @@ export class MovementService {
       );
 
       return {
-        outflowTxId: outflow.id,
-        inflowTxId: inflow.id,
+        outflowTxId: outflowId,
+        inflowTxId: inflowId,
         adjustmentTxId,
         expectedAmount,
         countedAmount: countedAmount ?? null,
       };
     });
+  }
+
+  /**
+   * Arqueo de apertura (fase 208, DI-06): el owner informa el efectivo real de
+   * la Caja central o de un Tesoro y el saldo firme queda EXACTO en lo contado
+   * (descontando fondo de cambio y pendientes, como todo arqueo de efectivo).
+   * La diferencia se asienta como un `adjustment` interno trazable (notas con
+   * esperado y contado, recorded_by, created_at) + un audit 'reconciliation'.
+   *
+   * NO escribe en `cash_counts`: no es una observacion de Oficina. Para una
+   * cuenta nueva alcanza con el saldo de apertura del alta.
+   *
+   * Fase 209.1: también cuentas banco sin sede (saldo según el banco, fecha del
+   * país de la cuenta, source bank_opening_balance).
+   *
+   * @throws BadRequestError si la caja no existe, esta dada de baja, tiene sede
+   *         (solo Caja central, Tesoro o cuenta banco), o la fecha de hoy es
+   *         anterior al corte.
+   */
+  async registerOpeningCount(
+    ctx: TenantContext,
+    cajaId: number,
+    input: OpeningCountInput,
+    adminId: number,
+  ): Promise<OpeningCountResult> {
+    const { countedAmount } = input;
+    if (!Number.isInteger(countedAmount) || countedAmount < 0) {
+      throw new BadRequestError(
+        "El efectivo contado debe ser un número entero mayor o igual a 0",
+      );
+    }
+
+    const caja = await this.loadCaja(ctx, cajaId);
+    // Fase 209.1: bancos sin sede (con sede, el ajuste sumaría como ingreso de esa sede).
+    const esBanco = caja.type === "banco";
+    if (caja.branchId !== null) {
+      throw new BadRequestError(
+        "El saldo de apertura es solo para la Caja central, un Tesoro o una cuenta bancaria",
+      );
+    }
+    if (!caja.isActive) {
+      throw new BadRequestError("La caja está dada de baja");
+    }
+    // Banco: "hoy" del país de la cuenta (no UTC), el mismo para el corte y el ajuste.
+    const today = esBanco
+      ? await countryToday(this.db, ctx, caja.currency === "EUR" ? "ES" : "AR")
+      : this.today();
+    if (today < caja.cutoffDate) {
+      throw new BadRequestError(
+        `La fecha de hoy es anterior al corte de la caja ${caja.name} (${caja.cutoffDate})`,
+      );
+    }
+
+    const result = await this.db.transaction(async (tx) => {
+      // Candado sobre la caja: un traslado o retiro simultaneo se serializa
+      // aca y el saldo que leemos ya lo incluye (getBalance lee lo commiteado
+      // desde otra conexion, mismo criterio que el retiro).
+      await tx
+        .select({ id: schema.cashRegisters.id })
+        .from(schema.cashRegisters)
+        .where(
+          and(
+            tenantWhere(schema.cashRegisters, ctx),
+            eq(schema.cashRegisters.id, caja.id),
+          ),
+        )
+        .for("update");
+
+      const balance = await this.cashRegisterService.getBalance(ctx, caja.id);
+      // Mismo esperado que todo arqueo de efectivo: la plata sin validar esta
+      // en el cajon aunque no este en el saldo firme.
+      // Un banco no tiene fondo de cambio (setChangeFund lo rechaza): se ignora.
+      if (esBanco && caja.changeFund !== 0) {
+        this.log.warn(
+          { cashRegisterId: caja.id, changeFund: caja.changeFund },
+          "Fondo de cambio en una cuenta banco: se ignora en el saldo de apertura",
+        );
+      }
+      const fondo = esBanco ? 0 : caja.changeFund;
+      const expected = fondo + balance.firmeBalance + balance.pendienteAmount;
+      const counted = countedAmount;
+      const extra = input.notes?.trim();
+      const notes = `${
+        esBanco
+          ? `Saldo de apertura del banco: la app tenía ${expected}, el banco ${counted}`
+          : `Arqueo de apertura: esperado ${expected}, contado ${counted}`
+      }${extra ? `. ${extra}` : ""}`;
+      const source = esBanco ? "bank_opening_balance" : "opening_count";
+
+      const { difference, adjustmentTxId } = await createCountAdjustment(
+        ctx,
+        tx,
+        this.txnService,
+        {
+          caja,
+          expected,
+          counted,
+          transactionDate: today,
+          notes,
+        },
+        adminId,
+      );
+
+      // Rastro SIEMPRE, haya o no ajuste.
+      await auditLog.write(ctx, tx, {
+        actorId: adminId,
+        action: "reconciliation",
+        targetKind: "cash_register",
+        targetId: caja.id,
+        payload: {
+          source,
+          cashRegisterId: caja.id,
+          expected,
+          counted,
+          difference,
+          adjustmentId: adjustmentTxId,
+        },
+      });
+
+      return {
+        expectedAmount: expected,
+        countedAmount: counted,
+        difference,
+        adjustmentTxId,
+      };
+    });
+
+    const { firmeBalance } = await this.cashRegisterService.getBalance(
+      ctx,
+      caja.id,
+    );
+    this.log.info(
+      {
+        cashRegisterId: caja.id,
+        ...result,
+        firmeBalance,
+        adminId,
+        source: esBanco ? "bank_opening_balance" : "opening_count",
+      },
+      "Opening count registered",
+    );
+    return { cashRegisterId: caja.id, ...result, firmeBalance };
   }
 
   /**
@@ -321,6 +442,9 @@ export class MovementService {
     adminId: number,
   ): Promise<{ expenseTxId: number }> {
     const { cajaId, amount, costCenterId, notes } = input;
+    // Nivel service: sin medio explícito el egreso es un asiento interno
+    // (exento). La ruta POST /expenses no lo expone en la 208.
+    const paymentMethod = input.paymentMethod ?? "internal";
     if (amount <= 0) {
       throw new BadRequestError("El monto del egreso debe ser mayor a 0");
     }
@@ -330,6 +454,8 @@ export class MovementService {
       );
     }
     const caja = await this.loadCaja(ctx, cajaId);
+    // Fase 208 (DI-04): regla única medio↔cuenta antes de escribir nada.
+    assertMethodAllowedForAccount(paymentMethod, caja);
 
     // Phase 147 (EGR-02 / T-147-01): el centro de costo debe existir y estar
     // activo. Un solo SELECT — input no confiable (llega del body).
@@ -380,7 +506,7 @@ export class MovementService {
         direction: "outflow",
         amount,
         currency: caja.currency,
-        paymentMethod: "internal",
+        paymentMethod,
         transactionDate: this.today(),
         effectiveDate: this.today(),
         branchId: caja.branchId,
@@ -409,7 +535,9 @@ export class MovementService {
    *
    * `movementRowId` es CUALQUIERA de las 2 patas (outflow u inflow): se descubre
    * la pata hermana vía transaction_links (target_kind='transaction') + cualquier
-   * fila kind='adjustment' linkeada a la pata outflow. Se de-dupea el set de ids.
+   * fila kind='adjustment' linkeada a alguna de las dos patas (`collectTransferGroupIds`).
+   * Sirve también para un retiro nuevo (traslado con responsable): anula el
+   * par y su ajuste, libera los cobros pero NO los anula.
    *
    * @throws BadRequestError on empty reason, unknown row, or already-voided row
    *         (voidPair/_void enforce los guards; validamos reason temprano).
@@ -424,43 +552,22 @@ export class MovementService {
       throw new BadRequestError("Razon de anulacion requerida");
     }
 
-    // Collect every related row id: the target (movementRowId), its sibling leg,
-    // and any adjustment row linked to it — via transaction_links rows where this
-    // row is EITHER the source (transaction_id) or the target (target_id), so we
-    // catch both the both-ways leg link and the adjustment→outflow link
-    // regardless of which leg the caller passed.
-    const asSource = await this.db
-      .select({ targetId: schema.transactionLinks.targetId })
-      .from(schema.transactionLinks)
-      .where(
-        and(
-          // El void camina los links para descubrir la pata hermana y el ajuste:
-          // sin filtro, un link de otro gimnasio arrastraria una fila ajena al
-          // set de ids que se anula.
-          tenantWhere(schema.transactionLinks, ctx),
-          eq(schema.transactionLinks.transactionId, movementRowId),
-          eq(schema.transactionLinks.targetKind, "transaction"),
-        ),
-      );
-    const asTarget = await this.db
-      .select({ transactionId: schema.transactionLinks.transactionId })
-      .from(schema.transactionLinks)
-      .where(
-        and(
-          tenantWhere(schema.transactionLinks, ctx),
-          eq(schema.transactionLinks.targetId, movementRowId),
-          eq(schema.transactionLinks.targetKind, "transaction"),
-        ),
-      );
+    // Grupo del traslado (patas + ajustes) descubierto desde CUALQUIERA de las
+    // dos patas y filtrado por kind (ver transfer-pair.ts): en un retiro nuevo
+    // la salida también está vinculada a sus cobros y NUNCA se anulan. El
+    // ajuste de conciliación cae con el par aunque se pase la pata de entrada.
+    const group = await collectTransferGroupIds(
+      ctx,
+      this.db,
+      movementRowId,
+      this.log,
+    );
+    const ids = [group.outflowId, group.inflowId, ...group.adjustmentIds];
 
-    const ids = new Set<number>([movementRowId]);
-    for (const r of asSource) ids.add(r.targetId);
-    for (const r of asTarget) ids.add(r.transactionId);
-
-    await this.txnService.voidPair(ctx, [...ids], voidedBy, { reason });
+    await this.txnService.voidPair(ctx, ids, voidedBy, { reason });
 
     this.log.info(
-      { movementRowId, voidedIds: [...ids], voidedBy, reason },
+      { movementRowId, voidedIds: ids, voidedBy, reason },
       "Inter-caja movement voided (pair + adjustment)",
     );
   }
@@ -481,6 +588,52 @@ export class MovementService {
     if (!reason || reason.trim().length === 0) {
       throw new BadRequestError("Razon de anulacion requerida");
     }
+    // fase 209: la fila del ledger de un pago de gasto se anula desde Egresos.
+    await assertNotExpensePaymentRow(ctx, this.db, expenseRowId);
+    // Despacho por formato (fase 208): esta ruta sirve para egresos, retiros
+    // viejos (expense) y retiros nuevos (traslado con responsable), así
+    // RetirosTab anula los dos con el mismo botón. Cualquier otra fila no es
+    // un egreso ni un retiro.
+    const [row] = await this.db
+      .select({
+        id: schema.financialTransactions.id,
+        kind: schema.financialTransactions.kind,
+      })
+      .from(schema.financialTransactions)
+      .where(
+        and(
+          tenantWhere(schema.financialTransactions, ctx),
+          eq(schema.financialTransactions.id, expenseRowId),
+        ),
+      )
+      .limit(1);
+    if (!row) {
+      throw new NotFoundError("Transaccion no encontrada");
+    }
+    if (row.kind === "cash_transfer") {
+      const group = await collectTransferGroupIds(
+        ctx,
+        this.db,
+        expenseRowId,
+        this.log,
+      );
+      if (!group.isWithdrawal) {
+        throw new BadRequestError(
+          "Es un traslado entre cajas: anulalo como traslado",
+        );
+      }
+      const ids = [group.outflowId, group.inflowId, ...group.adjustmentIds];
+      await this.txnService.voidPair(ctx, ids, voidedBy, { reason });
+      this.log.info(
+        { expenseRowId, voidedIds: ids, voidedBy, reason },
+        "Withdrawal (transfer format) voided",
+      );
+      return;
+    }
+    if (row.kind !== "expense") {
+      throw new BadRequestError("No es un egreso ni un retiro");
+    }
+
     // 2026-09-23 — un retiro con conteo nace con un ajuste (faltante/sobrante)
     // linkeado a él (adjustment → retiro). Si se anula el retiro para cargarlo
     // de nuevo, el ajuste tiene que caer con él: si no, el recuento del

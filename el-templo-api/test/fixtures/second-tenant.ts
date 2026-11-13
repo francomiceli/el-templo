@@ -390,6 +390,19 @@ export async function limpiarSegundoGimnasio(
   await app.db.execute(
     sql`DELETE FROM audit_log WHERE tenant_id = ${TENANT_DOS}`,
   );
+  // Egresos (0331, fase 209): FK a financial_transactions, cash_registers,
+  // cost_centers, branches y users, asi que salen antes de todas ellas (mismo
+  // riesgo de bomba FK que `audit_log` y `cash_registers`). Orden: pagos,
+  // reparto y por ultimo el gasto del que cuelgan.
+  await app.db.execute(
+    sql`DELETE FROM expense_payments WHERE tenant_id = ${TENANT_DOS}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM expense_allocations WHERE tenant_id = ${TENANT_DOS}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM expense_records WHERE tenant_id = ${TENANT_DOS}`,
+  );
   // Tablero semanal (0319, fase 206): FK a branches y users, salen antes de ambas.
   await app.db.execute(
     sql`DELETE FROM weekly_board_leads WHERE tenant_id = ${TENANT_DOS}`,

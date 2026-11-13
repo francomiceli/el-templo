@@ -46,6 +46,10 @@ import type {
   WithdrawalDetail,
   WithdrawalListItem,
   WithdrawalListParams,
+  WithdrawalDestination,
+  CreateTreasuryInput,
+  OpeningCountInput,
+  OpeningCountResult,
   IncomeByBranchRow,
   CashCountExpected,
   CashCountListItem,
@@ -787,6 +791,53 @@ export function useTransactionsApi() {
   }
 
   /**
+   * Alta del Tesoro de una moneda (owner). Source: POST
+   * /admin/finance/cash-registers/treasury. 409 si ya hay un Tesoro activo en
+   * esa moneda; 403 si no es el dueño.
+   */
+  async function createTreasury(input: CreateTreasuryInput): Promise<{ caja: CajaSaldoRow }> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.post<{ caja: CajaSaldoRow }>(
+        '/admin/finance/cash-registers/treasury',
+        input
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error creando el Tesoro');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /**
+   * Arqueo de apertura de Caja central o Tesoro (owner): deja la caja en el
+   * efectivo real contado con un ajuste trazable. Source: POST
+   * /admin/finance/cash-registers/:id/opening-count.
+   */
+  async function registerOpeningCount(
+    cashRegisterId: number,
+    input: OpeningCountInput
+  ): Promise<{ openingCount: OpeningCountResult }> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.post<{ openingCount: OpeningCountResult }>(
+        `/admin/finance/cash-registers/${cashRegisterId}/opening-count`,
+        input
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error registrando el arqueo de apertura');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /**
    * Abre la caja de efectivo de una sucursal. Source: POST
    * /admin/finance/cash-registers/efectivo. El backend rechaza con 409 si esa
    * sucursal ya tiene una caja activa en esa moneda (invariante que mantiene
@@ -922,6 +973,31 @@ export function useTransactionsApi() {
       return data;
     } catch (err: unknown) {
       error.value = extractError(err, 'Error registrando el retiro');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /**
+   * Destinos posibles de un retiro desde `cashRegisterId`: Caja central y
+   * Tesoros activos de la MISMA moneda. Source: GET
+   * /admin/finance/withdrawals/destinations. Lista vacía = hay que crear la
+   * Caja central o el Tesoro en esa moneda antes de poder retirar.
+   */
+  async function getWithdrawalDestinations(
+    cashRegisterId: number
+  ): Promise<WithdrawalDestination[]> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<{ destinations: WithdrawalDestination[] }>(
+        '/admin/finance/withdrawals/destinations',
+        { params: { cashRegisterId } }
+      );
+      return data.destinations;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando los destinos del retiro');
       throw err;
     } finally {
       loading.value = false;
@@ -1098,12 +1174,15 @@ export function useTransactionsApi() {
     listBankAccounts,
     createBankAccount,
     createEfectivoCaja,
+    createTreasury,
+    registerOpeningCount,
     updateBankAccount,
     closeBankAccount,
     reactivateBankAccount,
     // Retiros de caja (feedback 2026-09-07):
     getPendingWithdrawals,
     registerWithdrawal,
+    getWithdrawalDestinations,
     listWithdrawals,
     getWithdrawal,
     getWithdrawalResponsibles,

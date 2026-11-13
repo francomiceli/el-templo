@@ -179,6 +179,12 @@
           {{ formatPrice(cellProps.row.amount, cellProps.row.currency) }}
         </q-td>
       </template>
+      <template #body-cell-destino="cellProps">
+        <q-td :props="cellProps" :class="{ 'text-grey-5': cellProps.row.voidedAt }">
+          <span v-if="cellProps.row.destinationName">{{ cellProps.row.destinationName }}</span>
+          <span v-else class="text-grey-6">{{ NO_DESTINATION_LABEL }}</span>
+        </q-td>
+      </template>
       <template #body-cell-cobros="cellProps">
         <q-td :props="cellProps">
           <span v-if="cellProps.row.cashRegisterType === 'efectivo'">
@@ -257,6 +263,11 @@
               <span class="text-weight-medium">{{
                 formatPrice(detail.amount, detail.currency)
               }}</span>
+            </div>
+            <div class="col-6 col-sm-3">
+              <div class="text-caption text-grey-7">Destino</div>
+              <span v-if="detail.destinationName">{{ detail.destinationName }}</span>
+              <span v-else class="text-grey-6">{{ NO_DESTINATION_LABEL }}</span>
             </div>
             <div class="col-6 col-sm-3">
               <div class="text-caption text-grey-7">Responsable</div>
@@ -481,9 +492,18 @@ const pagination = ref({
   descending: true,
 });
 
+/** Los retiros anteriores a la fase 208 no tienen destino. */
+const NO_DESTINATION_LABEL = 'Sin destino (anterior)';
+
 const columns: QTableColumn<WithdrawalListItem>[] = [
   { name: 'fecha', label: 'Fecha', field: 'transactionDate', align: 'left' },
   { name: 'monto', label: 'Monto', field: 'amount', align: 'right' },
+  {
+    name: 'destino',
+    label: 'Destino',
+    field: (r) => r.destinationName ?? NO_DESTINATION_LABEL,
+    align: 'left',
+  },
   { name: 'responsable', label: 'Responsable', field: 'responsibleName', align: 'left' },
   { name: 'cobros', label: 'Cobros', field: 'paymentCount', align: 'center' },
   { name: 'notas', label: 'Notas', field: (r) => r.notes ?? '', align: 'left' },
@@ -566,7 +586,10 @@ async function openDetail(row: WithdrawalListItem) {
 function confirmVoid(row: WithdrawalListItem) {
   $q.dialog({
     title: `Anular retiro #${row.id}`,
-    message: `${formatPrice(row.amount, row.currency)} · ${row.responsibleName}. La plata vuelve a figurar en la caja (y si el retiro asentó un faltante o sobrante, ese ajuste también se anula). Indicá el motivo:`,
+    message:
+      row.format === 'transfer'
+        ? `${formatPrice(row.amount, row.currency)} · ${row.responsibleName}. La plata vuelve a ${row.cashRegisterName} y sale de ${row.destinationName ?? 'el destino'}. Si el retiro asentó un faltante o sobrante, ese ajuste también se anula. Indicá el motivo:`
+        : `${formatPrice(row.amount, row.currency)} · ${row.responsibleName}. La plata vuelve a figurar en la caja (y si el retiro asentó un faltante o sobrante, ese ajuste también se anula). Indicá el motivo:`,
     prompt: { model: '', type: 'text', isValid: (v: string) => v.trim().length > 0 },
     cancel: true,
     persistent: true,

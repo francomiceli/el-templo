@@ -536,6 +536,13 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "POST /api/admin/finance/cash-registers/efectivo": {
     categoria: "tenant-scoped",
   },
+  "POST /api/admin/finance/cash-registers/treasury": {
+    categoria: "tenant-scoped",
+  },
+  // Fase 208-04: arqueo de apertura de Central/Tesoro (owner-only).
+  "POST /api/admin/finance/cash-registers/:id/opening-count": {
+    categoria: "tenant-scoped",
+  },
   "POST /api/admin/finance/coach-load/alta": { categoria: "tenant-scoped" },
   "POST /api/admin/finance/coach-load/misc": { categoria: "tenant-scoped" },
   "POST /api/admin/finance/coach-load/pay-plan": { categoria: "tenant-scoped" },
@@ -546,12 +553,49 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "POST /api/admin/finance/cost-centers/:id/reactivate": {
     categoria: "tenant-scoped",
   },
+  // Egresos (fase 209): gastos del gimnasio vía assertTenant; país del scope.
+  "GET /api/admin/finance/expense-records": { categoria: "tenant-scoped" },
+  "GET /api/admin/finance/expense-records/:id": { categoria: "tenant-scoped" },
+  "GET /api/admin/finance/expense-records/form-options": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/admin/finance/expense-records/result": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/admin/finance/expense-records/result/export": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/admin/finance/expense-records/summary": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/admin/finance/expense-records/summary/detail": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/admin/finance/expense-records/summary/export": {
+    categoria: "tenant-scoped",
+  },
+  "PATCH /api/admin/finance/expense-records/:id": {
+    categoria: "tenant-scoped",
+  },
+  "POST /api/admin/finance/expense-records": { categoria: "tenant-scoped" },
+  "POST /api/admin/finance/expense-records/:id/void": {
+    categoria: "tenant-scoped",
+  },
+  "POST /api/admin/finance/expense-records/:id/payments": {
+    categoria: "tenant-scoped",
+  },
+  "POST /api/admin/finance/expense-records/:id/payments/:paymentId/void": {
+    categoria: "tenant-scoped",
+  },
   "POST /api/admin/finance/expenses": { categoria: "tenant-scoped" },
   "POST /api/admin/finance/expenses/:id/void": { categoria: "tenant-scoped" },
   // Retiros de caja (feedback 2026-09-07): todas leen/escriben el ledger del
   // gimnasio vía assertTenant + enforceCajaScope/enforceRowScope.
   "GET /api/admin/finance/withdrawals": { categoria: "tenant-scoped" },
   "GET /api/admin/finance/withdrawals/:id": { categoria: "tenant-scoped" },
+  "GET /api/admin/finance/withdrawals/destinations": {
+    categoria: "tenant-scoped",
+  },
   "GET /api/admin/finance/withdrawals/pending": { categoria: "tenant-scoped" },
   "GET /api/admin/finance/withdrawals/responsibles": {
     categoria: "tenant-scoped",
