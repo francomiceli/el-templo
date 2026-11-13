@@ -1289,7 +1289,7 @@ Decisiones de implementación en `211-CONTEXT.md` (2026-11-13).
 Plans:
 - [x] 211-01-PLAN.md — Contratos del Resultado, cálculo puro con test unitario (columnas, consolidado, margen, monedas) y lector nuevo de cobros a alumnos por sede en `TransactionService` (solo agregados) con su test
 - [x] 211-02-PLAN.md — API: `ExpenseResultService` sobre `computeMonth`, Excel de una hoja, `EXPENSES_RESULT_ROLES`, schemas, rutas `/expense-records/result` y `/result/export`, manifiesto ISO-01 (+2)
-- [ ] 211-03-PLAN.md — Tests de la API: ISO-03 (+2 casos con control positivo) y escenario HTTP con literales (qué cobro cuenta, sede, moneda, identidades contra el Resumen y los cobros, Excel = JSON, roles, 400)
+- [x] 211-03-PLAN.md — Tests de la API: ISO-03 (+2 casos con control positivo) y escenario HTTP con literales (qué cobro cuenta, sede, moneda, identidades contra el Resumen y los cobros, Excel = JSON, roles, 400)
 - [ ] 211-04-PLAN.md — Admin: tipos, llamadas del composable, helpers puros con test (margen, etiquetas, aviso de otra moneda) y textos de incompletos y moneda compartidos con Resumen
 - [ ] 211-05-PLAN.md — Admin: `ResultadoTab.vue` (matriz, avisos, detalle por columna, Excel) y pestaña "Resultado" solo para owner y admin
 - [ ] 211-06-PLAN.md — Cierre: no-regresión (208, Resumen, identidades, Tablero, tenancy), inventario con greps, gates y SUMMARY con checklist de prueba manual para Franco
