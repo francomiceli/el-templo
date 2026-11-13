@@ -24,6 +24,7 @@ import type {
   ExpensePaymentItem,
   ExpenseRecordDetail,
   ExpenseRecordListItem,
+  ExpenseResult,
   ExpenseSummary,
   ExpenseSummaryDetail,
   PaginatedResult,
@@ -210,18 +211,21 @@ export function useExpensesApi() {
     });
   }
 
-  /** Excel del Resumen: se baja como blob con el token (un `<a href>` no manda el header). */
-  function exportExpenseSummary(country: ExpenseCountry, month: string): Promise<Blob> {
-    return run('Error exportando el resumen de egresos', async () => {
+  /**
+   * Baja un Excel como blob con el token (un `<a href>` no manda el header).
+   * Con responseType blob el cuerpo del error también llega como Blob: se lee
+   * para mostrar el `message` en español de la API.
+   */
+  function downloadBlob(
+    path: string,
+    params: Record<string, string>,
+    fallback: string
+  ): Promise<Blob> {
+    return run(fallback, async () => {
       try {
-        const { data } = await api.get<Blob>(`${BASE}/summary/export`, {
-          params: { country, month },
-          responseType: 'blob',
-        });
+        const { data } = await api.get<Blob>(path, { params, responseType: 'blob' });
         return data;
       } catch (err: unknown) {
-        // Con responseType blob el cuerpo del error también llega como Blob:
-        // se lee para mostrar el `message` en español de la API.
         if (axios.isAxiosError(err) && err.response?.data instanceof Blob) {
           const message = await blobErrorMessage(err.response.data);
           if (message) throw new Error(message);
@@ -229,6 +233,34 @@ export function useExpensesApi() {
         throw err;
       }
     });
+  }
+
+  /** Excel del Resumen. */
+  function exportExpenseSummary(country: ExpenseCountry, month: string): Promise<Blob> {
+    return downloadBlob(
+      `${BASE}/summary/export`,
+      { country, month },
+      'Error exportando el resumen de egresos'
+    );
+  }
+
+  /** Resultado por sede del mes: cobros, costos por rubro, resultado y margen (solo owner y admin). */
+  function getExpenseResult(country: ExpenseCountry, month: string): Promise<ExpenseResult> {
+    return run('Error cargando el resultado por sede', async () => {
+      const { data } = await api.get<ExpenseResult>(`${BASE}/result`, {
+        params: { country, month },
+      });
+      return data;
+    });
+  }
+
+  /** Excel del Resultado por sede. */
+  function exportExpenseResult(country: ExpenseCountry, month: string): Promise<Blob> {
+    return downloadBlob(
+      `${BASE}/result/export`,
+      { country, month },
+      'Error exportando el resultado por sede'
+    );
   }
 
   function cleanup() {
@@ -250,6 +282,8 @@ export function useExpensesApi() {
     getExpenseSummary,
     getExpenseSummaryDetail,
     exportExpenseSummary,
+    getExpenseResult,
+    exportExpenseResult,
     cleanup,
   };
 }
