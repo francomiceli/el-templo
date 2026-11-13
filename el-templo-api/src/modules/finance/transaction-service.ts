@@ -51,6 +51,7 @@ import {
   inArray,
   notInArray,
   isNull,
+  isNotNull,
   type SQL,
 } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
@@ -2866,6 +2867,83 @@ export class TransactionService {
         r.currency,
         (byCurrency.get(r.currency) ?? 0) + Number(r.total),
       );
+    }
+    return byBranch;
+  }
+
+  /**
+   * Resultado por sede (fase 211, DI-02/DI-03): cobros firmes A ALUMNOS por
+   * sede del alumno y moneda. Mismo universo que `getIncomeByMemberBranch`
+   * (Tablero) mas `member_id IS NOT NULL`: deja afuera los ajustes de arqueo y
+   * cualquier ingreso sin alumno. Misma cadena de sede (snapshot -> sede actual
+   * del socio -> sede del cobro) resuelta en JS. Sin `transaction_links` (un
+   * pago que cancela dos deudas no se duplica). Las devoluciones (`refund`,
+   * outflow) no restan, igual que en el resto del sistema. No comparte codigo
+   * con el Tablero a proposito: el Tablero no se toca (CONTEXT 211).
+   *
+   * Devuelve branchId -> moneda -> { monto, cantidad de cobros }. No filtra
+   * moneda, estado ni virtualidad de la sede: eso lo decide quien lo consume.
+   */
+  async getMemberIncomeByBranch(
+    ctx: TenantContext,
+    range: { dateFrom: string; dateTo: string },
+  ): Promise<Map<number, Map<string, { amount: number; count: number }>>> {
+    const conds = this.buildRevenueConditions(ctx, {
+      dateFrom: range.dateFrom,
+      dateTo: range.dateTo,
+    });
+    const rows = await this.db
+      .select({
+        memberBranchSnapshot: schema.financialTransactions.memberBranchId,
+        memberCurrentBranchId: schema.users.branchId,
+        cobroBranchId: schema.financialTransactions.branchId,
+        currency: schema.financialTransactions.currency,
+        total: sql<number>`CAST(SUM(${schema.financialTransactions.amount}) AS SIGNED)`,
+        count: sql<number>`COUNT(*)`,
+      })
+      .from(schema.financialTransactions)
+      .innerJoin(
+        schema.branches,
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.financialTransactions.branchId),
+        ),
+      )
+      .leftJoin(
+        schema.users,
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.financialTransactions.memberId),
+        ),
+      )
+      .where(
+        and(...conds, isNotNull(schema.financialTransactions.memberId)),
+      )
+      .groupBy(
+        schema.financialTransactions.memberBranchId,
+        schema.users.branchId,
+        schema.financialTransactions.branchId,
+        schema.financialTransactions.currency,
+      );
+
+    const byBranch = new Map<
+      number,
+      Map<string, { amount: number; count: number }>
+    >();
+    for (const r of rows) {
+      const branchId =
+        r.memberBranchSnapshot ?? r.memberCurrentBranchId ?? r.cobroBranchId;
+      if (branchId === null) continue;
+      let byCurrency = byBranch.get(branchId);
+      if (!byCurrency) {
+        byCurrency = new Map<string, { amount: number; count: number }>();
+        byBranch.set(branchId, byCurrency);
+      }
+      const prev = byCurrency.get(r.currency) ?? { amount: 0, count: 0 };
+      byCurrency.set(r.currency, {
+        amount: prev.amount + Number(r.total),
+        count: prev.count + Number(r.count),
+      });
     }
     return byBranch;
   }
