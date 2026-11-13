@@ -8,12 +8,16 @@
  * All endpoints require gestion/admin/owner role.
  */
 
-import { FastifyPluginAsync } from "fastify";
+import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import { Workbook } from "exceljs";
 import { ACCESS_SOURCE_LABELS, ReportsService } from "./service";
 import { WellhubReportService } from "./wellhub-report-service";
 import { handleServiceError } from "../shared/error-handler";
 import { styleHeaderRow, sendExcelReply } from "../shared/excel";
+import {
+  buildReassignmentsWorkbook,
+  reassignmentsExportFilename,
+} from "./multibranch-reassignments-excel";
 import type {
   AccessReportFilters,
   AttendedFilter,
@@ -27,6 +31,7 @@ import type {
   ExpiringReportFilters,
   InactiveReportFilters,
   LeadStatusValue,
+  MultibranchReassignmentRow,
   OutstandingBalancesFilters,
   ShiftFilter,
   TrialConversionFilters,
@@ -53,6 +58,7 @@ import {
   expiringExportSchema,
   inactiveExportSchema,
   multibranchReassignmentsSchema,
+  multibranchReassignmentsExportSchema,
 } from "./schemas";
 
 import { CAJA_ROLES, ADMIN_ROLES } from "../shared/permissions";
@@ -514,6 +520,40 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
+  // Gates + lectura compartidos por `GET /multibranch-reassignments` y su
+  // export a Excel: el archivo trae exactamente las filas de la pantalla (mismo
+  // 403 para roles de alcance forzado por sede, mismo candado de país, misma
+  // query). Devuelve `null` si ya respondió con el 403.
+  async function loadMultibranchReassignments(
+    request: FastifyRequest<{ Querystring: { months?: number } }>,
+    reply: FastifyReply,
+    scopeLabel: string,
+  ): Promise<MultibranchReassignmentRow[] | null> {
+    if (enforcedBranchIds(request.scope) !== null) {
+      reply.code(403).send({
+        error: "Acceso denegado",
+        message: "Esta vista es de todas las sedes",
+      });
+      return null;
+    }
+    // Fail-closed: admin/gestion con país corrupto (null) NO ve todos los
+    // países. Mismo criterio que outstanding-balances.
+    if (!request.scope.isOwner && request.scope.country === null) {
+      reply.code(403).send({
+        error: "Acceso denegado",
+        message: "Acceso requerido",
+      });
+      return null;
+    }
+    const ctx = assertTenant(request.scope, scopeLabel);
+    return reportsService.getMultibranchReassignments(ctx, {
+      months: request.query.months ?? 12,
+      country: request.scope.isOwner
+        ? undefined
+        : (request.scope.country ?? undefined),
+    });
+  }
+
   // GET /multibranch-reassignments — histórico de recategorizaciones (mig 0334).
   // Solo lectura sobre `branch_reassignments`. Hereda el gate CAJA_ROLES del
   // onRequest del plugin. Mismo patrón de scope que el preview (excluido para
@@ -524,36 +564,54 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: multibranchReassignmentsSchema },
     async (request, reply) => {
       try {
-        if (enforcedBranchIds(request.scope) !== null) {
-          return reply.code(403).send({
-            error: "Acceso denegado",
-            message: "Esta vista es de todas las sedes",
-          });
-        }
-        // Fail-closed: admin/gestion con país corrupto (null) NO ve todos los
-        // países. Mismo criterio que outstanding-balances.
-        if (!request.scope.isOwner && request.scope.country === null) {
-          return reply.code(403).send({
-            error: "Acceso denegado",
-            message: "Acceso requerido",
-          });
-        }
-        const ctx = assertTenant(
-          request.scope,
+        const rows = await loadMultibranchReassignments(
+          request,
+          reply,
           "reports.multibranch-reassignments",
         );
-        return await reportsService.getMultibranchReassignments(ctx, {
-          months: request.query.months ?? 12,
-          country: request.scope.isOwner
-            ? undefined
-            : (request.scope.country ?? undefined),
-        });
+        if (rows === null) return reply;
+        return rows;
       } catch (err: unknown) {
         handleServiceError(
           err,
           reply,
           request.log,
           "get multibranch reassignments",
+        );
+      }
+    },
+  );
+
+  // GET /multibranch-reassignments/export — el histórico como XLSX (pedido del
+  // dueño, 2026-11-13). Mismos gates y mismo scope de país que la ruta JSON
+  // (`loadMultibranchReassignments`). Sin `month`: hoja "Total" + una hoja por
+  // mes; con `month=AAAA-MM`: solo ese mes.
+  fastify.get<{ Querystring: { months?: number; month?: string } }>(
+    "/multibranch-reassignments/export",
+    { schema: multibranchReassignmentsExportSchema },
+    async (request, reply) => {
+      try {
+        const rows = await loadMultibranchReassignments(
+          request,
+          reply,
+          "reports.multibranch-reassignments.export",
+        );
+        if (rows === null) return reply;
+        const month = request.query.month;
+        const workbook = buildReassignmentsWorkbook(rows, { month });
+        const today = new Date().toISOString().split("T")[0];
+        return sendExcelReply(
+          workbook,
+          reply,
+          "recategorizaciones",
+          reassignmentsExportFilename(month, today),
+        );
+      } catch (err: unknown) {
+        handleServiceError(
+          err,
+          reply,
+          request.log,
+          "export multibranch reassignments",
         );
       }
     },

@@ -77,3 +77,16 @@ export function formatReassignmentDay(iso: string): string {
   const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
   return `${dd}/${mm}`;
 }
+
+/**
+ * Nombre del Excel: `recategorizaciones-AAAA-MM.xlsx` para un mes puntual o
+ * `recategorizaciones-total-AAAA-MM-DD.xlsx` (fecha de hoy, hora local) para el
+ * período completo. Mismo criterio que el nombre que manda la API.
+ */
+export function reassignmentsExportFilename(monthKey?: string, today: Date = new Date()): string {
+  if (monthKey) return `recategorizaciones-${monthKey}.xlsx`;
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+  return `recategorizaciones-total-${yyyy}-${mm}-${dd}.xlsx`;
+}

@@ -1050,13 +1050,15 @@ export const inactiveExportSchema = {
 // Multibranch reassignments history (mig 0334)
 // =============================================================================
 
+const multibranchReassignmentsProps = {
+  // Ventana en meses hacia atrás (default 12 en el handler).
+  months: { type: "integer", minimum: 1, maximum: 24 },
+} as const;
+
 export const multibranchReassignmentsSchema = {
   querystring: {
     type: "object",
-    properties: {
-      // Ventana en meses hacia atrás (default 12 en el handler).
-      months: { type: "integer", minimum: 1, maximum: 24 },
-    },
+    properties: multibranchReassignmentsProps,
     additionalProperties: false,
   },
   response: {
@@ -1081,5 +1083,19 @@ export const multibranchReassignmentsSchema = {
     },
     400: errorSchema,
     403: errorSchema,
+  },
+} as const;
+
+// Export a Excel del histórico: respuesta binaria (XLSX), sin schema de
+// respuesta. `month` (AAAA-MM) acota el libro a ese mes; sin él, Total + una
+// hoja por mes.
+export const multibranchReassignmentsExportSchema = {
+  querystring: {
+    type: "object",
+    properties: {
+      ...multibranchReassignmentsProps,
+      month: { type: "string", pattern: "^\\d{4}-(0[1-9]|1[0-2])$" },
+    },
+    additionalProperties: false,
   },
 } as const;

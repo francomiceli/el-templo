@@ -5,6 +5,7 @@ import {
   formatReassignmentDay,
   groupReassignmentsByMonth,
   monthLabel,
+  reassignmentsExportFilename,
   studentsCountLabel,
 } from '../recategorizacion-historico';
 
@@ -71,5 +72,19 @@ describe('formatos', () => {
   it('formatReassignmentDay devuelve dd/mm en UTC', () => {
     expect(formatReassignmentDay('2026-11-01T07:00:00.000Z')).toBe('01/11');
     expect(formatReassignmentDay('2026-10-15T23:59:00.000Z')).toBe('15/10');
+  });
+});
+
+describe('reassignmentsExportFilename', () => {
+  it('el período completo lleva la fecha de hoy', () => {
+    expect(reassignmentsExportFilename(undefined, new Date(2026, 10, 3))).toBe(
+      'recategorizaciones-total-2026-11-03.xlsx'
+    );
+  });
+
+  it('un mes puntual lleva AAAA-MM y no la fecha de hoy', () => {
+    expect(reassignmentsExportFilename('2026-10', new Date(2026, 10, 3))).toBe(
+      'recategorizaciones-2026-10.xlsx'
+    );
   });
 });

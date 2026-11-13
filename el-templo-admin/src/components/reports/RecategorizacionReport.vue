@@ -66,10 +66,30 @@
     <!-- Histórico mensual de recategorizaciones                         -->
     <!-- ============================================================== -->
     <div class="q-mt-lg">
-      <div class="text-subtitle1 text-weight-medium text-accent">Histórico</div>
-      <div class="text-caption text-grey-7 q-mb-sm">
-        Últimos 12 meses. Cada corrida mueve a los alumnos multisucursal a la sede donde más
-        entrenaron en los 30 días previos.
+      <div class="row items-start no-wrap q-mb-sm">
+        <div class="col">
+          <div class="text-subtitle1 text-weight-medium text-accent">Histórico</div>
+          <div class="text-caption text-grey-7">
+            Últimos 12 meses. Cada corrida mueve a los alumnos multisucursal a la sede donde más
+            entrenaron en los 30 días previos.
+          </div>
+        </div>
+        <div v-if="groups.length > 0" class="col-auto q-ml-md">
+          <q-btn
+            outline
+            dense
+            no-caps
+            color="primary"
+            icon="download"
+            label="Descargar Excel"
+            :loading="exportingKey === TOTAL_KEY"
+            :disable="exportingKey !== null"
+            data-test="export-total"
+            @click="onExport()"
+          >
+            <q-tooltip>Descarga el total del período y una hoja por mes</q-tooltip>
+          </q-btn>
+        </div>
       </div>
 
       <q-banner v-if="historyLoading" class="bg-grey-2 rounded-borders">
@@ -116,6 +136,24 @@
           <template #header>
             <q-item-section>
               {{ group.label }} · {{ studentsCountLabel(group.rows.length) }}
+            </q-item-section>
+            <q-item-section side>
+              <!-- .stop: el clic descarga, no abre ni cierra el mes. -->
+              <q-btn
+                flat
+                round
+                dense
+                size="sm"
+                color="primary"
+                icon="download"
+                :loading="exportingKey === group.key"
+                :disable="exportingKey !== null"
+                :data-test="`export-month-${group.key}`"
+                :aria-label="`Descargar Excel de ${group.label}`"
+                @click.stop="onExport(group.key)"
+              >
+                <q-tooltip>Descargar Excel de {{ group.label }}</q-tooltip>
+              </q-btn>
             </q-item-section>
           </template>
 
@@ -170,6 +208,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
+import { useQuasar } from 'quasar';
 import { useReportsApi } from 'src/composables/useReportsApi';
 import type {
   MultibranchReassignmentPreview,
@@ -179,12 +218,23 @@ import {
   formatAttendanceRatio,
   formatReassignmentDay,
   groupReassignmentsByMonth,
+  reassignmentsExportFilename,
   studentsCountLabel,
 } from 'src/utils/recategorizacion-historico';
+import { downloadBlob } from 'src/utils/download-blob';
 import { createLogger } from 'src/utils/logger';
 
 const log = createLogger('RecategorizacionReport');
-const { getMultibranchReassignmentPreview, getMultibranchReassignments } = useReportsApi();
+const $q = useQuasar();
+const {
+  getMultibranchReassignmentPreview,
+  getMultibranchReassignments,
+  exportMultibranchReassignments,
+} = useReportsApi();
+
+/** Ventana del histórico: la pantalla y el Excel piden el mismo período. */
+const HISTORY_MONTHS = 12;
+const TOTAL_KEY = 'total';
 
 const preview = ref<MultibranchReassignmentPreview | null>(null);
 const loading = ref(false);
@@ -222,7 +272,7 @@ async function loadHistory(): Promise<void> {
   historyLoading.value = true;
   historyError.value = null;
   try {
-    history.value = await getMultibranchReassignments(12);
+    history.value = await getMultibranchReassignments(HISTORY_MONTHS);
   } catch (err: unknown) {
     historyError.value = 'No pudimos cargar el histórico. Reintentá en un momento.';
     log.error('Failed to load reassignment history', {
@@ -230,6 +280,26 @@ async function loadHistory(): Promise<void> {
     });
   } finally {
     historyLoading.value = false;
+  }
+}
+
+/** Qué descarga está en curso (`'total'` o la clave `AAAA-MM` de un mes). */
+const exportingKey = ref<string | null>(null);
+
+/** Sin `monthKey`: el total del período mostrado (hoja Total + una por mes). */
+async function onExport(monthKey?: string): Promise<void> {
+  exportingKey.value = monthKey ?? TOTAL_KEY;
+  try {
+    const blob = await exportMultibranchReassignments(HISTORY_MONTHS, monthKey);
+    downloadBlob(blob, reassignmentsExportFilename(monthKey));
+    $q.notify({ type: 'positive', message: 'Excel exportado' });
+  } catch (err: unknown) {
+    log.error('Failed to export reassignment history', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    $q.notify({ type: 'negative', message: 'No se pudo exportar el Excel' });
+  } finally {
+    exportingKey.value = null;
   }
 }
 
