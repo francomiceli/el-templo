@@ -793,6 +793,9 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "GET /api/admin/reports/multibranch-reassignment-preview": {
     categoria: "tenant-scoped",
   },
+  "GET /api/admin/reports/multibranch-reassignments": {
+    categoria: "tenant-scoped",
+  },
   "GET /api/admin/reports/outstanding-balances": { categoria: "tenant-scoped" },
   "GET /api/admin/reports/outstanding-balances/export": {
     categoria: "tenant-scoped",

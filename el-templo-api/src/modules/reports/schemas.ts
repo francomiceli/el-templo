@@ -1045,3 +1045,41 @@ export const expiringExportSchema = {
 export const inactiveExportSchema = {
   querystring: inactiveReportSchema.querystring,
 } as const;
+
+// =============================================================================
+// Multibranch reassignments history (mig 0334)
+// =============================================================================
+
+export const multibranchReassignmentsSchema = {
+  querystring: {
+    type: "object",
+    properties: {
+      // Ventana en meses hacia atrás (default 12 en el handler).
+      months: { type: "integer", minimum: 1, maximum: 24 },
+    },
+    additionalProperties: false,
+  },
+  response: {
+    200: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          id: { type: "integer" },
+          memberId: { type: "integer" },
+          memberName: { type: "string" },
+          fromBranchId: { type: ["integer", "null"] },
+          fromBranchName: { type: ["string", "null"] },
+          toBranchId: { type: "integer" },
+          toBranchName: { type: "string" },
+          toBranchAttendances: { type: "integer" },
+          totalAttendances: { type: "integer" },
+          source: { type: "string", enum: ["cron", "backfill"] },
+          reassignedAt: { type: "string" },
+        },
+      },
+    },
+    400: errorSchema,
+    403: errorSchema,
+  },
+} as const;
