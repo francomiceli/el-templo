@@ -9,6 +9,10 @@
  * (están en FINANCE_READ_ROLES), así que CADA handler chequea por su cuenta
  * `EXPENSES_ROLES` (operar) o `EXPENSES_VOID_ROLES` (anular) y responde 403.
  *
+ * Las rutas del Resultado por sede (fase 211) chequean `EXPENSES_RESULT_ROLES`
+ * (owner y admin), NO `EXPENSES_ROLES`: gestion opera Egresos pero no ve el
+ * Resultado.
+ *
  * Sin el guard de alcance por caja (DI-07): da 404 a un no-owner en cuentas sin
  * sede (bancos, Caja central) y gestion tiene que verlas al elegir de dónde
  * pagar. Estas rutas validan país y gimnasio en el service (`assertTenant` acá
@@ -21,7 +25,11 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { handleServiceError } from "../shared/error-handler";
 import { BadRequestError } from "../shared/errors";
-import { EXPENSES_ROLES, EXPENSES_VOID_ROLES } from "../shared/permissions";
+import {
+  EXPENSES_RESULT_ROLES,
+  EXPENSES_ROLES,
+  EXPENSES_VOID_ROLES,
+} from "../shared/permissions";
 import { assertTenant } from "../shared/tenant";
 import type { TransactionService } from "./transaction-service";
 import type { CashRegisterService } from "./cash-register-service";
@@ -29,11 +37,15 @@ import { ExpenseRecordService } from "./expense-record-service";
 import { ExpensePaymentService } from "./expense-payment-service";
 import { ExpenseSummaryService } from "./expense-summary-service";
 import { buildExpenseSummaryWorkbook } from "./expense-summary-excel";
+import { ExpenseResultService } from "./expense-result-service";
+import { buildExpenseResultWorkbook } from "./expense-result-excel";
 import { sendExcelReply } from "../shared/excel";
 import {
   createExpenseRecordSchema,
   expenseFormOptionsSchema,
   expenseRecordIdSchema,
+  expenseResultExportSchema,
+  expenseResultSchema,
   expenseSummaryDetailSchema,
   expenseSummaryExportSchema,
   expenseSummarySchema,
@@ -84,6 +96,7 @@ interface ListQuery extends CountryQuery {
 }
 
 const FORBIDDEN_MESSAGE = "No tenés permiso para Egresos";
+const FORBIDDEN_RESULT_MESSAGE = "Solo owner y admin ven el Resultado por sede";
 const FORBIDDEN_VOID_MESSAGE = "Solo owner y admin pueden anular en Egresos";
 const COUNTRY_ERROR_MESSAGE = "No se pudo determinar el país";
 
@@ -270,6 +283,83 @@ export function registerExpenseRoutes(
         return reply;
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "export expense summary");
+        return reply;
+      }
+    },
+  );
+
+  // Resultado por sede (fase 211, DI-01/DI-09/DI-10). Solo owner y admin.
+  // Reusa la MISMA instancia del Resumen: el costo sale de su `computeMonth`.
+  // Estáticas: van ANTES de /:id.
+  const resultService = new ExpenseResultService(
+    fastify.db,
+    fastify.log,
+    summaryService,
+    deps.transactionService,
+  );
+
+  // GET /expense-records/result — cobros, costo y resultado del mes por sede,
+  // Casa Matriz (solo AR) y Consolidado. `?month=AAAA-MM` obligatorio.
+  fastify.get<{ Querystring: SummaryQuery }>(
+    "/expense-records/result",
+    { schema: expenseResultSchema },
+    async (request, reply) => {
+      try {
+        if (
+          denyUnlessRole(
+            request,
+            reply,
+            EXPENSES_RESULT_ROLES,
+            FORBIDDEN_RESULT_MESSAGE,
+          )
+        ) {
+          return reply;
+        }
+        const ctx = assertTenant(
+          request.scope,
+          "finance.expense-records.result",
+        );
+        const country = resolveCountry(request);
+        return await resultService.getResult(ctx, country, request.query.month);
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "expense result");
+        return reply;
+      }
+    },
+  );
+
+  // GET /expense-records/result/export — el mismo Resultado en un .xlsx (hoja
+  // "Resultado"), desde la misma función que el JSON.
+  fastify.get<{ Querystring: SummaryQuery }>(
+    "/expense-records/result/export",
+    { schema: expenseResultExportSchema },
+    async (request, reply) => {
+      try {
+        if (
+          denyUnlessRole(
+            request,
+            reply,
+            EXPENSES_RESULT_ROLES,
+            FORBIDDEN_RESULT_MESSAGE,
+          )
+        ) {
+          return reply;
+        }
+        const ctx = assertTenant(
+          request.scope,
+          "finance.expense-records.result.export",
+        );
+        const country = resolveCountry(request);
+        const { month } = request.query;
+        const result = await resultService.getResult(ctx, country, month);
+        await sendExcelReply(
+          buildExpenseResultWorkbook(result),
+          reply,
+          `egresos-resultado-${country}-${month}`,
+        );
+        return reply;
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "export expense result");
         return reply;
       }
     },

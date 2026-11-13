@@ -334,3 +334,115 @@ export const expenseSummaryDetailSchema = {
 
 /** El Excel recibe lo mismo que el resumen JSON. */
 export const expenseSummaryExportSchema = expenseSummarySchema;
+
+// -- GET /expense-records/result (y /result/export) ---------------------------
+
+const resultColumnSchema = {
+  type: "object",
+  required: [
+    "key",
+    "kind",
+    "branchId",
+    "name",
+    "isActive",
+    "isVirtual",
+    "income",
+    "costsByCostCenter",
+    "cost",
+    "costEstimated",
+    "result",
+    "marginPct",
+  ],
+  properties: {
+    key: { type: "string" },
+    kind: { type: "string", enum: ["branch", "casa_matriz", "consolidado"] },
+    branchId: { type: ["integer", "null"] },
+    name: { type: "string" },
+    isActive: { type: "boolean" },
+    isVirtual: { type: "boolean" },
+    income: { type: "integer" },
+    costsByCostCenter: {
+      type: "object",
+      additionalProperties: { type: "integer" },
+    },
+    cost: { type: "integer" },
+    costEstimated: { type: "integer" },
+    result: { type: "integer" },
+    // Único decimal del informe: margen con un decimal, solo presentación.
+    marginPct: { type: ["number", "null"] },
+  },
+} as const;
+
+/**
+ * 200 del Resultado. fast-json-stringify descarta lo no declarado, así que cada
+ * campo de `ExpenseResult` está acá y en `required`: uno olvidado falla en el
+ * test de la ruta en vez de desaparecer en silencio.
+ */
+const expenseResultResponse = {
+  type: "object",
+  required: [
+    "month",
+    "country",
+    "currency",
+    "columns",
+    "costCenters",
+    "incomplete",
+    "foreignIncome",
+  ],
+  properties: {
+    month: { type: "string" },
+    country: { type: "string", enum: ["AR", "ES"] },
+    currency: { type: "string", enum: ["ARS", "EUR"] },
+    columns: { type: "array", items: resultColumnSchema },
+    costCenters: {
+      type: "array",
+      items: {
+        type: "object",
+        required: ["id", "name"],
+        properties: { id: { type: "integer" }, name: { type: "string" } },
+      },
+    },
+    incomplete: {
+      type: "object",
+      required: ["total", "estimated", "missingFxRate", "missingReceipts"],
+      properties: {
+        total: { type: "integer" },
+        estimated: { type: "integer" },
+        missingFxRate: { type: "integer" },
+        missingReceipts: { type: "integer" },
+      },
+    },
+    foreignIncome: {
+      type: "array",
+      items: {
+        type: "object",
+        required: ["branchId", "branchName", "currency", "count", "amount"],
+        properties: {
+          branchId: { type: "integer" },
+          branchName: { type: "string" },
+          currency: { type: "string" },
+          count: { type: "integer" },
+          amount: { type: "integer" },
+        },
+      },
+    },
+  },
+} as const;
+
+export const expenseResultSchema = {
+  querystring: {
+    type: "object",
+    required: ["month"],
+    properties: { ...summaryQuery },
+  },
+  response: { ...errorResponses, 200: expenseResultResponse },
+} as const;
+
+export const expenseResultExportSchema = {
+  querystring: {
+    type: "object",
+    required: ["month"],
+    properties: { ...summaryQuery },
+  },
+  response: errorResponses,
+} as const;

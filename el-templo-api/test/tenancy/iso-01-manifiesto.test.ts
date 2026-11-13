@@ -451,7 +451,11 @@ import {
 // /expense-records/summary`, `/summary/detail` y `/summary/export`,
 // `tenant-scoped` (`assertTenant` + `tenantWhere` en el service; el país sale
 // del scope y el Excel sale del mismo cálculo que el JSON).
-const ENTRADAS_BASELINE = 568;
+// 2026-11-13: 568 -> 570 por el Resultado por sede (fase 211-02): GET
+// /expense-records/result y /result/export, tenant-scoped (assertTenant +
+// tenantWhere en el service; el país sale del scope y el Excel sale del mismo
+// cálculo que el JSON).
+const ENTRADAS_BASELINE = 570;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -594,7 +598,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 568 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 570 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(
