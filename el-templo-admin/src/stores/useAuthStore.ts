@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { api } from 'src/boot/axios';
+import { api, isSessionEndedError } from 'src/boot/axios';
 import type { AdminUser, AdminRole } from 'src/types/admin';
 
 const ADMIN_ROLES: AdminRole[] = [
@@ -85,9 +85,19 @@ export const useAuthStore = defineStore('auth', () => {
       user.value = data;
       token.value = storedToken;
       return true;
-    } catch {
-      await logout();
-      return false;
+    } catch (err: unknown) {
+      // Hotfix 2026-11-13: este chequeo corre en CADA navegación. Antes
+      // cualquier error (sin señal, timeout, la API reiniciando en un deploy)
+      // borraba la sesión. Ahora solo se cierra si el servidor la rechazó.
+      if (isSessionEndedError(err)) {
+        await logout();
+        return false;
+      }
+      // Falla transitoria: los tokens quedan. Si ya había usuario cargado se
+      // deja navegar (la página mostrará su propio error de red); en un
+      // arranque en frío sin usuario se manda a /login, pero sin borrar nada:
+      // al recargar con señal la sesión sigue.
+      return user.value !== null;
     }
   }
 

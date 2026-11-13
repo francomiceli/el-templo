@@ -20,6 +20,14 @@ const localStorageMock = {
 
 let refreshCallCount = 0;
 
+/**
+ * Cómo responde POST /auth/refresh en el caso actual:
+ * - 'ok': tokens nuevos.
+ * - número: AxiosError con ese status (401/403 = rechazo, 5xx/429 = transitorio).
+ * - 'network': AxiosError SIN response (sin señal / timeout).
+ */
+let refreshOutcome: 'ok' | 'network' | number = 'ok';
+
 // Stub window (jsdom is not guaranteed; provide a minimal redirect target).
 const locationMock = { pathname: '/dashboard', href: '' };
 
@@ -73,6 +81,20 @@ vi.mock('axios', async () => {
       if (url.includes('/auth/refresh')) {
         refreshCallCount += 1;
         await new Promise((r) => setTimeout(r, 10));
+        if (refreshOutcome === 'network') {
+          throw new actual.AxiosError('Network Error', 'ERR_NETWORK');
+        }
+        if (typeof refreshOutcome === 'number') {
+          const err = new actual.AxiosError('Request failed');
+          err.response = {
+            status: refreshOutcome,
+            data: {},
+            statusText: '',
+            headers: {},
+            config: {} as never,
+          };
+          throw err;
+        }
         return { data: { accessToken: 'new-access', refreshToken: 'refresh-2' } };
       }
       return { data: {} };
@@ -91,7 +113,12 @@ vi.mock('axios', async () => {
   };
 });
 
-import { createAuthErrorHandler, runRefresh, __resetRefreshLock } from '../axios';
+import {
+  createAuthErrorHandler,
+  runRefresh,
+  isSessionEndedError,
+  __resetRefreshLock,
+} from '../axios';
 
 const ACCESS_KEY = 'adminAccessToken';
 const REFRESH_KEY = 'adminRefreshToken';
@@ -114,6 +141,7 @@ function make401(url: string): AxiosError {
 describe('admin axios refresh lock (D-02, Req 10)', () => {
   beforeEach(() => {
     refreshCallCount = 0;
+    refreshOutcome = 'ok';
     localStorageMock.clear();
     store[ACCESS_KEY] = 'old-access';
     store[REFRESH_KEY] = 'refresh-1';
@@ -180,11 +208,123 @@ describe('admin axios refresh lock (D-02, Req 10)', () => {
 
   it('runRefresh resetea el lock para permitir un refresh en la siguiente oleada', async () => {
     const a = await runRefresh();
-    expect(a).toBe('new-access');
+    expect(a).toEqual({ kind: 'ok', token: 'new-access' });
     expect(refreshCallCount).toBe(1);
     store[REFRESH_KEY] = 'refresh-2';
     const b = await runRefresh();
-    expect(b).toBe('new-access');
+    expect(b).toEqual({ kind: 'ok', token: 'new-access' });
     expect(refreshCallCount).toBe(2);
+  });
+});
+
+// Hotfix 2026-11-13: dos profes quedaron afuera del admin. Cualquier falla del
+// refresh (sin señal, timeout, API reiniciando en un deploy) borraba la sesión.
+// Ahora solo un rechazo explícito del servidor (401/403) la cierra.
+describe('admin axios: el refresh fallido por red NO cierra la sesión', () => {
+  beforeEach(() => {
+    refreshCallCount = 0;
+    refreshOutcome = 'ok';
+    localStorageMock.clear();
+    store[ACCESS_KEY] = 'old-access';
+    store[REFRESH_KEY] = 'refresh-1';
+    locationMock.pathname = '/dashboard';
+    locationMock.href = '';
+    __resetRefreshLock();
+  });
+
+  const neverRetry = (async () => {
+    throw new Error('no debería reintentar');
+  }) as unknown as AxiosInstance;
+
+  it.each([
+    ['sin respuesta (red/timeout)', 'network' as const],
+    ['502 (API reiniciando)', 502],
+    ['503', 503],
+    ['500', 500],
+    ['429 (rate limit)', 429],
+  ])('refresh %s → conserva tokens, no redirige, marca el error', async (_label, outcome) => {
+    refreshOutcome = outcome;
+    const onRedirect = vi.fn(() => {});
+    const handler = createAuthErrorHandler(neverRetry, onRedirect);
+    const err = make401('/protected/x');
+
+    await expect(handler(err)).rejects.toBe(err);
+
+    expect(refreshCallCount).toBe(1);
+    expect(onRedirect).not.toHaveBeenCalled();
+    expect(err.__authRedirected).toBeUndefined();
+    expect(err.__refreshUnavailable).toBe(true);
+    expect(store[ACCESS_KEY]).toBe('old-access');
+    expect(store[REFRESH_KEY]).toBe('refresh-1');
+    // El error de la request original no cuenta como sesión terminada.
+    expect(isSessionEndedError(err)).toBe(false);
+  });
+
+  it.each([401, 403])('refresh rechazado con %i → clear + redirect', async (status) => {
+    refreshOutcome = status;
+    const onRedirect = vi.fn(() => {});
+    const handler = createAuthErrorHandler(neverRetry, onRedirect);
+    const err = make401('/protected/x');
+
+    await expect(handler(err)).rejects.toBe(err);
+
+    expect(onRedirect).toHaveBeenCalledTimes(1);
+    expect(err.__authRedirected).toBe(true);
+    expect(store[ACCESS_KEY]).toBeUndefined();
+    expect(store[REFRESH_KEY]).toBeUndefined();
+    expect(isSessionEndedError(err)).toBe(true);
+  });
+
+  it('después de una falla de red, la próxima oleada vuelve a refrescar y reintenta', async () => {
+    const onRedirect = vi.fn(() => {});
+    const retried: string[] = [];
+    const retryInstance = (async (config: Record<string, unknown>) => {
+      retried.push((config.headers as Record<string, string>).Authorization ?? '');
+      return { data: { ok: true } };
+    }) as unknown as AxiosInstance;
+    const handler = createAuthErrorHandler(retryInstance, onRedirect);
+
+    refreshOutcome = 'network';
+    await expect(handler(make401('/protected/a'))).rejects.toBeDefined();
+
+    refreshOutcome = 'ok';
+    await expect(handler(make401('/protected/b'))).resolves.toBeDefined();
+
+    expect(refreshCallCount).toBe(2);
+    expect(retried).toEqual(['Bearer new-access']);
+    expect(onRedirect).not.toHaveBeenCalled();
+    expect(store[REFRESH_KEY]).toBe('refresh-2');
+  });
+
+  it('un 401 de /auth/login (clave incorrecta) no refresca ni borra nada', async () => {
+    const onRedirect = vi.fn(() => {});
+    const handler = createAuthErrorHandler(neverRetry, onRedirect);
+    const err = make401('/auth/login');
+
+    await expect(handler(err)).rejects.toBe(err);
+
+    expect(refreshCallCount).toBe(0);
+    expect(onRedirect).not.toHaveBeenCalled();
+    expect(store[REFRESH_KEY]).toBe('refresh-1');
+  });
+
+  it('isSessionEndedError: solo 401/403 sin marca de red cierran sesión', () => {
+    const withStatus = (status: number): AxiosError => {
+      const e = make401('/x');
+      (e.response as { status: number }).status = status;
+      return e;
+    };
+    const noResponse = make401('/x');
+    noResponse.response = undefined;
+
+    expect(isSessionEndedError(withStatus(401))).toBe(true);
+    expect(isSessionEndedError(withStatus(403))).toBe(true);
+    expect(isSessionEndedError(withStatus(500))).toBe(false);
+    expect(isSessionEndedError(withStatus(502))).toBe(false);
+    expect(isSessionEndedError(withStatus(429))).toBe(false);
+    expect(isSessionEndedError(noResponse)).toBe(false);
+    // Un error que no es de axios no dice nada de la red: se mantiene el
+    // comportamiento previo (cerrar).
+    expect(isSessionEndedError(new TypeError('x is undefined'))).toBe(true);
   });
 });

@@ -1,4 +1,4 @@
-import { FastifyPluginAsync } from "fastify";
+import type { FastifyBaseLogger, FastifyPluginAsync } from "fastify";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import argon2 from "argon2";
 import { users } from "../../db/schema/users";
@@ -83,6 +83,29 @@ interface RegisterBody {
 interface LoginBody {
   email: string;
   password: string;
+}
+
+/** Motivo de un 401 de /login. El cliente ve siempre el mismo mensaje genérico. */
+export type LoginRejectReason =
+  | "unknown_email"
+  | "deleted"
+  | "bad_password"
+  | "disabled";
+
+export const LOGIN_REJECTED_MSG = "Login rechazado";
+
+/**
+ * Deja rastro de cada login rechazado (2026-11-13: dos profes no podían entrar
+ * y no había forma de saber si erraban el email, la clave o si la cuenta
+ * estaba bloqueada). Solo motivo + userId: nunca el email ni la clave tipeada
+ * (un usuario puede pegar la clave en el campo del email).
+ */
+function logLoginRejected(
+  log: FastifyBaseLogger,
+  reason: LoginRejectReason,
+  userId: number | null,
+): void {
+  log.warn({ reason, userId }, LOGIN_REJECTED_MSG);
 }
 
 export const authRoutes: FastifyPluginAsync = async (fastify) => {
@@ -689,6 +712,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         .limit(1);
 
       if (userResults.length === 0) {
+        logLoginRejected(request.log, "unknown_email", null);
         return reply
           .code(401)
           .send({ error: "No autorizado", message: "Credenciales invalidas" });
@@ -702,6 +726,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       const ctx: TenantContext = { tenantId: user.tenantId };
 
       if (user.deletedAt) {
+        logLoginRejected(request.log, "deleted", user.id);
         return reply.code(401).send({
           error: "No autorizado",
           message: "Esta cuenta fue eliminada",
@@ -711,6 +736,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       // Verify password
       const validPassword = await argon2.verify(user.passwordHash, password);
       if (!validPassword) {
+        logLoginRejected(request.log, "bad_password", user.id);
         return reply
           .code(401)
           .send({ error: "No autorizado", message: "Credenciales invalidas" });
@@ -722,6 +748,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       // non-member roles are subject to this disable check; members use
       // status/deleted_at instead.
       if (user.role !== "member" && user.staffDisabled === true) {
+        logLoginRejected(request.log, "disabled", user.id);
         return reply.code(401).send({
           error: "No autorizado",
           message: "Cuenta desactivada",
