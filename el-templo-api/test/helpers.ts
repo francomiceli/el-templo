@@ -247,6 +247,9 @@ const TABLES_TO_CLEAN = [
   schema.userStatusHistory,
   // Estiramiento post-clase (0340): FK a users, attendance y branches, sale antes.
   schema.stretchOffers,
+  // Histórico de recategorizaciones (0334): FK a users y branches, basura de test
+  // genuina (el cron de los tests la escribe), sale antes que ambos.
+  schema.branchReassignments,
   // Tables referencing layer-3 parents
   schema.attendance,
   // Bloque libre (0286): FK a users, basura de test genuina.

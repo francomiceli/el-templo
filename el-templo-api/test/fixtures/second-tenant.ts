@@ -472,6 +472,11 @@ export async function limpiarSegundoGimnasio(
   await app.db.execute(
     sql`DELETE FROM stretch_catalog WHERE tenant_id = ${TENANT_DOS}`,
   );
+  // Histórico de recategorizaciones (0334): FK a users y branches, sale antes
+  // que ambos.
+  await app.db.execute(
+    sql`DELETE FROM branch_reassignments WHERE tenant_id = ${TENANT_DOS}`,
+  );
   // Fase 201 (Conquer v2, 0291): estado del alumno. Hijas antes que padres y
   // todas ANTES del `DELETE FROM users` (members/sessions/alerts/body_checks
   // tienen FK a users) y del `DELETE FROM tenants` final.

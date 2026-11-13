@@ -6,10 +6,13 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
+import { alias } from "drizzle-orm/mysql-core";
 import {
   eq,
   and,
   gt,
+  gte,
+  desc,
   lte,
   sql,
   isNull,
@@ -71,6 +74,7 @@ import type {
   InactiveReportFilters,
   InactiveReportRow,
   MultibranchReassignmentPreview,
+  MultibranchReassignmentRow,
   OutstandingBalanceRow,
   OutstandingBalancesFilters,
   OutstandingBalancesResult,
@@ -589,6 +593,90 @@ export class ReportsService {
       candidates: res.candidates,
       wouldReassign: res.changes.length,
     };
+  }
+
+  /**
+   * Histórico de recategorizaciones multisucursal de los últimos `months` meses
+   * (`branch_reassignments`, mig 0334), más nuevas primero. Una sola query con
+   * joins (alumno + sede origen + sede destino), todo por gimnasio.
+   *
+   * `country` (solo roles no owner): acota a las recategorizaciones cuya sede
+   * destino es de ese país — mismo criterio que el resto de los reportes.
+   */
+  async getMultibranchReassignments(
+    ctx: TenantContext,
+    opts: { months: number; country?: "AR" | "ES" },
+  ): Promise<MultibranchReassignmentRow[]> {
+    const fromBranch = alias(schema.branches, "from_branch");
+    const toBranch = alias(schema.branches, "to_branch");
+
+    const since = new Date();
+    since.setUTCMonth(since.getUTCMonth() - opts.months);
+
+    const conditions = [
+      tenantWhere(schema.branchReassignments, ctx),
+      gte(schema.branchReassignments.reassignedAt, since),
+    ];
+    if (opts.country !== undefined) {
+      conditions.push(eq(toBranch.country, opts.country));
+    }
+
+    const rows = await this.db
+      .select({
+        id: schema.branchReassignments.id,
+        memberId: schema.branchReassignments.memberId,
+        firstName: schema.users.firstName,
+        lastName: schema.users.lastName,
+        fromBranchId: schema.branchReassignments.fromBranchId,
+        fromBranchName: fromBranch.name,
+        toBranchId: schema.branchReassignments.toBranchId,
+        toBranchName: toBranch.name,
+        toBranchAttendances: schema.branchReassignments.toBranchAttendances,
+        totalAttendances: schema.branchReassignments.totalAttendances,
+        source: schema.branchReassignments.source,
+        reassignedAt: schema.branchReassignments.reassignedAt,
+      })
+      .from(schema.branchReassignments)
+      .innerJoin(
+        schema.users,
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.branchReassignments.memberId),
+        ),
+      )
+      .innerJoin(
+        toBranch,
+        and(
+          tenantWhere(toBranch, ctx),
+          eq(toBranch.id, schema.branchReassignments.toBranchId),
+        ),
+      )
+      .leftJoin(
+        fromBranch,
+        and(
+          tenantWhere(fromBranch, ctx),
+          eq(fromBranch.id, schema.branchReassignments.fromBranchId),
+        ),
+      )
+      .where(and(...conditions))
+      .orderBy(
+        desc(schema.branchReassignments.reassignedAt),
+        desc(schema.branchReassignments.id),
+      );
+
+    return rows.map((r) => ({
+      id: r.id,
+      memberId: r.memberId,
+      memberName: `${r.firstName} ${r.lastName}`.trim(),
+      fromBranchId: r.fromBranchId,
+      fromBranchName: r.fromBranchName,
+      toBranchId: r.toBranchId,
+      toBranchName: r.toBranchName,
+      toBranchAttendances: r.toBranchAttendances,
+      totalAttendances: r.totalAttendances,
+      source: r.source,
+      reassignedAt: r.reassignedAt.toISOString(),
+    }));
   }
 
   // ─── Access Log ───────────────────────────────────────────────────────────

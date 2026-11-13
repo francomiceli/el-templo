@@ -438,7 +438,9 @@ import {
 // 2026-11-12: 557 -> 559 por el player del estiramiento (fase 213): POST
 // /api/sessions/stretch/events y POST /api/sessions/stretch/complete,
 // `templo-module`.
-const ENTRADAS_BASELINE = 559;
+// 2026-11-13: 559 -> 560 por el histórico de recategorizaciones multisucursal
+// (mig 0334): GET /api/admin/reports/multibranch-reassignments, `tenant-scoped`.
+const ENTRADAS_BASELINE = 560;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -581,7 +583,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 559 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 560 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(

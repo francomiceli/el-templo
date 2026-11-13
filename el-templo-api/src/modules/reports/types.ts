@@ -721,3 +721,27 @@ export interface MultibranchReassignmentPreview {
   /** Cuántos se reasignarían si el cambio fuese hoy. */
   wouldReassign: number;
 }
+
+/**
+ * Un evento del histórico de recategorizaciones multisucursal
+ * (`branch_reassignments`, mig 0334). `fromBranchId`/`fromBranchName` son null
+ * cuando no se conoce la sede de origen (backfill sin cobro previo útil).
+ */
+export interface MultibranchReassignmentRow {
+  id: number;
+  memberId: number;
+  /** Nombre + apellido del alumno. */
+  memberName: string;
+  fromBranchId: number | null;
+  fromBranchName: string | null;
+  toBranchId: number;
+  toBranchName: string;
+  /** Asistencias en la sede destino dentro de los 30 días previos. */
+  toBranchAttendances: number;
+  /** Asistencias totales dentro de esos 30 días. */
+  totalAttendances: number;
+  /** 'cron' = lo escribió el job; 'backfill' = reconstruido por la migración. */
+  source: "cron" | "backfill";
+  /** ISO del momento de la recategorización. */
+  reassignedAt: string;
+}

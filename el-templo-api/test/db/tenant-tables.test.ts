@@ -96,7 +96,7 @@ describe("tenant-tables — clasificación canónica de tablas (COL-01)", () => 
     ).toEqual([]);
   });
 
-  it("los conteos son 131 gym-owned + 5 exentas y cubren las 136 tablas del schema", () => {
+  it("los conteos son 132 gym-owned + 5 exentas y cubren las 137 tablas del schema", () => {
     // Fase 159 (SEM-05) sumó `session_week_regime` a GYM_OWNED_TABLES (era 87,
     // ver el comentario de src/db/tenant-tables.ts:32-41): 87 -> 88, 91 -> 92.
     // Fase 179 sumó `referral_partners`, `partner_referrals`,
@@ -145,12 +145,15 @@ describe("tenant-tables — clasificación canónica de tablas (COL-01)", () => 
     // de Oficina por sede): 128 -> 129, 133 -> 134.
     // 2026-11-11 sumó `stretch_catalog` y `stretch_offers` (fase 213, nacen strict
     // en `stretch`): 129 -> 131, 134 -> 136.
-    expect(GYM_OWNED_TABLES.length).toBe(131);
+    // 2026-11-13 sumó `branch_reassignments` (histórico de recategorizaciones
+    // multisucursal, mig 0334, nace strict en `branch-reassignments`): 131 -> 132,
+    // 136 -> 137.
+    expect(GYM_OWNED_TABLES.length).toBe(132);
     expect(TENANT_EXEMPT_TABLES.length).toBe(5);
     // Sin duplicados dentro de cada lista.
     expect(gymOwned.size).toBe(GYM_OWNED_TABLES.length);
     expect(exempt.size).toBe(TENANT_EXEMPT_TABLES.length);
-    expect(schemaTables.size).toBe(136);
+    expect(schemaTables.size).toBe(137);
     expect(gymOwned.size + exempt.size).toBe(schemaTables.size);
   });
 
@@ -465,6 +468,8 @@ describe("TENANT_STRICT_MODULES (fase 170, D-05/D-06)", () => {
     ],
     scheduling: ["bookings", "holidays", "schedule_exceptions", "schedules"],
     auth: ["promo_plans", "refresh_tokens"],
+    // 2026-11-13 (mig 0334): histórico de recategorizaciones. Nace strict.
+    "branch-reassignments": ["branch_reassignments"],
     campaigns: [
       "campaign_events",
       "campaign_sends",
