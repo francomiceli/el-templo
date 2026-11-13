@@ -1243,7 +1243,18 @@ Plans:
 - [x] 209-14-PLAN.md — Admin: pestaña Por pagar y diálogo para registrar pagos
 - [x] 209-15-PLAN.md — Admin: detalle del gasto con pagos, historial y anulaciones
 - [x] 209-16-PLAN.md — Admin: pestaña Resumen con detalle por rubro y export a Excel
-- [ ] 209-17-PLAN.md — Cierre: identidades del Resumen y casos del brief, no-regresión, inventario con greps y checklist de UAT
+- [x] 209-17-PLAN.md — Cierre: identidades del Resumen y casos del brief, no-regresión, inventario con greps y checklist de UAT
+
+### Phase 209.1: Saldo de apertura de los bancos (D-24, punto 5)
+
+**Goal**: El día que arranca Egresos, el dueño deja cada cuenta bancaria en el saldo real del banco con un ajuste trazable, igual que el arqueo de apertura de Caja central y Tesoro
+**Depends on**: 209. Decisiones en `209.1-CONTEXT.md`. Sin migración
+**Success Criteria**:
+1. Caja → Cuentas: acción "Saldo de apertura" en cada banco activo (solo owner), con el saldo de la app y la diferencia antes de confirmar
+2. Confirmar deja el saldo exacto con un ajuste interno y rastro en audit, sin tocar historial ni corte
+3. Los cobros no cambian (Resumen de cobros, Tablero, Reportes)
+
+**Plans:** TBD
 
 ### Phase 210: Caja — extracto por cuenta, por conciliar y cambio de moneda — EN ESPERA (D-24)
 
@@ -1264,6 +1275,11 @@ Plans:
 1. Por sede: cobros a sus alumnos (sede guardada en el cobro), costos asignados por rubro, resultado, margen ("sin base de cálculo" si no hubo cobros)
 2. Casa Matriz con sus costos; consolidado AR descuenta Casa Matriz una vez; Barcelona aparte en EUR
 3. Solo owner/admin
+4. Excel con los mismos números (D-24: la rendición se sigue armando en planilla a partir de este informe)
+
+Decisiones de implementación en `211-CONTEXT.md` (2026-11-13).
+
+**Plans:** TBD
 
 ### Phase 212: Rendiciones a inversores — EN ESPERA (D-24)
 

@@ -20,9 +20,10 @@ Planilla modelo (no versionada, binaria): `/home/franco/projects/el-templo/.docs
 |---|---|---|---|
 | 207 | Sede del alumno en cada cobro. El cambio a centavos se revirtió (D-23) | Hecha, centavos retirados en `9a342ad84` | D-14 |
 | 208 | Cuentas: USD, Tesoro, cheque, coherencia medio↔cuenta, retiro con destino, arqueo de apertura | Hecha (11 planes) | D-09, D-19 |
-| 209 | Egresos recortada: gasto + reparto + pagos, rubros, links de comprobante, estimado/confirmado, tipo de cambio manual, Resumen, sección propia | En curso. Alcance en `.planning/phases/209-egresos/209-CONTEXT.md` | D-01, D-03, D-04, D-05, D-10, D-11, D-23, D-24 |
+| 209 | Egresos recortada: gasto + reparto + pagos, rubros, links de comprobante, estimado/confirmado, tipo de cambio manual, Resumen, sección propia | Hecha (17 planes). Alcance en `.planning/phases/209-egresos/209-CONTEXT.md` | D-01, D-03, D-04, D-05, D-10, D-11, D-23, D-24 |
+| 209.1 | Saldo de apertura de los bancos (D-24 punto 5), con el mismo mecanismo del arqueo de apertura | En curso (2026-11-13). Alcance en `209.1-CONTEXT.md` | D-19, D-24 |
 | 210 | Caja: extracto por cuenta, por conciliar, cambio de moneda | EN ESPERA (D-24). No planificar | D-13, D-20 |
-| 211 | Resultado por sede y consolidado, como informe chico | Pendiente, después de la 209 | D-14, D-17 |
+| 211 | Resultado por sede y consolidado, como informe chico | En curso (2026-11-13). Alcance en `211-CONTEXT.md` | D-14, D-17 |
 | 212 | Rendiciones a inversores | EN ESPERA (D-24). No planificar | D-15, D-16, D-17 |
 
 Quedó fuera de la 209 por D-24: tipo de cambio por API del BNA (D-07, D-08), repartos guardados con nombre (D-02), importador de planilla (D-18) y "cerrar mes" (D-21).
