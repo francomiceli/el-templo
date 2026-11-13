@@ -191,6 +191,18 @@
               >
                 <q-tooltip>Editar</q-tooltip>
               </q-btn>
+              <!-- Saldo de apertura (fase 209.1): solo owner, la API también lo exige.
+                   Deja el banco en el saldo real con un ajuste trazable. -->
+              <q-btn
+                v-if="isOwner && tableProps.row.isActive"
+                flat
+                dense
+                no-caps
+                icon="fact_check"
+                label="Saldo de apertura"
+                color="secondary"
+                @click="openSaldoBanco(tableProps.row)"
+              />
               <!-- Retiro de cuenta banco: monto explícito, con responsable (2026-09-07).
                    Mismos roles que la API (owner/admin/gestion). -->
               <q-btn
@@ -253,12 +265,13 @@
       @created="loadCajas"
     />
 
-    <!-- Arqueo de apertura de Central / Tesoro (owner) -->
+    <!-- Arqueo de apertura de Central / Tesoro y saldo de apertura de bancos (owner) -->
     <ArqueoAperturaDialog
       v-if="isOwner"
       v-model="showArqueoDialog"
       :caja="arqueoCaja"
-      @registered="loadCajas"
+      :mode="arqueoMode"
+      @registered="onAperturaRegistered"
     />
 
     <!-- Alta / edición (CTA-01) -->
@@ -296,6 +309,7 @@ import CuentaBancariaFormDialog from 'src/components/caja/CuentaBancariaFormDial
 import CajaEfectivoFormDialog from 'src/components/caja/CajaEfectivoFormDialog.vue';
 import RegistrarRetiroDialog from 'src/components/caja/RegistrarRetiroDialog.vue';
 import TesoroFormDialog from 'src/components/caja/TesoroFormDialog.vue';
+import type { OpeningMode } from 'src/utils/opening-count';
 import ArqueoAperturaDialog from 'src/components/caja/ArqueoAperturaDialog.vue';
 
 const props = defineProps<{
@@ -344,6 +358,9 @@ const cajasCentral = ref<CajaSaldoRow[]>([]);
 const showTesoroDialog = ref(false);
 const showArqueoDialog = ref(false);
 const arqueoCaja = ref<CajaSaldoRow | null>(null);
+const arqueoMode = ref<OpeningMode>('efectivo');
+// Saldos de las cuentas bancarias por id, de la MISMA carga de saldos (sin otra llamada).
+const bancosSaldo = ref<Map<number, CajaSaldoRow>>(new Map());
 
 const centralColumns: QTableColumn<CajaSaldoRow>[] = [
   { name: 'name', label: 'Cuenta', field: 'name', align: 'left' },
@@ -354,7 +371,30 @@ const centralColumns: QTableColumn<CajaSaldoRow>[] = [
 
 function openArqueo(caja: CajaSaldoRow) {
   arqueoCaja.value = caja;
+  arqueoMode.value = 'efectivo';
   showArqueoDialog.value = true;
+}
+
+function openSaldoBanco(account: BankAccount) {
+  const fila = bancosSaldo.value.get(account.id);
+  if (!fila) {
+    $q.notify({
+      type: 'negative',
+      message: 'No encontré el saldo de la cuenta. Recargá la página e intentá de nuevo.',
+    });
+    log.warn('Saldo de la cuenta bancaria no encontrado para el saldo de apertura', {
+      cashRegisterId: account.id,
+    });
+    return;
+  }
+  arqueoCaja.value = fila;
+  arqueoMode.value = 'banco';
+  showArqueoDialog.value = true;
+}
+
+// La columna "Saldo firme" de bancos sale de load(), la de Central/Tesoro de loadCajas().
+function onAperturaRegistered() {
+  void Promise.all([load(), loadCajas()]);
 }
 
 const cajaColumns: QTableColumn<CajaSaldoRow>[] = [
@@ -404,6 +444,9 @@ async function loadCajas() {
     });
     cajasEfectivo.value = rows.filter((r) => r.type === 'efectivo' && r.branchId !== null);
     cajasCentral.value = rows.filter((r) => r.type === 'efectivo' && r.branchId === null);
+    bancosSaldo.value = new Map(
+      rows.filter((r) => r.type === 'banco').map((r) => [r.cashRegisterId, r])
+    );
   } catch (err: unknown) {
     const message = extractError(err, 'Error cargando cajas');
     log.error('Error loading cash registers', { error: message });
