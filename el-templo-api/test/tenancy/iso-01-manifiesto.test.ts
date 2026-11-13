@@ -435,7 +435,9 @@ import {
 // `POST /api/communications/tv/admin/tv-avisos/image-upload-url`, `templo-module`.
 // 2026-11-13: 556 -> 557 por el histórico de recategorizaciones multisucursal
 // (mig 0334): GET /api/admin/reports/multibranch-reassignments, `tenant-scoped`.
-const ENTRADAS_BASELINE = 557;
+// 2026-11-13: 557 -> 558 por el export a Excel de ese histórico:
+// GET /api/admin/reports/multibranch-reassignments/export, `tenant-scoped`.
+const ENTRADAS_BASELINE = 558;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -578,7 +580,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 557 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 558 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(

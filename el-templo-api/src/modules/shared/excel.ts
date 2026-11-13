@@ -29,15 +29,19 @@ export function styleHeaderRow(
 /**
  * Send an Excel workbook as a binary download response. The filename is
  * `<prefix>-<YYYY-MM-DD>.xlsx` (today's date).
+ *
+ * `exactFilename` (opcional, termina en `.xlsx`) reemplaza ese nombre cuando el
+ * archivo ya lo arma el llamador (p. ej. un export de un mes puntual).
  */
 export async function sendExcelReply(
   workbook: Workbook,
   reply: FastifyReply,
   filenamePrefix: string,
+  exactFilename?: string,
 ): Promise<void> {
   const buffer = await workbook.xlsx.writeBuffer();
   const today = new Date().toISOString().split("T")[0];
-  const filename = `${filenamePrefix}-${today}.xlsx`;
+  const filename = exactFilename ?? `${filenamePrefix}-${today}.xlsx`;
 
   reply
     .header(
