@@ -1292,7 +1292,7 @@ Plans:
 - [x] 211-03-PLAN.md — Tests de la API: ISO-03 (+2 casos con control positivo) y escenario HTTP con literales (qué cobro cuenta, sede, moneda, identidades contra el Resumen y los cobros, Excel = JSON, roles, 400)
 - [x] 211-04-PLAN.md — Admin: tipos, llamadas del composable, helpers puros con test (margen, etiquetas, aviso de otra moneda) y textos de incompletos y moneda compartidos con Resumen
 - [x] 211-05-PLAN.md — Admin: `ResultadoTab.vue` (matriz, avisos, detalle por columna, Excel) y pestaña "Resultado" solo para owner y admin
-- [ ] 211-06-PLAN.md — Cierre: no-regresión (208, Resumen, identidades, Tablero, tenancy), inventario con greps, gates y SUMMARY con checklist de prueba manual para Franco
+- [x] 211-06-PLAN.md — Cierre: no-regresión (208, Resumen, identidades, Tablero, tenancy), inventario con greps, gates y SUMMARY con checklist de prueba manual para Franco
 
 ### Phase 212: Rendiciones a inversores — EN ESPERA (D-24)
 
