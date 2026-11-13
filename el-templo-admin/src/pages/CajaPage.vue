@@ -36,6 +36,13 @@
       </q-tab>
       <q-tab :name="CAJA_TABS.movimientosCaja" label="Movimientos de caja" icon="swap_horiz" />
       <q-tab :name="CAJA_TABS.retiros" label="Retiros" icon="payments" />
+      <!-- Egresos (2026-11-13): owner, admin y gestión (EGRESOS_ROLES). admin_sede no la ve. -->
+      <q-tab
+        v-if="canSeeEgresos"
+        :name="CAJA_TABS.egresos"
+        label="Egresos"
+        icon="request_quote"
+      />
       <q-tab :name="CAJA_TABS.transacciones" label="Historial de cobros" icon="receipt_long" />
       <q-tab :name="CAJA_TABS.saldos" label="Saldos" icon="account_balance_wallet" />
       <!-- Cuentas: ABM de cajas y cuentas bancarias. Todo su
@@ -82,6 +89,11 @@
         <RetirosTab :selected-country="selectedCountry" :is-owner="isOwner" />
       </q-tab-panel>
 
+      <!-- Egresos — gastos con reparto y pagos, Por pagar, Resumen, Resultado y Rubros -->
+      <q-tab-panel v-if="canSeeEgresos" :name="CAJA_TABS.egresos" class="q-px-none q-pt-none">
+        <EgresosHub :selected-country="selectedCountry" :is-owner="isOwner" />
+      </q-tab-panel>
+
       <!-- Cuentas — ABM de cuentas bancarias flexibles (CTA-01/02/03, fase 150) -->
       <q-tab-panel v-if="canManageCatalog" :name="CAJA_TABS.cuentas" class="q-px-none">
         <CuentasTab :selected-country="selectedCountry" :is-owner="isOwner" />
@@ -101,6 +113,8 @@ import MovimientosTab from 'src/components/caja/MovimientosTab.vue';
 import SaldosPorCajaTab from 'src/components/caja/SaldosPorCajaTab.vue';
 import RetirosTab from 'src/components/caja/RetirosTab.vue';
 import CuentasTab from 'src/components/caja/CuentasTab.vue';
+import EgresosHub from 'src/components/egresos/EgresosHub.vue';
+import { EGRESOS_ROLES } from 'src/config/templo-config';
 
 const route = useRoute();
 const router = useRouter();
@@ -115,10 +129,16 @@ const isOwner = computed(() => authStore.user?.role === 'owner');
 
 // Mirrors ADMIN_ROLES del API: únicos roles que pueden cargar el ABM de la
 // pestaña Cuentas (cajas y cuentas bancarias). Los rubros de egreso se
-// mudaron a Egresos > Rubros (fase 209).
+// mudaron a Caja > Egresos > Rubros (fase 209).
 const canManageCatalog = computed(() => {
   const role = authStore.user?.role;
   return role === 'admin' || role === 'owner';
+});
+
+// Egresos (fase 209, dentro de Caja desde 2026-11-13): owner, admin y gestión.
+const canSeeEgresos = computed(() => {
+  const role = authStore.user?.role;
+  return role !== undefined && EGRESOS_ROLES.includes(role);
 });
 
 const countryOptions = [
@@ -143,6 +163,8 @@ function tabFromQuery(): CajaTab {
   if (typeof q === 'string' && (CAJA_TAB_NAMES as readonly string[]).includes(q)) {
     // ?tab=cuentas pegado en la URL por un rol sin ABM: cae al default.
     if (q === CAJA_TABS.cuentas && !canManageCatalog.value) return CAJA_DEFAULT_TAB;
+    // ?tab=egresos pegado por admin_sede: cae al default.
+    if (q === CAJA_TABS.egresos && !canSeeEgresos.value) return CAJA_DEFAULT_TAB;
     return q as CajaTab;
   }
   return CAJA_DEFAULT_TAB;

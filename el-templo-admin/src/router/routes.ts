@@ -15,7 +15,6 @@ import {
   ANALITICAS_ROLES,
   OFICINA_ROLES,
   TABLERO_ROLES,
-  EGRESOS_ROLES,
 } from 'src/config/templo-config';
 
 /**
@@ -207,12 +206,18 @@ const routes: RouteRecordRaw[] = [
         // (espeja FINANCE_LOAD_ROLES de la API). Sincronizado con el nav (Plan 03).
         meta: { allowedRoles: PAGOS_ROLES },
       },
+      // Egresos vive dentro de Caja desde 2026-11-13 (pestaña Caja → Egresos). Los
+      // links viejos /egresos?tab=X&nuevo=1 siguen andando: la pestaña de Egresos
+      // pasa a ?sub= y ?tab= queda en "egresos". El gate real es el API
+      // (EXPENSES_ROLES); Caja oculta la pestaña a admin_sede.
       {
         path: 'egresos',
-        component: () => import('pages/EgresosPage.vue'),
-        // Fase 209 (DI-14): owner, admin y gestión. El guard solo oculta: el gate
-        // real es el API (EXPENSES_ROLES en finance/expense-routes.ts).
-        meta: { allowedRoles: EGRESOS_ROLES },
+        redirect: (to) => {
+          const query: Record<string, string> = { tab: 'egresos' };
+          if (typeof to.query.tab === 'string') query.sub = to.query.tab;
+          if (typeof to.query.nuevo === 'string') query.nuevo = to.query.nuevo;
+          return { path: '/caja', query };
+        },
       },
       // Phase 151 (COBRO-01): /pagos renombrado a /cobros. Redirect para que los
       // enlaces viejos (bookmarks, landing pre-151) sigan resolviendo.

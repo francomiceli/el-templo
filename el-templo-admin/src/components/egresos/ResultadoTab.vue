@@ -248,7 +248,7 @@ import type {
  *
  * - `selectedCountry` viaja siempre a la API (solo el owner lo elige).
  * - `isOwner` queda declarado como en las demás pestañas (hoy no cambia nada acá).
- * - `options`: opciones del formulario que carga `EgresosPage`; de ahí sale el "hoy" del
+ * - `options`: opciones del formulario que carga `EgresosHub`; de ahí sale el "hoy" del
  *   país para el mes por defecto (si no llegaron, el del navegador, y se corrige al llegar
  *   salvo que el usuario ya haya movido el selector).
  * - `refreshKey`: la página lo incrementa cuando el detalle de un gasto cambió algo.

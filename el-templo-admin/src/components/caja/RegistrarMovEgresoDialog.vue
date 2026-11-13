@@ -217,8 +217,8 @@ function onOrigenChange() {
 // =========================================================================
 // Acceso a Egresos (fase 209, DI-15): la carga de gastos ya no es de este dialog.
 // POST /expenses sigue en la API para los egresos viejos y los tests, y los egresos
-// ya cargados se siguen viendo en Movimientos. Egresos -> Nuevo gasto se abre con
-// /egresos?tab=gastos&nuevo=1.
+// ya cargados se siguen viendo en Movimientos. Caja -> Egresos -> Nuevo gasto se abre
+// con /caja?tab=egresos&sub=gastos&nuevo=1.
 // =========================================================================
 
 const canGoToEgresos = computed(() => {
@@ -228,7 +228,7 @@ const canGoToEgresos = computed(() => {
 
 function goToNuevoGasto() {
   show.value = false;
-  void router.push({ path: '/egresos', query: { tab: 'gastos', nuevo: '1' } });
+  void router.push({ path: '/caja', query: { tab: 'egresos', sub: 'gastos', nuevo: '1' } });
 }
 
 const canSubmitMov = computed(
