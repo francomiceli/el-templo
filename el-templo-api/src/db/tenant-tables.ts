@@ -87,6 +87,9 @@ export const GYM_OWNED_TABLES = [
   "blog_posts",
   "blog_tags",
   "bookings",
+  // Histórico de recategorizaciones multisucursal (mig 0334, 2026-11-13): nace
+  // con tenant_id y strict, ver TENANT_STRICT_MODULES["branch-reassignments"].
+  "branch_reassignments",
   "branches",
   "campaign_events",
   "campaign_sends",
@@ -680,6 +683,9 @@ export const TENANT_STRICT_MODULES: Record<string, readonly string[]> = {
   ],
   scheduling: ["bookings", "holidays", "schedule_exceptions", "schedules"],
   auth: ["promo_plans", "refresh_tokens"],
+  // 2026-11-13 (mig 0334): histórico de recategorizaciones multisucursal. Nace
+  // strict, no hay deuda previa que tolerar.
+  "branch-reassignments": ["branch_reassignments"],
   campaigns: [
     "campaign_events",
     "campaign_sends",
