@@ -152,7 +152,7 @@
 </template>
 
 <script setup lang="ts">
-// deploy: 1.9.4 dirección del socio, redeploy tras fix de tests me-address (paths-filter, 2026-11-05)
+// deploy: Egresos + Resultado por sede + Excel de recategorizaciones, redeploy tras CI rojo de egresos-identidades (paths-filter, 2026-11-13)
 /**
  * MiTemplo page — personalized daily briefing ("Tu Dia").
  *

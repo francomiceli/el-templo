@@ -6,9 +6,9 @@
  * Un solo escenario encadenado (los `it` comparten estado y corren en orden):
  *   1. foto inicial del Resumen (mes actual M y anterior M-1) y de cobros
  *   2. factura de M-1 pagada hoy: costo en M-1, pagado en M
- *   3. $150.000 en partes iguales entre las sedes operativas de Argentina,
- *      pagado por débito automático (el esperado se calcula con `splitEvenly`
- *      sobre las sedes que devuelve la API)
+ *   3. $150.000 en partes iguales entre seis sedes de Argentina (las primeras
+ *      que devuelve la API), pagado por débito automático (el esperado se
+ *      calcula con `splitEvenly`)
  *   4. $150.000 a Casa Matriz pagado desde dos cuentas ($90.000 un banco y
  *      $60.000 la Caja central)
  *   5. factura de USD 600 con TC 1.560 en partes iguales ($936.000 de costo),
@@ -643,7 +643,12 @@ describe("Egresos: identidades del Resumen y casos del pedido (HTTP)", () => {
 
   it("(b) $150.000 en partes iguales entre las sedes de Argentina, pagado por débito automático", async () => {
     const antes = await foto();
-    const n = destinosSedes.length; // cuántas sedes operativas hay lo dice la API
+    // Las sedes de Argentina del pedido son seis: se reparte entre las primeras
+    // PARTES_USD que devuelve la API (beforeAll garantiza al menos esas). NO se
+    // usan todas las operativas: la DB de test de CI acumula sedes de otros
+    // archivos y pasaba el tope de 50 destinos del schema (`maxItems: 50`).
+    const sedesB = destinosSedes.slice(0, PARTES_USD);
+    const n = sedesB.length;
     // Partes: floor(150000 / n) para todas y el resto a la última.
     const partes = splitEvenly(150000, n);
     expect(partes.reduce((s, p) => s + p, 0)).toBe(150000);
@@ -653,7 +658,7 @@ describe("Egresos: identidades del Resumen y casos del pedido (HTTP)", () => {
       beneficiary: "Contabilium",
       imputationMonth: mesActual,
       amount: 150000,
-      allocations: destinosSedes.map((d, i) => ({
+      allocations: sedesB.map((d, i) => ({
         branchId: d.branchId,
         amount: partes[i],
       })),
@@ -662,7 +667,7 @@ describe("Egresos: identidades del Resumen y casos del pedido (HTTP)", () => {
     expect(pago.record.status).toBe("pagado");
 
     const despues = await foto();
-    destinosSedes.forEach((d, i) => {
+    sedesB.forEach((d, i) => {
       const key = String(d.branchId);
       expect(delta(despues.mes, antes.mes, key, "cost"), d.name).toBe(
         partes[i],
