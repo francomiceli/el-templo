@@ -7,7 +7,7 @@
  *     recorded_by, created_at, sin sede)
  *   - audit 'reconciliation' (target_kind 'cash_register') SIEMPRE, con o sin ajuste
  *   - fondo de cambio: el esperado lo incluye
- *   - invariantes: no en caja de sede, banco, caja cerrada ni antes del corte (400)
+ *   - invariantes: no en caja de sede, caja cerrada ni antes del corte (400)
  *   - validaciones del body (decimales, negativo, faltante)
  *   - owner-only (403 para gestión y admin)
  *   - NO escribe en `cash_counts` (no abre temas en Oficina)
@@ -455,7 +455,7 @@ describe("208-04: arqueo de apertura — invariantes y permisos", () => {
     expect(await ajustesDe(sede.id)).toHaveLength(0);
   });
 
-  it("cuenta banco → 400", async () => {
+  it("cuenta banco: desde la 209.1 se acepta (el detalle está en apertura-bancos.test.ts)", async () => {
     const [banco] = await app.db
       .insert(schema.cashRegisters)
       .values(
@@ -471,8 +471,14 @@ describe("208-04: arqueo de apertura — invariantes y permisos", () => {
       .$returningId();
     createdCajaIds.push(banco.id);
     const res = await arquear(ownerToken, banco.id, { countedAmount: 50 });
-    expect(res.statusCode, res.body).toBe(400);
-    expect(await ajustesDe(banco.id)).toHaveLength(0);
+    expect(res.statusCode, res.body).toBe(201);
+    const ajustes = await ajustesDe(banco.id);
+    expect(ajustes).toHaveLength(1);
+    expect(ajustes[0].direction).toBe("outflow");
+    expect(ajustes[0].amount).toBe(50);
+    expect(ajustes[0].notes).toMatch(
+      /^Saldo de apertura del banco: la app tenía 100, el banco 50/,
+    );
   });
 
   it("caja cerrada → 400, sin ajuste ni audit", async () => {

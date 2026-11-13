@@ -42,6 +42,7 @@ import { assertEfectivoCoversOutflow } from "./efectivo-guard";
 import { assertNotExpensePaymentRow } from "./expense-payment-guard";
 import { assertMethodAllowedForAccount } from "./payment-method-rules";
 import { createCountAdjustment } from "./count-adjustment";
+import { countryToday } from "./expense-branches";
 import { collectTransferGroupIds, createTransferPair } from "./transfer-pair";
 import type {
   MovementDetail,
@@ -290,8 +291,12 @@ export class MovementService {
    * NO escribe en `cash_counts`: no es una observacion de Oficina. Para una
    * cuenta nueva alcanza con el saldo de apertura del alta.
    *
-   * @throws BadRequestError si la caja no existe, esta dada de baja, no es una
-   *         caja de efectivo sin sede, o la fecha de hoy es anterior al corte.
+   * Fase 209.1: también cuentas banco sin sede (saldo según el banco, fecha del
+   * país de la cuenta, source bank_opening_balance).
+   *
+   * @throws BadRequestError si la caja no existe, esta dada de baja, tiene sede
+   *         (solo Caja central, Tesoro o cuenta banco), o la fecha de hoy es
+   *         anterior al corte.
    */
   async registerOpeningCount(
     ctx: TenantContext,
@@ -307,15 +312,20 @@ export class MovementService {
     }
 
     const caja = await this.loadCaja(ctx, cajaId);
-    if (caja.type !== "efectivo" || caja.branchId !== null) {
+    // Fase 209.1: bancos sin sede (con sede, el ajuste sumaría como ingreso de esa sede).
+    const esBanco = caja.type === "banco";
+    if (caja.branchId !== null) {
       throw new BadRequestError(
-        "El arqueo de apertura es solo para la Caja central o un Tesoro",
+        "El saldo de apertura es solo para la Caja central, un Tesoro o una cuenta bancaria",
       );
     }
     if (!caja.isActive) {
       throw new BadRequestError("La caja está dada de baja");
     }
-    const today = this.today();
+    // Banco: "hoy" del país de la cuenta (no UTC), el mismo para el corte y el ajuste.
+    const today = esBanco
+      ? await countryToday(this.db, ctx, caja.currency === "EUR" ? "ES" : "AR")
+      : this.today();
     if (today < caja.cutoffDate) {
       throw new BadRequestError(
         `La fecha de hoy es anterior al corte de la caja ${caja.name} (${caja.cutoffDate})`,
@@ -340,11 +350,23 @@ export class MovementService {
       const balance = await this.cashRegisterService.getBalance(ctx, caja.id);
       // Mismo esperado que todo arqueo de efectivo: la plata sin validar esta
       // en el cajon aunque no este en el saldo firme.
-      const expected =
-        caja.changeFund + balance.firmeBalance + balance.pendienteAmount;
+      // Un banco no tiene fondo de cambio (setChangeFund lo rechaza): se ignora.
+      if (esBanco && caja.changeFund !== 0) {
+        this.log.warn(
+          { cashRegisterId: caja.id, changeFund: caja.changeFund },
+          "Fondo de cambio en una cuenta banco: se ignora en el saldo de apertura",
+        );
+      }
+      const fondo = esBanco ? 0 : caja.changeFund;
+      const expected = fondo + balance.firmeBalance + balance.pendienteAmount;
       const counted = countedAmount;
       const extra = input.notes?.trim();
-      const notes = `Arqueo de apertura: esperado ${expected}, contado ${counted}${extra ? `. ${extra}` : ""}`;
+      const notes = `${
+        esBanco
+          ? `Saldo de apertura del banco: la app tenía ${expected}, el banco ${counted}`
+          : `Arqueo de apertura: esperado ${expected}, contado ${counted}`
+      }${extra ? `. ${extra}` : ""}`;
+      const source = esBanco ? "bank_opening_balance" : "opening_count";
 
       const { difference, adjustmentTxId } = await createCountAdjustment(
         ctx,
@@ -367,7 +389,7 @@ export class MovementService {
         targetKind: "cash_register",
         targetId: caja.id,
         payload: {
-          source: "opening_count",
+          source,
           cashRegisterId: caja.id,
           expected,
           counted,
@@ -389,7 +411,13 @@ export class MovementService {
       caja.id,
     );
     this.log.info(
-      { cashRegisterId: caja.id, ...result, firmeBalance, adminId },
+      {
+        cashRegisterId: caja.id,
+        ...result,
+        firmeBalance,
+        adminId,
+        source: esBanco ? "bank_opening_balance" : "opening_count",
+      },
       "Opening count registered",
     );
     return { cashRegisterId: caja.id, ...result, firmeBalance };

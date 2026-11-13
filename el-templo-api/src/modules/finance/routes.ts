@@ -1161,8 +1161,9 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
-  // Arqueo de apertura (fase 208, DI-06): el owner deja la Caja central o un
-  // Tesoro en el efectivo real contado, con un ajuste trazable. OWNER-ONLY.
+  // Arqueo de apertura (fase 208, DI-06): el owner deja la Caja central, un
+  // Tesoro o una cuenta banco (209.1) en el saldo real, con un ajuste trazable.
+  // OWNER-ONLY.
   fastify.post<{
     Params: { id: number };
     Body: { countedAmount: number; notes?: string | null };
