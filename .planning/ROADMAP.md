@@ -1287,7 +1287,7 @@ Decisiones de implementación en `211-CONTEXT.md` (2026-11-13).
 **Plans:** 6 plans (secuenciales, una wave cada uno)
 
 Plans:
-- [ ] 211-01-PLAN.md — Contratos del Resultado, cálculo puro con test unitario (columnas, consolidado, margen, monedas) y lector nuevo de cobros a alumnos por sede en `TransactionService` (solo agregados) con su test
+- [x] 211-01-PLAN.md — Contratos del Resultado, cálculo puro con test unitario (columnas, consolidado, margen, monedas) y lector nuevo de cobros a alumnos por sede en `TransactionService` (solo agregados) con su test
 - [ ] 211-02-PLAN.md — API: `ExpenseResultService` sobre `computeMonth`, Excel de una hoja, `EXPENSES_RESULT_ROLES`, schemas, rutas `/expense-records/result` y `/result/export`, manifiesto ISO-01 (+2)
 - [ ] 211-03-PLAN.md — Tests de la API: ISO-03 (+2 casos con control positivo) y escenario HTTP con literales (qué cobro cuenta, sede, moneda, identidades contra el Resumen y los cobros, Excel = JSON, roles, 400)
 - [ ] 211-04-PLAN.md — Admin: tipos, llamadas del composable, helpers puros con test (margen, etiquetas, aviso de otra moneda) y textos de incompletos y moneda compartidos con Resumen
