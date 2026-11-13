@@ -1,7 +1,7 @@
 <template>
   <div class="q-pa-md">
     <!-- Rubros de egreso (fase 209, DI-17). Se mudó desde Caja > Cuentas. Solo lo
-         monta EgresosPage para owner y admin (la API también exige ADMIN_ROLES en
+         monta EgresosHub para owner y admin (la API también exige ADMIN_ROLES en
          /cost-centers*). País-scoped (nombre único por país): reactivo al selector. -->
     <div class="row items-center q-mb-xs">
       <div class="text-subtitle1 text-weight-medium col">Rubros</div>

@@ -1,5 +1,5 @@
 /**
- * Fase 209 (Egresos) — constantes de las pestañas de `/egresos` (DI-17).
+ * Fase 209 (Egresos) — constantes de las sub-pestañas de Caja → Egresos (DI-17; `?sub=` desde 2026-11-13).
  *
  * La página es un hub `q-tabs`: Gastos (portada) / Por pagar / Resumen /
  * Resultado / Rubros. Estos nombres son la fuente única del modelo de pestañas y del

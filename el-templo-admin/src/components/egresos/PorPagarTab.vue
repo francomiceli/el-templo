@@ -213,7 +213,7 @@ import type {
  *
  * - `selectedCountry` viaja siempre a la API (solo el owner lo elige).
  * - `isOwner` queda declarado como en las demás pestañas (hoy no cambia nada acá).
- * - `options`: las opciones del formulario de Egresos, que carga `EgresosPage` una
+ * - `options`: las opciones del formulario de Egresos, que carga `EgresosHub` una
  *   sola vez por país y comparte con las pestañas y el detalle (sirven para los
  *   filtros y para el diálogo de pago). Null mientras cargan.
  * - Click en una fila: emite `open-detail(id)` (lo escucha el detalle del gasto,

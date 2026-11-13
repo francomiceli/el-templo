@@ -1,29 +1,17 @@
 <template>
-  <!-- Fase 209 (Egresos): hub con Gastos, Por pagar, Resumen, Resultado y Rubros. -->
-  <q-page class="q-pa-md">
-    <!-- Header: título + selector de país (solo owner), igual que Caja -->
-    <div class="row items-center q-mb-md">
-      <div class="text-h5 col">Egresos</div>
-      <div v-if="isOwner" class="col-auto" style="min-width: 180px">
-        <q-select
-          v-model="selectedCountry"
-          :options="countryOptions"
-          label="País"
-          dense
-          outlined
-          emit-value
-          map-options
-        />
-      </div>
-    </div>
-
+  <!-- Egresos dentro de Caja (2026-11-13): pestaña "Egresos" de Caja con sus propias
+       pestañas Gastos, Por pagar, Resumen, Resultado y Rubros. El país lo elige el owner
+       en el header de Caja y llega por props. La sub-pestaña vive en ?sub= (el ?tab= es
+       de Caja). -->
+  <div>
     <q-tabs
       v-model="activeTab"
       align="left"
       active-color="primary"
       indicator-color="primary"
       dense
-      class="text-grey-7"
+      inline-label
+      class="text-grey-7 q-mt-sm"
     >
       <q-tab :name="EGRESOS_TABS.gastos" label="Gastos" icon="receipt_long" />
       <q-tab :name="EGRESOS_TABS.porPagar" label="Por pagar" icon="schedule" />
@@ -106,11 +94,11 @@
       :can-void="canVoid"
       @changed="onDetailChanged"
     />
-  </q-page>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, toRef, watch, onMounted, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { useAuthStore } from 'src/stores/useAuthStore';
@@ -136,12 +124,16 @@ const route = useRoute();
 const router = useRouter();
 const authStore = useAuthStore();
 const $q = useQuasar();
-const log = createLogger('EgresosPage');
+const log = createLogger('EgresosHub');
 const expensesApi = useExpensesApi();
 
-// El owner elige el país en el header y se lo pasamos a todas las pestañas;
-// el resto usa el suyo (el server lo fuerza). Default Argentina.
-const isOwner = computed(() => authStore.user?.role === 'owner');
+// País e isOwner llegan de Caja (selector del header de Caja, solo owner).
+const props = defineProps<{
+  selectedCountry: ExpenseCountry;
+  isOwner: boolean;
+}>();
+const selectedCountry = toRef(props, 'selectedCountry');
+const isOwner = toRef(props, 'isOwner');
 
 // Anular gastos y pagos, y gestionar rubros: owner y admin (EXPENSES_VOID_ROLES).
 const canVoid = computed(() => {
@@ -155,13 +147,6 @@ const canSeeResult = computed(() => {
   const role = authStore.user?.role;
   return role !== undefined && EGRESOS_RESULTADO_ROLES.includes(role);
 });
-
-const countryOptions: Array<{ label: string; value: ExpenseCountry }> = [
-  { label: 'Argentina', value: 'AR' },
-  { label: 'España', value: 'ES' },
-];
-
-const selectedCountry = ref<ExpenseCountry>('AR');
 
 // Opciones del formulario de Egresos (cuentas de pago, destinos, rubros, hoy) del país
 // elegido: se cargan acá una sola vez y se comparten con Por pagar y con el detalle
@@ -213,11 +198,12 @@ watch(selectedCountry, () => {
   showDetail.value = false;
 });
 
-// Pestaña activa, sincronizada con ?tab= para que sobreviva al refresh y al "atrás".
+// Sub-pestaña activa, sincronizada con ?sub= (el ?tab= es la pestaña de Caja) para que
+// sobreviva al refresh y al "atrás".
 function tabFromQuery(): EgresosTab {
-  const q = route.query.tab;
+  const q = route.query.sub;
   if (typeof q === 'string' && (EGRESOS_TAB_NAMES as readonly string[]).includes(q)) {
-    // ?tab=resultado o ?tab=rubros pegado en la URL por un rol sin permiso: cae al default.
+    // ?sub=resultado o ?sub=rubros pegado en la URL por un rol sin permiso: cae al default.
     if (q === EGRESOS_TABS.resultado && !canSeeResult.value) return EGRESOS_DEFAULT_TAB;
     if (q === EGRESOS_TABS.rubros && !canManageRubros.value) return EGRESOS_DEFAULT_TAB;
     return q as EgresosTab;
@@ -227,14 +213,15 @@ function tabFromQuery(): EgresosTab {
 
 const activeTab = ref<EgresosTab>(tabFromQuery());
 
-// Persistir la pestaña en la URL sin ensuciar el historial (replace).
-watch(activeTab, (tab) => {
-  if (route.query.tab !== tab) {
-    void router.replace({ query: { ...route.query, tab } });
+// Persistir la sub-pestaña en la URL sin ensuciar el historial (replace).
+watch(activeTab, (sub) => {
+  if (route.query.sub !== sub) {
+    void router.replace({ query: { ...route.query, sub } });
   }
 });
 
-// "Nuevo gasto" desde Caja llega como /egresos?tab=gastos&nuevo=1. Los paneles están
+// "Nuevo gasto" desde el diálogo Registrar de Caja llega como
+// /caja?tab=egresos&sub=gastos&nuevo=1. Los paneles están
 // en keep-alive, así que la pestaña lo recibe por prop reactiva (no solo al montar).
 const openNew = computed(() => route.query.nuevo === '1');
 
@@ -245,9 +232,9 @@ function onNewConsumed() {
   }
 }
 
-// Y al revés: el botón "atrás" o un hijo que navega con ?tab= cambian la pestaña.
+// Y al revés: el botón "atrás" o un hijo que navega con ?sub= cambian la sub-pestaña.
 watch(
-  () => route.query.tab,
+  () => route.query.sub,
   () => {
     const fromQuery = tabFromQuery();
     if (fromQuery !== activeTab.value) activeTab.value = fromQuery;

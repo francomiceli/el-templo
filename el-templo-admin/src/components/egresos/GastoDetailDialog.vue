@@ -329,7 +329,7 @@ import type {
  * pagos con sus anulaciones e historial de cambios, y las acciones del gasto.
  *
  * - `recordId`: gasto a mostrar; se carga cada vez que el diálogo se abre.
- * - `options`: opciones del formulario del país (las carga EgresosPage); sin ellas
+ * - `options`: opciones del formulario del país (las carga EgresosHub); sin ellas
  *   "Registrar pago" y "Editar" quedan deshabilitados.
  * - `canVoid`: owner y admin. Sin él no se ofrece anular nada (la API igual da 403).
  * - Emite `changed` tras cada acción exitosa (pago, edición, anulación) para que las
