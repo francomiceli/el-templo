@@ -25,7 +25,7 @@ import type { ExpenseCountry } from "./expense-types";
 
 const NUMBER_FORMAT = "#,##0";
 
-const COUNTRY_LABELS: Record<ExpenseCountry, string> = {
+export const COUNTRY_LABELS: Record<ExpenseCountry, string> = {
   AR: "Argentina",
   ES: "España",
 };

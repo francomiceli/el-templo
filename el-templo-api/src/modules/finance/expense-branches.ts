@@ -50,6 +50,52 @@ export async function listOperationalBranches(
 }
 
 /**
+ * TODAS las sedes del gimnasio en el país (activas o no, virtuales o no), por
+ * id. Sirve para saber si la sede de un cobro es del país (DI-03) y para marcar
+ * columnas inactivas o virtuales (DI-06). Con `tenantWhere`: las sedes de otro
+ * gimnasio nunca aparecen.
+ */
+export async function listCountryBranches(
+  db: MySql2Database<typeof schema>,
+  ctx: TenantContext,
+  country: ExpenseCountry,
+): Promise<
+  Map<
+    number,
+    { id: number; name: string; isActive: boolean; isVirtual: boolean }
+  >
+> {
+  const rows = await db
+    .select({
+      id: schema.branches.id,
+      name: schema.branches.name,
+      isActive: schema.branches.isActive,
+      isVirtual: schema.branches.isVirtual,
+    })
+    .from(schema.branches)
+    .where(
+      and(
+        tenantWhere(schema.branches, ctx),
+        eq(schema.branches.country, country),
+      ),
+    )
+    .orderBy(asc(schema.branches.name), asc(schema.branches.id));
+  const result = new Map<
+    number,
+    { id: number; name: string; isActive: boolean; isVirtual: boolean }
+  >();
+  for (const r of rows) {
+    result.set(r.id, {
+      id: r.id,
+      name: r.name,
+      isActive: !!r.isActive,
+      isVirtual: !!r.isVirtual,
+    });
+  }
+  return result;
+}
+
+/**
  * Nombre y estado de sedes por id. Incluye inactivas: sirve para mostrar
  * repartos históricos. `ids` vacío devuelve un Map vacío sin consultar.
  */

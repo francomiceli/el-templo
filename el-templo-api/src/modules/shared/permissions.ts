@@ -360,6 +360,14 @@ export const EXPENSES_ROLES = ["owner", "admin", "gestion"] as const;
  */
 export const EXPENSES_VOID_ROLES = ["owner", "admin"] as const;
 
+/**
+ * Resultado por sede (fase 211, D-17/DI-01): solo owner y admin. Literal propio
+ * (no alias de `EXPENSES_VOID_ROLES`) para que abrir o cerrar el Resultado sea
+ * una decisión visible en el diff. Gestión pasa `EXPENSES_ROLES` (opera
+ * Egresos), así que cada ruta del Resultado chequea ESTE set.
+ */
+export const EXPENSES_RESULT_ROLES = ["owner", "admin"] as const;
+
 /** Roles that can soft-delete a member and reset member passwords. */
 export const MEMBER_LIFECYCLE_ROLES = [
   "owner",
