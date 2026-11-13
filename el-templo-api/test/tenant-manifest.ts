@@ -840,6 +840,11 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "GET /api/admin/reports/multibranch-reassignments": {
     categoria: "tenant-scoped",
   },
+  // 2026-11-13: el mismo histórico como XLSX (reusa `getMultibranchReassignments`:
+  // mismos gates, mismo `assertTenant` y mismo candado de país).
+  "GET /api/admin/reports/multibranch-reassignments/export": {
+    categoria: "tenant-scoped",
+  },
   "GET /api/admin/reports/outstanding-balances": { categoria: "tenant-scoped" },
   "GET /api/admin/reports/outstanding-balances/export": {
     categoria: "tenant-scoped",

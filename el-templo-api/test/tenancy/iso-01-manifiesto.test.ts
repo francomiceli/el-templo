@@ -462,7 +462,10 @@ import {
 // 2026-11-13: 556 -> 557 por el histórico de recategorizaciones multisucursal
 // (mig 0334): GET /api/admin/reports/multibranch-reassignments, `tenant-scoped`.
 // 2026-11-13: merge de master en la rama de Egresos: 570 + 3 = 573.
-const ENTRADAS_BASELINE = 573;
+// 2026-11-13: 557 -> 558 por el export a Excel de ese histórico:
+// GET /api/admin/reports/multibranch-reassignments/export, `tenant-scoped`.
+// 2026-11-13: + export de recategorizaciones en esta rama = 574.
+const ENTRADAS_BASELINE = 574;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -605,7 +608,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 573 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 574 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(

@@ -355,6 +355,27 @@ export function useReportsApi() {
 
   // ─── Export Methods ────────────────────────────────────────────────────
 
+  /**
+   * El histórico de recategorizaciones como XLSX. Sin `month`: hoja "Total" +
+   * una hoja por mes del período; con `month` (`AAAA-MM`): solo ese mes.
+   */
+  async function exportMultibranchReassignments(months = 12, month?: string): Promise<Blob> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<Blob>('/admin/reports/multibranch-reassignments/export', {
+        params: month ? { months, month } : { months },
+        responseType: 'blob',
+      });
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error exportando el histórico de recategorizaciones');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   async function exportAccessLog(params: AccessReportParams = {}): Promise<Blob> {
     loading.value = true;
     error.value = null;
@@ -651,6 +672,7 @@ export function useReportsApi() {
     getTrialConversion,
     getMultibranchReassignmentPreview,
     getMultibranchReassignments,
+    exportMultibranchReassignments,
     exportAccessLog,
     exportChargeHistory,
     exportExpiringMemberships,
