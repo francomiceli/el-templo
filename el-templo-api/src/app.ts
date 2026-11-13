@@ -103,11 +103,21 @@ import { registerModules } from "./modules-boot";
 export interface BuildAppOptions {
   /** Se invoca una vez por cada ruta registrada, con el `RouteOptions` de Fastify. */
   onRoute?: (route: RouteOptions) => void;
+  /**
+   * Seam de tests (2026-11-13): en vez de silenciar el logger, escribe cada
+   * línea JSON de Pino (nivel info o más) en este destino, para afirmar sobre
+   * lo que una ruta loguea. En producción es `undefined`.
+   */
+  logDestination?: { write(line: string): void };
 }
 
 export async function buildApp(opts: BuildAppOptions = {}) {
   const app = Fastify({
-    logger: process.env.NODE_ENV === "test" ? { level: "silent" } : true,
+    logger: opts.logDestination
+      ? { level: "info", stream: opts.logDestination }
+      : process.env.NODE_ENV === "test"
+        ? { level: "silent" }
+        : true,
     // Un solo proxy delante (nginx). Con `true` el cliente podría falsear la IP
     // por X-Forwarded-For; con `1` se toma la IP que agregó nginx (el último
     // salto de la cadena). `request.ip` alimenta el rate limit por IP.
