@@ -1,5 +1,5 @@
 <template>
-  <!-- Fase 209 (Egresos): hub con Gastos, Por pagar, Resumen y Rubros. -->
+  <!-- Fase 209 (Egresos): hub con Gastos, Por pagar, Resumen, Resultado y Rubros. -->
   <q-page class="q-pa-md">
     <!-- Header: título + selector de país (solo owner), igual que Caja -->
     <div class="row items-center q-mb-md">
@@ -28,6 +28,13 @@
       <q-tab :name="EGRESOS_TABS.gastos" label="Gastos" icon="receipt_long" />
       <q-tab :name="EGRESOS_TABS.porPagar" label="Por pagar" icon="schedule" />
       <q-tab :name="EGRESOS_TABS.resumen" label="Resumen" icon="table_chart" />
+      <!-- Resultado por sede (fase 211): solo owner y admin (la API lo exige igual). -->
+      <q-tab
+        v-if="canSeeResult"
+        :name="EGRESOS_TABS.resultado"
+        label="Resultado"
+        icon="assessment"
+      />
       <!-- Rubros: ABM de rubros, solo owner y admin (la API lo exige igual). A
            gestión se le oculta la pestaña entera en vez de mostrarle un 403. -->
       <q-tab v-if="canManageRubros" :name="EGRESOS_TABS.rubros" label="Rubros" icon="category" />
@@ -73,6 +80,17 @@
         />
       </q-tab-panel>
 
+      <!-- Resultado: cobros menos costos por sede, Casa Matriz y Consolidado (fase 211), solo owner y admin -->
+      <q-tab-panel v-if="canSeeResult" :name="EGRESOS_TABS.resultado" class="q-px-none">
+        <ResultadoTab
+          :selected-country="selectedCountry"
+          :is-owner="isOwner"
+          :options="expenseOptions"
+          :refresh-key="refreshKey"
+          @open-detail="onOpenDetail"
+        />
+      </q-tab-panel>
+
       <!-- Rubros: ABM movido desde Caja > Cuentas (plan 209-12), solo owner y admin -->
       <q-tab-panel v-if="canManageRubros" :name="EGRESOS_TABS.rubros" class="q-px-none">
         <RubrosTab :selected-country="selectedCountry" />
@@ -96,7 +114,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { useAuthStore } from 'src/stores/useAuthStore';
-import { EGRESOS_ANULAR_ROLES } from 'src/config/templo-config';
+import { EGRESOS_ANULAR_ROLES, EGRESOS_RESULTADO_ROLES } from 'src/config/templo-config';
 import {
   EGRESOS_TABS,
   EGRESOS_DEFAULT_TAB,
@@ -110,6 +128,7 @@ import type { ExpenseCountry, ExpenseFormOptions } from 'src/types/expense';
 import GastoDetailDialog from 'src/components/egresos/GastoDetailDialog.vue';
 import GastosTab from 'src/components/egresos/GastosTab.vue';
 import PorPagarTab from 'src/components/egresos/PorPagarTab.vue';
+import ResultadoTab from 'src/components/egresos/ResultadoTab.vue';
 import ResumenTab from 'src/components/egresos/ResumenTab.vue';
 import RubrosTab from 'src/components/egresos/RubrosTab.vue';
 
@@ -130,6 +149,12 @@ const canVoid = computed(() => {
   return role !== undefined && EGRESOS_ANULAR_ROLES.includes(role);
 });
 const canManageRubros = canVoid;
+
+// Resultado por sede: solo owner y admin (EXPENSES_RESULT_ROLES). Set propio, no reusa canVoid.
+const canSeeResult = computed(() => {
+  const role = authStore.user?.role;
+  return role !== undefined && EGRESOS_RESULTADO_ROLES.includes(role);
+});
 
 const countryOptions: Array<{ label: string; value: ExpenseCountry }> = [
   { label: 'Argentina', value: 'AR' },
@@ -192,7 +217,8 @@ watch(selectedCountry, () => {
 function tabFromQuery(): EgresosTab {
   const q = route.query.tab;
   if (typeof q === 'string' && (EGRESOS_TAB_NAMES as readonly string[]).includes(q)) {
-    // ?tab=rubros pegado en la URL por un rol sin ABM: cae al default.
+    // ?tab=resultado o ?tab=rubros pegado en la URL por un rol sin permiso: cae al default.
+    if (q === EGRESOS_TABS.resultado && !canSeeResult.value) return EGRESOS_DEFAULT_TAB;
     if (q === EGRESOS_TABS.rubros && !canManageRubros.value) return EGRESOS_DEFAULT_TAB;
     return q as EgresosTab;
   }

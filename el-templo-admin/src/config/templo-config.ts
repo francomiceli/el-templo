@@ -177,6 +177,13 @@ export const EGRESOS_ROLES: AdminRole[] = ['gestion', 'admin', 'owner'];
 export const EGRESOS_ANULAR_ROLES: AdminRole[] = ['admin', 'owner'];
 
 /**
+ * Egresos → Resultado por sede: solo owner y admin (D-17). Espeja
+ * EXPENSES_RESULT_ROLES del API. Literal propio, no alias de
+ * EGRESOS_ANULAR_ROLES. Esto solo oculta: el gate real es el API.
+ */
+export const EGRESOS_RESULTADO_ROLES: AdminRole[] = ['admin', 'owner'];
+
+/**
  * Analíticas: Dueño + admin_sede (2026-09-09, feedback UAT). Mirrors the
  * /analiticas route allowedRoles y `ANALYTICS_ADMIN_ROLES` del API. El
  * admin_sede la ve, pero SIEMPRE acotada a SU sede — el server la fuerza
