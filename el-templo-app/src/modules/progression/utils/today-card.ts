@@ -77,10 +77,9 @@
  * `presencial-turno` y `completada`, con asistencia registrada y la clase no empezada ni en curso
  * (`windowState` distinto de 'before'/'open'). El primary anterior baja a `secondary`: "Estirar"
  * desplaza, en prioridad de mayor a menor, al primary anterior > Libre > secundario propio > "Tus
- * programas" (el link único sigue siendo uno solo). Con `done` el primary vuelve al anterior, el
- * secondary queda como estaba y la línea de estado pasa a "Clase y estiramiento hechos" (en la pill
- * si había, si no en `meta`). `none` (incluye la falla de la consulta, fase 203) deja el modelo
- * EXACTAMENTE como sin la fase: lo calcula el servidor, la card no decide nada.
+ * programas" (el link único sigue siendo uno solo). `done` y `none` (incluye la falla de la
+ * consulta, fase 203) dejan el modelo EXACTAMENTE como sin la fase: la pill de la clase no cambia
+ * por haber estirado (Franco, 2026-11-16). Lo calcula el servidor, la card no decide nada.
  *
  * El QR de check-in NO se decide acá: su única fuente de verdad es
  * `useTodayBookingStore.fabVisible`. La card solo informa la ventana con una pill.
@@ -552,33 +551,22 @@ function withLibreLink(model: TodayCardModel, input: TodayCardInput): TodayCardM
 }
 
 const STRETCH_ACTION: TodayCardAction = { label: 'Estirar', to: { name: 'stretch-player' } }
-const STRETCH_DONE_TEXT: TodayCardText = [{ text: 'Clase y estiramiento hechos' }]
 
 /**
  * Fase 213 (D-09): "Estirar" toma el botón principal después de la clase (ver docblock del archivo).
  * Se aplica ÚLTIMA, sobre el modelo ya compuesto. Solo con asistencia registrada, la clase no
- * empezada ni en curso y en `presencial-turno` / `completada`; cualquier otro caso (o `none`)
- * devuelve el modelo intacto.
+ * empezada ni en curso y en `presencial-turno` / `completada`; cualquier otro caso (o `none` /
+ * `done`) devuelve el modelo intacto.
  */
 function withStretch(model: TodayCardModel, input: TodayCardInput): TodayCardModel {
-  if (input.stretch.status === 'none') return model
+  // Hecho o sin oferta: la card no se entera del estiramiento (Franco, 2026-11-16)
+  if (input.stretch.status !== 'available') return model
   if (input.attendanceMarkedAt === null) return model
   if (input.windowState === 'before' || input.windowState === 'open') return model
   if (model.kind !== 'presencial-turno' && model.kind !== 'completada') return model
 
-  if (input.stretch.status === 'available') {
-    // El primary anterior baja a secondary y desplaza a Libre / "Tus programas": un solo link.
-    return { ...model, primary: STRETCH_ACTION, secondary: model.primary }
-  }
-  // done: primary y secondary quedan como estaban; solo cambia la línea de estado.
-  if (model.pill !== null) {
-    return {
-      ...model,
-      pill: { icon: 'check_circle', tone: 'ok', text: STRETCH_DONE_TEXT },
-      meta: null,
-    }
-  }
-  return { ...model, meta: STRETCH_DONE_TEXT, pill: null }
+  // El primary anterior baja a secondary y desplaza a Libre / "Tus programas": un solo link.
+  return { ...model, primary: STRETCH_ACTION, secondary: model.primary }
 }
 
 // El orden importa: Libre primero (reemplaza al secondary), "Tus programas" solo si quedó libre,

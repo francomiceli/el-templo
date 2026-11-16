@@ -140,7 +140,7 @@ describe("push ¿Estiraste?: momento y elegibilidad (213-07, SPEC 5.2 parte 1)",
     expect(rows).toHaveLength(1);
     expect(rows[0]!.templateId).toBe(template!.id);
     // D-12: sale lo que dice la plantilla (sin override de título ni cuerpo).
-    expect(rows[0]!.title).toBe("¿Estiraste?");
+    expect(rows[0]!.title).toBe("¿Estás para un stretch?");
     expect(rows[0]!.title).toBe(template!.title);
     expect(rows[0]!.body).toBe(template!.body);
     expect(rows[0]!.bookingId).toBeNull();

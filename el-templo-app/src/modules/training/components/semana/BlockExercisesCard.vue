@@ -19,11 +19,15 @@
 
     <ol class="block-exercises-card__list">
       <li
-        v-for="(ex, i) in exercises"
+        v-for="ex in exercises"
         :key="`${ex.sortOrder}-${ex.exerciseId}`"
         class="exercise-row"
       >
-        <span class="exercise-row__idx" aria-hidden="true">{{ i + 1 }}</span>
+        <!-- Esfuerzo del ejercicio (CON / EXC / ISO) en lugar del número de orden. Sin contracción
+             cargada queda el hueco, para que los nombres sigan alineados. -->
+        <span class="exercise-row__badge">
+          <ContractionBadge v-if="ex.badge" :badge="ex.badge" />
+        </span>
         <span class="exercise-row__name">{{ ex.exerciseName }}</span>
         <span class="exercise-row__dose">{{ formatDose(ex, doseShape) }}</span>
       </li>
@@ -39,6 +43,8 @@ import type { Block } from '../../types/session'
 import { getGuiaLinkForRole } from '../../guia-role-map'
 import { blockDisplayName, blockMetaLine } from '../../utils/blockMeta'
 import { doseShapeOf, formatDose } from '../../utils/formatDose'
+import { CONTRACTION_BADGE_WIDTH_PX, contractionBadge } from '../../utils/contraction'
+import ContractionBadge from '../ContractionBadge.vue'
 
 // Fase 197 D-03: lista de ejercicios del bloque elegido en Semana. Sin cruz de cerrar (Franco la
 // sacó). Sin video ni indicio de video: los videos se ven solo en el player (Franco, 2026-10-20).
@@ -56,8 +62,12 @@ const meta = computed(() => blockMetaLine(props.block, { withEstimate: false }))
 const doseShape = computed(() => doseShapeOf(props.block))
 
 const exercises = computed(() =>
-  [...props.block.exercises].sort((a, b) => a.sortOrder - b.sortOrder),
+  [...props.block.exercises]
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map((ex) => ({ ...ex, badge: contractionBadge(ex.contraction) })),
 )
+
+const badgeSlotWidth = `${CONTRACTION_BADGE_WIDTH_PX}px`
 
 // Mismo destino que el "¿Qué es X?" de BlockCard.
 function openGuia(): void {
@@ -146,14 +156,10 @@ function openGuia(): void {
     border-top: 1px solid $pd-light-line;
   }
 
-  &__idx {
+  &__badge {
     flex: none;
-    width: 24px;
-    font-family: 'Montserrat', sans-serif;
-    font-weight: 700;
-    font-size: 13px;
-    color: $pd-ink-3;
-    text-align: center;
+    display: flex;
+    width: v-bind(badgeSlotWidth);
   }
 
   &__name {
