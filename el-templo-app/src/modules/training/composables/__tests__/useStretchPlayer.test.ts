@@ -13,6 +13,7 @@ function ex(exerciseId: number, name: string): StretchExercise {
     name,
     family: 'LS',
     dose: { unit: 'seconds', value: 30, max: null },
+    effort: null,
     videoUrl: null,
   }
 }

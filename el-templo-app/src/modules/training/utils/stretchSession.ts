@@ -5,7 +5,10 @@
  * `GET /sessions/stretch/today`; acá solo se formatea. Funciones puras: sin stores, sin Vue y sin
  * reloj (la hora la pasa quien llama).
  */
-import type { StretchCompleteResponse, StretchDose } from '../types/stretch'
+import type { StretchCompleteResponse, StretchDose, StretchExercise } from '../types/stretch'
+import { contractionBadge } from './contraction'
+import { SECONDS_MARK } from './exerciseCard'
+import { footerValueSize, type PlayerFooter } from './playerFooter'
 
 /** Segundos medidos por el servidor (desde el último `started`) que dan AURA. */
 export const STRETCH_AURA_SECONDS = 180
@@ -72,4 +75,33 @@ export function stretchClosingPhrase(localDate: string): string {
  */
 export function isStretchExpiredMessage(message: string | null): boolean {
   return message !== null && /venci/i.test(message)
+}
+
+/**
+ * Cantidad grande del pie del video, como en el player del día: las repeticiones sin unidad y los
+ * segundos con ″ ("10", "20″", "8-12", "30-50″").
+ */
+export function stretchPlateValue(dose: StretchDose): string {
+  const hasRange = dose.max !== null && dose.max > dose.value
+  const amount = hasRange ? `${dose.value}-${dose.max}` : `${dose.value}`
+  return dose.unit === 'seconds' ? `${amount}${SECONDS_MARK}` : amount
+}
+
+/**
+ * Pie del video del estiramiento con el mismo `StoryFooter` del player del día: insignia de
+ * contracción, nombre y cantidad grande. Sin contracción cargada va la de movilidad (MOV), como el
+ * descanso activo del player del día. Sin nombre no hay pie.
+ */
+export function stretchFooter(exercise: StretchExercise | null): PlayerFooter | null {
+  const name = exercise?.name.trim() ?? ''
+  if (!exercise || !name) return null
+  const value = stretchPlateValue(exercise.dose)
+  return {
+    kind: 'exercise',
+    badge: contractionBadge(exercise.effort) ?? { label: 'MOV', kind: 'mov' },
+    label: null,
+    name,
+    value,
+    valueSize: footerValueSize(value),
+  }
 }

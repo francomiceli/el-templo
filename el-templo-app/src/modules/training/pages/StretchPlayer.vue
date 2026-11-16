@@ -57,13 +57,8 @@
             <div class="stretch-player__title">Post-clase</div>
           </div>
         </div>
-        <div v-if="player.current.value" class="stretch-player__story-foot">
-          <div class="stretch-player__story-name">
-            <b>{{ player.current.value.name }}</b>
-            <span>Ejercicio {{ player.index.value + 1 }} de {{ player.exercises.value.length }}</span>
-          </div>
-          <span class="stretch-player__dose">{{ stretchDoseLabel(player.current.value.dose) }}</span>
-        </div>
+        <!-- El mismo pie del player del día: insignia, nombre y cantidad grande -->
+        <StoryFooter v-if="footer" :footer="footer" />
       </div>
 
       <div class="stretch-player__format">
@@ -149,6 +144,7 @@ import { useQuasar } from 'quasar'
 import TemploLoader from 'src/components/TemploLoader.vue'
 import StretchDone from '../components/player/StretchDone.vue'
 import VideoPlaceholder from '../components/player/VideoPlaceholder.vue'
+import StoryFooter from '../components/player/StoryFooter.vue'
 
 // Composables, stores and helpers
 import { useStretchPlayer } from '../composables/useStretchPlayer'
@@ -163,6 +159,7 @@ import {
   stretchAuraReady,
   stretchDoneMinutesLabel,
   stretchDoseLabel,
+  stretchFooter,
 } from '../utils/stretchSession'
 import type { StretchCompleteResponse, StretchEventFrom } from '../types/stretch'
 
@@ -200,6 +197,7 @@ let exitConfirmed = false
 let disposed = false
 
 const clockLabel = computed(() => formatElapsedTime(player.elapsedSeconds.value))
+const footer = computed(() => stretchFooter(player.current.value ?? null))
 
 /**
  * "Ya sumás +5 AURA": cuenta desde que el servidor confirmó el `started`, no desde el minutero.
@@ -426,50 +424,6 @@ onUnmounted(() => {
   font-weight: 700;
 }
 
-// Pie sobre un fade a negro, como el de las historias del player de entrenamiento
-.stretch-player__story-foot {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 2;
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 28px 14px 12px;
-  background: linear-gradient(to top, rgba(20, 16, 12, 0.85), rgba(20, 16, 12, 0));
-}
-
-.stretch-player__story-name {
-  min-width: 0;
-
-  b {
-    display: block;
-    font-family: 'Montserrat', sans-serif;
-    font-size: 17px;
-    font-weight: 700;
-    line-height: 1.2;
-  }
-
-  span {
-    font-size: 12px;
-    color: $pd-cream-3;
-  }
-}
-
-.stretch-player__dose {
-  flex: none;
-  white-space: nowrap;
-  padding: 4px 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(240, 230, 214, 0.5);
-  font-family: 'Montserrat', sans-serif;
-  font-size: 13px;
-  font-weight: 700;
-  color: $pd-cream;
-}
-
 .stretch-player__format {
   flex: none;
   display: flex;
@@ -481,13 +435,15 @@ onUnmounted(() => {
 }
 
 .stretch-player__format-info {
+  // Igual que el nombre del formato del player del día (Cinzel, tinta oscura)
   b {
     display: block;
-    font-family: 'Cormorant Garamond', serif;
-    font-size: 16px;
-    letter-spacing: 0.06em;
+    font-family: 'Cinzel', Georgia, serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.07em;
     text-transform: uppercase;
-    color: $pd-ink;
+    color: #3d3732;
   }
 
   span {
@@ -496,17 +452,22 @@ onUnmounted(() => {
   }
 }
 
+// Reloj como el del player del día: Cinzel tinta oscura, ancho fijo porque Cinzel no tiene dígitos
+// de ancho parejo y el texto de la izquierda se movería con cada segundo
 .stretch-player__timer-box {
+  flex: none;
+  width: 108px;
   text-align: right;
 }
 
 .stretch-player__timer {
-  font-family: 'Cormorant Garamond', serif;
-  font-size: 30px;
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 32px;
   font-weight: 700;
   line-height: 1;
+  letter-spacing: 0.02em;
   font-variant-numeric: tabular-nums;
-  color: $pd-ink;
+  color: #3d3732;
 }
 
 .stretch-player__timer-label {

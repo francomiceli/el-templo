@@ -52,6 +52,7 @@ export const stretchTodayResponse = {
                 max: { type: ["integer", "null"] },
               },
             },
+            effort: { type: ["string", "null"] },
             videoUrl: { type: ["string", "null"] },
           },
         },

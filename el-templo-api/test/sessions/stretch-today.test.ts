@@ -529,6 +529,31 @@ describe("oferta de estiramiento del día: GET /api/sessions/stretch/today (213-
     expect(quad?.dose).toEqual({ unit: "seconds", value: 45, max: null });
   });
 
+  it("(q2) cada ejercicio trae su contracción para la insignia del player", async () => {
+    const { member } = await arrange();
+    await setCatalogEffort("iso");
+
+    const { body } = await getToday(member.token);
+
+    expect(body.exercises.length).toBeGreaterThan(0);
+    for (const e of body.exercises) {
+      expect(e.effort).toBe("ISO");
+    }
+  });
+
+  it("(q3) la contracción se lee al armar la vista: una oferta ya creada toma la nueva", async () => {
+    const { member } = await arrange();
+    await setCatalogEffort("CON");
+    const primera = await getToday(member.token);
+    expect(primera.body.exercises.every((e) => e.effort === "CON")).toBe(true);
+
+    await setCatalogEffort("EXC");
+    const segunda = await getToday(member.token);
+
+    expect(segunda.body.offerId).toBe(primera.body.offerId);
+    expect(segunda.body.exercises.every((e) => e.effort === "EXC")).toBe(true);
+  });
+
   it("(r) no prescrito y sin copia ISO: 10 repeticiones", async () => {
     const { member } = await arrange();
     await setCatalogEffort("high");
