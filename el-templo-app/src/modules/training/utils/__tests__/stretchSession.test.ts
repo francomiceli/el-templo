@@ -8,7 +8,7 @@ import {
   stretchAuraReady,
   stretchClosingPhrase,
   stretchDoneMinutesLabel,
-  stretchDoseLabel,
+  stretchBadge,
   stretchFooter,
   stretchMinutesLabel,
   stretchPlateValue,
@@ -22,33 +22,6 @@ import {
 function dose(unit: StretchDose['unit'], value: number, max: number | null = null): StretchDose {
   return { unit, value, max }
 }
-
-describe('stretchDoseLabel', () => {
-  it('segundos con valor único', () => {
-    expect(stretchDoseLabel(dose('seconds', 30))).toBe('30 s')
-  })
-
-  it('segundos con rango', () => {
-    expect(stretchDoseLabel(dose('seconds', 20, 30))).toBe('20 a 30 s')
-  })
-
-  it('repeticiones con valor único, en plural', () => {
-    expect(stretchDoseLabel(dose('reps', 10))).toBe('10 repeticiones')
-  })
-
-  it('una repetición va en singular', () => {
-    expect(stretchDoseLabel(dose('reps', 1))).toBe('1 repetición')
-  })
-
-  it('repeticiones con rango', () => {
-    expect(stretchDoseLabel(dose('reps', 8, 10))).toBe('8 a 10 repeticiones')
-  })
-
-  it('un max igual o menor al valor se ignora (no hay rango)', () => {
-    expect(stretchDoseLabel(dose('seconds', 30, 30))).toBe('30 s')
-    expect(stretchDoseLabel(dose('reps', 10, 5))).toBe('10 repeticiones')
-  })
-})
 
 describe('stretchAuraReady', () => {
   const T0 = 1_700_000_000_000
@@ -189,6 +162,13 @@ describe('stretchFooter (pie del video, como el player del día)', () => {
   it('sin contracción cargada va MOV, como el descanso activo', () => {
     expect(stretchFooter(ex({ effort: null }))?.badge).toEqual({ label: 'MOV', kind: 'mov' })
     expect(stretchFooter(ex({ effort: '  ' }))?.badge).toEqual({ label: 'MOV', kind: 'mov' })
+  })
+
+  it('la lista usa la misma insignia que el pie', () => {
+    for (const effort of ['ISO', 'CON', 'EXC', null]) {
+      const e = ex({ effort })
+      expect(stretchBadge(e)).toEqual(stretchFooter(e)?.badge)
+    }
   })
 
   it('valores largos achican la cantidad', () => {

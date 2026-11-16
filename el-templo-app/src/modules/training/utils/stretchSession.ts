@@ -8,7 +8,7 @@
 import type { StretchCompleteResponse, StretchDose, StretchExercise } from '../types/stretch'
 import { contractionBadge } from './contraction'
 import { SECONDS_MARK } from './exerciseCard'
-import { footerValueSize, type PlayerFooter } from './playerFooter'
+import { footerValueSize, type FooterBadge, type PlayerFooter } from './playerFooter'
 
 /** Segundos medidos por el servidor (desde el último `started`) que dan AURA. */
 export const STRETCH_AURA_SECONDS = 180
@@ -17,15 +17,6 @@ export const STRETCH_AURA_SECONDS = 180
  * `started`, no desde nuestro reloj, así que a los 180 s justos todavía puede medir 179.
  */
 export const STRETCH_AURA_MARGIN_SECONDS = 2
-
-/** "30 s", "20 a 30 s", "10 repeticiones", "1 repetición", "8 a 10 repeticiones". */
-export function stretchDoseLabel(dose: StretchDose): string {
-  const hasRange = dose.max !== null && dose.max > dose.value
-  const amount = hasRange ? `${dose.value} a ${dose.max}` : `${dose.value}`
-  if (dose.unit === 'seconds') return `${amount} s`
-  const singular = !hasRange && dose.value === 1
-  return `${amount} ${singular ? 'repetición' : 'repeticiones'}`
-}
 
 /**
  * true cuando ya se puede decir "Ya sumás +5 AURA": el servidor confirmó el `started` y pasaron
@@ -88,9 +79,16 @@ export function stretchPlateValue(dose: StretchDose): string {
 }
 
 /**
+ * Insignia de esfuerzo del ejercicio (pie del video y lista). Sin contracción cargada va la de
+ * movilidad (MOV), como el descanso activo del player del día.
+ */
+export function stretchBadge(exercise: StretchExercise): FooterBadge {
+  return contractionBadge(exercise.effort) ?? { label: 'MOV', kind: 'mov' }
+}
+
+/**
  * Pie del video del estiramiento con el mismo `StoryFooter` del player del día: insignia de
- * contracción, nombre y cantidad grande. Sin contracción cargada va la de movilidad (MOV), como el
- * descanso activo del player del día. Sin nombre no hay pie.
+ * esfuerzo, nombre y cantidad grande. Sin nombre no hay pie.
  */
 export function stretchFooter(exercise: StretchExercise | null): PlayerFooter | null {
   const name = exercise?.name.trim() ?? ''
@@ -98,7 +96,7 @@ export function stretchFooter(exercise: StretchExercise | null): PlayerFooter | 
   const value = stretchPlateValue(exercise.dose)
   return {
     kind: 'exercise',
-    badge: contractionBadge(exercise.effort) ?? { label: 'MOV', kind: 'mov' },
+    badge: stretchBadge(exercise),
     label: null,
     name,
     value,
