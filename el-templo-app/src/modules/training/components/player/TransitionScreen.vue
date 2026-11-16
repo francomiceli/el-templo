@@ -65,6 +65,10 @@
         <p class="transition-screen__kicker">Lo que viene</p>
         <ul class="transition-screen__list">
           <li v-for="(item, i) in previewRest.items" :key="`${i}-${item.name}`">
+            <!-- Esfuerzo (CON / EXC / ISO) como en el pie del video; sin contracción queda el hueco -->
+            <span class="transition-screen__list-badge">
+              <ContractionBadge v-if="item.badge" :badge="item.badge" surface="dark" />
+            </span>
             <span class="transition-screen__list-name">{{ item.name }}</span>
             <span class="transition-screen__list-dose">{{ item.dose }}</span>
           </li>
@@ -96,11 +100,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick } from 'vue'
 import PhotoScene from './PhotoScene.vue'
+import ContractionBadge from '../ContractionBadge.vue'
 import type { BlockTransitionData } from '../../utils/blockTransition'
 import { keepHyphenWords } from '../../utils/blockMeta'
 import { playerBlockContent } from '../../utils/playerHeader'
 import { getRouteName } from '../../utils/routeNames'
 import type { Block } from '../../types/session'
+import { CONTRACTION_BADGE_WIDTH_PX } from '../../utils/contraction'
 
 // Pantalla única entre bloques (fase 197, sketch 018 D · Recorrido): el recorrido de la sesión
 // arriba, abajo los ejercicios del bloque que viene (o, después del NUCLEUS, los dos Deuteros para
@@ -164,6 +170,9 @@ function onCta(): void {
 
 // La lista del bloque que viene (o nada: el Deuteros sin elegir se elige en esta misma pantalla)
 const previewRest = computed(() => (props.data.rest.kind === 'preview' ? props.data.rest : null))
+
+// Hueco fijo del badge: los nombres quedan alineados aunque alguno no tenga contracción
+const badgeSlotWidth = `${CONTRACTION_BADGE_WIDTH_PX}px`
 
 const ctaRef = ref<HTMLButtonElement | null>(null)
 
@@ -238,10 +247,12 @@ onMounted(() => {
   background: #1c1915;
 }
 
+// Nombres de los bloques del recorrido en mayúsculas (pedido de Franco, 2026-11-16)
 .transition-screen__name {
   font-family: 'Montserrat', sans-serif;
   font-weight: 700;
   font-size: 16px;
+  text-transform: uppercase;
   color: $pd-cream-3;
 }
 
@@ -315,7 +326,7 @@ onMounted(() => {
 
   li {
     display: flex;
-    justify-content: space-between;
+    align-items: center;
     gap: 12px;
     padding: 9px 0;
     border-top: 1px solid rgba(240, 230, 214, 0.14);
@@ -326,6 +337,17 @@ onMounted(() => {
       border-bottom: 1px solid rgba(240, 230, 214, 0.14);
     }
   }
+}
+
+.transition-screen__list-badge {
+  flex: none;
+  display: flex;
+  width: v-bind(badgeSlotWidth);
+}
+
+.transition-screen__list-name {
+  flex: 1;
+  min-width: 0;
 }
 
 .transition-screen__list-dose {
