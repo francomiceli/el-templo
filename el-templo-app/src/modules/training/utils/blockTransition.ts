@@ -7,6 +7,7 @@ import { ROLE_LABELS } from 'src/constants/roleLabels'
 import type { Block, BlockRole } from '../types/session'
 import { blockDisplayName, estimatedMinutes, formatLabel } from './blockMeta'
 import { doseShapeOf, formatQuickDose } from './formatDose'
+import { contractionBadge, type ContractionBadge } from './contraction'
 
 /** Cuántos ejercicios del bloque siguiente se listan en "Lo que viene" (el resto va como "y N más"). */
 export const MAX_PREVIEW_ITEMS = 5
@@ -83,6 +84,8 @@ export function journeyItems(entries: JourneyEntry[], completedIndex: number): J
 export interface PreviewItem {
   name: string
   dose: string
+  /** Esfuerzo (CON / EXC / ISO) como en el pie del player; null sin contracción cargada */
+  badge: ContractionBadge | null
 }
 
 /**
@@ -103,6 +106,7 @@ export function chooseTransitionRest(next: Block | null): TransitionRest {
       items: next.exercises.slice(0, MAX_PREVIEW_ITEMS).map((ex) => ({
         name: ex.exerciseName,
         dose: formatQuickDose(ex, shape),
+        badge: contractionBadge(ex.contraction),
       })),
       extra: Math.max(0, next.exercises.length - MAX_PREVIEW_ITEMS),
     }

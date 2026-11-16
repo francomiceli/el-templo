@@ -165,16 +165,29 @@ describe('journeyItems (hecho / siguiente / pendiente)', () => {
 })
 
 describe('chooseTransitionRest (lo que viene)', () => {
-  it('lista los ejercicios del bloque que viene con su dosis', () => {
+  it('lista los ejercicios del bloque que viene con su dosis y su badge de esfuerzo', () => {
     expect(chooseTransitionRest(block({}))).toEqual({
       kind: 'preview',
       items: [
-        { name: 'Sentadilla goblet', dose: '12 REPS' },
-        { name: 'Remo con banda', dose: '15 REPS' },
-        { name: 'Plancha', dose: '30 SEG' },
+        { name: 'Sentadilla goblet', dose: '12 REPS', badge: { label: 'CON', kind: 'con' } },
+        { name: 'Remo con banda', dose: '15 REPS', badge: { label: 'CON', kind: 'con' } },
+        { name: 'Plancha', dose: '30 SEG', badge: { label: 'ISO', kind: 'iso' } },
       ],
       extra: 0,
     })
+  })
+
+  it('badge EXC, y sin contracción cargada no hay badge', () => {
+    const next = block({
+      exercises: [
+        rx({ exerciseId: 1, exerciseName: 'Peso muerto', contraction: 'EXC', reps: 8 }),
+        rx({ exerciseId: 2, exerciseName: 'Sin dato', contraction: '', reps: 10 }),
+      ],
+    })
+    const rest = chooseTransitionRest(next)
+    expect(rest.kind).toBe('preview')
+    if (rest.kind !== 'preview') return
+    expect(rest.items.map((i) => i.badge)).toEqual([{ label: 'EXC', kind: 'exc' }, null])
   })
 
   it('la movilidad del bloque no cambia nada: nunca hay descanso activo', () => {
