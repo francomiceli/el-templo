@@ -87,19 +87,19 @@ describe("Migraciones 0285-0286 — fuente extra_block y tabla extra_blocks_comp
   }
 
   describe("0285 — ENUM de AURA", () => {
-    it("aura_transactions.source_type termina en extra_block", async () => {
+    // No se afirma que sea el ULTIMO valor: cada fuente nueva de AURA se agrega
+    // al final (la 0342 sumo `stretch`) y ese chequeo se rompia con cada una.
+    it("aura_transactions.source_type incluye extra_block", async () => {
       const values = await enumValues("aura_transactions", "source_type");
       expect(values).toContain("extra_block");
-      expect(values[values.length - 1]).toBe("extra_block");
     });
 
-    it("aura_config.aura_config_source_type termina en extra_block", async () => {
+    it("aura_config.aura_config_source_type incluye extra_block", async () => {
       const values = await enumValues(
         "aura_config",
         "aura_config_source_type",
       );
       expect(values).toContain("extra_block");
-      expect(values[values.length - 1]).toBe("extra_block");
     });
 
     it("las dos listas de ENUM son identicas", async () => {

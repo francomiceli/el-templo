@@ -72,7 +72,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, shallowRef, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useQuasar } from 'quasar'
 
@@ -84,7 +84,10 @@ import FreeBlockSummary from '../components/player/FreeBlockSummary.vue'
 import BlockProgressionView from '../components/BlockProgressionView.vue'
 
 // Composables, stores and helpers
-import { useSessionPlayer } from '../composables/useSessionPlayer'
+import {
+  useSingleBlockPlayer,
+  type SingleBlockSaveInput,
+} from '../composables/useSingleBlockPlayer'
 import { useWakeLock } from '../composables/useWakeLock'
 import { useFreeBlockCompletion } from '../composables/useFreeBlockCompletion'
 import { useFreeBlocksStore } from '../stores/freeBlocksStore'
@@ -103,17 +106,10 @@ const log = createLogger('FreeBlockPlayer')
 
 // Fase 197 D-15: modo bloque libre. Orquesta
 // 3-2-1 -> en curso -> guardado -> celebración -> resumen (-> "Seguir entrenando").
+// Fase 213 D-07: la mecánica del player de un bloque vive en useSingleBlockPlayer; esta página
+// pone el origen del bloque, el guardado en /sessions/free-blocks/complete, los diálogos y los textos.
 // D-13: esta página NO toca la semana, la racha, el RPE, las notas ni los ajustes de dificultad.
 // D-12: si abandona antes de terminar no se guarda nada.
-
-type Stage =
-  | 'loading'
-  | 'missing'
-  | 'countdown'
-  | 'playing'
-  | 'saving'
-  | 'celebration'
-  | 'summary'
 
 const route = useRoute()
 const router = useRouter()
@@ -123,10 +119,7 @@ const freeBlocksStore = useFreeBlocksStore()
 const wakeLock = useWakeLock()
 const completion = useFreeBlockCompletion()
 
-const stage = ref<Stage>('loading')
 const item = ref<FreeBlockItem | null>(null)
-const session = shallowRef<Session | null>(null)
-const player = shallowRef<ReturnType<typeof useSessionPlayer> | null>(null)
 
 /** Fila ya guardada en el servidor: el segundo cierre ("Seguir entrenando") la actualiza (D-12) */
 const completionId = ref<number | null>(null)
@@ -136,11 +129,59 @@ const lastResult = ref<FreeBlockCompleteResponse | null>(null)
 const savedExerciseIds = ref<number[]>([])
 /** true si algún cierre de esta visita acreditó el AURA del día */
 const awardedInRun = ref(false)
-/** true una vez confirmada la salida: el guard de la ruta no vuelve a preguntar */
-const exitConfirmed = ref(false)
-let disposed = false
-/** Guard del arranque automático: corre UNA sola vez por montaje ("Reiniciar" arranca a mano) */
-let autoStarted = false
+
+/**
+ * Cierre del bloque (D-12): guarda en el servidor y actualiza el estado de la visita.
+ * D-13: va a /sessions/free-blocks/complete, nunca a /sessions/complete.
+ * Devuelve null si falló (el composable vuelve a `playing` y relanza el reloj).
+ */
+async function saveBlock(input: SingleBlockSaveInput): Promise<FreeBlockCompleteResponse | null> {
+  const block = item.value
+  if (!block) return null
+
+  const res = await completion.complete({
+    blockId: block.blockId,
+    startedAt: input.startedAt,
+    exercisesCompleted: input.exercisesCompleted,
+    ...(completionId.value !== null ? { completionId: completionId.value } : {}),
+  })
+  if (single.isDisposed()) return null
+
+  if (!res) {
+    $q.notify({
+      type: 'negative',
+      message: 'No pudimos guardar el bloque. Probá de nuevo.',
+      icon: 'error',
+      position: 'top',
+      timeout: 3000,
+    })
+    return null
+  }
+
+  completionId.value = res.completionId
+  lastResult.value = res
+  savedExerciseIds.value = [...new Set([...savedExerciseIds.value, ...input.exercisesCompleted])]
+  if (res.auraAwarded) awardedInRun.value = true
+  return res
+}
+
+const single = useSingleBlockPlayer<FreeBlockCompleteResponse>({
+  wakeLock,
+  save: saveBlock,
+  hasSavedRun: () => completionId.value !== null,
+})
+
+const {
+  stage,
+  player,
+  playableBlocks,
+  activeBlockIndex,
+  completedBlocks,
+  elapsedSeconds,
+  allCompletedExercises,
+  needsExitConfirm,
+  onCountdownDone,
+} = single
 
 const blockIdParam = computed(() => {
   const raw = route.params.blockId
@@ -175,23 +216,6 @@ const countdownCopy = computed(() =>
   item.value ? freeCountdownCopy(item.value) : { kicker: 'Bloque libre' },
 )
 
-// Puente player -> vista
-const playableBlocks = computed(() => player.value?.playableBlocks.value ?? [])
-const activeBlockIndex = computed(() => player.value?.currentBlockIndex.value ?? 0)
-const completedBlocks = computed(() => player.value?.completedBlocks.value ?? [])
-const elapsedSeconds = computed(() => player.value?.elapsedSeconds.value ?? 0)
-const allCompletedExercises = computed<Record<string, number[]>>(
-  () => player.value?.completedExercises.value ?? {},
-)
-
-/** Salir pierde el bloque solo si todavía no se guardó nada (D-12) */
-const needsExitConfirm = computed(
-  () =>
-    !exitConfirmed.value &&
-    completionId.value === null &&
-    (stage.value === 'countdown' || stage.value === 'playing'),
-)
-
 /** Session sintética de 1 bloque con dayId propio (D-15): no pisa el progreso de la sesión real */
 function buildSyntheticSession(block: FreeBlockItem): Session {
   return {
@@ -205,22 +229,8 @@ function buildSyntheticSession(block: FreeBlockItem): Session {
   }
 }
 
-function createPlayer(s: Session): void {
-  if (player.value) player.value.cleanup()
-  player.value = useSessionPlayer(s, { freeBlock: true })
-}
-
 function goToLibre(): void {
   void router.push({ name: 'training', query: { tab: 'libre' } })
-}
-
-/** Salir sin guardar: frena el reloj, borra el progreso local XB y libera la pantalla */
-async function leaveWithoutSaving(): Promise<void> {
-  if (player.value) {
-    player.value.pauseTimer()
-    await player.value.clearProgress()
-  }
-  await wakeLock.releaseWakeLock()
 }
 
 const exitDialogOpts: ConfirmDialogOptions = {
@@ -234,14 +244,14 @@ function requestExit(): void {
   if (stage.value === 'saving') return
   if (needsExitConfirm.value) {
     confirmDialog($q, exitDialogOpts).onOk(async () => {
-      exitConfirmed.value = true
-      await leaveWithoutSaving()
+      single.confirmExit()
+      await single.leaveWithoutSaving()
       goToLibre()
     })
     return
   }
-  exitConfirmed.value = true
-  void leaveWithoutSaving().then(goToLibre)
+  single.confirmExit()
+  void single.leaveWithoutSaving().then(goToLibre)
 }
 
 onBeforeRouteLeave((_to, _from, next) => {
@@ -255,29 +265,15 @@ onBeforeRouteLeave((_to, _from, next) => {
   }
   confirmDialog($q, exitDialogOpts)
     .onOk(async () => {
-      exitConfirmed.value = true
-      await leaveWithoutSaving()
+      single.confirmExit()
+      await single.leaveWithoutSaving()
       next()
     })
     .onCancel(() => next(false))
 })
 
-/** Arranca el bloque (antes lo hacía el botón "Empezar" del inicio): reloj, pantalla y 3-2-1 */
-function beginBlock(): void {
-  if (!player.value) return
-  player.value.startTimer()
-  void wakeLock.requestWakeLock()
-  stage.value = 'countdown'
-}
-
-function onCountdownDone(): void {
-  stage.value = 'playing'
-}
-
 async function onToggleExerciseComplete(payload: { prescriptionId: number }): Promise<void> {
-  if (player.value) {
-    await player.value.toggleExerciseComplete(payload.prescriptionId)
-  }
+  await single.toggleExercise(payload.prescriptionId)
 }
 
 /** "Reiniciar": sin guardar re-arranca al 3-2-1 con un player nuevo, ya guardado es otra vuelta */
@@ -288,84 +284,28 @@ function restartBlock(): void {
     okLabel: 'Reiniciar',
     destructive: true,
   }).onOk(async () => {
-    const p = player.value
-    const s = session.value
-    if (!p || !s) return
-    if (completionId.value !== null) {
-      await p.startAnotherRound()
-      return
-    }
-    await p.clearProgress()
-    // clearProgress no reinicia el acumulado interno del reloj: un player nuevo arranca en cero.
-    createPlayer(s)
-    await player.value?.initialize()
-    // beginBlock vuelve a pedir el wake lock: se suelta antes para no dejar un sentinel huérfano
-    await wakeLock.releaseWakeLock()
-    beginBlock()
+    await single.restart()
   })
 }
 
-/**
- * Cierre del bloque (D-12): pausa el reloj, guarda en el servidor y recién ahí celebra.
- * D-13: va a /sessions/free-blocks/complete, nunca a /sessions/complete.
- */
+/** Cierre del bloque: pausa el reloj, guarda y recién ahí celebra (el composable orquesta) */
 async function onBlockComplete(): Promise<void> {
-  const p = player.value
-  const block = item.value
-  if (!p || !block || stage.value === 'saving') return
-
-  await p.completeBlock() // pausa el reloj
-  stage.value = 'saving'
-
-  const exercisesCompleted = [...(p.completedExercises.value[block.role] ?? [])]
-  // El inicio sale del reloj que ve el socio: la duración del servidor coincide con la barrita
-  const startedAt = new Date(Date.now() - p.elapsedSeconds.value * 1000).toISOString()
-
-  const res = await completion.complete({
-    blockId: block.blockId,
-    startedAt,
-    exercisesCompleted,
-    ...(completionId.value !== null ? { completionId: completionId.value } : {}),
-  })
-  if (disposed) return
-
-  if (!res) {
-    $q.notify({
-      type: 'negative',
-      message: 'No pudimos guardar el bloque. Probá de nuevo.',
-      icon: 'error',
-      position: 'top',
-      timeout: 3000,
-    })
-    p.startTimer() // el reloj sigue mientras reintenta
-    stage.value = 'playing'
-    return
-  }
-
-  completionId.value = res.completionId
-  lastResult.value = res
-  savedExerciseIds.value = [...new Set([...savedExerciseIds.value, ...exercisesCompleted])]
-  if (res.auraAwarded) awardedInRun.value = true
-  await wakeLock.releaseWakeLock()
-  stage.value = 'celebration'
+  await single.completeBlock()
 }
 
 function onCelebrationViewSummary(): void {
-  stage.value = 'summary'
+  single.setStage('summary')
 }
 
 /** "Seguir entrenando": otra vuelta con el reloj corriendo, el cierre actualiza la misma fila */
 async function onKeepTraining(): Promise<void> {
-  if (!player.value) return
-  await player.value.startAnotherRound()
-  void wakeLock.requestWakeLock()
-  stage.value = 'playing'
+  await single.keepTraining()
 }
 
 /** "Listo": ya está guardado, vuelve a Libre */
 function onSummaryDone(): void {
-  exitConfirmed.value = true
-  void leaveWithoutSaving().then(goToLibre)
+  single.confirmExit()
+  void single.leaveWithoutSaving().then(goToLibre)
 }
 
 /** "Elegir otro bloque": limpia el filtro de grupo y vuelve a Libre */
@@ -377,28 +317,20 @@ function onPickAnother(): void {
 onMounted(async () => {
   void wakeLock.initialize()
   const found = await freeBlocksStore.fetchBlock(blockIdParam.value)
-  if (disposed) return
+  if (single.isDisposed()) return
   if (!found) {
-    stage.value = 'missing'
+    single.markMissing()
     return
   }
-  const s = buildSyntheticSession(found)
   item.value = found
-  session.value = s
-  createPlayer(s)
   // D-12: cada entrada empieza de cero, si abandonó antes no hay nada que retomar
-  await player.value?.clearProgress()
-  await player.value?.initialize()
-  if (disposed) return
+  await single.load(buildSyntheticSession(found))
+  if (single.isDisposed()) return
   log.info('Bloque libre listo', { blockId: found.blockId })
-  if (autoStarted) return
-  autoStarted = true
-  beginBlock()
 })
 
 onUnmounted(() => {
-  disposed = true
-  if (player.value) player.value.cleanup()
+  single.cleanup()
   wakeLock.cleanup()
   completion.cleanup()
 })

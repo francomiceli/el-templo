@@ -141,7 +141,7 @@ export const MEMBER_SEGMENT_OPTIONS: ReadonlyArray<{
 ];
 
 // ── Descripción fija del disparador de cada plantilla de SISTEMA ──────────
-// Las 18 `TEMPLATE_SEEDS` (el-templo-api/src/modules/notifications/types.ts)
+// Las 20 `TEMPLATE_SEEDS` (el-templo-api/src/modules/notifications/types.ts)
 // no tienen `triggerType` en la DB (son lógica de negocio hardcodeada en
 // distintos jobs/servicios, no el motor de reglas) — este mapa es SOLO texto
 // informativo para el editor ("Disparador del sistema: …"), nunca se manda
@@ -178,6 +178,11 @@ export const SYSTEM_TEMPLATE_TRIGGER_DESCRIPTIONS: Readonly<Record<string, strin
   trial_session_reminder: 'Automático: recordatorio ~24 h antes de una sesión de prueba reservada.',
   class_reminder:
     'Automático: socios CON reserva anticipada (hecha antes del día de la clase) — turno mañana 30 min antes, turno tarde 1 h antes de su clase.',
+  // Fase 213 (D-12): espeja a mano las constantes del API STRETCH_PUSH_OFFSET_MINUTES
+  // (+30 / +60 min), STRETCH_QUIET_START (21:30) y STRETCH_MAX_PUSHES_PER_7_DAYS (3)
+  // de el-templo-api/src/modules/sessions/stretch-timing.ts. Si cambian allá, cambian acá.
+  stretch_followup:
+    'Automático: después de la clase, a quienes registraron asistencia (fin de clase + 30 o + 60 min según su grupo, nunca después de las 21:30 hora de la sede, como máximo 3 por semana). No sale si ya estiró.',
 };
 
 export function systemTriggerDescription(templateKey: string): string {

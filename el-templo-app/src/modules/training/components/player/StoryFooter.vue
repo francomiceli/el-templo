@@ -1,18 +1,12 @@
 <template>
   <!-- Fade a negro al pie del video con el ejercicio de AHORA (sketch 026, variante A + cantidad de
        la C). No captura toques: las zonas de tap de la historia siguen avanzando por encima. -->
-  <div class="story-footer" :style="badgeStyle" aria-live="polite">
+  <div class="story-footer" aria-live="polite">
     <div class="story-footer__fade" />
     <div class="story-footer__caption">
       <div class="story-footer__text">
         <div v-if="footer.badge || footer.label" class="story-footer__kicker">
-          <span
-            v-if="footer.badge"
-            class="story-footer__badge"
-            :class="`story-footer__badge--${footer.badge.kind}`"
-          >
-            {{ footer.badge.label }}
-          </span>
+          <ContractionBadge v-if="footer.badge" :badge="footer.badge" surface="dark" />
           <span v-if="footer.label" class="story-footer__label">{{ footer.label }}</span>
         </div>
         <div class="story-footer__name">{{ footer.name }}</div>
@@ -29,30 +23,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { CONTRACTION_BADGE_WIDTH_PX } from '../../utils/contraction'
 import type { PlayerFooter } from '../../utils/playerFooter'
+import ContractionBadge from '../ContractionBadge.vue'
 
 interface Props {
   footer: PlayerFooter
 }
 
 defineProps<Props>()
-
-// Ancho fijo de la insignia: sale de la util para que los tres colores midan lo mismo
-const badgeStyle = computed(() => ({ '--tempo-badge-w': `${CONTRACTION_BADGE_WIDTH_PX}px` }))
 </script>
 
 <style scoped lang="scss">
 @import 'src/css/quasar.variables.scss';
 @import 'src/css/premium-card';
-
-// Colores de contracción = los de la TV (#tvScreenRoot): CON carbón, EXC bronce, ISO arena
-$tv-ink: #3d3732;
-$tv-gold: #b08d6e;
-$exc-bronze: #7a5c42;
-$tv-sand: #dbcab4;
-$tv-cream: #f2ebe1;
 
 .story-footer {
   position: absolute;
@@ -92,44 +75,6 @@ $tv-cream: #f2ebe1;
   align-items: center;
   gap: 8px;
   margin-bottom: 4px;
-}
-
-.story-footer__badge {
-  flex: none;
-  box-sizing: border-box;
-  min-width: var(--tempo-badge-w, 42px);
-  padding: 2px 4px;
-  border-radius: 5px;
-  text-align: center;
-  font-family: 'Montserrat', sans-serif;
-  font-size: 12px;
-  font-weight: 800;
-  line-height: 1.05;
-
-  &--con {
-    background: $tv-ink;
-    color: $tv-cream;
-    // Sobre el fade oscuro el carbón se pierde: un filo claro lo despega
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25);
-  }
-
-  &--exc {
-    background: $exc-bronze;
-    color: $tv-cream;
-  }
-
-  &--iso {
-    background: $tv-sand;
-    color: $tv-ink;
-  }
-
-  &--mov {
-    background: transparent;
-    color: $tv-cream;
-    border: 1.5px solid $tv-gold;
-    font-size: 10px;
-    padding: 1px 2px;
-  }
 }
 
 .story-footer__label {

@@ -26,6 +26,14 @@ const routes: RouteRecordRaw[] = [
         } satisfies RouteRecordRaw,
       ]
     : []),
+  // Fase 213 D-07: estiramiento post-clase (rutina del día que arma el servidor). SIN flag de
+  // build (D-13): lo apaga la oferta del servidor. Acepta `?from=push` desde la notificación.
+  {
+    path: 'training/estirar',
+    name: 'stretch-player',
+    component: () => import('./pages/StretchPlayer.vue'),
+    meta: { requiresAuth: true },
+  },
   {
     path: 'training/resumen',
     name: 'session-summary',

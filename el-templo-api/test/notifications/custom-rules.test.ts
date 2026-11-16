@@ -419,13 +419,33 @@ describe("notifications/custom-rules — PUT/DELETE (homogeneidad sistema/propia
   it("(10) POST /admin/seed-templates restaura SOLO lo que falta, sin pisar un título editado", async () => {
     const service = new NotificationService(app.db, app.log);
     const seedResult = await service.seedTemplates(CTX_TEMPLO);
-    expect(seedResult.inserted).toBe(19);
+    // fase 213: + stretch_followup (20 = TEMPLATE_SEEDS.length)
+    expect(seedResult.inserted).toBe(20);
 
     const rows = await app.db
       .select({ id: schema.notificationTemplates.id, templateKey: schema.notificationTemplates.templateKey })
       .from(schema.notificationTemplates)
       .where(tenantWhere(schema.notificationTemplates, CTX_TEMPLO));
-    expect(rows.length).toBe(19);
+    expect(rows.length).toBe(20);
+
+    // Fase 213 (D-12): stretch_followup nace APAGADA y con el destino curado
+    // `estirar`; el resto de las plantillas nace prendida.
+    const sembradas = await app.db
+      .select({
+        templateKey: schema.notificationTemplates.templateKey,
+        isEnabled: schema.notificationTemplates.isEnabled,
+        destinationSection: schema.notificationTemplates.destinationSection,
+        route: schema.notificationTemplates.route,
+      })
+      .from(schema.notificationTemplates)
+      .where(tenantWhere(schema.notificationTemplates, CTX_TEMPLO));
+    const stretch = sembradas.find((t) => t.templateKey === "stretch_followup");
+    expect(stretch?.isEnabled).toBe(false);
+    expect(stretch?.destinationSection).toBe("estirar");
+    expect(stretch?.route).toBe("/training/estirar?from=push");
+    expect(
+      sembradas.filter((t) => t.templateKey !== "stretch_followup").every((t) => t.isEnabled),
+    ).toBe(true);
 
     const [aEditar, aBorrar] = rows;
 
@@ -448,7 +468,7 @@ describe("notifications/custom-rules — PUT/DELETE (homogeneidad sistema/propia
     expect(restoreBody.keys).toEqual([aBorrar.templateKey]);
 
     const templates = await getTemplates(adminToken);
-    expect(templates.length).toBe(19);
+    expect(templates.length).toBe(20);
     const editado = templates.find((t) => t.id === aEditar.id);
     expect(editado?.title).toBe("Editado a mano por el admin");
     expect(templates.some((t) => t.templateKey === aBorrar.templateKey)).toBe(true);

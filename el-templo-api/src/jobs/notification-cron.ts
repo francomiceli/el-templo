@@ -28,6 +28,10 @@ import { EmailService } from "../modules/email/service";
 import { deriveReminderCoveredUntil } from "../modules/subscriptions/service";
 import { SegmentationService } from "../modules/segmentation/service";
 import { queueDueNovedadPushes } from "../modules/communications/novedades-push";
+import {
+  runStretchPushForTenant,
+  stretchPushHadActivity,
+} from "../modules/sessions/stretch-push";
 // segment_transition template keys are defined in SEGMENT_TRANSITION_TEMPLATES
 import { SEGMENT_TRANSITION_TEMPLATES } from "../modules/notifications/types";
 import type { MemberSegment } from "../modules/segmentation/types";
@@ -664,6 +668,19 @@ async function runNotificationQueueTickForTenant(
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     log.error({ tenantId, err: message }, "Novedad push step failed");
+  }
+
+  // Estiramiento post-clase (fase 213, D-14): paso del mismo tick, sin cron
+  // propio. Crea la oferta del día y encola el push "¿Estiraste?"; también
+  // ANTES de despachar para que salga en este tick. Un fallo no frena la cola.
+  try {
+    const stretchPushes = await runStretchPushForTenant(db, ctx, log);
+    if (stretchPushHadActivity(stretchPushes)) {
+      log.info({ tenantId, ...stretchPushes }, "Stretch pushes processed");
+    }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    log.error({ tenantId, err: message }, "Stretch push step failed");
   }
 
   await notificationService.initFirebase();

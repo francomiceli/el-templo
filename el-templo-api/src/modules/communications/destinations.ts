@@ -25,7 +25,7 @@
 // destino roto no puede tumbar el render de un pop-up o una tarjeta.
 
 /**
- * Las 10 secciones curadas de la app a las que puede apuntar un destino
+ * Las 11 secciones curadas de la app a las que puede apuntar un destino
  * `app_section`. Agregar una sección es un cambio de código chico: sumar un
  * valor acá (y en los dos espejos).
  */
@@ -42,7 +42,9 @@ export type AppSectionKey =
   | "guia"
   | "empeza_aca"
   // Fase 201 D-11: destino del pop-up de lanzamiento de Conquer.
-  | "conquer";
+  | "conquer"
+  // Fase 213 D-12: deep link del push ¿Estiraste?.
+  | "estirar";
 
 export interface AppSection {
   key: AppSectionKey;
@@ -120,6 +122,15 @@ export const APP_SECTIONS: readonly AppSection[] = [
     label: "Conquer",
     route: "/training?tab=conquer",
   },
+  // Fase 213 (D-12): deep link del push ¿Estiraste?. La ruta lleva from=push
+  // porque la página marca la apertura del push. Un build viejo no conoce la
+  // sección, cae a `route` y termina en la página de 404 de la app: por eso la
+  // plantilla nace apagada, ver TEMPLATE_SEEDS.
+  {
+    key: "estirar",
+    label: "Estirar después de clase",
+    route: "/training/estirar?from=push",
+  },
 ];
 
 /** Los dos tipos de destino (D-01). */
@@ -157,7 +168,7 @@ const APP_SECTION_ROUTE_BY_KEY: ReadonlyMap<AppSectionKey, string> = new Map(
   APP_SECTIONS.map((section) => [section.key, section.route]),
 );
 
-/** Type guard: si `value` es una de las 10 keys curadas de {@link APP_SECTIONS}. */
+/** Type guard: si `value` es una de las 11 keys curadas de {@link APP_SECTIONS}. */
 export function isAppSectionKey(value: unknown): value is AppSectionKey {
   return typeof value === "string" && APP_SECTION_KEYS.has(value);
 }
@@ -189,6 +200,8 @@ export function appSectionForRoute(route: string): AppSectionKey {
       return "programas";
     case "/training?tab=conquer":
       return "conquer";
+    case "/training/estirar?from=push":
+      return "estirar";
     default:
       return "mi_templo";
   }

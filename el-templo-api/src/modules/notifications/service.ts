@@ -1023,10 +1023,13 @@ export class NotificationService {
       // su DEFAULT (`app_section`/NULL), así que un tenant nuevo nacía con el
       // mismo bug que arregla el backfill de la migración 0239 (ver
       // `appSectionForRoute`, mismo mapeo route→section que usó ese backfill).
+      //
+      // Fase 213 (D-12): `is_enabled` va en el INSERT para que una plantilla
+      // pueda nacer apagada (`enabledAtSeed: false`); el resto nace prendida.
       const [result] = await this.db.execute(
         sql`INSERT IGNORE INTO notification_templates
-            (tenant_id, template_key, notification_category, title, body, title_female, body_female, route, destination_type, destination_section)
-            VALUES (${ctx.tenantId}, ${seed.templateKey}, ${seed.category}, ${seed.title}, ${seed.body}, ${seed.titleFemale}, ${seed.bodyFemale}, ${seed.route}, 'app_section', ${appSectionForRoute(seed.route)})`,
+            (tenant_id, template_key, notification_category, title, body, title_female, body_female, route, destination_type, destination_section, is_enabled)
+            VALUES (${ctx.tenantId}, ${seed.templateKey}, ${seed.category}, ${seed.title}, ${seed.body}, ${seed.titleFemale}, ${seed.bodyFemale}, ${seed.route}, 'app_section', ${appSectionForRoute(seed.route)}, ${seed.enabledAtSeed === false ? 0 : 1})`,
       );
       if ((result as { affectedRows?: number }).affectedRows === 1) {
         keys.push(seed.templateKey);

@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>213 · Estiramiento sin marcar: minutero y dosis de la plani</title>
+<style>
+  /* Sketch desechable: autocontenido, sin red. Paleta cálida de la marca (sin azul). */
+  :root {
+    --ink: #2c2318; --ink-2: #5f584d; --cream: #f2ebe1; --paper: #fbf8f3; --line: #e5dbcd;
+    --btn-a: #a35f3c; --btn-b: #7e4529; --sage: #3f6a47; --sage-tint: #e9f0e6;
+    --cream-2: #e3c9a8; --cream-3: #c9bba6; --surface: #2c2318; --gold: #f1d6ad;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #e9e2d7; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; color: var(--ink); }
+  header.top { max-width: 1100px; margin: 0 auto; padding: 24px 20px 4px; }
+  header.top h1 { margin: 0; font: 800 21px system-ui, sans-serif; }
+  header.top p { margin: 6px 0 0; color: var(--ink-2); font-size: 14px; line-height: 1.45; }
+  .tools { max-width: 1100px; margin: 12px auto 0; padding: 0 20px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .tools button { border: 1px solid #cdbfac; background: #fff; border-radius: 999px; padding: 7px 14px; font: 600 13px system-ui; color: var(--ink); cursor: pointer; }
+  .tools button[aria-pressed='true'] { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .tools .clock { font: 700 13px ui-monospace, monospace; color: var(--ink-2); margin-left: 8px; }
+  .row { max-width: 1100px; margin: 18px auto 20px; padding: 0 20px; display: flex; gap: 34px; flex-wrap: wrap; justify-content: center; }
+  .cap { width: 360px; max-width: 100%; }
+  .cap h3 { margin: 0 0 4px; font: 800 14px system-ui; }
+  .cap p { margin: 0 0 10px; font-size: 12.5px; color: var(--ink-2); line-height: 1.4; min-height: 52px; }
+
+  /* Teléfono */
+  .phone { width: 360px; max-width: 100%; height: 700px; border-radius: 32px; overflow: hidden; background: var(--paper); box-shadow: 0 18px 40px rgba(44,35,24,.22), 0 0 0 9px #1c1814; display: flex; flex-direction: column; position: relative; }
+  .status { height: 26px; flex: none; background: #1c1814; color: #fff; font: 600 12px system-ui; display: flex; align-items: center; justify-content: space-between; padding: 0 22px; }
+
+  .story { position: relative; height: 200px; flex: none; background: linear-gradient(135deg, #1e1b18 0%, #2e2a26 50%, #3d3732 100%); color: #fff; }
+  .story .hdr { position: absolute; top: 14px; left: 8px; right: 12px; display: flex; justify-content: space-between; align-items: center; }
+  .story.small { height: 96px; }
+  .story.small .novideo { top: 44px; }
+  .story .back { font-size: 22px; padding: 6px 10px; }
+  .story .titles { text-align: right; }
+  .story .kicker { font: 800 10px system-ui; letter-spacing: .14em; text-transform: uppercase; color: var(--cream-2); }
+  .story .name { font: 700 15px system-ui; }
+  .story .foot { position: absolute; left: 14px; right: 14px; bottom: 12px; display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; }
+  .story .foot b { display: block; font: 700 17px system-ui; }
+  .story .foot span { font-size: 12px; color: var(--cream-3); }
+  .story .novideo { position: absolute; left: 0; right: 0; top: 70px; text-align: center; font-size: 11px; color: #8d8272; letter-spacing: .1em; text-transform: uppercase; }
+  .dose { display: inline-block; white-space: nowrap; padding: 4px 12px; border-radius: 999px; border: 1px solid rgba(240,230,214,.5); font: 700 13px system-ui; color: var(--cream); }
+
+  /* Teléfono 1: fila con el minutero chico */
+  .fmt { flex: none; display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); background: #fff; }
+  .fmt .l b { display: block; font: 700 14px Georgia, serif; letter-spacing: .06em; text-transform: uppercase; }
+  .fmt .l span { font-size: 12px; color: var(--ink-2); }
+  .fmt .r { text-align: right; }
+  .fmt .t { font: 700 30px Georgia, serif; font-variant-numeric: tabular-nums; color: #3d3732; line-height: 1; }
+  .fmt .lab { margin-top: 3px; font: 800 9.5px system-ui; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-2); }
+
+  /* Teléfono 2: tarjeta arriba con el minutero grande */
+  .clock-card { flex: none; background: var(--surface); color: var(--cream); padding: 10px 16px 12px; text-align: center; }
+  .clock-card .k { font: 800 10px system-ui; letter-spacing: .16em; text-transform: uppercase; color: var(--cream-2); }
+  .clock-card .nm { font: 800 19px system-ui; margin: 2px 0 6px; line-height: 1.15; }
+  .clock-card .big { font: 700 52px Georgia, serif; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: .02em; margin-top: 8px; }
+  .clock-card .lab { margin-top: 2px; font: 800 9.5px system-ui; letter-spacing: .16em; text-transform: uppercase; color: var(--cream-3); }
+
+  .slot { height: 4px; background: rgba(150,137,120,.25); flex: none; }
+  .slot i { display: block; height: 100%; background: var(--btn-a); }
+
+  /* Lista: sin tildes. Tocar lleva a ese ejercicio. */
+  .list { flex: 1; min-height: 0; overflow: hidden; padding: 6px 14px; background: var(--paper); }
+  .list h4 { margin: 4px 0 4px; font: 800 10px system-ui; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-2); }
+  .ex { display: flex; align-items: center; gap: 10px; width: 100%; padding: 6px 8px; border-radius: 10px; border: 1px solid transparent; background: none; font: 400 13px system-ui; color: var(--ink); text-align: left; cursor: pointer; }
+  .ex .num { width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid #948878; flex: none; display: grid; place-items: center; font: 700 11px system-ui; color: var(--ink-2); }
+  .ex.on { background: #fff; border-color: var(--line); font-weight: 700; }
+  .ex.on .num { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .ex.past { color: var(--ink-2); }
+  .ex .sd { margin-left: auto; font-size: 11.5px; color: var(--ink-2); white-space: nowrap; }
+
+  .nav { flex: none; display: flex; gap: 8px; padding: 6px 16px 0; background: var(--paper); }
+  .nav button { flex: 1; border: 1px solid #cdbfac; background: #fff; border-radius: 10px; padding: 9px; font: 700 13px system-ui; color: var(--ink); cursor: pointer; }
+  .nav button[disabled] { color: #a69c8e; background: #f3eee6; cursor: default; }
+  .cta { flex: none; padding: 8px 16px 12px; background: var(--paper); }
+  .cta button { width: 100%; border: 0; border-radius: 12px; padding: 13px; font: 700 15px system-ui; color: #fff; background: linear-gradient(135deg, var(--btn-a), var(--btn-b)); cursor: pointer; }
+  .cta .hint { margin-top: 6px; text-align: center; font-size: 11.5px; color: var(--ink-2); }
+  .cta .hint.ok { color: var(--sage); font-weight: 700; }
+
+  .done { position: absolute; inset: 26px 0 0 0; background: var(--surface); color: var(--cream); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 24px; gap: 10px; }
+  .done b { font: 800 26px system-ui; }
+  .done span { font-size: 15px; color: var(--cream-3); }
+  .done .aura { margin-top: 8px; padding: 6px 16px; border-radius: 999px; background: var(--sage-tint); color: var(--sage); font: 800 14px system-ui; }
+  .done .aura.no { background: rgba(240,230,214,.14); color: var(--cream-3); font-weight: 600; }
+
+  .notes { max-width: 1100px; margin: 0 auto 40px; padding: 0 20px; }
+  .notes table { border-collapse: collapse; background: #fff; border: 1px solid var(--line); font-size: 13px; width: 100%; }
+  .notes th, .notes td { padding: 8px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+  .notes th { background: var(--cream); font-weight: 700; }
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>213 · Estiramiento sin marcar: minutero que avanza y dosis de la plani</h1>
+  <p>Pedido de Franco (2026-11-12): no importan los lados, no se marca nada, se pasa de un ejercicio a otro y el botón es "Terminar". Donde decía "lados" va la dosis del ejercicio. Los dos teléfonos se comportan igual y solo cambia dónde va el minutero. Rutina de referencia W37-lunes-kairos. Las dosis son de ejemplo: no tengo la dosis exacta de ese día.</p>
+</header>
+<div class="tools">
+  <button id="play" type="button" aria-pressed="false">Arrancar</button>
+  <button id="fast" type="button" aria-pressed="false">x10</button>
+  <button id="auto" type="button" aria-pressed="false">Pasar solo cada 45 s</button>
+  <button id="reset" type="button">Reiniciar</button>
+  <span class="clock" id="tclock">0:00</span>
+</div>
+
+<div class="row">
+  <div class="cap">
+    <h3>1. Video arriba, minutero chico</h3>
+    <p>La disposición del teléfono A del sketch anterior: el video manda y el minutero queda en la fila de abajo, a la derecha.</p>
+    <div class="phone" id="phone1"></div>
+  </div>
+  <div class="cap">
+    <h3>2. Tarjeta arriba, minutero grande</h3>
+    <p>La disposición del teléfono B: nombre, dosis y minutero en una tarjeta oscura que se lee de lejos. El video queda más chico.</p>
+    <div class="phone" id="phone2"></div>
+  </div>
+</div>
+
+<div class="notes">
+  <table>
+    <thead><tr><th>Tema</th><th>Sketch anterior</th><th>Este sketch</th></tr></thead>
+    <tbody>
+      <tr><td>Lados</td><td>"Lado 1 de 2", "Cambiá de lado", "2 lados"</td><td>No aparecen. En su lugar va la dosis ("30 s", "10 repeticiones")</td></tr>
+      <tr><td>Reloj</td><td>Cuenta regresiva de 45 s por lado</td><td>Minutero que solo avanza</td></tr>
+      <tr><td>Pasar de ejercicio</td><td>Lo decide el reloj</td><td>Anterior / Siguiente o tocando la lista. Con "Pasar solo cada 45 s" prendido también avanza solo</td></tr>
+      <tr><td>Marcar</td><td>Un toque por ejercicio, obligatorio para terminar</td><td>No hay tildes</td></tr>
+      <tr><td>Botón final</td><td>"Marcá todos para terminar"</td><td>"Terminar", siempre disponible</td></tr>
+      <tr><td>AURA</td><td>Todos marcados y 3 minutos</td><td>Solo 3 minutos</td></tr>
+      <tr><td>De dónde sale la dosis</td><td>Fija: 45 s por lado</td><td>La de la plani del día si el estiramiento está en esa plani. Si no está, la dosis base (20 s o 10 repeticiones)</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var AURA_MS = 180000, SLOT_MS = 45000;
+  // Dosis de ejemplo. `plani` = el estiramiento está en la movilidad de ese día.
+  var EXS = [
+    { name: 'COUCH STRETCH', dose: '30 s', plani: true },
+    { name: 'STR PIKE STANDING', dose: '20 s', plani: false },
+    { name: 'BUTCHER FLOOR STRETCH', dose: '30 s', plani: true },
+    { name: 'SITTED GLUTE STRETCH', dose: '20 s', plani: false },
+    { name: 'LAYED DOWN HAM BENT', dose: '10 repeticiones', plani: false }
+  ];
+  var LAST = EXS.length - 1;
+
+  var t = 0, running = false, speed = 1, last = 0;
+  var idx = 0, slotStart = 0, auto = false, finished = false, shownSecond = -1;
+
+  function mmss(ms) {
+    var s = Math.max(0, Math.floor(ms / 1000));
+    var m = Math.floor(s / 60), r = s % 60;
+    return m + ':' + (r < 10 ? '0' : '') + r;
+  }
+  function esc(s) { return String(s).replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }); }
+  function goTo(i) { idx = Math.max(0, Math.min(LAST, i)); slotStart = t; }
+
+  function listHtml() {
+    return '<div class="list"><h4>Ejercicios · tocá para ir a uno</h4>' + EXS.map(function (e, i) {
+      return '<button type="button" class="ex' + (i === idx ? ' on' : '') + (i < idx ? ' past' : '') + '" data-go="' + i + '">' +
+        '<span class="num">' + (i + 1) + '</span><span>' + esc(e.name) + '</span>' +
+        '<span class="sd">' + esc(e.dose) + '</span></button>';
+    }).join('') + '</div>';
+  }
+  function slotHtml() {
+    if (!auto) return '';
+    var pct = idx === LAST ? 100 : Math.min(100, (t - slotStart) / SLOT_MS * 100);
+    return '<div class="slot"><i style="width:' + pct + '%"></i></div>';
+  }
+  function navHtml() {
+    return '<div class="nav"><button type="button" data-nav="-1"' + (idx === 0 ? ' disabled' : '') + '>&#8249; Anterior</button>' +
+      '<button type="button" data-nav="1"' + (idx === LAST ? ' disabled' : '') + '>Siguiente &#8250;</button></div>';
+  }
+  function ctaHtml() {
+    var ok = t >= AURA_MS;
+    return '<div class="cta"><button type="button" data-finish="1">Terminar</button>' +
+      '<div class="hint' + (ok ? ' ok' : '') + '">' + (ok ? 'Ya sumás +5 AURA al terminar' : 'Con 3 minutos sumás +5 AURA') + '</div></div>';
+  }
+  function storyHtml(small, withDose) {
+    var e = EXS[idx];
+    return '<div class="story' + (small ? ' small' : '') + '"><div class="hdr"><span class="back">&#8592;</span>' +
+      '<div class="titles"><div class="kicker">Estiramiento</div><div class="name">Post-clase</div></div></div>' +
+      '<div class="novideo">sin video</div>' +
+      (withDose ? '<div class="foot"><div><b>' + esc(e.name) + '</b><span>Ejercicio ' + (idx + 1) + ' de ' + EXS.length + '</span></div>' +
+        '<span class="dose">' + esc(e.dose) + '</span></div>' : '') + '</div>';
+  }
+  function doneHtml() {
+    if (!finished) return '';
+    var mins = Math.max(1, Math.round(t / 60000)), ok = t >= AURA_MS;
+    return '<div class="done"><b>Listo</b><span>' + mins + (mins === 1 ? ' minuto' : ' minutos') + ' de estiramiento</span>' +
+      '<div class="aura' + (ok ? '' : ' no') + '">' + (ok ? '+5 AURA' : 'Sin AURA: hacen falta 3 minutos') + '</div></div>';
+  }
+  var STATUS = '<div class="status"><span>9:41</span><span>5G</span></div>';
+
+  function render() {
+    var e = EXS[idx];
+    document.getElementById('phone1').innerHTML = STATUS + storyHtml(false, true) +
+      '<div class="fmt"><div class="l"><b>Estiramiento</b><span>' + EXS.length + ' ejercicios · a tu ritmo</span></div>' +
+      '<div class="r"><div class="t" role="timer">' + mmss(t) + '</div><div class="lab">Tiempo</div></div></div>' +
+      slotHtml() + listHtml() + navHtml() + ctaHtml() + doneHtml();
+    document.getElementById('phone2').innerHTML = STATUS +
+      '<div class="clock-card"><div class="k">Ejercicio ' + (idx + 1) + ' de ' + EXS.length + '</div>' +
+      '<div class="nm">' + esc(e.name) + '</div><span class="dose">' + esc(e.dose) + '</span>' +
+      '<div class="big" role="timer">' + mmss(t) + '</div><div class="lab">Tiempo</div></div>' +
+      slotHtml() + storyHtml(true, false) + listHtml() + navHtml() + ctaHtml() + doneHtml();
+    document.getElementById('tclock').textContent = 'tiempo transcurrido: ' + mmss(t);
+  }
+  function sync() {
+    var p = document.getElementById('play'); p.textContent = running ? 'Pausar' : 'Arrancar'; p.setAttribute('aria-pressed', String(running));
+    document.getElementById('fast').setAttribute('aria-pressed', String(speed === 10));
+    document.getElementById('auto').setAttribute('aria-pressed', String(auto));
+  }
+  function tick(now) {
+    if (running && !finished) {
+      t += (now - last) * speed;
+      var moved = false;
+      while (auto && idx < LAST && t - slotStart >= SLOT_MS) { slotStart += SLOT_MS; idx += 1; moved = true; }
+      // Con el avance manual solo cambia el minutero: se repinta una vez por segundo
+      var sec = Math.floor(t / 1000);
+      if (auto || moved || sec !== shownSecond) { shownSecond = sec; render(); }
+    }
+    last = now; requestAnimationFrame(tick);
+  }
+
+  document.getElementById('play').onclick = function () { if (finished) return; running = !running; sync(); };
+  document.getElementById('fast').onclick = function () { speed = speed === 10 ? 1 : 10; sync(); };
+  document.getElementById('auto').onclick = function () { auto = !auto; slotStart = t; sync(); render(); };
+  document.getElementById('reset').onclick = function () {
+    t = 0; idx = 0; slotStart = 0; running = false; finished = false; shownSecond = -1; sync(); render();
+  };
+  document.addEventListener('click', function (ev) {
+    var el = ev.target.closest && ev.target.closest('[data-go],[data-nav],[data-finish]');
+    if (!el || finished) return;
+    if (el.hasAttribute('data-finish')) { finished = true; running = false; sync(); render(); return; }
+    if (el.hasAttribute('data-go')) goTo(Number(el.getAttribute('data-go')));
+    else goTo(idx + Number(el.getAttribute('data-nav')));
+    render();
+  });
+
+  sync(); render(); requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>

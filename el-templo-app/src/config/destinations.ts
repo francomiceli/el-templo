@@ -18,6 +18,7 @@ export type AppSectionKey =
   | 'guia'
   | 'empeza_aca'
   | 'conquer'
+  | 'estirar'
 
 export interface AppSection {
   key: AppSectionKey
@@ -85,6 +86,12 @@ export const APP_SECTIONS: readonly AppSection[] = [
     key: 'conquer',
     label: 'Conquer',
     route: '/training?tab=conquer',
+  },
+  // Fase 213 D-12: deep link del push ¿Estiraste? (la ruta lleva from=push).
+  {
+    key: 'estirar',
+    label: 'Estirar después de clase',
+    route: '/training/estirar?from=push',
   },
 ]
 

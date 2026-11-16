@@ -50,6 +50,8 @@ function baseInput(over: Partial<TodayCardInput> = {}): TodayCardInput {
     hasExtraPrograms: false,
     trialEligible: false,
     libreEnabled: true,
+    // Fase 213: por defecto sin oferta de estiramiento (la card queda como antes de la fase).
+    stretch: { status: 'none' },
     // Fase 203: por defecto todo resuelto y sin fallas (los casos anteriores no cambian).
     profileLoading: false,
     weekLoading: false,
@@ -1946,5 +1948,321 @@ describe('resolveTodayCard — clase presencial con asistencia: "Repetir sesión
     )
     expect(m.primary).toEqual(VER)
     expect(m.secondary).toEqual({ label: 'Cambiar clase', to: '/reservas' })
+  })
+})
+
+describe('resolveTodayCard — estiramiento post-clase (fase 213 D-09)', () => {
+  const ESTIRAR = { label: 'Estirar', to: { name: 'stretch-player' } }
+  const REPETIR = { label: 'Repetir sesión', to: { name: 'session-summary' } }
+  const VER = { label: 'Ver la sesión', to: '/training' }
+  const VER_RESUMEN = { label: 'Ver resumen', to: { name: 'session-summary' } }
+
+  const AVAILABLE = { status: 'available' } as const
+  const DONE = { status: 'done' } as const
+  const NONE = { status: 'none' } as const
+
+  const ATENDIDA = {
+    booking: BOOKING,
+    attendanceMarkedAt: '18:55',
+    presencialSummary: true,
+  } satisfies Partial<TodayCardInput>
+
+  // ── Casos puntuales ──────────────────────────────────────────────────────
+
+  it('presencial-turno con asistencia + available → "Estirar" primary; "Repetir sesión" baja a secondary', () => {
+    const base = resolveTodayCard(baseInput({ ...ATENDIDA, windowState: 'after' }))
+    const m = resolveTodayCard(baseInput({ ...ATENDIDA, windowState: 'after', stretch: AVAILABLE }))
+    expect(m.kind).toBe('presencial-turno')
+    expect(m.primary).toEqual(ESTIRAR)
+    expect(m.secondary).toEqual(REPETIR)
+    // El resto del modelo no cambia.
+    expect({ ...m, primary: null, secondary: null }).toEqual({
+      ...base,
+      primary: null,
+      secondary: null,
+    })
+  })
+
+  it('"Ver la sesión" (asistencia sin resumen presencial) también baja a secondary', () => {
+    const m = resolveTodayCard(
+      baseInput({
+        ...ATENDIDA,
+        presencialSummary: false,
+        windowState: 'after',
+        stretch: AVAILABLE,
+      }),
+    )
+    expect(m.primary).toEqual(ESTIRAR)
+    expect(m.secondary).toEqual(VER)
+  })
+
+  it('con Libre y "Tus programas" disponibles → el secondary sigue siendo el primary anterior', () => {
+    const m = resolveTodayCard(
+      baseInput({
+        ...ATENDIDA,
+        windowState: 'after',
+        libreEnabled: true,
+        hasExtraPrograms: true,
+        stretch: AVAILABLE,
+      }),
+    )
+    expect(m.primary).toEqual(ESTIRAR)
+    expect(m.secondary).toEqual(REPETIR)
+    expect(allCopy(m)).not.toContain('Probá el modo Libre')
+    expect(allCopy(m)).not.toContain('Tus programas')
+  })
+
+  it('completada con asistencia + available → "Estirar" primary; completada SIN asistencia → sin cambios', () => {
+    const over = { todayCompleted: true, todaySession: { durationMinutes: 40, rpe: 7 } }
+    const con = resolveTodayCard(
+      baseInput({ ...over, attendanceMarkedAt: '18:55', stretch: AVAILABLE }),
+    )
+    expect(con.kind).toBe('completada')
+    expect(con.primary).toEqual(ESTIRAR)
+    expect(con.secondary).toEqual(VER_RESUMEN)
+
+    const sin = resolveTodayCard(baseInput({ ...over, stretch: AVAILABLE }))
+    expect(sin).toEqual(resolveTodayCard(baseInput({ ...over })))
+    expect(sin.primary).toEqual(VER_RESUMEN)
+  })
+
+  it('nunca "Estirar" antes ni durante la clase aunque haya asistencia y oferta', () => {
+    for (const windowState of ['before', 'open'] as const) {
+      const m = resolveTodayCard(
+        baseInput({ ...ATENDIDA, windowState, minutesToStart: 10, stretch: AVAILABLE }),
+      )
+      expect(m, windowState).toEqual(
+        resolveTodayCard(baseInput({ ...ATENDIDA, windowState, minutesToStart: 10 })),
+      )
+      expect(allCopy(m), windowState).not.toContain('Estirar')
+    }
+  })
+
+  it('sin asistencia + available → idéntico a none (nunca "Estirar" sin asistencia)', () => {
+    const over = { booking: BOOKING, windowState: 'after' } as const
+    expect(resolveTodayCard(baseInput({ ...over, stretch: AVAILABLE }))).toEqual(
+      resolveTodayCard(baseInput({ ...over })),
+    )
+  })
+
+  it('done → la card queda idéntica a sin estiramiento: la pill de la clase no cambia (Franco, 2026-11-16)', () => {
+    const casos: Partial<TodayCardInput>[] = [
+      { ...ATENDIDA, windowState: 'after' },
+      { ...ATENDIDA, windowState: 'after', libreEnabled: false, hasExtraPrograms: true },
+      {
+        todayCompleted: true,
+        todaySession: { durationMinutes: 40, rpe: 7 },
+        attendanceMarkedAt: '18:55',
+      },
+    ]
+    for (const over of casos) {
+      const sin = resolveTodayCard(baseInput({ ...over }))
+      const hecho = resolveTodayCard(baseInput({ ...over, stretch: DONE }))
+      expect(hecho).toEqual(sin)
+      expect(allCopy(hecho)).not.toMatch(/estir/i)
+    }
+    // En completada siguen los minutos y el RPE de la sesión
+    const completada = resolveTodayCard(baseInput({ ...casos[2], stretch: DONE }))
+    expect(completada.kind).toBe('completada')
+    expect(completada.primary).toEqual(VER_RESUMEN)
+  })
+
+  it('done sin asistencia o en una ventana sin clase terminada → idéntico a none', () => {
+    const sinAsistencia = { booking: BOOKING, windowState: 'after' } as const
+    expect(resolveTodayCard(baseInput({ ...sinAsistencia, stretch: DONE }))).toEqual(
+      resolveTodayCard(baseInput({ ...sinAsistencia })),
+    )
+    expect(allCopy(resolveTodayCard(baseInput({ ...sinAsistencia, stretch: DONE })))).not.toContain(
+      'estiramiento',
+    )
+  })
+
+  it('none (incluye la falla del dato) → la card queda exactamente como antes de la fase', () => {
+    for (const windowState of [null, 'before', 'open', 'after'] as const) {
+      const sin = resolveTodayCard(baseInput({ ...ATENDIDA, windowState }))
+      const con = resolveTodayCard(baseInput({ ...ATENDIDA, windowState, stretch: NONE }))
+      expect(con, String(windowState)).toEqual(sin)
+      expect(allCopy(con)).not.toMatch(/estir/i)
+    }
+  })
+
+  it('es pura: no muta el input ni el modelo base', () => {
+    const input = baseInput({ ...ATENDIDA, windowState: 'after', stretch: AVAILABLE })
+    const copia = JSON.parse(JSON.stringify(input)) as TodayCardInput
+    resolveTodayCard(input)
+    expect(input).toEqual(copia)
+  })
+
+  // ── Matriz estado × stretch.status ───────────────────────────────────────
+
+  type Escenario = {
+    nombre: string
+    over: Partial<TodayCardInput>
+    /** Declarado a mano: ¿la card puede ofrecer "Estirar" / marcar hecho en este estado? */
+    elegible: boolean
+  }
+
+  const COMPLETADA = { todayCompleted: true, todaySession: { durationMinutes: 40, rpe: 7 } }
+  const SUB_PROGRAMADA = {
+    subscription: { status: 'scheduled', planName: 'Pase Libre', startDate: '2026-10-20' },
+  }
+
+  const ESCENARIOS: Escenario[] = [
+    // presencial-turno con asistencia (el estiramiento solo después de la clase)
+    ...(['after', null] as const).map((windowState) => ({
+      nombre: `turno asistido, ventana ${windowState}`,
+      over: { ...ATENDIDA, windowState },
+      elegible: true,
+    })),
+    ...(['before', 'open'] as const).map((windowState) => ({
+      nombre: `turno asistido, ventana ${windowState}`,
+      over: { ...ATENDIDA, windowState, minutesToStart: 10 },
+      elegible: false,
+    })),
+    // presencial-turno sin asistencia
+    ...([null, 'before', 'open', 'after'] as const).map((windowState) => ({
+      nombre: `turno sin asistencia, ventana ${windowState}`,
+      over: { booking: BOOKING, windowState, minutesToStart: 10 },
+      elegible: false,
+    })),
+    // completada
+    ...(['after', null] as const).map((windowState) => ({
+      nombre: `completada con asistencia, ventana ${windowState}`,
+      over: { ...COMPLETADA, attendanceMarkedAt: '18:55', windowState },
+      elegible: true,
+    })),
+    {
+      nombre: 'completada sin asistencia',
+      over: { ...COMPLETADA },
+      elegible: false,
+    },
+    // resto de los estados, con y sin asistencia registrada
+    ...([null, '18:55'] as const).flatMap((attendanceMarkedAt) => [
+      {
+        nombre: `proxima (asistencia ${attendanceMarkedAt})`,
+        over: { attendanceMarkedAt, nextBooking: NEXT_MONDAY },
+        elegible: false,
+      },
+      {
+        nombre: `sin-turno (asistencia ${attendanceMarkedAt})`,
+        over: { attendanceMarkedAt },
+        elegible: false,
+      },
+      {
+        nombre: `sin-turno lista de espera (asistencia ${attendanceMarkedAt})`,
+        over: { attendanceMarkedAt, waitlistTime: '19:00' },
+        elegible: false,
+      },
+      {
+        nombre: `online-programa (asistencia ${attendanceMarkedAt})`,
+        over: { attendanceMarkedAt, isVirtual: true, program: PROGRAM },
+        elegible: false,
+      },
+      {
+        nombre: `online-libre (asistencia ${attendanceMarkedAt})`,
+        over: { attendanceMarkedAt, isVirtual: true, todayRoute: null },
+        elegible: false,
+      },
+      {
+        nombre: `sin-plan-nunca (asistencia ${attendanceMarkedAt})`,
+        over: { attendanceMarkedAt, subscription: null, planStatus: planStatus() },
+        elegible: false,
+      },
+      {
+        nombre: `sin-plan-vencio (asistencia ${attendanceMarkedAt})`,
+        over: {
+          attendanceMarkedAt,
+          subscription: null,
+          planStatus: planStatus({ hadPlan: true }),
+        },
+        elegible: false,
+      },
+      {
+        nombre: `plan programado con clase (asistencia ${attendanceMarkedAt})`,
+        over: {
+          attendanceMarkedAt,
+          booking: BOOKING,
+          windowState: 'after' as const,
+          ...SUB_PROGRAMADA,
+        },
+        // Un plan solo programado no entrena hoy pero la card lo trata como activo (D4): como la
+        // asistencia existe y la clase terminó, es elegible.
+        elegible: attendanceMarkedAt !== null,
+      },
+      {
+        nombre: `neutral por falla del plan (asistencia ${attendanceMarkedAt})`,
+        over: { attendanceMarkedAt, subscription: null, planStatus: null, planFailed: true },
+        elegible: false,
+      },
+      {
+        nombre: `cargando por perfil (asistencia ${attendanceMarkedAt})`,
+        over: { attendanceMarkedAt, profileLoading: true },
+        elegible: false,
+      },
+      {
+        nombre: `cargando por plan (asistencia ${attendanceMarkedAt})`,
+        over: { attendanceMarkedAt, subscription: null, planLoading: true },
+        elegible: false,
+      },
+    ]),
+  ]
+
+  it('matriz estado × stretch.status × Libre × "Tus programas": solo los elegibles cambian y siempre respetan el alto fijo', () => {
+    let evaluated = 0
+    let elegibles = 0
+    for (const esc of ESCENARIOS) {
+      for (const libreEnabled of [true, false]) {
+        for (const hasExtraPrograms of [true, false]) {
+          const common = { ...esc.over, libreEnabled, hasExtraPrograms }
+          const base = resolveTodayCard(baseInput({ ...common, stretch: NONE }))
+          for (const stretch of [NONE, AVAILABLE, DONE]) {
+            const m = resolveTodayCard(baseInput({ ...common, stretch }))
+            evaluated += 1
+            const where = JSON.stringify({
+              escenario: esc.nombre,
+              libreEnabled,
+              hasExtraPrograms,
+              stretch,
+            })
+
+            // Invariantes de alto fijo en TODA la matriz.
+            expect(Object.keys(m).sort(), where).toEqual([
+              'kicker',
+              'kind',
+              'meta',
+              'pill',
+              'primary',
+              'progress',
+              'secondary',
+              'title',
+            ])
+            expect(m.pill === null || m.meta === null, where).toBe(true)
+            expect(m.secondary === null || typeof m.secondary === 'object', where).toBe(true)
+            expect(m.kind, where).toBe(base.kind)
+
+            const elegible = esc.elegible && base.kind !== 'cargando'
+            // `done` nunca cambia la card (Franco, 2026-11-16): igual que `none`
+            if (stretch.status !== 'available' || !elegible) {
+              expect(m, where).toEqual(base)
+              continue
+            }
+            elegibles += 1
+            expect(m.kicker, where).toBe(base.kicker)
+            expect(m.title, where).toBe(base.title)
+            expect(m.progress, where).toBe(base.progress)
+            expect(m.primary, where).toEqual(ESTIRAR)
+            expect(m.secondary, where).toEqual(base.primary)
+            expect(m.pill, where).toEqual(base.pill)
+            expect(m.meta, where).toEqual(base.meta)
+          }
+        }
+      }
+    }
+    // Contador: que nadie recorte la matriz sin darse cuenta.
+    expect(ESCENARIOS.length).toBe(33)
+    expect(evaluated).toBe(33 * 2 * 2 * 3)
+    // 5 escenarios elegibles (turno asistido after/null, completada asistida after/null y plan
+    // programado asistido) x Libre x "Tus programas", solo con `available`.
+    expect(elegibles).toBe(5 * 2 * 2)
   })
 })

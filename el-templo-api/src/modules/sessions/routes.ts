@@ -33,6 +33,7 @@ import {
 } from "./session-view";
 import { sessionToResponse } from "./session-response";
 import { freeBlocksRoutes } from "./free-blocks-routes";
+import { stretchRoutes } from "./stretch-routes";
 import { AuraService } from "../aura/service";
 import { StreakService } from "../streaks";
 import { ProgramsService } from "../programs/service";
@@ -68,6 +69,10 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
     sessionService,
     formatDescriptions,
   });
+
+  // Fase 213 D-13: oferta de estiramiento post-clase, mismo plugin y mismo
+  // guard `templo-training`. Sin prefix, igual que la canasta.
+  await fastify.register(stretchRoutes);
 
   // GET /sessions/daily - Get member's session for a date
   fastify.get<{ Querystring: GetDailySessionInput }>(
