@@ -256,6 +256,7 @@ describe("TvService.clampState — el nivel nunca rompe el bloque (Pitfall 1)", 
     timerStartedAt: null,
     pausedAt: null,
     pausedAccumMs: 0,
+    timerMinutes: null,
     soundEnabled: false,
     tvAvisoId: null,
   };

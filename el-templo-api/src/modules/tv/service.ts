@@ -48,6 +48,7 @@ import {
 import { getRouteLabel } from "./route-labels";
 import { buildRecorridoDeInicio } from "./recorrido";
 import { toTimerSpec } from "./timer-spec";
+import { TV_TIMER_MINUTES_MAX, TV_TIMER_MINUTES_MIN } from "./schemas";
 import type { FormatParams } from "../admin/format-params";
 import type {
   TvAvisoPollPayload,
@@ -389,6 +390,7 @@ export class TvService {
         timerStartedAt: schema.tvClassState.timerStartedAt,
         pausedAt: schema.tvClassState.pausedAt,
         pausedAccumMs: schema.tvClassState.pausedAccumMs,
+        timerMinutes: schema.tvClassState.timerMinutes,
         soundEnabled: schema.tvClassState.soundEnabled,
         tvAvisoId: schema.tvClassState.tvAvisoId,
       })
@@ -415,6 +417,7 @@ export class TvService {
       timerStartedAt: row.timerStartedAt ? row.timerStartedAt.getTime() : null,
       pausedAt: row.pausedAt ? row.pausedAt.getTime() : null,
       pausedAccumMs: row.pausedAccumMs,
+      timerMinutes: this.parseTimerMinutes(row.timerMinutes),
       soundEnabled: row.soundEnabled,
       tvAvisoId: row.tvAvisoId,
     };
@@ -761,6 +764,7 @@ export class TvService {
           level,
           exerciseIndex: 0,
           ...IDLE_TIMER,
+          timerMinutes: null,
           soundEnabled: false,
           tvAvisoId: null,
         };
@@ -852,6 +856,7 @@ export class TvService {
           soundEnabled: false,
           tvAvisoId: aviso.id,
           ...IDLE_TIMER,
+          timerMinutes: null,
         };
         await this.persistState(branch.id, classDate, pinned, userId);
         return this.toControlContext(branch, classDay, pinned);
@@ -873,6 +878,7 @@ export class TvService {
         soundEnabled: false,
         tvAvisoId: null,
         ...IDLE_TIMER,
+        timerMinutes: null,
       },
       classDay,
     );
@@ -884,6 +890,9 @@ export class TvService {
       // El clamp final lo acota a la lista del (rol, nivel) que quedo vigente.
       state = { ...state, exerciseIndex: write.exerciseIndex };
     }
+    // Antes que el comando: `{ timerMinutes: 12, timer: "start" }` tiene que
+    // arrancar el temporizador de 12', no el crono del bloque.
+    state = this.applyTimerMinutes(state, write.timerMinutes);
     if (write.timer) {
       state = this.applyTimerCommand(state, write.timer, now);
     }
@@ -992,7 +1001,15 @@ export class TvService {
     if (visualGroupOf(blockRole) === visualGroupOf(state.blockRole)) {
       return { ...state, blockRole, exerciseIndex: 0 };
     }
-    return { ...state, blockRole, exerciseIndex: 0, ...IDLE_TIMER };
+    // El temporizador a eleccion es del bloque en el que se eligio: el bloque
+    // nuevo arranca con SU crono (el del formato), no hereda los minutos.
+    return {
+      ...state,
+      blockRole,
+      exerciseIndex: 0,
+      ...IDLE_TIMER,
+      timerMinutes: null,
+    };
   }
 
   /**
@@ -1019,6 +1036,29 @@ export class TvService {
       return state;
     }
     return { ...state, level };
+  }
+
+  /**
+   * Temporizador a eleccion del profe: `null` = crono del bloque (el timer sale
+   * del formato), un numero = cuenta regresiva de esos minutos.
+   *
+   * Absoluto e idempotente como el resto de la escritura: repetir el valor
+   * vigente es no-op (un reintento con red mala no reinicia un timer en curso).
+   * Un cambio REAL reinicia el timer: el transcurrido se calcula contra el
+   * spec, y cambiarle la forma a un timer corriendo lo dejaria en un punto
+   * arbitrario (o directamente terminado) en la pared.
+   *
+   * `reset` NO lo toca (resetear un temporizador de 12' lo deja en 12:00, no
+   * lo devuelve al crono del bloque); el cambio de bloque si (`applyBlockRole`).
+   */
+  private applyTimerMinutes(
+    state: TvControlState,
+    timerMinutes: number | null | undefined,
+  ): TvControlState {
+    if (timerMinutes === undefined || timerMinutes === state.timerMinutes) {
+      return state;
+    }
+    return { ...state, ...IDLE_TIMER, timerMinutes };
   }
 
   /**
@@ -1095,6 +1135,7 @@ export class TvService {
         : null,
       pausedAt: state.pausedAt ? new Date(state.pausedAt) : null,
       pausedAccumMs: state.pausedAccumMs,
+      timerMinutes: state.timerMinutes,
       soundEnabled: state.soundEnabled,
       tvAvisoId: state.tvAvisoId,
       updatedBy: userId,
@@ -1183,6 +1224,21 @@ export class TvService {
 
   private parseTimerStatus(value: string): TvTimerStatus {
     return value === "running" || value === "paused" ? value : "idle";
+  }
+
+  /**
+   * Los minutos del temporizador tal como salen de la DB. Un valor fuera de
+   * rango (fila tocada a mano) se lee como "crono del bloque" en vez de
+   * proyectar una cuenta regresiva absurda: el contrato de escritura ya lo
+   * acota, esto es solo la red del lado de la lectura.
+   */
+  private parseTimerMinutes(value: number | null): number | null {
+    if (value === null) return null;
+    return Number.isInteger(value) &&
+      value >= TV_TIMER_MINUTES_MIN &&
+      value <= TV_TIMER_MINUTES_MAX
+      ? value
+      : null;
   }
 
   /**
@@ -1522,10 +1578,16 @@ export class TvService {
         // ignora (sus rondas ya son el total de intervalos). El alt reusa
         // este mismo camino: su spec sale de SU propio bloque (`block`), como
         // cualquier rol — ya no hay un "timerBlock" separado del persistido.
-        spec: toTimerSpec(
-          block?.formatParams ?? null,
-          this.mainPrescriptions(block).length,
-        ),
+        // Temporizador a eleccion del profe: pisa al formato del bloque con
+        // una cuenta regresiva simple. `countdown` ya es una de las cuatro
+        // formas que la TV sabe pintar — el kiosco no cambia.
+        spec:
+          state.timerMinutes !== null
+            ? { kind: "countdown", totalMs: state.timerMinutes * 60_000 }
+            : toTimerSpec(
+                block?.formatParams ?? null,
+                this.mainPrescriptions(block).length,
+              ),
         status: state.timerStatus,
         startedAt: state.timerStartedAt,
         pausedAt: state.pausedAt,

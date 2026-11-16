@@ -193,6 +193,83 @@
         <!-- D-18: exactamente iniciar / pausar-reanudar / reset. Nada de      -->
         <!-- mover rondas a mano en v1.                                        -->
         <div class="tv-section-title">TIMER</div>
+        <!-- Modo del timer (pedido profes 2026-11): CRONO DEL BLOQUE = el de    -->
+        <!-- siempre, sale del formato del bloque. TEMPORIZADOR = cuenta         -->
+        <!-- regresiva de los minutos que elige el profe. Solo se cambia con el  -->
+        <!-- timer en cero: cambiarlo reinicia el timer en la pantalla.          -->
+        <div class="row q-col-gutter-sm q-mb-sm">
+          <div class="col-6">
+            <q-btn
+              class="tv-btn full-width"
+              icon="timer"
+              label="CRONO DEL BLOQUE"
+              color="primary"
+              :outline="isTemporizador"
+              :unelevated="!isTemporizador"
+              :disable="!canChangeTimerMode"
+              @click="onSelectBlockTimer"
+            />
+          </div>
+          <div class="col-6">
+            <q-btn
+              class="tv-btn full-width"
+              icon="hourglass_bottom"
+              label="TEMPORIZADOR"
+              color="primary"
+              :outline="!isTemporizador"
+              :unelevated="isTemporizador"
+              :disable="!canChangeTimerMode"
+              @click="onSelectTemporizador"
+            />
+          </div>
+        </div>
+        <div v-if="isTemporizador" class="q-mb-sm">
+          <div class="row items-center q-col-gutter-sm">
+            <div class="col-3">
+              <q-btn
+                class="tv-btn full-width"
+                icon="remove"
+                color="grey-7"
+                outline
+                aria-label="Un minuto menos"
+                :disable="!canChangeTimerMode || timerMinutes <= TIMER_MINUTES_MIN"
+                @click="onSetTimerMinutes(timerMinutes - 1)"
+              />
+            </div>
+            <div class="col-6 text-center">
+              <div class="tv-timer-minutes">{{ timerMinutes }}</div>
+              <div class="text-caption text-grey-7">MINUTOS</div>
+            </div>
+            <div class="col-3">
+              <q-btn
+                class="tv-btn full-width"
+                icon="add"
+                color="grey-7"
+                outline
+                aria-label="Un minuto más"
+                :disable="!canChangeTimerMode || timerMinutes >= TIMER_MINUTES_MAX"
+                @click="onSetTimerMinutes(timerMinutes + 1)"
+              />
+            </div>
+          </div>
+          <div class="row q-col-gutter-xs q-mt-xs">
+            <div v-for="preset in TIMER_MINUTES_PRESETS" :key="preset" class="col">
+              <q-btn
+                class="full-width"
+                :label="String(preset)"
+                color="primary"
+                :outline="timerMinutes !== preset"
+                :unelevated="timerMinutes === preset"
+                :aria-label="`${preset} minutos`"
+                :disable="!canChangeTimerMode"
+                @click="onSetTimerMinutes(preset)"
+              />
+            </div>
+          </div>
+        </div>
+        <div v-if="hasState && timerStatus !== 'idle'" class="text-caption text-grey-7 q-mb-sm">
+          Para cambiar el modo o los minutos, primero tocá RESET.
+        </div>
         <div class="row q-col-gutter-sm">
           <div class="col-6">
             <q-btn
@@ -729,6 +806,30 @@ const levelsDisabled = computed(() => currentBlock.value?.shared === true);
 const currentLevel = computed(() => context.value?.state?.level ?? '');
 
 const timerStatus = computed(() => context.value?.state?.timerStatus ?? 'idle');
+
+// -- Temporizador a elección del profe (2026-11) ------------------------------
+// Rango espejo del contrato del API (`TV_TIMER_MINUTES_MIN/MAX`, schemas.ts).
+const TIMER_MINUTES_MIN = 1;
+const TIMER_MINUTES_MAX = 120;
+const TIMER_MINUTES_DEFAULT = 10;
+/** Atajos de un toque; el ajuste fino va con − / +. */
+const TIMER_MINUTES_PRESETS = [5, 8, 10, 12, 15, 20];
+
+/** Minutos del temporizador vigente; `null` = crono del bloque. */
+const timerMinutesState = computed(() => context.value?.state?.timerMinutes ?? null);
+const isTemporizador = computed(() => timerMinutesState.value !== null);
+/** Lo último que eligió el profe en esta sesión del control: al volver a
+ *  TEMPORIZADOR en otro bloque arranca de ahí y no del default. */
+const lastTimerMinutes = ref(TIMER_MINUTES_DEFAULT);
+const timerMinutes = computed(() => timerMinutesState.value ?? lastTimerMinutes.value);
+/**
+ * El modo y los minutos solo se tocan con el timer en cero: el API reinicia el
+ * timer ante un cambio real, y un mis-tap sobre los minutos no puede mandar a
+ * cero un temporizador que ya está corriendo en la pared.
+ */
+const canChangeTimerMode = computed(
+  () => canControl.value && hasState.value && timerStatus.value === 'idle'
+);
 const soundEnabled = computed(() => context.value?.state?.soundEnabled === true);
 const isClosingScreen = computed(() => context.value?.state?.screen === 'closing');
 /** Fase 193 (D-25): el TV está mostrando la placa del aviso disparado. */
@@ -1018,6 +1119,24 @@ function onTimer(command: NonNullable<TvStateWrite['timer']>): void {
   void send({ timer: command });
 }
 
+function onSelectBlockTimer(): void {
+  if (!isTemporizador.value) return;
+  void send({ timerMinutes: null });
+}
+
+function onSelectTemporizador(): void {
+  if (isTemporizador.value) return;
+  void send({ timerMinutes: lastTimerMinutes.value });
+}
+
+/** Valor ABSOLUTO (nunca "+1" al server): repetirlo por un doble tap no suma dos. */
+function onSetTimerMinutes(minutes: number): void {
+  const next = Math.min(TIMER_MINUTES_MAX, Math.max(TIMER_MINUTES_MIN, Math.round(minutes)));
+  if (next === timerMinutesState.value) return;
+  lastTimerMinutes.value = next;
+  void send({ timerMinutes: next });
+}
+
 function onToggleSound(): void {
   void send({ soundEnabled: !soundEnabled.value });
 }
@@ -1099,6 +1218,13 @@ onUnmounted(() => {
   min-height: 64px;
   font-weight: 600;
   letter-spacing: 0.04em;
+}
+
+.tv-timer-minutes {
+  font-size: 2.6rem;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 
 .tv-section-title {

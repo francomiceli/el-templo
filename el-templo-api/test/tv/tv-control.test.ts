@@ -103,6 +103,7 @@ interface ControlState {
   timerStartedAt: number | null;
   pausedAt: number | null;
   pausedAccumMs: number;
+  timerMinutes: number | null;
   soundEnabled: boolean;
 }
 
@@ -130,6 +131,7 @@ interface TvPollBody {
     visualBlockCount: number;
     exerciseIndex: number;
     timer: {
+      spec: { kind: string; totalMs?: number };
       status: string;
       startedAt: number | null;
       pausedAt: number | null;
@@ -930,6 +932,214 @@ describe("POST /control/state — el timer (D-16/17/18)", () => {
     expect(state.timerStatus).toBe("idle");
     expect(state.timerStartedAt).toBeNull();
     expect(state.pausedAccumMs).toBe(0);
+  });
+});
+
+describe("POST /control/state — temporizador a eleccion del profe (timerMinutes)", () => {
+  // Todos los bloques sembrados son AMRAP de 10' (ver `seedSession`): el crono
+  // del bloque es una cuenta regresiva de 600.000 ms. Un temporizador de 12'
+  // tiene que pisarlo con 720.000 ms y nada mas.
+  const BLOCK_TOTAL_MS = 10 * 60_000;
+
+  async function screenSpec() {
+    const body = JSON.parse(
+      (await getScreen(coachAToken, branchAId)).body,
+    ) as TvPollBody;
+    return body.class!.timer.spec;
+  }
+
+  beforeEach(async () => {
+    await seedTuesday();
+  });
+
+  it("por defecto no hay temporizador: el timer sale del formato del bloque", async () => {
+    const state = await write({ blockRole: "NUCLEUS" });
+
+    expect(state.timerMinutes).toBeNull();
+    expect(await screenSpec()).toEqual({
+      kind: "countdown",
+      totalMs: BLOCK_TOTAL_MS,
+    });
+  });
+
+  it("elegir minutos pisa el formato del bloque con una cuenta regresiva", async () => {
+    await write({ blockRole: "NUCLEUS" });
+
+    const state = await write({ timerMinutes: 12 });
+
+    expect(state.timerMinutes).toBe(12);
+    expect(state.timerStatus).toBe("idle");
+    expect(await screenSpec()).toEqual({
+      kind: "countdown",
+      totalMs: 12 * 60_000,
+    });
+    // Persistido en la fila de la sede: lo espejan todos los televisores.
+    expect((await readRow(branchAId)).timerMinutes).toBe(12);
+    // Y el control lo relee tal cual (es ciego: no lo puede inferir).
+    const context = JSON.parse(
+      (await getContext(coachAToken, branchAId)).body,
+    ) as ControlContext;
+    expect(context.state!.timerMinutes).toBe(12);
+  });
+
+  it("minutos + 'start' en la MISMA escritura arrancan el temporizador elegido", async () => {
+    await write({ blockRole: "NUCLEUS" });
+
+    const state = await write({ timerMinutes: 7, timer: "start" });
+
+    // El orden es parte del contrato: primero los minutos (que resetean),
+    // despues el comando. Al reves, el start quedaria pisado por el reset.
+    expect(state.timerMinutes).toBe(7);
+    expect(state.timerStatus).toBe("running");
+    expect(state.timerStartedAt).not.toBeNull();
+    expect(await screenSpec()).toEqual({
+      kind: "countdown",
+      totalMs: 7 * 60_000,
+    });
+  });
+
+  it("repetir los mismos minutos con el timer corriendo NO lo reinicia", async () => {
+    await write({ blockRole: "NUCLEUS", timerMinutes: 12 });
+    const arrancado = await write({ timer: "start" });
+    await sleep(40);
+
+    const state = await write({ timerMinutes: 12 });
+
+    // Mismo criterio que el doble 'start': un reintento con red mala no puede
+    // mandar a cero un temporizador que ya esta proyectado en la pared.
+    expect(state.timerStatus).toBe("running");
+    expect(state.timerStartedAt).toBe(arrancado.timerStartedAt);
+  });
+
+  it("cambiar los minutos con el timer corriendo lo reinicia", async () => {
+    await write({ blockRole: "NUCLEUS", timerMinutes: 12 });
+    await write({ timer: "start" });
+    await sleep(40);
+
+    const state = await write({ timerMinutes: 15 });
+
+    // El transcurrido se calcula contra el spec: cambiarle la forma a un timer
+    // en curso lo dejaria en un punto arbitrario.
+    expect(state.timerMinutes).toBe(15);
+    expect(state.timerStatus).toBe("idle");
+    expect(state.timerStartedAt).toBeNull();
+    expect(state.pausedAccumMs).toBe(0);
+  });
+
+  it("'reset' vuelve el temporizador a cero pero CONSERVA los minutos", async () => {
+    await write({ blockRole: "NUCLEUS", timerMinutes: 12 });
+    await write({ timer: "start" });
+
+    const state = await write({ timer: "reset" });
+
+    expect(state.timerStatus).toBe("idle");
+    expect(state.timerMinutes).toBe(12);
+    expect(await screenSpec()).toEqual({
+      kind: "countdown",
+      totalMs: 12 * 60_000,
+    });
+  });
+
+  it("null vuelve al crono del bloque (y reinicia el timer)", async () => {
+    await write({ blockRole: "NUCLEUS", timerMinutes: 12 });
+    await write({ timer: "start" });
+
+    const state = await write({ timerMinutes: null });
+
+    expect(state.timerMinutes).toBeNull();
+    expect(state.timerStatus).toBe("idle");
+    expect((await readRow(branchAId)).timerMinutes).toBeNull();
+    expect(await screenSpec()).toEqual({
+      kind: "countdown",
+      totalMs: BLOCK_TOTAL_MS,
+    });
+  });
+
+  it("cambiar de BLOQUE vuelve al crono del bloque nuevo", async () => {
+    await write({ blockRole: "NUCLEUS", timerMinutes: 12 });
+
+    const state = await write({ blockRole: "EPIKOS" });
+
+    // Los minutos son del bloque donde se eligieron: no se heredan.
+    expect(state.blockRole).toBe("EPIKOS");
+    expect(state.timerMinutes).toBeNull();
+    expect(await screenSpec()).toEqual({
+      kind: "countdown",
+      totalMs: BLOCK_TOTAL_MS,
+    });
+  });
+
+  it("bloque nuevo + minutos en la misma escritura: quedan los minutos", async () => {
+    await write({ blockRole: "NUCLEUS", timerMinutes: 12 });
+
+    const state = await write({ blockRole: "EPIKOS", timerMinutes: 8 });
+
+    expect(state.blockRole).toBe("EPIKOS");
+    expect(state.timerMinutes).toBe(8);
+  });
+
+  it("C2: pasar de DEUTEROS_1 a DEUTEROS_2 conserva el temporizador en curso", async () => {
+    await write({ blockRole: "DEUTEROS_1", timerMinutes: 12 });
+    const arrancado = await write({ timer: "start" });
+    await sleep(40);
+
+    const state = await write({ blockRole: "DEUTEROS_2" });
+
+    // Mismo bloque visual, dos caminos: ni el cronometro ni los minutos cambian.
+    expect(state.blockRole).toBe("DEUTEROS_2");
+    expect(state.timerMinutes).toBe(12);
+    expect(state.timerStatus).toBe("running");
+    expect(state.timerStartedAt).toBe(arrancado.timerStartedAt);
+  });
+
+  it("cambiar de NIVEL conserva el temporizador en curso", async () => {
+    await write({ blockRole: "NUCLEUS", timerMinutes: 12 });
+    const arrancado = await write({ timer: "start" });
+
+    const state = await write({ level: "sigma" });
+
+    expect(state.timerMinutes).toBe(12);
+    expect(state.timerStartedAt).toBe(arrancado.timerStartedAt);
+  });
+
+  it("los minutos fuera de rango o no enteros se rechazan con 400", async () => {
+    await write({ blockRole: "NUCLEUS" });
+
+    for (const timerMinutes of [0, -5, 121, 12.5]) {
+      const res = await postState(coachAToken, {
+        branchId: branchAId,
+        timerMinutes,
+      });
+      expect(res.statusCode, `timerMinutes=${timerMinutes}`).toBe(400);
+    }
+    // Ningun rechazo dejo rastro en el estado.
+    expect((await readRow(branchAId)).timerMinutes).toBeNull();
+  });
+
+  it("los bordes del rango (1 y 120) se aceptan", async () => {
+    await write({ blockRole: "NUCLEUS" });
+
+    expect((await write({ timerMinutes: 1 })).timerMinutes).toBe(1);
+    expect((await write({ timerMinutes: 120 })).timerMinutes).toBe(120);
+  });
+
+  it("una fila con minutos fuera de rango se lee como crono del bloque", async () => {
+    await write({ blockRole: "NUCLEUS", timerMinutes: 12 });
+    // Fila tocada a mano (o por un contrato viejo): el schema de escritura no
+    // la habria dejado pasar, asi que la red esta del lado de la lectura.
+    await app.db
+      .update(schema.tvClassState)
+      .set({ timerMinutes: 99_999 })
+      .where(eq(schema.tvClassState.branchId, branchAId));
+
+    const context = JSON.parse(
+      (await getContext(coachAToken, branchAId)).body,
+    ) as ControlContext;
+    expect(context.state!.timerMinutes).toBeNull();
+    expect(await screenSpec()).toEqual({
+      kind: "countdown",
+      totalMs: BLOCK_TOTAL_MS,
+    });
   });
 });
 
