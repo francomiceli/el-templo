@@ -32,14 +32,31 @@
       @done="onDone"
     />
 
-    <!-- En curso: video, minutero chico, lista, Anterior / Siguiente y Terminar (sin lados, sin
-         cuenta regresiva y sin tildes: el alumno pasa de ejercicio a mano) -->
+    <!-- En curso: historia con video (se pasa tocando, como el player del día), minutero chico,
+         lista y Terminar (sin lados, sin cuenta regresiva y sin tildes) -->
     <div v-else-if="stage === 'playing' || stage === 'saving'" class="stretch-player__run">
       <div class="stretch-player__story">
         <VideoPlaceholder
           :key="player.current.value?.exerciseId ?? 'none'"
           :video-url="player.current.value?.videoUrl ?? null"
           class="stretch-player__video"
+        />
+        <SegmentedProgressBar
+          :total-segments="player.exercises.value.length"
+          :active-index="player.index.value"
+          class="stretch-player__progress"
+        />
+        <!-- Zonas de toque invisibles, como las historias del player del día: 30% izquierdo vuelve,
+             70% derecho avanza -->
+        <div
+          class="stretch-player__tap stretch-player__tap--prev"
+          aria-hidden="true"
+          @click="player.prev()"
+        />
+        <div
+          class="stretch-player__tap stretch-player__tap--next"
+          aria-hidden="true"
+          @click="player.next()"
         />
         <div class="stretch-player__story-top">
           <q-btn
@@ -85,28 +102,9 @@
           :aria-current="i === player.index.value ? 'true' : undefined"
           @click="player.goTo(i)"
         >
-          <span class="stretch-player__ex-num">{{ i + 1 }}</span>
+          <!-- Insignia de esfuerzo en lugar del número; la dosis ya está grande sobre el video -->
+          <ContractionBadge :badge="stretchBadge(e)" />
           <span class="stretch-player__ex-name">{{ e.name }}</span>
-          <span class="stretch-player__ex-dose">{{ stretchDoseLabel(e.dose) }}</span>
-        </button>
-      </div>
-
-      <div class="stretch-player__nav">
-        <button
-          type="button"
-          class="stretch-player__nav-btn"
-          :disabled="player.isFirst.value"
-          @click="player.prev()"
-        >
-          &#8249; Anterior
-        </button>
-        <button
-          type="button"
-          class="stretch-player__nav-btn"
-          :disabled="player.isLast.value"
-          @click="player.next()"
-        >
-          Siguiente &#8250;
         </button>
       </div>
 
@@ -145,6 +143,8 @@ import TemploLoader from 'src/components/TemploLoader.vue'
 import StretchDone from '../components/player/StretchDone.vue'
 import VideoPlaceholder from '../components/player/VideoPlaceholder.vue'
 import StoryFooter from '../components/player/StoryFooter.vue'
+import SegmentedProgressBar from '../components/player/SegmentedProgressBar.vue'
+import ContractionBadge from '../components/ContractionBadge.vue'
 
 // Composables, stores and helpers
 import { useStretchPlayer } from '../composables/useStretchPlayer'
@@ -158,7 +158,7 @@ import {
   isStretchExpiredMessage,
   stretchAuraReady,
   stretchDoneMinutesLabel,
-  stretchDoseLabel,
+  stretchBadge,
   stretchFooter,
 } from '../utils/stretchSession'
 import type { StretchCompleteResponse, StretchEventFrom } from '../types/stretch'
@@ -394,15 +394,49 @@ onUnmounted(() => {
   inset: 0;
 }
 
+.stretch-player__progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+}
+
+.stretch-player__tap {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 5;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+
+  &--prev {
+    left: 0;
+    width: 30%;
+  }
+
+  &--next {
+    right: 0;
+    width: 70%;
+  }
+}
+
+// Arriba de las zonas de toque, debajo de la barra. Solo el botón de volver captura toques: el
+// resto del encabezado deja pasar el toque a la historia
 .stretch-player__story-top {
   position: absolute;
-  top: 10px;
+  top: 20px;
   left: 6px;
   right: 12px;
-  z-index: 2;
+  z-index: 6;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  pointer-events: none;
+
+  .q-btn {
+    pointer-events: auto;
+  }
 }
 
 .stretch-player__titles {
@@ -518,62 +552,9 @@ onUnmounted(() => {
   font-weight: 700;
 }
 
-.stretch-player__ex-num {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: 1.5px solid $pd-light-edge;
-  font-size: 11px;
-  font-weight: 700;
-  color: $pd-ink-2;
-}
-
-.stretch-player__ex--on .stretch-player__ex-num {
-  background: $pd-ink;
-  border-color: $pd-ink;
-  color: #fff;
-}
-
 .stretch-player__ex-name {
-  min-width: 0;
-}
-
-.stretch-player__ex-dose {
-  margin-left: auto;
-  white-space: nowrap;
-  font-size: 11.5px;
-  color: $pd-ink-2;
-}
-
-.stretch-player__nav {
-  flex: none;
-  display: flex;
-  gap: 8px;
-  padding: 6px 16px 0;
-}
-
-.stretch-player__nav-btn {
   flex: 1;
-  padding: 10px;
-  border-radius: 10px;
-  border: 1px solid $pd-light-edge;
-  background: #fff;
-  font-family: 'Montserrat', sans-serif;
-  font-size: 13px;
-  font-weight: 700;
-  color: $pd-ink;
-  cursor: pointer;
-
-  &:disabled {
-    color: $pd-ink-2;
-    background: rgba(255, 255, 255, 0.4);
-    border-color: $pd-light-line;
-    opacity: 0.6;
-    cursor: default;
-  }
+  min-width: 0;
 }
 
 .stretch-player__cta {
