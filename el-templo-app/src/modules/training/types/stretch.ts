@@ -23,6 +23,8 @@ export interface StretchExercise {
   name: string
   family: StretchFamily
   dose: StretchDose
+  /** Contracción (CON / EXC / ISO) para la insignia del pie del video; null sin dato */
+  effort: string | null
   /** URL completa del video, o null si no hay */
   videoUrl: string | null
 }

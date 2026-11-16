@@ -49,6 +49,7 @@ function today(overrides: Partial<StretchTodayResponse> = {}): StretchTodayRespo
         name: 'Isquios',
         family: 'LS',
         dose: { unit: 'seconds', value: 30, max: null },
+        effort: null,
         videoUrl: null,
       },
     ],

@@ -136,6 +136,8 @@ export interface StretchTodayExercise {
   name: string;
   family: StretchFamily;
   dose: StretchOfferDose;
+  /** Contracción del ejercicio (`exercises.effort`: CON / EXC / ISO) para su insignia; null sin dato. */
+  effort: string | null;
   videoUrl: string | null;
 }
 
@@ -906,6 +908,7 @@ export class StretchService {
             .select({
               exerciseId: schema.exercises.id,
               videoUrl: schema.exercises.videoUrl,
+              effort: schema.exercises.effort,
             })
             .from(schema.exercises)
             .where(
@@ -917,6 +920,11 @@ export class StretchService {
         : [];
     const resolveVideo = await buildVideoResolver(this.db, videoRows);
     const ownVideo = new Map(videoRows.map((r) => [r.exerciseId, r.videoUrl]));
+    // La insignia del player sale de la fila del ejercicio (la que muestra el video). Se lee al
+    // armar la vista, no se congela en la oferta: así también la tienen las ofertas ya creadas.
+    const effortById = new Map(
+      videoRows.map((r) => [r.exerciseId, r.effort.trim().toUpperCase() || null]),
+    );
 
     return {
       status: offer.completedAt ? "done" : "available",
@@ -927,6 +935,7 @@ export class StretchService {
         name: e.name,
         family: e.family,
         dose: e.dose,
+        effort: effortById.get(e.exerciseId) ?? null,
         // La base guarda la key de R2: se arma la URL completa al leer.
         videoUrl: assembleVideoUrl(
           resolveVideo(e.exerciseId, ownVideo.get(e.exerciseId) ?? null),

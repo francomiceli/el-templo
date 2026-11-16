@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import type { StretchDose } from '../../types/stretch'
+import type { StretchDose, StretchExercise } from '../../types/stretch'
 import {
   isStretchExpiredMessage,
   STRETCH_AURA_MARGIN_SECONDS,
@@ -9,7 +9,9 @@ import {
   stretchClosingPhrase,
   stretchDoneMinutesLabel,
   stretchDoseLabel,
+  stretchFooter,
   stretchMinutesLabel,
+  stretchPlateValue,
 } from '../stretchSession'
 
 /**
@@ -135,5 +137,66 @@ describe('isStretchExpiredMessage', () => {
     expect(isStretchExpiredMessage('No pudimos guardar el estiramiento')).toBe(false)
     expect(isStretchExpiredMessage('Network Error')).toBe(false)
     expect(isStretchExpiredMessage(null)).toBe(false)
+  })
+})
+
+describe('stretchPlateValue (cantidad grande del pie)', () => {
+  it('repeticiones sin unidad y segundos con doble prima', () => {
+    expect(stretchPlateValue(dose('reps', 10))).toBe('10')
+    expect(stretchPlateValue(dose('seconds', 20))).toBe('20″')
+  })
+
+  it('con rango une con guion', () => {
+    expect(stretchPlateValue(dose('reps', 8, 12))).toBe('8-12')
+    expect(stretchPlateValue(dose('seconds', 30, 50))).toBe('30-50″')
+  })
+
+  it('un max igual o menor que el valor no es rango', () => {
+    expect(stretchPlateValue(dose('seconds', 30, 30))).toBe('30″')
+    expect(stretchPlateValue(dose('reps', 10, 8))).toBe('10')
+  })
+})
+
+describe('stretchFooter (pie del video, como el player del día)', () => {
+  function ex(over: Partial<StretchExercise> = {}): StretchExercise {
+    return {
+      exerciseId: 1,
+      name: 'COUCH STRETCH',
+      family: 'LS',
+      dose: dose('reps', 10),
+      effort: 'ISO',
+      videoUrl: null,
+      ...over,
+    }
+  }
+
+  it('insignia de la contracción, nombre y cantidad grande, sin "Ejercicio x de y"', () => {
+    expect(stretchFooter(ex())).toEqual({
+      kind: 'exercise',
+      badge: { label: 'ISO', kind: 'iso' },
+      label: null,
+      name: 'COUCH STRETCH',
+      value: '10',
+      valueSize: 'xl',
+    })
+  })
+
+  it('CON y EXC con su color', () => {
+    expect(stretchFooter(ex({ effort: 'CON' }))?.badge).toEqual({ label: 'CON', kind: 'con' })
+    expect(stretchFooter(ex({ effort: 'exc' }))?.badge).toEqual({ label: 'EXC', kind: 'exc' })
+  })
+
+  it('sin contracción cargada va MOV, como el descanso activo', () => {
+    expect(stretchFooter(ex({ effort: null }))?.badge).toEqual({ label: 'MOV', kind: 'mov' })
+    expect(stretchFooter(ex({ effort: '  ' }))?.badge).toEqual({ label: 'MOV', kind: 'mov' })
+  })
+
+  it('valores largos achican la cantidad', () => {
+    expect(stretchFooter(ex({ dose: dose('seconds', 30, 50) }))?.valueSize).toBe('md')
+  })
+
+  it('sin ejercicio o sin nombre no hay pie', () => {
+    expect(stretchFooter(null)).toBeNull()
+    expect(stretchFooter(ex({ name: '   ' }))).toBeNull()
   })
 })
