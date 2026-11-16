@@ -338,9 +338,9 @@ export const TEMPLATE_SEEDS: TemplateSeed[] = [
     // `push_decision = 'plantilla_apagada'` y la card sigue ofreciendo (D-11).
     templateKey: STRETCH_FOLLOWUP_TEMPLATE_KEY,
     category: "entrenamiento",
-    title: "¿Estiraste?",
+    title: "¿Estás para un stretch?",
     body: "Unos minutos para aflojar lo que trabajaste hoy. Tocá y arrancamos.",
-    titleFemale: "¿Estiraste?",
+    titleFemale: "¿Estás para un stretch?",
     bodyFemale:
       "Unos minutos para aflojar lo que trabajaste hoy. Tocá y arrancamos.",
     route: "/training/estirar?from=push",
