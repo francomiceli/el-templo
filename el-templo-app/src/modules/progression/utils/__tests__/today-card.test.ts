@@ -1956,9 +1956,6 @@ describe('resolveTodayCard — estiramiento post-clase (fase 213 D-09)', () => {
   const REPETIR = { label: 'Repetir sesión', to: { name: 'session-summary' } }
   const VER = { label: 'Ver la sesión', to: '/training' }
   const VER_RESUMEN = { label: 'Ver resumen', to: { name: 'session-summary' } }
-  const LIBRE = { label: 'Probá el modo Libre', to: '/training?tab=libre' }
-  const TUS_PROGRAMAS = { label: 'Tus programas', action: 'open-program' }
-  const HECHOS: TodayCardModel['meta'] = [{ text: 'Clase y estiramiento hechos' }]
 
   const AVAILABLE = { status: 'available' } as const
   const DONE = { status: 'done' } as const
@@ -2048,43 +2045,26 @@ describe('resolveTodayCard — estiramiento post-clase (fase 213 D-09)', () => {
     )
   })
 
-  it('done con pill → la pill dice "Clase y estiramiento hechos" (check_circle, ok) y meta null', () => {
-    const m = resolveTodayCard(baseInput({ ...ATENDIDA, windowState: 'after', stretch: DONE }))
-    expect(m.kind).toBe('presencial-turno')
-    expect(m.pill).toEqual({ icon: 'check_circle', tone: 'ok', text: HECHOS })
-    expect(m.meta).toBeNull()
-    // Vuelve el primary anterior y el secondary que ya tenía (Libre).
-    expect(m.primary).toEqual(REPETIR)
-    expect(m.secondary).toEqual(LIBRE)
-  })
-
-  it('done conserva "Tus programas" cuando era el secondary (Libre apagado)', () => {
-    const m = resolveTodayCard(
-      baseInput({
-        ...ATENDIDA,
-        windowState: 'after',
-        libreEnabled: false,
-        hasExtraPrograms: true,
-        stretch: DONE,
-      }),
-    )
-    expect(m.primary).toEqual(REPETIR)
-    expect(m.secondary).toEqual(TUS_PROGRAMAS)
-  })
-
-  it('done en completada con asistencia → "Ver resumen" principal y la línea de estado nueva', () => {
-    const m = resolveTodayCard(
-      baseInput({
+  it('done → la card queda idéntica a sin estiramiento: la pill de la clase no cambia (Franco, 2026-11-16)', () => {
+    const casos: Partial<TodayCardInput>[] = [
+      { ...ATENDIDA, windowState: 'after' },
+      { ...ATENDIDA, windowState: 'after', libreEnabled: false, hasExtraPrograms: true },
+      {
         todayCompleted: true,
         todaySession: { durationMinutes: 40, rpe: 7 },
         attendanceMarkedAt: '18:55',
-        stretch: DONE,
-      }),
-    )
-    expect(m.kind).toBe('completada')
-    expect(m.primary).toEqual(VER_RESUMEN)
-    expect(m.pill).toEqual({ icon: 'check_circle', tone: 'ok', text: HECHOS })
-    expect(m.meta).toBeNull()
+      },
+    ]
+    for (const over of casos) {
+      const sin = resolveTodayCard(baseInput({ ...over }))
+      const hecho = resolveTodayCard(baseInput({ ...over, stretch: DONE }))
+      expect(hecho).toEqual(sin)
+      expect(allCopy(hecho)).not.toMatch(/estir/i)
+    }
+    // En completada siguen los minutos y el RPE de la sesión
+    const completada = resolveTodayCard(baseInput({ ...casos[2], stretch: DONE }))
+    expect(completada.kind).toBe('completada')
+    expect(completada.primary).toEqual(VER_RESUMEN)
   })
 
   it('done sin asistencia o en una ventana sin clase terminada → idéntico a none', () => {
@@ -2261,7 +2241,8 @@ describe('resolveTodayCard — estiramiento post-clase (fase 213 D-09)', () => {
             expect(m.kind, where).toBe(base.kind)
 
             const elegible = esc.elegible && base.kind !== 'cargando'
-            if (stretch.status === 'none' || !elegible) {
+            // `done` nunca cambia la card (Franco, 2026-11-16): igual que `none`
+            if (stretch.status !== 'available' || !elegible) {
               expect(m, where).toEqual(base)
               continue
             }
@@ -2269,22 +2250,10 @@ describe('resolveTodayCard — estiramiento post-clase (fase 213 D-09)', () => {
             expect(m.kicker, where).toBe(base.kicker)
             expect(m.title, where).toBe(base.title)
             expect(m.progress, where).toBe(base.progress)
-            if (stretch.status === 'available') {
-              expect(m.primary, where).toEqual(ESTIRAR)
-              expect(m.secondary, where).toEqual(base.primary)
-              expect(m.pill, where).toEqual(base.pill)
-              expect(m.meta, where).toEqual(base.meta)
-            } else {
-              expect(m.primary, where).toEqual(base.primary)
-              expect(m.secondary, where).toEqual(base.secondary)
-              if (base.pill !== null) {
-                expect(m.pill, where).toEqual({ icon: 'check_circle', tone: 'ok', text: HECHOS })
-                expect(m.meta, where).toBeNull()
-              } else {
-                expect(m.meta, where).toEqual(HECHOS)
-                expect(m.pill, where).toBeNull()
-              }
-            }
+            expect(m.primary, where).toEqual(ESTIRAR)
+            expect(m.secondary, where).toEqual(base.primary)
+            expect(m.pill, where).toEqual(base.pill)
+            expect(m.meta, where).toEqual(base.meta)
           }
         }
       }
@@ -2293,7 +2262,7 @@ describe('resolveTodayCard — estiramiento post-clase (fase 213 D-09)', () => {
     expect(ESCENARIOS.length).toBe(33)
     expect(evaluated).toBe(33 * 2 * 2 * 3)
     // 5 escenarios elegibles (turno asistido after/null, completada asistida after/null y plan
-    // programado asistido) x Libre x "Tus programas" x {available, done}.
-    expect(elegibles).toBe(5 * 2 * 2 * 2)
+    // programado asistido) x Libre x "Tus programas", solo con `available`.
+    expect(elegibles).toBe(5 * 2 * 2)
   })
 })
