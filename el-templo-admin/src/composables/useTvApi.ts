@@ -92,6 +92,11 @@ export interface TvControlState {
   timerStartedAt: number | null;
   pausedAt: number | null;
   pausedAccumMs: number;
+  /**
+   * Temporizador elegido por el profe, en minutos. `null` = crono del bloque
+   * (el timer sale del formato del bloque). Vuelve a `null` al cambiar de bloque.
+   */
+  timerMinutes: number | null;
   /** D-19: arranca apagado; el profe prende los beeps desde el celular. */
   soundEnabled: boolean;
   /** Fase 193 (D-25): el aviso en pantalla cuando `screen === 'aviso'`. */
@@ -130,6 +135,12 @@ export interface TvStateWrite {
   level?: string;
   exerciseIndex?: number;
   timer?: 'start' | 'pause' | 'resume' | 'reset';
+  /**
+   * Temporizador a elección: minutos ABSOLUTOS (1..120) o `null` para volver
+   * al crono del bloque. Un cambio real reinicia el timer; repetir el valor
+   * vigente es no-op.
+   */
+  timerMinutes?: number | null;
   soundEnabled?: boolean;
   /** Fase 193 (D-25): el aviso a mostrar cuando `screen: 'aviso'`. */
   tvAvisoId?: number | null;

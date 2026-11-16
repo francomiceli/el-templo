@@ -330,6 +330,14 @@ export interface TvControlContextQuery {
 const TV_STATE_TOKEN_MAX_LENGTH = 20;
 
 /**
+ * Rango del temporizador a eleccion del profe, en minutos. El techo es de
+ * cordura (una clase dura una hora): evita que un dedo de mas deje una cuenta
+ * regresiva de horas proyectada en la pared.
+ */
+export const TV_TIMER_MINUTES_MIN = 1;
+export const TV_TIMER_MINUTES_MAX = 120;
+
+/**
  * POST /api/admin/tv/control/state
  *
  * El unico endpoint de escritura del profe. Todos los campos son ABSOLUTOS y
@@ -362,6 +370,13 @@ export const tvControlStateSchema = {
       // nivel) vigente, que es lo unico que conoce el largo verdadero.
       exerciseIndex: { type: "integer", minimum: 0 },
       timer: { type: "string", enum: ["start", "pause", "resume", "reset"] },
+      // Temporizador a eleccion del profe: minutos ABSOLUTOS, o `null` para
+      // volver al crono del bloque. Nunca un "+1 min" relativo (D-18).
+      timerMinutes: {
+        type: ["integer", "null"],
+        minimum: TV_TIMER_MINUTES_MIN,
+        maximum: TV_TIMER_MINUTES_MAX,
+      },
       // "idle" NO se acepta: volver a reposo es `end-class`, no una pantalla.
       // Fase 193 (D-25): "aviso" se suma con `tvAvisoId`.
       screen: { type: "string", enum: ["class", "closing", "aviso"] },

@@ -1,0 +1,12 @@
+-- Temporizador a eleccion del profe en el control de TV (2026-11-16).
+-- Hand-written (drizzle-kit generate sigue roto por el drift de goal_plan_type).
+--
+-- timer_minutes NULL = "crono del bloque": el timer sale del formato del
+-- bloque, como hasta hoy. Con un valor (1..120) el profe eligio un
+-- temporizador de esa cantidad de minutos y la TV muestra una cuenta
+-- regresiva, ignorando el formato del bloque.
+--
+-- Una sola columna nullable en vez de modo + minutos: no existe el estado
+-- inconsistente "modo temporizador sin minutos". Las filas existentes quedan
+-- en NULL, o sea, sin cambio de comportamiento.
+ALTER TABLE `tv_class_state` ADD COLUMN `timer_minutes` int NULL AFTER `paused_accum_ms`;

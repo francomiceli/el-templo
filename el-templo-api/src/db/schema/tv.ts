@@ -152,6 +152,11 @@ export const tvClassState = mysqlTable(
     // reescribir el sello de arranque.
     pausedAt: timestamp("paused_at", { fsp: 3 }),
     pausedAccumMs: int("paused_accum_ms").default(0).notNull(),
+    // Temporizador a eleccion del profe (mig 0343). NULL = "crono del bloque"
+    // (el timer sale del formato del bloque). Con valor, la TV muestra una
+    // cuenta regresiva de esos minutos e ignora el formato. Una sola columna
+    // nullable: no existe "modo temporizador sin minutos".
+    timerMinutes: int("timer_minutes"),
     // D-19: los beeps arrancan APAGADOS.
     soundEnabled: boolean("sound_enabled").default(false).notNull(),
     // Fase 178: toggle "Ver alternativo" del 2º bloque en dias tecnica/combos
