@@ -22,7 +22,7 @@
       </button>
     </div>
     <ul class="sbc__list">
-      <li v-for="(ex, i) in block.exercises" :key="`${ex.exerciseId}-${i}`" class="sbc__row">
+      <li v-for="(ex, i) in exercises" :key="`${ex.exerciseId}-${i}`" class="sbc__row">
         <q-icon
           v-if="isDone(ex.exerciseId)"
           name="check_circle"
@@ -39,6 +39,10 @@
           role="img"
           aria-label="Sin hacer"
         />
+        <!-- Esfuerzo (CON / EXC / ISO) como en el player; sin contracción queda el hueco -->
+        <span class="sbc__badge">
+          <ContractionBadge v-if="ex.badge" :badge="ex.badge" />
+        </span>
         <span class="sbc__ex">{{ ex.exerciseName }}</span>
         <span class="sbc__dose">{{ doseOf(ex) }}</span>
       </li>
@@ -54,6 +58,8 @@ import type { Block, Prescription } from '../../types/session'
 import { getGuiaLinkForRole } from '../../guia-role-map'
 import { blockDisplayName, blockMetaLine, keepHyphenWords } from '../../utils/blockMeta'
 import { doseShapeOf, formatDose } from '../../utils/formatDose'
+import { CONTRACTION_BADGE_WIDTH_PX, contractionBadge } from '../../utils/contraction'
+import ContractionBadge from '../ContractionBadge.vue'
 
 interface Props {
   block: Block
@@ -87,6 +93,12 @@ const doseShape = computed(() => doseShapeOf(props.block))
 function doseOf(ex: Prescription): string {
   return formatDose(ex, doseShape.value)
 }
+
+const exercises = computed(() =>
+  props.block.exercises.map((ex) => ({ ...ex, badge: contractionBadge(ex.contraction) })),
+)
+
+const badgeSlotWidth = `${CONTRACTION_BADGE_WIDTH_PX}px`
 
 const guiaLink = computed(() => (props.showGuia ? getGuiaLinkForRole(props.block.role) : null))
 
@@ -189,6 +201,12 @@ function openGuia(): void {
   &--off {
     color: $pd-ink-3;
   }
+}
+
+.sbc__badge {
+  flex: none;
+  display: flex;
+  width: v-bind(badgeSlotWidth);
 }
 
 .sbc__ex {
