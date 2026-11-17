@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sketch 032 — Fila de anotado</title>
+<link rel="stylesheet" href="../themes/default.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Geologica:wght@300;400;500;600;700&family=Montserrat:wght@600;700;800&family=Cinzel:wght@600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+<style>
+  :root { --ink: #2c2318; --ink-2: #6b6459; --terra: #96593a; --line: #e5dbcd; --sand: #f3ede4; --aura: #7d6520; --aura-tint: #f6efdc; --aura-gold: #d4b46a; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #e9e3da; font-family: 'Geologica', system-ui, sans-serif; color: var(--ink); }
+  .material-icons { font-size: inherit; line-height: 1; vertical-align: middle; }
+  #controls { position: sticky; top: 0; z-index: 50; background: #fff; border-bottom: 1px solid #ddd; padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; font: 13px system-ui; }
+  .ctl { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+  .ctl > span { color: #555; margin-right: 4px; font-weight: 600; }
+  .ctl button { border: 1px solid #ccc; background: #fafafa; border-radius: 6px; padding: 5px 9px; cursor: pointer; font: inherit; }
+  .ctl button.on { background: #2c2318; color: #fff; border-color: #2c2318; }
+  #stage { display: flex; gap: 28px; justify-content: center; align-items: flex-start; padding: 24px 16px 80px; flex-wrap: wrap; }
+  .col { display: flex; flex-direction: column; align-items: center; }
+  .col-label { font: 600 13px system-ui; text-align: center; margin-bottom: 4px; }
+  .col-sub { font: 12px system-ui; color: #666; text-align: center; max-width: 340px; margin-bottom: 10px; line-height: 1.4; min-height: 68px; }
+  .panel { width: 358px; padding: 16px 18px; border-radius: 20px; background: #fbf8f3; box-shadow: 0 10px 30px rgba(44,35,24,.14); }
+  .panel small { font: 700 11px 'Cinzel', serif; letter-spacing: .14em; text-transform: uppercase; color: var(--terra); }
+  .panel h3 { margin: 2px 0 10px; font: 700 18px 'Montserrat', sans-serif; }
+
+  .av { --s: 40px; flex: none; position: relative; overflow: hidden; width: var(--s); height: var(--s); border-radius: 50%; display: grid; place-items: center; background: linear-gradient(135deg, #b9785a, #7e4529); color: #fff; font: 700 calc(var(--s) * .36) 'Montserrat', sans-serif; }
+  .av img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .av.ghost { background: #e9e1d5; color: var(--ink-2); }
+  .tag { padding: 1px 7px; border-radius: 999px; background: var(--sand); color: var(--ink-2); font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .pts { display: inline-flex; align-items: center; gap: 3px; color: var(--aura); font: 700 13.5px 'Montserrat', sans-serif; white-space: nowrap; }
+  .pts i { font-style: normal; color: var(--aura-gold); font-size: 12px; }
+  .pts.pill { padding: 1px 8px 1px 6px; border-radius: 999px; background: var(--aura-tint); font-size: 12px; }
+
+  /* A · Lista */
+  .A .row { display: flex; align-items: center; gap: 12px; padding: 8px 0; font-size: 15px; font-weight: 500; }
+  .A .row + .row { border-top: 1px solid #f1eadf; }
+  .A .nm { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; white-space: nowrap; overflow: hidden; }
+  .A .more { color: var(--ink-2); font-size: 14px; }
+
+  /* B · Caras en grilla */
+  .B .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px 6px; }
+  .B .cell { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; min-width: 0; }
+  .B .av { --s: 56px; }
+  .B .nm { max-width: 100%; font-size: 12.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .B .sub { min-height: 18px; display: flex; align-items: center; }
+  .B .tag { font-size: 10.5px; }
+
+  /* C · Dos columnas */
+  .C .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
+  .C .cell { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .C .av { --s: 32px; }
+  .C .t { min-width: 0; line-height: 1.2; }
+  .C .nm { display: block; font-size: 13.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .C .pts { font-size: 12px; }
+  .C .tag { font-size: 10.5px; padding: 0 6px; }
+  .C .more { grid-column: 1 / -1; padding-top: 4px; color: var(--ink-2); font-size: 13px; }
+
+  /* D · Tira */
+  .D .strip { display: flex; gap: 12px; overflow-x: auto; padding: 2px 2px 10px; scrollbar-width: thin; }
+  .D .cell { flex: none; width: 62px; display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; }
+  .D .av { --s: 52px; }
+  .D .nm { max-width: 100%; font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .D .sub { min-height: 17px; }
+  .D .hintrow { margin-top: 2px; font-size: 12.5px; color: var(--ink-2); }
+</style>
+</head>
+<body>
+
+<div id="controls">
+  <div class="ctl" data-ctl="n"><span>Anotados visibles</span>
+    <button data-v="4">4</button><button data-v="8" class="on">8</button><button data-v="17">17</button>
+  </div>
+  <div class="ctl" data-ctl="foto"><span>Fotos</span>
+    <button data-v="mix" class="on">Algunos con foto</button><button data-v="none">Nadie con foto</button><button data-v="all">Todos con foto</button>
+  </div>
+  <div class="ctl" data-ctl="hid"><span>Ocultos</span>
+    <button data-v="0">Ninguno</button><button data-v="3" class="on">3</button>
+  </div>
+  <div class="ctl" data-ctl="pts"><span>Puntos</span>
+    <button data-v="1" class="on">Se ven</button><button data-v="0">Sin puntos</button>
+  </div>
+</div>
+
+<div id="stage">
+  <div class="col"><div class="col-label">A · Lista</div>
+    <div class="col-sub">Una persona por renglón: foto, nombre y los puntos a la derecha. Es la más fácil de leer y la que más alto ocupa. Los puntos quedan alineados en columna, que es lo que más invita a comparar.</div>
+    <div class="panel A" data-v="A"></div></div>
+  <div class="col"><div class="col-label">B · Caras en grilla</div>
+    <div class="col-sub">Cuatro por fila, con la cara grande. Lo primero que se ve es la gente, no los números. Entran muchas personas en poco alto. Necesita fotos para lucirse.</div>
+    <div class="panel B" data-v="B"></div></div>
+  <div class="col"><div class="col-label">C · Dos columnas</div>
+    <div class="col-sub">Compacta: foto chica, nombre y los puntos debajo. Sirve si la lista tiene que entrar en poco espacio, como un pop-up. Los puntos quedan discretos.</div>
+    <div class="panel C" data-v="C"></div></div>
+  <div class="col"><div class="col-label">D · Tira que se desliza</div>
+    <div class="col-sub">Una sola fila que se desliza hacia el costado. Ocupa siempre el mismo alto, haya 4 o 20 anotados. Sirve para ir dentro de la card del horario. No se ve a todos de un vistazo.</div>
+    <div class="panel D" data-v="D"></div></div>
+</div>
+
+<script>
+  const ALL = [
+    ['Franco M.', 'men/46', 180, 'Vos'], ['Sofía M.', 'women/44', 320], ['Nicolás R.', null, 95], ['Camila G.', 'women/68', 610],
+    ['Nacho P.', 'men/32', null, 'Profe'], ['Lucía F.', null, 15], ['Martín D.', 'men/75', 240], ['Juli S.', 'women/12', null, 'Wellhub'],
+    ['Tomás B.', null, 0], ['Agustina L.', 'women/26', 455], ['Pedro S.', 'men/11', 130], ['Valentina C.', null, 70],
+    ['Joaquín A.', 'men/52', 855], ['Mica T.', 'women/8', 205], ['Fede O.', null, 40], ['Rocío V.', 'women/57', 385], ['Lucas E.', 'men/64', 160],
+  ]
+  const s = { n: 8, foto: 'mix', hid: 3, pts: '1' }
+  const ini = (n) => n.replace('.', '').split(' ').map((x) => x[0]).join('').slice(0, 2).toUpperCase()
+  const fallback = ['women/33', 'men/22', 'women/50', 'men/41', 'women/17', 'men/85']
+  function img(p, i) { if (s.foto === 'none') return null; if (s.foto === 'all') return p[1] || fallback[i % fallback.length]; return p[1] }
+  const av = (p, i) => { const src = img(p, i); return `<span class="av">${ini(p[0])}${src ? `<img src="https://randomuser.me/api/portraits/${src}.jpg" alt="" onerror="this.remove()">` : ''}</span>` }
+  const pts = (p, pill) => (s.pts === '0' || p[2] == null ? '' : `<span class="pts ${pill ? 'pill' : ''}"><i>✦</i>${p[2]}</span>`)
+  const tag = (p) => (p[3] ? `<span class="tag">${p[3]}</span>` : '')
+  const first = (p) => p[0].split(' ')[0]
+  const ghost = `<span class="av ghost"><span class="material-icons" style="font-size:20px">person</span></span>`
+  function body(v) {
+    const ps = ALL.slice(0, s.n), h = s.hid
+    if (v === 'A') return ps.map((p, i) => `<div class="row">${av(p, i)}<span class="nm">${p[0]}${tag(p)}</span>${pts(p)}</div>`).join('') + (h ? `<div class="row more">${ghost}y otros ${h} más</div>` : '')
+    if (v === 'B') return `<div class="grid">${ps.map((p, i) => `<div class="cell">${av(p, i)}<span class="nm">${p[0]}</span><span class="sub">${p[3] ? tag(p) : pts(p, true)}</span></div>`).join('')}${h ? `<div class="cell"><span class="av ghost" style="font:700 17px Montserrat">+${h}</span><span class="nm" style="color:var(--ink-2)">más</span><span class="sub"></span></div>` : ''}</div>`
+    if (v === 'C') return `<div class="grid">${ps.map((p, i) => `<div class="cell">${av(p, i)}<span class="t"><span class="nm">${p[0]}</span>${p[3] ? tag(p) : pts(p)}</span></div>`).join('')}${h ? `<div class="more">y otros ${h} más</div>` : ''}</div>`
+    return `<div class="strip">${ps.map((p, i) => `<div class="cell">${av(p, i)}<span class="nm">${first(p)}</span><span class="sub">${p[3] ? tag(p) : pts(p)}</span></div>`).join('')}${h ? `<div class="cell"><span class="av ghost" style="font:700 16px Montserrat">+${h}</span><span class="nm" style="color:var(--ink-2)">más</span></div>` : ''}</div><div class="hintrow">Deslizá para ver a todos</div>`
+  }
+  function render() { document.querySelectorAll('.panel').forEach((p) => { p.innerHTML = `<small>Quiénes van</small><h3>Viernes 16 · 18:00 · ${s.n + s.hid} anotados</h3>${body(p.dataset.v)}` }) }
+  document.querySelectorAll('.ctl').forEach((ctl) => ctl.addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return
+    ctl.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b))
+    const k = ctl.dataset.ctl; s[k] = k === 'n' || k === 'hid' ? Number(b.dataset.v) : b.dataset.v; render()
+  }))
+  render()
+</script>
+</body>
+</html>

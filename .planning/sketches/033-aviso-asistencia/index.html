@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sketch 033 — Aviso al marcar asistencia</title>
+<link rel="stylesheet" href="../themes/default.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Geologica:wght@300;400;500;600;700&family=Montserrat:wght@600;700;800&family=Cinzel:wght@600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+<style>
+  :root { --page: #f2ede5; --ink: #2c2318; --ink-2: #6b6459; --terra: #96593a; --line: #e5dbcd; --sand: #f3ede4; --sage: #3f6a47; --sage-tint: #e9f0e6; --aura: #7d6520; --aura-tint: #f6efdc; --aura-gold: #d4b46a; --cream: #f0e6d6; --btn-a: #a35f3c; --btn-b: #7e4529; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #e9e3da; font-family: 'Geologica', system-ui, sans-serif; color: var(--ink); }
+  button { font: inherit; color: inherit; }
+  .material-icons { font-size: inherit; line-height: 1; vertical-align: middle; }
+  #controls { position: sticky; top: 0; z-index: 50; background: #fff; border-bottom: 1px solid #ddd; padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; font: 13px system-ui; }
+  .ctl { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+  .ctl > span { color: #555; margin-right: 4px; font-weight: 600; }
+  .ctl button { border: 1px solid #ccc; background: #fafafa; border-radius: 6px; padding: 5px 9px; cursor: pointer; }
+  .ctl button.on { background: #2c2318; color: #fff; border-color: #2c2318; }
+  #stage { display: flex; gap: 32px; justify-content: center; align-items: flex-start; padding: 24px 16px 80px; flex-wrap: wrap; }
+  .col { display: flex; flex-direction: column; align-items: center; }
+  .col-label { font: 600 13px system-ui; text-align: center; margin-bottom: 4px; }
+  .col-sub { font: 12px system-ui; color: #666; text-align: center; max-width: 360px; margin-bottom: 10px; line-height: 1.4; min-height: 84px; }
+  .phone { position: relative; width: 390px; height: 720px; border-radius: 28px; overflow: hidden; box-shadow: 0 0 0 10px #1d1a17, 0 20px 50px rgba(0,0,0,.25); background: var(--page); display: flex; flex-direction: column; }
+  .appbar { flex: none; height: 56px; display: flex; align-items: center; gap: 10px; padding: 0 14px; background: linear-gradient(135deg, #96593a, #7d5d42); color: #fff; font: 800 18px 'Montserrat', sans-serif; }
+  .appbar i { width: 30px; height: 30px; border-radius: 7px; background: #f2ede5; }
+  .tabbar { flex: none; height: 56px; display: flex; justify-content: space-around; align-items: center; background: linear-gradient(135deg, #7d5d42, #96593a); color: #f2ede5; font-size: 10px; }
+  .tabbar span { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .tabbar .material-icons { font-size: 24px; }
+  .fill { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 24px; text-align: center; }
+  .btn { height: 46px; padding: 0 34px; border: 0; border-radius: 999px; background: linear-gradient(135deg, var(--btn-a), var(--btn-b)); color: #fff; font-weight: 600; font-size: 15px; cursor: pointer; }
+  .spark { font-style: normal; color: var(--aura-gold); }
+  @keyframes pop { 0% { transform: scale(.4); opacity: 0 } 60% { transform: scale(1.12); opacity: 1 } 100% { transform: scale(1) } }
+  @keyframes rise { from { transform: translateY(14px); opacity: 0 } to { transform: none; opacity: 1 } }
+  @keyframes slideUp { from { transform: translate(-50%, 40px); opacity: 0 } to { transform: translate(-50%, 0); opacity: 1 } }
+  @keyframes glow { 0%, 100% { opacity: .55 } 50% { opacity: 1 } }
+
+  /* Hoy */
+  .hoy .ok { width: 96px; height: 96px; border-radius: 50%; display: grid; place-items: center; background: #e3f1e5; color: #2e7d3a; font-size: 56px; }
+  .hoy h2 { margin: 10px 0 0; font: 700 22px 'Montserrat', sans-serif; }
+  .hoy p { margin: 0 0 14px; color: var(--ink-2); }
+  .hoy .btn { border-radius: 8px; background: var(--terra); }
+
+  /* A · Píldora */
+  .A .mi { flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .A .greet { flex: none; margin: 0; padding: 8px 16px 14px; background: linear-gradient(135deg, #96593a, #b89b5e); color: #fff; font: 600 22px 'Montserrat', sans-serif; }
+  .A .today { height: 170px; border-radius: 18px; background: #2c2318; color: var(--cream); padding: 16px; }
+  .A .today small { font: 700 11px 'Cinzel', serif; letter-spacing: .14em; color: #e3c9a8; }
+  .A .today b { display: block; margin-top: 6px; font: 700 20px 'Montserrat', sans-serif; }
+  .A .ph { height: 100px; border-radius: 16px; background: #fff; border: 1px solid var(--line); padding: 14px 16px; font: 800 12px 'Montserrat', sans-serif; letter-spacing: .08em; color: var(--terra); }
+  .A .pill { position: absolute; left: 50%; bottom: 68px; z-index: 5; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 10px 16px 10px 12px; border-radius: 999px; background: #2c2318; color: var(--cream); font-size: 14px; white-space: nowrap; box-shadow: 0 10px 26px rgba(44,35,24,.4), inset 0 0 0 1px rgba(212,180,106,.35); animation: slideUp .4s cubic-bezier(.2,.8,.2,1) both; }
+  .A .pill .ck { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--sage); color: #fff; font-size: 16px; }
+  .A .pill b { color: #f0d58f; font: 700 14px 'Montserrat', sans-serif; }
+  .A .pill .sep { opacity: .4; }
+
+  /* B · Celebración */
+  .B { background: #2c2318 !important; color: var(--cream); }
+  .B .fill { position: relative; gap: 6px; }
+  .B .halo { position: absolute; top: 18%; left: 50%; width: 320px; height: 320px; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(circle, rgba(212,180,106,.32), transparent 65%); animation: glow 3s ease-in-out infinite; pointer-events: none; }
+  .B .ring { position: relative; width: 84px; height: 84px; border-radius: 50%; display: grid; place-items: center; font-size: 44px; color: #2c2318; background: linear-gradient(135deg, #f5dd7e, #d4b46a 55%, #a8843a); animation: pop .5s cubic-bezier(.2,.8,.2,1) both; }
+  .B .ring.plain { background: var(--sage); color: #fff; }
+  .B small { margin-top: 16px; font: 700 12px 'Cinzel', serif; letter-spacing: .2em; color: #e3c9a8; animation: rise .4s .15s both; }
+  .B .big { font: 800 68px/1 'Montserrat', sans-serif; color: #f0d58f; animation: rise .45s .3s both; }
+  .B .big .spark { font-size: 40px; vertical-align: 10px; }
+  .B .lbl { font: 700 13px 'Cinzel', serif; letter-spacing: .24em; color: var(--aura-gold); animation: rise .45s .35s both; }
+  .B .tot { margin-top: 14px; padding: 6px 14px; border-radius: 999px; background: rgba(240,230,214,.1); font-size: 14px; animation: rise .45s .5s both; }
+  .B .tot b { font: 700 15px 'Montserrat', sans-serif; color: #f0d58f; }
+  .B .sede { margin: 6px 0 22px; font-size: 14px; color: #c9bba6; animation: rise .45s .55s both; }
+  .B .btn { animation: rise .45s .65s both; }
+  .B h2 { margin: 16px 0 0; font: 700 24px 'Montserrat', sans-serif; animation: rise .4s .2s both; }
+
+  /* C · Con la clase */
+  .C .wrap { flex: 1; padding: 20px 16px; display: flex; flex-direction: column; gap: 12px; }
+  .C .okc { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 18px; background: #fff; border: 1px solid var(--sage); box-shadow: 0 6px 18px rgba(63,106,71,.12); animation: rise .35s both; }
+  .C .okc .ck { flex: none; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--sage); color: #fff; font-size: 26px; animation: pop .45s both; }
+  .C .okc b { display: block; font: 700 17px 'Montserrat', sans-serif; }
+  .C .okc span { font-size: 13.5px; color: var(--ink-2); }
+  .C .aura { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 18px; background: #2c2318; color: var(--cream); box-shadow: inset 0 0 0 1px rgba(212,180,106,.45); animation: rise .35s .12s both; }
+  .C .aura .n { font: 800 30px/1 'Montserrat', sans-serif; color: #f0d58f; }
+  .C .aura small { display: block; font: 700 10px 'Cinzel', serif; letter-spacing: .18em; color: var(--aura-gold); }
+  .C .aura .t { margin-left: auto; text-align: right; font-size: 13px; color: #c9bba6; }
+  .C .aura .t b { display: block; font: 700 18px 'Montserrat', sans-serif; color: var(--cream); }
+  .C .card { padding: 14px 16px; border-radius: 18px; background: #fff; border: 1px solid var(--line); animation: rise .35s .24s both; }
+  .C h4 { margin: 0 0 8px; font: 800 12px 'Montserrat', sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--terra); }
+  .C .who { display: flex; align-items: center; gap: 10px; font-size: 14px; line-height: 1.35; }
+  .av { --s: 34px; flex: none; position: relative; overflow: hidden; width: var(--s); height: var(--s); border-radius: 50%; display: grid; place-items: center; background: linear-gradient(135deg, #b9785a, #7e4529); color: #fff; font: 700 12px 'Montserrat', sans-serif; box-shadow: 0 0 0 2px #fff; margin-left: -10px; }
+  .av:first-child { margin-left: 0; }
+  .av img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .C .wk { display: flex; gap: 8px; }
+  .C .wk span { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--sand); font: 700 12px 'Montserrat', sans-serif; color: var(--ink-2); }
+  .C .wk span.on { background: var(--terra); color: #fff; }
+  .C .wk span.now { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--terra); animation: pop .5s .4s both; }
+  .C .btn { margin-top: auto; align-self: center; animation: rise .35s .36s both; }
+</style>
+</head>
+<body>
+
+<div id="controls">
+  <div class="ctl"><button id="replay" style="background:#2c2318;color:#fff;border-color:#2c2318">▶ Repetir animación</button></div>
+  <div class="ctl" data-ctl="rol"><span>Quién marca</span>
+    <button data-v="alumno" class="on">Alumno</button><button data-v="staff">Staff (sin Aura)</button>
+  </div>
+</div>
+
+<div id="stage">
+  <div class="col"><div class="col-label">Hoy</div>
+    <div class="col-sub">Pantalla con un tilde verde, "Asistencia registrada", la sede y un botón "Volver". No dice nada del Aura que acaba de sumar.</div>
+    <div class="phone hoy" data-v="hoy"></div></div>
+  <div class="col"><div class="col-label">A · Píldora sobre la barra</div>
+    <div class="col-sub">Después de escanear, la app vuelve sola a Mi Templo y aparece una píldora oscura sobre la barra, igual que los demás mensajes de la app, con el "+5 Aura" en dorado. Rápida y sin toques extra; dura unos segundos.</div>
+    <div class="phone A" data-v="A"></div></div>
+  <div class="col"><div class="col-label">B · Celebración</div>
+    <div class="col-sub">Pantalla oscura con el "+5" grande en dorado y el total actualizado. Es el momento fuerte del Aura, hermano de la celebración del bloque libre. Pide un toque en "Listo" antes de seguir.</div>
+    <div class="phone B" data-v="B"></div></div>
+  <div class="col"><div class="col-label">C · Con tu clase</div>
+    <div class="col-sub">Confirma la asistencia, muestra el "+5" con el total y suma con quiénes entrenás hoy y cómo va tu semana. Une el Aura con la lista de anotados. Es la más cargada.</div>
+    <div class="phone C" data-v="C"></div></div>
+</div>
+
+<script>
+  const s = { rol: 'alumno' }
+  const staff = () => s.rol === 'staff'
+  const tabbar = `<div class="tabbar">${[['account_balance', 'Mi Templo'], ['menu_book', 'Guía'], ['sports_mma', 'Entrenar'], ['event_available', 'Reservas'], ['card_membership', 'Planes']].map(([i, l]) => `<span><span class="material-icons">${i}</span>${l}</span>`).join('')}</div>`
+  const bar = `<div class="appbar"><i></i>EL TEMPLO</div>`
+  const faces = ['women/44', 'men/75', 'women/68', 'men/32'].map((f) => `<span class="av"><img src="https://randomuser.me/api/portraits/${f}.jpg" alt="" onerror="this.remove()"></span>`).join('')
+  function phone(v) {
+    if (v === 'hoy') return `${bar}<div class="fill"><span class="ok"><span class="material-icons">check_circle</span></span><h2>Asistencia registrada</h2><p>Sede Mario Bravo</p><button class="btn">Volver</button></div>${tabbar}`
+    if (v === 'A') return `${bar}<p class="greet">Franco</p><div class="mi"><div class="today"><small>HOY</small><b>Deuteros II · Tren superior</b></div><div class="ph">TUS SESIONES</div></div>
+      <div class="pill"><span class="ck"><span class="material-icons">check</span></span>Asistencia registrada${staff() ? '' : '<span class="sep">|</span><b><span class="spark">✦</span> +5 Aura</b>'}</div>${tabbar}`
+    if (v === 'B') return staff()
+      ? `<div class="fill"><span class="ring plain"><span class="material-icons">check</span></span><h2>Asistencia registrada</h2><p class="sede">Sede Mario Bravo · 18:00</p><button class="btn">Listo</button></div>`
+      : `<div class="fill"><span class="halo"></span><span class="ring"><span class="material-icons">check</span></span><small>ASISTENCIA REGISTRADA</small>
+        <div class="big"><span class="spark">✦</span>+5</div><div class="lbl">AURA</div>
+        <div class="tot">Tu Aura: <b data-count>315</b></div><p class="sede">Sede Mario Bravo · 18:00</p><button class="btn">Listo</button></div>`
+    const aura = staff() ? '' : `<div class="aura"><span class="n"><span class="spark">✦</span>+5</span><span><small>AURA</small>por venir hoy</span><span class="t">Llevás<b data-count>315</b></span></div>`
+    return `${bar}<div class="wrap">
+      <div class="okc"><span class="ck"><span class="material-icons">check</span></span><span><b>Asistencia registrada</b><span>Sede Mario Bravo · 18:00</span></span></div>
+      ${aura}
+      <div class="card"><h4>Hoy entrenás con</h4><div class="who"><span style="display:flex">${faces}</span><span>Sofía, Martín, Camila y 7 más</span></div></div>
+      <div class="card"><h4>Tu semana</h4><div class="wk"><span class="on">L</span><span>M</span><span class="on">M</span><span>J</span><span class="on now">V</span><span>S</span></div></div>
+      <button class="btn">Listo</button></div>${tabbar}`
+  }
+  function count() { document.querySelectorAll('[data-count]').forEach((el) => { let n = 315; el.textContent = n; setTimeout(() => { const t = setInterval(() => { n++; el.textContent = n; if (n >= 320) clearInterval(t) }, 90) }, 700) }) }
+  function render() { document.querySelectorAll('.phone').forEach((p) => { p.innerHTML = phone(p.dataset.v) }); count() }
+  document.getElementById('replay').addEventListener('click', render)
+  document.querySelector('.ctl[data-ctl="rol"]').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; e.currentTarget.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); s.rol = b.dataset.v; render() })
+  document.getElementById('stage').addEventListener('click', (e) => { if (e.target.closest('.btn')) render() })
+  render()
+</script>
+</body>
+</html>

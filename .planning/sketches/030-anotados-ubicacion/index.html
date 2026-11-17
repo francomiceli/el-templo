@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sketch 030 — Dónde vive la lista de anotados</title>
+<link rel="stylesheet" href="../themes/default.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Geologica:wght@300;400;500;600;700&family=Montserrat:wght@600;700;800&family=Cinzel:wght@600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+<style>
+  :root {
+    --page: #f2ede5; --ink: #2c2318; --ink-2: #6b6459; --ink-3: #5a5347; --terra: #96593a; --line: #e5dbcd; --sand: #f3ede4;
+    --sage: #3f6a47; --sage-tint: #e9f0e6; --mid: #7d6520; --mid-tint: #f6efdc; --low: #a8423f; --low-tint: #f7e6e2;
+    --aura: #7d6520; --aura-tint: #f6efdc; --aura-gold: #d4b46a; --btn-a: #a35f3c; --btn-b: #7e4529;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #e9e3da; font-family: 'Geologica', system-ui, sans-serif; color: var(--ink); }
+  button { font: inherit; color: inherit; }
+  .material-icons { font-size: inherit; line-height: 1; vertical-align: middle; }
+
+  #controls { position: sticky; top: 0; z-index: 50; background: #fff; border-bottom: 1px solid #ddd; padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; font: 13px system-ui; }
+  .ctl { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+  .ctl > span { color: #555; margin-right: 4px; font-weight: 600; }
+  .ctl button { border: 1px solid #ccc; background: #fafafa; border-radius: 6px; padding: 5px 9px; cursor: pointer; }
+  .ctl button.on { background: #2c2318; color: #fff; border-color: #2c2318; }
+  #stage { display: flex; gap: 32px; justify-content: center; align-items: flex-start; padding: 24px 16px 80px; flex-wrap: wrap; }
+  .col { display: flex; flex-direction: column; align-items: center; }
+  .col-label { font: 600 13px system-ui; text-align: center; margin-bottom: 4px; }
+  .col-sub { font: 12px system-ui; color: #666; text-align: center; max-width: 360px; margin-bottom: 10px; line-height: 1.4; min-height: 84px; }
+
+  .phone { position: relative; width: var(--w, 390px); height: 844px; border-radius: 28px; overflow: hidden; box-shadow: 0 0 0 10px #1d1a17, 0 20px 50px rgba(0,0,0,.25); background: var(--page); transition: width .2s; display: flex; flex-direction: column; }
+  .appbar { flex: none; height: 56px; display: flex; align-items: center; gap: 10px; padding: 0 14px; background: linear-gradient(135deg, #96593a, #7d5d42); color: #fff; font: 800 18px 'Montserrat', sans-serif; letter-spacing: .02em; }
+  .appbar i { width: 30px; height: 30px; border-radius: 7px; background: #f2ede5; }
+  .appbar button { border: 0; background: none; color: #fff; font-size: 24px; cursor: pointer; padding: 0; display: grid; place-items: center; }
+  .scroll { flex: 1; overflow-y: auto; scrollbar-width: none; }
+  .scroll::-webkit-scrollbar { display: none; }
+  .tabbar { flex: none; height: 56px; display: flex; justify-content: space-around; align-items: center; background: linear-gradient(135deg, #7d5d42, #96593a); color: #f2ede5; font-size: 10px; }
+  .tabbar span { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .tabbar .material-icons { font-size: 24px; }
+  .tabbar .on { color: #fff; font-weight: 700; }
+
+  .wrap { padding: 16px 16px 24px; display: flex; flex-direction: column; gap: 14px; }
+  .chip-sede { align-self: center; display: inline-flex; align-items: center; gap: 4px; height: 36px; padding: 0 12px 0 10px; border-radius: 999px; border: 1px solid var(--line); background: #fff; font: 600 14px 'Geologica', sans-serif; }
+  .chip-sede .material-icons { font-size: 18px; color: var(--terra); }
+  .days { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+  .day { padding: 8px 0 9px; border-radius: 14px; border: 1px solid var(--line); background: #fff; text-align: center; font: 600 11px 'Montserrat', sans-serif; color: var(--ink-2); }
+  .day b { display: block; margin-top: 2px; font: 700 19px 'Montserrat', sans-serif; color: var(--ink); }
+  .day.on { border-color: transparent; background: linear-gradient(135deg, var(--btn-a), var(--btn-b)); color: #fff; }
+  .day.on b { color: #fff; }
+  .turno { margin: 6px 0 -4px; font: 600 12px 'Montserrat', sans-serif; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
+
+  .slot { padding: 12px 12px 12px 16px; border-radius: 14px; background: #fff; border: 1px solid var(--line); box-shadow: 0 6px 18px rgba(150,89,58,.06); }
+  .slot .top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .slot .h { font: 700 18px 'Montserrat', sans-serif; }
+  .slot .a { display: block; margin-top: 2px; font-size: 13px; color: var(--ink-2); }
+  .slot .r { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+  .slot.booked { border-color: var(--sage); box-shadow: 0 6px 18px rgba(63,106,71,.12); }
+  .slot.tap { cursor: pointer; }
+  .chip { padding: 3px 8px; border-radius: 999px; background: var(--sage-tint); color: var(--sage); font: 600 12px 'Geologica', sans-serif; white-space: nowrap; }
+  .chip.few { background: var(--mid-tint); color: var(--mid); }
+  .chip.full { background: var(--low-tint); color: var(--low); }
+  .go { height: 36px; padding: 0 16px; border: 0; border-radius: 999px; background: var(--terra); color: #fff; font: 600 14px 'Geologica', sans-serif; cursor: pointer; }
+  .go.wait { background: #fff; color: var(--terra); border: 1.5px solid var(--terra); }
+  .go.wide { width: 100%; height: 46px; font-size: 15px; background: linear-gradient(135deg, var(--btn-a), var(--btn-b)); }
+  .bk { display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 10px; border-radius: 999px; background: var(--sage-tint); color: var(--sage); font: 600 13px 'Geologica', sans-serif; }
+  .cx { border: 0; background: none; color: var(--ink-2); font: 500 13px 'Geologica', sans-serif; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; padding: 0 2px; min-height: 32px; }
+
+  /* ── piezas de la lista ── */
+  .av { --s: 36px; flex: none; position: relative; overflow: hidden; width: var(--s); height: var(--s); border-radius: 50%; display: grid; place-items: center; background: linear-gradient(135deg, #b9785a, #7e4529); color: #fff; font: 700 calc(var(--s) * .36) 'Montserrat', sans-serif; }
+  .av img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .av.ghost { background: #e9e1d5; color: var(--ink-2); }
+  .stack { display: inline-flex; }
+  .stack .av { margin-left: -9px; box-shadow: 0 0 0 2px #fff; }
+  .stack .av:first-child { margin-left: 0; }
+  .who { display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 10px; padding: 8px 0 0; border: 0; border-top: 1px dashed var(--line); background: none; cursor: pointer; text-align: left; font: 500 13.5px 'Geologica', sans-serif; color: var(--ink-2); }
+  .who b { color: var(--ink); font-weight: 600; }
+  .who .ch { margin-left: auto; font-size: 22px; transition: transform .2s; }
+  .who.open .ch { transform: rotate(180deg); }
+  .list { display: flex; flex-direction: column; }
+  .row { display: flex; align-items: center; gap: 10px; padding: 7px 0; font: 500 14.5px 'Geologica', sans-serif; }
+  .row + .row { border-top: 1px solid #f1eadf; }
+  .row .nm { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .tag { margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: var(--sand); color: var(--ink-2); font-size: 11px; font-weight: 600; }
+  .pts { display: inline-flex; align-items: center; gap: 3px; color: var(--aura); font: 700 13.5px 'Montserrat', sans-serif; }
+  .pts i { font-style: normal; color: var(--aura-gold); font-size: 12px; }
+  .row.more { color: var(--ink-2); font-size: 13.5px; }
+  .note { display: flex; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--sand); font-size: 13px; line-height: 1.4; color: var(--ink-3); }
+  .note .material-icons { font-size: 20px; color: var(--terra); }
+  .note a { color: var(--terra); font-weight: 600; text-decoration: underline; cursor: pointer; }
+  .first { margin-bottom: 6px; padding: 10px 12px; border-radius: 12px; background: #fff7ea; border: 1px solid #ecd9b8; font-size: 13px; line-height: 1.4; }
+  .first div { margin-top: 8px; display: flex; gap: 14px; }
+  .first a { font-weight: 600; color: var(--terra); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+  .expand { overflow: hidden; max-height: 0; transition: max-height .25s ease; }
+  .expand.open { max-height: 640px; }
+  .expand > .list { padding-top: 6px; }
+
+  /* A: diálogo */
+  .veil { position: absolute; inset: 0; z-index: 20; background: rgba(44,35,24,.45); display: grid; place-items: center; padding: 20px; opacity: 0; pointer-events: none; transition: opacity .18s; }
+  .veil.show { opacity: 1; pointer-events: auto; }
+  .dlg { width: 100%; max-height: 92%; overflow-y: auto; padding: 20px 18px 14px; border-radius: 20px; background: #fbf8f3; box-shadow: 0 20px 50px rgba(44,35,24,.35); }
+  .dlg small { font: 700 11px 'Cinzel', serif; letter-spacing: .14em; text-transform: uppercase; color: var(--terra); }
+  .dlg h3 { margin: 4px 0 2px; font: 700 20px 'Montserrat', sans-serif; }
+  .dlg p { margin: 0; font-size: 14px; color: var(--ink-2); }
+  .dlg .act { display: flex; justify-content: flex-end; align-items: center; gap: 14px; margin-top: 14px; }
+  .dlg .expand.open { max-height: 250px; overflow-y: auto; }
+
+  /* C: hoja */
+  .sheet-veil { position: absolute; inset: 0; z-index: 20; background: rgba(44,35,24,.4); opacity: 0; pointer-events: none; transition: opacity .2s; }
+  .sheet-veil.show { opacity: 1; pointer-events: auto; }
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 21; max-height: 78%; display: flex; flex-direction: column; border-radius: 22px 22px 0 0; background: #fbf8f3; box-shadow: 0 -10px 40px rgba(44,35,24,.3); transform: translateY(105%); transition: transform .28s cubic-bezier(.2,.8,.2,1); }
+  .sheet.show { transform: none; }
+  .sheet .grip { width: 40px; height: 4px; margin: 10px auto 4px; border-radius: 4px; background: #d9cfc1; }
+  .sheet header { padding: 6px 18px 10px; }
+  .sheet header small { font: 700 11px 'Cinzel', serif; letter-spacing: .14em; text-transform: uppercase; color: var(--terra); }
+  .sheet header h3 { margin: 2px 0 0; font: 700 19px 'Montserrat', sans-serif; }
+  .sheet header p { margin: 2px 0 0; font-size: 13.5px; color: var(--ink-2); }
+  .sheet .body { flex: 1; overflow-y: auto; padding: 0 18px 8px; }
+  .sheet footer { padding: 10px 18px 18px; border-top: 1px solid var(--line); }
+
+  /* D: pantalla de la clase */
+  .detail { padding: 18px 16px 24px; display: flex; flex-direction: column; gap: 14px; }
+  .detail .hero { padding: 16px; border-radius: 18px; background: #2c2318; color: #f0e6d6; }
+  .detail .hero small { font: 700 11px 'Cinzel', serif; letter-spacing: .14em; text-transform: uppercase; color: #e3c9a8; }
+  .detail .hero h3 { margin: 4px 0 2px; font: 700 24px 'Montserrat', sans-serif; }
+  .detail .hero p { margin: 0; font-size: 14px; }
+  .bar { height: 6px; margin-top: 12px; border-radius: 6px; background: rgba(240,230,214,.18); overflow: hidden; }
+  .bar i { display: block; height: 100%; border-radius: 6px; background: linear-gradient(90deg, #a35f3c, #e9bf9b); }
+  .detail .hero .cap { margin-top: 6px; font-size: 12.5px; color: #c9bba6; }
+  .detail .card { padding: 14px 16px; border-radius: 16px; background: #fff; border: 1px solid var(--line); }
+  .detail h4 { margin: 0 0 6px; font: 800 13px 'Montserrat', sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--terra); }
+  .stick { flex: none; padding: 10px 16px 14px; background: var(--page); border-top: 1px solid var(--line); }
+  .flash { position: absolute; left: 50%; bottom: 70px; z-index: 30; transform: translate(-50%, 20px); padding: 10px 16px; border-radius: 999px; background: #2c2318; color: #f0e6d6; font-size: 13.5px; white-space: nowrap; opacity: 0; transition: all .25s; pointer-events: none; }
+  .flash.show { opacity: 1; transform: translate(-50%, 0); }
+</style>
+</head>
+<body>
+
+<div id="controls">
+  <div class="ctl" data-ctl="viewer"><span>Quién mira</span>
+    <button data-v="visible" class="on">Alumno visible</button><button data-v="oculto">Se ocultó</button><button data-v="sinplan">Sin plan vigente</button>
+  </div>
+  <div class="ctl" data-ctl="first"><span>Aviso de primera vez</span>
+    <button data-v="0" class="on">No</button><button data-v="1">Sí</button>
+  </div>
+  <div class="ctl" data-ctl="booked"><span>Reserva</span>
+    <button data-v="0" class="on">Sin reservar</button><button data-v="1">Ya reservé las 18:00</button>
+  </div>
+  <div class="ctl" data-ctl="w"><span>Ancho</span>
+    <button data-v="360">360</button><button data-v="390" class="on">390</button><button data-v="412">412</button>
+  </div>
+</div>
+
+<div id="stage">
+  <div class="col">
+    <div class="col-label">A · En el pop-up de reserva</div>
+    <div class="col-sub">Lo que pidió Matías: al tocar Reservar, el diálogo trae un desplegable con los anotados. Tocá "Reservar" en las 18:00. La lista solo existe mientras estás reservando: después no hay dónde volver a verla.</div>
+    <div class="phone" data-v="A"></div>
+  </div>
+  <div class="col">
+    <div class="col-label">B · Dentro de la card del horario</div>
+    <div class="col-sub">Cada horario muestra las caras y el número. Tocás esa fila y la card se abre ahí mismo, sin pop-up. Reservar queda siempre a mano. Se puede mirar antes y después de reservar.</div>
+    <div class="phone" data-v="B"></div>
+  </div>
+  <div class="col">
+    <div class="col-label">C · Hoja desde abajo</div>
+    <div class="col-sub">Las caras en la card funcionan como botón: abren una hoja "Quiénes van" con la lista completa y el botón de reservar abajo. La grilla queda limpia y la lista tiene todo el alto que necesite.</div>
+    <div class="phone" data-v="C"></div>
+  </div>
+  <div class="col">
+    <div class="col-label">D · Pantalla de la clase</div>
+    <div class="col-sub">Tocar un horario abre una pantalla propia de esa clase: hora, sede, cupo y quiénes van, con Reservar fijo abajo. Es el lugar natural para sumar cosas después (profe, regalar Aura), pero agrega un paso para reservar.</div>
+    <div class="phone" data-v="D"></div>
+  </div>
+</div>
+
+<script>
+  const P = [
+    { n: 'Sofía M.', img: 'women/44', pts: 320 },
+    { n: 'Nicolás R.', pts: 95 },
+    { n: 'Camila G.', img: 'women/68', pts: 610 },
+    { n: 'Nacho P.', img: 'men/32', tag: 'Profe' },
+    { n: 'Lucía F.', pts: 15 },
+    { n: 'Martín D.', img: 'men/75', pts: 240 },
+    { n: 'Juli S.', img: 'women/12', tag: 'Wellhub' },
+  ]
+  const ME = { n: 'Franco M.', img: 'men/46', pts: 180, me: true }
+  const HIDDEN = 3
+  const state = { viewer: 'visible', first: false, booked: false, open: {}, detail: false }
+
+  const ini = (n) => n.replace('.', '').split(' ').map((x) => x[0]).join('').slice(0, 2).toUpperCase()
+  const av = (p, s = 36) => `<span class="av" style="--s:${s}px">${ini(p.n)}${p.img ? `<img src="https://randomuser.me/api/portraits/${p.img}.jpg" alt="" onerror="this.remove()">` : ''}</span>`
+  const people = () => (state.booked ? [...P, ME] : P)
+  const count = () => people().length + HIDDEN
+  const canSee = () => state.viewer === 'visible'
+  const stack = (n = 4, s = 28) => `<span class="stack">${people().slice(0, n).map((p) => av(p, s)).join('')}</span>`
+  const pts = (p) => (p.pts == null ? '' : `<span class="pts"><i>✦</i>${p.pts}</span>`)
+  function list() {
+    if (state.viewer === 'oculto') return `<div class="note"><span class="material-icons">visibility_off</span><span>Estás oculto en las listas, por eso ves solo el número: hay <b>${count()} anotados</b>. <a>Cambiarlo en Perfil</a></span></div>`
+    if (state.viewer === 'sinplan') return `<div class="note"><span class="material-icons">lock</span><span>Hay <b>${count()} anotados</b>. La lista con nombres la ven los alumnos con plan vigente.</span></div>`
+    const first = state.first ? `<div class="first">Tu nombre de pila y tu foto también aparecen en esta lista para tus compañeros.<div><a data-act="first-ok">Entendido</a><a>Ocultarme</a></div></div>` : ''
+    const rows = people().map((p) => `<div class="row">${av(p)}<span class="nm">${p.n}${p.me ? ' <span class="tag">Vos</span>' : ''}${p.tag ? `<span class="tag">${p.tag}</span>` : ''}</span>${pts(p)}</div>`).join('')
+    return `${first}<div class="list">${rows}<div class="row more"><span class="av ghost"><span class="material-icons" style="font-size:18px">person</span></span>y otros ${HIDDEN} más</div></div>`
+  }
+  function whoRow(v, opts = {}) {
+    const open = state.open[v] ? 'open' : ''
+    const faces = canSee() ? stack() : ''
+    return `<button class="who ${open}" data-act="who" data-v="${v}">${faces}<span><b>${count()} anotados</b>${opts.hint && canSee() ? ' · ver quiénes' : ''}</span><span class="material-icons ch">${opts.icon || 'expand_more'}</span></button>`
+  }
+  const tabbar = () => `<div class="tabbar">${[['account_balance', 'Mi Templo'], ['menu_book', 'Guía'], ['sports_mma', 'Entrenar'], ['event_available', 'Reservas', 1], ['card_membership', 'Planes']].map(([i, l, on]) => `<span class="${on ? 'on' : ''}"><span class="material-icons">${i}</span>${l}</span>`).join('')}</div>`
+  const days = () => `<div class="days">${[['LUN', 12], ['MAR', 13], ['MIE', 14], ['JUE', 15], ['VIE', 16]].map(([d, n], i) => `<div class="day ${i === 4 ? 'on' : ''}">${d}<b>${n}</b></div>`).join('')}</div>`
+  const plain = (h, chip, cls, btn) => `<div class="slot"><div class="top"><span><span class="h">${h}</span><span class="a">Sesión grupal</span></span><span class="r"><span class="chip ${cls}">${chip}</span>${btn}</span></div></div>`
+
+  function focusSlot(v) {
+    const right = state.booked
+      ? `<span class="bk"><span class="material-icons" style="font-size:16px">check</span>Reservado</span><button class="cx" data-act="cancel">Cancelar</button>`
+      : `${v === 'A' ? `<span class="chip">${count()} anotados</span>` : ''}<button class="go" data-act="${v === 'A' ? 'dlg' : 'book'}" data-v="${v}">Reservar</button>`
+    const top = `<div class="top"><span><span class="h">18:00</span><span class="a">Sesión grupal</span></span><span class="r">${right}</span></div>`
+    if (v === 'A') return `<div class="slot ${state.booked ? 'booked' : ''}">${top}</div>`
+    if (v === 'B') return `<div class="slot ${state.booked ? 'booked' : ''}">${top}${whoRow('B')}<div class="expand ${state.open.B ? 'open' : ''}">${list()}</div></div>`
+    if (v === 'C') return `<div class="slot ${state.booked ? 'booked' : ''}">${top}${whoRow('C', { hint: true, icon: 'chevron_right' })}</div>`
+    return `<div class="slot tap ${state.booked ? 'booked' : ''}" data-act="detail">${top}${whoRow('D', { icon: 'chevron_right' })}</div>`
+  }
+  function grid(v) {
+    return `<div class="wrap">
+      <span class="chip-sede"><span class="material-icons">place</span>Mario Bravo<span class="material-icons" style="color:var(--ink-2)">expand_more</span></span>
+      ${days()}
+      <div class="turno">Turno tarde</div>
+      ${plain('17:00', 'Sé el primero', '', '<button class="go">Reservar</button>')}
+      ${focusSlot(v)}
+      ${plain('19:00', 'Quedan 3 lugares', 'few', '<button class="go">Reservar</button>')}
+      ${plain('20:00', 'Completo', 'full', '<button class="go wait">Lista de espera</button>')}
+    </div>`
+  }
+  function detailPage() {
+    const n = count()
+    return `<div class="scroll"><div class="detail">
+      <div class="hero"><small>${state.booked ? 'Tu clase' : 'Clase'}</small><h3>Viernes 16 · 18:00</h3><p>Sesión grupal · Mario Bravo</p>
+        <div class="bar"><i style="width:${(n / 20) * 100}%"></i></div><div class="cap">${n} de 20 lugares</div></div>
+      <div class="card"><h4>Quiénes van</h4>${list()}</div>
+    </div></div>
+    <div class="stick">${state.booked ? '<button class="go wide" style="background:#fff;color:var(--terra);border:1.5px solid var(--terra)" data-act="cancel">Cancelar reserva</button>' : '<button class="go wide" data-act="book" data-v="D">Reservar 18:00</button>'}</div>`
+  }
+  function phone(v) {
+    const back = v === 'D' && state.detail
+    const bar = `<div class="appbar">${back ? '<button data-act="back"><span class="material-icons">arrow_back</span></button>' : '<i></i>'}${back ? 'Clase' : 'EL TEMPLO'}</div>`
+    const body = back ? detailPage() : `<div class="scroll">${grid(v)}</div>`
+    const dlg = v === 'A' ? `<div class="veil ${state.open.dlg ? 'show' : ''}" data-act="dlg-x"><div class="dlg">
+        <small>Reservar</small><h3>Viernes 16 · 18:00</h3><p>Sesión grupal · Mario Bravo</p>
+        ${whoRow('A')}<div class="expand ${state.open.A ? 'open' : ''}">${list()}</div>
+        <div class="act"><button class="cx" data-act="dlg-x">Cancelar</button><button class="go" data-act="book" data-v="A">Confirmar</button></div></div></div>` : ''
+    const sheet = v === 'C' ? `<div class="sheet-veil ${state.open.C ? 'show' : ''}" data-act="who" data-v="C"></div><div class="sheet ${state.open.C ? 'show' : ''}">
+        <div class="grip"></div><header><small>Quiénes van</small><h3>Viernes 16 · 18:00</h3><p>${count()} de 20 lugares · Mario Bravo</p></header>
+        <div class="body">${list()}</div>
+        <footer>${state.booked ? '<button class="go wide" style="background:#fff;color:var(--terra);border:1.5px solid var(--terra)" data-act="who" data-v="C">Cerrar</button>' : '<button class="go wide" data-act="book" data-v="C">Reservar 18:00</button>'}</footer></div>` : ''
+    return `${bar}${body}${tabbar()}${dlg}${sheet}<div class="flash" data-flash>Reserva confirmada</div>`
+  }
+  function render() { document.querySelectorAll('.phone').forEach((p) => { const st = p.querySelector('.scroll')?.scrollTop || 0; p.innerHTML = phone(p.dataset.v); const s = p.querySelector('.scroll'); if (s) s.scrollTop = st }) }
+  function flash(p, t) { const f = p.querySelector('[data-flash]'); f.textContent = t; f.classList.add('show'); setTimeout(() => f.classList.remove('show'), 1600) }
+
+  document.getElementById('stage').addEventListener('click', (e) => {
+    const t = e.target.closest('[data-act]'); if (!t) return
+    const act = t.dataset.act, ph = t.closest('.phone'), v = t.dataset.v
+    if (act === 'dlg-x' && e.target !== t && t.classList.contains('veil')) return
+    e.stopPropagation()
+    if (act === 'who' && v === 'D') state.detail = true
+    else if (act === 'who') state.open[v] = !state.open[v]
+    if (act === 'dlg') state.open.dlg = true
+    if (act === 'dlg-x') { state.open.dlg = false; state.open.A = false }
+    if (act === 'detail') state.detail = true
+    if (act === 'back') state.detail = false
+    if (act === 'first-ok') setCtl('first', '0')
+    if (act === 'book') { state.booked = true; state.open.dlg = false; state.open.A = false; if (v === 'C') state.open.C = false; setCtl('booked', '1'); render(); flash(document.querySelector(`.phone[data-v="${v}"]`), 'Reserva confirmada'); return }
+    if (act === 'cancel') { state.booked = false; setCtl('booked', '0'); render(); flash(ph, 'Reserva cancelada'); return }
+    render()
+  })
+  function setCtl(name, val) {
+    const ctl = document.querySelector(`.ctl[data-ctl="${name}"]`)
+    ctl.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x.dataset.v === val))
+    if (name === 'viewer') state.viewer = val
+    if (name === 'first') state.first = val === '1'
+    if (name === 'booked') state.booked = val === '1'
+  }
+  document.querySelectorAll('.ctl').forEach((ctl) => ctl.addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return
+    if (ctl.dataset.ctl === 'w') { ctl.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); document.querySelectorAll('.phone').forEach((p) => p.style.setProperty('--w', b.dataset.v + 'px')); return }
+    setCtl(ctl.dataset.ctl, b.dataset.v); render()
+  }))
+  render()
+</script>
+</body>
+</html>
