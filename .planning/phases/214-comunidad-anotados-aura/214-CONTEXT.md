@@ -1,7 +1,7 @@
 # Phase 214: Comunidad: anotados en la clase y Aura visible - Context
 
 **Gathered:** 2026-11-17
-**Status:** Listo para sketches. Después UI-SPEC y recién entonces planificación
+**Status:** Investigación hecha. Planes de servidor y datos en curso. Los planes de pantallas esperan a los sketches 030-033 y al UI-SPEC
 
 <domain>
 ## Phase Boundary
@@ -153,6 +153,44 @@ Investigación y simulación sobre datos reales en `214-AURA-VALORES-RESEARCH.md
   cada plan. Staging primero. Preguntar a Franco antes de cualquier push.
 - **D-42:** Antes de planificar: `/gsd-sketch` (ubicación de la lista con varias ideas, encabezado en
   celular y escritorio, fila de anotado con foto y puntos, aviso de asistencia) y después un UI-SPEC.
+
+### Decisiones posteriores a la investigación (2026-11-17)
+
+Tomadas por Franco después de leer el resumen de `214-RESEARCH.md`. Pisan lo que el RESEARCH recomiende
+en contrario.
+
+- **D-43:** Las fotos que el staff ya subió desde la ficha (y las que suba en adelante) **cuentan como
+  aprobadas y se muestran** en la lista de anotados. El RESEARCH recomendaba que no: manda esta
+  decisión. Los 5 puntos de D-30 se dan solo por la foto que sube el propio alumno, al aprobarse.
+- **D-44:** **Sin interruptor de encendido.** La lista funciona apenas se despliega. Franco acepta que
+  quien tenga la app vieja aparece sin poder ocultarse hasta que actualice. El anuncio de D-11 sale
+  antes del deploy de las pantallas.
+- **D-45:** **Sin bloqueo entre alumnos.** Entra un botón "Reportar foto" que avisa al staff y devuelve
+  la foto a la cola como reportada. Riesgo aceptado: que Apple pida el bloqueo en la revisión y haya
+  que agregarlo en la versión siguiente.
+- **D-46:** Aprueban y rechazan fotos los mismos roles que hoy suben la foto desde la ficha
+  (`MEMBER_ROLES`, profes incluidos), cada uno acotado a sus sedes.
+- **D-47:** Los menores pasan a visibles al cumplir 18, como cualquier adulto y con el aviso de primera
+  vez. Los alumnos sin fecha de nacimiento cargada se tratan como adultos. (Propuesta mía, sin
+  objeción.)
+- **D-48:** Se arregla en esta fase el inicio mal enviado al retomar una sesión de plan a medida
+  (`GoalPlanSession.vue:306, 403`), porque con D-20 esas sesiones no darían Aura. (Propuesta mía, sin
+  objeción.)
+- **D-49:** La re-valorización va en dos pasos: la migración de re-valorización y una migración de
+  repaso en un deploy posterior, porque entre la migración y el reinicio la API vieja sigue
+  acreditando con los valores viejos.
+- **D-50:** Antes de subir la foto, el alumno acepta unas normas cortas (lo exige Google Play). El texto
+  lo aprueba Franco: se le propone un borrador junto con las pantallas.
+
+Pendientes de Franco que no bloquean los planes de servidor: si tiene el archivo "Socios según fecha de
+ingreso" del sistema anterior (D-29), revisar en App Store Connect y Play Console que "Fotos" figure
+como dato recopilado, y decidir si en la 1.9.6 se saca el número de los textos "+5 AURA" antes de
+generar los builds.
+
+Precisiones técnicas del mapeo de patrones (`214-PATTERNS.md`) que el planificador debe respetar:
+`member_photos` va dentro del módulo `members` existente. ISO-03 aplica solo a `/api/members/scheduling`
+y `/api/admin/members`. Los montos viven en constantes de código y no en `aura_config`, y los defaults
+de rachas salen de `streak-reward.ts`. La preferencia de visibilidad va en `member_profiles`.
 
 ### Claude's Discretion
 
