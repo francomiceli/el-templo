@@ -236,6 +236,26 @@ de rachas salen de `streak-reward.ts`. La preferencia de visibilidad va en `memb
 - **D-62:** El selector de nivel en la barra de Entrenar muestra **la letra y el nombre** del nivel
   (por ejemplo "Δ DELTA"), no solo la letra.
 
+### Respuestas de Franco a los supuestos del planificador (2026-11-17)
+
+- **D-63:** Quitar una foto (lo haga el alumno o el staff) **quita también la foto de ficha** que cargó
+  el staff. Franco: "si quieren quitarla que la quiten". Se mantiene lo que planificó el plan 12.
+- **D-64:** **Tope del día: es una o la otra, nunca más de 5.** Franco: "si completa en app y después
+  asiste, que sume 5 en total por el día (el de más valor) pero nunca más de 5". Entre asistir a clase
+  (5), entrenar en la app (3) y la sesión de plan a medida (3), el día paga solo la de más valor, sin
+  importar el orden. Reemplaza el supuesto 6 del planificador (que dejaba 3 + 5 cuando la app iba
+  primero) y amplía D-20. Estirar (1) y bloque libre (2) son extras y se suman aparte.
+  - Forma recomendada (a criterio del planificador): si ese día ya hay Aura por la app o por plan a
+    medida, la asistencia acredita solo la diferencia hasta 5, y la reversa de una asistencia revierte
+    exactamente lo que esa asistencia acreditó. Así el ledger no necesita filas negativas extra y, si
+    se anula la asistencia, el día vuelve a valer 3.
+  - Extensión mía, a confirmar si aparece el caso: app y plan a medida el mismo día pagan 3 en total,
+    no 6.
+  - No cambia: dos asistencias presenciales el mismo día en categorías distintas (clase regular y
+    actividad especial) siguen acreditando cada una, como hoy.
+- **D-65:** En la lista, quien tiene 0 de Aura aparece **sin número** (supuesto del planificador, sin
+  objeción de Franco).
+
 ### Claude's Discretion
 
 - Cómo se calcula el "Aura ganada" (suma del ledger sin canjes, o saldo más canjes) mientras la
