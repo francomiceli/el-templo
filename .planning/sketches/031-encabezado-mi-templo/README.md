@@ -20,6 +20,12 @@ Abrir `.planning/sketches/031-encabezado-mi-templo/index.html` (desde Windows: `
 
 Abrir `ronda2.html` en la misma carpeta. Franco eligió C y preguntó si la ficha de Aura puede ser más premium, como la card de hoy, o si compite. La ronda 2 muestra la ficha arriba de la card de hoy real en tres grados: C1 simple, C2 hermana premium (mismo material, quieta) y C3 gemela (con el movimiento de la card de hoy). Suma el selector de nivel dentro de Entrenar, en la barra de arriba a la izquierda del acceso al perfil.
 
+## Decididas por Franco (2026-11-17)
+
+- Sello de antigüedad: se queda, sin dorado.
+- Selector de nivel: sale del encabezado y va en la barra de Entrenar, con letra y nombre.
+- Pendiente: el tratamiento del Aura (ronda 3).
+
 ## Ronda 3
 
 Abrir `ronda3.html`. A Franco no lo convenció el fondo oscuro para el Aura. Cuatro tratamientos sin fondo oscuro, arriba de la card de hoy: L1 ficha clara (marfil con filete dorado), L2 vidrio (translúcida), L3 solo el número y L4 medallón. Tocar el Aura abre el detalle privado de movimientos, también en claro.

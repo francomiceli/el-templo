@@ -114,7 +114,7 @@ Investigación y simulación sobre datos reales en `214-AURA-VALORES-RESEARCH.md
   hoy. Motivo: las sesiones se registran desde abril de 2026 y un alumno de 3 años aparecería con 57.
 - **D-27:** El encabezado está duplicado en `MainLayout.vue` (escritorio y celular): se extrae a un solo
   componente.
-- **D-28:** Si el sello de antigüedad (`VeteranSeal`) y el selector de nivel se quedan, y cómo convive el
+- **D-28 (RESUELTA, ver D-55 y D-61):** Si el sello de antigüedad (`VeteranSeal`) y el selector de nivel se quedan, y cómo convive el
   dorado del sello oro con el dorado reservado a Aura, se define en los sketches.
 - **D-29:** 367 alumnos importados en marzo de 2026 tienen la fecha de importación como fecha de alta.
   Al planificar se investiga si hay una fecha real (primera suscripción u otro dato). Si existe se
@@ -230,6 +230,11 @@ de rachas salen de `streak-reward.ts`. La preferencia de visibilidad va en `memb
 - **D-60:** La **ficha oscura de Aura del encabezado queda descartada.** Franco: "no me convence que sea
   oscuro el fondo de lo de aura". Se mantiene la estructura de la variante C (foto, nombre, antigüedad y
   Aura a la derecha). El tratamiento se elige en la ronda 3 (`031-encabezado-mi-templo/ronda3.html`).
+
+- **D-61:** El **sello de antigüedad se queda, sin dorado** (resuelve D-28). El dorado queda solo para
+  Aura. El tono exacto del sello lo fija el UI-SPEC.
+- **D-62:** El selector de nivel en la barra de Entrenar muestra **la letra y el nombre** del nivel
+  (por ejemplo "Δ DELTA"), no solo la letra.
 
 ### Claude's Discretion
 
