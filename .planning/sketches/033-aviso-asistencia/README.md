@@ -23,6 +23,10 @@ Abrir `.planning/sketches/033-aviso-asistencia/index.html` (desde Windows: `\\ws
 - **B · Celebración:** pantalla oscura con el "+5" grande, el total que sube y "Listo".
 - **C · Con tu clase:** confirma, muestra el "+5" con el total, con quiénes entrenás hoy y cómo va la semana.
 
+## Ajuste de Franco sobre B (2026-11-17)
+
+El "+5" va sin la chispa de Aura. La chispa pasa a la línea del total: "Tu Aura: ✦ 320", después del texto y antes del número.
+
 ## What to Look For
 
 - Esto pasa unas 3 veces por semana: ¿cuál no cansa a la décima vez?

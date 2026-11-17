@@ -132,8 +132,8 @@
     if (v === 'B') return staff()
       ? `<div class="fill"><span class="halo"></span><span class="ring"><span class="material-icons">check</span></span><small>ASISTENCIA REGISTRADA</small><h2>¡Adentro!</h2><p class="sede">Sede Mario Bravo · 18:00</p><button class="btn">Listo</button></div>`
       : `<div class="fill"><span class="halo"></span><span class="ring"><span class="material-icons">check</span></span><small>ASISTENCIA REGISTRADA</small>
-        <div class="big"><span class="spark">✦</span>+5</div><div class="lbl">AURA</div>
-        <div class="tot">Tu Aura: <b data-count>315</b></div><p class="sede">Sede Mario Bravo · 18:00</p><button class="btn">Listo</button></div>`
+        <div class="big">+5</div><div class="lbl">AURA</div>
+        <div class="tot">Tu Aura: <span class="spark">✦</span> <b data-count>315</b></div><p class="sede">Sede Mario Bravo · 18:00</p><button class="btn">Listo</button></div>`
     const aura = staff() ? '' : `<div class="aura"><span class="n"><span class="spark">✦</span>+5</span><span><small>AURA</small>por venir hoy</span><span class="t">Llevás<b data-count>315</b></span></div>`
     return `${bar}<div class="wrap">
       <div class="okc"><span class="ck"><span class="material-icons">check</span></span><span><b>Asistencia registrada</b><span>Sede Mario Bravo · 18:00</span></span></div>
