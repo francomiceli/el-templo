@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v6.1
 milestone_name: Módulo Gimnasio
-status: executing
-stopped_at: Completed 213-13-PLAN.md (fase 213 ejecutada 13/13, pendiente UAT de Franco)
-last_updated: "2026-11-11T20:27:17.931Z"
+status: verifying
+stopped_at: Phase 214 context gathered (discuss cerrado, 42 decisiones). Sigue /gsd-sketch y UI-SPEC antes de planificar
+last_updated: "2026-11-17T20:59:41.377Z"
 last_activity: 2026-11-11
 progress:
-  total_phases: 31
-  completed_phases: 10
-  total_plans: 300
-  completed_plans: 256
-  percent: 32
+  total_phases: 39
+  completed_phases: 16
+  total_plans: 351
+  completed_plans: 308
+  percent: 41
 ---
 
 # Project State
@@ -1044,9 +1044,9 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-11-11T20:27:17.894Z
-Stopped at: Completed 213-13-PLAN.md
-Resume file: .planning/phases/213-estiramiento-post-clase/213-UAT.md
+Last session: 2026-11-17T20:59:41.354Z
+Stopped at: Phase 214 context gathered (discuss cerrado, 42 decisiones). Sigue /gsd-sketch y UI-SPEC antes de planificar
+Resume file: .planning/phases/214-comunidad-anotados-aura/214-CONTEXT.md
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
 
