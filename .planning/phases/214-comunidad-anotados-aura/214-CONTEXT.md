@@ -1,7 +1,7 @@
 # Phase 214: Comunidad: anotados en la clase y Aura visible - Context
 
 **Gathered:** 2026-11-17
-**Status:** Investigación hecha. Planes de servidor y datos en curso. Los planes de pantallas esperan a los sketches 030-033 y al UI-SPEC
+**Status:** Planes 01 a 15 (servidor y datos) escritos y en revisión. Sketches 030 a 033 elegidos. Sigue el UI-SPEC y los planes de pantallas
 
 <domain>
 ## Phase Boundary
@@ -255,6 +255,11 @@ de rachas salen de `streak-reward.ts`. La preferencia de visibilidad va en `memb
     actividad especial) siguen acreditando cada una, como hoy.
 - **D-65:** En la lista, quien tiene 0 de Aura aparece **sin número** (supuesto del planificador, sin
   objeción de Franco).
+
+- **D-66:** El Aura del encabezado va en la **ficha clara** (sketch 031, ronda 3, variante L1): marfil con
+  filete dorado y el número en dorado oscuro. Cierra D-53 y D-60. Tocarla abre el detalle privado, que
+  también va en claro. Con esto quedan elegidos los cuatro sketches (030 C2, 031 C + L1, 032 B, 033 B con
+  el "+5" sin chispa y la chispa antes del total).
 
 ### Claude's Discretion
 

@@ -2,7 +2,7 @@
 sketch: 031
 name: encabezado-mi-templo
 question: "¿Cómo queda el encabezado de Mi Templo sin "Hola" ni fecha: una línea (A), dos fichas (B) o Aura protagonista (C)? Con y sin sello y selector de nivel, celular y escritorio"
-winner: "C como estructura (foto, nombre, antigüedad y Aura a la derecha), sin selector de nivel. Ficha oscura DESCARTADA por Franco. Ronda 3 en ronda3.html: Aura sin fondo oscuro (L1 clara, L2 vidrio, L3 solo el número, L4 medallón), con el detalle privado al tocar"
+winner: "C + L1: foto con aro dorado, nombre con sello sin dorado, antigüedad y ficha CLARA de Aura (marfil con filete dorado) que abre el detalle privado. Sin selector de nivel (pasa a la barra de Entrenar, con letra y nombre). Sin contador de sesiones"
 tags: [app, mi-templo, encabezado, aura, fase-214]
 ---
 
@@ -24,7 +24,7 @@ Abrir `ronda2.html` en la misma carpeta. Franco eligió C y preguntó si la fich
 
 - Sello de antigüedad: se queda, sin dorado.
 - Selector de nivel: sale del encabezado y va en la barra de Entrenar, con letra y nombre.
-- Pendiente: el tratamiento del Aura (ronda 3).
+- Tratamiento del Aura: L1, ficha clara (ronda 3).
 
 ## Ronda 3
 
