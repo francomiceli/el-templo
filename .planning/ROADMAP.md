@@ -1182,6 +1182,27 @@ Plans:
 - [x] 213-12-PLAN.md — Deep link del push con la app cerrada y sin sesión
 - [x] 213-13-PLAN.md — Checklist de UAT + consulta de medición a 4 semanas + gates finales
 
+### Phase 214: Comunidad: anotados en la clase y Aura visible (fuera del milestone v6.1)
+
+**Estado (2026-11-17)**: discuss CERRADO, 42 decisiones en `214-CONTEXT.md`. Siguen `/gsd-sketch` (ubicación de la lista, encabezado, fila de anotado, aviso de asistencia) y un UI-SPEC, y recién después la planificación. Rama `feat/comunidad-anotados-aura` (worktree `et-comunidad`, base `origin/master` `a51a00271`), migraciones desde la 0344, SIN PUSH, sin bump de versión. Fuente: transcripción 00:00:00–00:02:00 de la reunión del 2026-11-16 y prompt de Franco (`214-BRIEF.md`). Investigación de valores de Aura con datos de producción en `214-AURA-VALORES-RESEARCH.md`.
+
+**Goal**: El alumno ve quiénes ya están anotados en la clase, y su Aura deja de ser invisible: puntos y movimientos propios, puntos al lado de cada anotado, encabezado de Mi Templo con nombre, foto, antigüedad y Aura, y foto de perfil subida por él mismo, con los valores de Aura reacomodados antes de mostrarlos
+**Depends on**: nada. Límite original "no se toca la economía de Aura", enmendado por Franco en el discuss: se cambian los montos y la escala (una clase = 5) con el historial re-valorizado, se suman 5 puntos por la foto y se apaga el descuento por Aura. Quedan FUERA los niveles de estatus y regalar Aura (fase propia, a continuación). Decisiones en `214-CONTEXT.md`
+**Success Criteria** (what must be TRUE):
+
+1. En la lista de anotados (ubicación definida con sketches y UI-SPEC) un alumno con plan vigente ve nombre de pila, inicial del apellido, foto aprobada o iniciales y puntos de Aura de quienes tienen reserva vigente, en orden de reserva; nunca apellido completo, teléfono, sesiones de prueba, cancelados ni lista de espera
+2. Quien se oculta desde Perfil cuenta en el número, aparece agrupado como "y otros N más" y deja de ver la lista de los demás; menores y alumnos de sedes fuera de Argentina arrancan ocultos
+3. El alumno ve sus puntos de Aura y sus últimos movimientos, y no puede leer los de otro; al staff no se le muestra Aura
+4. Los valores nuevos rigen para todas las fuentes (clase 5, onboarding 5, antigüedad 15/25/50, rachas 5/10/15/25/50, app y plan a medida 3, bloque libre 2, estirar 1, foto 5), el historial está re-valorizado y los puntos que muestra la app coinciden con la suma del ledger por usuario
+5. Entrenar en la app da Aura solo si la sesión duró al menos el 80 % del tiempo propuesto y están todos los bloques, y no suma el día que el alumno asistió a clase
+6. El admin ya no ofrece el descuento por Aura
+7. El alumno sube su propia foto, queda pendiente hasta que el staff la aprueba desde el admin, y el staff puede quitarla; ninguna foto se rechaza por pesada
+8. El encabezado de Mi Templo es un solo componente (escritorio y celular) con nombre, foto, antigüedad y puntos de Aura, sin "Hola", sin fecha y sin contador de sesiones
+9. Hay línea de base de 4 semanas antes de lanzar (reservas y asistencias por alumno activo por semana) y la misma medición después
+10. Funciona en teléfono real, iOS incluido
+
+**Plans:** sin planificar
+
 ---
 
 _Unificado el 2026-10-28 (rescate de docs del master local): sobre el ROADMAP de origin/master se sumaron las fases 188.1, 192.1-192.3, 193, 195, 196 (archivada), 198 y 199, 203, con su estado real. Textos de fase tomados de master local (193, 199), `origin/staging` (195), `feat/203-carga-sin-parpadeos` (203), `archive/196-personalizados` (196, 198) y el tren `feat/v6.1-gimnasio` / `feat/192.3-workout-engine` (188.1, 192.x)._
