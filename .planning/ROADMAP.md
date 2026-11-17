@@ -1190,9 +1190,9 @@ Plans:
 **Depends on**: nada. Límite original "no se toca la economía de Aura", enmendado por Franco en el discuss: se cambian los montos y la escala (una clase = 5) con el historial re-valorizado, se suman 5 puntos por la foto y se apaga el descuento por Aura. Quedan FUERA los niveles de estatus y regalar Aura (fase propia, a continuación). Decisiones en `214-CONTEXT.md`
 **Success Criteria** (what must be TRUE):
 
-1. En la lista de anotados (hoja desde abajo con caras en grilla, sin etiquetas de profe ni Wellhub) un alumno con plan vigente ve nombre de pila, inicial del apellido, foto aprobada o iniciales y puntos de Aura de quienes tienen reserva vigente, en orden de reserva; nunca apellido completo, teléfono, sesiones de prueba, cancelados ni lista de espera
+1. En la lista de anotados (hoja desde abajo con caras en grilla, que se abre desde el número de anotados de cada horario, sin etiquetas de profe ni Wellhub) un alumno con plan vigente ve nombre de pila, inicial del apellido, foto aprobada o iniciales y puntos de Aura de quienes tienen reserva vigente, en orden de reserva; nunca apellido completo, teléfono, sesiones de prueba, cancelados ni lista de espera
 2. Quien se oculta desde Perfil cuenta en el número, aparece agrupado como "y otros N más" y deja de ver la lista de los demás; menores y alumnos de sedes fuera de Argentina arrancan ocultos
-3. El alumno ve sus puntos de Aura y no puede leer los de otro; al staff no se le muestra Aura. El detalle de movimientos queda para más adelante
+3. Cada usuario ve sus puntos de Aura y, en un detalle privado, sus últimos movimientos; nadie puede leer los de otro. El staff ve su Aura igual que un alumno
 4. Los valores nuevos rigen para todas las fuentes (clase 5, onboarding 5, antigüedad 15/25/50, rachas 5/10/15/25/50, app y plan a medida 3, bloque libre 2, estirar 1, foto 5), el historial está re-valorizado y los puntos que muestra la app coinciden con la suma del ledger por usuario
 5. Entrenar en la app da Aura solo si la sesión duró al menos el 80 % del tiempo propuesto y están todos los bloques, y no suma el día que el alumno asistió a clase
 6. El admin ya no ofrece el descuento por Aura

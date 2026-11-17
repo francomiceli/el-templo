@@ -2,7 +2,7 @@
 sketch: 031
 name: encabezado-mi-templo
 question: "¿Cómo queda el encabezado de Mi Templo sin "Hola" ni fecha: una línea (A), dos fichas (B) o Aura protagonista (C)? Con y sin sello y selector de nivel, celular y escritorio"
-winner: "C (ficha oscura de Aura), sin selector de nivel y sin detalle de movimientos. Ronda 2 en ronda2.html: grado de premium de la ficha (C1, C2, C3), sello y selector de nivel en la barra de Entrenar"
+winner: "C como estructura (foto, nombre, antigüedad y Aura a la derecha), sin selector de nivel. Ficha oscura DESCARTADA por Franco. Ronda 3 en ronda3.html: Aura sin fondo oscuro (L1 clara, L2 vidrio, L3 solo el número, L4 medallón), con el detalle privado al tocar"
 tags: [app, mi-templo, encabezado, aura, fase-214]
 ---
 
@@ -19,6 +19,10 @@ Abrir `.planning/sketches/031-encabezado-mi-templo/index.html` (desde Windows: `
 ## Ronda 2
 
 Abrir `ronda2.html` en la misma carpeta. Franco eligió C y preguntó si la ficha de Aura puede ser más premium, como la card de hoy, o si compite. La ronda 2 muestra la ficha arriba de la card de hoy real en tres grados: C1 simple, C2 hermana premium (mismo material, quieta) y C3 gemela (con el movimiento de la card de hoy). Suma el selector de nivel dentro de Entrenar, en la barra de arriba a la izquierda del acceso al perfil.
+
+## Ronda 3
+
+Abrir `ronda3.html`. A Franco no lo convenció el fondo oscuro para el Aura. Cuatro tratamientos sin fondo oscuro, arriba de la card de hoy: L1 ficha clara (marfil con filete dorado), L2 vidrio (translúcida), L3 solo el número y L4 medallón. Tocar el Aura abre el detalle privado de movimientos, también en claro.
 
 ## Variants
 

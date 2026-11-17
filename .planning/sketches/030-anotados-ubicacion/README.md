@@ -2,7 +2,7 @@
 sketch: 030
 name: anotados-ubicacion
 question: "¿Dónde vive la lista de anotados: en el pop-up de reserva (A), dentro de la card del horario (B), en una hoja desde abajo (C) o en una pantalla propia de la clase (D)?"
-winner: "C: hoja desde abajo, con caras en grilla (032 B), sin 'ver quiénes' y sin etiquetas de profe ni Wellhub. Pendiente: caras en la card (C) o solo el número (C2)"
+winner: "C2: hoja desde abajo con caras en grilla (032 B). La card del horario muestra solo el número de anotados. Sin etiquetas de profe ni Wellhub"
 tags: [app, reservas, comunidad, fase-214]
 ---
 

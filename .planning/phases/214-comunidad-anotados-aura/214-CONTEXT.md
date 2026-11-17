@@ -60,12 +60,12 @@ Franco lo enmendó el 2026-11-17:
 
 - **D-12:** Endpoint propio del alumno con sus puntos y su historial. Un alumno no puede leer los
   puntos ni el historial de otro. Hoy no existe ninguna ruta de Aura.
-- **D-13 (DIFERIDA, ver D-54):** Detalle de Aura: el total y los últimos 20 movimientos con un texto claro por motivo, y
+- **D-13 (vigente, ver D-57):** Detalle de Aura: el total y los últimos 20 movimientos con un texto claro por motivo, y
   "ver más" para seguir. Las filas de 0 puntos (referidos) no se muestran. Las reversas sí, en negativo.
   No hay tabla de "cómo ganar puntos" (propuesta mía no objetada, en línea con lo que Franco dijo en la
   reunión: "está ahí, no te explico ni para qué ni por qué").
 - **D-14:** Sin niveles de estatus. Solo puntos.
-- **D-15:** Al staff no se le muestra Aura en ningún lado. Franco: "que no se muestre para los que hoy
+- **D-15 (REVOCADA por D-58):** Al staff no se le muestra Aura en ningún lado. Franco: "que no se muestre para los que hoy
   están marcados como staff". Staff = roles de `ALL_STAFF_ROLES`. La acreditación al staff no se toca.
 - **D-16:** Dónde se ve: encabezado de Mi Templo, Perfil y la lista de anotados. Tocar los puntos del
   encabezado lleva al detalle.
@@ -204,7 +204,7 @@ de rachas salen de `streak-reward.ts`. La preferencia de visibilidad va en `memb
 - **D-53:** El encabezado de Mi Templo es la **variante C** del sketch 031: ficha oscura con los puntos de
   Aura y la foto con aro dorado. Cuánto se parece la ficha a la card de hoy se define en la ronda 2
   (`031-encabezado-mi-templo/ronda2.html`), junto con el sello de antigüedad.
-- **D-54:** El **detalle de movimientos de Aura NO entra en esta fase.** Franco: "luego que se pueda entrar
+- **D-54 (REVOCADA por D-57):** El **detalle de movimientos de Aura NO entra en esta fase.** Franco: "luego que se pueda entrar
   a ver de dónde se sumó el aura, no mostrarlo por ahora, que no sea público". Los puntos del encabezado
   no llevan a ninguna pantalla. Reemplaza a D-13 y a la parte de D-16 que decía "tocar los puntos lleva
   al detalle". No se planifica la ruta de movimientos ni los textos por motivo.
@@ -214,6 +214,22 @@ de rachas salen de `streak-reward.ts`. La preferencia de visibilidad va en `memb
 - **D-56:** El aviso al marcar asistencia es la **celebración a pantalla completa** (sketch 033, variante
   B). El staff también la ve, sin la parte de Aura (lectura mía de "que la vea también staff": D-15 sigue
   vigente).
+
+### Cambios de Franco tras la primera ronda de sketches (2026-11-17)
+
+- **D-57:** El **detalle de movimientos de Aura SÍ entra en esta fase, y es privado.** Franco: "hagamos
+  detalle privado". Revoca D-54 y repone D-13 y D-16: tocar los puntos del encabezado abre el detalle,
+  que solo ve su dueño.
+- **D-58:** **Al staff SÍ se le muestra Aura.** Franco: "que al staff se le muestre aura". Revoca D-15 y
+  la parte de D-08 y D-56 que los dejaba sin puntos. No hay ningún ocultamiento por rol: encabezado,
+  detalle, lista de anotados y celebración muestran lo que el servidor informa. Un profe que se
+  auto-registra no acredita Aura (regla existente), así que su celebración sale sin el "+5". La
+  acreditación al staff no se toca. Sigue vigente D-52: la lista no devuelve rol ni origen.
+- **D-59:** La card del horario muestra **solo el número de anotados** como botón para abrir la hoja
+  (sketch 030, variante C2). No se agregan caras a la grilla semanal.
+- **D-60:** La **ficha oscura de Aura del encabezado queda descartada.** Franco: "no me convence que sea
+  oscuro el fondo de lo de aura". Se mantiene la estructura de la variante C (foto, nombre, antigüedad y
+  Aura a la derecha). El tratamiento se elige en la ronda 3 (`031-encabezado-mi-templo/ronda3.html`).
 
 ### Claude's Discretion
 
@@ -384,7 +400,6 @@ preparado: el número visible se calcula de modo que los regalos puedan sumar de
 
 ### Fuera de la fase por decisión de Franco
 
-- Detalle de movimientos de Aura (de dónde se sumó cada punto): más adelante, y privado (D-54).
 - Niveles de estatus de Aura (cortes, nombres, insignia). La distribución ya está relevada en
   `consultas/01-distribucion-aura.resultado-2026-11-17.txt`.
 - Economía de Aura con puntos gastables y gastados, y volver a encender el descuento.
