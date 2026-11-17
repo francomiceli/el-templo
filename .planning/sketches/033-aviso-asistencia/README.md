@@ -2,7 +2,7 @@
 sketch: 033
 name: aviso-asistencia
 question: "¿Cómo avisa la app que se registró la asistencia y se sumaron 5 de Aura: píldora sobre la barra (A), celebración a pantalla completa (B) o resumen con tu clase (C)?"
-winner: null
+winner: "B: celebración a pantalla completa. El staff también la ve, sin la parte de Aura"
 tags: [app, asistencia, aura, fase-214]
 ---
 

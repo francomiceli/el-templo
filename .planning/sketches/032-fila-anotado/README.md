@@ -2,7 +2,7 @@
 sketch: 032
 name: fila-anotado
 question: "¿Cómo se ve cada anotado: lista (A), caras en grilla (B), dos columnas (C) o tira que se desliza (D)? Con y sin fotos, staff y Wellhub sin puntos, y "+3 más""
-winner: null
+winner: "B: caras en grilla, sin etiquetas"
 tags: [app, reservas, comunidad, aura, fase-214]
 ---
 

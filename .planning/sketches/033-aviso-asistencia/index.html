@@ -111,8 +111,8 @@
   <div class="col"><div class="col-label">A · Píldora sobre la barra</div>
     <div class="col-sub">Después de escanear, la app vuelve sola a Mi Templo y aparece una píldora oscura sobre la barra, igual que los demás mensajes de la app, con el "+5 Aura" en dorado. Rápida y sin toques extra; dura unos segundos.</div>
     <div class="phone A" data-v="A"></div></div>
-  <div class="col"><div class="col-label">B · Celebración</div>
-    <div class="col-sub">Pantalla oscura con el "+5" grande en dorado y el total actualizado. Es el momento fuerte del Aura, hermano de la celebración del bloque libre. Pide un toque en "Listo" antes de seguir.</div>
+  <div class="col"><div class="col-label">★ B · Celebración (elegida)</div>
+    <div class="col-sub">Pantalla oscura con el "+5" grande en dorado y el total actualizado. Es el momento fuerte del Aura, hermano de la celebración del bloque libre. Pide un toque en "Listo" antes de seguir. El staff ve la misma pantalla, sin la parte de Aura.</div>
     <div class="phone B" data-v="B"></div></div>
   <div class="col"><div class="col-label">C · Con tu clase</div>
     <div class="col-sub">Confirma la asistencia, muestra el "+5" con el total y suma con quiénes entrenás hoy y cómo va tu semana. Une el Aura con la lista de anotados. Es la más cargada.</div>
@@ -130,7 +130,7 @@
     if (v === 'A') return `${bar}<p class="greet">Franco</p><div class="mi"><div class="today"><small>HOY</small><b>Deuteros II · Tren superior</b></div><div class="ph">TUS SESIONES</div></div>
       <div class="pill"><span class="ck"><span class="material-icons">check</span></span>Asistencia registrada${staff() ? '' : '<span class="sep">|</span><b><span class="spark">✦</span> +5 Aura</b>'}</div>${tabbar}`
     if (v === 'B') return staff()
-      ? `<div class="fill"><span class="ring plain"><span class="material-icons">check</span></span><h2>Asistencia registrada</h2><p class="sede">Sede Mario Bravo · 18:00</p><button class="btn">Listo</button></div>`
+      ? `<div class="fill"><span class="halo"></span><span class="ring"><span class="material-icons">check</span></span><small>ASISTENCIA REGISTRADA</small><h2>¡Adentro!</h2><p class="sede">Sede Mario Bravo · 18:00</p><button class="btn">Listo</button></div>`
       : `<div class="fill"><span class="halo"></span><span class="ring"><span class="material-icons">check</span></span><small>ASISTENCIA REGISTRADA</small>
         <div class="big"><span class="spark">✦</span>+5</div><div class="lbl">AURA</div>
         <div class="tot">Tu Aura: <b data-count>315</b></div><p class="sede">Sede Mario Bravo · 18:00</p><button class="btn">Listo</button></div>`

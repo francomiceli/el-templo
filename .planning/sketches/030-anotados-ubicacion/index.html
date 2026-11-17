@@ -91,6 +91,11 @@
   .first { margin-bottom: 6px; padding: 10px 12px; border-radius: 12px; background: #fff7ea; border: 1px solid #ecd9b8; font-size: 13px; line-height: 1.4; }
   .first div { margin-top: 8px; display: flex; gap: 14px; }
   .first a { font-weight: 600; color: var(--terra); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+  .fg { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px 6px; padding: 8px 0 6px; }
+  .fg .cell { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; min-width: 0; }
+  .fg .nm { max-width: 100%; font-size: 12.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fg .sub { min-height: 18px; display: flex; align-items: center; }
+  .pts.pill { padding: 1px 8px 1px 6px; border-radius: 999px; background: var(--aura-tint); font-size: 12px; }
   .expand { overflow: hidden; max-height: 0; transition: max-height .25s ease; }
   .expand.open { max-height: 640px; }
   .expand > .list { padding-top: 6px; }
@@ -163,9 +168,14 @@
     <div class="phone" data-v="B"></div>
   </div>
   <div class="col">
-    <div class="col-label">C · Hoja desde abajo</div>
-    <div class="col-sub">Las caras en la card funcionan como botón: abren una hoja "Quiénes van" con la lista completa y el botón de reservar abajo. La grilla queda limpia y la lista tiene todo el alto que necesite.</div>
+    <div class="col-label">★ C · Hoja desde abajo (elegida), con caras en la card</div>
+    <div class="col-sub">Elegida por Franco. La card del horario muestra hasta 4 caras y el número, y al tocar se abre la hoja "Quiénes van" con todos en grilla (sketch 032 B) y Reservar abajo. Sin etiquetas de profe ni Wellhub.</div>
     <div class="phone" data-v="C"></div>
+  </div>
+  <div class="col">
+    <div class="col-label">C2 · Igual, pero solo el número en la card</div>
+    <div class="col-sub">La misma hoja, pero la card del horario muestra solo "10 anotados" como botón, sin caras. La grilla queda como hoy y carga más liviana; las caras aparecen recién al abrir la hoja.</div>
+    <div class="phone" data-v="C2"></div>
   </div>
   <div class="col">
     <div class="col-label">D · Pantalla de la clase</div>
@@ -179,10 +189,10 @@
     { n: 'Sofía M.', img: 'women/44', pts: 320 },
     { n: 'Nicolás R.', pts: 95 },
     { n: 'Camila G.', img: 'women/68', pts: 610 },
-    { n: 'Nacho P.', img: 'men/32', tag: 'Profe' },
+    { n: 'Nacho P.', img: 'men/32' },
     { n: 'Lucía F.', pts: 15 },
     { n: 'Martín D.', img: 'men/75', pts: 240 },
-    { n: 'Juli S.', img: 'women/12', tag: 'Wellhub' },
+    { n: 'Juli S.', img: 'women/12' },
   ]
   const ME = { n: 'Franco M.', img: 'men/46', pts: 180, me: true }
   const HIDDEN = 3
@@ -194,18 +204,19 @@
   const count = () => people().length + HIDDEN
   const canSee = () => state.viewer === 'visible'
   const stack = (n = 4, s = 28) => `<span class="stack">${people().slice(0, n).map((p) => av(p, s)).join('')}</span>`
-  const pts = (p) => (p.pts == null ? '' : `<span class="pts"><i>✦</i>${p.pts}</span>`)
-  function list() {
+  const pts = (p, pill) => (p.pts == null ? '' : `<span class="pts ${pill ? 'pill' : ''}"><i>✦</i>${p.pts}</span>`)
+  function list(asGrid) {
     if (state.viewer === 'oculto') return `<div class="note"><span class="material-icons">visibility_off</span><span>Estás oculto en las listas, por eso ves solo el número: hay <b>${count()} anotados</b>. <a>Cambiarlo en Perfil</a></span></div>`
     if (state.viewer === 'sinplan') return `<div class="note"><span class="material-icons">lock</span><span>Hay <b>${count()} anotados</b>. La lista con nombres la ven los alumnos con plan vigente.</span></div>`
     const first = state.first ? `<div class="first">Tu nombre de pila y tu foto también aparecen en esta lista para tus compañeros.<div><a data-act="first-ok">Entendido</a><a>Ocultarme</a></div></div>` : ''
+    if (asGrid) return `${first}<div class="fg">${people().map((p) => `<div class="cell">${av(p, 56)}<span class="nm">${p.n}${p.me ? ' (vos)' : ''}</span><span class="sub">${pts(p, true)}</span></div>`).join('')}<div class="cell"><span class="av ghost" style="--s:56px;font:700 17px Montserrat">+${HIDDEN}</span><span class="nm" style="color:var(--ink-2)">más</span><span class="sub"></span></div></div>`
     const rows = people().map((p) => `<div class="row">${av(p)}<span class="nm">${p.n}${p.me ? ' <span class="tag">Vos</span>' : ''}${p.tag ? `<span class="tag">${p.tag}</span>` : ''}</span>${pts(p)}</div>`).join('')
     return `${first}<div class="list">${rows}<div class="row more"><span class="av ghost"><span class="material-icons" style="font-size:18px">person</span></span>y otros ${HIDDEN} más</div></div>`
   }
   function whoRow(v, opts = {}) {
     const open = state.open[v] ? 'open' : ''
-    const faces = canSee() ? stack() : ''
-    return `<button class="who ${open}" data-act="who" data-v="${v}">${faces}<span><b>${count()} anotados</b>${opts.hint && canSee() ? ' · ver quiénes' : ''}</span><span class="material-icons ch">${opts.icon || 'expand_more'}</span></button>`
+    const faces = canSee() && !opts.noFaces ? stack() : ''
+    return `<button class="who ${open}" data-act="who" data-v="${v}">${faces}<span><b>${count()} anotados</b></span><span class="material-icons ch">${opts.icon || 'expand_more'}</span></button>`
   }
   const tabbar = () => `<div class="tabbar">${[['account_balance', 'Mi Templo'], ['menu_book', 'Guía'], ['sports_mma', 'Entrenar'], ['event_available', 'Reservas', 1], ['card_membership', 'Planes']].map(([i, l, on]) => `<span class="${on ? 'on' : ''}"><span class="material-icons">${i}</span>${l}</span>`).join('')}</div>`
   const days = () => `<div class="days">${[['LUN', 12], ['MAR', 13], ['MIE', 14], ['JUE', 15], ['VIE', 16]].map(([d, n], i) => `<div class="day ${i === 4 ? 'on' : ''}">${d}<b>${n}</b></div>`).join('')}</div>`
@@ -218,7 +229,7 @@
     const top = `<div class="top"><span><span class="h">18:00</span><span class="a">Sesión grupal</span></span><span class="r">${right}</span></div>`
     if (v === 'A') return `<div class="slot ${state.booked ? 'booked' : ''}">${top}</div>`
     if (v === 'B') return `<div class="slot ${state.booked ? 'booked' : ''}">${top}${whoRow('B')}<div class="expand ${state.open.B ? 'open' : ''}">${list()}</div></div>`
-    if (v === 'C') return `<div class="slot ${state.booked ? 'booked' : ''}">${top}${whoRow('C', { hint: true, icon: 'chevron_right' })}</div>`
+    if (v === 'C' || v === 'C2') return `<div class="slot ${state.booked ? 'booked' : ''}">${top}${whoRow(v, { icon: 'chevron_right', noFaces: v === 'C2' })}</div>`
     return `<div class="slot tap ${state.booked ? 'booked' : ''}" data-act="detail">${top}${whoRow('D', { icon: 'chevron_right' })}</div>`
   }
   function grid(v) {
@@ -249,10 +260,10 @@
         <small>Reservar</small><h3>Viernes 16 · 18:00</h3><p>Sesión grupal · Mario Bravo</p>
         ${whoRow('A')}<div class="expand ${state.open.A ? 'open' : ''}">${list()}</div>
         <div class="act"><button class="cx" data-act="dlg-x">Cancelar</button><button class="go" data-act="book" data-v="A">Confirmar</button></div></div></div>` : ''
-    const sheet = v === 'C' ? `<div class="sheet-veil ${state.open.C ? 'show' : ''}" data-act="who" data-v="C"></div><div class="sheet ${state.open.C ? 'show' : ''}">
+    const sheet = v === 'C' || v === 'C2' ? `<div class="sheet-veil ${state.open[v] ? 'show' : ''}" data-act="who" data-v="${v}"></div><div class="sheet ${state.open[v] ? 'show' : ''}">
         <div class="grip"></div><header><small>Quiénes van</small><h3>Viernes 16 · 18:00</h3><p>${count()} de 20 lugares · Mario Bravo</p></header>
-        <div class="body">${list()}</div>
-        <footer>${state.booked ? '<button class="go wide" style="background:#fff;color:var(--terra);border:1.5px solid var(--terra)" data-act="who" data-v="C">Cerrar</button>' : '<button class="go wide" data-act="book" data-v="C">Reservar 18:00</button>'}</footer></div>` : ''
+        <div class="body">${list(true)}</div>
+        <footer>${state.booked ? `<button class="go wide" style="background:#fff;color:var(--terra);border:1.5px solid var(--terra)" data-act="who" data-v="${v}">Cerrar</button>` : `<button class="go wide" data-act="book" data-v="${v}">Reservar 18:00</button>`}</footer></div>` : ''
     return `${bar}${body}${tabbar()}${dlg}${sheet}<div class="flash" data-flash>Reserva confirmada</div>`
   }
   function render() { document.querySelectorAll('.phone').forEach((p) => { const st = p.querySelector('.scroll')?.scrollTop || 0; p.innerHTML = phone(p.dataset.v); const s = p.querySelector('.scroll'); if (s) s.scrollTop = st }) }
@@ -270,7 +281,7 @@
     if (act === 'detail') state.detail = true
     if (act === 'back') state.detail = false
     if (act === 'first-ok') setCtl('first', '0')
-    if (act === 'book') { state.booked = true; state.open.dlg = false; state.open.A = false; if (v === 'C') state.open.C = false; setCtl('booked', '1'); render(); flash(document.querySelector(`.phone[data-v="${v}"]`), 'Reserva confirmada'); return }
+    if (act === 'book') { state.booked = true; state.open.dlg = false; state.open.A = false; if (v === 'C' || v === 'C2') state.open[v] = false; setCtl('booked', '1'); render(); flash(document.querySelector(`.phone[data-v="${v}"]`), 'Reserva confirmada'); return }
     if (act === 'cancel') { state.booked = false; setCtl('booked', '0'); render(); flash(ph, 'Reserva cancelada'); return }
     render()
   })

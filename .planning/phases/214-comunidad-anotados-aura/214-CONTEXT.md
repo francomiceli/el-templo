@@ -49,7 +49,7 @@ Franco lo enmendó el 2026-11-17:
   borradas no aparecen nunca.
 - **D-09:** La lista con nombres y fotos la ven solo los alumnos con plan vigente y el staff. Cuentas
   freemium, de prueba o con el plan vencido ven solo el número.
-- **D-10:** La ubicación de la lista NO está decidida. Franco: "hay que hacer un ui spec y analizar bien
+- **D-10 (RESUELTA, ver D-51):** La ubicación de la lista NO está decidida. Franco: "hay que hacer un ui spec y analizar bien
   dónde queda mejor ponerlo, me suena que dentro de un pop up es demasiada información... podés pensar
   varios sketch con distintas ideas". Se define con `/gsd-sketch` y un UI-SPEC.
 - **D-11:** Propuestas mías que Franco vio y no objetó (quedan como decisión salvo que diga otra cosa):
@@ -60,7 +60,7 @@ Franco lo enmendó el 2026-11-17:
 
 - **D-12:** Endpoint propio del alumno con sus puntos y su historial. Un alumno no puede leer los
   puntos ni el historial de otro. Hoy no existe ninguna ruta de Aura.
-- **D-13:** Detalle de Aura: el total y los últimos 20 movimientos con un texto claro por motivo, y
+- **D-13 (DIFERIDA, ver D-54):** Detalle de Aura: el total y los últimos 20 movimientos con un texto claro por motivo, y
   "ver más" para seguir. Las filas de 0 puntos (referidos) no se muestran. Las reversas sí, en negativo.
   No hay tabla de "cómo ganar puntos" (propuesta mía no objetada, en línea con lo que Franco dijo en la
   reunión: "está ahí, no te explico ni para qué ni por qué").
@@ -191,6 +191,29 @@ Precisiones técnicas del mapeo de patrones (`214-PATTERNS.md`) que el planifica
 `member_photos` va dentro del módulo `members` existente. ISO-03 aplica solo a `/api/members/scheduling`
 y `/api/admin/members`. Los montos viven en constantes de código y no en `aura_config`, y los defaults
 de rachas salen de `streak-reward.ts`. La preferencia de visibilidad va en `member_profiles`.
+
+### Decisiones de los sketches 030 a 033 (2026-11-17)
+
+- **D-51:** La lista de anotados vive en una **hoja desde abajo** que se abre desde la card del horario
+  (sketch 030, variante C), con las personas como **caras en grilla** de cuatro por fila (sketch 032,
+  variante B). Resuelve D-10. Sin el texto "ver quiénes". Pendiente de la ronda 2: si la card del horario
+  muestra hasta 4 caras o solo el número (lo primero pide datos nuevos en la grilla semanal).
+- **D-52:** La lista **no etiqueta a nadie**: ni profe ni Wellhub. Franco: "lo de profe no tiene sentido
+  porque eso aparece por franja". Enmienda a D-08: staff y Wellhub siguen apareciendo con nombre y foto y
+  sin puntos, pero sin ninguna marca. El endpoint no devuelve rol ni origen de la reserva.
+- **D-53:** El encabezado de Mi Templo es la **variante C** del sketch 031: ficha oscura con los puntos de
+  Aura y la foto con aro dorado. Cuánto se parece la ficha a la card de hoy se define en la ronda 2
+  (`031-encabezado-mi-templo/ronda2.html`), junto con el sello de antigüedad.
+- **D-54:** El **detalle de movimientos de Aura NO entra en esta fase.** Franco: "luego que se pueda entrar
+  a ver de dónde se sumó el aura, no mostrarlo por ahora, que no sea público". Los puntos del encabezado
+  no llevan a ninguna pantalla. Reemplaza a D-13 y a la parte de D-16 que decía "tocar los puntos lleva
+  al detalle". No se planifica la ruta de movimientos ni los textos por motivo.
+- **D-55:** El **selector de nivel sale del encabezado de Mi Templo**. Pasa a la barra de arriba, a la
+  izquierda del acceso al perfil, y aparece solo dentro de Entrenar. En escritorio no hay barra de arriba:
+  la ubicación ahí queda por definir en el UI-SPEC.
+- **D-56:** El aviso al marcar asistencia es la **celebración a pantalla completa** (sketch 033, variante
+  B). El staff también la ve, sin la parte de Aura (lectura mía de "que la vea también staff": D-15 sigue
+  vigente).
 
 ### Claude's Discretion
 
@@ -361,6 +384,7 @@ preparado: el número visible se calcula de modo que los regalos puedan sumar de
 
 ### Fuera de la fase por decisión de Franco
 
+- Detalle de movimientos de Aura (de dónde se sumó cada punto): más adelante, y privado (D-54).
 - Niveles de estatus de Aura (cortes, nombres, insignia). La distribución ya está relevada en
   `consultas/01-distribucion-aura.resultado-2026-11-17.txt`.
 - Economía de Aura con puntos gastables y gastados, y volver a encender el descuento.
