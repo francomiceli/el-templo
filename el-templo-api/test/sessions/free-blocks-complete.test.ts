@@ -53,6 +53,7 @@ interface CompletePayload {
   completionId: number;
   durationSeconds: number;
   auraAwarded: boolean;
+  auraAmount: number;
   auraAvailableToday: boolean;
   error?: string;
 }
@@ -284,6 +285,7 @@ describe("cierre del bloque libre: POST /api/sessions/free-blocks/complete (197-
 
     expect(status).toBe(200);
     expect(body.auraAwarded).toBe(true);
+    expect(body.auraAmount).toBe(AURA_AMOUNTS.extraBlock);
     expect(body.auraAvailableToday).toBe(false);
 
     const tx = await auraTx();
