@@ -92,4 +92,10 @@ Línea de base registrada por el plan 01 en `TYPECHECK-BASELINE.md`:
 - (orquestador) **No aplicar migraciones en la base local** (`pnpm db:migrate`, `db:push`): la base local
   de Franco tiene datos de pruebas en curso. Las migraciones se escriben y se verifican por lectura y por
   su test, que corre en CI.
+- (plan 04) La migración de re-valorización es la `0344_aura_revaluation.sql`. La numeración sigue desde
+  la 0345 (planes 12 y 16), siempre verificando con `git fetch` que el número esté libre.
+- (plan 04) En tests de integración, para sembrar `attendance` y `completed_sessions` sirve
+  `app.dbPool.query` directo. `splitSqlStatements` ya saca los comentarios.
+- (plan 04) El runner de migraciones saltea las sentencias que fallan con "already exists" y trata la
+  migración como ya aplicada: por eso los `CREATE TABLE` de respaldo van primero.
 

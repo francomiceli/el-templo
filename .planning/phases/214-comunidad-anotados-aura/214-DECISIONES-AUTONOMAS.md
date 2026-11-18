@@ -72,4 +72,6 @@ Cada vez que un ejecutor se encuentre con una decisión de producto, se anota ac
 | 2026-11-17 | 214-08 | Regla del 80 % sin calibrar | La consulta 08 (cuántas sesiones reales pasarían la regla) no se corrió porque pide acceso a producción. La regla sale con la fórmula del plan. Conviene correr la 08 antes de mergear a master |
 | 2026-11-17 | 214-01 | Consulta 08 | El ejecutor la escribió tratando la duración en minutos. Corregida a segundos por el orquestador (`215686b9e`) |
 | 2026-11-17 | 214-32 | Lista de cambios para Apple y Google (D-67) | No la escribe un ejecutor: la escribe el orquestador al cierre, en `.docs/` del checkout principal |
+| 2026-11-17 | 214-04 | Historial: dos sesiones de app el mismo día (anteriores al tope diario del 9 de noviembre) | No se colapsan: cada una queda en 3. Son pocas filas (252 sesiones de app en total) y la consulta 05 las mide. Hacia adelante el día paga una sola |
+| 2026-11-17 | 214-04 | Historial: asistencia que después fue anulada | Cuenta igual para el tope del día, porque la anulación no guarda a qué asistencia corresponde. Caso marginal |
 
