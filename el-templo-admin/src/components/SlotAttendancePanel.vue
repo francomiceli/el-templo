@@ -82,6 +82,21 @@
                 >
                   <q-tooltip>Dar Aura</q-tooltip>
                 </q-btn>
+                <!-- Todo el staff ve el botón (#26). Quien no puede dar (no es profe de la sede de
+                     la clase: la API devuelve `gift` en null) lo ve deshabilitado con la nota. El
+                     tooltip va en el contenedor: un botón deshabilitado no recibe el puntero. -->
+                <span v-else-if="!member.gift && TEMPLO_ENABLED" data-test="gift-disabled">
+                  <q-btn
+                    flat
+                    dense
+                    round
+                    disable
+                    icon="volunteer_activism"
+                    size="sm"
+                    :aria-label="`Dar Aura a ${member.memberName}. ${giftDisabledNote}`"
+                  />
+                  <q-tooltip>{{ giftDisabledNote }}</q-tooltip>
+                </span>
                 <q-chip
                   v-else-if="member.gift?.state === 'dado'"
                   dense
@@ -218,6 +233,8 @@ import { useSchedulingApi } from 'src/composables/useSchedulingApi';
 import { useMembersApi } from 'src/composables/useMembersApi';
 import CoachGiftDialog from 'src/components/CoachGiftDialog.vue';
 import { giftReasonLabel, type GiftReasonCode } from 'src/config/gift-reasons';
+import { COACH_ACTIVIDAD_ROLE, TEMPLO_ENABLED } from 'src/config/templo-config';
+import { useAuthStore } from 'src/stores/useAuthStore';
 import type { SlotAttendanceItem } from 'src/types/attendance';
 import type { ActivityRecord } from 'src/types/scheduling';
 
@@ -226,6 +243,7 @@ const $q = useQuasar();
 const attendanceApi = useAttendanceApi();
 const schedulingApi = useSchedulingApi();
 const membersApi = useMembersApi();
+const authStore = useAuthStore();
 
 // =========================================================================
 // Props & Emits
@@ -377,6 +395,18 @@ interface GiftTarget {
 
 const giftDialogOpen = ref(false);
 const giftTarget = ref<GiftTarget | null>(null);
+
+/**
+ * Nota del botón deshabilitado (#26). Dar Aura es de los profes con la sede de la clase; la API
+ * no cambia y sigue rechazando al resto. Un profe sin esa sede ve la nota con "de esta sede".
+ */
+const giftDisabledNote = computed(() => {
+  const role = authStore.user?.role;
+  const isCoachLike = role === 'coach' || role === COACH_ACTIVIDAD_ROLE;
+  return isCoachLike
+    ? 'Solo los profes de esta sede pueden dar Aura'
+    : 'Solo los profes pueden dar Aura';
+});
 
 function firstNameOf(fullName: string): string {
   return fullName.trim().split(/\s+/)[0] ?? fullName;
