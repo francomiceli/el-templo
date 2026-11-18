@@ -1101,11 +1101,14 @@ export const memberCheckInResponseSchema = {
 | A8 | La app tiene contacto publicado accesible (Apple 1.2) | Tema 1 | Pedido de la revisión |
 | A9 | Los 367 no tienen fecha real en la base | Tema 3 | Si la tienen, se corrige por migración (consulta 04) |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **¿Hay una fila de antigüedad fuera de 50/100/250?** La consulta 01 da 411 filas y 43.450 puntos, contra 410 y 43.350 del inventario. Lo resuelve el bloque 1 de la consulta 05 antes de mergear.
-2. **¿Programas con bonus personalizados?** Mismo control. Se informa en el plan.
-3. **¿La variante B del sketch 030 (caras en la card)?** Cambia el diseño del dato: hay que agregarlo a la grilla semanal. Lo decide el UI-SPEC antes de planificar A6.
+1. **¿Hay una fila de antigüedad fuera de 50/100/250?** La consulta 01 da 411 filas y 43.450 puntos, contra 410 y 43.350 del inventario.
+   **RESOLVED:** se resuelve con la consulta 05 bloque 1 (`consultas/05-conciliacion-aura.sql`, plan 214-04), que Franco corre antes del merge. La 0344 no toca filas que no encajan en ninguna regla, así que una fila rara queda como está y aparece listada; si hace falta corregirla, va por una migración aparte.
+2. **¿Programas con bonus personalizados?**
+   **RESOLVED:** se resuelve con la consulta 05 bloques 0 y 1, antes del merge. La 0344 solo pasa a 8/50 los valores exactamente iguales al default (15/100); un programa cargado a mano con esos mismos valores es indistinguible y el bloque 0 lo lista para que Franco decida (plan 214-04).
+3. **¿La variante B del sketch 030 (caras en la card)?**
+   **RESOLVED:** D-59. La card del horario muestra solo el número de anotados (variante C2); no se agregan datos a la grilla semanal y el endpoint de lista completo alcanza.
 
 ## Environment Availability
 
