@@ -23,6 +23,7 @@ import { transactionLinks } from "../../src/db/schema/transaction-links";
 import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
 import { appBranchName } from "../../src/modules/shared/app-branch-name";
+import { AURA_AMOUNTS } from "../../src/modules/aura/amounts";
 
 /**
  * Fase 172: `finance` entra en `TENANT_STRICT_MODULES`. El seed de cobro de
@@ -343,7 +344,9 @@ describe("Attendance API", () => {
         .where(eq(auraTransactions.userId, member.id));
 
       expect(auraRows.length).toBeGreaterThanOrEqual(1);
-      const attendanceAward = auraRows.find((r) => r.amount === 10);
+      const attendanceAward = auraRows.find(
+        (r) => r.amount === AURA_AMOUNTS.attendance,
+      );
       expect(attendanceAward).toBeTruthy();
     });
 
@@ -893,7 +896,9 @@ describe("Attendance API", () => {
         .from(auraTransactions)
         .where(eq(auraTransactions.userId, member.id));
 
-      const attendanceAward = auraRows.find((r) => r.amount === 10);
+      const attendanceAward = auraRows.find(
+        (r) => r.amount === AURA_AMOUNTS.attendance,
+      );
       expect(attendanceAward).toBeTruthy();
 
       // Force check-in also mirrors as a presencial completed_sessions row.
@@ -904,10 +909,12 @@ describe("Attendance API", () => {
       expect(sessions).toHaveLength(1);
       expect(sessions[0].goalPlanType).toBe("presencial");
 
-      // AURA shouldn't be doubled — only the attendance award (10), not a
-      // second 10 from a synthetic completed_session.
-      const tens = auraRows.filter((r) => r.amount === 10);
-      expect(tens).toHaveLength(1);
+      // AURA shouldn't be doubled — only the attendance award, not a
+      // second one from a synthetic completed_session.
+      const attendanceAwards = auraRows.filter(
+        (r) => r.amount === AURA_AMOUNTS.attendance,
+      );
+      expect(attendanceAwards).toHaveLength(1);
     });
   });
 });
