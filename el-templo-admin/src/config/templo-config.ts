@@ -210,14 +210,28 @@ export const PARTNERS_ROLES: AdminRole[] = ['gestion', 'admin', 'owner'];
 export const OFICINA_ROLES: AdminRole[] = ['admin', 'owner'];
 
 /**
- * Comunidad (fase 215, ajustes): pestaña Fotos para todo el staff (el servidor acota
- * admin_sede) y pestaña Regalos de Aura para dueño, admin y admin_sede (los profes y la
- * recepción no anulan regalos). Espeja los roles de cada ruta del API. El gate REAL es el API:
- * esto solo decide nav, `meta.allowedRoles` y qué pestañas se dibujan.
+ * Revisan fotos de perfil (la cola, aprobar, rechazar y quitar, con su pelotita). Mirrors
+ * PHOTO_REVIEW_ROLES de `shared/permissions.ts` (decisión de Franco, 2026-11-18): admin_sede
+ * (el servidor lo acota a sus sedes), gestión, recepción, dueño y admin. `coach` y
+ * `coach_actividad` ya no revisan. El gate REAL es el API: esto solo decide nav,
+ * `meta.allowedRoles`, las pestañas y si se pide el conteo de la pelotita.
  */
-export const COMUNIDAD_FOTOS_ROLES: AdminRole[] = ALL_STAFF_ROLES;
+export const PHOTO_REVIEW_ROLES: AdminRole[] = [
+  'admin',
+  'owner',
+  'gestion',
+  'recepcion',
+  'admin_sede',
+];
+
+/**
+ * Comunidad (fase 215, ajustes): pestaña Fotos para quienes revisan fotos y pestaña Regalos de
+ * Aura para dueño, admin y admin_sede (los profes y la recepción no anulan regalos). Espeja los
+ * roles de cada ruta del API.
+ */
+export const COMUNIDAD_FOTOS_ROLES: AdminRole[] = PHOTO_REVIEW_ROLES;
 export const COMUNIDAD_REGALOS_ROLES: AdminRole[] = ['owner', 'admin', 'admin_sede'];
-/** "Comunidad" se muestra si el rol ve al menos una pestaña. */
+/** "Comunidad" se muestra si el rol ve al menos una pestaña (profes: ninguna, no aparece). */
 export const COMUNIDAD_ROLES: AdminRole[] = ALL_STAFF_ROLES.filter(
   (role) => COMUNIDAD_FOTOS_ROLES.includes(role) || COMUNIDAD_REGALOS_ROLES.includes(role)
 );

@@ -1,5 +1,5 @@
 <!-- Comunidad (fase 215, ajustes): Fotos de perfil y Regalos de Aura en una página con pestañas,
-     como Caja con su pestaña Egresos. Cada pestaña mantiene sus roles (Fotos: todo el staff;
+     como Caja con su pestaña Egresos. Cada pestaña mantiene sus roles (Fotos: PHOTO_REVIEW_ROLES;
      Regalos: dueño, admin y admin_sede). Si el rol ve una sola pestaña no se dibuja la barra. El
      gate real es el API: esto solo oculta. La pelotita de fotos pendientes y reportadas va en el
      ítem del menú y en la pestaña Fotos. -->
