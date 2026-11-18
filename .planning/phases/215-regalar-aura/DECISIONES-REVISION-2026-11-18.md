@@ -85,3 +85,10 @@ Decisión 4 (LO-03), cerrada: queda así. No expone datos de nadie y solo permit
 | 39 | **Se saca ya la frase "Solo vos ves este detalle"** del detalle de Aura. **Por implementar.** |
 
 Revisión completa el 2026-11-18: están resueltas las 40 entradas y las 8 decisiones abiertas del handoff.
+
+## Bocetos (2026-11-18)
+
+| # | Decisión |
+|---|----------|
+| 18 | Sellos de antigüedad: **variante B del sketch 036**. Los tres niveles son crema con el logo terracota y se distinguen por la cantidad de anillos terracota: ninguno a los 3 meses, uno a los 6 y dos al año o más. **El logo va chico y del mismo tamaño en los tres niveles.** El tamaño del sello (21 o 24 px) se ajusta para que los anillos se distingan. **Por implementar (plan D).** |
+| 33 | Celebración: **mezcla de la C y la A del sketch 037.** Sale del Aura del encabezado de Mi Templo: el Aura late y el número cuenta hasta el total nuevo, como en la C. El diseño es el de la A: tarjeta marfil con borde dorado y una línea que se vacía, y se va sola a los 5 s. **Se usa para cualquier Aura sumada desde la última visita a Mi Templo** (regalos, rachas, foto aprobada, antigüedad, programas, onboarding), con el texto del motivo. Si hay varios: "Sumaste N de Aura" con los dos últimos motivos. La asistencia (pantalla completa), el estiramiento y el bloque libre ya tienen su celebración y no se repiten. Si el regalo viene de alguien oculto o sin nombre, el texto no menciona a nadie. Boceto actualizado como variante D del 037 antes de construirlo. **Por implementar (plan D).** |
