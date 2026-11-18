@@ -67,7 +67,7 @@ Migraciones 0345 (valor `profile_photo` al final de los dos enums de Aura + fila
 - Tipos exportados por `member-photos.ts`: `MemberPhotoOrigin`, `PhotoRejectionReason`, `MemberPhotoStatus`, `MemberPhotoRow`, `NewMemberPhotoRow`.
 - Si falla algo en CI: mirar primero los conteos de tenancy y que el orden de borrado en `TABLES_TO_CLEAN` (memberPhotos antes de users) se respete.
 - Plan 14 debe imponer la invariante (una pendiente y una aprobada por persona y origen) con `SELECT ... FOR UPDATE` y aplicar un reporte por persona usando `reporter_ids`.
-- `AURA_AMOUNTS.profilePhoto` (5) todavía NO existe en `aura/amounts.ts`: la 0345 lo referencia en el encabezado, lo crea quien implemente el otorgamiento (planes 14/15).
+- `AURA_AMOUNTS.profilePhoto` (5) ya existe en `aura/amounts.ts` (plan 02): el otorgamiento (planes 14/15) lo usa, no la fila de `aura_config`.
 
 ## Known Stubs
 
