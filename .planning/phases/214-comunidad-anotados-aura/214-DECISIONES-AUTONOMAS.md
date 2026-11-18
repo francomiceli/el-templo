@@ -86,3 +86,7 @@ Cada vez que un ejecutor se encuentre con una decisión de producto, se anota ac
 | 2026-11-17 | 214-13 | Foto de ficha que no se puede copiar | Si la dirección de la foto no tiene la forma esperada, se marca como fallida y no se muestra. Sin tienda privada configurada no se copia ni se borra nada |
 | 2026-11-17 | 214-14 | Reportar la propia foto | Una persona puede reportar su propia foto de perfil sin que el sistema se lo impida |
 | 2026-11-17 | 214-14 | Confirmar una foto ya procesada | Si se intenta confirmar una subida que ya fue aprobada o rechazada, la app recibe un aviso de que esa foto ya fue procesada y no se vuelve a sumar nada |
+| 2026-11-17 | 214-15 | Alcance del admin de sede en la revisión de fotos | El acotado por sede aplica solo al admin de sede, como pide el plan. Profes, recepción y gestión ven la cola de todo el país |
+| 2026-11-17 | 214-15 | Aviso de rechazo con los anuncios apagados | Si la persona tiene apagada la categoría de anuncios, no recibe el push de foto rechazada y se entera solo por el estado en Perfil. Queda anotado para Franco |
+| 2026-11-17 | 214-15 | Estado de la foto en Perfil con varias fotos | "En revisión" gana sobre cualquier otro estado. "Rechazada" se muestra si la última foto subida por la persona fue rechazada |
+| 2026-11-17 | 214-15 | Cola de revisión sin storage | Con la cola vacía se muestra vacía normalmente. Si hay fotos y el almacenamiento privado no está configurado, la cola da error de servicio en vez de mostrar fotos rotas |
