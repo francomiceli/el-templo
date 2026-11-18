@@ -402,13 +402,79 @@ describe("proposed-time", () => {
       expect(r.reason).toBe("sin_bloques");
     });
 
-    it("sesion con solo bloques alternativos cuenta como sin bloques", () => {
-      const r = run({
-        blocks: [block("COMBOS_II_ALT", STANDARD, tenMin)],
-        blocksCompleted: ["COMBOS_II_ALT"],
-      });
+    it("sesion con solo bloques alternativos y ninguno hecho: sin bloques", () => {
+      const soloAlt = [block("COMBOS_II_ALT", STANDARD, tenMin)];
+      const r = run({ blocks: soloAlt, blocksCompleted: [] });
       expect(r.awarded).toBe(false);
       expect(r.reason).toBe("sin_bloques");
+      expect(r.proposedSec).toBe(0);
+    });
+
+    it("sesion con solo bloques alternativos hechos: el tiempo propuesto sale de esos bloques y acredita al 80 por ciento", () => {
+      const soloAlt = [
+        block("COMBOS_II_ALT", STANDARD, [ex(0, 300, 0)]),
+        block("TECNICA_II_ALT", STANDARD, [ex(0, 200, 0)]),
+      ];
+      const hechos = ["COMBOS_II_ALT", "TECNICA_II_ALT"];
+
+      const justo = run({
+        blocks: soloAlt,
+        blocksCompleted: hechos,
+        startedAt: startedAfter(400),
+      });
+      expect(justo.proposedSec).toBe(500);
+      expect(justo.blocksOk).toBe(true);
+      expect(justo.reason).toBe("ok");
+      expect(justo.awarded).toBe(true);
+
+      const corto = run({
+        blocks: soloAlt,
+        blocksCompleted: hechos,
+        startedAt: startedAfter(399),
+      });
+      expect(corto.reason).toBe("tiempo_insuficiente");
+      expect(corto.awarded).toBe(false);
+    });
+
+    it("solo cuentan los bloques alternativos que el alumno hizo", () => {
+      const soloAlt = [
+        block("COMBOS_II_ALT", STANDARD, [ex(0, 300, 0)]),
+        block("TECNICA_II_ALT", STANDARD, [ex(0, 200, 0)]),
+      ];
+      const r = run({
+        blocks: soloAlt,
+        blocksCompleted: ["TECNICA_II_ALT"],
+        startedAt: startedAfter(160),
+      });
+      expect(r.proposedSec).toBe(200);
+      expect(r.awarded).toBe(true);
+    });
+
+    it("con solo alternativos las demas reglas siguen valiendo (asistencia, otra fuente, inicio)", () => {
+      const soloAlt = [block("COMBOS_II_ALT", STANDARD, tenMin)];
+      const base = { blocks: soloAlt, blocksCompleted: ["COMBOS_II_ALT"] };
+      expect(run({ ...base, attendedToday: true }).reason).toBe("asistio_hoy");
+      expect(run({ ...base, otherAppAuraToday: true }).reason).toBe(
+        "ya_sumo_hoy",
+      );
+      expect(run({ ...base, startedAt: startedAfter(13 * 3600) }).reason).toBe(
+        "inicio_invalido",
+      );
+    });
+
+    it("si la sesion tiene bloques normales, completar solo un alternativo no alcanza", () => {
+      const mixta = [
+        block("INITIUM", STANDARD, [ex(0, 100, 0)]),
+        block("COMBOS_II_ALT", STANDARD, [ex(0, 300, 0)]),
+      ];
+      const r = run({
+        blocks: mixta,
+        blocksCompleted: ["COMBOS_II_ALT"],
+        startedAt: startedAfter(1800),
+      });
+      expect(r.blocksOk).toBe(false);
+      expect(r.reason).toBe("bloques_incompletos");
+      expect(r.awarded).toBe(false);
     });
 
     it("con ALT en la sesion y sin completarlo, acredita igual", () => {

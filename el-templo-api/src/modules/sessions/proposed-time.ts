@@ -15,6 +15,10 @@
  * Decisiones de implementación:
  *  - Los bloques alternativos (`ALTERNATIVE_BLOCK_ROLES`) son para que el profe elija en
  *    la TV y la app no los muestra: no cuentan como bloque requerido ni como tiempo.
+ *    Excepción (fase 215, #15): una sesión que NO tiene ningún bloque normal y de la que el
+ *    alumno hizo bloques alternativos se evalúa sobre esos bloques hechos: el tiempo
+ *    propuesto es el de ellos y el 80 % rige igual. Sin ningún bloque hecho sigue dando
+ *    `sin_bloques`. Si la sesión sí tiene bloques normales, los alternativos siguen sin contar.
  *  - Bloques por repeticiones: por ejercicio `seconds > 0 ? seconds : reps x 3 s`, más el
  *    descanso, por `rounds` (o `totalRounds`), con mínimo de 60 s por bloque (copia de
  *    `blockMeta.ts` de la app).
@@ -152,6 +156,19 @@ export function requiredBlockRoles(
   return roles;
 }
 
+/**
+ * Fase 215, #15: bloques alternativos que el alumno hizo en una sesión que no
+ * tiene ningún bloque normal. Vacío si la sesión sí tiene bloques normales.
+ */
+function alternativeOnlyDoneBlocks(
+  blocks: readonly BlockPlan[],
+  blocksCompleted: readonly string[],
+): BlockPlan[] {
+  if (blocks.some((b) => !isAlternative(b))) return [];
+  const done = new Set(blocksCompleted);
+  return blocks.filter((b) => isAlternative(b) && done.has(b.role));
+}
+
 /** Tiempo propuesto total de los bloques requeridos (sin los alternativos). */
 export function proposedSecondsForSession(
   blocks: readonly BlockPlan[],
@@ -203,8 +220,13 @@ export function evaluateTrainingAura(
   const startMs = startedAt.getTime();
   const endMs = completedAt.getTime();
 
-  const hasVisibleBlocks = blocks.some((b) => !isAlternative(b));
-  const proposedSec = proposedSecondsForSession(blocks, blocksCompleted);
+  const altOnlyDone = alternativeOnlyDoneBlocks(blocks, blocksCompleted);
+  const hasVisibleBlocks =
+    blocks.some((b) => !isAlternative(b)) || altOnlyDone.length > 0;
+  const proposedSec =
+    altOnlyDone.length > 0
+      ? altOnlyDone.reduce((sum, b) => sum + proposedSecondsForBlock(b), 0)
+      : proposedSecondsForSession(blocks, blocksCompleted);
   const done = new Set(blocksCompleted);
   const blocksOk = requiredBlockRoles(blocks, blocksCompleted).every((role) =>
     done.has(role),
