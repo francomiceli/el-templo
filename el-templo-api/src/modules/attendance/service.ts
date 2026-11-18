@@ -48,7 +48,7 @@ import {
   attendanceAuraCredited,
 } from "../aura/day-cap";
 import { localDateForBranch } from "../aura/daily-award";
-import { AuraService } from "../aura/service";
+import { AuraService, InsufficientBalanceError } from "../aura/service";
 import { CheckInService } from "../check-ins/service";
 import type { DayCheckIn } from "../check-ins/types";
 import type {
@@ -1350,12 +1350,20 @@ export class AttendanceService {
           "La asistencia no había acreditado Aura",
         );
       }
-    } catch {
-      // If insufficient balance, just log it -- don't block the undo
-      this.log.warn(
-        { attendanceId, memberId: attRecord.memberId },
-        "Could not reverse AURA (insufficient balance)",
-      );
+    } catch (err: unknown) {
+      // Saldo insuficiente: se registra y no se bloquea el deshacer. Cualquier
+      // otro error (base, red) es real: se registra como error, no como saldo.
+      if (err instanceof InsufficientBalanceError) {
+        this.log.warn(
+          { attendanceId, memberId: attRecord.memberId },
+          "Could not reverse AURA (insufficient balance)",
+        );
+      } else {
+        this.log.error(
+          { err, attendanceId, memberId: attRecord.memberId },
+          "Could not reverse AURA (unexpected error)",
+        );
+      }
     }
 
     // Compute the local date the check-in was filed under so we can
