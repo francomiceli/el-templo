@@ -27,6 +27,14 @@
 // - D-14: la oferta existe desde la hora de fin del horario.
 // - D-16: motivo entre los cuatro fijos.
 //
+// Regalo del profe (plan 07, D-03 / D-11 / D-15):
+// - `giveCoachGift`: un profe (rol tipo profe) con la sede de la asistencia
+//   asignada da Aura a cada alumno que asistió ese día (hoy o ayer), una vez por
+//   persona y por día, sin tope de cantidad. Acredita el valor vigente por
+//   gimnasio (`getCoachGiftAmount`) y lo guarda en la fila.
+// - `coachGiftStatesForSlot`: estado de regalo de cada fila del panel de
+//   asistencia, con un número fijo de consultas.
+//
 // Decisiones del plan 05 (anotadas en 215-DECISIONES-AUTONOMAS.md):
 // - `givenToday` son los regalos de alumno vigentes del usuario cuya fecha de
 //   creación cae en el día local de la sede del regalo.
@@ -42,6 +50,8 @@ import type { FastifyInstance } from "fastify";
 import * as schema from "../../db/schema";
 import { resolveCommunityPhotos } from "../members/profile-photo-service";
 import { DEFAULT_TENANT_TIMEZONE, todayInTz } from "../shared/date-utils";
+import { isModuleEnabled } from "../shared/module-flags";
+import { isCoachLikeRole } from "../shared/permissions";
 import { isDuplicateKeyError } from "../shared/sql-errors";
 import {
   tenantValues,
@@ -49,6 +59,7 @@ import {
   type TenantContext,
 } from "../shared/tenant";
 import { GiftError } from "./gift-errors";
+import { getCoachGiftAmount } from "./gift-settings";
 import {
   classHasEnded,
   giverAccess,
@@ -128,6 +139,51 @@ export interface GiveMemberGiftResult {
   receiverFirstName: string;
   reason: GiftReason;
   amount: number;
+}
+
+/** Quien regala como profe: rol y sedes salen del scope del servidor. */
+export interface CoachGiftViewer {
+  userId: number;
+  role: string;
+  branchIds: readonly number[];
+}
+
+export interface GiveCoachGiftInput {
+  attendanceId: number;
+  reason: string;
+}
+
+export interface GiveCoachGiftResult {
+  giftId: number;
+  receiverUserId: number;
+  amount: number;
+  reason: GiftReason;
+}
+
+/** Estado del regalo del profe en una fila del panel de asistencia. */
+export type CoachGiftRowState = "disponible" | "dado" | "no_participa";
+
+export interface CoachGiftRowView {
+  state: CoachGiftRowState;
+  amount: number;
+  reason: GiftReason | null;
+}
+
+export interface CoachGiftSlotInput {
+  scheduleId: number;
+  /** Fecha local de la clase (`YYYY-MM-DD`). */
+  date: string;
+  branchId: number;
+  /** Zona de la sede, para decidir "hoy" y la ventana. */
+  timezone: string;
+  members: Array<{ memberId: number; attendanceId: number | null }>;
+}
+
+export interface CoachGiftSlotResult {
+  /** Valor vigente, o null si el viewer no regala como profe en esta clase. */
+  coachGiftAmount: number | null;
+  /** Por `memberId`; null = sin estado (sin asistencia o sin permiso). */
+  byMember: Map<number, CoachGiftRowView | null>;
 }
 
 export class AuraGiftService {
@@ -369,6 +425,217 @@ export class AuraGiftService {
 
     // plan 15: push al receptor después del commit
     return result;
+  }
+
+  /**
+   * Regalo del profe (D-03, D-11, D-15). Una vez por persona y por día de
+   * clase, sin tope de cantidad; acredita el valor vigente del gimnasio y lo
+   * guarda en la fila para que anular revierta exactamente eso.
+   */
+  async giveCoachGift(
+    ctx: TenantContext,
+    coach: CoachGiftViewer,
+    input: GiveCoachGiftInput,
+    now: Date = new Date(),
+  ): Promise<GiveCoachGiftResult> {
+    if (!isCoachLikeRole(coach.role)) throw new GiftError("REGALO_SIN_PERMISO");
+    const { reason } = input;
+    if (!isGiftReason(reason)) throw new GiftError("REGALO_NO_DISPONIBLE");
+
+    const result = await this.db.transaction(async (tx) => {
+      const cls = await loadClassAttendance(tx, ctx, input.attendanceId);
+      // Inexistente o sin horario (no es una clase): 404 sin más detalle.
+      if (!cls) throw new GiftError("REGALO_NO_ENCONTRADO");
+      if (!coach.branchIds.includes(cls.branchId)) {
+        throw new GiftError("REGALO_SIN_PERMISO");
+      }
+
+      const today = todayInTz(cls.timezone, now);
+      if (cls.sessionDate > today) throw new GiftError("REGALO_NO_DISPONIBLE");
+      if (!isWithinGiftWindow(cls.sessionDate, today)) {
+        throw new GiftError("REGALO_VENCIDO");
+      }
+
+      // El receptor es una de las caras de la clase (visible, no staff, no
+      // prueba: D-04 / D-07). El profe no entra: es staff.
+      const classmates = await listEligibleClassmates(tx, ctx, {
+        scheduleId: cls.scheduleId,
+        sessionDate: cls.sessionDate,
+        excludeUserId: coach.userId,
+        todayLocal: today,
+      });
+      const receiver = classmates.find((mate) => mate.userId === cls.memberId);
+      if (!receiver) throw new GiftError("REGALO_NO_DISPONIBLE");
+
+      // Una vez por día a cada persona, en cualquier estado (un anulado sigue
+      // ocupando el lugar).
+      const [already] = await tx
+        .select({ id: schema.auraGifts.id })
+        .from(schema.auraGifts)
+        .where(
+          and(
+            tenantWhere(schema.auraGifts, ctx),
+            eq(schema.auraGifts.giverUserId, coach.userId),
+            eq(schema.auraGifts.giverKind, "profe"),
+            eq(schema.auraGifts.receiverUserId, receiver.userId),
+            eq(schema.auraGifts.coachGiftDate, cls.sessionDate),
+          ),
+        )
+        .limit(1);
+      if (already) throw new GiftError("REGALO_YA_DADO");
+
+      const amount = await getCoachGiftAmount(tx, ctx, this.fastify.log);
+
+      let giftId: number;
+      try {
+        const inserted = await tx.insert(schema.auraGifts).values(
+          tenantValues(ctx, {
+            giverUserId: coach.userId,
+            receiverUserId: receiver.userId,
+            giverKind: "profe" as const,
+            branchId: cls.branchId,
+            scheduleId: cls.scheduleId,
+            sessionDate: cls.sessionDate,
+            giverAttendanceId: null,
+            receiverAttendanceId: cls.attendanceId,
+            coachGiftDate: cls.sessionDate,
+            reason,
+            amount,
+            status: "vigente" as const,
+          }),
+        );
+        giftId = Number(inserted[0].insertId);
+      } catch (err: unknown) {
+        // Dos clics simultáneos: acá no hay FOR UPDATE, el UNIQUE
+        // `(tenant, profe, receptor, día)` es la última barrera y tiene que
+        // salir 409, no 500. Drizzle pone el código real en `err.cause`.
+        if (isDuplicateKeyError(err).isDuplicate) {
+          throw new GiftError("REGALO_YA_DADO");
+        }
+        throw err;
+      }
+
+      await this.aura.awardInTransaction(tx, ctx, {
+        userId: receiver.userId,
+        sourceType: "social",
+        referenceType: GIFT_REFERENCE.gift,
+        referenceId: giftId,
+        amount,
+        description: "Regalo de Aura del profe #" + giftId,
+      });
+
+      return {
+        giftId,
+        receiverUserId: receiver.userId,
+        amount,
+        reason,
+      };
+    });
+
+    this.fastify.log.info(
+      {
+        giftId: result.giftId,
+        giverUserId: coach.userId,
+        receiverUserId: result.receiverUserId,
+        attendanceId: input.attendanceId,
+        amount: result.amount,
+      },
+      "Regalo de Aura del profe dado",
+    );
+
+    // plan 15: push al receptor después del commit
+    return result;
+  }
+
+  /**
+   * Estado del regalo del profe en cada fila del panel de asistencia de una
+   * clase. Quien no regala como profe (otro rol, otra sede, módulo apagado)
+   * recibe todo en null y sin valor: el panel no muestra nada (UI-SPEC).
+   */
+  async coachGiftStatesForSlot(
+    ctx: TenantContext,
+    viewer: CoachGiftViewer,
+    input: CoachGiftSlotInput,
+    now: Date = new Date(),
+  ): Promise<CoachGiftSlotResult> {
+    const byMember = new Map<number, CoachGiftRowView | null>();
+    for (const member of input.members) byMember.set(member.memberId, null);
+
+    const enabled =
+      isCoachLikeRole(viewer.role) &&
+      viewer.branchIds.includes(input.branchId) &&
+      (await isModuleEnabled(ctx.tenantId, "templo-gamification", this.db));
+    if (!enabled) return { coachGiftAmount: null, byMember };
+
+    const coachGiftAmount = await getCoachGiftAmount(
+      this.db,
+      ctx,
+      this.fastify.log,
+    );
+    const withAttendance = input.members.filter(
+      (member) => member.attendanceId !== null,
+    );
+    if (withAttendance.length === 0) return { coachGiftAmount, byMember };
+
+    const memberIds = withAttendance.map((member) => member.memberId);
+
+    // UNA consulta de los regalos de este profe ese día a esas personas.
+    const givenRows = await this.db
+      .select({
+        receiverUserId: schema.auraGifts.receiverUserId,
+        amount: schema.auraGifts.amount,
+        reason: schema.auraGifts.reason,
+      })
+      .from(schema.auraGifts)
+      .where(
+        and(
+          tenantWhere(schema.auraGifts, ctx),
+          eq(schema.auraGifts.giverUserId, viewer.userId),
+          eq(schema.auraGifts.giverKind, "profe"),
+          eq(schema.auraGifts.coachGiftDate, input.date),
+          inArray(schema.auraGifts.receiverUserId, memberIds),
+        ),
+      );
+    const given = new Map(givenRows.map((row) => [row.receiverUserId, row]));
+
+    // UNA llamada de elegibilidad, y solo si la fecha está dentro de la ventana.
+    const today = todayInTz(input.timezone, now);
+    const inWindow = isWithinGiftWindow(input.date, today);
+    const eligible = new Set<number>();
+    if (inWindow) {
+      const classmates = await listEligibleClassmates(this.db, ctx, {
+        scheduleId: input.scheduleId,
+        sessionDate: input.date,
+        excludeUserId: viewer.userId,
+        todayLocal: today,
+      });
+      for (const mate of classmates) eligible.add(mate.userId);
+    }
+
+    for (const member of withAttendance) {
+      const gift = given.get(member.memberId);
+      if (gift) {
+        byMember.set(member.memberId, {
+          state: "dado",
+          amount: gift.amount,
+          reason: gift.reason,
+        });
+      } else if (eligible.has(member.memberId)) {
+        byMember.set(member.memberId, {
+          state: "disponible",
+          amount: coachGiftAmount,
+          reason: null,
+        });
+      } else {
+        byMember.set(member.memberId, {
+          state: "no_participa",
+          amount: coachGiftAmount,
+          reason: null,
+        });
+      }
+    }
+
+    return { coachGiftAmount, byMember };
   }
 
   // ---------------------------------------------------------------------------
