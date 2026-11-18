@@ -54,6 +54,11 @@ $pd-aged-gold-on-dark: #c7aa6b;
 $pd-gold: #d4b46a; // SOLO AURA: 7.7:1 sobre #2c2318 (no sirve como texto sobre claro)
 $pd-gold-ink: #7d6520; // dorado como texto sobre claro: 5.0:1 sobre su tinte
 $pd-gold-tint: #f6efdc;
+// Fase 214 (UI-SPEC, tokens nuevos de Aura). Los contrastes son de texto salvo donde se aclara.
+$pd-aura-deep: #6a5217; // número de Aura sobre marfil: 7.3:1 sobre #fffdf8, 6.5:1 sobre #f6efdc
+$pd-gold-bright: #f0d58f; // número de Aura grande sobre oscuro: 10.7:1 sobre #2c2318
+$pd-aura-ivory-a: #fffdf8; // fondo de la ficha y del total (arriba del degradé hacia $pd-gold-tint)
+$pd-aura-spark: #c9a227; // chispa ✦ sobre marfil: SOLO decorativa (aria-hidden), 2.4:1
 $pd-kicker-ink: #7e4529; // kicker Cinzel sobre crema: 6.5:1
 $pd-ink-3: #5a5347; // rótulos de 11 px en mayúsculas
 $pd-soon-dot: #b4892f; // punto ocre de "pronto" (D-02)
@@ -484,6 +489,19 @@ $pd-wa-b: #0f6b52;
     transform: translate(-50%, -50%);
     background: transparent;
   }
+}
+
+// Filete decorativo de la ficha de Aura y del total del detalle (UI-SPEC, fase 214). Va en el borde
+// (`background` con `padding-box` / `border-box` o un pseudo-elemento): nunca detrás de un texto.
+@mixin pd-aura-frame {
+  background: linear-gradient(
+    125deg,
+    #b8954a 0%,
+    #e6cf8e 30%,
+    #fff6da 48%,
+    #e6cf8e 64%,
+    #b8954a 100%
+  );
 }
 
 // Superficie clara de las cards de Entrenar (lista de ejercicios, cards de bloque).
