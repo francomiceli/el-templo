@@ -128,7 +128,7 @@ Valores declarados (múltiplos de 4, el mismo set de la 214):
 | Valor      | Dónde                                                                                               | Por qué                                                               |
 | ---------- | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
 | 20px       | padding horizontal de la hoja "Dar Aura" (cabecera, cuerpo y pie)                                   | es el borde de todas las hojas claras de la app (`SponsorSheet`, 214) |
-| 2px        | aro de la cara elegida, borde del motivo elegido, filete del botón de regalo                        | son bordes, no espaciado. El sketch decía 1.5, **[ajuste]** a 2       |
+| 2px        | aro de la cara elegida, borde del motivo elegido (1px de borde + 1px de `box-shadow` interior), filete del botón de regalo | son bordes, no espaciado. El sketch decía 1.5, **[ajuste]** a 2       |
 | Existentes | card de hoy (`padding 20 16 16`, gap de acciones 14, borde 1.5), barra de arriba (`q-toolbar` 0 12) | código existente que esta fase no cambia                              |
 
 Medidas de componentes (no son espaciado): caras de 56, avatares de 32 y 40, insignia de tilde de 20,
@@ -138,7 +138,7 @@ badge de la campana de 18, punto de sin leer de 8, botones de la barra de 44.
 
 ## Typography
 
-### Escala de la fase: 3 tamaños
+### Escala de la fase: 4 tamaños (13, 15, 18 + 11 de mixins existentes)
 
 | Role           | Size | Weight | Line Height | Fuente     | Dónde                                                                                                                                                                                    |
 | -------------- | ---- | ------ | ----------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -210,7 +210,7 @@ a Sofía", "Marcar todo como leído", "Anular" y los avisos que no son regalos.
 | `$pd-aura-deep #6a5217` / `#f6efdc` · / `#fffdf8`                  | 6.46 · 7.29  | texto del botón de regalo de la card                                    |
 | `$pd-gold-ink #7d6520` / `$pd-gold-tint`                           | 4.87         | motivo elegido, pastilla "✦ +1"                                         |
 | blanco / `$pd-gold-ink`                                            | 5.59         | tilde de la cara elegida (indicador no textual ≥ 3)                     |
-| `$pd-gold-ink` / `$pd-gold-tint` (borde 2px del motivo elegido)    | 4.87         | indicador de estado ≥ 3                                                 |
+| `$pd-gold-ink` / `$pd-gold-tint` (borde 2px visible del motivo elegido)    | 4.87         | indicador de estado ≥ 3                                                 |
 | `$pd-light-edge #8c806f` / `#fbf8f3` · / `#fff`                    | 3.65 · 3.87  | borde de los motivos sin elegir (control, WCAG 1.4.11)                  |
 | `$pd-gold #d4b46a` / `#fbf8f3`                                     | 1.88         | aro de la cara elegida: **solo decorativo**; el estado lo dice la tilde |
 | `$pd-cream-3 #c9bba6` / `#2c2318`                                  | 8.19         | ayuda bajo el botón de regalo                                           |
@@ -271,7 +271,7 @@ mostrar. Para no saltar al volver a Mi Templo, el store conserva el último dato
 ### Botón "✦ Dale Aura a un compañero"
 
 - `<button type="button">`, `margin-top 16` desde la fila de acciones.
-- Alto 48 (**[ajuste]** el sketch tenía 42; 48 es el alto del botón de la card), `padding 0 20`,
+- Alto 48 (**[ajuste]** el sketch tenía 42; 48 es el alto del botón de la card), `padding 0 16`,
   `border-radius 10` (**[ajuste]** el sketch era una pastilla; 10 es el radio de `today-card__btn`),
   `display inline-flex`, gap 8, ancho automático, `max-width 100%` con elipsis.
 - Fondo `linear-gradient(180deg, $pd-aura-ivory-a, $pd-gold-tint)` con el filete `pd-aura-frame` de 2px
@@ -375,7 +375,8 @@ cambiar de pantalla.
 - Cada motivo: `<button type="button">` con `aria-pressed`, alto 44 (**[ajuste]** el sketch tenía 38:
   área tocable), `padding 0 16`, radio 999, fondo `#fff`, borde `1px $pd-light-edge` (**[ajuste]** el
   sketch usaba `$pd-light-line`, que no llega a 3:1 para un control), Body 15/400 `$pd-ink`.
-- **Elegido:** fondo `$pd-gold-tint`, borde `2px $pd-gold-ink` (padding `0 15` para no saltar), texto
+- **Elegido:** fondo `$pd-gold-tint`, borde `1px $pd-gold-ink` más `box-shadow: inset 0 0 0 1px $pd-gold-ink`
+  (se ve como 2px sin salto de layout; el padding sigue en `0 16` en ambos estados), texto
   `$pd-gold-ink` en 400, y un ícono `check` 18 al principio (gap 4). Tocar el elegido lo deselecciona.
 - Textos (Franco, D-16): "Buena técnica", "Constancia", "Buena energía", "Me ayudó".
 
@@ -546,6 +547,9 @@ encabezado dentro de la página. Se hace igual.
     alcanza la hora, y no hay que refrescar textos relativos.
 - **Pastilla** (solo regalos vigentes): "✦ +{gift.amount}", `padding 0 8`, `min-height 20`, radio 999,
   fondo `$pd-gold-tint`, Label numérico 13/700 `$pd-gold-ink` (chispa `$pd-gold`, decorativa).
+  **[ajuste]** el sketch 035 mostraba la pastilla "+5"/"+50" también en avisos que no son regalos
+  (foto aprobada, aniversario): acá va solo en regalos, porque el dorado de la bandeja queda reservado
+  para Aura regalada. Es intencional, no una omisión.
   Regalo anulado: en lugar de la pastilla, "Anulado" **[BORRADOR]** en Label 13/400 `$pd-ink-2` sobre
   `#f3ede4`, mismas medidas. No se borra la fila: la bandeja es el historial de lo que se mandó.
 - **Tocar:** marca leído en el momento (optimista; si falla, queda leído en pantalla y el número se
@@ -742,7 +746,7 @@ precios, usuarios y comunicaciones). El valor va en una card **"Ajustes"** al pr
   vale {AURA_AMOUNTS.giftMember}."
 - **Dueño y admin:** `q-input type="number" outlined dense` (ancho 120, `suffix="de Aura"`,
   `min 1`, `max 10`, `step 1`), regla **[BORRADOR]** "Tiene que ser un número entero entre 1 y 10.", y
-  `q-btn unelevated color="primary"` "Guardar", deshabilitado si no cambió o no es válido, `loading`
+  `q-btn unelevated color="primary"` "Guardar valor", deshabilitado si no cambió o no es válido, `loading`
   mientras va. Debajo, `text-caption text-grey-8` **[BORRADOR]** "Los regalos ya dados no cambian."
   - 200 → notify positive **[BORRADOR]** "Listo. Los próximos regalos de profe suman {n} de Aura."
   - error → notify negative **[BORRADOR]** "No pudimos guardar el valor. Probá de nuevo." y el campo
@@ -756,7 +760,7 @@ precios, usuarios y comunicaciones). El valor va en una card **"Ajustes"** al pr
 
 Origen: **Sketch** (034 o 035 elegidos), **Franco** (literal), **Existente** (ya está en la app) o
 **[BORRADOR]** (nuevo, falta que Franco lo apruebe). Los botones genéricos sin origen ("Cerrar",
-"Reintentar", "Cancelar", "Guardar", "Volver") cuentan como borrador.
+"Reintentar", "Cancelar", "Guardar valor", "Volver") cuentan como borrador.
 
 | Element                          | Copy                                                                                                                                                       | Origen                     |
 | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
@@ -765,7 +769,7 @@ Origen: **Sketch** (034 o 035 elegidos), **Franco** (literal), **Existente** (ya
 | Primary CTA (hoja, solo motivo)  | "Elegí a quién"                                                                                                                                            | [BORRADOR]                 |
 | Enviando                         | "Dando Aura…"                                                                                                                                              | [BORRADOR]                 |
 | Primary CTA (admin, panel)       | "Dar Aura"                                                                                                                                                 | [BORRADOR]                 |
-| Primary CTA (admin, ajustes)     | "Guardar"                                                                                                                                                  | [BORRADOR]                 |
+| Primary CTA (admin, ajustes)     | "Guardar valor"                                                                                                                                            | [BORRADOR]                 |
 | Kicker y título de la hoja       | "DAR AURA" · "¿A quién de tu clase?" · "Hoy 18:00 · elegí a una sola persona"                                                                              | Sketch 034                 |
 | Motivos                          | "Buena técnica", "Constancia", "Buena energía", "Me ayudó" · título "¿Por qué?"                                                                            | Franco (D-16) · Sketch 034 |
 | Ayuda de la hoja                 | "A Sofía le llega un aviso con tu nombre y el motivo. A vos no te descuenta nada."                                                                         | Sketch 034                 |
