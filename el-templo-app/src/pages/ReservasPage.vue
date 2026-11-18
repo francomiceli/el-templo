@@ -663,66 +663,49 @@
             v-for="slot in section.slots"
             :key="slot.id"
             class="slot-card"
-            :class="slotCardClass(slot)"
+            :class="[slotCardClass(slot), 'slot-card--stacked']"
             @click="onSlotTap(slot)"
           >
-            <div class="slot-card__time">
-              <span class="slot-card__hour">{{ formatTime(slot.startTime) }}</span>
-              <span
-                class="slot-card__activity"
-                :class="{ 'slot-card__activity--tappable': slot.activityDescription }"
-                :role="slot.activityDescription ? 'button' : undefined"
-                :tabindex="slot.activityDescription ? 0 : undefined"
-                @click="onActivityNameTap(slot, $event)"
-                @keydown.enter="onActivityNameTap(slot, $event)"
-                @keydown.space.prevent="onActivityNameTap(slot, $event)"
-                >{{ slot.activityName }}</span
-              >
-              <span v-if="slot.coachOverride && slot.coachFirstName" class="slot-card__coach"
-                >Profe {{ slot.coachFirstName }}</span
-              >
-            </div>
-            <div class="slot-card__right">
-              <template v-if="isSlotHoliday(slot)">
-                <span class="slot-card__avail slot-card__avail--few">Feriado</span>
-              </template>
-              <template v-else-if="isSlotAttended(slot)">
-                <span class="slot-card__chip slot-card__chip--ok">
-                  <q-icon name="verified" size="16px" />Asististe
-                </span>
-              </template>
-              <template v-else-if="isSlotBooked(slot)">
-                <span class="slot-card__chip slot-card__chip--ok">
-                  <q-icon name="check" size="16px" />Reservado
-                </span>
-                <button
-                  type="button"
-                  class="link-btn"
-                  :aria-label="`Cancelar reserva de las ${formatTime(slot.startTime)}`"
-                  @click.stop="cancelSlotBooking(slot)"
+            <div class="slot-card__top">
+              <div class="slot-card__time">
+                <span class="slot-card__hour">{{ formatTime(slot.startTime) }}</span>
+                <span
+                  class="slot-card__activity"
+                  :class="{ 'slot-card__activity--tappable': slot.activityDescription }"
+                  :role="slot.activityDescription ? 'button' : undefined"
+                  :tabindex="slot.activityDescription ? 0 : undefined"
+                  @click="onActivityNameTap(slot, $event)"
+                  @keydown.enter="onActivityNameTap(slot, $event)"
+                  @keydown.space.prevent="onActivityNameTap(slot, $event)"
+                  >{{ slot.activityName }}</span
                 >
-                  Cancelar
-                </button>
-              </template>
-              <template v-else-if="slot.isFull && !slot.isSpecial">
-                <span class="slot-card__avail slot-card__avail--full">Completo</span>
-                <button
-                  v-if="canJoinWaitlist(slot)"
-                  type="button"
-                  class="slot-card__go slot-card__go--wait"
-                  :aria-label="`Lista de espera de las ${formatTime(slot.startTime)}`"
-                  @click.stop="onSlotTap(slot)"
+                <span v-if="slot.coachOverride && slot.coachFirstName" class="slot-card__coach"
+                  >Profe {{ slot.coachFirstName }}</span
                 >
-                  Lista de espera
-                </button>
-              </template>
-              <template v-else-if="isSlotPast(slot)"></template>
-              <!-- Phase 162 (APP-01): estados de la actividad especial. Se evalúan
-                   DESPUÉS de holiday/attended/booked/full/past (que conservan prioridad).
-                   Bloqueo en tono apagado, nunca rojo (no es error, es condición de acceso). -->
-              <template v-else-if="slot.isSpecial && slotSpecialState(slot) === 'reservable'">
-                <!-- E1/E4: plan especial con saldo → flujo de reserva normal -->
-                <template v-if="slot.isFull">
+              </div>
+              <div class="slot-card__right">
+                <template v-if="isSlotHoliday(slot)">
+                  <span class="slot-card__avail slot-card__avail--few">Feriado</span>
+                </template>
+                <template v-else-if="isSlotAttended(slot)">
+                  <span class="slot-card__chip slot-card__chip--ok">
+                    <q-icon name="verified" size="16px" />Asististe
+                  </span>
+                </template>
+                <template v-else-if="isSlotBooked(slot)">
+                  <span class="slot-card__chip slot-card__chip--ok">
+                    <q-icon name="check" size="16px" />Reservado
+                  </span>
+                  <button
+                    type="button"
+                    class="link-btn"
+                    :aria-label="`Cancelar reserva de las ${formatTime(slot.startTime)}`"
+                    @click.stop="cancelSlotBooking(slot)"
+                  >
+                    Cancelar
+                  </button>
+                </template>
+                <template v-else-if="slot.isFull && !slot.isSpecial">
                   <span class="slot-card__avail slot-card__avail--full">Completo</span>
                   <button
                     v-if="canJoinWaitlist(slot)"
@@ -734,8 +717,62 @@
                     Lista de espera
                   </button>
                 </template>
+                <template v-else-if="isSlotPast(slot)"></template>
+                <!-- Phase 162 (APP-01): estados de la actividad especial. Se evalúan
+                   DESPUÉS de holiday/attended/booked/full/past (que conservan prioridad).
+                   Bloqueo en tono apagado, nunca rojo (no es error, es condición de acceso). -->
+                <template v-else-if="slot.isSpecial && slotSpecialState(slot) === 'reservable'">
+                  <!-- E1/E4: plan especial con saldo → flujo de reserva normal -->
+                  <template v-if="slot.isFull">
+                    <span class="slot-card__avail slot-card__avail--full">Completo</span>
+                    <button
+                      v-if="canJoinWaitlist(slot)"
+                      type="button"
+                      class="slot-card__go slot-card__go--wait"
+                      :aria-label="`Lista de espera de las ${formatTime(slot.startTime)}`"
+                      @click.stop="onSlotTap(slot)"
+                    >
+                      Lista de espera
+                    </button>
+                  </template>
+                  <template v-else>
+                    <span
+                      v-if="showAvailChip(slot)"
+                      class="slot-card__avail"
+                      :class="`slot-card__avail--${availabilityLevel(slot)}`"
+                      >{{ availabilityText(slot) }}</span
+                    >
+                    <button
+                      type="button"
+                      class="slot-card__go"
+                      :aria-label="`Reservar ${formatTime(slot.startTime)}`"
+                      @click.stop="onSlotTap(slot)"
+                    >
+                      Reservar
+                    </button>
+                  </template>
+                </template>
+                <template v-else-if="slot.isSpecial && slotSpecialState(slot) === 'exhausted'">
+                  <!-- E2: pase de la línea sin saldo (0/N) — chip apagado, sin botón -->
+                  <span class="slot-card__pill slot-card__pill--muted">Usaste tus clases</span>
+                </template>
+                <template v-else-if="slot.isSpecial">
+                  <!-- E3: socio sin el pase de ESTA línea — abre el dialog al tocar. Si todavía
+                     puede usar la clase de prueba gratis de la línea, la invita a probar en
+                     vez del candado. -->
+                  <span
+                    v-if="canClaimTrial(userStore.trialLines, slot.specialLine ?? null)"
+                    class="slot-card__pill slot-card__pill--trial"
+                  >
+                    <q-icon name="redeem" size="14px" />¡Probá una clase!
+                  </span>
+                  <span v-else class="slot-card__pill slot-card__pill--locked">
+                    <q-icon name="lock" size="14px" />{{ specialLockedLabel(slot) }}
+                  </span>
+                </template>
                 <template v-else>
                   <span
+                    v-if="showAvailChip(slot)"
                     class="slot-card__avail"
                     :class="`slot-card__avail--${availabilityLevel(slot)}`"
                     >{{ availabilityText(slot) }}</span
@@ -749,41 +786,24 @@
                     Reservar
                   </button>
                 </template>
-              </template>
-              <template v-else-if="slot.isSpecial && slotSpecialState(slot) === 'exhausted'">
-                <!-- E2: pase de la línea sin saldo (0/N) — chip apagado, sin botón -->
-                <span class="slot-card__pill slot-card__pill--muted">Usaste tus clases</span>
-              </template>
-              <template v-else-if="slot.isSpecial">
-                <!-- E3: socio sin el pase de ESTA línea — abre el dialog al tocar. Si todavía
-                     puede usar la clase de prueba gratis de la línea, la invita a probar en
-                     vez del candado. -->
-                <span
-                  v-if="canClaimTrial(userStore.trialLines, slot.specialLine ?? null)"
-                  class="slot-card__pill slot-card__pill--trial"
-                >
-                  <q-icon name="redeem" size="14px" />¡Probá una clase!
-                </span>
-                <span v-else class="slot-card__pill slot-card__pill--locked">
-                  <q-icon name="lock" size="14px" />{{ specialLockedLabel(slot) }}
-                </span>
-              </template>
-              <template v-else>
-                <span
-                  class="slot-card__avail"
-                  :class="`slot-card__avail--${availabilityLevel(slot)}`"
-                  >{{ availabilityText(slot) }}</span
-                >
-                <button
-                  type="button"
-                  class="slot-card__go"
-                  :aria-label="`Reservar ${formatTime(slot.startTime)}`"
-                  @click.stop="onSlotTap(slot)"
-                >
-                  Reservar
-                </button>
-              </template>
+              </div>
             </div>
+            <!-- Fase 214 (plan 25, D-59): fila "N anotados" que abre la hoja "Quiénes van". -->
+            <button
+              v-if="showWhoRow(slot)"
+              type="button"
+              class="slot-card__who"
+              :aria-label="`Ver quiénes van a las ${formatTime(slot.startTime)}. ${whoText(slot)}`"
+              @click.stop="openAttendees(slot)"
+            >
+              <span class="slot-card__who-text">{{ whoText(slot) }}</span>
+              <q-icon
+                name="chevron_right"
+                size="20px"
+                class="slot-card__who-chev"
+                aria-hidden="true"
+              />
+            </button>
           </div>
         </template>
 
@@ -1044,6 +1064,13 @@
       :description="activitySheet?.description ?? null"
       @update:model-value="onActivitySheetUpdate"
     />
+
+    <!-- Fase 214 (plan 25): hoja "Quiénes van", montada una sola vez para la página. -->
+    <AttendeesSheet
+      v-model="attendeesOpen"
+      :schedule="attendeesSheetSlot"
+      @reserve="onAttendeesReserve"
+    />
   </q-page>
 </template>
 
@@ -1056,12 +1083,14 @@ import FirstVisitTipBanner from 'src/components/FirstVisitTipBanner.vue'
 import PremiumDialogCard from 'src/components/PremiumDialogCard.vue'
 import BranchPickerDialog from 'src/components/BranchPickerDialog.vue'
 import ActivityInfoSheet from 'src/components/ActivityInfoSheet.vue'
+import AttendeesSheet from 'src/components/AttendeesSheet.vue'
 import TurnoHeader from 'src/components/TurnoHeader.vue'
 import { splitDaySections } from 'src/utils/turno-sections'
 import { needsExplicitGridLoad } from 'src/utils/reservas-initial-load'
 import {
   availabilityLevel as availabilityLevelFor,
   availabilityText as availabilityTextFor,
+  bookedText,
   slotIsFull as slotIsFullFor,
   type AvailabilityLevel,
 } from 'src/utils/slot-availability'
@@ -1086,6 +1115,7 @@ import {
   canClaimTrial,
 } from 'src/utils/special-line'
 import { extractError } from 'src/utils/extract-error'
+import type { AttendeesSheetSlot } from 'src/utils/attendees-view'
 import type {
   WeeklySlotView,
   BookingRecord,
@@ -1736,6 +1766,59 @@ function availabilityLevel(slot: WeeklySlotView): AvailabilityLevel {
 
 function availabilityText(slot: WeeklySlotView): string {
   return availabilityTextFor(slot, isTrialMode.value)
+}
+
+// ─── Quiénes van (fase 214, plan 25) ────────────────────────────────
+// Fila "N anotados" de la grilla principal y hoja con las caras. La hoja pide la lista al abrirse y
+// la descarta al cerrarse: acá solo se guarda qué horario se abrió.
+
+/** Fila "N anotados": con anotados, y el horario ni pasó ni es feriado (D-59). */
+function showWhoRow(slot: WeeklySlotView): boolean {
+  return slot.bookedCount > 0 && !isSlotPast(slot) && !isSlotHoliday(slot)
+}
+
+function whoText(slot: WeeklySlotView): string {
+  return bookedText(slot.bookedCount)
+}
+
+/** Con la fila visible el chip "N anotados" sobra: solo quedan los de poco lugar o completo. */
+function showAvailChip(slot: WeeklySlotView): boolean {
+  return !showWhoRow(slot) || availabilityLevel(slot) !== 'available'
+}
+
+const attendeesSlot = ref<WeeklySlotView | null>(null)
+const attendeesOpen = ref(false)
+
+function openAttendees(slot: WeeklySlotView): void {
+  attendeesSlot.value = slot
+  attendeesOpen.value = true
+}
+
+const attendeesSheetSlot = computed<AttendeesSheetSlot | null>(() => {
+  const slot = attendeesSlot.value
+  if (!slot) return null
+  return {
+    scheduleId: slot.id,
+    date: dateForDay(slot.dayOfWeek as DayOfWeek),
+    startTime: slot.startTime,
+    activityName: slot.activityName,
+    maxCapacity: slot.maxCapacity,
+    footer: {
+      startTime: slot.startTime,
+      isBooked: isSlotBooked(slot) || isSlotAttended(slot),
+      isPast: isSlotPast(slot),
+      isHoliday: isSlotHoliday(slot),
+      isFull: slot.isFull,
+      canJoinWaitlist: canJoinWaitlist(slot),
+      specialBlocked: slot.isSpecial && slotSpecialState(slot) !== 'reservable',
+    },
+  }
+})
+
+/** "Reservar" y "Anotarme en la lista de espera" pasan por el mismo `onSlotTap` y su confirmación. */
+function onAttendeesReserve(): void {
+  const slot = attendeesSlot.value
+  if (slot) onSlotTap(slot)
 }
 
 // ─── Week events (for collapsible summary) ──────────────────────────
@@ -2968,6 +3051,57 @@ onBeforeUnmount(() => cleanup())
     .slot-card__coach {
       color: $pd-ink-2;
     }
+  }
+
+  // Fase 214 (plan 25): card en columna solo en la grilla principal (arriba lo de siempre, abajo la
+  // fila "N anotados"). Las grillas de prueba y de partner siguen en fila.
+  &--stacked {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 0;
+  }
+
+  &__top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  // Fila "N anotados" (D-59): sin caras, tocable de 44, no dispara la reserva de la card.
+  &__who {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 44px;
+    margin-top: 8px;
+    padding: 8px 0 0;
+    border: 0;
+    border-top: 1px dashed $pd-light-line;
+    background: transparent;
+    font-family: 'Geologica', sans-serif;
+    font-size: 15px;
+    font-weight: 400;
+    color: $pd-ink;
+    text-align: left;
+    cursor: pointer;
+
+    &:focus-visible {
+      outline: 2px solid $pd-terra-ink;
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
+  }
+
+  &__who-text {
+    flex: 1 1 auto;
+  }
+
+  &__who-chev {
+    flex: none;
+    color: $pd-light-edge;
   }
 
   &__time {

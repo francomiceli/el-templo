@@ -72,3 +72,15 @@ export function sheetFooterAction(s: SheetFooterInput): SheetFooterAction {
   }
   return { kind: 'reserve', label: `Reservar ${displayTime(s.startTime)}` }
 }
+
+/** Lo que la hoja "Quiénes van" necesita del horario (lo arma `ReservasPage`). */
+export interface AttendeesSheetSlot {
+  scheduleId: number
+  /** YYYY-MM-DD, en la zona de la sede. */
+  date: string
+  startTime: string
+  activityName: string
+  maxCapacity: number
+  /** Estado del horario para el pie. */
+  footer: SheetFooterInput
+}

@@ -46,6 +46,12 @@ export function availabilityLevel(
   return 'available'
 }
 
+/** "1 anotado" / "N anotados": prueba social del chip y texto de la fila "Quiénes van" (fase 214). */
+export function bookedText(bookedCount: number): string {
+  const booked = Math.max(0, bookedCount)
+  return booked === 1 ? '1 anotado' : `${booked} anotados`
+}
+
 export function availabilityText(slot: SlotAvailabilityInput, trialMode: boolean): string {
   const level = availabilityLevel(slot, trialMode)
   if (level === 'full') return 'Completo'
@@ -53,8 +59,6 @@ export function availabilityText(slot: SlotAvailabilityInput, trialMode: boolean
   if (level === 'few') return `Quedan ${spotsLeft(slot, trialMode)} lugares`
   // 'available': prueba social. En modo prueba hoy no se llega acá (el tope de SP es 3, siempre
   // < FEW_THRESHOLD); si el tope llegara a 5+ se usa `bookedCount` del cupo general (ver tests).
-  const booked = Math.max(0, slot.bookedCount)
-  if (booked === 0) return 'Sé el primero'
-  if (booked === 1) return '1 anotado'
-  return `${booked} anotados`
+  if (slot.bookedCount <= 0) return 'Sé el primero'
+  return bookedText(slot.bookedCount)
 }
