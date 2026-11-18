@@ -70,3 +70,19 @@ Línea de base registrada por el plan 01 en `TYPECHECK-BASELINE.md`:
 - (plan 01) Los `.env` de la API están enlazados y apuntan a `DB_HOST=localhost`.
 - (plan 01) Ningún worktree con este lockfile tiene `vitest` en el admin: los tests del admin no se
   pueden correr en local.
+- (plan 02) **Tests unitarios puros: correrlos con la config unitaria**, que no usa base de datos y tarda
+  menos de un segundo: desde `el-templo-api`, `npx vitest run --config vitest.config.unit.ts
+  test/unit/<archivo>.test.ts`. Solo incluye `test/unit/**`. Verificado: `test/unit/aura-amounts.test.ts`
+  da 6 de 6 en verde.
+- (plan 02) **No correr tests con la config por defecto** (`npx vitest run <archivo>` a secas): su
+  `test/setup.ts` se cuelga 120 segundos provisionando la base de pruebas y deja los tests "skipped". Los
+  tests de integración se escriben y se dejan para CI. Si un plan pide correr uno, se informa "queda para
+  CI" y se sigue.
+- (plan 02) `pnpm typecheck:tests` ya viene en rojo en este entorno (175 errores de base, en archivos
+  ajenos). Se compara solo por los archivos tocados, no por el total.
+- (plan 02) lint-staged no siempre reformatea: correr `npx prettier --write <archivos tocados>` antes de
+  commitear.
+- (plan 02) Los tests de integración que afirman montos viejos quedan rotos hasta el plan 03.
+  `milestoneAura` mantiene su firma y devuelve 15 / 25 / 50. Los montos viven en
+  `el-templo-api/src/modules/aura/amounts.ts`.
+
