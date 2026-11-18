@@ -1200,11 +1200,12 @@ describe("aprobar foto — POST /api/admin/members/:userId/profile-photo/approve
 
   it("aislamiento: aprobar la foto de un socio de El Templo se rechaza, y su fila y su ledger NO cambian", async () => {
     mockPrivateMedia();
-    await seedMemberPhoto(app, templo.userId);
+    const foto = await seedMemberPhoto(app, templo.userId);
     const antes = await photoRowsOf(app, templo.userId);
     const res = await comoGimnasioDos(
       "POST",
       `/${templo.userId}/profile-photo/approve`,
+      { photoId: foto.id },
     );
     expect(
       res.statusCode,
@@ -1225,6 +1226,7 @@ describe("aprobar foto — POST /api/admin/members/:userId/profile-photo/approve
     const res = await comoGimnasioDos(
       "POST",
       `/${dos.userId}/profile-photo/approve`,
+      { photoId: foto.id },
     );
     expect(
       res.statusCode,
@@ -1245,12 +1247,12 @@ describe("rechazar foto — POST /api/admin/members/:userId/profile-photo/reject
 
   it("aislamiento: rechazar la foto de un socio de El Templo se rechaza, y su fila NO cambia", async () => {
     mockPrivateMedia();
-    await seedMemberPhoto(app, templo.userId);
+    const foto = await seedMemberPhoto(app, templo.userId);
     const antes = await photoRowsOf(app, templo.userId);
     const res = await comoGimnasioDos(
       "POST",
       `/${templo.userId}/profile-photo/reject`,
-      { reason: "otro" },
+      { reason: "otro", photoId: foto.id },
     );
     expect(
       res.statusCode,
@@ -1264,11 +1266,13 @@ describe("rechazar foto — POST /api/admin/members/:userId/profile-photo/reject
 
   it("control: rechazar la foto del socio propio del gimnasio 2 pasa el filtro (NO 404)", async () => {
     mockPrivateMedia();
-    await seedMemberPhoto(app, dos.userId, { ctx: { tenantId: TENANT_DOS } });
+    const foto = await seedMemberPhoto(app, dos.userId, {
+      ctx: { tenantId: TENANT_DOS },
+    });
     const res = await comoGimnasioDos(
       "POST",
       `/${dos.userId}/profile-photo/reject`,
-      { reason: "otro" },
+      { reason: "otro", photoId: foto.id },
     );
     expect(
       res.statusCode,

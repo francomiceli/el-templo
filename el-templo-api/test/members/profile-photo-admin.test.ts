@@ -85,22 +85,44 @@ let app: FastifyInstance;
 
 const auth = (token: string) => ({ authorization: `Bearer ${token}` });
 
-function approve(token: string, userId: number) {
+/**
+ * La foto que el staff "vio" en la cola: la última pendiente del alumno o, si no
+ * hay, la última aprobada con reportes. Sin ninguna devuelve un id inexistente.
+ * Los tests de carrera pasan un `photoId` explícito (el viejo).
+ */
+async function photoSeenByStaff(userId: number): Promise<number> {
+  const rows = await photoRowsOf(app, userId);
+  const seen =
+    [...rows].reverse().find((row) => row.status === "pendiente") ??
+    [...rows]
+      .reverse()
+      .find((row) => row.status === "aprobada" && row.reportCount > 0);
+  return seen?.id ?? 2_000_000_000;
+}
+
+async function approve(token: string, userId: number, photoId?: number) {
   return app.inject({
     method: "POST",
     url: `${ADMIN}/${userId}/profile-photo/approve`,
     headers: auth(token),
+    payload: { photoId: photoId ?? (await photoSeenByStaff(userId)) },
   });
 }
 
-function reject(token: string, userId: number, payload?: unknown) {
+async function reject(
+  token: string,
+  userId: number,
+  payload?: Record<string, unknown>,
+  photoId?: number,
+) {
   return app.inject({
     method: "POST",
     url: `${ADMIN}/${userId}/profile-photo/reject`,
     headers: auth(token),
-    ...(payload === undefined
-      ? {}
-      : { payload: payload as Record<string, unknown> }),
+    payload: {
+      photoId: photoId ?? (await photoSeenByStaff(userId)),
+      ...(payload ?? {}),
+    },
   });
 }
 
@@ -334,6 +356,58 @@ describe("POST /:userId/profile-photo/approve", () => {
     expect((await photoRowById(app, foto.id)).reportCount).toBe(1);
   });
 
+  it("carrera: si el alumno subió otra foto después de que el staff vio la vieja, 409 y no aprueba nada", async () => {
+    mockPrivateMedia();
+    const staff = await createConquerStaff(app, "admin");
+    const m = await createTestMember(app);
+    const vista = await seedMemberPhoto(app, m.id);
+    // El alumno sube otra: la vista pasa a reemplazada y la nueva queda pendiente.
+    await app.db
+      .update(schema.memberPhotos)
+      .set({ status: "reemplazada" })
+      .where(eq(schema.memberPhotos.id, vista.id));
+    const nueva = await seedMemberPhoto(app, m.id);
+
+    const res = await approve(staff.token, m.id, vista.id);
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json<{ code: string }>().code).toBe("FOTO_PERFIL_CAMBIO");
+    expect((await photoRowById(app, nueva.id)).status).toBe("pendiente");
+    expect((await photoRowById(app, vista.id)).status).toBe("reemplazada");
+    expect(await profilePhotoAuraRows(app, m.id)).toHaveLength(0);
+  });
+
+  it("un photoId de otro alumno no aprueba nada: 409", async () => {
+    mockPrivateMedia();
+    const staff = await createConquerStaff(app, "admin");
+    const m = await createTestMember(app);
+    const otro = await createTestMember(app);
+    const mia = await seedMemberPhoto(app, m.id);
+    const ajena = await seedMemberPhoto(app, otro.id);
+
+    const res = await approve(staff.token, m.id, ajena.id);
+
+    expect(res.statusCode).toBe(409);
+    expect((await photoRowById(app, mia.id)).status).toBe("pendiente");
+    expect((await photoRowById(app, ajena.id)).status).toBe("pendiente");
+  });
+
+  it("sin photoId en el cuerpo: 400", async () => {
+    mockPrivateMedia();
+    const staff = await createConquerStaff(app, "admin");
+    const m = await createTestMember(app);
+    await seedMemberPhoto(app, m.id);
+
+    const res = await app.inject({
+      method: "POST",
+      url: `${ADMIN}/${m.id}/profile-photo/approve`,
+      headers: auth(staff.token),
+      payload: {},
+    });
+
+    expect(res.statusCode).toBe(400);
+  });
+
   it("sin foto para revisar: 404", async () => {
     mockPrivateMedia();
     const staff = await createConquerStaff(app, "admin");
@@ -397,6 +471,26 @@ describe("POST /:userId/profile-photo/reject", () => {
     expect(sin.statusCode).toBe(400);
     expect(invalido.statusCode).toBe(400);
     expect((await photoRowById(app, foto.id)).status).toBe("pendiente");
+  });
+
+  it("carrera: si la foto vista ya no es la pendiente, 409 y no rechaza la nueva", async () => {
+    const remove = vi.fn(async () => undefined);
+    mockPrivateMedia({ remove });
+    const staff = await createConquerStaff(app, "admin");
+    const m = await createTestMember(app);
+    const vista = await seedMemberPhoto(app, m.id);
+    await app.db
+      .update(schema.memberPhotos)
+      .set({ status: "reemplazada" })
+      .where(eq(schema.memberPhotos.id, vista.id));
+    const nueva = await seedMemberPhoto(app, m.id);
+
+    const res = await reject(staff.token, m.id, { reason: "otro" }, vista.id);
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json<{ code: string }>().code).toBe("FOTO_PERFIL_CAMBIO");
+    expect((await photoRowById(app, nueva.id)).status).toBe("pendiente");
+    expect(remove).not.toHaveBeenCalled();
   });
 
   it("sin pendiente: 404", async () => {

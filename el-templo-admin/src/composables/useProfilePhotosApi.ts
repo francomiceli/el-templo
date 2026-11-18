@@ -2,7 +2,7 @@
  * Cliente de la revisión de fotos de perfil (fase 214, plan 15 de la API).
  *
  * Mirrors el-templo-api/src/modules/members/profile-photo-schemas.ts. Los errores
- * (404 si la foto ya no está en la cola, 503 sin almacenamiento) los maneja quien llama.
+ * (404 si la foto ya no está en la cola, 409 `FOTO_PERFIL_CAMBIO` si el alumno cambió la foto mientras se revisaba, 503 sin almacenamiento) los maneja quien llama.
  */
 
 import { api } from 'src/boot/axios';
@@ -53,20 +53,23 @@ export function useProfilePhotosApi() {
     return data;
   }
 
-  async function approve(userId: number): Promise<ApproveProfilePhotoResult> {
+  /** `photoId` es la foto que el staff vio: si ya no es la vigente, la API responde 409. */
+  async function approve(userId: number, photoId: number): Promise<ApproveProfilePhotoResult> {
     const { data } = await api.post<ApproveProfilePhotoResult>(
-      `/admin/members/${userId}/profile-photo/approve`
+      `/admin/members/${userId}/profile-photo/approve`,
+      { photoId }
     );
     return data;
   }
 
   async function reject(
     userId: number,
+    photoId: number,
     reason: PhotoRejectionReason
   ): Promise<RejectProfilePhotoResult> {
     const { data } = await api.post<RejectProfilePhotoResult>(
       `/admin/members/${userId}/profile-photo/reject`,
-      { reason }
+      { photoId, reason }
     );
     return data;
   }

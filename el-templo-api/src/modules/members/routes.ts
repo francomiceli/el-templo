@@ -2081,8 +2081,8 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
   // `admin_sede`. La lógica vive en `profile-photo-service.ts`: el servicio
   // resuelve al socio vivo del tenant antes de tocar storage (404 indistinguible).
 
-  // POST /admin/members/:userId/profile-photo/approve
-  fastify.post<{ Params: { userId: number } }>(
+  // POST /admin/members/:userId/profile-photo/approve  { photoId }
+  fastify.post<{ Params: { userId: number }; Body: { photoId: number } }>(
     "/:userId/profile-photo/approve",
     { schema: photoApproveSchema },
     async (request, reply) => {
@@ -2096,6 +2096,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           ctx,
           request.params.userId,
           request.user.userId,
+          request.body.photoId,
         );
       } catch (err: unknown) {
         sendPhotoError(
@@ -2108,10 +2109,10 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
-  // POST /admin/members/:userId/profile-photo/reject  { reason }
+  // POST /admin/members/:userId/profile-photo/reject  { reason, photoId }
   fastify.post<{
     Params: { userId: number };
-    Body: { reason: PhotoRejectionReason };
+    Body: { reason: PhotoRejectionReason; photoId: number };
   }>(
     "/:userId/profile-photo/reject",
     { schema: photoRejectSchema },
@@ -2124,6 +2125,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           request.params.userId,
           request.user.userId,
           request.body.reason,
+          request.body.photoId,
         );
       } catch (err: unknown) {
         sendPhotoError(err, reply, request.log, "members.profile_photo.reject");

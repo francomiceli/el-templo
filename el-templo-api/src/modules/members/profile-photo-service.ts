@@ -717,6 +717,10 @@ export async function listPhotoReviewQueue(
   return { items, counts: { pending, reported } };
 }
 
+const PHOTO_CHANGED_CODE = "FOTO_PERFIL_CAMBIO";
+const PHOTO_CHANGED_MESSAGE =
+  "La foto cambió mientras la revisabas, recargá la cola";
+
 export interface ApproveProfilePhotoResult {
   status: "aprobada";
   auraAwarded: boolean;
@@ -726,14 +730,19 @@ export interface ApproveProfilePhotoResult {
  * Aprueba la foto pendiente del alumno (D-31): reemplaza a la aprobada anterior
  * de origen `alumno` y acredita 5 Aura UNA sola vez en la vida (D-30): el unique
  * del ledger (`reference_id = userId`) es el candado, así que quitar y volver a
- * subir no vuelve a pagar. Sin pendiente pero con una aprobada reportada: "la
- * revisé y queda" (reportes en 0, sin Aura). Si no hay ninguna: 404.
+ * subir no vuelve a pagar. Sobre una aprobada reportada: "la revisé y queda"
+ * (reportes en 0, sin Aura). Si no hay ninguna foto del alumno: 404.
+ *
+ * Opera SOLO sobre `photoId`, la foto que el staff vio en la cola. Si esa fila
+ * ya no está pendiente ni aprobada (el alumno subió otra, la quitaron o ya la
+ * revisó otro) responde 409 `FOTO_PERFIL_CAMBIO` y no aprueba nada.
  */
 export async function approveProfilePhoto(
   fastify: FastifyInstance,
   ctx: TenantContext,
   userId: number,
   reviewerId: number,
+  photoId: number,
 ): Promise<ApproveProfilePhotoResult> {
   await assertLiveMember(fastify, ctx, userId);
 
@@ -757,11 +766,18 @@ export async function approveProfilePhoto(
       .orderBy(asc(schema.memberPhotos.id))
       .for("update");
 
-    const pending = [...rows]
-      .reverse()
-      .find((row) => row.status === "pendiente" && row.origin === "alumno");
+    if (rows.length === 0) throw new NotFoundError("No hay foto para revisar");
 
-    if (pending) {
+    const target = rows.find((row) => row.id === photoId);
+    const isPendingTarget =
+      target?.status === "pendiente" && target.origin === "alumno";
+    const isReportedTarget =
+      target?.status === "aprobada" && target.reportCount > 0;
+    if (!target || (!isPendingTarget && !isReportedTarget)) {
+      throw new AppError(PHOTO_CHANGED_MESSAGE, 409, PHOTO_CHANGED_CODE);
+    }
+
+    if (isPendingTarget) {
       const replacedKeys: string[] = [];
       for (const row of rows) {
         if (row.status !== "aprobada" || row.origin !== "alumno") continue;
@@ -789,18 +805,12 @@ export async function approveProfilePhoto(
         .where(
           and(
             tenantWhere(schema.memberPhotos, ctx),
-            eq(schema.memberPhotos.id, pending.id),
+            eq(schema.memberPhotos.id, target.id),
           ),
         );
       return { kind: "approved" as const, replacedKeys };
     }
 
-    const reported = rows.filter(
-      (row) => row.status === "aprobada" && row.reportCount > 0,
-    );
-    if (reported.length === 0) {
-      throw new NotFoundError("No hay foto para revisar");
-    }
     await tx
       .update(schema.memberPhotos)
       .set({
@@ -813,10 +823,7 @@ export async function approveProfilePhoto(
       .where(
         and(
           tenantWhere(schema.memberPhotos, ctx),
-          inArray(
-            schema.memberPhotos.id,
-            reported.map((row) => row.id),
-          ),
+          eq(schema.memberPhotos.id, target.id),
         ),
       );
     return { kind: "reviewed" as const, replacedKeys: [] as string[] };
@@ -862,8 +869,9 @@ export async function approveProfilePhoto(
 
 /**
  * Rechaza la foto pendiente (D-31, D-69): guarda el motivo, borra el objeto y
- * avisa al alumno por push (best-effort, categoría `anuncios`). 404 si no hay
- * pendiente.
+ * avisa al alumno por push (best-effort, categoría `anuncios`). Opera SOLO sobre
+ * `photoId` (la foto que el staff vio): si ya no es la pendiente del alumno,
+ * 409 `FOTO_PERFIL_CAMBIO` y no rechaza nada. 404 si el alumno no tiene pendiente.
  */
 export async function rejectProfilePhoto(
   fastify: FastifyInstance,
@@ -871,6 +879,7 @@ export async function rejectProfilePhoto(
   userId: number,
   reviewerId: number,
   reason: PhotoRejectionReason,
+  photoId: number,
 ): Promise<{ status: "rechazada" }> {
   await assertLiveMember(fastify, ctx, userId);
 
@@ -893,6 +902,9 @@ export async function rejectProfilePhoto(
       .limit(1)
       .for("update");
     if (!pending) throw new NotFoundError("No hay foto para revisar");
+    if (pending.id !== photoId) {
+      throw new AppError(PHOTO_CHANGED_MESSAGE, 409, PHOTO_CHANGED_CODE);
+    }
 
     await tx
       .update(schema.memberPhotos)

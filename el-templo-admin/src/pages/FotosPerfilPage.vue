@@ -343,11 +343,20 @@ async function loadBranches(): Promise<void> {
   }
 }
 
-/** Traduce el error de una acción: 404 recarga la cola, 503 pasa al banner, el resto avisa. */
+/** Traduce el error de una acción: 404 y 409 recargan la cola, 503 pasa al banner, el resto avisa. */
 async function handleActionError(err: unknown, fallback: string): Promise<void> {
   const status = statusOf(err);
   if (status === 404) {
     $q.notify({ type: 'warning', message: 'Esa foto ya no está en la cola.' });
+    await loadQueue();
+    await adminStore.fetchPhotoReviewCount();
+    return;
+  }
+  if (status === 409) {
+    $q.notify({
+      type: 'warning',
+      message: 'El alumno cambió la foto mientras la revisabas. Actualizamos la cola.',
+    });
     await loadQueue();
     await adminStore.fetchPhotoReviewCount();
     return;
@@ -365,7 +374,7 @@ async function approve(item: ProfilePhotoQueueItem): Promise<void> {
   const wasReported = isReported(item);
   setBusy(item, true);
   try {
-    const result = await photosApi.approve(item.userId);
+    const result = await photosApi.approve(item.userId, item.photoId);
     dropFromQueue(item);
     const message = wasReported
       ? 'Listo, la foto queda.'
@@ -397,7 +406,7 @@ async function confirmReject(): Promise<void> {
   if (!item || rejectBusy.value) return;
   rejectBusy.value = true;
   try {
-    await photosApi.reject(item.userId, rejectReason.value);
+    await photosApi.reject(item.userId, item.photoId, rejectReason.value);
     rejectOpen.value = false;
     dropFromQueue(item);
     $q.notify({ type: 'positive', message: 'Foto rechazada.' });

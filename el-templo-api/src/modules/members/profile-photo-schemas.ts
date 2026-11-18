@@ -167,6 +167,12 @@ export const photoReviewQueueSchema = {
 /** `POST /:userId/profile-photo/approve`. */
 export const photoApproveSchema = {
   params: userIdParams,
+  body: {
+    type: "object",
+    required: ["photoId"],
+    additionalProperties: false,
+    properties: { photoId: { type: "integer", minimum: 1 } },
+  },
   response: {
     200: {
       type: "object",
@@ -178,6 +184,7 @@ export const photoApproveSchema = {
       },
     },
     404: errorSchema,
+    409: errorSchema,
   },
 } as const;
 
@@ -186,9 +193,10 @@ export const photoRejectSchema = {
   params: userIdParams,
   body: {
     type: "object",
-    required: ["reason"],
+    required: ["reason", "photoId"],
     additionalProperties: false,
     properties: {
+      photoId: { type: "integer", minimum: 1 },
       reason: {
         type: "string",
         enum: ["sin_cara", "no_es_propia", "contenido", "otro"],
@@ -205,6 +213,7 @@ export const photoRejectSchema = {
       },
     },
     404: errorSchema,
+    409: errorSchema,
   },
 } as const;
 
