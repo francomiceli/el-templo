@@ -9,7 +9,8 @@ export type NotificationCategory =
   | "motivacion"
   | "anuncios"
   | "planes"
-  | "referidos";
+  | "referidos"
+  | "regalos_aura";
 
 export type NotificationStatus = "pending" | "sent" | "failed";
 
@@ -22,6 +23,7 @@ export const NOTIFICATION_CATEGORIES = [
   "anuncios",
   "planes",
   "referidos",
+  "regalos_aura",
 ] as const;
 
 // ── Service Inputs ──────────────────────────────────────────────────────────
@@ -83,6 +85,12 @@ export interface QueueAdHocInput {
    * por texto.
    */
   inboxRefId?: number;
+  /**
+   * Fase 215 (#30): con la preferencia de la categoría apagada NO hay push, pero
+   * el aviso igual queda en la bandeja. Sin esta bandera, una preferencia
+   * apagada descarta el aviso entero (comportamiento de siempre).
+   */
+  keepInInboxWhenMuted?: boolean;
 }
 
 // ── Segment Transition Types ────────────────────────────────────────────────

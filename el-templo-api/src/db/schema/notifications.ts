@@ -25,6 +25,8 @@ export const notificationCategoryEnum = mysqlEnum("notification_category", [
   "anuncios",
   "planes",
   "referidos",
+  // Fase 215 (ajustes, #30): push del regalo de Aura recibido, migración 0352.
+  "regalos_aura",
 ]);
 
 export const notificationStatusEnum = mysqlEnum("notification_status", [

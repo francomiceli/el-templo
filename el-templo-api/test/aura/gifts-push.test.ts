@@ -333,7 +333,31 @@ describe("Fase 215-15: push del regalo y bandeja", () => {
     });
   });
 
-  it("(4) con la categoría motivación apagada: ni push ni bandeja, pero el regalo y su Aura existen", async () => {
+  it("(4) con 'Regalos de Aura' apagado: sin push, pero el aviso queda en la bandeja y la Aura se acredita (#30)", async () => {
+    const g = await dador();
+    const r = await receptor();
+    await service.registerToken(r.id, TOKEN_RECEPTOR, "android");
+    await service.updatePreference(r.id, "regalos_aura", false);
+
+    const giftId = await darRegaloAlumno(g, r, "energia");
+
+    // Sin push: la cola de envíos queda vacía.
+    expect(await colaDe(r.id)).toHaveLength(0);
+    // Pero el aviso está en la bandeja, con el regalo.
+    const filas = await bandejaDe(r.id);
+    expect(filas).toHaveLength(1);
+    expect(filas[0].kind).toBe("aura_gift");
+    expect(filas[0].refId).toBe(giftId);
+    expect(filas[0].pendingNotificationId).toBeNull();
+    expect(giftId).toBeGreaterThan(0);
+    expect(await ledgerSum(app, r.id)).toBe(1);
+
+    const items = await leerBandejaPorRuta(r);
+    const aviso = items.find((item) => item.kind === "aura_gift");
+    expect(aviso?.gift?.status).toBe("vigente");
+  });
+
+  it("(4b) apagar 'Motivación' ya no afecta a los regalos: la push se encola igual (#30)", async () => {
     const g = await dador();
     const r = await receptor();
     await service.registerToken(r.id, TOKEN_RECEPTOR, "android");
@@ -341,10 +365,34 @@ describe("Fase 215-15: push del regalo y bandeja", () => {
 
     const giftId = await darRegaloAlumno(g, r, "energia");
 
-    expect(await colaDe(r.id)).toHaveLength(0);
-    expect(await bandejaDe(r.id)).toHaveLength(0);
-    expect(giftId).toBeGreaterThan(0);
-    expect(await ledgerSum(app, r.id)).toBe(1);
+    const cola = await colaDe(r.id);
+    expect(cola).toHaveLength(1);
+    expect(cola[0].inboxRefId).toBe(giftId);
+  });
+
+  it("(4c) con 'Regalos de Aura' apagado, volver a encolar el mismo regalo no duplica la bandeja", async () => {
+    const g = await dador();
+    const r = await receptor();
+    await service.updatePreference(r.id, "regalos_aura", false);
+    const giftId = await darRegaloAlumno(g, r, "energia");
+    expect(await bandejaDe(r.id)).toHaveLength(1);
+
+    await queueGiftNotification(
+      service,
+      GIFT_CTX,
+      {
+        giftId,
+        receiverUserId: r.id,
+        giverKind: "alumno",
+        giverFirstName: "Sofía",
+        giverLastInitial: "M",
+        reason: "energia",
+        amount: 1,
+      },
+      app.log,
+    );
+
+    expect(await bandejaDe(r.id)).toHaveLength(1);
   });
 
   it("(5) anular el regalo no encola nada y la bandeja lo muestra anulado", async () => {

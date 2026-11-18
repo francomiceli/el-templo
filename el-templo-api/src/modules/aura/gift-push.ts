@@ -13,10 +13,9 @@
 //   ni dice "Alguien": "Te dieron 1 de Aura" y "Motivo: Buena energía.". El profe
 //   sin nombre sigue siendo "Tu profe te dio Aura".
 //
-// Categoría: `motivacion` (decisión autónoma, ver 215-DECISIONES-AUTONOMAS.md).
-// Hallazgo: esa categoría no tiene interruptor en Perfil, así que hoy nadie la
-// apaga desde la app. Si alguien la tuviera apagada, `queueAdHocNotification`
-// no encola ni guarda en la bandeja, y el regalo y su Aura quedan igual.
+// Categoría: `regalos_aura` (mig 0352, #30). Tiene su propio interruptor en
+// Perfil. Apagado, no hay push pero el aviso queda igual en la bandeja
+// (`keepInInboxWhenMuted`) y la Aura se acredita. Ya no depende de `motivacion`.
 //
 // Con dispositivo, la fila de la cola lleva `inboxKind` e `inboxRefId` y la
 // bandeja la guarda al enviarla. Sin dispositivo, la bandeja la guarda directo
@@ -67,7 +66,8 @@ export async function queueGiftNotification(
         userId: input.receiverUserId,
         title,
         body,
-        category: "motivacion",
+        category: "regalos_aura",
+        keepInInboxWhenMuted: true,
         route: GIFT_ROUTE,
         inboxKind: INBOX_GIFT_KIND,
         inboxRefId: input.giftId,

@@ -264,6 +264,7 @@ export class NotificationService {
       anuncios: true,
       planes: true,
       referidos: true,
+      regalos_aura: true,
     };
 
     for (const row of rows) {
@@ -553,7 +554,8 @@ export class NotificationService {
 
     // Check user preference for the notification category
     const prefs = await this.getUserPreferences(userId);
-    if (!prefs[category]) {
+    const muted = !prefs[category];
+    if (muted && !input.keepInInboxWhenMuted) {
       this.log.info(
         { userId, category },
         "User preference disabled for ad-hoc category — skipping",
@@ -570,6 +572,17 @@ export class NotificationService {
       ? fallbackRouteFor(destination)
       : (route ?? "/mi-templo");
 
+    // Fase 215 (#30): con la categoría apagada el aviso no se empuja, pero queda
+    // en la bandeja (desde la hora programada y una sola vez).
+    if (muted) {
+      this.log.info(
+        { userId, category },
+        "User preference disabled for ad-hoc category — inbox only, no push",
+      );
+      await this.recordAdHocInbox(ctx, input, resolvedRoute);
+      return -1;
+    }
+
     // Skip if user has no device token — see queueNotification for rationale.
     if (!(await this.userHasDeviceToken(userId, ctx))) {
       this.log.info(
@@ -578,28 +591,7 @@ export class NotificationService {
       );
       // Fase 215 (D-18): sin push el aviso igual queda en la bandeja, desde
       // la hora programada y una sola vez (clave anti-duplicado).
-      const shownAt = scheduledAt ?? new Date();
-      await this.inbox.recordDirect(ctx, {
-        userId,
-        kind: input.inboxKind ?? category,
-        refId: input.inboxRefId ?? null,
-        dedupeKey: inboxDedupeKey({
-          source: "adhoc",
-          category,
-          inboxKind: input.inboxKind,
-          inboxRefId: input.inboxRefId,
-          shownAt,
-          title,
-          body,
-        }),
-        title,
-        body,
-        route: resolvedRoute,
-        destinationType: destination?.type ?? "app_section",
-        destinationSection: destination?.section ?? null,
-        whatsappText: destination?.whatsappText ?? null,
-        shownAt,
-      });
+      await this.recordAdHocInbox(ctx, input, resolvedRoute);
       return -1;
     }
 
@@ -628,6 +620,41 @@ export class NotificationService {
     );
 
     return insertId;
+  }
+
+  /**
+   * Fase 215 (D-18): guarda en la bandeja un aviso ad-hoc que no se empuja (sin
+   * dispositivo o con la preferencia apagada). Idempotente por clave; nunca
+   * lanza (lo garantiza `inbox.recordDirect`).
+   */
+  private async recordAdHocInbox(
+    ctx: TenantContext,
+    input: QueueAdHocInput,
+    resolvedRoute: string,
+  ): Promise<void> {
+    const { userId, title, body, category, destination, scheduledAt } = input;
+    const shownAt = scheduledAt ?? new Date();
+    await this.inbox.recordDirect(ctx, {
+      userId,
+      kind: input.inboxKind ?? category,
+      refId: input.inboxRefId ?? null,
+      dedupeKey: inboxDedupeKey({
+        source: "adhoc",
+        category,
+        inboxKind: input.inboxKind,
+        inboxRefId: input.inboxRefId,
+        shownAt,
+        title,
+        body,
+      }),
+      title,
+      body,
+      route: resolvedRoute,
+      destinationType: destination?.type ?? "app_section",
+      destinationSection: destination?.section ?? null,
+      whatsappText: destination?.whatsappText ?? null,
+      shownAt,
+    });
   }
 
   // ── Envío de prueba (editor admin) ──────────────────────────────────────

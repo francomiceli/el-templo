@@ -193,6 +193,7 @@ const getPreferencesResponseSchema = {
           programas: { type: "boolean" },
           motivacion: { type: "boolean" },
           anuncios: { type: "boolean" },
+          regalos_aura: { type: "boolean" },
         },
       },
     },
@@ -206,7 +207,13 @@ const updatePreferenceSchema = {
     properties: {
       category: {
         type: "string",
-        enum: ["entrenamiento", "programas", "motivacion", "anuncios"],
+        enum: [
+          "entrenamiento",
+          "programas",
+          "motivacion",
+          "anuncios",
+          "regalos_aura",
+        ],
       },
       enabled: { type: "boolean" },
     },
@@ -717,12 +724,10 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
           normalizeDestinationInput(request.body.destination),
         );
         if (!destinationResult.ok) {
-          return reply
-            .code(400)
-            .send({
-              error: "Destino inválido",
-              message: destinationResult.reason,
-            });
+          return reply.code(400).send({
+            error: "Destino inválido",
+            message: destinationResult.reason,
+          });
         }
         const destination: Destination = destinationResult.value;
         updates.route = fallbackRouteFor(destination);
@@ -903,12 +908,10 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
         normalizeDestinationInput(request.body.destination),
       );
       if (!destinationResult.ok) {
-        return reply
-          .code(400)
-          .send({
-            error: "Destino inválido",
-            message: destinationResult.reason,
-          });
+        return reply.code(400).send({
+          error: "Destino inválido",
+          message: destinationResult.reason,
+        });
       }
       const destination: Destination = destinationResult.value;
 
@@ -1095,12 +1098,10 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
         normalizeDestinationInput(request.body.destination),
       );
       if (!destinationResult.ok) {
-        return reply
-          .code(400)
-          .send({
-            error: "Destino inválido",
-            message: destinationResult.reason,
-          });
+        return reply.code(400).send({
+          error: "Destino inválido",
+          message: destinationResult.reason,
+        });
       }
 
       const [member] = await fastify.db
@@ -1246,12 +1247,10 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
         ),
       );
       if (!destinationResult.ok) {
-        return reply
-          .code(400)
-          .send({
-            error: "Destino inválido",
-            message: destinationResult.reason,
-          });
+        return reply.code(400).send({
+          error: "Destino inválido",
+          message: destinationResult.reason,
+        });
       }
       const destination: Destination = destinationResult.value;
 
