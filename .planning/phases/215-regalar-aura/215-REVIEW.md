@@ -75,7 +75,11 @@ findings:
   medium: 6
   low: 5
   total: 12
-status: issues_found
+status: fixes_applied
+fixed_at: 2026-11-18
+fixes_applied: 8
+fixes_partial: 1
+fixes_pending_owner: 3
 ---
 
 # Fase 215: Code Review Report
@@ -83,6 +87,13 @@ status: issues_found
 **Reviewed:** 2026-11-18
 **Depth:** deep (rutas, servicios, migraciones y pantallas; tests y CSS no revisados línea a línea)
 **Status:** issues_found
+
+## Estado de las correcciones (2026-11-18)
+
+- Corregidos (8): HI-01, ME-02, ME-03, ME-04, LO-01, LO-02, LO-04, LO-05.
+- Parcial (1): ME-05 (solo el log; falta decidir qué hacer con el saldo negativo).
+- Pendientes del dueño (3, más lo que queda de ME-05): ME-01, ME-06, LO-03. Están anotados en `215-DECISIONES-AUTONOMAS.md`.
+- Control: typecheck de la API en 0; app 20 y admin 36 (sin errores nuevos); tests unitarios de la bandeja corridos con la config unitaria. Los tests de integración nuevos quedan para CI.
 
 ## Alcance de lectura
 
@@ -104,35 +115,42 @@ Verificado y sin hallazgos: las 3 migraciones no tienen `;` en comentarios, el D
 
 ## Medium
 
+**Estado:** CORREGIDO en `59cc4cff6`. La cadencia de `rules.ts` también mira `member_notifications` por el prefijo de la clave de la plantilla; test unitario del prefijo agregado. El test del job con un usuario sin token dos días seguidos queda para CI (no se escribió: requiere la base).
+
 ### ME-01: Los regalos anulados siguen mostrando a la persona oculta (privacidad D-07)
 
 **Archivo:** `el-templo-api/src/modules/aura/member-routes.ts:40-76`, `el-templo-api/src/modules/notifications/inbox-routes.ts:70-114`, `el-templo-api/src/modules/aura/gift-service.ts:812-883`
 **Escenario:** Ana regala a Beto. Beto se oculta de la lista de anotados esa misma noche. Ana, en la card de hoy, sigue viendo "Le diste Aura a Beto" con su foto (`listGivenToday` no revisa visibilidad). Al revés: si Ana se oculta después, Beto sigue viendo nombre, inicial y foto de Ana en su detalle de Aura y en la bandeja. El comentario de `inbox-routes.ts` lo asume ("el regalo ya se dio"), pero D-07 dice que quien se oculta no participa. Es una decisión no escrita en `215-DECISIONES-AUTONOMAS.md`.
 **Corrección:** filtrar `listGivenToday` por `effectiveVisible` del receptor (o mostrar solo iniciales) y, para el lado receptor, mostrar "Alguien" sin foto cuando el dador está oculto ahora. Si se acepta el comportamiento, anotarlo como decisión explícita.
+**Estado:** PENDIENTE DEL DUEÑO. Decisión de producto sobre D-07, anotada en `215-DECISIONES-AUTONOMAS.md`. No se tocó código.
 
 ### ME-02: Anular un regalo devuelve el cupo semanal de quien lo dio
 
 **Archivo:** `el-templo-api/src/modules/aura/gift-eligibility.ts:425`
 **Escenario:** el staff anula un regalo por abuso (Ana le dio 2 a Beto en la semana, repetido cada semana entre amigos). `weeklyGiftCountsByReceiver` cuenta solo `status = 'vigente'`, así que el regalo anulado deja de contar y Ana puede volver a darle a Beto el mismo día sobre otra clase de la semana. La migración y el servicio afirman que "anular no devuelve el cupo", pero eso vale solo para el cupo por asistencia (UNIQUE); el semanal sí se devuelve, y la anulación del staff pierde su efecto disuasorio.
 **Corrección:** contar vigentes y anulados con `void_cause = 'staff'` para el tope semanal (los anulados por asistencia sí pueden devolver el cupo). `status IN ('vigente') OR void_cause = 'staff'`.
+**Estado:** CORREGIDO en `5e1cc5db7`. El tope semanal cuenta vigentes y anulados con causa `staff`; test de integración agregado (corre en CI).
 
 ### ME-03: Deshacer una asistencia anula los regalos en una transacción aparte y antes del borrado
 
 **Archivo:** `el-templo-api/src/modules/attendance/service.ts:1268-1275` y `:1310-1317`, `el-templo-api/src/modules/aura/gift-void.ts:158-190`
 **Escenario:** `voidGiftsForAttendance` hace un commit por regalo y recién después se borra la asistencia y se revierte el Aura y las clases. Si el borrado o cualquier paso posterior falla (error de base, timeout), los regalos quedan anulados (el receptor perdió el punto y el dador no lo puede volver a dar: su UNIQUE por asistencia sigue ocupado) pero la asistencia sigue existiendo. Un reintento del profe no los restaura. Además un deshacer sobre una asistencia duplicada (check-in forzado) anula los regalos aunque la persona conserve la otra asistencia del mismo horario.
 **Corrección:** pasar la transacción del deshacer a `voidGift` (o hacer la anulación y el DELETE dentro de una misma `db.transaction`), y para duplicados anular solo si no queda otra asistencia del mismo `(schedule_id, session_date, member_id)`.
+**Estado:** CORREGIDO en `34ab830b1`. La anulación y el borrado de la asistencia van en una sola transacción. Lo de las asistencias duplicadas se dejó como está (anotado en las decisiones).
 
 ### ME-04: La lista de regalos del admin se corta en 500 filas sin avisar
 
 **Archivo:** `el-templo-api/src/modules/aura/gift-admin-queries.ts:54` y `:184`
 **Escenario:** el comentario supone que 90 días caben en 500 filas, pero hay un regalo posible por asistencia: un gimnasio con 100 asistencias por día supera 500 regalos en una semana. Con 30 o 90 días el `LIMIT` descarta en silencio los más viejos, y el staff no puede ver ni anular esos regalos desde la pantalla. La medición de 4 semanas no se afecta (es agregada).
 **Corrección:** paginar (cursor por `session_date, id`) o devolver `truncated: true` y mostrar un aviso en `RegalosAuraPage.vue`; alternativamente acotar `days` en el servidor según la cantidad.
+**Estado:** CORREGIDO en `586d1f197`. La API devuelve `truncated` y el admin muestra un aviso; no se paginó.
 
 ### ME-05: Anular un regalo ya gastado deja saldo negativo y el descuento ya aplicado
 
 **Archivo:** `el-templo-api/src/modules/aura/gift-void.ts:120-127`
 **Escenario:** Beto recibió +1 o +10 del profe y canjeó puntos por un descuento de suscripción. El staff anula el regalo: se inserta la fila `-amount` y `aura_balances.balance` baja por debajo de 0 sin ningún chequeo (no usa `spend`, a propósito). El descuento ya otorgado no se toca, el saldo negativo bloquea futuros canjes hasta recuperarse y el staff no recibe ninguna señal de que pasó. La reconciliación con el ledger sigue cerrando (ambos bajan), por lo que el desvío queda invisible.
 **Corrección:** devolver en la respuesta de anulación si el saldo quedó negativo y mostrarlo en el admin ("El alumno ya había usado esos puntos"), o registrar un `warn` con `giftId` y `newBalance`; decidir y anotar si se permite negativo o se limita la anulación.
+**Estado:** PARCIAL en `728748389`: se registra un warn con el saldo negativo. PENDIENTE DEL DUEÑO: permitir o limitar el negativo y si el admin lo ve en pantalla.
 
 ### ME-06: Cualquier profe con la sede asignada regala hasta 10 puntos por alumno y por día, sin tope ni rastro de alerta
 
@@ -142,29 +160,35 @@ Verificado y sin hallazgos: las 3 migraciones no tienen `;` en comentarios, el D
 
 ## Low
 
+**Estado:** PENDIENTE DEL DUEÑO. Decisión de producto (riesgo aceptado o límite por profe), anotada en las decisiones. No se tocó código.
+
 ### LO-01: El panel del profe marca "dado" un regalo que fue anulado y no lo deja corregir
 
 **Archivo:** `el-templo-api/src/modules/aura/gift-service.ts:623-639` (sin filtro de `status`) y `:494-507`
 **Escenario:** el admin anula por error un regalo del profe (o el profe elimina y vuelve a cargar la asistencia). El panel sigue mostrando "✦ +2 / Ya le diste Aura hoy" y el servidor responde `REGALO_YA_DADO`, aunque el alumno ya perdió los puntos.
 **Corrección:** devolver el estado `anulado` en el panel con un texto propio ("Anulado"), o permitir re-dar cuando el anterior fue anulado por staff.
+**Estado:** CORREGIDO en `f2ed95937`. El panel muestra "Anulado"; no se permite volver a dar ese día.
 
 ### LO-02: Eliminar asistencia no avisa que también anula los regalos
 
 **Archivo:** `el-templo-admin/src/components/SlotAttendancePanel.vue:625`
 **Escenario:** el cuadro dice "Se revertirá el AURA y las clases" pero ahora también anula en silencio los regalos dados y recibidos por esa asistencia (D-08), y quien dio pierde el cupo de esa clase.
 **Corrección:** agregar al mensaje "y los regalos de Aura de esa clase".
+**Estado:** CORREGIDO en `767dc32ee`, en los dos cuadros de eliminar asistencia del admin.
 
 ### LO-03: La hoja entrega ids de asistencia de otras personas
 
 **Archivo:** `el-templo-api/src/modules/aura/gift-schemas.ts` (`candidates.receiverAttendanceId`), `gift-service.ts:320-329`
 **Escenario:** el cliente necesita elegir a quién regalar y el contrato usa el id de asistencia ajena. Un alumno ve ids secuenciales de otras personas (vuelve enumerable el volumen de asistencias) y no hay vulnerabilidad de acceso porque el servidor revalida contra las caras. Es la única parte de la API que no cumple "no se exponen ids".
 **Corrección:** devolver un identificador opaco por clase y persona (por ejemplo un HMAC de `attendanceId` + `userId` del dador) o un índice estable dentro de la lista firmada.
+**Estado:** PENDIENTE DEL DUEÑO. Cambio grande del contrato API y app, sin falla de acceso; no se tocó.
 
 ### LO-04: La purga de la bandeja corre en cada tick por cada gimnasio y sin límite de filas
 
 **Archivo:** `el-templo-api/src/jobs/notification-cron.ts:695-705`, `el-templo-api/src/modules/notifications/inbox-service.ts:196-214`
 **Escenario:** `purgeOld` es cross-tenant y se llama una vez por gimnasio activo en cada tick de 5 minutos (mismo defecto ya anotado para `processQueue`). Con varios gimnasios son N `DELETE` iguales por tick; el primero tras un backlog borra todo de una vez sin `LIMIT`. No hay tope por persona: sumado a HI-01, una persona acumula entradas durante 90 días.
 **Corrección:** correr la purga una vez por tick (fuera de `forEachActiveTenant`) y con `LIMIT 1000` en bucle.
+**Estado:** CORREGIDO en `23927a04e`. Una purga por tick y lotes de 1000.
 
 ### LO-05: "Anulado por asistencia anulada" aparece también si quien anuló fue borrado
 
@@ -177,3 +201,4 @@ Verificado y sin hallazgos: las 3 migraciones no tienen `;` en comentarios, el D
 _Reviewed: 2026-11-18_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: deep_
+**Estado:** CORREGIDO en `706f3fe2f`. El texto sale de `voidCause`.
