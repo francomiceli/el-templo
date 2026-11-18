@@ -101,3 +101,6 @@ Línea de base registrada por el plan 01 en `TYPECHECK-BASELINE.md`:
 
 - (plan 05) `auraAmount` se arma en `StretchCompleteView` (`stretch-service.ts`, cubre cierre nuevo y `alreadyCompleted`) y en el handler de `free-blocks-routes.ts` (schema de respuesta en `sessions/schemas.ts`). Es el monto que paga la fuente.
 - (plan 06) La app debe mostrar `auraAmount` solo si `auraAwarded` es true. El estiramiento lo devuelve en `POST /sessions/stretch/complete`; `StretchTodayView` NO lo trae.
+- (plan 06) En `FreeBlockPlayer.vue` el monto del resumen vive en el ref `awardedAmount`, junto a `awardedInRun`. `lastResult` es solo el último cierre y puede no haber acreditado: no sirve para la línea "Sumaste N AURA" tras "Seguir entrenando". La celebración sí usa `lastResult?.auraAmount`.
+- (plan 06) Las props `auraAmount` de la app son `number | null`: sin monto del servidor no se muestra el bloque dorado, nunca un número inventado. Quedan sin tocar `onboarding/mockup.html` y `ONBOARDING_NARRATIVE_REDESIGN.md` (documentos con "+50 AURA") y `playerCuerpo.ts` (su "+5" es un músculo).
+- (plan 06) El barrido de textos con `grep '\+5\b'` trae falsos positivos ajenos a Aura: revisar cada hallazgo. La rama de la 213 (app 1.9.6) sigue diciendo "+5 AURA" y habrá que alinearla al mergear.

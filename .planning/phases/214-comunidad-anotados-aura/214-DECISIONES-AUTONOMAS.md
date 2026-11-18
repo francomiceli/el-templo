@@ -75,3 +75,5 @@ Cada vez que un ejecutor se encuentre con una decisión de producto, se anota ac
 | 2026-11-17 | 214-04 | Historial: dos sesiones de app el mismo día (anteriores al tope diario del 9 de noviembre) | No se colapsan: cada una queda en 3. Son pocas filas (252 sesiones de app en total) y la consulta 05 las mide. Hacia adelante el día paga una sola |
 | 2026-11-17 | 214-04 | Historial: asistencia que después fue anulada | Cuenta igual para el tope del día, porque la anulación no guarda a qué asistencia corresponde. Caso marginal |
 
+| 2026-11-17 | 214-06 | Texto de Aura en estiramiento, bloque libre y onboarding | Dejan de mostrar montos fijos ("+5", "+50") y muestran el monto que informa el servidor. Si el servidor no lo informa (versión vieja), no se muestra el bloque de Aura en vez de un número inventado |
+| 2026-11-17 | 214-06 | Resumen del bloque libre al "Seguir entrenando" | La línea "Sumaste N AURA" se mantiene tras seguir entrenando, con el monto acumulado de lo que efectivamente se acreditó en esa vuelta |
