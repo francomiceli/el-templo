@@ -31,8 +31,9 @@ export const programs = mysqlTable("programs", {
   sessionsPerWeekToAdvance: int("sessions_per_week_to_advance")
     .notNull()
     .default(3),
-  auraWeeklyBonus: int("aura_weekly_bonus").default(15),
-  auraCompletionBonus: int("aura_completion_bonus").default(100),
+  // fase 214 D-19, mig 0344: defaults de la escala nueva (8 por semana, 50 al completar)
+  auraWeeklyBonus: int("aura_weekly_bonus").default(8),
+  auraCompletionBonus: int("aura_completion_bonus").default(50),
   isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
