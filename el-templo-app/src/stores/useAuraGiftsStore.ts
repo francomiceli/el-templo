@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { useAuraGiftsApi } from 'src/composables/useAuraGiftsApi'
 import { useUserStore } from 'src/stores/useUserStore'
-import type { GivenGift, PendingGift } from 'src/types/aura-gifts'
+import type { GiftUnavailableReason, GivenGift, PendingGift } from 'src/types/aura-gifts'
 import { createLogger } from 'src/utils/logger'
 import { giftCardState } from 'src/utils/gift-view'
 import { DEFAULT_BRANCH_TZ, todayInTz } from 'src/utils/tz'
@@ -28,6 +28,8 @@ export const useAuraGiftsStore = defineStore('auraGifts', () => {
 
   const pending = ref<PendingGift[]>([])
   const givenToday = ref<GivenGift[]>([])
+  /** #31: el servidor dice que no puede dar solo porque está oculto; null en cualquier otro caso. */
+  const unavailableReason = ref<GiftUnavailableReason | null>(null)
   const loaded = ref(false)
   /** La última carga falló: el estado tiene el último dato bueno del día o está vacío. */
   const loadFailed = ref(false)
@@ -48,6 +50,7 @@ export const useAuraGiftsStore = defineStore('auraGifts', () => {
   function clearData(): void {
     pending.value = []
     givenToday.value = []
+    unavailableReason.value = null
     localDate.value = null
   }
 
@@ -73,6 +76,7 @@ export const useAuraGiftsStore = defineStore('auraGifts', () => {
       if (mine !== generation) return
       pending.value = data.pending
       givenToday.value = data.givenToday
+      unavailableReason.value = data.unavailableReason ?? null
       localDate.value = askedOn
       loadFailed.value = false
     } catch (err: unknown) {
@@ -90,7 +94,7 @@ export const useAuraGiftsStore = defineStore('auraGifts', () => {
   /** Qué dibuja la fila de regalo de la card; `null` = sin fila (también tras una falla sin dato). */
   const cardState = computed(() => {
     if (!loaded.value) return null
-    return giftCardState(pending.value, givenToday.value)
+    return giftCardState(pending.value, givenToday.value, unavailableReason.value)
   })
 
   /** Logout: limpia todo y deja sin efecto cualquier carga en vuelo. */
@@ -101,5 +105,15 @@ export const useAuraGiftsStore = defineStore('auraGifts', () => {
     loadFailed.value = false
   }
 
-  return { pending, givenToday, loaded, loadFailed, localDate, cardState, load, reset }
+  return {
+    pending,
+    givenToday,
+    unavailableReason,
+    loaded,
+    loadFailed,
+    localDate,
+    cardState,
+    load,
+    reset,
+  }
 })

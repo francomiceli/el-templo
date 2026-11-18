@@ -1,5 +1,5 @@
 import { giftReasonLabel } from 'src/constants/gift-reasons'
-import type { GivenGift, PendingGift } from 'src/types/aura-gifts'
+import type { GiftUnavailableReason, GivenGift, PendingGift } from 'src/types/aura-gifts'
 
 /**
  * Textos y decisiones de vista del regalo de Aura (fase 215, plan 16, UI-SPEC Pantallas 1 y 2).
@@ -26,21 +26,36 @@ function isToday(sessionDate: string, todayLocal: string): boolean {
 export type GiftCardState =
   | { kind: 'offer'; first: PendingGift; count: number }
   | { kind: 'given'; gift: GivenGift }
+  | { kind: 'hidden' }
 
 /**
  * Qué muestra la fila de regalo de la card: lo pendiente manda sobre lo ya dado; sin nada,
- * `null` (no hay fila). Lo decide el servidor: la app no filtra ni reordena.
+ * `null` (no hay fila). Lo decide el servidor: la app no filtra ni reordena. `hidden` (#31) es el
+ * texto para quien no da Aura solo porque está oculto: solo sale si el servidor lo dice
+ * (`unavailableReason === 'oculto'`) y no hay nada más para mostrar; la app nunca lo deduce.
  */
 export function giftCardState(
   pending: PendingGift[],
   givenToday: GivenGift[],
+  unavailableReason: GiftUnavailableReason | null = null,
 ): GiftCardState | null {
   const first = pending[0]
   if (first) return { kind: 'offer', first, count: pending.length }
   const gift = givenToday[0]
   if (gift) return { kind: 'given', gift }
+  if (unavailableReason === 'oculto') return { kind: 'hidden' }
   return null
 }
+
+/** Partes del texto para quien está oculto (#31): la parte `strong` es el nombre del interruptor. */
+export const HIDDEN_GIFT_NOTICE: ReadonlyArray<{ text: string; strong: boolean }> = [
+  { text: 'Para dar Aura, activá ', strong: false },
+  { text: 'Aparecer en las listas', strong: true },
+  { text: ' en tu Perfil', strong: false },
+]
+
+/** El mismo texto plano, para el `aria-label` del botón. */
+export const HIDDEN_GIFT_NOTICE_TEXT = HIDDEN_GIFT_NOTICE.map((part) => part.text).join('')
 
 /** Ayuda bajo el botón dorado: uno de hoy, uno de ayer o varios. Vacío si no hay pendientes. */
 export function giftCardHelp(pending: PendingGift[], todayLocal: string): string {
@@ -63,11 +78,19 @@ export function giftCardAriaLabel(first: PendingGift, todayLocal: string): strin
   return `Dale Aura a un compañero de tu clase de ${day} de las ${displayTime(first.startTime)}`
 }
 
-/** Fila "Le diste Aura a Sofía · Buena energía" (nombre de pila). */
+/**
+ * Fila "Le diste Aura a Sofía · Buena energía" (nombre de pila). Si quien recibió hoy está oculto
+ * o no tiene nombre (`receiver.anonymous`) no se nombra a nadie ni se dice "Alguien": "Diste 1 de
+ * Aura por Buena energía".
+ */
 export function givenTodayText(g: {
-  receiver: { firstName: string }
+  receiver: { firstName: string; anonymous?: boolean }
   reason: GivenGift['reason']
+  amount?: number
 }): string {
+  if (g.receiver.anonymous === true) {
+    return `Diste ${g.amount ?? 1} de Aura por ${giftReasonLabel(g.reason)}`
+  }
   return `Le diste Aura a ${g.receiver.firstName} · ${giftReasonLabel(g.reason)}`
 }
 

@@ -209,7 +209,13 @@ import { useNotificationStore } from 'src/stores/useNotificationStore'
 import { useTodayBookingStore } from 'src/stores/useTodayBookingStore'
 import { useStretchStore } from 'src/stores/useStretchStore'
 import { useAuraGiftsStore } from 'src/stores/useAuraGiftsStore'
-import { giftCardAriaLabel, giftCardHelp, givenTodayText } from 'src/utils/gift-view'
+import {
+  HIDDEN_GIFT_NOTICE,
+  HIDDEN_GIFT_NOTICE_TEXT,
+  giftCardAriaLabel,
+  giftCardHelp,
+  givenTodayText,
+} from 'src/utils/gift-view'
 import { useLoadDeadline } from 'src/composables/useLoadDeadline'
 import { addDaysStr, formatHHMM, weekStartsFor } from 'src/utils/check-in-window'
 import { DEFAULT_BRANCH_TZ, dowInTz, todayInTz } from 'src/utils/tz'
@@ -283,9 +289,18 @@ const todayGift = computed(() => {
       ariaLabel: giftCardAriaLabel(state.first, siteToday),
     }
   }
+  // #31: oculto con algo para regalar. Solo si el servidor lo dice; la app no lo deduce.
+  if (state.kind === 'hidden') {
+    return {
+      kind: 'hidden' as const,
+      parts: HIDDEN_GIFT_NOTICE,
+      ariaLabel: `${HIDDEN_GIFT_NOTICE_TEXT}. Abre tu Perfil.`,
+    }
+  }
   return {
     kind: 'given' as const,
     text: givenTodayText(state.gift),
+    anonymous: state.gift.receiver.anonymous === true,
     receiver: state.gift.receiver,
   }
 })

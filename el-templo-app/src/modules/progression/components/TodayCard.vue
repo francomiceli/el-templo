@@ -100,8 +100,27 @@
             </button>
             <p class="today-card__gift-help">{{ gift.help }}</p>
           </template>
+          <!-- #31: oculto con plan y algo para regalar. El texto lleva al interruptor de Perfil. -->
+          <button
+            v-else-if="gift.kind === 'hidden'"
+            type="button"
+            class="today-card__gift-notice"
+            :aria-label="gift.ariaLabel"
+            @click="goToCommunitySwitch"
+          >
+            <q-icon name="visibility_off" size="20px" aria-hidden="true" />
+            <span class="today-card__gift-text">
+              <template v-for="(part, i) in gift.parts" :key="i">
+                <b v-if="part.strong">{{ part.text }}</b>
+                <template v-else>{{ part.text }}</template>
+              </template>
+            </span>
+          </button>
           <div v-else class="today-card__gift-given">
+            <!-- Con `anonymous` (la otra persona está oculta o sin nombre) no se dibuja a nadie. -->
+            <span v-if="gift.anonymous" class="today-card__gift-anon" aria-hidden="true">✦</span>
             <MemberAvatar
+              v-else
               :size="32"
               :url="gift.receiver.photoUrl"
               :first-name="gift.receiver.firstName"
@@ -136,9 +155,12 @@ import type { TodayCardAction, TodayCardModel } from '../utils/today-card'
  */
 type TodayCardGift =
   | { kind: 'offer'; help: string; ariaLabel: string }
+  | { kind: 'hidden'; parts: ReadonlyArray<{ text: string; strong: boolean }>; ariaLabel: string }
   | {
       kind: 'given'
       text: string
+      /** La otra persona está oculta o sin nombre: sin avatar ni nombre. */
+      anonymous: boolean
       receiver: { firstName: string; lastInitial: string | null; photoUrl: string | null }
     }
 
@@ -159,6 +181,11 @@ const progressPercent = computed(() =>
     ? 0
     : Math.round(Math.min(Math.max(props.model.progress, 0), 1) * 100),
 )
+
+/** #31: lleva al interruptor "Aparecer en las listas" (la sección Comunidad de Perfil). */
+function goToCommunitySwitch(): void {
+  void router.push({ path: '/profile', hash: '#comunidad' })
+}
 
 function onAction(action: TodayCardAction): void {
   if (action.action === 'open-program') {
@@ -495,6 +522,45 @@ function onAction(action: TodayCardAction): void {
     background: rgba(240, 230, 214, 0.1);
   }
 
+  // #31: texto para quien está oculto. Botón de al menos 44 px de alto (zona táctil).
+  &__gift-notice {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 44px;
+    margin-top: 16px;
+    padding: 8px 16px;
+    border: 0;
+    border-radius: 12px;
+    background: rgba(240, 230, 214, 0.1);
+    color: $pd-cream;
+    text-align: left;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+
+    b {
+      font-weight: 600;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+  }
+
+  // Sin cara: el círculo del mismo tamaño que el avatar, con la chispa.
+  &__gift-anon {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(240, 230, 214, 0.14);
+    font-size: 16px;
+    line-height: 1;
+    color: $pd-aura-spark;
+  }
+
   &__gift-text {
     min-width: 0;
     font-family: 'Geologica', sans-serif;
@@ -506,7 +572,8 @@ function onAction(action: TodayCardAction): void {
 
   &__btn:focus-visible,
   &__link:focus-visible,
-  &__gift-btn:focus-visible {
+  &__gift-btn:focus-visible,
+  &__gift-notice:focus-visible {
     outline: 2px solid $pd-cream-2;
     outline-offset: 2px;
   }

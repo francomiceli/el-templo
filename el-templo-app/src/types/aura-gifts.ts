@@ -17,17 +17,39 @@ export interface PendingGift {
   expiresOn: string
 }
 
-/** Regalo ya dado hoy. GET /members/aura/gifts/pending (campo `givenToday`). */
+/**
+ * Regalo ya dado hoy. GET /members/aura/gifts/pending (campo `givenToday`).
+ *
+ * Con `receiver.anonymous` (quien recibió hoy está oculto de las listas o no tiene nombre) el
+ * nombre viene "" y no hay inicial ni foto: el texto dice solo cuánto y por qué ("Diste 1 de Aura
+ * por Constancia"), sin nombrar a nadie ni decir "Alguien".
+ */
 export interface GivenGift {
   attendanceId: number
-  receiver: { firstName: string; lastInitial: string | null; photoUrl: string | null }
+  receiver: {
+    firstName: string
+    lastInitial: string | null
+    photoUrl: string | null
+    anonymous: boolean
+  }
   reason: GiftReasonCode
+  /** Puntos que se dieron. */
+  amount: number
 }
+
+/**
+ * Por qué no puede dar Aura aunque tenga algo para regalar. Hoy solo `oculto`: tiene plan pero
+ * está oculto de las listas. Null en cualquier otro caso (sin plan o Wellhub, staff, sin nada
+ * para regalar): no se le muestra ningún texto.
+ */
+export type GiftUnavailableReason = 'oculto'
 
 /** GET /members/aura/gifts/pending */
 export interface PendingGiftsResponse {
   pending: PendingGift[]
   givenToday: GivenGift[]
+  /** Opcional: una API anterior a esta revisión no lo manda y se trata como null. */
+  unavailableReason?: GiftUnavailableReason | null
 }
 
 /** Un compañero al que se puede regalar. GET /members/aura/gifts/candidates?attendanceId= */

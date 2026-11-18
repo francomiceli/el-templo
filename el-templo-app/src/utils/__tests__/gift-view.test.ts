@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { GIFT_REASONS, giftReasonLabel } from 'src/constants/gift-reasons'
 import type { GivenGift, PendingGift } from 'src/types/aura-gifts'
 import {
+  HIDDEN_GIFT_NOTICE,
+  HIDDEN_GIFT_NOTICE_TEXT,
   blockedAriaLabel,
   candidateName,
   giftCardAriaLabel,
@@ -30,7 +32,22 @@ function pend(sessionDate: string, startTime = '18:00'): PendingGift {
 }
 
 function given(firstName = 'Sofía', reason: GivenGift['reason'] = 'energia'): GivenGift {
-  return { attendanceId: 9, receiver: { firstName, lastInitial: 'M', photoUrl: null }, reason }
+  return {
+    attendanceId: 9,
+    receiver: { firstName, lastInitial: 'M', photoUrl: null, anonymous: false },
+    reason,
+    amount: 1,
+  }
+}
+
+/** Regalo a alguien oculto o sin nombre: el servidor manda el nombre "" y sin inicial ni foto. */
+function givenAnonymous(reason: GivenGift['reason'] = 'constancia', amount = 1): GivenGift {
+  return {
+    attendanceId: 10,
+    receiver: { firstName: '', lastInitial: null, photoUrl: null, anonymous: true },
+    reason,
+    amount,
+  }
 }
 
 describe('motivos', () => {
@@ -69,6 +86,33 @@ describe('giftCardState', () => {
   it('sin pendientes y con dados muestra el primero dado', () => {
     const g = given('Sofía')
     expect(giftCardState([], [g, given('Juli')])).toEqual({ kind: 'given', gift: g })
+  })
+})
+
+describe('giftCardState: oculto (#31)', () => {
+  it('sin nada y con el motivo "oculto" muestra el texto para activar la visibilidad', () => {
+    expect(giftCardState([], [], 'oculto')).toEqual({ kind: 'hidden' })
+  })
+
+  it('sin el motivo del servidor (null) no hay fila: la app no lo deduce', () => {
+    expect(giftCardState([], [], null)).toBeNull()
+    expect(giftCardState([], [])).toBeNull()
+  })
+
+  it('lo pendiente y lo dado mandan sobre el texto del oculto', () => {
+    const p = pend(HOY)
+    expect(giftCardState([p], [], 'oculto')).toEqual({ kind: 'offer', first: p, count: 1 })
+    const g = given()
+    expect(giftCardState([], [g], 'oculto')).toEqual({ kind: 'given', gift: g })
+  })
+
+  it('el texto es el de la revisión y marca en negrita el nombre del interruptor', () => {
+    expect(HIDDEN_GIFT_NOTICE_TEXT).toBe(
+      'Para dar Aura, activá Aparecer en las listas en tu Perfil',
+    )
+    expect(HIDDEN_GIFT_NOTICE.filter((part) => part.strong).map((part) => part.text)).toEqual([
+      'Aparecer en las listas',
+    ])
   })
 })
 
@@ -134,6 +178,21 @@ describe('textos de la fila y de la hoja', () => {
   it('givenTodayText', () => {
     expect(givenTodayText({ receiver: { firstName: 'Sofía' }, reason: 'energia' })).toBe(
       'Le diste Aura a Sofía · Buena energía',
+    )
+    expect(givenTodayText(given('Sofía', 'energia'))).toBe('Le diste Aura a Sofía · Buena energía')
+  })
+
+  it('givenTodayText con la otra persona oculta o sin nombre: monto y motivo, sin nombrar a nadie', () => {
+    const text = givenTodayText(givenAnonymous('constancia', 1))
+    expect(text).toBe('Diste 1 de Aura por Constancia')
+    expect(text).not.toContain('Alguien')
+    expect(text).not.toContain('Le diste')
+    expect(givenTodayText(givenAnonymous('tecnica', 2))).toBe('Diste 2 de Aura por Buena técnica')
+  })
+
+  it('givenTodayText anónimo sin monto del servidor usa el valor del regalo de un alumno (1)', () => {
+    expect(givenTodayText({ receiver: { firstName: '', anonymous: true }, reason: 'ayudo' })).toBe(
+      'Diste 1 de Aura por Me ayudó',
     )
   })
 
