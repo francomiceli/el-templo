@@ -4,7 +4,14 @@
  * manda el servidor.
  */
 
-/** Datos del regalo de un aviso `aura_gift`. `giverFirstName` nunca es null ("Alguien" si falta). */
+/** Por qué se anuló un regalo: el staff, o se deshizo/anuló la asistencia. */
+export type InboxVoidCause = 'staff' | 'asistencia'
+
+/**
+ * Datos del regalo de un aviso `aura_gift`. Con `anonymous` (quien regaló hoy está oculto de las
+ * listas o no tiene nombre) `giverFirstName` viene "" y no hay inicial ni foto: el `title` y el
+ * `body` ya vienen redactados sin nombre y la app no nombra ni dibuja a nadie.
+ */
 export interface InboxGift {
   amount: number
   giverKind: 'alumno' | 'profe'
@@ -12,6 +19,9 @@ export interface InboxGift {
   giverLastInitial: string | null
   giverPhotoUrl: string | null
   status: 'vigente' | 'anulado'
+  /** Solo con `status === 'anulado'`; null si está vigente o es un dato viejo sin causa. */
+  voidCause: InboxVoidCause | null
+  anonymous: boolean
 }
 
 /** Un aviso de la bandeja. GET /members/notifications */

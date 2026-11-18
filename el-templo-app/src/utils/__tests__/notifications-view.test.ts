@@ -29,6 +29,8 @@ import {
   rowAriaLabel,
   tapData,
   timeLabel,
+  unreadIds,
+  voidedText,
 } from '../notifications-view'
 
 const BA = 'America/Argentina/Buenos_Aires'
@@ -43,6 +45,8 @@ function gift(over: Partial<InboxGift> = {}): InboxGift {
     giverLastInitial: 'M',
     giverPhotoUrl: null,
     status: 'vigente',
+    voidCause: null,
+    anonymous: false,
     ...over,
   }
 }
@@ -171,6 +175,31 @@ describe('badgeText y bellAriaLabel', () => {
   })
 })
 
+describe('unreadIds', () => {
+  it('junta solo los avisos sin leer', () => {
+    const items = [
+      item({ id: 1, readAt: null }),
+      item({ id: 2, readAt: '2026-11-18T10:00:00.000Z' }),
+      item({ id: 3, readAt: null }),
+    ]
+    expect([...unreadIds(items)].sort()).toEqual([1, 3])
+  })
+
+  it('sin avisos o todos leídos → vacío', () => {
+    expect(unreadIds([]).size).toBe(0)
+    expect(unreadIds([item({ readAt: '2026-11-18T10:00:00.000Z' })]).size).toBe(0)
+  })
+})
+
+describe('voidedText', () => {
+  it('una causa por texto, y el genérico sin causa o con una API vieja', () => {
+    expect(voidedText('asistencia')).toBe('Anulado: la asistencia se corrigió')
+    expect(voidedText('staff')).toBe('Anulado por el staff')
+    expect(voidedText(null)).toBe('Anulado')
+    expect(voidedText(undefined)).toBe('Anulado')
+  })
+})
+
 describe('giftPill', () => {
   it('regalo vigente → monto', () => {
     expect(giftPill(item({ kind: 'aura_gift', gift: gift() }))).toEqual({
@@ -179,11 +208,25 @@ describe('giftPill', () => {
     })
   })
 
-  it('regalo anulado → Anulado', () => {
+  it('regalo anulado sin causa → Anulado', () => {
     expect(giftPill(item({ kind: 'aura_gift', gift: gift({ status: 'anulado' }) }))).toEqual({
       kind: 'voided',
       text: 'Anulado',
     })
+  })
+
+  it('regalo anulado porque se corrigió la asistencia → con el motivo (#28, #37)', () => {
+    expect(
+      giftPill(
+        item({ kind: 'aura_gift', gift: gift({ status: 'anulado', voidCause: 'asistencia' }) }),
+      ),
+    ).toEqual({ kind: 'voided', text: 'Anulado: la asistencia se corrigió' })
+  })
+
+  it('regalo anulado por el staff → con el motivo (#28, #37)', () => {
+    expect(
+      giftPill(item({ kind: 'aura_gift', gift: gift({ status: 'anulado', voidCause: 'staff' }) })),
+    ).toEqual({ kind: 'voided', text: 'Anulado por el staff' })
   })
 
   it('sin regalo → null', () => {
@@ -217,9 +260,22 @@ describe('rowAriaLabel', () => {
     )
   })
 
-  it('regalo anulado → sin monto', () => {
+  it('regalo anulado → sin monto y con el motivo', () => {
     expect(rowAriaLabel({ ...regalo, gift: gift({ status: 'anulado' }) }, '18:42')).toBe(
-      'Sin leer. Sofía M. te dio Aura. 18:42, Motivo: Buena energía.',
+      'Sin leer. Sofía M. te dio Aura. 18:42, Motivo: Buena energía. Anulado.',
+    )
+    expect(
+      rowAriaLabel({ ...regalo, gift: gift({ status: 'anulado', voidCause: 'staff' }) }, '18:42'),
+    ).toBe('Sin leer. Sofía M. te dio Aura. 18:42, Motivo: Buena energía. Anulado por el staff.')
+  })
+
+  it('el "Sin leer." sale del tercer parámetro si se pasa (resaltado de la visita, #35)', () => {
+    const leido = { ...regalo, readAt: '2026-11-18T22:00:00.000Z' }
+    expect(rowAriaLabel(leido, '18:42', true)).toBe(
+      'Sin leer. Sofía M. te dio Aura. 18:42, Motivo: Buena energía. Más 1 de Aura.',
+    )
+    expect(rowAriaLabel(regalo, '18:42', false)).toBe(
+      'Sofía M. te dio Aura. 18:42, Motivo: Buena energía. Más 1 de Aura.',
     )
   })
 

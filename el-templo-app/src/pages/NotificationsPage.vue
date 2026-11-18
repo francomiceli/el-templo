@@ -1,7 +1,9 @@
 <template>
   <!-- Fase 215 (plan 18): pantalla de Notificaciones (sketch 035 B, UI-SPEC Pantalla 4, D-17 y D-18).
-       Los avisos propios agrupados por día. Abrir la pantalla NO marca nada como leído: solo tocar
-       un aviso o "Marcar todo como leído". Títulos y cuerpos se interpolan como texto (nunca como HTML). -->
+       Los avisos propios agrupados por día. Revisión 2026-11-18 (#35): al entrar se marcan todos como
+       leídos y la campana vuelve a 0; los que eran nuevos se ven resaltados esa vez (el resaltado se
+       calcula al entrar y no depende de `readAt`). Títulos y cuerpos se interpolan como texto
+       (nunca como HTML). -->
   <q-page class="notif-page">
     <div class="notif">
       <header class="notif__header">
@@ -14,9 +16,6 @@
           @click="goBack"
         />
         <h1 class="notif__title">Notificaciones</h1>
-        <button v-if="hasUnread" type="button" class="notif__mark-all" @click="markAll">
-          Marcar todo como leído
-        </button>
       </header>
 
       <!-- Cargando: seis filas de esqueleto -->
@@ -67,20 +66,21 @@
                 :ref="(el) => setRowRef(item.id, el)"
                 type="button"
                 class="notif__row"
-                :class="{ 'notif__row--unread': item.readAt === null }"
+                :class="{ 'notif__row--unread': isNew(item) }"
                 :aria-label="rowAria(item)"
                 @click="onTap(item)"
               >
-                <!-- Ícono: cara de quien regaló, chispa del profe o ícono por tipo -->
+                <!-- Ícono: cara de quien regaló, chispa del profe (o de quien no se nombra) o ícono por
+                     tipo. Con `anonymous` no se dibuja a nadie: ni nombre, ni inicial, ni foto. -->
                 <MemberAvatar
-                  v-if="item.gift && item.gift.giverKind === 'alumno'"
+                  v-if="item.gift && item.gift.giverKind === 'alumno' && !item.gift.anonymous"
                   :size="40"
                   :url="item.gift.giverPhotoUrl"
                   :first-name="item.gift.giverFirstName"
                   :last-initial="item.gift.giverLastInitial"
                 />
                 <span
-                  v-else-if="item.gift && item.gift.giverKind === 'profe'"
+                  v-else-if="item.gift"
                   class="notif__circle notif__circle--gift"
                   aria-hidden="true"
                   >✦</span
@@ -92,22 +92,24 @@
                 <span class="notif__text">
                   <span class="notif__row-title">{{ item.title }}</span>
                   <span class="notif__row-sub">{{ subline(item) }}</span>
+                  <!-- Anulado con su motivo (#28, #37): va bajo el texto, donde puede ocupar dos
+                       líneas en un celular angosto sin empujar el resto de la fila. -->
+                  <span
+                    v-if="pillFor(item)?.kind === 'voided'"
+                    class="notif__pill notif__pill--voided"
+                    >{{ pillFor(item)?.text }}</span
+                  >
                 </span>
 
-                <template v-if="pillFor(item)">
-                  <span
-                    v-if="pillFor(item)?.kind === 'amount'"
-                    class="notif__pill notif__pill--amount"
-                  >
-                    <span class="notif__pill-spark" aria-hidden="true">✦</span>
-                    {{ pillFor(item)?.text }}
-                  </span>
-                  <span v-else class="notif__pill notif__pill--voided">{{
-                    pillFor(item)?.text
-                  }}</span>
-                </template>
+                <span
+                  v-if="pillFor(item)?.kind === 'amount'"
+                  class="notif__pill notif__pill--amount"
+                >
+                  <span class="notif__pill-spark" aria-hidden="true">✦</span>
+                  {{ pillFor(item)?.text }}
+                </span>
 
-                <span v-if="item.readAt === null" class="notif__dot" aria-hidden="true" />
+                <span v-if="isNew(item)" class="notif__dot" aria-hidden="true" />
               </button>
             </li>
           </ul>
@@ -144,6 +146,7 @@ import {
   rowAriaLabel,
   tapData,
   timeLabel,
+  unreadIds,
 } from 'src/utils/notifications-view'
 import type { GiftPill } from 'src/utils/notifications-view'
 import { createLogger } from 'src/utils/logger'
@@ -163,6 +166,8 @@ const status = ref<'loading' | 'ready' | 'error'>('loading')
 const items = ref<InboxItem[]>([])
 const nextBefore = ref<string | null>(null)
 const loadingMore = ref(false)
+/** Avisos que llegaron sin leer al entrar: se ven resaltados esta vez aunque ya estén marcados (#35). */
+const newIds = ref<Set<number>>(new Set())
 
 /** Cada carga o reintento invalida las respuestas en vuelo de la anterior. */
 let requestSeq = 0
@@ -170,7 +175,10 @@ const rowEls = new Map<number, HTMLElement>()
 
 const tz = computed(() => userStore.profile?.branchTimezone ?? DEFAULT_BRANCH_TZ)
 const sections = computed(() => groupByDay(items.value, tz.value, new Date()))
-const hasUnread = computed(() => items.value.some((item) => item.readAt === null))
+
+function isNew(item: InboxItem): boolean {
+  return newIds.value.has(item.id)
+}
 
 function subline(item: InboxItem): string {
   const time = timeLabel(item.createdAt, tz.value)
@@ -179,7 +187,7 @@ function subline(item: InboxItem): string {
 }
 
 function rowAria(item: InboxItem): string {
-  return rowAriaLabel(item, timeLabel(item.createdAt, tz.value))
+  return rowAriaLabel(item, timeLabel(item.createdAt, tz.value), isNew(item))
 }
 
 function pillFor(item: InboxItem): GiftPill | null {
@@ -207,6 +215,7 @@ async function loadFirstPage(): Promise<void> {
   const mine = ++requestSeq
   status.value = 'loading'
   items.value = []
+  newIds.value = new Set()
   nextBefore.value = null
   loadingMore.value = false
   try {
@@ -214,7 +223,10 @@ async function loadFirstPage(): Promise<void> {
     if (mine !== requestSeq) return
     items.value = page.items
     nextBefore.value = page.nextBefore
+    // El resaltado se fija con lo que llegó sin leer, ANTES de marcarlo todo como leído.
+    newIds.value = unreadIds(page.items)
     status.value = 'ready'
+    void markAllOnEntry(mine)
   } catch (err: unknown) {
     if (mine !== requestSeq) return
     log.error('No se pudieron cargar las notificaciones', {
@@ -271,38 +283,33 @@ function onTap(item: InboxItem): void {
   void router.push(resolveTapRoute(tapData(item)))
 }
 
-/** "Marcar todo como leído": optimista; si falla vuelve al estado anterior y avisa. */
-async function markAll(): Promise<void> {
-  const previous = new Map<number, string | null>()
+/**
+ * Al entrar se marca todo como leído (#35): la campana vuelve a 0 y las filas que eran nuevas
+ * siguen resaltadas esta vez. Si falla, queda como estaba (el contador real se vuelve a pedir) y
+ * se reintenta la próxima vez que se entre; no se avisa porque la lista ya se ve.
+ */
+async function markAllOnEntry(mine: number): Promise<void> {
   const nowIso = new Date().toISOString()
-  for (const item of items.value) {
-    previous.set(item.id, item.readAt)
-    if (item.readAt === null) item.readAt = nowIso
-  }
-  inboxStore.markAllReadLocal()
   try {
     await inboxApi.markAllRead()
-    void inboxStore.refreshCount()
+    // El número de la campana se corrige aunque ya se haya salido de la pantalla.
+    inboxStore.markAllReadLocal()
+    if (mine === requestSeq) {
+      for (const item of items.value) {
+        if (item.readAt === null) item.readAt = nowIso
+      }
+    }
   } catch (err: unknown) {
-    log.error('No se pudieron marcar las notificaciones como leídas', {
+    log.warn('No se pudieron marcar las notificaciones como leídas al entrar', {
       error: err instanceof Error ? err.message : String(err),
     })
-    for (const item of items.value) {
-      if (previous.has(item.id)) item.readAt = previous.get(item.id) ?? null
-    }
-    // El store dejó el número en 0 de golpe: se vuelve a pedir el real.
+  } finally {
     void inboxStore.refreshCount()
-    $q.notify({
-      type: 'negative',
-      message: 'No pudimos marcar las notificaciones. Probá de nuevo.',
-      timeout: 4000,
-    })
   }
 }
 
 onMounted(() => {
   void loadFirstPage()
-  void inboxStore.refreshCount()
 })
 
 onBeforeUnmount(() => {
@@ -350,27 +357,6 @@ onBeforeUnmount(() => {
     font-size: 18px;
     line-height: 1.3;
     color: $pd-ink;
-  }
-
-  &__mark-all {
-    flex: none;
-    min-height: 44px;
-    padding: 0 4px;
-    border: 0;
-    background: transparent;
-    font-family: 'Geologica', sans-serif;
-    font-weight: 400;
-    font-size: 13px;
-    line-height: 1.3;
-    color: $pd-terra-ink;
-    text-decoration: underline;
-    text-underline-offset: 3px;
-    cursor: pointer;
-
-    &:focus-visible {
-      outline: 2px solid $pd-terra-ink;
-      outline-offset: 2px;
-    }
   }
 
   &__day {
@@ -500,8 +486,12 @@ onBeforeUnmount(() => {
     }
 
     &--voided {
+      // Vive dentro de la columna de texto: puede partirse en dos líneas en un celular angosto.
+      align-self: flex-start;
+      padding: 2px 8px;
       background: #f3ede4;
       font-weight: 400;
+      white-space: normal;
       color: $pd-ink-2;
     }
   }

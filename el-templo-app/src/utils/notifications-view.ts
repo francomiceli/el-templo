@@ -1,4 +1,4 @@
-import type { InboxItem } from 'src/types/notifications-inbox'
+import type { InboxGift, InboxItem } from 'src/types/notifications-inbox'
 import { formatAura, formatMovementDate } from 'src/utils/aura-format'
 import { DEFAULT_BRANCH_TZ, todayInTz } from 'src/utils/tz'
 
@@ -97,10 +97,34 @@ export interface GiftPill {
   text: string
 }
 
-/** Pastilla de la fila: "+1" para un regalo vigente, "Anulado" para uno anulado, nada si no es regalo. */
+/**
+ * Ids de los avisos que eran nuevos (sin leer) al entrar a la pantalla (#35). Al abrir Notificaciones
+ * se marcan todos como leídos, así que el resaltado se calcula una sola vez con lo que llegó sin leer.
+ */
+export function unreadIds(items: readonly InboxItem[]): Set<number> {
+  return new Set(items.filter((item) => item.readAt === null).map((item) => item.id))
+}
+
+/**
+ * Texto de un regalo anulado con su motivo (#28, #37): "Anulado: la asistencia se corrigió" si se
+ * deshizo o anuló la asistencia, "Anulado por el staff" si lo anuló el staff y "Anulado" sin causa
+ * (dato viejo).
+ */
+export function voidedText(cause: InboxGift['voidCause'] | undefined): string {
+  if (cause === 'asistencia') return 'Anulado: la asistencia se corrigió'
+  if (cause === 'staff') return 'Anulado por el staff'
+  return 'Anulado'
+}
+
+/**
+ * Pastilla de la fila: "+1" para un regalo vigente, "Anulado" con su motivo para uno anulado, nada
+ * si no es regalo.
+ */
 export function giftPill(item: InboxItem): GiftPill | null {
   if (!item.gift) return null
-  if (item.gift.status === 'anulado') return { kind: 'voided', text: 'Anulado' }
+  if (item.gift.status === 'anulado') {
+    return { kind: 'voided', text: voidedText(item.gift.voidCause) }
+  }
   return { kind: 'amount', text: `+${formatAura(item.gift.amount)}` }
 }
 
@@ -109,15 +133,20 @@ export function giftPill(item: InboxItem): GiftPill | null {
  * energía. Más 1 de Aura." (sin "Sin leer." si ya está leído; sin el monto si no es un regalo
  * vigente). `time` es el resultado de `timeLabel`.
  */
-export function rowAriaLabel(item: InboxItem, time: string): string {
+export function rowAriaLabel(
+  item: InboxItem,
+  time: string,
+  isUnread: boolean = item.readAt === null,
+): string {
   const parts: string[] = []
-  if (item.readAt === null) parts.push('Sin leer.')
+  if (isUnread) parts.push('Sin leer.')
   const when = [time, item.body.trim()].filter((p) => p !== '').join(', ')
   const head = when !== '' ? `${item.title}. ${when}` : `${item.title}.`
   parts.push(head.endsWith('.') ? head : `${head}.`)
   if (item.gift && item.gift.status === 'vigente') {
     parts.push(`Más ${formatAura(item.gift.amount)} de Aura.`)
   }
+  if (item.gift && item.gift.status === 'anulado') parts.push(`${voidedText(item.gift.voidCause)}.`)
   return parts.join(' ')
 }
 
