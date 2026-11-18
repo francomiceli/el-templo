@@ -135,3 +135,4 @@ Cada vez que un ejecutor se encuentre con una decisión de producto, se anota ac
 | 2026-11-17 | 214-28 | Hora o zona inválida en la celebración | Si la zona de la sede no es válida se usa la zona por defecto; si la fecha no es válida se muestra solo el nombre de la sede |
 | 2026-11-17 | 214-28 | Cerrar la celebración | Se puede cerrar con Escape, y un doble cierre no vuelve atrás dos veces |
 | 2026-11-17 | 214-28 | Halo de la celebración | Respira con una sola animación suave de 6 segundos, sin saltos entre ciclos |
+| 2026-11-17 | 214-29 | Pelotita de fotos por revisar en el menú del admin si falla la consulta | Si la consulta falla, el contador vuelve a cero y la pelotita se apaga hasta el próximo refresco, en vez de quedarse con el número anterior |
