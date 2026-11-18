@@ -17,9 +17,11 @@
 // demás es la `aprobada` propia y, si no hay, la espejada de la ficha. Mientras
 // hay una pendiente, los demás siguen viendo la foto anterior o las iniciales.
 //
-// El servidor NO recodifica la imagen: que el JPEG no lleve EXIF ni GPS depende
-// de que la app la pase por canvas antes de subirla (D-39). El tope de 8 MB es
-// una red de seguridad: la app reduce a ~480 px antes de subir, y el mensaje
+// Al confirmar, el servidor re-codifica la imagen (fase 215, decisión 5): la
+// descarga, verifica que sea un JPEG, la orienta, la limita a 1024 px y la
+// vuelve a escribir sin metadatos (`photo-reencode.ts`). Así el EXIF y el GPS no
+// dependen de que la app haya pasado la foto por canvas (D-39). El tope de 8 MB
+// es una red de seguridad: la app reduce a ~480 px antes de subir, y el mensaje
 // nunca dice "es muy pesada" (D-33), es accionable.
 //
 // Del lado del staff (plan 15, D-30 a D-32, D-46, D-69): cola de revisión,
@@ -47,6 +49,7 @@ import { AURA_AMOUNTS } from "../aura/amounts";
 import { NotificationService } from "../notifications/service";
 import { AppError, NotFoundError } from "../shared/errors";
 import { isDuplicateKeyError } from "../shared/sql-errors";
+import { InvalidPhotoError, reencodeProfilePhoto } from "./photo-reencode";
 import {
   tenantValues,
   tenantWhere,
@@ -171,6 +174,37 @@ async function removeBestEffort(
 }
 
 /**
+ * Descarga el objeto subido, lo re-codifica y lo sobrescribe (decisión 5). Una
+ * falla del storage sale como 503 genérico; una imagen inválida borra el objeto
+ * y responde 400 con el mismo mensaje accionable que el resto de los rechazos.
+ */
+async function reencodeStoredPhoto(
+  fastify: FastifyInstance,
+  store: PrivateMediaStore,
+  userId: number,
+  key: string,
+): Promise<void> {
+  const original = await callStore(fastify, { userId }, () =>
+    store.getObject(key),
+  );
+  let clean: Buffer;
+  try {
+    clean = await reencodeProfilePhoto(original);
+  } catch (err: unknown) {
+    if (!(err instanceof InvalidPhotoError)) throw err;
+    await removeBestEffort(fastify, store, key, "la foto que no es una imagen");
+    throw new AppError(
+      "No pudimos procesar la foto, probá de nuevo",
+      400,
+      "FOTO_PERFIL_INVALIDA",
+    );
+  }
+  await callStore(fastify, { userId }, () =>
+    store.putObject(key, clean, PHOTO_CONTENT_TYPE),
+  );
+}
+
+/**
  * URL firmada para SUBIR la foto propia (el teléfono sube directo al bucket
  * privado). Orden: socio (404) -> storage (503) -> tipo (400).
  */
@@ -250,6 +284,10 @@ export async function confirmProfilePhoto(
       "FOTO_PERFIL_INVALIDA",
     );
   }
+
+  // Decisión 5: re-codificar ANTES de que la foto entre a la cola. Si no es una
+  // imagen válida se borra el objeto y no queda fila (igual que ME-03).
+  await reencodeStoredPhoto(fastify, store, userId, key);
 
   const outcome = await fastify.db.transaction(async (tx) => {
     // Bloquea las pendientes propias y la fila de esta misma clave (si existe).

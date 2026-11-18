@@ -8,7 +8,12 @@
  *
  * Sin DB, sin servidor: corre con `vitest.config.unit.ts`.
  */
-import { CopyObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import {
+  CopyObjectCommand,
+  DeleteObjectCommand,
+  GetObjectCommand,
+  PutObjectCommand,
+} from "@aws-sdk/client-s3";
 import type { FastifyInstance } from "fastify";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -290,6 +295,61 @@ describe("PrivateMediaStore.remove", () => {
       });
     });
     await expect(store.remove("k")).rejects.toThrow("boom");
+  });
+});
+
+describe("PrivateMediaStore.getObject y putObject (fase 215, decisión 5)", () => {
+  function storeWithSend(send: (cmd: unknown) => Promise<unknown>) {
+    vi.stubEnv("R2_PRIVATE_BUCKET_NAME", "bucket-privado");
+    const fastify = { r2: { send }, r2Bucket: "bucket-publico" };
+    return privateMediaResolver.resolve(fastify as unknown as FastifyInstance);
+  }
+
+  it("getObject pide el objeto al bucket PRIVADO y devuelve sus bytes", async () => {
+    const send = vi.fn(async (_cmd: unknown) => ({
+      Body: { transformToByteArray: async () => new Uint8Array([1, 2, 3]) },
+    }));
+    const store = storeWithSend(send);
+
+    const bytes = await store.getObject("private/avatars/1/x/foto.jpg");
+
+    expect(Buffer.isBuffer(bytes)).toBe(true);
+    expect([...bytes]).toEqual([1, 2, 3]);
+    const cmd = send.mock.calls[0]?.[0];
+    expect(cmd).toBeInstanceOf(GetObjectCommand);
+    if (cmd instanceof GetObjectCommand) {
+      expect(cmd.input.Bucket).toBe("bucket-privado");
+      expect(cmd.input.Key).toBe("private/avatars/1/x/foto.jpg");
+    }
+  });
+
+  it("getObject falla si el objeto no trae cuerpo o si el storage falla", async () => {
+    await expect(
+      storeWithSend(async () => ({})).getObject("k"),
+    ).rejects.toThrow();
+    await expect(
+      storeWithSend(async () => {
+        throw new Error("boom");
+      }).getObject("k"),
+    ).rejects.toThrow("boom");
+  });
+
+  it("putObject sobrescribe en el bucket PRIVADO con el tipo y el tamaño", async () => {
+    const send = vi.fn(async (_cmd: unknown) => ({}));
+    const store = storeWithSend(send);
+    const body = Buffer.from([9, 8, 7, 6]);
+
+    await store.putObject("private/avatars/1/x/foto.jpg", body, "image/jpeg");
+
+    const cmd = send.mock.calls[0]?.[0];
+    expect(cmd).toBeInstanceOf(PutObjectCommand);
+    if (cmd instanceof PutObjectCommand) {
+      expect(cmd.input.Bucket).toBe("bucket-privado");
+      expect(cmd.input.Key).toBe("private/avatars/1/x/foto.jpg");
+      expect(cmd.input.Body).toBe(body);
+      expect(cmd.input.ContentType).toBe("image/jpeg");
+      expect(cmd.input.ContentLength).toBe(4);
+    }
   });
 });
 

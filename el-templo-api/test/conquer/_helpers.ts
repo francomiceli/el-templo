@@ -9,6 +9,7 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, eq, like, sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
+import sharp from "sharp";
 import { vi } from "vitest";
 import * as schema from "../../src/db/schema";
 import type { ConquerMode } from "../../src/db/schema/conquer";
@@ -1235,6 +1236,20 @@ export async function patchConquerStep(
 
 // ── Control físico (201-12) ─────────────────────────────────────────
 
+/** JPEG válido y chico: el objeto "subido" por defecto de `mockPrivateMedia`. */
+export async function jpegDePrueba(): Promise<Buffer> {
+  return sharp({
+    create: {
+      width: 64,
+      height: 64,
+      channels: 3,
+      background: { r: 200, g: 120, b: 100 },
+    },
+  })
+    .jpeg()
+    .toBuffer();
+}
+
 /**
  * Reemplaza la tienda privada (fotos y videos) por un doble: `presignPut` y
  * `presignGet` devuelven `https://r2.test/...`, `head` por defecto es una foto
@@ -1249,6 +1264,9 @@ export function mockPrivateMedia(overrides: Partial<PrivateMediaStore> = {}) {
     presignGet: async (key) => `https://r2.test/get/${key}`,
     head: async () => ({ contentLength: 1024, contentType: "image/jpeg" }),
     remove: async () => undefined,
+    // Fase 215 (decisión 5): por defecto el objeto subido es un JPEG válido.
+    getObject: async () => jpegDePrueba(),
+    putObject: async () => undefined,
     copyFromPublic: async () => true,
     removePublic: async () => undefined,
     ...overrides,

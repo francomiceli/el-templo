@@ -118,6 +118,16 @@ export interface PrivateMediaStore {
   /** Fase 202 DA-45: borra el objeto. Un "no existe" no es error. */
   remove(key: string): Promise<void>;
   /**
+   * Fase 215 (decisión 5), SOLO para la foto de perfil: descarga el objeto. El
+   * llamador ya verificó el tamaño con `head`. Falla si el objeto no existe.
+   */
+  getObject(key: string): Promise<Buffer>;
+  /**
+   * Fase 215 (decisión 5), SOLO para la foto de perfil: sobrescribe el objeto con
+   * los bytes ya re-codificados.
+   */
+  putObject(key: string, body: Buffer, contentType: string): Promise<void>;
+  /**
    * Fase 214 D-43/D-63, SOLO para la foto de ficha: copia un objeto del bucket
    * PÚBLICO al privado. Devuelve false si el origen no existe; cualquier otro
    * error se propaga. `publicKey` llega siempre validado por
@@ -426,6 +436,24 @@ export const privateMediaResolver = {
           if (isObjectMissing(err)) return;
           throw err;
         }
+      },
+      getObject: async (key) => {
+        const res = await client.send(
+          new GetObjectCommand({ Bucket: bucket, Key: key }),
+        );
+        if (!res.Body) throw new Error("Objeto sin cuerpo");
+        return Buffer.from(await res.Body.transformToByteArray());
+      },
+      putObject: async (key, body, contentType) => {
+        await client.send(
+          new PutObjectCommand({
+            Bucket: bucket,
+            Key: key,
+            Body: body,
+            ContentType: contentType,
+            ContentLength: body.length,
+          }),
+        );
       },
       copyFromPublic: async (publicKey, privateKey) => {
         try {

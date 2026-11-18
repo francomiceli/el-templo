@@ -43,7 +43,8 @@ import {
   TENANT_DOS,
   type SegundoGimnasio,
 } from "../fixtures/second-tenant";
-import { mockPrivateMedia } from "../conquer/_helpers";
+import sharp from "sharp";
+import { jpegDePrueba, mockPrivateMedia } from "../conquer/_helpers";
 
 const CTX: TenantContext = { tenantId: 1 };
 const CTX_DOS: TenantContext = { tenantId: TENANT_DOS };
@@ -361,6 +362,87 @@ describe("POST /profile-photo/confirm", () => {
 
     expect(res.statusCode).toBe(400);
     expect(remove).toHaveBeenCalledWith(key);
+    expect(await rowsOf(m.id)).toHaveLength(0);
+  });
+
+  it("decisión 5: al confirmar se re-codifica la foto: se sobrescribe el objeto con un JPEG sin EXIF ni GPS", async () => {
+    const conUbicacion = await sharp({
+      create: {
+        width: 2000,
+        height: 1000,
+        channels: 3,
+        background: { r: 180, g: 90, b: 60 },
+      },
+    })
+      .withExif({
+        IFD0: { Artist: "Alumno de prueba" },
+        IFD3: { GPSLatitudeRef: "S", GPSLatitude: "38/1 0/1 0/1" },
+      })
+      .jpeg()
+      .toBuffer();
+    const putObject = vi.fn(async () => undefined);
+    mockPrivateMedia({ getObject: async () => conUbicacion, putObject });
+    const m = await createTestMember(app);
+    const key = privateAvatarKey({ tenantId: 1, userId: m.id });
+
+    const res = await confirmRaw(m.token, key);
+
+    expect(res.statusCode).toBe(201);
+    expect(putObject).toHaveBeenCalledTimes(1);
+    const [llamadaKey, bytes, tipo] = putObject.mock.calls[0] as unknown as [
+      string,
+      Buffer,
+      string,
+    ];
+    expect(llamadaKey).toBe(key);
+    expect(tipo).toBe("image/jpeg");
+    const meta = await sharp(bytes).metadata();
+    expect(meta.exif).toBeUndefined();
+    expect(meta.width).toBe(1024);
+    expect(await rowsOf(m.id)).toHaveLength(1);
+  });
+
+  it("decisión 5: un objeto que no es una imagen se rechaza, se borra del bucket y no queda en la cola", async () => {
+    const remove = vi.fn(async () => undefined);
+    const putObject = vi.fn(async () => undefined);
+    mockPrivateMedia({
+      getObject: async () => Buffer.from("no soy una foto"),
+      putObject,
+      remove,
+    });
+    const m = await createTestMember(app);
+    const key = privateAvatarKey({ tenantId: 1, userId: m.id });
+
+    const res = await confirmRaw(m.token, key);
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json<ErrorBody>().code).toBe("FOTO_PERFIL_INVALIDA");
+    expect(remove).toHaveBeenCalledWith(key);
+    expect(putObject).not.toHaveBeenCalled();
+    expect(await rowsOf(m.id)).toHaveLength(0);
+  });
+
+  it("decisión 5: si el storage falla al descargar o al sobrescribir responde 503 y no queda fila", async () => {
+    const m = await createTestMember(app);
+    const key = privateAvatarKey({ tenantId: 1, userId: m.id });
+
+    mockPrivateMedia({
+      getObject: async () => {
+        throw new Error("R2 caído");
+      },
+    });
+    const alDescargar = await confirmRaw(m.token, key);
+    expect(alDescargar.statusCode).toBe(503);
+
+    vi.restoreAllMocks();
+    mockPrivateMedia({
+      getObject: async () => jpegDePrueba(),
+      putObject: async () => {
+        throw new Error("R2 caído");
+      },
+    });
+    const alSobrescribir = await confirmRaw(m.token, key);
+    expect(alSobrescribir.statusCode).toBe(503);
     expect(await rowsOf(m.id)).toHaveLength(0);
   });
 
