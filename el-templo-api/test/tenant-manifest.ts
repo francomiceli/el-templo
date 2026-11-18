@@ -1218,6 +1218,14 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "GET /api/members/attendance/history": { categoria: "tenant-scoped" },
   "POST /api/members/attendance/check-in": { categoria: "tenant-scoped" },
 
+  // ── /api/members/profile-photo (fase 214, foto propia del alumno) ─────────
+  "POST /api/members/profile-photo/upload-url": { categoria: "tenant-scoped" },
+  "POST /api/members/profile-photo/confirm": { categoria: "tenant-scoped" },
+  "DELETE /api/members/profile-photo": { categoria: "tenant-scoped" },
+  "POST /api/members/profile-photos/:photoId/report": {
+    categoria: "tenant-scoped",
+  },
+
   // ── /api/members/improvement-proposals ────────────────────────────────────
   "GET /api/members/improvement-proposals/prompt-status": {
     categoria: "tenant-scoped",

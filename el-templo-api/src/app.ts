@@ -20,6 +20,7 @@ import { adminRoutes } from "./modules/admin";
 import { goalPlanRoutes } from "./modules/goal-plans";
 import { memberRoutes } from "./modules/members";
 import { leadsRoutes } from "./modules/members/leads-routes";
+import { profilePhotoMemberRoutes } from "./modules/members/profile-photo-routes";
 import {
   subscriptionRoutes,
   memberSubscriptionRoutes,
@@ -282,6 +283,9 @@ export async function buildApp(opts: BuildAppOptions = {}) {
   await app.register(attendanceMemberRoutes, {
     prefix: "/api/members/attendance",
   });
+
+  // Member-facing profile photo routes (fase 214: foto propia, quitar, reportar)
+  await app.register(profilePhotoMemberRoutes, { prefix: "/api/members" });
 
   // Member-facing subscription route (read-only, no admin role required)
   await app.register(memberSubscriptionRoutes, {

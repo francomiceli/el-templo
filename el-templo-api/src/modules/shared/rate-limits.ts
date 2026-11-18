@@ -17,4 +17,6 @@ export const RATE_LIMITS = {
   resetPassword: { max: 10, timeWindow: "15 minutes" },
   /** 1-3 requests por build de la web: el tope solo frena abuso (T-195-07). */
   siteData: { max: 60, timeWindow: "1 minute" },
+  /** Fase 214 D-45: reportar la foto de otro socio. Frena el abuso del contador (por IP). */
+  photoReport: { max: 20, timeWindow: "1 minute" },
 } as const;
