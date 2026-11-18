@@ -9,6 +9,8 @@
 //                        el admin_sede solo en sus sedes, D-20)
 //   GET  /gifts          lista de regalos del período y medición de las últimas
 //                        4 semanas (dueño, admin y admin_sede; D-20, D-21)
+//   GET  /gifts/by-coach regalos vigentes de cada profe en una semana (mismo
+//                        alcance que la lista; ajustes de la 215, ME-06)
 //
 // Roles (cada ruta con su propio chequeo, además del guard de staff):
 //   - POST: solo profes (`isCoachLikeRole`). La sede sale de `request.scope`,
@@ -37,12 +39,22 @@ import {
   ALL_STAFF_ROLES,
   isCoachLikeRole,
 } from "../shared/permissions";
-import { assertTenant, tenantWhere } from "../shared/tenant";
-import { listAdminGifts, weeklyGiftUsage } from "./gift-admin-queries";
+import {
+  assertTenant,
+  tenantWhere,
+  type TenantContext,
+} from "../shared/tenant";
+import {
+  giftsByCoach,
+  listAdminGifts,
+  weeklyGiftUsage,
+} from "./gift-admin-queries";
 import { GiftError, sendGiftError } from "./gift-errors";
 import { getCoachGiftAmount, setCoachGiftAmount } from "./gift-settings";
 import {
+  adminGiftsByCoachSchema,
   adminGiftsListSchema,
+  type AdminGiftsByCoachQuery,
   coachGiveGiftSchema,
   type AdminGiftsListQuery,
   getGiftSettingsSchema,
@@ -86,6 +98,31 @@ export const auraGiftAdminRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   const service = new AuraGiftService(fastify);
+
+  /**
+   * "Hoy" en la zona de la sede única (la filtrada o la única del admin_sede);
+   * sin sede única, la del gimnasio por defecto.
+   */
+  async function resolveTodayLocal(
+    ctx: TenantContext,
+    branchIds: readonly number[] | undefined,
+  ): Promise<string> {
+    let timezone = DEFAULT_TENANT_TIMEZONE;
+    if (branchIds !== undefined && branchIds.length === 1) {
+      const [branch] = await fastify.db
+        .select({ timezone: schema.branches.timezone })
+        .from(schema.branches)
+        .where(
+          and(
+            tenantWhere(schema.branches, ctx),
+            eq(schema.branches.id, branchIds[0]),
+          ),
+        )
+        .limit(1);
+      timezone = branch?.timezone ?? DEFAULT_TENANT_TIMEZONE;
+    }
+    return todayInTz(timezone);
+  }
 
   // POST /gifts — el profe da Aura. Responde 201 con el monto acreditado.
   fastify.post<{ Body: CoachGiveGiftBody }>(
@@ -158,22 +195,7 @@ export const auraGiftAdminRoutes: FastifyPluginAsync = async (fastify) => {
             ? [branchId]
             : (enforcedBranchIds(request.scope) ?? undefined);
 
-        // Zona de la sede única (la filtrada o la única del admin_sede).
-        let timezone = DEFAULT_TENANT_TIMEZONE;
-        if (branchIds !== undefined && branchIds.length === 1) {
-          const [branch] = await fastify.db
-            .select({ timezone: schema.branches.timezone })
-            .from(schema.branches)
-            .where(
-              and(
-                tenantWhere(schema.branches, ctx),
-                eq(schema.branches.id, branchIds[0]),
-              ),
-            )
-            .limit(1);
-          timezone = branch?.timezone ?? DEFAULT_TENANT_TIMEZONE;
-        }
-        const todayLocal = todayInTz(timezone);
+        const todayLocal = await resolveTodayLocal(ctx, branchIds);
 
         const [list, weeks] = await Promise.all([
           listAdminGifts(fastify.db, ctx, {
@@ -187,6 +209,41 @@ export const auraGiftAdminRoutes: FastifyPluginAsync = async (fastify) => {
         return { items: list.items, truncated: list.truncated, weeks };
       } catch (err: unknown) {
         sendGiftError(err, reply, request.log, "aura.admin.gift.list");
+      }
+    },
+  );
+
+  // GET /gifts/by-coach — regalos vigentes de cada profe en una semana (ME-06).
+  // Mismo alcance que la lista: dueño, admin y admin_sede; el admin_sede solo ve
+  // sus sedes. `weeksBack` navega a las semanas anteriores (0 = la actual).
+  fastify.get<{ Querystring: AdminGiftsByCoachQuery }>(
+    "/gifts/by-coach",
+    {
+      schema: adminGiftsByCoachSchema,
+      preHandler: requireBranchAccess({
+        from: "query.branchId",
+        optional: true,
+      }),
+    },
+    async (request, reply) => {
+      try {
+        if (!SETTINGS_READ_ROLES.includes(request.user.role)) {
+          return denyGift(reply);
+        }
+        const ctx = assertTenant(request.scope, "aura.admin.gift.byCoach");
+        const { branchId, weeksBack } = request.query;
+        const branchIds =
+          branchId !== undefined
+            ? [branchId]
+            : (enforcedBranchIds(request.scope) ?? undefined);
+        const todayLocal = await resolveTodayLocal(ctx, branchIds);
+        return await giftsByCoach(fastify.db, ctx, {
+          branchIds,
+          todayLocal,
+          weeksBack,
+        });
+      } catch (err: unknown) {
+        sendGiftError(err, reply, request.log, "aura.admin.gift.byCoach");
       }
     },
   );

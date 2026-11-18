@@ -288,6 +288,65 @@ export const voidGiftSchema = {
   },
 } as const;
 
+/** Filtros de `GET /gifts/by-coach` (admin): `branchId` opcional y semanas hacia atrás. */
+export interface AdminGiftsByCoachQuery {
+  branchId?: number;
+  /** 0 = la semana actual, 1 = la anterior, etc. */
+  weeksBack: number;
+}
+
+/**
+ * `GET /gifts/by-coach` (admin, fase 215 ajustes, ME-06): cuántos regalos dio cada
+ * profe en una semana de lunes a domingo (hora de la sede). Cuenta solo regalos
+ * vigentes. El 403 puede venir del rol (`REGALO_SIN_PERMISO`) o de la sede
+ * (`BRANCH_OUT_OF_SCOPE`).
+ */
+export const adminGiftsByCoachSchema = {
+  querystring: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      branchId: { type: "integer", minimum: 1 },
+      weeksBack: { type: "integer", minimum: 0, maximum: 52, default: 0 },
+    },
+  },
+  response: {
+    200: {
+      type: "object",
+      required: ["weekStart", "weekEnd", "total", "coaches"],
+      additionalProperties: false,
+      properties: {
+        weekStart: { type: "string" },
+        weekEnd: { type: "string" },
+        total: { type: "integer" },
+        coaches: {
+          type: "array",
+          items: {
+            type: "object",
+            required: ["userId", "name", "gifts"],
+            additionalProperties: false,
+            properties: {
+              userId: { type: "integer" },
+              name: { type: "string" },
+              gifts: { type: "integer" },
+            },
+          },
+        },
+      },
+    },
+    403: {
+      type: "object",
+      required: ["error", "message"],
+      additionalProperties: false,
+      properties: {
+        error: { type: "string" },
+        message: { type: "string" },
+        code: { type: "string" },
+      },
+    },
+  },
+} as const;
+
 /** Filtros de `GET /gifts` (admin): `branchId` opcional, período y anulados. */
 export interface AdminGiftsListQuery {
   branchId?: number;

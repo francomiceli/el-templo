@@ -343,3 +343,89 @@ export async function weeklyGiftUsage(
     };
   });
 }
+
+export interface GiftsByCoachRow {
+  userId: number;
+  name: string;
+  gifts: number;
+}
+
+export interface GiftsByCoach {
+  /** Lunes de la semana (`YYYY-MM-DD`). */
+  weekStart: string;
+  /** Domingo de la semana (`YYYY-MM-DD`). */
+  weekEnd: string;
+  total: number;
+  /** Del que más regaló al que menos; los empates, por nombre. */
+  coaches: GiftsByCoachRow[];
+}
+
+/**
+ * Regalos vigentes que dio cada profe en una semana de lunes a domingo (ME-06).
+ * `weeksBack` 0 es la semana de `todayLocal`; 1, la anterior; etc. La semana se
+ * mide por la fecha de la clase (`session_date`, ya en hora de la sede), igual
+ * que la medición de `weeklyGiftUsage`. Un profe sin regalos esa semana no sale.
+ * `branchIds` undefined = todo el gimnasio; un arreglo vacío no devuelve nada
+ * sin consultar.
+ */
+export async function giftsByCoach(
+  db: DbInstance,
+  ctx: TenantContext,
+  filters: Pick<AdminGiftFilters, "branchIds" | "todayLocal"> & {
+    weeksBack: number;
+  },
+): Promise<GiftsByCoach> {
+  const { branchIds, todayLocal, weeksBack } = filters;
+  const weekStart = addDays(giftWeekRange(todayLocal).start, -7 * weeksBack);
+  const weekEnd = addDays(weekStart, 6);
+  if (branchIds !== undefined && branchIds.length === 0) {
+    return { weekStart, weekEnd, total: 0, coaches: [] };
+  }
+
+  // El `tenantWhere` va literal en el `.where(...)`; solo el filtro de sede es opcional.
+  const giftBranch: SQL[] =
+    branchIds !== undefined
+      ? [inArray(schema.auraGifts.branchId, [...branchIds])]
+      : [];
+
+  const rows = await db
+    .select({
+      userId: schema.auraGifts.giverUserId,
+      firstName: schema.users.firstName,
+      lastName: schema.users.lastName,
+      gifts: sql<number>`COUNT(*)`,
+    })
+    .from(schema.auraGifts)
+    .innerJoin(
+      schema.users,
+      and(
+        tenantWhere(schema.users, ctx),
+        eq(schema.users.id, schema.auraGifts.giverUserId),
+      ),
+    )
+    .where(
+      and(
+        tenantWhere(schema.auraGifts, ctx),
+        eq(schema.auraGifts.giverKind, "profe"),
+        eq(schema.auraGifts.status, "vigente"),
+        gte(schema.auraGifts.sessionDate, weekStart),
+        lte(schema.auraGifts.sessionDate, weekEnd),
+        ...giftBranch,
+      ),
+    )
+    .groupBy(
+      schema.auraGifts.giverUserId,
+      schema.users.firstName,
+      schema.users.lastName,
+    );
+
+  const coaches = rows
+    .map<GiftsByCoachRow>((row) => ({
+      userId: row.userId,
+      name: fullName(row.firstName, row.lastName, `Usuario #${row.userId}`),
+      gifts: Number(row.gifts),
+    }))
+    .sort((a, b) => b.gifts - a.gifts || a.name.localeCompare(b.name, "es"));
+  const total = coaches.reduce((sum, coach) => sum + coach.gifts, 0);
+  return { weekStart, weekEnd, total, coaches };
+}
