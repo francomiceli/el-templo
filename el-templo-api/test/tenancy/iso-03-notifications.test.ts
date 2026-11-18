@@ -217,7 +217,12 @@ function porQueImportaElAislamiento(ruta: string, detalle: string): string {
   return (
     `${ruta} mezcló datos de El Templo (${TENANT_TEMPLO}) y el gimnasio ` +
     `${TENANT_DOS}: ${detalle}. Revisar el \`tenantWhere(tabla, ctx)\` del ` +
-    `método que sirve esta ruta en src/modules/notifications/*.ts. NO ` +
+    // Sin barra-asterisco en el texto: `sinComentarios` de la batería ISO-03
+    // (iso-03-cobertura-analytics-resto) es un regex ingenuo y lo toma por
+    // apertura de un comentario de bloque, que se cierra en el primer cierre
+    // de comentario que encuentre, aunque esté 800 líneas más abajo (los
+    // `tenant-safe` del SQL). Eso borraba todos los `describe` de este archivo.
+    `método que sirve esta ruta en los archivos de src/modules/notifications. NO ` +
     `"arreglar" esto filtrando en el front.`
   );
 }

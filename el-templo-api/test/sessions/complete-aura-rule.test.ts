@@ -586,7 +586,7 @@ describe("Regla de Aura de la sesión (D-20) y tope del día con asistencia y pl
     );
   });
 
-  it("plan a medida con 79 %: sin AURA, sesión guardada y racha al día", async () => {
+  it("plan a medida con 79 %: sin AURA y la sesión se guarda", async () => {
     const { proposedSec } = await seedSessionWithBlocks(
       app,
       GP_PLAN_79,
@@ -604,6 +604,13 @@ describe("Regla de Aura de la sesión (D-20) y tope del día con asistencia y pl
 
     expect(res.statusCode).toBe(200);
     expect(await auraRows(userId)).toHaveLength(0);
-    await expectSavedAndStreak(userId, GP_PLAN_79);
+    // Sin afirmar la racha: `POST /goal-plans/complete` nunca llamó a
+    // `StreakService.updateStreak` (solo lo hace `/sessions/complete`), ni antes
+    // de las fases 214 y 215 (`a51a00271`) ni ahora, así que
+    // `member_profiles.current_streak` no se mueve con un plan a medida. Es una
+    // carencia previa y ajena a la regla de Aura, no algo que esta fase haya
+    // roto: llamarlo cambiaría de paso los premios por hito de racha de esos
+    // alumnos (decisión de producto, no de este test).
+    expect(await completedRows(userId, GP_PLAN_79)).toHaveLength(1);
   });
 });

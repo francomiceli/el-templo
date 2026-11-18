@@ -94,3 +94,9 @@ Revisión completa el 2026-11-18: están resueltas las 40 entradas y las 8 decis
 | 33 | Celebración: **mezcla de la C y la A del sketch 037.** Sale del Aura del encabezado de Mi Templo: el Aura late y el número cuenta hasta el total nuevo, como en la C. El diseño es el de la A: tarjeta marfil con borde dorado y una línea que se vacía, y se va sola a los 5 s. **Se usa para cualquier Aura sumada desde la última visita a Mi Templo** (regalos, rachas, foto aprobada, antigüedad, programas, onboarding), con el texto del motivo. Si hay varios: "Sumaste N de Aura" con los dos últimos motivos. La asistencia (pantalla completa), el estiramiento y el bloque libre ya tienen su celebración y no se repiten. Si el regalo viene de alguien oculto o sin nombre, el texto no menciona a nadie. Boceto actualizado como variante D del 037 antes de construirlo. **Por implementar (plan D).** |
 | 18b | Tamaño del sello: **24 px** (Franco delegó la elección: a 21 px no se distingue uno de dos anillos). |
 | 33b | Variante D del sketch 037 **aprobada tal cual**, con el "+N" en la pastilla de la derecha de la tarjeta. |
+
+## Revisión de fotos (2026-11-18, después de las tiendas)
+
+| # | Decisión |
+|---|----------|
+| Fotos-roles | **Revisan fotos** (aprobar, rechazar, quitar y la cola con la pelotita): **admin de sede** (solo los alumnos de sus sedes) y **gestión, recepción, dueño y administradores** (todas las sedes). **Los profes y los coaches de actividad dejan de revisar** (revoca la parte de revisión de la D-46). Siguen pudiendo cargar la foto en la ficha. Compromiso con las tiendas: los reportes se revisan dentro de las 24 horas. **Por implementar** en la API, en la pestaña Fotos de Comunidad y en la pelotita. |

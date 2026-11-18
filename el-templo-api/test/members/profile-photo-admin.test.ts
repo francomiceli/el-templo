@@ -174,9 +174,9 @@ afterAll(async () => {
 // ── cola ────────────────────────────────────────────────────────────
 
 describe("GET /profile-photos (cola de revisión)", () => {
-  it("un coach ve las pendientes y las aprobadas reportadas (reportadas primero), con URL firmada y conteos", async () => {
+  it("gestion ve las pendientes y las aprobadas reportadas (reportadas primero), con URL firmada y conteos", async () => {
     mockPrivateMedia();
-    const coach = await createConquerStaff(app, "coach");
+    const revisor = await createConquerStaff(app, "gestion");
     const pendiente = await createTestMember(app);
     const reportada = await createTestMember(app);
     const fichaReportada = await createTestMember(app);
@@ -203,7 +203,7 @@ describe("GET /profile-photos (cola de revisión)", () => {
     await seedMemberPhoto(app, quitada.id, { status: "quitada" });
     await seedMemberPhoto(app, rechazada.id, { status: "rechazada" });
 
-    const body = await readQueue(coach.token);
+    const body = await readQueue(revisor.token);
 
     expect(body.counts).toEqual({ pending: 1, reported: 2 });
     const ids = body.items.map((item) => item.photoId);
@@ -226,14 +226,14 @@ describe("GET /profile-photos (cola de revisión)", () => {
 
   it("sin storage configurado y con fotos en la cola: 503 FOTO_PERFIL_NO_DISPONIBLE", async () => {
     vi.stubEnv("R2_PRIVATE_BUCKET_NAME", "");
-    const coach = await createConquerStaff(app, "coach");
+    const revisor = await createConquerStaff(app, "recepcion");
     const m = await createTestMember(app);
     await seedMemberPhoto(app, m.id);
 
     const res = await app.inject({
       method: "GET",
       url: QUEUE_URL,
-      headers: auth(coach.token),
+      headers: auth(revisor.token),
     });
 
     expect(res.statusCode).toBe(503);
@@ -430,7 +430,7 @@ describe("POST /:userId/profile-photo/reject", () => {
   it("rechaza con motivo: guarda el motivo, borra el objeto y NO manda push ni escribe en la bandeja", async () => {
     const remove = vi.fn(async () => undefined);
     mockPrivateMedia({ remove });
-    const staff = await createConquerStaff(app, "coach");
+    const staff = await createConquerStaff(app, "recepcion");
     const m = await createTestMember(app);
     await new NotificationService(app.db, app.log).registerToken(
       m.id,
@@ -570,6 +570,68 @@ describe("permisos", () => {
     expect(rechazar.statusCode).toBe(403);
     expect(quitar.statusCode).toBe(403);
   });
+
+  // Decisión de Franco 2026-11-18: coach y coach_actividad dejan de revisar.
+  it.each(["coach", "coach_actividad"])(
+    "un %s recibe 403 en la cola, al aprobar, al rechazar y al quitar, y no toca nada",
+    async (rol) => {
+      const remove = vi.fn(async () => undefined);
+      mockPrivateMedia({ remove });
+      const profe = await createConquerStaff(app, rol);
+      const m = await createTestMember(app);
+      const foto = await seedMemberPhoto(app, m.id);
+
+      const cola = await app.inject({
+        method: "GET",
+        url: QUEUE_URL,
+        headers: auth(profe.token),
+      });
+      const aprobar = await approve(profe.token, m.id, foto.id);
+      const rechazar = await reject(
+        profe.token,
+        m.id,
+        { reason: "otro" },
+        foto.id,
+      );
+      const quitar = await removeAsStaff(profe.token, m.id);
+
+      expect(cola.statusCode).toBe(403);
+      expect(aprobar.statusCode).toBe(403);
+      expect(rechazar.statusCode).toBe(403);
+      expect(quitar.statusCode).toBe(403);
+      expect(cola.json<{ error: string }>().error).toBe("Acceso denegado");
+      expect((await photoRowById(app, foto.id)).status).toBe("pendiente");
+      expect(await profilePhotoAuraRows(app, m.id)).toHaveLength(0);
+      expect(remove).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["recepcion", "gestion"])(
+    "un %s ve la cola, aprueba, rechaza y quita",
+    async (rol) => {
+      mockPrivateMedia();
+      const revisor = await createConquerStaff(app, rol);
+      const aAprobar = await createTestMember(app);
+      const aRechazar = await createTestMember(app);
+      const aQuitar = await createTestMember(app);
+      await seedMemberPhoto(app, aAprobar.id);
+      const fRechazar = await seedMemberPhoto(app, aRechazar.id);
+      await seedMemberPhoto(app, aQuitar.id, { status: "aprobada" });
+
+      const cola = await readQueue(revisor.token);
+      expect(cola.counts.pending).toBe(2);
+
+      expect((await approve(revisor.token, aAprobar.id)).statusCode).toBe(200);
+      expect(
+        (await reject(revisor.token, aRechazar.id, { reason: "sin_cara" }))
+          .statusCode,
+      ).toBe(200);
+      expect((await photoRowById(app, fRechazar.id)).status).toBe("rechazada");
+      expect((await removeAsStaff(revisor.token, aQuitar.id)).statusCode).toBe(
+        204,
+      );
+    },
+  );
 
   it("un admin_sede ve solo su sede y recibe 404 al revisar alumnos de otra sede", async () => {
     mockPrivateMedia();

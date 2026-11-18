@@ -736,8 +736,11 @@ describe("eventos y cierre del estiramiento: POST /api/sessions/stretch/{events,
     const res = await postComplete(member.token, { offerId });
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);
+    // `auraAmount` (monto que paga la fuente, fase 214 plan 05) es parte del
+    // contrato: la app lo muestra solo si `auraAwarded` es true.
     expect(Object.keys(res.body).sort()).toEqual([
       "alreadyCompleted",
+      "auraAmount",
       "auraAwarded",
       "completedAt",
       "durationSeconds",

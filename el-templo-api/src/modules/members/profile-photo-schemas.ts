@@ -160,6 +160,7 @@ export const photoReviewQueueSchema = {
         },
       },
     },
+    403: errorSchema,
     503: errorSchema,
   },
 } as const;
@@ -183,6 +184,7 @@ export const photoApproveSchema = {
         auraAwarded: { type: "boolean" },
       },
     },
+    403: errorSchema,
     404: errorSchema,
     409: errorSchema,
   },
@@ -212,6 +214,7 @@ export const photoRejectSchema = {
         status: { type: "string", enum: ["rechazada"] },
       },
     },
+    403: errorSchema,
     404: errorSchema,
     409: errorSchema,
   },
@@ -222,6 +225,7 @@ export const photoAdminDeleteSchema = {
   params: userIdParams,
   response: {
     204: { type: "null" },
+    403: errorSchema,
     404: errorSchema,
     503: errorSchema,
   },

@@ -7,7 +7,12 @@
  * All routes require authentication and coach/admin/owner/gestion role.
  */
 
-import { FastifyBaseLogger, FastifyPluginAsync, FastifyRequest } from "fastify";
+import {
+  FastifyBaseLogger,
+  FastifyPluginAsync,
+  FastifyReply,
+  FastifyRequest,
+} from "fastify";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -104,6 +109,7 @@ import {
   FINANCE_READ_ROLES,
   MEMBER_LIFECYCLE_ROLES,
   INVITATION_ROLES,
+  PHOTO_REVIEW_ROLES,
   isFinanceBlindRole,
 } from "../shared/permissions";
 import {
@@ -241,9 +247,25 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
   // reportadas primero, con el conteo para el badge del admin. Sin `:userId`
   // `enforceMemberBranchScope` no la acota: el admin_sede se acota acá a mano
   // con `enforcedBranchIds` (arreglo vacío = no ve nada).
+  //
+  // Revisan solo PHOTO_REVIEW_ROLES (decisión de Franco 2026-11-18): `coach` y
+  // `coach_actividad` pasan el guard del plugin (MEMBER_ROLES) pero acá reciben
+  // 403. Va como `onRequest` de cada ruta: corta antes de validar el cuerpo y
+  // antes de tocar el servicio o el storage.
+  const requirePhotoReviewRole = async (
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ) => {
+    if (
+      !(PHOTO_REVIEW_ROLES as readonly string[]).includes(request.user.role)
+    ) {
+      return reply.code(403).send({ error: "Acceso denegado" });
+    }
+  };
+
   fastify.get(
     "/profile-photos",
-    { schema: photoReviewQueueSchema },
+    { schema: photoReviewQueueSchema, onRequest: requirePhotoReviewRole },
     async (request, reply) => {
       try {
         const ctx = assertTenant(request.scope, "members.profile_photos.queue");
@@ -2076,15 +2098,16 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
   //
   // Siempre por `/:userId` (nunca `/:photoId`): `enforceMemberBranchScope` solo
   // lee `params.userId`, así un admin_sede recibe 404 si el alumno es de otra
-  // sede. Aprueban, rechazan y quitan los roles de MEMBER_ROLES (el guard del
-  // plugin, profes incluidos); el acotado por sede se fuerza solo para
-  // `admin_sede`. La lógica vive en `profile-photo-service.ts`: el servicio
+  // sede. Aprueban, rechazan y quitan solo los PHOTO_REVIEW_ROLES (admin, owner,
+  // gestion, recepcion y admin_sede; `coach` y `coach_actividad` reciben 403 por
+  // `requirePhotoReviewRole`, decisión del 2026-11-18); el acotado por sede se
+  // fuerza solo para `admin_sede`. La lógica vive en `profile-photo-service.ts`: el servicio
   // resuelve al socio vivo del tenant antes de tocar storage (404 indistinguible).
 
   // POST /admin/members/:userId/profile-photo/approve  { photoId }
   fastify.post<{ Params: { userId: number }; Body: { photoId: number } }>(
     "/:userId/profile-photo/approve",
-    { schema: photoApproveSchema },
+    { schema: photoApproveSchema, onRequest: requirePhotoReviewRole },
     async (request, reply) => {
       try {
         const ctx = assertTenant(
@@ -2115,7 +2138,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     Body: { reason: PhotoRejectionReason; photoId: number };
   }>(
     "/:userId/profile-photo/reject",
-    { schema: photoRejectSchema },
+    { schema: photoRejectSchema, onRequest: requirePhotoReviewRole },
     async (request, reply) => {
       try {
         const ctx = assertTenant(request.scope, "members.profile_photo.reject");
@@ -2137,7 +2160,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
   // y de ficha, objeto público incluido). No toca el ledger de Aura.
   fastify.delete<{ Params: { userId: number } }>(
     "/:userId/profile-photo",
-    { schema: photoAdminDeleteSchema },
+    { schema: photoAdminDeleteSchema, onRequest: requirePhotoReviewRole },
     async (request, reply) => {
       try {
         const ctx = assertTenant(request.scope, "members.profile_photo.remove");

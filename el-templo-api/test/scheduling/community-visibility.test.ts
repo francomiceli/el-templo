@@ -72,10 +72,6 @@ describe("Fase 214-16: visibilidad de la comunidad (D-05, D-06, D-47)", () => {
     testBranchToday = todayInTz(branch.tz ?? DEFAULT_TENANT_TIMEZONE);
 
     adminToken = await getAuthToken(app, "admin@test.com", "adminpass123");
-    const plan = await createTestPlan(app, adminToken, {
-      name: `Plan comunidad 214-16 ${Date.now()}`,
-    });
-    planId = plan.id;
   });
 
   afterAll(async () => {
@@ -90,6 +86,13 @@ describe("Fase 214-16: visibilidad de la comunidad (D-05, D-06, D-47)", () => {
 
   beforeEach(async () => {
     await cleanAllTestData(app);
+    // `cleanAllTestData` borra `subscription_plans`: el plan se crea DESPUÉS de
+    // limpiar, en cada caso (creado en `beforeAll` el INSERT de la suscripción
+    // fallaba por la FK `subscriptions_plan_id_subscription_plans_id_fk`).
+    const plan = await createTestPlan(app, adminToken, {
+      name: `Plan comunidad 214-16 ${Date.now()}`,
+    });
+    planId = plan.id;
   });
 
   /** Registra un socio (freemium, en la sede de prueba) y devuelve su id y token. */

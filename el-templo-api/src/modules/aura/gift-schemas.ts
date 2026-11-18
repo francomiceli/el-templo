@@ -30,6 +30,26 @@ const giftErrorResponseSchema = {
 } as const;
 
 /**
+ * 404 de las rutas del regalo. Lo emiten dos cosas con cuerpos distintos: el
+ * servicio (`REGALO_NO_ENCONTRADO`, con `message` y `code`) y el guard
+ * `requireModule` con el módulo apagado (`{ error: "No encontrado" }`, sin
+ * `message` ni `code`, a propósito: no debe distinguirse de una ruta que no
+ * existe). Con `message` y `code` obligatorios, el serializador fallaba con el
+ * cuerpo del guard y la respuesta salía 500 en vez de 404. Solo `error` es
+ * obligatorio.
+ */
+const giftNotFoundResponseSchema = {
+  type: "object",
+  required: ["error"],
+  additionalProperties: false,
+  properties: {
+    error: { type: "string" },
+    message: { type: "string" },
+    code: { type: "string" },
+  },
+} as const;
+
+/**
  * Quien recibió: solo nombre de pila, inicial y foto firmada. Con `anonymous`
  * (hoy está oculto o no tiene nombre) no hay nombre, inicial ni foto.
  */
@@ -159,7 +179,7 @@ export const giftCandidatesSchema = {
       },
     },
     403: giftErrorResponseSchema,
-    404: giftErrorResponseSchema,
+    404: giftNotFoundResponseSchema,
     409: giftErrorResponseSchema,
   },
 } as const;
@@ -187,7 +207,7 @@ export const giveGiftSchema = {
       },
     },
     403: giftErrorResponseSchema,
-    404: giftErrorResponseSchema,
+    404: giftNotFoundResponseSchema,
     409: giftErrorResponseSchema,
   },
 } as const;
@@ -229,7 +249,7 @@ export const coachGiveGiftSchema = {
       },
     },
     403: giftErrorResponseSchema,
-    404: giftErrorResponseSchema,
+    404: giftNotFoundResponseSchema,
     409: giftErrorResponseSchema,
   },
 } as const;
@@ -283,7 +303,7 @@ export const voidGiftSchema = {
   response: {
     204: { type: "null" },
     403: giftErrorResponseSchema,
-    404: giftErrorResponseSchema,
+    404: giftNotFoundResponseSchema,
     409: giftErrorResponseSchema,
   },
 } as const;

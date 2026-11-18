@@ -287,13 +287,17 @@ describe("requireModule — templo-gamification: regalo de Aura (fase 215, plan 
     expect(regalar.json()).toEqual(BODY_404_DEL_GUARD);
   });
 
-  it("contraste: con el flag prendido, pendientes responde 200 con listas vacías", async () => {
+  it("contraste: con el flag prendido, pendientes responde 200 con listas vacías y sin motivo de indisponibilidad", async () => {
     await setModuleFlag(app, TENANT_DOS, "templo-gamification", true);
 
     const res = await getPendientesComo(gym2.socios[0].token);
 
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ pending: [], givenToday: [] });
+    expect(res.json()).toEqual({
+      pending: [],
+      givenToday: [],
+      unavailableReason: null,
+    });
   });
 });
 

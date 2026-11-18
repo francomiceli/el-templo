@@ -67,7 +67,7 @@ import { useAuthStore } from 'src/stores/useAuthStore';
 import { useAdminStore } from 'src/stores/useAdminStore';
 import { canAccessTraining } from 'src/utils/trainingAccess';
 import {
-  ALL_STAFF_ROLES,
+  PHOTO_REVIEW_ROLES,
   CONQUER_MANAGER_ROLES,
   OFICINA_ROLES,
   NAV_MODEL,
@@ -154,11 +154,12 @@ const canSeeOficina = computed(() => {
   return role !== undefined && OFICINA_ROLES.includes(role);
 });
 
-// Quiénes revisan fotos de perfil (y ven su pelotita): todo el staff, igual que la API
-// (MEMBER_ROLES). Fase 214 D-45.
+// Quiénes revisan fotos de perfil (y ven su pelotita): PHOTO_REVIEW_ROLES, igual que la API.
+// Fase 214 D-45; los profes dejaron de revisar el 2026-11-18, así que no piden el conteo
+// (evita un 403 en la consola).
 const canSeePhotoReview = computed(() => {
   const role = authStore.user?.role;
-  return role !== undefined && ALL_STAFF_ROLES.includes(role);
+  return role !== undefined && PHOTO_REVIEW_ROLES.includes(role);
 });
 
 async function handleLogout() {
