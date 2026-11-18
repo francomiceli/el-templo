@@ -890,6 +890,62 @@ describe("grilla del socio — GET /api/members/scheduling/weekly", () => {
   });
 });
 
+describe("anotados del horario — GET /api/members/scheduling/slots/:scheduleId/:date/attendees", () => {
+  const RUTA = "GET /api/members/scheduling/slots/:scheduleId/:date/attendees";
+
+  it("aislamiento: un socio del gimnasio 2 pidiendo el horario de El Templo recibe 404 y ningun nombre de El Templo", async () => {
+    const [socioTemplo] = await app.db
+      .select({
+        firstName: schema.users.firstName,
+        lastName: schema.users.lastName,
+      })
+      .from(schema.users)
+      .where(
+        and(
+          tenantWhere(schema.users, CTX_TEMPLO),
+          eq(schema.users.id, fx.templo.userId),
+        ),
+      );
+    expect(socioTemplo, "el socio sembrado de El Templo existe").toBeDefined();
+
+    const res = await getMemberComo(
+      `/slots/${fx.templo.scheduleId}/${fx.templo.bookingDate}/attendees`,
+      gym2.socios[0].token,
+    );
+
+    expect(
+      res.statusCode,
+      `${RUTA} le devolvio al socio del gimnasio ${TENANT_DOS} algo del horario ${fx.templo.scheduleId} de El Templo: ` +
+        `el horario se busca con tenantWhere, un id ajeno tiene que ser 404 (indistinguible de uno inexistente).`,
+    ).toBe(404);
+    if (socioTemplo.lastName) {
+      expect(res.body).not.toContain(socioTemplo.lastName);
+    }
+    expect(res.body).not.toContain(`"attendees"`);
+  });
+
+  it("control: el mismo socio SI recibe la lista de su propio horario, con su propia fila", async () => {
+    const res = await getMemberComo(
+      `/slots/${fx.dos.scheduleId}/${fx.dos.bookingDate}/attendees`,
+      gym2.socios[0].token,
+    );
+
+    expect(
+      res.statusCode,
+      `${RUTA} fallo con el horario PROPIO del gimnasio ${TENANT_DOS}: ${res.body}`,
+    ).toBe(200);
+    const body = JSON.parse(res.body) as {
+      total: number;
+      canSeeList: boolean;
+      attendees: Array<{ isMe: boolean }>;
+    };
+    expect(body.canSeeList, res.body).toBe(true);
+    expect(body.total, res.body).toBe(1);
+    expect(body.attendees, res.body).toHaveLength(1);
+    expect(body.attendees[0].isMe, res.body).toBe(true);
+  });
+});
+
 describe("reservas del socio — GET /api/members/scheduling/my-bookings", () => {
   const RUTA = "GET /api/members/scheduling/my-bookings";
 

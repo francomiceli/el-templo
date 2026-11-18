@@ -203,7 +203,10 @@ export const EXCEPCIONES_NOMBRADAS: Readonly<Record<string, string>> = {};
 // /api/members/scheduling/attendees/visibility y POST
 // /api/members/scheduling/attendees/notice-seen (iso-03-sched-escritura.test.ts),
 // ambas tenant-scoped.
-const CASOS_BASELINE = 76;
+// 2026-11-18: 76 -> 77 por la lista de anotados de un horario (fase 214, plan 17):
+// GET /api/members/scheduling/slots/:scheduleId/:date/attendees
+// (iso-03-sched-lecturas.test.ts), tenant-scoped.
+const CASOS_BASELINE = 77;
 
 /** Los cuatro archivos de la batería ISO-03 de subs+scheduling. */
 const ARCHIVOS_BATERIA = [
@@ -348,7 +351,7 @@ describe("cobertura de la batería ISO-03 de subs+scheduling — contra el manif
     ).toEqual([]);
   });
 
-  it("la batería cubre exactamente las 76 rutas de subscriptions/scheduling del baseline", () => {
+  it("la batería cubre exactamente las 77 rutas de subscriptions/scheduling del baseline", () => {
     expect(
       RUTAS_SUBS_SCHED.length,
       `El manifiesto tiene ${RUTAS_SUBS_SCHED.length} rutas de ` +
