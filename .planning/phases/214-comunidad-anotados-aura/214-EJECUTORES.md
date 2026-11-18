@@ -99,3 +99,5 @@ Línea de base registrada por el plan 01 en `TYPECHECK-BASELINE.md`:
 - (plan 04) El runner de migraciones saltea las sentencias que fallan con "already exists" y trata la
   migración como ya aplicada: por eso los `CREATE TABLE` de respaldo van primero.
 
+- (plan 05) `auraAmount` se arma en `StretchCompleteView` (`stretch-service.ts`, cubre cierre nuevo y `alreadyCompleted`) y en el handler de `free-blocks-routes.ts` (schema de respuesta en `sessions/schemas.ts`). Es el monto que paga la fuente.
+- (plan 06) La app debe mostrar `auraAmount` solo si `auraAwarded` es true. El estiramiento lo devuelve en `POST /sessions/stretch/complete`; `StretchTodayView` NO lo trae.
