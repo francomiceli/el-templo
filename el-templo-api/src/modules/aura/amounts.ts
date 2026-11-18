@@ -14,6 +14,8 @@
 
 export const AURA_AMOUNTS = {
   attendance: 5,
+  // Solo referencia histórica (0344): desde D-64 la reversa de una asistencia
+  // devuelve lo que el ledger dice que acreditó (attendanceAuraCredited).
   attendanceReversal: 5,
   onboarding: 5,
   training: 3,

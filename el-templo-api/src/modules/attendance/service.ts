@@ -43,7 +43,10 @@ import {
   notWellhubAttendanceSql,
   notWellhubBookingSql,
 } from "../shared/wellhub-sources";
-import { AURA_AMOUNTS } from "../aura/amounts";
+import {
+  attendanceAuraAmountFor,
+  attendanceAuraCredited,
+} from "../aura/day-cap";
 import { AuraService } from "../aura/service";
 import { CheckInService } from "../check-ins/service";
 import type { DayCheckIn } from "../check-ins/types";
@@ -384,14 +387,23 @@ export class AttendanceService {
     });
 
     // Award AURA outside transaction (has its own transaction internally)
-    await this.auraService.award({
+    // D-64: si la app ya pagó Aura ese día, la asistencia acredita solo la
+    // diferencia hasta 5.
+    const auraAmount = await attendanceAuraAmountFor(this.db, ctx, {
       userId: memberId,
-      sourceType: "attendance",
-      referenceType: "attendance",
-      referenceId: recordId,
-      amount: AURA_AMOUNTS.attendance,
-      description: "Asistencia confirmada",
+      attendanceId: recordId,
+      sessionDate: todayStr,
     });
+    if (auraAmount > 0) {
+      await this.auraService.award({
+        userId: memberId,
+        sourceType: "attendance",
+        referenceType: "attendance",
+        referenceId: recordId,
+        amount: auraAmount,
+        description: "Asistencia confirmada",
+      });
+    }
 
     // Mirror the check-in as a completed_sessions row so presencial members
     // get credit for showing up — same way an online session completion does.
@@ -556,14 +568,22 @@ export class AttendanceService {
     const recordId = Number(result[0].insertId);
 
     // Award AURA immediately on force check-in
-    await this.auraService.award({
+    // D-64: tope del día (la fecha del forzado es la UTC que guarda la fila).
+    const auraAmount = await attendanceAuraAmountFor(this.db, ctx, {
       userId: memberId,
-      sourceType: "attendance",
-      referenceType: "attendance",
-      referenceId: recordId,
-      amount: AURA_AMOUNTS.attendance,
-      description: "Asistencia confirmada (manual)",
+      attendanceId: recordId,
+      sessionDate: todayStr,
     });
+    if (auraAmount > 0) {
+      await this.auraService.award({
+        userId: memberId,
+        sourceType: "attendance",
+        referenceType: "attendance",
+        referenceId: recordId,
+        amount: auraAmount,
+        description: "Asistencia confirmada (manual)",
+      });
+    }
 
     // Still decrement classesRemaining if applicable.
     // Fase 161 (GATE-02): forceCheckIn no tiene contexto de actividad
@@ -1034,16 +1054,24 @@ export class AttendanceService {
     const recordId = Number(result[0].insertId);
 
     // Award AURA immediately
-    await this.auraService.award({
+    // D-64: tope del día.
+    const auraAmount = await attendanceAuraAmountFor(this.db, ctx, {
       userId: memberId,
-      sourceType: "attendance",
-      referenceType: "attendance",
-      referenceId: recordId,
-      amount: AURA_AMOUNTS.attendance,
-      description: reason
-        ? `Asistencia manual: ${reason}`
-        : "Asistencia confirmada (manual)",
+      attendanceId: recordId,
+      sessionDate: date,
     });
+    if (auraAmount > 0) {
+      await this.auraService.award({
+        userId: memberId,
+        sourceType: "attendance",
+        referenceType: "attendance",
+        referenceId: recordId,
+        amount: auraAmount,
+        description: reason
+          ? `Asistencia manual: ${reason}`
+          : "Asistencia confirmada (manual)",
+      });
+    }
 
     // Decrement classesRemaining if tracked
     if (
@@ -1295,14 +1323,29 @@ export class AttendanceService {
         );
     }
 
-    // Reverse AURA: descuenta lo que vale una asistencia
+    // Reverse AURA (D-64): revierte exactamente lo que esa asistencia acreditó
+    // (leído del ledger). Con la app ya cobrada ese día pudo ser menos de 5, y
+    // si no acreditó nada no se descuenta nada.
     try {
-      await this.auraService.spend({
-        userId: attRecord.memberId,
-        amount: AURA_AMOUNTS.attendanceReversal,
-        description: `Reversa asistencia #${attendanceId}`,
-        referenceType: "attendance_reversal",
-      });
+      const credited = await attendanceAuraCredited(
+        this.db,
+        ctx,
+        attRecord.memberId,
+        attendanceId,
+      );
+      if (credited > 0) {
+        await this.auraService.spend({
+          userId: attRecord.memberId,
+          amount: credited,
+          description: `Reversa asistencia #${attendanceId}`,
+          referenceType: "attendance_reversal",
+        });
+      } else {
+        this.log.info(
+          { attendanceId, memberId: attRecord.memberId },
+          "La asistencia no había acreditado Aura",
+        );
+      }
     } catch {
       // If insufficient balance, just log it -- don't block the undo
       this.log.warn(
