@@ -30,34 +30,13 @@
         </q-btn>
       </q-toolbar>
 
-      <!-- Greeting row — desktop only (stays in sticky header) -->
-      <div v-if="isDesktop && isMiTemplo && authStore.isAuthenticated" class="header-greeting">
-        <div class="header-greeting__text">
-          <!-- Sin perfil: esqueleto, nunca "Atleta" ni una fecha en la zona por defecto (D-08). -->
-          <h1 class="header-greeting__name">
-            <q-skeleton
-              v-if="!profileReady"
-              type="text"
-              tag="span"
-              animation="none"
-              class="header-greeting__sk-name"
-            />
-            <template v-else>
-              Hola, {{ memberName }}!<VeteranSeal :since="memberSince" />
-            </template>
-          </h1>
-          <p class="header-greeting__date">
-            <q-skeleton
-              v-if="!profileReady"
-              type="text"
-              tag="span"
-              animation="none"
-              class="header-greeting__sk-date"
-            />
-            <template v-else>{{ formattedDate }}</template>
-          </p>
-        </div>
-        <HeaderLevelDropdown v-if="userStore.activeLevel" />
+      <!-- Encabezado de Mi Templo — solo escritorio (queda en el header fijo). Fase 214: el mismo
+           componente que en celular (D-27). -->
+      <div
+        v-if="isDesktop && isMiTemplo && authStore.isAuthenticated"
+        class="mi-templo-header-wrap"
+      >
+        <MiTemploHeader />
       </div>
     </q-header>
 
@@ -107,35 +86,9 @@
     </aside>
 
     <q-page-container :class="{ 'with-desktop-rail': isDesktop }">
-      <!-- Greeting row — mobile only (scrolls with content) -->
+      <!-- Encabezado de Mi Templo — solo celular (se va con el scroll). Fase 214: un solo componente. -->
       <div v-if="!isDesktop && isMiTemplo && authStore.isAuthenticated" class="mobile-greeting">
-        <div class="header-greeting">
-          <div class="header-greeting__text">
-            <h1 class="header-greeting__name">
-              <q-skeleton
-                v-if="!profileReady"
-                type="text"
-                tag="span"
-                animation="none"
-                class="header-greeting__sk-name"
-              />
-              <template v-else>
-                Hola, {{ memberName }}!<VeteranSeal :since="memberSince" />
-              </template>
-            </h1>
-            <p class="header-greeting__date">
-              <q-skeleton
-                v-if="!profileReady"
-                type="text"
-                tag="span"
-                animation="none"
-                class="header-greeting__sk-date"
-              />
-              <template v-else>{{ formattedDate }}</template>
-            </p>
-          </div>
-          <HeaderLevelDropdown v-if="userStore.activeLevel" />
-        </div>
+        <MiTemploHeader />
       </div>
       <router-view />
     </q-page-container>
@@ -241,8 +194,7 @@ import RatingPromptDialog from 'src/components/RatingPromptDialog.vue'
 import PlanExpiryDialog from 'src/components/PlanExpiryDialog.vue'
 import AvisoPromptDialog from 'src/components/AvisoPromptDialog.vue'
 import AddressPromptDialog from 'src/components/AddressPromptDialog.vue'
-import HeaderLevelDropdown from 'src/modules/training/components/HeaderLevelDropdown.vue'
-import VeteranSeal from 'src/components/VeteranSeal.vue'
+import MiTemploHeader from 'src/components/MiTemploHeader.vue'
 import { useTipsSeenStorage } from 'src/composables/useTipsSeenStorage'
 import { TIPS_CONTENT } from 'src/config/tips-content'
 import { isNewMember } from 'src/modules/guia/new-member'
@@ -427,34 +379,6 @@ watch(
 const isDesktop = computed(() => $q.screen.width >= 768)
 const isMiTemplo = computed(() => route.path === '/mi-templo')
 
-const memberSince = computed(() => userStore.profile?.memberSince ?? null)
-
-// Fase 203 (D-08): sin perfil el saludo es un esqueleto, sin tope (el perfil lo resuelve
-// `retryProfileLoad`). "Atleta" queda solo para perfiles sin nombre.
-const profileReady = computed(() => userStore.profile !== null)
-
-const memberName = computed(() => {
-  const profile = userStore.profile
-  return profile?.firstName ?? profile?.displayName ?? 'Atleta'
-})
-
-// Formatea un 'YYYY-MM-DD' como "Hoy es <día> <n> de <mes>". Mediodía UTC +
-// timeZone 'UTC' = el día calendario exacto, sin corrimiento por zona.
-function formatGreetingDate(dateStr: string): string {
-  const date = new Date(`${dateStr}T12:00:00Z`).toLocaleDateString('es-ES', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    timeZone: 'UTC',
-  })
-  return 'Hoy es ' + date.charAt(0).toUpperCase() + date.slice(1)
-}
-
-// D-04: 'hoy' en la zona de la sede, no del teléfono (un socio de Madrid con el
-// teléfono en hora AR veía el día equivocado de 19 a 24). Sale del store del
-// turno de hoy: su reloj de 30 s cambia la fecha solo a la medianoche de la sede.
-const formattedDate = computed(() => formatGreetingDate(todayBookingStore.todayStr))
-
 const showCheckInFab = computed(() => {
   if (!authStore.isAuthenticated) return false
   if (!userStore.profile) return false
@@ -622,21 +546,22 @@ async function onLogout() {
       padding-left: 200px;
     }
 
-    .header-greeting {
-      background: linear-gradient(135deg, $brand-terracotta 0%, $brand-aged-gold 100%);
+    // El degradé lo pone el propio encabezado (hereda este radio).
+    .mi-templo-header-wrap {
       border-radius: 0 0 12px 12px;
     }
   }
 }
 
 .main-header--desktop .q-toolbar,
-.main-header--desktop .header-greeting {
+.main-header--desktop .mi-templo-header-wrap {
   max-width: 630px;
   margin-left: auto;
   margin-right: auto;
 }
 
-.main-header--desktop .header-greeting {
+// En escritorio el encabezado tenía 16 arriba (en celular, 8).
+.main-header--desktop .mi-templo-header-wrap :deep(.mth) {
   padding-top: 16px;
 }
 
@@ -657,69 +582,6 @@ async function onLogout() {
   border-radius: 6px;
   background-color: #f5f0e8;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-
-.header-greeting {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  padding: 8px 16px 14px;
-
-  &__text {
-    flex: 1;
-  }
-
-  &__name {
-    font-family: 'Montserrat', sans-serif;
-    font-size: 22px;
-    font-weight: 600;
-    color: #fff;
-    margin: 0;
-    line-height: 1.2;
-  }
-
-  &__date {
-    font-family: 'Geologica', sans-serif;
-    font-size: 13px;
-    line-height: 1.2; // igual que el esqueleto (1.2em), así la fecha no mueve el layout al llegar
-    color: #fff;
-    margin: 2px 0 0;
-  }
-
-  // Esqueletos del saludo (D-08): anchos fijos y alto de línea del texto real (type="text" = 1.2em).
-  &__sk-name {
-    display: block; // tag="span": un div dentro de h1/p no es HTML válido
-    width: 160px;
-    max-width: 100%;
-  }
-
-  &__sk-date {
-    display: block;
-    width: 200px;
-    max-width: 100%;
-  }
-
-  &__badge {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    opacity: 1;
-    padding-bottom: 2px;
-    margin-right: 6px;
-  }
-
-  &__symbol {
-    font-size: 32px;
-    color: #fff;
-    line-height: 1;
-  }
-
-  &__level {
-    font-size: 10px;
-    color: #fff;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-  }
 }
 
 /* ------------------------------------------------------------------
