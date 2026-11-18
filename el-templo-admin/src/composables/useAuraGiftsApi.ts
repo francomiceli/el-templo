@@ -47,6 +47,23 @@ export interface AdminGiftsResponse {
   weeks: GiftWeek[];
 }
 
+export interface GiftsByCoachRow {
+  userId: number;
+  name: string;
+  gifts: number;
+}
+
+/** Regalos vigentes de cada profe en una semana de lunes a domingo (hora de la sede). */
+export interface GiftsByCoach {
+  /** Lunes de la semana, YYYY-MM-DD. */
+  weekStart: string;
+  /** Domingo de la semana, YYYY-MM-DD. */
+  weekEnd: string;
+  total: number;
+  /** Del que más regaló al que menos. Los profes sin regalos esa semana no salen. */
+  coaches: GiftsByCoachRow[];
+}
+
 export interface GiftSettings {
   coachGiftAmount: number;
 }
@@ -88,6 +105,19 @@ export function useAuraGiftsApi() {
     return data;
   }
 
+  /** `weeksBack`: 0 = la semana actual, 1 = la anterior, etc. (el servidor admite hasta 52). */
+  async function giftsByCoach(params: {
+    branchId?: number;
+    weeksBack: number;
+  }): Promise<GiftsByCoach> {
+    const query: Record<string, unknown> = { weeksBack: params.weeksBack };
+    if (params.branchId !== undefined) query.branchId = params.branchId;
+    const { data } = await api.get<GiftsByCoach>('/admin/aura/gifts/by-coach', {
+      params: query,
+    });
+    return data;
+  }
+
   async function voidGift(id: number): Promise<void> {
     await api.post(`/admin/aura/gifts/${id}/void`);
   }
@@ -104,5 +134,5 @@ export function useAuraGiftsApi() {
     return data;
   }
 
-  return { giveAsCoach, listGifts, voidGift, getSettings, saveSettings };
+  return { giveAsCoach, listGifts, giftsByCoach, voidGift, getSettings, saveSettings };
 }

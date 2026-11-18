@@ -1,11 +1,10 @@
-<!-- Regalos de Aura (fase 215, plan 23, Pantallas 6b y 6c del UI-SPEC, D-11, D-20, D-21).
+<!-- Pestaña Regalos de Aura de la página Comunidad (antes página propia, RegalosAuraPage). Fase 215, plan 23, Pantallas 6b y 6c del UI-SPEC, D-11, D-20, D-21).
      De arriba hacia abajo: el valor del regalo del profe (dueño y admin lo editan, admin_sede solo
      lo ve), la medición de las últimas 4 semanas, los filtros y la tabla con "Anular". El filtro de
      sede lo hace el servidor (admin_sede ve solo las suyas). Fecha y hora de la clase vienen ya en
      hora de la sede: se muestran tal cual, sin convertir de zona. -->
 <template>
-  <q-page padding>
-    <div class="text-h5">Regalos de Aura</div>
+  <div class="q-pt-md">
     <div class="text-body2 text-grey-8 q-mb-md">
       Los regalos que dieron los alumnos y los profes. Si alguno no corresponde, anulalo y se
       descuenta.
@@ -125,6 +124,9 @@
         <div class="text-caption text-grey-8 q-mt-xs">Cuenta solo los regalos vigentes.</div>
       </q-card-section>
     </q-card>
+
+    <!-- Regalos por profe (ME-06): sigue la sede elegida en los filtros -->
+    <RegalosPorProfeCard v-if="branchesReady" :branch-id="selectedBranchId" />
 
     <!-- Filtros -->
     <div class="row items-center q-col-gutter-sm q-mb-md">
@@ -306,7 +308,7 @@
         </q-card-actions>
       </q-card>
     </q-dialog>
-  </q-page>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -326,8 +328,10 @@ import { useAuthStore } from 'src/stores/useAuthStore';
 import type { BranchOption } from 'src/types/member';
 import { isBranchScopedRole } from 'src/utils/branch-scope';
 import { createLogger } from 'src/utils/logger';
+import { pad2, parseYmd, weekLabel } from 'src/utils/ymd';
+import RegalosPorProfeCard from 'src/components/comunidad/RegalosPorProfeCard.vue';
 
-const log = createLogger('RegalosAuraPage');
+const log = createLogger('RegalosTab');
 const $q = useQuasar();
 const authStore = useAuthStore();
 const giftsApi = useAuraGiftsApi();
@@ -345,7 +349,6 @@ const DAYS_OPTIONS: { label: string; value: DaysFilter }[] = [
   { label: '90 días', value: 90 },
 ];
 const WEEKDAYS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 const role = computed(() => authStore.user?.role);
 /** Dueño y admin editan el valor; admin_sede lo ve de solo lectura (el servidor también lo exige). */
@@ -422,6 +425,8 @@ const items = ref<AdminGiftItem[]>([]);
 const weeks = ref<GiftWeek[]>([]);
 const truncated = ref(false);
 const branches = ref<BranchOption[]>([]);
+/** true cuando ya se resolvió la sede por defecto (admin_sede): evita pedir dos veces. */
+const branchesReady = ref(false);
 const selectedBranchId = ref<number | null>(null);
 const days = ref<DaysFilter>(7);
 const includeVoided = ref(false);
@@ -453,17 +458,6 @@ const sortedItems = computed<AdminGiftItem[]>(() =>
   })
 );
 
-/** Parte "YYYY-MM-DD" en números, o null si no tiene esa forma. */
-function parseYmd(value: string): { y: number; m: number; d: number } | null {
-  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
-  if (!match) return null;
-  return { y: Number(match[1]), m: Number(match[2]), d: Number(match[3]) };
-}
-
-function pad2(n: number): string {
-  return String(n).padStart(2, '0');
-}
-
 /** "Lun 17/11 · 18:00". Sin hora (horario borrado) queda solo "Lun 17/11". */
 function dateLabel(item: AdminGiftItem): string {
   const parts = parseYmd(item.sessionDate);
@@ -472,15 +466,6 @@ function dateLabel(item: AdminGiftItem): string {
   const day = `${weekday} ${pad2(parts.d)}/${pad2(parts.m)}`;
   const time = item.startTime ? item.startTime.slice(0, 5) : null;
   return time && /^\d{2}:\d{2}$/.test(time) ? `${day} · ${time}` : day;
-}
-
-/** "10/11 al 16/11" a partir del lunes de la semana. */
-function weekLabel(weekStart: string): string {
-  const parts = parseYmd(weekStart);
-  if (!parts) return weekStart;
-  const start = Date.UTC(parts.y, parts.m - 1, parts.d);
-  const end = new Date(start + 6 * DAY_MS);
-  return `${pad2(parts.d)}/${pad2(parts.m)} al ${pad2(end.getUTCDate())}/${pad2(end.getUTCMonth() + 1)}`;
 }
 
 /** El texto sale de la causa, no de si hay nombre: el usuario que anuló pudo borrarse. */
@@ -543,6 +528,7 @@ async function loadBranches(): Promise<void> {
   if (branchScoped.value && branches.value.length > 0) {
     selectedBranchId.value = branches.value[0].id;
   }
+  branchesReady.value = true;
 }
 
 // -- Anular (D-20) -------------------------------------------------------------

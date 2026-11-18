@@ -15,7 +15,9 @@ import {
   ANALITICAS_ROLES,
   OFICINA_ROLES,
   TABLERO_ROLES,
+  COMUNIDAD_ROLES,
 } from 'src/config/templo-config';
+import { COMUNIDAD_TABS } from 'src/constants/comunidad';
 
 /**
  * Landing por rol al entrar en '/' (D-14). Orden CRÍTICO (Pitfall 2):
@@ -141,29 +143,24 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
-        // Revisión de fotos de perfil (fase 214, D-46). Va ANTES de `alumnos/:userId` para que
-        // "fotos" no se tome como un id. Mismos roles que la ficha: el servidor acota admin_sede.
+        // Fotos de perfil (fase 214, D-46) y Regalos de Aura (fase 215) viven en la página
+        // Comunidad (Gerencia), una pestaña cada una. Las rutas viejas redirigen a su pestaña por
+        // si hay enlaces guardados. Van ANTES de `alumnos/:userId` para que "fotos" y "regalos" no
+        // se tomen como un id.
         path: 'alumnos/fotos',
-        component: () => import('pages/FotosPerfilPage.vue'),
-        meta: {
-          allowedRoles: [
-            'coach',
-            'admin',
-            'owner',
-            'gestion',
-            'recepcion',
-            'admin_sede',
-            'coach_actividad',
-          ] as AdminRole[],
-        },
+        redirect: { path: '/comunidad', query: { tab: COMUNIDAD_TABS.fotos } },
       },
       {
-        // Regalos de Aura (fase 215, plan 23, D-11, D-20, D-21). Va ANTES de `alumnos/:userId`
-        // para que "regalos" no se tome como un id. Los profes no la ven (no anulan): el servidor
-        // valida el rol y acota admin_sede a sus sedes.
         path: 'alumnos/regalos',
-        component: () => import('pages/RegalosAuraPage.vue'),
-        meta: { allowedRoles: ['admin', 'owner', 'admin_sede'] as AdminRole[] },
+        redirect: { path: '/comunidad', query: { tab: COMUNIDAD_TABS.regalos } },
+      },
+      {
+        // Comunidad (fase 215, ajustes): hub de pestañas como Caja. `allowedRoles` es la unión de
+        // las pestañas; cada pestaña mantiene sus roles adentro (Fotos: todo el staff, el servidor
+        // acota admin_sede; Regalos: dueño, admin y admin_sede, los profes no anulan).
+        path: 'comunidad',
+        component: () => import('pages/ComunidadPage.vue'),
+        meta: { allowedRoles: COMUNIDAD_ROLES },
       },
       {
         path: 'alumnos/:userId',

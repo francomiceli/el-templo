@@ -1,11 +1,10 @@
-<!-- Revisión de fotos de perfil (fase 214, plan 30, Pantalla 7 del UI-SPEC, D-31, D-32, D-46).
+<!-- Pestaña Fotos de la página Comunidad (antes página propia, FotosPerfilPage). Revisión de fotos de perfil (fase 214, plan 30, Pantalla 7 del UI-SPEC, D-31, D-32, D-46).
      Cola única con las fotos pendientes y las reportadas (las reportadas van primero). El filtro de
      sede lo hace el servidor (admin_sede ve solo las suyas). El estado de la cola vive en el servidor:
      cada acción saca la card, refresca la pelotita del menú y, si la foto ya no está (404), vuelve a
      pedir la lista. -->
 <template>
-  <q-page padding>
-    <div class="text-h5">Fotos de perfil</div>
+  <div class="q-pt-md">
     <div class="text-body2 text-grey-8 q-mb-md">
       Las fotos que suben los alumnos y las que reportaron. Las reportadas van primero.
     </div>
@@ -193,7 +192,7 @@
         </q-card-actions>
       </q-card>
     </q-dialog>
-  </q-page>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -211,7 +210,7 @@ import { useAdminStore } from 'src/stores/useAdminStore';
 import type { BranchOption } from 'src/types/member';
 import { createLogger } from 'src/utils/logger';
 
-const log = createLogger('FotosPerfilPage');
+const log = createLogger('FotosTab');
 const $q = useQuasar();
 const adminStore = useAdminStore();
 const photosApi = useProfilePhotosApi();
