@@ -136,3 +136,8 @@ Cada vez que un ejecutor se encuentre con una decisión de producto, se anota ac
 | 2026-11-17 | 214-28 | Cerrar la celebración | Se puede cerrar con Escape, y un doble cierre no vuelve atrás dos veces |
 | 2026-11-17 | 214-28 | Halo de la celebración | Respira con una sola animación suave de 6 segundos, sin saltos entre ciclos |
 | 2026-11-17 | 214-29 | Pelotita de fotos por revisar en el menú del admin si falla la consulta | Si la consulta falla, el contador vuelve a cero y la pelotita se apaga hasta el próximo refresco, en vez de quedarse con el número anterior |
+| 2026-11-17 | 214-30 | Qué fotos se marcan como "reportadas" en la revisión | Las que ya estaban aprobadas y recibieron un reporte; aparecen primero en la lista |
+| 2026-11-17 | 214-30 | Fechas en la revisión de fotos | Se muestran en la zona horaria de la sede de la foto, y en la de Buenos Aires si no se conoce |
+| 2026-11-17 | 214-30 | Si no se pueden cargar las sedes en la revisión de fotos | La revisión sigue funcionando y cada foto dice "Sin sede" |
+| 2026-11-17 | 214-30 | Error inesperado al aprobar, rechazar o quitar una foto | Se avisa con un mensaje de error y la foto queda en la lista; mientras la acción va, sus botones se deshabilitan |
+| 2026-11-17 | 214-30 | Foto de un alumno sin nombre | Se muestra como "Alumno #número" |
