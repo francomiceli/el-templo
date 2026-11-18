@@ -80,7 +80,16 @@
  * @see test/tenancy/iso-03-members-listados.test.ts — ciclo de vida y helpers de mensaje (173-26)
  * @see test/tenancy/iso-03-finance-transacciones.test.ts — el idioma de la "foto" multi-columna
  */
-import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
+import {
+  describe,
+  it,
+  expect,
+  beforeAll,
+  beforeEach,
+  afterEach,
+  afterAll,
+  vi,
+} from "vitest";
 import { and, eq, sql, type SQL } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { createTestApp, cleanAllTestData } from "../helpers";
@@ -109,6 +118,12 @@ import {
   fixtureCtx,
 } from "../invitations/_helpers";
 import { uniqueGympassId } from "../fixtures/wellhub-personas";
+import { mockPrivateMedia } from "../conquer/_helpers";
+import {
+  photoRowsOf,
+  profilePhotoAuraRows,
+  seedMemberPhoto,
+} from "../members/_profile-photo-helpers";
 import {
   insertPartner,
   insertPartnerLink,
@@ -142,6 +157,11 @@ beforeEach(async () => {
   gym2 = await seedSecondTenant(app);
   templo = await sembrarSocioTemplo(app);
   dos = await sembrarSociosGimnasioDos(app, gym2);
+});
+
+afterEach(() => {
+  // La foto de perfil (fase 214, plan 15) simula la tienda privada con un spy.
+  vi.restoreAllMocks();
 });
 
 afterAll(async () => {
@@ -1121,6 +1141,188 @@ describe("URL de subida de foto — POST /api/admin/members/:userId/photo/upload
       [foto.tenantId, foto.photoUrl],
       `${RUTA} corto con 503 pero igual toco el photo_url del socio propio.`,
     ).toEqual([TENANT_DOS, fotoAntes.photoUrl]);
+  });
+});
+
+// ─── Revisión de fotos de perfil (fase 214, plan 15: D-31, D-32, D-46) ──────
+//
+// Las rutas por `/:userId` las cubre `enforceMemberBranchScope` y el servicio
+// resuelve al socio con `tenantWhere`: el socio de El Templo es inexistente
+// para el staff del gimnasio 2. La evidencia es la fila de `member_photos` y el
+// ledger de Aura leídos de la base ANTES y DESPUÉS del intento.
+
+describe("cola de fotos — GET /api/admin/members/profile-photos", () => {
+  const RUTA = "GET /api/admin/members/profile-photos";
+
+  it("aislamiento: la cola del gimnasio 2 no trae ninguna foto de El Templo", async () => {
+    mockPrivateMedia();
+    const foto = await seedMemberPhoto(app, templo.userId);
+    const res = await comoGimnasioDos("GET", "/profile-photos");
+    expect(
+      res.statusCode,
+      `${RUTA} no respondió 200 al staff del gimnasio 2. Respuesta: ${res.body}`,
+    ).toBe(200);
+    const body = JSON.parse(res.body) as {
+      items: { photoId: number }[];
+      counts: { pending: number; reported: number };
+    };
+    expect(
+      body.items.map((item) => item.photoId),
+      `${RUTA} le mostró al staff del gimnasio ${TENANT_DOS} la foto ${foto.id}, que es de El Templo (${TENANT_TEMPLO}).`,
+    ).not.toContain(foto.id);
+    expect(body.counts).toEqual({ pending: 0, reported: 0 });
+  });
+
+  it("control: la cola del gimnasio 2 trae la foto pendiente de su propio socio", async () => {
+    mockPrivateMedia();
+    const foto = await seedMemberPhoto(app, dos.userId, {
+      ctx: { tenantId: TENANT_DOS },
+    });
+    const res = await comoGimnasioDos("GET", "/profile-photos");
+    expect(
+      res.statusCode,
+      porQueImportaElControl(RUTA, foto.id) + ` Respuesta: ${res.body}`,
+    ).toBe(200);
+    const body = JSON.parse(res.body) as {
+      items: { photoId: number }[];
+      counts: { pending: number };
+    };
+    expect(
+      body.items.map((item) => item.photoId),
+      porQueImportaElControl(RUTA, foto.id),
+    ).toEqual([foto.id]);
+    expect(body.counts.pending).toBe(1);
+  });
+});
+
+describe("aprobar foto — POST /api/admin/members/:userId/profile-photo/approve", () => {
+  const RUTA = "POST /api/admin/members/:userId/profile-photo/approve";
+
+  it("aislamiento: aprobar la foto de un socio de El Templo se rechaza, y su fila y su ledger NO cambian", async () => {
+    mockPrivateMedia();
+    await seedMemberPhoto(app, templo.userId);
+    const antes = await photoRowsOf(app, templo.userId);
+    const res = await comoGimnasioDos(
+      "POST",
+      `/${templo.userId}/profile-photo/approve`,
+    );
+    expect(
+      res.statusCode,
+      porQueImportaLaFicha(RUTA, templo.userId) + ` Respuesta: ${res.body}`,
+    ).toBe(404);
+    expect(
+      await photoRowsOf(app, templo.userId),
+      `${RUTA} rechazó pero la foto del socio de El Templo SÍ cambió.`,
+    ).toEqual(antes);
+    expect(await profilePhotoAuraRows(app, templo.userId)).toHaveLength(0);
+  });
+
+  it("control: aprobar la foto del socio propio del gimnasio 2 pasa el filtro (NO 404)", async () => {
+    mockPrivateMedia();
+    const foto = await seedMemberPhoto(app, dos.userId, {
+      ctx: { tenantId: TENANT_DOS },
+    });
+    const res = await comoGimnasioDos(
+      "POST",
+      `/${dos.userId}/profile-photo/approve`,
+    );
+    expect(
+      res.statusCode,
+      porQueImportaElControl(RUTA, dos.userId) + ` Respuesta: ${res.body}`,
+    ).toBe(200);
+    const [fila] = await photoRowsOf(app, dos.userId, {
+      tenantId: TENANT_DOS,
+    });
+    expect(
+      [fila?.id, fila?.status],
+      `${RUTA} respondió 200 pero no aprobó la foto propia.`,
+    ).toEqual([foto.id, "aprobada"]);
+  });
+});
+
+describe("rechazar foto — POST /api/admin/members/:userId/profile-photo/reject", () => {
+  const RUTA = "POST /api/admin/members/:userId/profile-photo/reject";
+
+  it("aislamiento: rechazar la foto de un socio de El Templo se rechaza, y su fila NO cambia", async () => {
+    mockPrivateMedia();
+    await seedMemberPhoto(app, templo.userId);
+    const antes = await photoRowsOf(app, templo.userId);
+    const res = await comoGimnasioDos(
+      "POST",
+      `/${templo.userId}/profile-photo/reject`,
+      { reason: "otro" },
+    );
+    expect(
+      res.statusCode,
+      porQueImportaLaFicha(RUTA, templo.userId) + ` Respuesta: ${res.body}`,
+    ).toBe(404);
+    expect(
+      await photoRowsOf(app, templo.userId),
+      `${RUTA} rechazó pero la foto del socio de El Templo SÍ cambió.`,
+    ).toEqual(antes);
+  });
+
+  it("control: rechazar la foto del socio propio del gimnasio 2 pasa el filtro (NO 404)", async () => {
+    mockPrivateMedia();
+    await seedMemberPhoto(app, dos.userId, { ctx: { tenantId: TENANT_DOS } });
+    const res = await comoGimnasioDos(
+      "POST",
+      `/${dos.userId}/profile-photo/reject`,
+      { reason: "otro" },
+    );
+    expect(
+      res.statusCode,
+      porQueImportaElControl(RUTA, dos.userId) + ` Respuesta: ${res.body}`,
+    ).toBe(200);
+    const [fila] = await photoRowsOf(app, dos.userId, {
+      tenantId: TENANT_DOS,
+    });
+    expect(
+      [fila?.status, fila?.rejectionReason],
+      `${RUTA} respondió 200 pero no rechazó la foto propia.`,
+    ).toEqual(["rechazada", "otro"]);
+  });
+});
+
+describe("quitar foto — DELETE /api/admin/members/:userId/profile-photo", () => {
+  const RUTA = "DELETE /api/admin/members/:userId/profile-photo";
+
+  it("aislamiento: quitar la foto de un socio de El Templo se rechaza, y su fila NO cambia", async () => {
+    mockPrivateMedia();
+    await seedMemberPhoto(app, templo.userId, { status: "aprobada" });
+    const antes = await photoRowsOf(app, templo.userId);
+    const res = await comoGimnasioDos(
+      "DELETE",
+      `/${templo.userId}/profile-photo`,
+    );
+    expect(
+      res.statusCode,
+      porQueImportaLaFicha(RUTA, templo.userId) + ` Respuesta: ${res.body}`,
+    ).toBe(404);
+    expect(
+      await photoRowsOf(app, templo.userId),
+      `${RUTA} rechazó pero la foto del socio de El Templo SÍ cambió.`,
+    ).toEqual(antes);
+  });
+
+  it("control: quitar la foto del socio propio del gimnasio 2 pasa el filtro (NO 404)", async () => {
+    mockPrivateMedia();
+    await seedMemberPhoto(app, dos.userId, {
+      status: "aprobada",
+      ctx: { tenantId: TENANT_DOS },
+    });
+    const res = await comoGimnasioDos("DELETE", `/${dos.userId}/profile-photo`);
+    expect(
+      res.statusCode,
+      porQueImportaElControl(RUTA, dos.userId) + ` Respuesta: ${res.body}`,
+    ).toBe(204);
+    const [fila] = await photoRowsOf(app, dos.userId, {
+      tenantId: TENANT_DOS,
+    });
+    expect(
+      fila?.status,
+      `${RUTA} respondió 204 pero no quitó la foto propia.`,
+    ).toBe("quitada");
   });
 });
 
