@@ -77,3 +77,5 @@ Cada vez que un ejecutor se encuentre con una decisión de producto, se anota ac
 
 | 2026-11-17 | 214-06 | Texto de Aura en estiramiento, bloque libre y onboarding | Dejan de mostrar montos fijos ("+5", "+50") y muestran el monto que informa el servidor. Si el servidor no lo informa (versión vieja), no se muestra el bloque de Aura en vez de un número inventado |
 | 2026-11-17 | 214-06 | Resumen del bloque libre al "Seguir entrenando" | La línea "Sumaste N AURA" se mantiene tras seguir entrenando, con el monto acumulado de lo que efectivamente se acreditó en esa vuelta |
+| 2026-11-17 | 214-07 | Descuento por Aura al asignar un plan (admin) | El selector "Descuento AURA" ya no aparece en el diálogo de asignar plan. La API lo sigue aceptando y el código quedó comentado para poder restaurarlo |
+| 2026-11-17 | 214-07 | Asistente de programas: montos de Aura por defecto | Arranca proponiendo 8 de Aura por semana y 50 por programa completo (antes 15 y 100). El admin puede cambiarlos al crear el programa |
