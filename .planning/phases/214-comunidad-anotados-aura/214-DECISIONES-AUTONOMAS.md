@@ -84,3 +84,5 @@ Cada vez que un ejecutor se encuentre con una decisión de producto, se anota ac
 | 2026-11-17 | 214-09 | Retomar un plan a medida a mitad de entrenamiento | Al retomar, el tiempo de entrenamiento cuenta desde el inicio real (lo ya entrenado se suma) y no desde el momento de retomar, así el Aura por tiempo no se pierde por haber salido y vuelto |
 | 2026-11-17 | 214-13 | Foto de ficha nueva y espejo privado | Una foto de ficha recién subida tarda entre 15 y unos 30 minutos en aparecer en la comunidad, porque el sistema espera 15 minutos antes de copiarla a la tienda privada |
 | 2026-11-17 | 214-13 | Foto de ficha que no se puede copiar | Si la dirección de la foto no tiene la forma esperada, se marca como fallida y no se muestra. Sin tienda privada configurada no se copia ni se borra nada |
+| 2026-11-17 | 214-14 | Reportar la propia foto | Una persona puede reportar su propia foto de perfil sin que el sistema se lo impida |
+| 2026-11-17 | 214-14 | Confirmar una foto ya procesada | Si se intenta confirmar una subida que ya fue aprobada o rechazada, la app recibe un aviso de que esa foto ya fue procesada y no se vuelve a sumar nada |
