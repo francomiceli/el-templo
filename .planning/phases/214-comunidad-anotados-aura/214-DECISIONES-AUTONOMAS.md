@@ -110,3 +110,7 @@ Cada vez que un ejecutor se encuentre con una decisión de producto, se anota ac
 | 2026-11-17 | 214-22 | Aura: falla la primera carga | Si no se puede cargar el detalle de Aura, se ve solo el título "TU AURA" y el aviso de error con "Reintentar", sin el recuadro del total |
 | 2026-11-17 | 214-22 | Aura: módulo apagado | Si el módulo de Aura no está disponible (404), la hoja se cierra sola sin mostrar ningún mensaje |
 | 2026-11-17 | 214-22 | Aura: botón atrás de Android | El botón "atrás" de Android cierra la hoja del detalle de Aura (el spec no lo pedía) |
+| 2026-11-17 | 214-23 | Sello de 1 año o más | El sello de antigüedad pasa a roseta color crema con el logo en terracota, sin el polvillo dorado |
+| 2026-11-17 | 214-23 | Sello: animación | El sello respeta la preferencia del teléfono de reducir movimiento (antes no lo hacía) |
+| 2026-11-17 | 214-23 | Nombre en el encabezado | Si la persona no tiene nombre cargado, el encabezado dice "Atleta" |
+| 2026-11-17 | 214-23 | Foto que no carga | Si la foto no se puede mostrar, se vuelve a pedir el perfil una sola vez y después queda la inicial |
