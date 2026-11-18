@@ -54,6 +54,7 @@ import {
   RefreshTokenError,
 } from "./refresh-token-service";
 import { enabledModulesFor } from "../shared/module-flags";
+import { earnedAuraForUser } from "../aura/earned";
 import { recordRegisterAttribution } from "../marketing/attribution-service";
 import type { SignupAttributionBody } from "../marketing/attribution-service";
 import { RATE_LIMITS } from "../shared/rate-limits";
@@ -1122,6 +1123,19 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         await enabledModulesFor(ctx.tenantId, fastify.db),
       ).sort();
 
+      // Fase 214 (D-02, D-12): Aura ganada del propio usuario (por JWT, nunca
+      // de otro). Sin distinción por rol: D-15 revocada por Franco el
+      // 2026-11-17. null si el módulo está apagado o la lectura falla: la
+      // lectura del Aura nunca rompe /me.
+      let auraEarned: number | null = null;
+      if (enabledModules.includes("templo-gamification")) {
+        try {
+          auraEarned = await earnedAuraForUser(fastify.db, ctx, userId);
+        } catch (err: unknown) {
+          request.log.warn({ err, userId }, "No se pudo leer el Aura ganada");
+        }
+      }
+
       return {
         id: user.id,
         email: user.email,
@@ -1163,6 +1177,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         // analytics (los legacy cuentan por createdAt).
         memberSince: user.createdAt.toISOString(),
         enabledModules,
+        auraEarned,
       };
     },
   );
