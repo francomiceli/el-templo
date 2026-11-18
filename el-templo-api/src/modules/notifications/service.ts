@@ -23,6 +23,8 @@ import {
   type TenantContext,
 } from "../shared/tenant";
 import type { EmailService } from "../email/service";
+import { InboxService } from "./inbox-service";
+import { inboxDedupeKey } from "./inbox-rules";
 // Fase 193 (D-01/D-02/D-04): destino curado compartido — buildPushData
 // resuelve el payload FCM con fallback (route) + destino nuevo, nunca lanza.
 import {
@@ -106,6 +108,8 @@ export function buildPushData(input: {
 export class NotificationService {
   private messaging: FcmMessaging | null = null;
   private readonly dryRun: boolean;
+  /** Fase 215 (D-18): bandeja de avisos, copia de cada aviso personal. */
+  private readonly inbox: InboxService;
 
   constructor(
     private readonly db: DbInstance,
@@ -119,6 +123,7 @@ export class NotificationService {
     private readonly emailService?: EmailService,
   ) {
     this.dryRun = dryRun ?? process.env.DRY_RUN === "true";
+    this.inbox = new InboxService(db, log);
   }
 
   // ── Firebase Initialization ─────────────────────────────────────────────
@@ -429,6 +434,27 @@ export class NotificationService {
       return -1;
     }
 
+    // Resolve gender-specific copy (per D-12). Fase 215: se resuelve ANTES del
+    // chequeo de dispositivo porque quien no tiene push igual guarda el aviso
+    // en su bandeja (D-18) y necesita el texto ya armado.
+    const useFemale = await this.resolveUseFemale(userId, ctx);
+    const resolvedTitle =
+      titleOverride ??
+      (useFemale && template.titleFemale
+        ? template.titleFemale
+        : template.title);
+    const resolvedBody =
+      bodyOverride ??
+      (useFemale && template.bodyFemale ? template.bodyFemale : template.body);
+    const resolvedRoute = routeOverride ?? template.route ?? "/mi-templo";
+    const resolvedDestinationType = routeOverride
+      ? "app_section"
+      : template.destinationType;
+    const resolvedDestinationSection = routeOverride
+      ? null
+      : template.destinationSection;
+    const resolvedWhatsappText = routeOverride ? null : template.whatsappText;
+
     // Skip enqueueing for users without a device token. Without one, the
     // queue processor would only mark the row 'failed' with
     // "No device tokens registered" — pure noise that drowns real FCM errors.
@@ -443,19 +469,31 @@ export class NotificationService {
         { userId, templateKey },
         "User has no device tokens — skipping",
       );
+      // Fase 215 (D-18): sin push no hay fila en la cola, pero el aviso queda
+      // en la bandeja desde la hora programada. Un job que lo vuelve a pedir
+      // en cada tick (recordatorio de clase) deja UNA sola fila por la clave.
+      const shownAt = scheduledAt ?? new Date();
+      await this.inbox.recordDirect(ctx, {
+        userId,
+        kind: template.category,
+        dedupeKey: inboxDedupeKey({
+          source: "template",
+          templateKey,
+          bookingId,
+          shownAt,
+          title: resolvedTitle,
+          body: resolvedBody,
+        }),
+        title: resolvedTitle,
+        body: resolvedBody,
+        route: resolvedRoute,
+        destinationType: resolvedDestinationType,
+        destinationSection: resolvedDestinationSection,
+        whatsappText: resolvedWhatsappText,
+        shownAt,
+      });
       return -1;
     }
-
-    // Resolve gender-specific copy (per D-12)
-    const useFemale = await this.resolveUseFemale(userId, ctx);
-    const resolvedTitle =
-      titleOverride ??
-      (useFemale && template.titleFemale
-        ? template.titleFemale
-        : template.title);
-    const resolvedBody =
-      bodyOverride ??
-      (useFemale && template.bodyFemale ? template.bodyFemale : template.body);
 
     // Insert into pending_notifications (T-175-03: tenant_id estampado del
     // ctx derivado del destinatario, ver arriba)
@@ -469,17 +507,17 @@ export class NotificationService {
         bookingId: bookingId ?? null,
         title: resolvedTitle,
         body: resolvedBody,
-        route: routeOverride ?? template.route ?? "/mi-templo",
+        route: resolvedRoute,
         // Fase 193 (D-01/D-05): el destino curado del template viaja a la
         // fila encolada — sin esto, editar el destino de un template vía
         // PUT /admin/templates/:id no tendría ningún efecto en la push
         // real (routeOverride sigue ganando cuando un caller interno lo
         // pasa explícito, mismo criterio que ya regía para `route`).
-        destinationType: routeOverride
-          ? "app_section"
-          : template.destinationType,
-        destinationSection: routeOverride ? null : template.destinationSection,
-        whatsappText: routeOverride ? null : template.whatsappText,
+        destinationType: resolvedDestinationType,
+        destinationSection: resolvedDestinationSection,
+        whatsappText: resolvedWhatsappText,
+        // Fase 215 (D-18): tipo de aviso para la bandeja = categoría de la plantilla.
+        inboxKind: template.category,
         status: "pending",
         scheduledAt: scheduledAt ?? new Date(),
       }),
@@ -523,15 +561,6 @@ export class NotificationService {
       return -1;
     }
 
-    // Skip if user has no device token — see queueNotification for rationale.
-    if (!(await this.userHasDeviceToken(userId, ctx))) {
-      this.log.info(
-        { userId, category },
-        "User has no device tokens — skipping ad-hoc",
-      );
-      return -1;
-    }
-
     // Fase 193 (D-01/D-04): `destination` (ya validado por el caller con
     // `validateDestination`) gana sobre el `route` suelto — deriva el
     // fallback con `fallbackRouteFor` y persiste el destino curado. Callers
@@ -540,6 +569,39 @@ export class NotificationService {
     const resolvedRoute = destination
       ? fallbackRouteFor(destination)
       : (route ?? "/mi-templo");
+
+    // Skip if user has no device token — see queueNotification for rationale.
+    if (!(await this.userHasDeviceToken(userId, ctx))) {
+      this.log.info(
+        { userId, category },
+        "User has no device tokens — skipping ad-hoc",
+      );
+      // Fase 215 (D-18): sin push el aviso igual queda en la bandeja, desde
+      // la hora programada y una sola vez (clave anti-duplicado).
+      const shownAt = scheduledAt ?? new Date();
+      await this.inbox.recordDirect(ctx, {
+        userId,
+        kind: input.inboxKind ?? category,
+        refId: input.inboxRefId ?? null,
+        dedupeKey: inboxDedupeKey({
+          source: "adhoc",
+          category,
+          inboxKind: input.inboxKind,
+          inboxRefId: input.inboxRefId,
+          shownAt,
+          title,
+          body,
+        }),
+        title,
+        body,
+        route: resolvedRoute,
+        destinationType: destination?.type ?? "app_section",
+        destinationSection: destination?.section ?? null,
+        whatsappText: destination?.whatsappText ?? null,
+        shownAt,
+      });
+      return -1;
+    }
 
     const result = await this.db.insert(schema.pendingNotifications).values(
       tenantValues(ctx, {
@@ -551,6 +613,9 @@ export class NotificationService {
         destinationType: destination?.type ?? "app_section",
         destinationSection: destination?.section ?? null,
         whatsappText: destination?.whatsappText ?? null,
+        // Fase 215 (D-18): tipo de aviso y referencia para la bandeja.
+        inboxKind: input.inboxKind ?? category,
+        inboxRefId: input.inboxRefId ?? null,
         status: "pending",
         scheduledAt: scheduledAt ?? new Date(),
       }),
@@ -714,7 +779,36 @@ export class NotificationService {
       "Processing notification queue",
     );
 
+    // Fase 215 (D-18): categoría de las plantillas del lote, solo para filas
+    // viejas sin `inboxKind` (encoladas antes de esta fase). Una sola consulta.
+    const templateCategories = await this.loadTemplateCategories(
+      notifications
+        .filter((n) => !n.inboxKind && n.templateId != null)
+        .map((n) => n.templateId as number),
+    );
+
     for (const notification of notifications) {
+      // Fase 215 (D-18): el aviso se guarda en la bandeja ANTES de mirar si
+      // hay dispositivo. Idempotente (UNIQUE por fila de la cola) y nunca
+      // lanza: un error de la bandeja no frena la push.
+      await this.inbox.recordFromQueue({
+        id: notification.id,
+        tenantId: notification.tenantId,
+        userId: notification.userId,
+        title: notification.title,
+        body: notification.body,
+        route: notification.route,
+        destinationType: notification.destinationType,
+        destinationSection: notification.destinationSection,
+        whatsappText: notification.whatsappText,
+        inboxKind: notification.inboxKind,
+        templateCategory:
+          notification.templateId != null
+            ? (templateCategories.get(notification.templateId) ?? null)
+            : null,
+        inboxRefId: notification.inboxRefId,
+      });
+
       /* tenant-safe: barrido cron genuinamente cross-tenant, userId de la fila ya tenant-correcta de arriba — ver docblock de processQueue (T-175-03) */
       const tokens = await this.db
         .select({ token: schema.deviceTokens.token })
@@ -817,6 +911,42 @@ export class NotificationService {
 
     this.log.info({ sent, failed }, "Notification queue processed");
     return { sent, failed };
+  }
+
+  /**
+   * Fase 215 (D-18): categoría de cada plantilla por id, para el barrido de la
+   * cola. Devuelve un Map vacío si no hay ids. No lanza: si la consulta falla
+   * el aviso queda con tipo `otro` en vez de frenar el barrido.
+   */
+  private async loadTemplateCategories(
+    templateIds: number[],
+  ): Promise<Map<number, string>> {
+    const unique = [...new Set(templateIds)];
+    const categories = new Map<number, string>();
+    if (unique.length === 0) return categories;
+
+    try {
+      /* tenant-safe: barrido cron cross-tenant — los ids salen de filas de la cola ya tenant-correctas (anchor derivado), solo se lee la categoría, ver docblock de processQueue (T-175-03) */
+      const rows = await this.db
+        .select({
+          id: schema.notificationTemplates.id,
+          category: schema.notificationTemplates.category,
+        })
+        .from(schema.notificationTemplates)
+        .where(
+          and(
+            sql`/* tenant-safe: barrido cron cross-tenant — los ids salen de filas de la cola ya tenant-correctas (anchor derivado), solo se lee la categoría, ver docblock de processQueue (T-175-03) */ 1 = 1`,
+            inArray(schema.notificationTemplates.id, unique),
+          ),
+        );
+      for (const row of rows) categories.set(row.id, row.category);
+    } catch (err: unknown) {
+      this.log.warn(
+        { err },
+        "No se pudieron leer las categorías de plantilla para la bandeja",
+      );
+    }
+    return categories;
   }
 
   // ── FCM Delivery ────────────────────────────────────────────────────────
@@ -929,6 +1059,10 @@ export class NotificationService {
    * el app la llama fire-and-forget) sin tocar el contador del template.
    */
   async recordOpened(notificationId: number, userId: number): Promise<void> {
+    // Fase 215 (D-17): abrir la push marca leído su aviso en la bandeja, haya
+    // o no plantilla. Exige que sea del usuario del token y nunca lanza.
+    await this.inbox.markReadByPending(notificationId, userId);
+
     /* tenant-safe: notificationId es la PK de la fila y se exige que sea del usuario autenticado (userId) — pre-scope, no hay ctx en esta ruta (T-175-03) */
     const [notification] = await this.db
       .select({ templateId: schema.pendingNotifications.templateId })
@@ -995,6 +1129,15 @@ export class NotificationService {
     }
 
     return deletedCount;
+  }
+
+  /**
+   * Fase 215 (D-17): purga los avisos de la bandeja de más de 90 días. Vive acá
+   * para que el cron de notificaciones la llame en el mismo paso que
+   * `purgeOldNotifications`, sin job nuevo.
+   */
+  async purgeOldInbox(): Promise<number> {
+    return this.inbox.purgeOld();
   }
 
   /**

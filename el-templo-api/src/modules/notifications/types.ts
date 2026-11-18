@@ -72,6 +72,17 @@ export interface QueueAdHocInput {
    */
   destination?: Destination;
   scheduledAt?: Date;
+  /**
+   * Fase 215 (D-17/D-18): tipo de aviso para la bandeja (ej. `aura_gift`).
+   * Sin él, el tipo es la categoría del aviso.
+   */
+  inboxKind?: string;
+  /**
+   * Fase 215: id de lo que originó el aviso (ej. el regalo de Aura). Con
+   * `inboxRefId` la clave anti-duplicado de la bandeja es por referencia, no
+   * por texto.
+   */
+  inboxRefId?: number;
 }
 
 // ── Segment Transition Types ────────────────────────────────────────────────
