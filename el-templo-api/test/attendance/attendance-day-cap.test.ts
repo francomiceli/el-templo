@@ -19,6 +19,7 @@ import {
 import { auraTransactions } from "../../src/db/schema/aura-transactions";
 import { auraBalances } from "../../src/db/schema/aura-balances";
 import { attendance } from "../../src/db/schema/attendance";
+import { completedSessions } from "../../src/db/schema/completed-sessions";
 import { users } from "../../src/db/schema/users";
 import { branches } from "../../src/db/schema/branches";
 import { bookings } from "../../src/db/schema/bookings";
@@ -44,9 +45,10 @@ import { AURA_AMOUNTS } from "../../src/modules/aura/amounts";
  * Mismo reloj fijo que `attendance.test.ts`: miércoles 10:00 hora de la sede.
  * El día de los casos se deriva de ese reloj, no se escribe a mano.
  *
- * El check-in forzado guarda la fecha UTC en la fila, pero el tope del día usa
- * el día LOCAL de la sede (ME-01 de la revisión): con el reloj fijado a las
- * 13:00 UTC (10:00 AR) coinciden, y el caso nocturno de abajo cubre cuando no.
+ * El check-in forzado guarda el día LOCAL de la sede (fase 215, #16; antes
+ * guardaba el de UTC) y el tope del día usa ese mismo día: con el reloj fijado
+ * a las 13:00 UTC (10:00 AR) coinciden siempre, y los casos nocturnos de abajo
+ * cubren cuando el día UTC ya es el siguiente.
  */
 const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 const PINNED_NOW = "2026-03-11T13:00:00Z";
@@ -477,6 +479,88 @@ describe("Attendance day cap (D-64)", () => {
 
       expect(await attendanceAward(memberId, attendanceId)).toBe(2);
       await expectBalanceMatchesLedger(memberId);
+    } finally {
+      vi.setSystemTime(new Date(PINNED_NOW));
+    }
+  });
+
+  it("#16: check-in forzado a las 23:30 hora argentina guarda la fecha local de ese día, no la de UTC", async () => {
+    const { memberId } = await setupMember();
+    await seedAppAura(memberId, "training");
+    // 23:30 AR del 11/03 = 02:30 UTC del 12/03.
+    vi.setSystemTime(new Date("2026-03-12T02:30:00Z"));
+    try {
+      const attendanceId = await forceCheckIn(memberId);
+
+      const [row] = await app.db
+        .select({ sessionDate: attendance.sessionDate })
+        .from(attendance)
+        .where(
+          and(
+            tenantWhere(attendance, TEMPLO_CTX),
+            eq(attendance.id, attendanceId),
+          ),
+        );
+      expect(row.sessionDate).toBe(TODAY);
+      // El tope del día lo cruza con el Aura de la app de ese mismo día local.
+      expect(await attendanceAward(memberId, attendanceId)).toBe(2);
+      await expectBalanceMatchesLedger(memberId);
+      // El espejo de sesión presencial lleva el mismo día local.
+      const espejo = await app.db
+        .select({ date: completedSessions.date })
+        .from(completedSessions)
+        .where(
+          and(
+            tenantWhere(completedSessions, TEMPLO_CTX),
+            eq(completedSessions.userId, memberId),
+            eq(completedSessions.goalPlanType, "presencial"),
+          ),
+        );
+      expect(espejo.map((r) => r.date)).toEqual([TODAY]);
+    } finally {
+      vi.setSystemTime(new Date(PINNED_NOW));
+    }
+  });
+
+  it("#16: deshacer de noche un check-in forzado borra el espejo presencial del día local", async () => {
+    const { memberId } = await setupMember();
+    vi.setSystemTime(new Date("2026-03-12T02:30:00Z"));
+    try {
+      const attendanceId = await forceCheckIn(memberId);
+      await undo(attendanceId);
+
+      const espejo = await app.db
+        .select({ id: completedSessions.id })
+        .from(completedSessions)
+        .where(
+          and(
+            tenantWhere(completedSessions, TEMPLO_CTX),
+            eq(completedSessions.userId, memberId),
+            eq(completedSessions.goalPlanType, "presencial"),
+          ),
+        );
+      expect(espejo).toHaveLength(0);
+    } finally {
+      vi.setSystemTime(new Date(PINNED_NOW));
+    }
+  });
+
+  it("#16: pasada la medianoche local el forzado cae en el día nuevo", async () => {
+    const { memberId } = await setupMember();
+    // 00:30 AR del 12/03 = 03:30 UTC del 12/03: los dos días coinciden.
+    vi.setSystemTime(new Date("2026-03-12T03:30:00Z"));
+    try {
+      const attendanceId = await forceCheckIn(memberId);
+      const [row] = await app.db
+        .select({ sessionDate: attendance.sessionDate })
+        .from(attendance)
+        .where(
+          and(
+            tenantWhere(attendance, TEMPLO_CTX),
+            eq(attendance.id, attendanceId),
+          ),
+        );
+      expect(row.sessionDate).toBe("2026-03-12");
     } finally {
       vi.setSystemTime(new Date(PINNED_NOW));
     }

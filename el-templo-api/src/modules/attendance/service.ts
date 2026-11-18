@@ -554,8 +554,11 @@ export class AttendanceService {
     // gimnasio (`canAccessBranch` → `resolveBranchDelGimnasio`).
     await this.assertMemberDelGimnasio(ctx, memberId);
 
-    // Insert attendance record
-    const todayStr = new Date().toISOString().split("T")[0];
+    // Insert attendance record. Fase 215 (#16): la fecha es el día LOCAL de la
+    // sede, no el de UTC: de 21:00 a 24:00 hora argentina el día UTC ya es el
+    // siguiente y la asistencia quedaba con la fecha de mañana (el tope del día
+    // de Aura, la reserva y el espejo de `completed_sessions` usan el día local).
+    const todayStr = await localDateForBranch(this.db, ctx, branchId);
     const result = await this.db.insert(schema.attendance).values(
       tenantValues(ctx, {
         memberId,
@@ -571,13 +574,11 @@ export class AttendanceService {
 
     // Award AURA immediately on force check-in
     // D-64: el tope del día se calcula con el día LOCAL de la sede, el mismo que
-    // usa la app para su Aura. La fila de asistencia sigue guardando la fecha UTC
-    // (`todayStr`); entre las 21:00 y las 24:00 hora local las dos difieren.
-    const auraLocalDay = await localDateForBranch(this.db, ctx, branchId);
+    // usa la app para su Aura y, desde la fase 215 (#16), el que guarda la fila.
     const auraAmount = await attendanceAuraAmountFor(this.db, ctx, {
       userId: memberId,
       attendanceId: recordId,
-      sessionDate: auraLocalDay,
+      sessionDate: todayStr,
     });
     if (auraAmount > 0) {
       await this.auraService.award({
@@ -1387,12 +1388,11 @@ export class AttendanceService {
       }
     }
 
-    // Compute the local date the check-in was filed under so we can
-    // revert booking + drop the mirror completed_sessions row consistently.
-    const dateStr =
-      attRecord.checkedInAt instanceof Date
-        ? attRecord.checkedInAt.toISOString().split("T")[0]
-        : String(attRecord.checkedInAt).split("T")[0];
+    // The date the check-in was filed under (the sede's local day, which is what
+    // `sessionDate` holds and what the booking and the mirror completed_sessions
+    // row use) so booking + mirror are reverted consistently. Not the UTC day of
+    // `checkedInAt`: at night they differ (fase 215, #16).
+    const dateStr = String(attRecord.sessionDate).split("T")[0];
 
     // Revert booking status if applicable
     if (attRecord.scheduleId) {
