@@ -632,7 +632,7 @@ function confirmRemoveCheckIn(member: SlotAttendanceItem) {
 
   $q.dialog({
     title: 'Eliminar asistencia',
-    message: `Eliminar asistencia de ${member.memberName}? Se revertira el AURA y las clases.`,
+    message: `Eliminar asistencia de ${member.memberName}? Se revertirá el AURA y las clases, y se anulan los regalos de Aura de esa clase.`,
     cancel: { label: 'Cancelar', flat: true },
     ok: { label: 'Eliminar', color: 'negative' },
   }).onOk(async () => {
