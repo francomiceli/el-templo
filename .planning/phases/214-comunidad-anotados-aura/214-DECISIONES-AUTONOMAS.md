@@ -131,3 +131,7 @@ Cada vez que un ejecutor se encuentre con una decisión de producto, se anota ac
 | 2026-11-17 | 214-27 | Sección Comunidad en Perfil con una API vieja | La sección y cada opción solo se muestran si el servidor las informa, para no ofrecer algo que no se puede leer ni guardar |
 | 2026-11-17 | 214-27 | Interruptor de Comunidad mientras se guarda | Los toques se ignoran hasta que termina el guardado; si falla, el interruptor vuelve a su valor anterior |
 | 2026-11-17 | 214-27 | Llegar a Perfil desde un aviso a `#comunidad` | Se baja hasta la sección y se resalta con un contorno fijo de 2 segundos, sin animación; con movimiento reducido el desplazamiento es directo |
+| 2026-11-17 | 214-28 | Celebración de asistencia con monto pero sin total de AURA | Se muestra el monto sin la pastilla del total, y el anuncio para lectores de pantalla omite el total |
+| 2026-11-17 | 214-28 | Hora o zona inválida en la celebración | Si la zona de la sede no es válida se usa la zona por defecto; si la fecha no es válida se muestra solo el nombre de la sede |
+| 2026-11-17 | 214-28 | Cerrar la celebración | Se puede cerrar con Escape, y un doble cierre no vuelve atrás dos veces |
+| 2026-11-17 | 214-28 | Halo de la celebración | Respira con una sola animación suave de 6 segundos, sin saltos entre ciclos |
