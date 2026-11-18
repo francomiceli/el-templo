@@ -39,6 +39,10 @@ type DbInstance = MySql2Database<typeof schema>;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/** Filas por sentencia de la purga y tope de lotes por corrida (LO-04). */
+const INBOX_PURGE_BATCH = 1000;
+const INBOX_PURGE_MAX_BATCHES = 50;
+
 /** Fila de la cola de la que sale el aviso (campos que la bandeja copia). */
 export interface InboxQueueRow {
   id: number;
@@ -228,17 +232,25 @@ export class InboxService {
   async purgeOld(now: Date = new Date()): Promise<number> {
     const cutoff = new Date(now.getTime() - INBOX_RETENTION_DAYS * DAY_MS);
 
-    /* tenant-safe: barrido cron genuinamente cross-tenant — purga la bandeja de TODOS los gimnasios por fecha, igual que purgeOldNotifications (T-175-03) */
-    const result = await this.db
-      .delete(schema.memberNotifications)
-      .where(
-        and(
-          sql`/* tenant-safe: barrido cron genuinamente cross-tenant — purga la bandeja de TODOS los gimnasios por fecha, igual que purgeOldNotifications (T-175-03) */ 1 = 1`,
-          lt(schema.memberNotifications.shownAt, cutoff),
-        ),
-      );
+    // LO-04: de a lotes, para que el primer barrido tras un atraso no borre
+    // todo en una sola sentencia. Si quedan más, el próximo tick sigue.
+    let deletedCount = 0;
+    for (let batch = 0; batch < INBOX_PURGE_MAX_BATCHES; batch += 1) {
+      /* tenant-safe: barrido cron genuinamente cross-tenant — purga la bandeja de TODOS los gimnasios por fecha, igual que purgeOldNotifications (T-175-03) */
+      const result = await this.db
+        .delete(schema.memberNotifications)
+        .where(
+          and(
+            sql`/* tenant-safe: barrido cron genuinamente cross-tenant — purga la bandeja de TODOS los gimnasios por fecha, igual que purgeOldNotifications (T-175-03) */ 1 = 1`,
+            lt(schema.memberNotifications.shownAt, cutoff),
+          ),
+        )
+        .limit(INBOX_PURGE_BATCH);
+      const deleted = result[0].affectedRows ?? 0;
+      deletedCount += deleted;
+      if (deleted < INBOX_PURGE_BATCH) break;
+    }
 
-    const deletedCount = result[0].affectedRows ?? 0;
     if (deletedCount > 0) {
       this.log.info({ deletedCount }, "Purgados avisos viejos de la bandeja");
     }

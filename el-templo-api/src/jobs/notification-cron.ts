@@ -692,18 +692,6 @@ async function runNotificationQueueTickForTenant(
     log.info({ tenantId, purged }, "Old notifications purged");
   }
 
-  // Fase 215 (D-17): la bandeja de avisos conserva 90 días. Mismo paso que la
-  // purga de la cola; la purga no lanza (si falla, solo se loguea).
-  try {
-    const purgedInbox = await notificationService.purgeOldInbox();
-    if (purgedInbox > 0) {
-      log.info({ tenantId, purgedInbox }, "Old inbox notifications purged");
-    }
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    log.error({ tenantId, err: message }, "Inbox purge step failed");
-  }
-
   return { sent: result.sent, failed: result.failed, purged };
 }
 
@@ -725,6 +713,19 @@ export async function runNotificationQueueTick(
     failed += r.failed;
     purged += r.purged;
   });
+
+  // Fase 215 (D-17, LO-04): la bandeja de avisos conserva 90 días. La purga es
+  // cross-tenant, así que corre UNA vez por tick y no por gimnasio. No lanza:
+  // si falla, solo se loguea.
+  try {
+    const purgedInbox = await new NotificationService(db, log).purgeOldInbox();
+    if (purgedInbox > 0) {
+      log.info({ purgedInbox }, "Old inbox notifications purged");
+    }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    log.error({ err: message }, "Inbox purge step failed");
+  }
 
   return { sent, failed, purged };
 }
