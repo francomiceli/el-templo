@@ -214,8 +214,16 @@ export const createActivitySchema = {
       specialLine: { type: ["string", "null"], maxLength: 50 },
       // Cortes por actividad (0326), minutos antes del inicio. `null` = default
       // global (5 reservar / 20 cancelar). Tope: un día.
-      bookingCloseMinutes: { type: ["integer", "null"], minimum: 0, maximum: 1440 },
-      cancelCloseMinutes: { type: ["integer", "null"], minimum: 0, maximum: 1440 },
+      bookingCloseMinutes: {
+        type: ["integer", "null"],
+        minimum: 0,
+        maximum: 1440,
+      },
+      cancelCloseMinutes: {
+        type: ["integer", "null"],
+        minimum: 0,
+        maximum: 1440,
+      },
     },
   },
   response: {
@@ -259,8 +267,16 @@ export const updateActivitySchema = {
       specialLine: { type: ["string", "null"], maxLength: 50 },
       // Cortes por actividad (0326), minutos antes del inicio. `null` = default
       // global (5 reservar / 20 cancelar). Tope: un día.
-      bookingCloseMinutes: { type: ["integer", "null"], minimum: 0, maximum: 1440 },
-      cancelCloseMinutes: { type: ["integer", "null"], minimum: 0, maximum: 1440 },
+      bookingCloseMinutes: {
+        type: ["integer", "null"],
+        minimum: 0,
+        maximum: 1440,
+      },
+      cancelCloseMinutes: {
+        type: ["integer", "null"],
+        minimum: 0,
+        maximum: 1440,
+      },
     },
   },
   response: {
@@ -1024,6 +1040,38 @@ export const reserveTrialSchema = {
     409: errorSchema,
   },
 } as const;
+
+/**
+ * Fase 214 (D-05, D-06): preferencia de visibilidad del alumno en la lista de
+ * anotados. El body trae solo el booleano: el id sale del JWT, nunca del body.
+ */
+export const communityVisibilitySchema = {
+  body: {
+    type: "object",
+    required: ["visible"],
+    additionalProperties: false,
+    properties: {
+      visible: { type: "boolean" },
+    },
+  },
+  response: {
+    200: {
+      type: "object",
+      required: ["visible", "noticeSeen"],
+      properties: {
+        visible: { type: "boolean" },
+        noticeSeen: { type: "boolean" },
+      },
+    },
+  },
+};
+
+/** Fase 214 (D-06): el alumno vio el aviso de visibilidad. Sin body. */
+export const communityNoticeSeenSchema = {
+  response: {
+    204: { type: "null" },
+  },
+};
 
 /**
  * Phase 119 (D-20): trialEligibilitySchema

@@ -83,6 +83,8 @@ import {
   reserveTrialSchema,
   cancelTrialSchema,
   trialEligibilitySchema,
+  communityVisibilitySchema,
+  communityNoticeSeenSchema,
   classLabelDescriptionsSchema,
   updateClassLabelDescriptionSchema,
   partnerBenefitSchema,
@@ -90,6 +92,10 @@ import {
   reserveEspecialTrialSchema,
 } from "./schemas";
 import type { DayOfWeek, AffectedScheduleRef } from "./types";
+import {
+  markCommunityNoticeSeen,
+  setCommunityVisibility,
+} from "./community-service";
 
 import { ALL_STAFF_ROLES } from "../shared/permissions";
 import {
@@ -1413,6 +1419,59 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
         return result;
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "member trial eligibility");
+      }
+    },
+  );
+
+  // PUT /attendees/visibility — fase 214 (D-05, D-06): el alumno elige si
+  // aparece en la lista de anotados. El id sale del JWT, nunca del body.
+  fastify.put<{ Body: { visible: boolean } }>(
+    "/attendees/visibility",
+    { schema: communityVisibilitySchema },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(
+          request.scope,
+          "scheduling.community.visibility",
+        );
+        const state = await setCommunityVisibility(
+          fastify.db,
+          ctx,
+          request.user.userId,
+          request.body.visible,
+        );
+        return { visible: state.visible, noticeSeen: state.noticeSeen };
+      } catch (err: unknown) {
+        handleServiceError(
+          err,
+          reply,
+          request.log,
+          "member community visibility",
+        );
+      }
+    },
+  );
+
+  // POST /attendees/notice-seen — fase 214 (D-06): marca que el alumno vio el
+  // aviso de visibilidad. Idempotente: la primera marca no se pisa.
+  fastify.post(
+    "/attendees/notice-seen",
+    { schema: communityNoticeSeenSchema },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(
+          request.scope,
+          "scheduling.community.noticeSeen",
+        );
+        await markCommunityNoticeSeen(fastify.db, ctx, request.user.userId);
+        return reply.code(204).send();
+      } catch (err: unknown) {
+        handleServiceError(
+          err,
+          reply,
+          request.log,
+          "member community notice seen",
+        );
       }
     },
   );

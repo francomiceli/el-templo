@@ -1293,6 +1293,14 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     categoria: "tenant-scoped",
   },
   "POST /api/members/scheduling/reserve-trial": { categoria: "tenant-scoped" },
+  // Fase 214 (D-05, D-06): preferencia de visibilidad en la lista de anotados y
+  // aviso visto. Upsert en member_profiles (strict), `userId` del JWT.
+  "PUT /api/members/scheduling/attendees/visibility": {
+    categoria: "tenant-scoped",
+  },
+  "POST /api/members/scheduling/attendees/notice-seen": {
+    categoria: "tenant-scoped",
+  },
 
   // ── /api/members/sponsors (fase 199, patrocinadores) ─────────────────────
   // Feed del socio y eventos (escriben `sponsor_views`, gym-owned). El

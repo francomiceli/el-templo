@@ -476,7 +476,10 @@ import {
 // 2026-11-18 fase 214 (plan 15): 581 -> 585 por las 4 rutas del staff para la
 // foto de perfil (cola GET, approve, reject y DELETE por `/:userId`),
 // `tenant-scoped` (`assertTenant` + `tenantWhere` en el service).
-const ENTRADAS_BASELINE = 585;
+// 2026-11-18 fase 214 (plan 16): 585 -> 587 por las 2 rutas de visibilidad del
+// alumno en la lista de anotados (PUT visibility y POST notice-seen),
+// `tenant-scoped` (`assertTenant` + `tenantValues`/`tenantWhere` en el service).
+const ENTRADAS_BASELINE = 587;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -619,7 +622,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 585 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 587 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(

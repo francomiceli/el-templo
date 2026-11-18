@@ -28,7 +28,8 @@ import {
 } from "./password-reset-service";
 import { EmailService } from "../email";
 import { appBranchName } from "../shared/app-branch-name";
-import { DEFAULT_TENANT_TIMEZONE } from "../shared/date-utils";
+import { DEFAULT_TENANT_TIMEZONE, todayInTz } from "../shared/date-utils";
+import { effectiveVisible } from "../scheduling/community-visibility";
 import { SegmentationService } from "../segmentation/service";
 import { SubscriptionService } from "../subscriptions/service";
 import {
@@ -1102,6 +1103,8 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           introStoriesSeenAt: memberProfiles.introStoriesSeenAt,
           introStoriesCompletedAt: memberProfiles.introStoriesCompletedAt,
           introStoriesLastSlide: memberProfiles.introStoriesLastSlide,
+          communityVisible: memberProfiles.communityVisible,
+          communityNoticeSeenAt: memberProfiles.communityNoticeSeenAt,
         })
         .from(memberProfiles)
         .where(
@@ -1119,6 +1122,19 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         profileRows[0]?.introStoriesCompletedAt?.toISOString() ?? null;
       const introStoriesLastSlide =
         profileRows[0]?.introStoriesLastSlide ?? null;
+
+      // Fase 214 (D-05, D-06, D-47): visibilidad efectiva en la lista de
+      // anotados (preferencia guardada o regla por defecto a la fecha local de
+      // la sede) y si ya vio el aviso. Sale de la lectura de arriba, sin
+      // consulta extra.
+      const communityVisible = effectiveVisible({
+        preference: profileRows[0]?.communityVisible ?? null,
+        dateOfBirth: user.dateOfBirth,
+        branchCountry,
+        todayLocal: todayInTz(branchTimezone),
+      });
+      const communityNoticeSeen =
+        (profileRows[0]?.communityNoticeSeenAt ?? null) !== null;
 
       // Fase 176 (D-08, MOD-01/MOD-02): campo aditivo, ordenado
       // alfabéticamente para que la respuesta sea determinística (el `Set`
@@ -1187,6 +1203,9 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         introStoriesSeenAt,
         introStoriesCompletedAt,
         introStoriesLastSlide,
+        // Fase 214 (D-05, D-06): visibilidad efectiva y aviso visto.
+        communityVisible,
+        communityNoticeSeen,
         // Phase 115 (R1, D-15): bar challenge attempt fields. Always present
         // in the response — null for users who haven't participated.
         barChallengeCompleted: user.barChallengeCompleted,
