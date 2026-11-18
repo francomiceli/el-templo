@@ -257,7 +257,7 @@ export async function seedAttendance(
 ): Promise<number> {
   const [result] = await app.dbPool.query(
     `INSERT INTO attendance
-       (tenant_id, member_id, branch_id, schedule_id, session_date, checked_in_at, status, source)
+       (tenant_id, member_id, branch_id, schedule_id, session_date, checked_in_at, attendance_status, attendance_source)
      VALUES (?, ?, ?, ?, ?, ?, 'confirmado', ?)`,
     [
       TENANT_TEMPLO,
