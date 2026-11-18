@@ -91,7 +91,7 @@ describe('groupByDay', () => {
     expect(sections[0]?.label).toBe('Ayer')
   })
 
-  it('un aviso con otra misma fecha no se mezcla si hay un día intermedio (agrupa solo contiguos)', () => {
+  it('solo agrupa días contiguos: no junta el mismo día separado por otro', () => {
     const a = item({ id: 1, createdAt: '2026-11-18T14:00:00.000Z' })
     const b = item({ id: 2, createdAt: '2026-11-17T14:00:00.000Z' })
     const c = item({ id: 3, createdAt: '2026-11-18T13:00:00.000Z' })
