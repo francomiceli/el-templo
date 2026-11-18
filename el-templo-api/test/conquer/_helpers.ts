@@ -1249,6 +1249,8 @@ export function mockPrivateMedia(overrides: Partial<PrivateMediaStore> = {}) {
     presignGet: async (key) => `https://r2.test/get/${key}`,
     head: async () => ({ contentLength: 1024, contentType: "image/jpeg" }),
     remove: async () => undefined,
+    copyFromPublic: async () => true,
+    removePublic: async () => undefined,
     ...overrides,
   };
   return vi.spyOn(privateMediaResolver, "resolve").mockReturnValue(fakeStore);

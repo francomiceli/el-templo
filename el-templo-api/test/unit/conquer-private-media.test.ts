@@ -8,7 +8,7 @@
  *
  * Sin DB, sin servidor: corre con `vitest.config.unit.ts`.
  */
-import { DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { CopyObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import type { FastifyInstance } from "fastify";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -612,5 +612,83 @@ describe("stableHourlySigningDate", () => {
         new Date("2026-11-17T11:00:00.000Z"),
       ).toISOString(),
     ).toBe("2026-11-17T11:00:00.000Z");
+  });
+});
+
+describe("copia y borrado de la foto de ficha (fase 214, D-43 y D-63)", () => {
+  /** Cliente R2 simulado: guarda los comandos y puede fallar con un error dado. */
+  function fakeR2(failWith?: Error) {
+    const send = vi.fn(async (_command: unknown) => {
+      if (failWith) throw failWith;
+      return {};
+    });
+    const fastify = {
+      r2: { send },
+      r2Bucket: "bucket-publico",
+    } as unknown as FastifyInstance;
+    return { send, fastify };
+  }
+
+  beforeEach(() => {
+    vi.stubEnv("R2_PRIVATE_BUCKET_NAME", "bucket-privado");
+  });
+
+  it("copyFromPublic manda un CopyObjectCommand al bucket privado con el origen publico", async () => {
+    const { send, fastify } = fakeR2();
+    const store = privateMediaResolver.resolve(fastify);
+    const ok = await store.copyFromPublic(
+      "members/photos/42-1700000000000.jpg",
+      "private/avatars/1/seg/ficha-0123456789abcdef.jpg",
+    );
+    expect(ok).toBe(true);
+    expect(send).toHaveBeenCalledTimes(1);
+    const command = send.mock.calls[0]?.[0];
+    expect(command).toBeInstanceOf(CopyObjectCommand);
+    if (command instanceof CopyObjectCommand) {
+      expect(command.input.Bucket).toBe("bucket-privado");
+      expect(command.input.Key).toBe(
+        "private/avatars/1/seg/ficha-0123456789abcdef.jpg",
+      );
+      expect(command.input.CopySource).toBe(
+        "bucket-publico/members/photos/42-1700000000000.jpg",
+      );
+    }
+  });
+
+  it("copyFromPublic devuelve false si el origen no existe y propaga otros errores", async () => {
+    const missing = new Error("nada");
+    missing.name = "NoSuchKey";
+    const store = privateMediaResolver.resolve(fakeR2(missing).fastify);
+    await expect(
+      store.copyFromPublic("members/photos/1-1.jpg", "k"),
+    ).resolves.toBe(false);
+    const boom = new Error("boom");
+    boom.name = "InternalError";
+    const store2 = privateMediaResolver.resolve(fakeR2(boom).fastify);
+    await expect(
+      store2.copyFromPublic("members/photos/1-1.jpg", "k"),
+    ).rejects.toBe(boom);
+  });
+
+  it("removePublic manda un DeleteObjectCommand al bucket publico", async () => {
+    const { send, fastify } = fakeR2();
+    const store = privateMediaResolver.resolve(fastify);
+    await store.removePublic("members/photos/42-1700000000000.jpg");
+    expect(send).toHaveBeenCalledTimes(1);
+    const command = send.mock.calls[0]?.[0];
+    expect(command).toBeInstanceOf(DeleteObjectCommand);
+    if (command instanceof DeleteObjectCommand) {
+      expect(command.input.Bucket).toBe("bucket-publico");
+      expect(command.input.Key).toBe("members/photos/42-1700000000000.jpg");
+    }
+  });
+
+  it("removePublic tolera un objeto que ya no existe", async () => {
+    const missing = new Error("nada");
+    missing.name = "NoSuchKey";
+    const store = privateMediaResolver.resolve(fakeR2(missing).fastify);
+    await expect(
+      store.removePublic("members/photos/42-1700000000000.jpg"),
+    ).resolves.toBeUndefined();
   });
 });

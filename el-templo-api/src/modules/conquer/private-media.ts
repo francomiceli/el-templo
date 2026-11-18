@@ -21,6 +21,7 @@
 // loguea nada; quien lo llama loguea a lo sumo `{ checkId, pose }`.
 import { createHash, createHmac, randomUUID } from "node:crypto";
 import {
+  CopyObjectCommand,
   DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
@@ -116,6 +117,20 @@ export interface PrivateMediaStore {
   head(key: string): Promise<PrivateMediaHead | null>;
   /** Fase 202 DA-45: borra el objeto. Un "no existe" no es error. */
   remove(key: string): Promise<void>;
+  /**
+   * Fase 214 D-43/D-63, SOLO para la foto de ficha: copia un objeto del bucket
+   * PÚBLICO al privado. Devuelve false si el origen no existe; cualquier otro
+   * error se propaga. `publicKey` llega siempre validado por
+   * `publicKeyFromFichaUrl`.
+   */
+  copyFromPublic(publicKey: string, privateKey: string): Promise<boolean>;
+  /**
+   * Fase 214 D-63, SOLO para la foto de ficha: borra el objeto del bucket
+   * PÚBLICO (revoca la URL pública). Un "no existe" no es error. Ninguna otra
+   * cosa usa el bucket público desde este módulo; `publicKey` llega validado
+   * por `publicKeyFromFichaUrl`.
+   */
+  removePublic(publicKey: string): Promise<void>;
 }
 
 /** `private/conquer/{tenant}/{user}/{control}/{pose}-{uuid}.{ext}` (el UUID no se adivina). */
@@ -350,6 +365,8 @@ export const privateMediaResolver = {
         : new PhotoStorageUnavailableError();
     }
     const client = fastify.r2;
+    // Fase 214: único uso del bucket público desde este módulo (foto de ficha).
+    const publicBucket = fastify.r2Bucket;
     return {
       presignPut: (key, contentType, expiresSec) =>
         getSignedUrl(
@@ -404,6 +421,31 @@ export const privateMediaResolver = {
         try {
           await client.send(
             new DeleteObjectCommand({ Bucket: bucket, Key: key }),
+          );
+        } catch (err: unknown) {
+          if (isObjectMissing(err)) return;
+          throw err;
+        }
+      },
+      copyFromPublic: async (publicKey, privateKey) => {
+        try {
+          await client.send(
+            new CopyObjectCommand({
+              Bucket: bucket,
+              Key: privateKey,
+              CopySource: `${publicBucket}/${publicKey}`,
+            }),
+          );
+          return true;
+        } catch (err: unknown) {
+          if (isObjectMissing(err)) return false;
+          throw err;
+        }
+      },
+      removePublic: async (publicKey) => {
+        try {
+          await client.send(
+            new DeleteObjectCommand({ Bucket: publicBucket, Key: publicKey }),
           );
         } catch (err: unknown) {
           if (isObjectMissing(err)) return;
