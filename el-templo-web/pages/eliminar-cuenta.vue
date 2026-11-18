@@ -48,7 +48,8 @@ useHead({
           información vinculada a tu cuenta:
         </p>
         <ul>
-          <li>Datos personales (nombre, email, teléfono, DNI)</li>
+          <li>Datos personales (nombre, email, teléfono, DNI, dirección)</li>
+          <li>Foto de perfil</li>
           <li>Historial de reservas y asistencia</li>
           <li>Sesiones de entrenamiento y progreso</li>
           <li>Perfil de entrenamiento y preferencias</li>

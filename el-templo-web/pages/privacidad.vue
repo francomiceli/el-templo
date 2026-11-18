@@ -26,7 +26,9 @@ useHead({
   <main class="privacy">
     <div class="privacy__container">
       <h1 class="privacy__title">Política de Privacidad</h1>
-      <p class="privacy__updated">Última actualización: 5 de noviembre de 2026</p>
+      <p class="privacy__updated">
+        Última actualización: 18 de noviembre de 2026
+      </p>
 
       <section class="privacy__section">
         <h2>Quiénes somos</h2>
@@ -62,6 +64,13 @@ useHead({
           guardan en un almacenamiento privado, sin enlaces públicos.
         </p>
         <p>
+          Si querés, podés subir una foto de perfil. Es opcional: la elegís vos
+          desde la cámara o la galería, y la podés cambiar o quitar cuando
+          quieras desde Mi Perfil. Antes de guardarla le quitamos los datos
+          ocultos que traen las fotos del teléfono, como el lugar donde se sacó.
+          Se guarda en el mismo almacenamiento privado.
+        </p>
+        <p>
           También usamos herramientas de diagnóstico para detectar errores
           técnicos, sin recopilar datos personales.
         </p>
@@ -81,8 +90,41 @@ useHead({
         </p>
         <p>
           No accedemos a la ubicación de tu teléfono (GPS) ni a tus contactos.
-          Solo guardamos las fotos y videos que vos elegís subir en Conquer. No
-          usamos publicidad ni rastreo publicitario.
+          Solo guardamos las fotos y videos que vos elegís subir: tu foto de
+          perfil y, si participás, los de Conquer. No usamos publicidad ni
+          rastreo publicitario.
+        </p>
+      </section>
+
+      <section class="privacy__section">
+        <h2>Comunidad: quién va a tu clase y el Aura</h2>
+        <p>
+          En Reservas, los alumnos con plan vigente pueden ver quiénes están
+          anotados en una clase. De cada persona se muestra solo el nombre de
+          pila, la inicial del apellido, la foto de perfil (si tiene una
+          aprobada) y su Aura, los puntos que se suman entrenando. Si el equipo
+          de El Templo cargó una foto tuya en tu ficha, también puede mostrarse
+          ahí. Nunca se muestran tu email, tu teléfono ni otros datos.
+        </p>
+        <p>
+          Cada foto la revisa el equipo de El Templo antes de que otro alumno
+          pueda verla, y la puede quitar en cualquier momento. Cualquier alumno
+          puede reportar una foto desde la lista: el reporte le llega al equipo,
+          que la revisa.
+        </p>
+        <p>
+          Si preferís no aparecer, podés ocultarte desde Mi Perfil → Comunidad,
+          apagando "Aparecer en las listas de la clase". Mientras estés oculto
+          no aparecés en ninguna lista, tampoco ves quiénes van, y no das ni
+          recibís regalos de Aura. Si sos menor de 18 años, arrancás oculto
+          hasta que lo actives.
+        </p>
+        <p>
+          Los compañeros de una clase y los profes pueden regalarte Aura
+          eligiendo un motivo de una lista (por ejemplo, "Buena energía"), sin
+          mensajes escritos. Ves quién te lo regaló, salvo que esa persona esté
+          oculta. El equipo de El Templo puede ver los regalos y anular uno si
+          hace falta.
         </p>
       </section>
 
@@ -91,7 +133,9 @@ useHead({
         <p>
           Solo acceden a ellos los entrenadores y administradores de El Templo
           para gestionar tu entrenamiento, y una herramienta de diagnóstico para
-          monitoreo técnico (sin datos personales).
+          monitoreo técnico (sin datos personales). Los otros alumnos ven
+          únicamente lo que se describe en "Comunidad", y solo si no te
+          ocultaste.
         </p>
       </section>
 
@@ -123,6 +167,10 @@ useHead({
           historial completo.
         </p>
         <p>
+          Los avisos de la campana de notificaciones de la app se guardan 90
+          días.
+        </p>
+        <p>
           Si solicitás la eliminación de tu cuenta, tus datos serán eliminados
           de forma permanente en un plazo máximo de 30 días a partir de la
           solicitud.
@@ -141,8 +189,10 @@ useHead({
         </p>
         <p>
           Al procesar tu solicitud, eliminamos de forma permanente: datos
-          personales (nombre, email, teléfono, DNI, dirección), historial de reservas y
-          asistencia, sesiones de entrenamiento, progreso y preferencias.
+          personales (nombre, email, teléfono, DNI, dirección), foto de perfil,
+          historial de reservas y asistencia, sesiones de entrenamiento,
+          progreso y preferencias. Desde el momento en que pedís la eliminación,
+          dejás de aparecer en las listas de la comunidad.
         </p>
         <p>
           Para más detalles, visitá nuestra página de
