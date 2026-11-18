@@ -85,4 +85,11 @@ Línea de base registrada por el plan 01 en `TYPECHECK-BASELINE.md`:
 - (plan 02) Los tests de integración que afirman montos viejos quedan rotos hasta el plan 03.
   `milestoneAura` mantiene su firma y devuelve 15 / 25 / 50. Los montos viven en
   `el-templo-api/src/modules/aura/amounts.ts`.
+- (plan 03) `pnpm typecheck:tests` imprime mucho: filtrarlo con `grep` por los nombres de los archivos
+  tocados. `attendance.test.ts` ya traía un TS2300 por un import duplicado: es previo, no se arregla.
+- (plan 03) Quedan rotos a propósito hasta el plan 09 los tests `*-aura-cap`, `session-complete-streak` y
+  las aserciones de `training_completion` en `streak-service`.
+- (orquestador) **No aplicar migraciones en la base local** (`pnpm db:migrate`, `db:push`): la base local
+  de Franco tiene datos de pruebas en curso. Las migraciones se escriben y se verifican por lectura y por
+  su test, que corre en CI.
 
