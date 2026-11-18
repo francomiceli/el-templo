@@ -27,6 +27,8 @@ export const auraConfigSourceTypeEnum = mysqlEnum("aura_config_source_type", [
   "extra_block",
   // Fase 213 D-08: estiramiento post-clase completo (todos marcados y 3 minutos)
   "stretch",
+  // Fase 214 D-30: primera foto de perfil subida por el alumno y aprobada
+  "profile_photo",
 ]);
 
 export const auraConfig = mysqlTable("aura_config", {

@@ -97,3 +97,4 @@ export * from "./search-console-stats";
 export * from "./office";
 export * from "./weekly-board";
 export * from "./branch-reassignments";
+export * from "./member-photos";
