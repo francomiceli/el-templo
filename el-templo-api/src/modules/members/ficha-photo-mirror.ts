@@ -7,9 +7,12 @@
 // `GET /attendees` ni `GET /me` copian ni escriben (un GET no escribe, y una
 // `photo_url` rota no se reintenta en cada pedido).
 //
-// Una `photo_url` se intenta una sola vez: sale -> fila `ficha` `aprobada`; falla
-// -> fila `ficha` `fallida` (esa URL no se reintenta). Si el staff cambia la
-// `photo_url`, hay URL nueva y se vuelve a intentar.
+// Una `photo_url` se intenta hasta `FICHA_MIRROR_MAX_ATTEMPTS` veces (fase 215,
+// decisión 2 de la revisión): sale -> fila `ficha` `aprobada`; falla -> una fila
+// `ficha` `fallida` POR INTENTO, y las corridas siguientes del job la reintentan
+// hasta sumar 4. Con 4 filas `fallida` esa URL queda abandonada. Las filas
+// `fallida` sirven de contador, así no hace falta una columna ni una migración.
+// Si el staff cambia la `photo_url`, hay URL nueva y se vuelve a intentar.
 //
 // `users.photo_url` se guarda al GENERAR la URL de subida, antes de que el
 // archivo exista: se ignoran las URLs de menos de 15 minutos (el timestamp va en
@@ -17,7 +20,16 @@
 // está subiendo. Se reintentan en una corrida posterior.
 //
 // Logs sin URLs ni claves (dato sensible): solo conteos y el nombre del error.
-import { and, eq, isNotNull, isNull, notExists } from "drizzle-orm";
+import {
+  and,
+  count,
+  eq,
+  isNotNull,
+  isNull,
+  ne,
+  notExists,
+  sql,
+} from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import * as schema from "../../db/schema";
 import {
@@ -35,6 +47,11 @@ import {
 
 /** Edad mínima de una `photo_url` para intentar copiarla (15 minutos). */
 export const FICHA_PHOTO_MIN_AGE_MS = 15 * 60 * 1000;
+/**
+ * Intentos totales de copia por `photo_url` (el primero más tres reintentos, uno
+ * por corrida del job). Con el último fallido la URL queda abandonada.
+ */
+export const FICHA_MIRROR_MAX_ATTEMPTS = 4;
 /** Tope de usuarios por gimnasio y corrida. */
 const DEFAULT_LIMIT = 50;
 
@@ -64,8 +81,21 @@ export async function mirrorFichaPhotos(
   const now = opts.now ?? new Date();
   const result: FichaMirrorResult = { mirrored: 0, failed: 0, skipped: 0 };
 
-  // Usuarios con `photo_url` que NO tienen espejo `ficha` de esa misma URL (en
-  // cualquier estado, incluido `fallida`).
+  // Usuarios con `photo_url` que NO tienen espejo `ficha` de esa misma URL en un
+  // estado distinto de `fallida` y a los que todavía les quedan intentos: cada
+  // fila `fallida` de esa URL es un intento ya gastado.
+  const failedAttempts = db
+    .select({ n: count() })
+    .from(schema.memberPhotos)
+    .where(
+      and(
+        tenantWhere(schema.memberPhotos, ctx),
+        eq(schema.memberPhotos.userId, schema.users.id),
+        eq(schema.memberPhotos.origin, "ficha"),
+        eq(schema.memberPhotos.sourceUrl, schema.users.photoUrl),
+        eq(schema.memberPhotos.status, "fallida"),
+      ),
+    );
   const candidates = await db
     .select({ id: schema.users.id, photoUrl: schema.users.photoUrl })
     .from(schema.users)
@@ -84,9 +114,11 @@ export async function mirrorFichaPhotos(
                 eq(schema.memberPhotos.userId, schema.users.id),
                 eq(schema.memberPhotos.origin, "ficha"),
                 eq(schema.memberPhotos.sourceUrl, schema.users.photoUrl),
+                ne(schema.memberPhotos.status, "fallida"),
               ),
             ),
         ),
+        sql`${failedAttempts} < ${FICHA_MIRROR_MAX_ATTEMPTS}`,
       ),
     )
     .orderBy(schema.users.id)

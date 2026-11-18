@@ -38,7 +38,9 @@ export type PhotoRejectionReason =
  * - `rechazada`: el staff la rechazó (con `rejectionReason`).
  * - `quitada`: retirada (por el alumno o por reportes).
  * - `reemplazada`: el alumno subió otra y esta dejó de valer.
- * - `fallida`: la copia de la foto de ficha falló (no se reintenta).
+ * - `fallida`: un intento de copia de la foto de ficha falló. Hay una fila por
+ *   intento: el job reintenta la misma `sourceUrl` hasta 4 veces en total y luego
+ *   la abandona (fase 215).
  *
  * - `sourceUrl`: la `users.photo_url` copiada (origen `ficha`), para detectar
  *   si el staff la cambió.
