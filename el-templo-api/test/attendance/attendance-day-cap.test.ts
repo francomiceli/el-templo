@@ -44,10 +44,9 @@ import { AURA_AMOUNTS } from "../../src/modules/aura/amounts";
  * Mismo reloj fijo que `attendance.test.ts`: miércoles 10:00 hora de la sede.
  * El día de los casos se deriva de ese reloj, no se escribe a mano.
  *
- * DEUDA CONOCIDA (plan 10): el check-in forzado guarda la fecha UTC
- * (`new Date().toISOString()`), no la local de la sede. Con el reloj fijado a
- * las 13:00 UTC (10:00 AR) UTC y local coinciden; de noche pueden caer en días
- * distintos y la Aura de la app (que usa el día local) no se absorbería.
+ * El check-in forzado guarda la fecha UTC en la fila, pero el tope del día usa
+ * el día LOCAL de la sede (ME-01 de la revisión): con el reloj fijado a las
+ * 13:00 UTC (10:00 AR) coinciden, y el caso nocturno de abajo cubre cuando no.
  */
 const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 const PINNED_NOW = "2026-03-11T13:00:00Z";
@@ -466,6 +465,21 @@ describe("Attendance day cap (D-64)", () => {
 
     expect(await attendanceAward(memberId, attendanceId)).toBe(2);
     await expectBalanceMatchesLedger(memberId);
+  });
+
+  it("check-in forzado de noche (22:30 local, ya es mañana en UTC) absorbe la Aura de la app del día local: acredita 2", async () => {
+    const { memberId } = await setupMember();
+    await seedAppAura(memberId, "training");
+    // 22:30 en Argentina del mismo día de la app: en UTC ya es el día siguiente.
+    vi.setSystemTime(new Date("2026-03-12T01:30:00Z"));
+    try {
+      const attendanceId = await forceCheckIn(memberId);
+
+      expect(await attendanceAward(memberId, attendanceId)).toBe(2);
+      await expectBalanceMatchesLedger(memberId);
+    } finally {
+      vi.setSystemTime(new Date(PINNED_NOW));
+    }
   });
 
   it("check-in del coach con app ese día acredita 2 y deshacerlo revierte -2", async () => {

@@ -47,6 +47,7 @@ import {
   attendanceAuraAmountFor,
   attendanceAuraCredited,
 } from "../aura/day-cap";
+import { localDateForBranch } from "../aura/daily-award";
 import { AuraService } from "../aura/service";
 import { CheckInService } from "../check-ins/service";
 import type { DayCheckIn } from "../check-ins/types";
@@ -568,11 +569,14 @@ export class AttendanceService {
     const recordId = Number(result[0].insertId);
 
     // Award AURA immediately on force check-in
-    // D-64: tope del día (la fecha del forzado es la UTC que guarda la fila).
+    // D-64: el tope del día se calcula con el día LOCAL de la sede, el mismo que
+    // usa la app para su Aura. La fila de asistencia sigue guardando la fecha UTC
+    // (`todayStr`); entre las 21:00 y las 24:00 hora local las dos difieren.
+    const auraLocalDay = await localDateForBranch(this.db, ctx, branchId);
     const auraAmount = await attendanceAuraAmountFor(this.db, ctx, {
       userId: memberId,
       attendanceId: recordId,
-      sessionDate: todayStr,
+      sessionDate: auraLocalDay,
     });
     if (auraAmount > 0) {
       await this.auraService.award({
