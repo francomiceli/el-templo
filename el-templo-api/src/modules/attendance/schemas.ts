@@ -161,6 +161,22 @@ const slotAttendanceItemSchema = {
         sleep: { type: ["string", "null"] },
       },
     },
+    // Fase 215 (D-15): estado del regalo del profe en esta fila. Solo lo
+    // completa el server cuando quien mira es profe de la sede de la clase;
+    // null para el resto y para quien no tiene asistencia. `disponible` es la
+    // única que muestra botón. Declarado acá porque fast-json-stringify
+    // descarta lo no declarado.
+    gift: {
+      type: ["object", "null"],
+      properties: {
+        state: {
+          type: "string",
+          enum: ["disponible", "dado", "no_participa"],
+        },
+        amount: { type: "integer" },
+        reason: { type: ["string", "null"] },
+      },
+    },
   },
 } as const;
 
@@ -178,6 +194,9 @@ export const slotAttendanceSchema = {
       type: "object",
       properties: {
         members: { type: "array", items: slotAttendanceItemSchema },
+        // Fase 215 (D-11): valor vigente del regalo del profe, o null si quien
+        // mira no regala como profe en esta clase.
+        coachGiftAmount: { type: ["integer", "null"] },
       },
     },
   },
