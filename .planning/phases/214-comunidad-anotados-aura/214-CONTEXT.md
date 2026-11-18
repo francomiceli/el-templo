@@ -261,6 +261,13 @@ de rachas salen de `streak-reward.ts`. La preferencia de visibilidad va en `memb
   también va en claro. Con esto quedan elegidos los cuatro sketches (030 C2, 031 C + L1, 032 B, 033 B con
   el "+5" sin chispa y la chispa antes del total).
 
+- **D-67:** Entregable de cierre pedido por Franco: una **lista de lo que tiene que cambiar en Apple (y en
+  Google Play) para que el build pase la revisión**: política de privacidad, etiquetas de privacidad,
+  texto del permiso de cámara, notas para el revisor y lo que pidan las reglas de contenido subido por
+  usuarios. **Sin el bloqueo entre usuarios**: Franco confirmó que no lo va a implementar (D-45). Se
+  escribe al final de la fase, cuando los textos y las pantallas estén cerrados, en `.docs/` del checkout
+  principal. Base: `214-RESEARCH.md` §1.
+
 ### Claude's Discretion
 
 - Cómo se calcula el "Aura ganada" (suma del ledger sin canjes, o saldo más canjes) mientras la

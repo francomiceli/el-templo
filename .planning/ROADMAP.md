@@ -1203,6 +1203,23 @@ Plans:
 
 **Plans:** sin planificar
 
+
+### Phase 215: Regalar Aura (fuera del milestone v6.1)
+
+**Estado (2026-11-17)**: fase AGREGADA, en discuss. Sale de la reunión del 2026-11-16 (Matías: "el Nach te dio 10 puntos porque...", "que todos lo puedan regalar") y de la decisión de Franco de sacarla de la 214 y hacerla justo después. Depende de la 214 sin mergear: por ahora los documentos viven en la rama `feat/comunidad-anotados-aura` (worktree `et-comunidad`). SIN PUSH. Criterios provisorios hasta cerrar `215-CONTEXT.md`.
+
+**Goal**: Una persona puede darle Aura a otra como reconocimiento, con reglas simples que eviten el abuso, y quien la recibe se entera
+**Depends on**: Fase 214 (Aura visible con la escala nueva, lista de anotados, fotos). Insumos: `214-AURA-VALORES-RESEARCH.md` §2 y §8 (cómo lo resuelven Bonusly, HeyTaco y Peloton) y la sección "Fase siguiente" de `214-CONTEXT.md`
+**Success Criteria** (what must be TRUE):
+
+1. Provisorio: quien regala lo hace en pocos toques desde un lugar que ya existe en la app
+2. Provisorio: hay un tope claro de cuánto se puede regalar y a quién
+3. Provisorio: quien recibe se entera, y el regalo queda en su detalle de Aura
+4. Provisorio: el staff puede anular un regalo
+5. Provisorio: lo regalado no rompe la conciliación de Aura (puntos mostrados = suma del ledger)
+
+**Plans:** sin planificar
+
 ---
 
 _Unificado el 2026-10-28 (rescate de docs del master local): sobre el ROADMAP de origin/master se sumaron las fases 188.1, 192.1-192.3, 193, 195, 196 (archivada), 198 y 199, 203, con su estado real. Textos de fase tomados de master local (193, 199), `origin/staging` (195), `feat/203-carga-sin-parpadeos` (203), `archive/196-personalizados` (196, 198) y el tren `feat/v6.1-gimnasio` / `feat/192.3-workout-engine` (188.1, 192.x)._
