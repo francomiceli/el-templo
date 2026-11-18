@@ -6,4 +6,6 @@
  */
 export const AURA_AMOUNTS = {
   profilePhoto: 5,
+  // Fase 215: lo que suma el regalo de un alumno (el del profe es configurable).
+  giftMember: 1,
 } as const;
