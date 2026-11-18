@@ -1206,6 +1206,35 @@ export class AttendanceService {
   }
 
   /**
+   * Anula los regalos de Aura de una asistencia y borra la fila, todo en una
+   * transacción (ME-03): si el borrado falla, los regalos siguen vigentes.
+   */
+  private async voidGiftsAndDeleteAttendance(
+    ctx: TenantContext,
+    attendanceId: number,
+    voidedBy: number | null,
+  ): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      await voidGiftsForAttendance(
+        this.db,
+        ctx,
+        attendanceId,
+        voidedBy,
+        this.log,
+        tx,
+      );
+      await tx
+        .delete(schema.attendance)
+        .where(
+          and(
+            tenantWhere(schema.attendance, ctx),
+            eq(schema.attendance.id, attendanceId),
+          ),
+        );
+    });
+  }
+
+  /**
    * Remove a check-in (coach undo). Deletes the attendance record,
    * restores classesRemaining, reverses AURA, and reverts booking status.
    *
@@ -1262,25 +1291,10 @@ export class AttendanceService {
     // 'reservado'. Se usa `session_date` (Pitfall 8), no la fecha UTC de
     // `checked_in_at`.
     if (attRecord.source === "wellhub_manual") {
-      // Fase 215 (D-08): los regalos que esta asistencia dio o recibió se anulan
-      // ANTES del borrado, sin aviso. Fuera de todo try: si la anulación falla,
-      // el deshacer falla entero y no quedan regalos colgados.
-      await voidGiftsForAttendance(
-        this.db,
-        ctx,
-        attendanceId,
-        voidedBy,
-        this.log,
-      );
-
-      await this.db
-        .delete(schema.attendance)
-        .where(
-          and(
-            tenantWhere(schema.attendance, ctx),
-            eq(schema.attendance.id, attendanceId),
-          ),
-        );
+      // Fase 215 (D-08, ME-03): los regalos que esta asistencia dio o recibió
+      // se anulan sin aviso y en la MISMA transacción que el borrado. Fuera de
+      // todo try: si algo falla, no se anula ni se borra nada.
+      await this.voidGiftsAndDeleteAttendance(ctx, attendanceId, voidedBy);
 
       if (attRecord.scheduleId) {
         await this.db
@@ -1305,25 +1319,9 @@ export class AttendanceService {
       return { removed: true };
     }
 
-    // Fase 215 (D-08): igual que arriba, los regalos de esta asistencia se
-    // anulan antes de borrarla y un error corta el deshacer.
-    await voidGiftsForAttendance(
-      this.db,
-      ctx,
-      attendanceId,
-      voidedBy,
-      this.log,
-    );
-
-    // Delete the attendance record
-    await this.db
-      .delete(schema.attendance)
-      .where(
-        and(
-          tenantWhere(schema.attendance, ctx),
-          eq(schema.attendance.id, attendanceId),
-        ),
-      );
+    // Fase 215 (D-08, ME-03): igual que arriba, los regalos de esta asistencia
+    // se anulan y la asistencia se borra en una sola transacción.
+    await this.voidGiftsAndDeleteAttendance(ctx, attendanceId, voidedBy);
 
     // Restore classesRemaining +1.
     // Fase 161 (GATE-02): restaurar la clase a la sub correcta según si la

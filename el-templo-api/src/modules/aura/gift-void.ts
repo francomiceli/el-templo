@@ -35,7 +35,7 @@ import { readAffectedRows } from "../shared/affected-rows";
 import { tenantWhere, type TenantContext } from "../shared/tenant";
 import { GiftError } from "./gift-errors";
 import { GIFT_REFERENCE } from "./gift-rules";
-import { AuraService } from "./service";
+import { AuraService, type AuraTx } from "./service";
 
 type DbInstance = MySql2Database<typeof schema>;
 
@@ -69,11 +69,17 @@ export async function voidGift(
   db: DbInstance,
   ctx: TenantContext,
   input: VoidGiftInput,
+  outerTx?: AuraTx,
 ): Promise<VoidGiftResult> {
   const { giftId, voidedBy, cause, allowedBranchIds, log } = input;
   const aura = new AuraService(db);
 
-  const result = await db.transaction(async (tx) => {
+  // ME-03: si quien llama ya abrió una transacción (deshacer asistencia), la
+  // anulación corre adentro y se confirma o se revierte junto con el borrado.
+  const run = async <T>(work: (tx: AuraTx) => Promise<T>): Promise<T> =>
+    outerTx ? work(outerTx) : db.transaction(work);
+
+  const result = await run(async (tx) => {
     const [gift] = await tx
       .select({
         id: schema.auraGifts.id,
@@ -142,6 +148,9 @@ export async function voidGift(
  * antes de borrar la fila de `attendance`; si una anulación falla con algo que
  * no sea "ya anulado", el error sube y el deshacer no se hace.
  *
+ * Con `outerTx` (ME-03) todo corre en la transacción de quien llama: así las
+ * anulaciones y el borrado de la asistencia se confirman o se revierten juntos.
+ *
  * @returns Cuántos regalos anuló esta llamada.
  */
 export async function voidGiftsForAttendance(
@@ -150,8 +159,9 @@ export async function voidGiftsForAttendance(
   attendanceId: number,
   voidedBy: number | null,
   log?: FastifyBaseLogger,
+  outerTx?: AuraTx,
 ): Promise<number> {
-  const rows = await db
+  const rows = await (outerTx ?? db)
     .select({ id: schema.auraGifts.id })
     .from(schema.auraGifts)
     .where(
@@ -168,13 +178,18 @@ export async function voidGiftsForAttendance(
   let voided = 0;
   for (const row of rows) {
     try {
-      await voidGift(db, ctx, {
-        giftId: row.id,
-        voidedBy,
-        cause: "asistencia",
-        allowedBranchIds: null,
-        log,
-      });
+      await voidGift(
+        db,
+        ctx,
+        {
+          giftId: row.id,
+          voidedBy,
+          cause: "asistencia",
+          allowedBranchIds: null,
+          log,
+        },
+        outerTx,
+      );
       voided += 1;
     } catch (err: unknown) {
       // Otra anulación se adelantó: el descuento ya está hecho, no es un error.
