@@ -77,6 +77,8 @@ export const GYM_OWNED_TABLES = [
   "audit_log",
   "aura_balances",
   "aura_config",
+  // Regalos de Aura (fase 215, mig 0349): nace con tenant_id y strict
+  "aura_gifts",
   "aura_transactions",
   "aviso_events",
   "avisos",
@@ -697,6 +699,8 @@ export const TENANT_STRICT_MODULES: Record<string, readonly string[]> = {
   ],
   scheduling: ["bookings", "holidays", "schedule_exceptions", "schedules"],
   auth: ["promo_plans", "refresh_tokens"],
+  // Fase 215: nace strict, sin deuda previa.
+  "aura-gifts": ["aura_gifts"],
   // 2026-11-13 (mig 0334): histórico de recategorizaciones multisucursal. Nace
   // strict, no hay deuda previa que tolerar.
   "branch-reassignments": ["branch_reassignments"],
