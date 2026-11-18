@@ -68,17 +68,42 @@
             </q-item-section>
 
             <q-item-section side v-if="member.attendanceId">
-              <q-btn
-                flat
-                dense
-                round
-                icon="close"
-                color="negative"
-                size="sm"
-                @click="confirmRemoveCheckIn(member)"
-              >
-                <q-tooltip>Eliminar asistencia</q-tooltip>
-              </q-btn>
+              <div class="row items-center no-wrap q-gutter-xs">
+                <q-btn
+                  v-if="member.gift?.state === 'disponible'"
+                  flat
+                  dense
+                  round
+                  icon="volunteer_activism"
+                  class="text-aura"
+                  size="sm"
+                  :aria-label="`Dar Aura a ${member.memberName}`"
+                  @click="openGift(member)"
+                >
+                  <q-tooltip>Dar Aura</q-tooltip>
+                </q-btn>
+                <q-chip
+                  v-else-if="member.gift?.state === 'dado'"
+                  dense
+                  square
+                  class="text-aura"
+                  style="background-color: #f6efdc"
+                >
+                  ✦ +{{ member.gift.amount }}
+                  <q-tooltip>{{ givenTooltip(member.gift.reason) }}</q-tooltip>
+                </q-chip>
+                <q-btn
+                  flat
+                  dense
+                  round
+                  icon="close"
+                  color="negative"
+                  size="sm"
+                  @click="confirmRemoveCheckIn(member)"
+                >
+                  <q-tooltip>Eliminar asistencia</q-tooltip>
+                </q-btn>
+              </div>
             </q-item-section>
           </q-item>
         </q-list>
@@ -159,6 +184,19 @@
       </q-card-section>
     </q-card>
   </q-dialog>
+
+  <!-- Fase 215: una sola instancia del diálogo del regalo del profe. -->
+  <CoachGiftDialog
+    v-if="giftTarget && coachGiftAmount !== null"
+    v-model="giftDialogOpen"
+    :member-name="giftTarget.memberName"
+    :first-name="firstNameOf(giftTarget.memberName)"
+    :attendance-id="giftTarget.attendanceId"
+    :amount="coachGiftAmount"
+    @given="onGiftGiven"
+    @already-given="onGiftAlreadyGiven"
+    @stale="onGiftStale"
+  />
 </template>
 
 <script setup lang="ts">
@@ -168,6 +206,8 @@ import { createLogger } from 'src/utils/logger';
 import { useAttendanceApi } from 'src/composables/useAttendanceApi';
 import { useSchedulingApi } from 'src/composables/useSchedulingApi';
 import { useMembersApi } from 'src/composables/useMembersApi';
+import CoachGiftDialog from 'src/components/CoachGiftDialog.vue';
+import { giftReasonLabel, type GiftReasonCode } from 'src/config/gift-reasons';
 import type { SlotAttendanceItem } from 'src/types/attendance';
 import type { ActivityRecord } from 'src/types/scheduling';
 
@@ -200,6 +240,9 @@ const emit = defineEmits<{
 
 const attendanceList = ref<SlotAttendanceItem[]>([]);
 const loadingAttendance = ref(false);
+
+// Fase 215 (D-15): lo que suma el regalo del profe. Null si quien mira no regala como profe.
+const coachGiftAmount = ref<number | null>(null);
 
 // Member search state
 interface MemberSearchOption {
@@ -289,6 +332,7 @@ async function loadAttendance() {
   try {
     const result = await attendanceApi.getSlotAttendance(props.scheduleId, props.date);
     attendanceList.value = result.members;
+    coachGiftAmount.value = result.coachGiftAmount ?? null;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
     log.error('Error loading slot attendance', { error: message });
@@ -310,6 +354,56 @@ function formatTime(dateStr: string): string {
   } catch {
     return dateStr;
   }
+}
+
+// =========================================================================
+// Regalo de Aura del profe (fase 215)
+// =========================================================================
+
+interface GiftTarget {
+  attendanceId: number;
+  memberName: string;
+}
+
+const giftDialogOpen = ref(false);
+const giftTarget = ref<GiftTarget | null>(null);
+
+function firstNameOf(fullName: string): string {
+  return fullName.trim().split(/\s+/)[0] ?? fullName;
+}
+
+function givenTooltip(reason: string | null): string {
+  return reason ? `Ya le diste Aura hoy · ${giftReasonLabel(reason)}` : 'Ya le diste Aura hoy';
+}
+
+function openGift(member: SlotAttendanceItem) {
+  if (!member.attendanceId) return;
+  giftTarget.value = { attendanceId: member.attendanceId, memberName: member.memberName };
+  giftDialogOpen.value = true;
+}
+
+function markGiftGiven(amount: number | null, reason: GiftReasonCode | null) {
+  const target = giftTarget.value;
+  if (!target) return;
+  const row = attendanceList.value.find((m) => m.attendanceId === target.attendanceId);
+  if (!row?.gift) return;
+  row.gift = {
+    state: 'dado',
+    amount: amount ?? row.gift.amount,
+    reason,
+  };
+}
+
+function onGiftGiven(payload: { amount: number; reason: GiftReasonCode }) {
+  markGiftGiven(payload.amount, payload.reason);
+}
+
+function onGiftAlreadyGiven() {
+  markGiftGiven(null, null);
+}
+
+function onGiftStale() {
+  void loadAttendance();
 }
 
 // =========================================================================
