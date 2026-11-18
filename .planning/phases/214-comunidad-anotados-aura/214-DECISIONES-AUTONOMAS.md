@@ -141,3 +141,8 @@ Cada vez que un ejecutor se encuentre con una decisión de producto, se anota ac
 | 2026-11-17 | 214-30 | Si no se pueden cargar las sedes en la revisión de fotos | La revisión sigue funcionando y cada foto dice "Sin sede" |
 | 2026-11-17 | 214-30 | Error inesperado al aprobar, rechazar o quitar una foto | Se avisa con un mensaje de error y la foto queda en la lista; mientras la acción va, sus botones se deshabilitan |
 | 2026-11-17 | 214-30 | Foto de un alumno sin nombre | Se muestra como "Alumno #número" |
+| 2026-11-18 | revisión de código | Regla del 80 % medida desde un inicio que manda el teléfono (hallazgo ME-02) | Aceptado: es lo que eligió Franco ("solo tiempo total"). Un cliente manipulado la puede burlar |
+| 2026-11-18 | revisión de código | El servidor no re-codifica la foto (ME-04) | PENDIENTE DE FRANCO: quitar la ubicación de la foto depende solo de la app. Hacerlo en el servidor pide instalar una librería de imágenes |
+| 2026-11-18 | revisión de código | La subida no limita el tamaño mientras sube (parte de ME-03) | Sin resolver: el tamaño se valida al confirmar y el archivo rechazado se borra. Limitarlo durante la subida pide un cambio en la app y una regla en el almacenamiento |
+| 2026-11-18 | revisión de código | Acreditación sin transacción ni reintento (LO-02, LO-03) | Sin tocar: son cambios de diseño, no arreglos chicos |
+
