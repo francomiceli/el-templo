@@ -55,6 +55,7 @@ interface CelebrationGift {
 interface CelebrationMovement {
   id: number;
   amount: number;
+  source: string;
   label: string;
   gift: CelebrationGift | null;
 }
@@ -279,6 +280,11 @@ describe("GET /api/members/aura/celebration — qué se celebra", () => {
       ids[0],
     ]);
     expect(res.body.movements.map((m) => m.amount)).toEqual([50, 10, 5]);
+    expect(res.body.movements.map((m) => m.source)).toEqual([
+      "program_completion",
+      "streak_bonus",
+      "profile_photo",
+    ]);
     expect(res.body.movements.map((m) => m.label)).toEqual([
       "Programa completo",
       "14 días seguidos entrenando en la app",
@@ -409,6 +415,7 @@ describe("GET /api/members/aura/celebration — regalos", () => {
     expect(res.body.movements[0]).toEqual({
       id: ledgerId,
       amount: 1,
+      source: "social",
       label: "Juan P. te dio Aura · Buena energía",
       gift: {
         kind: "alumno",

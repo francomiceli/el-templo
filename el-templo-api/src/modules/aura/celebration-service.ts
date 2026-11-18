@@ -67,6 +67,8 @@ export interface CelebrationGift extends GiftGiverDisplay {
 export interface CelebrationMovement {
   id: number;
   amount: number;
+  /** Fuente del movimiento (`social`, `streak_bonus`, ...): la app elige el ícono. */
+  source: string;
   /** El mismo texto del detalle de Aura (`movement-labels.ts`). */
   label: string;
   /** Solo si el movimiento es un regalo recibido y se lo encuentra. */
@@ -226,6 +228,7 @@ export async function getCelebration(
     return {
       id: row.id,
       amount: row.amount,
+      source: row.sourceType,
       label: auraMovementLabel(
         row.sourceType,
         row.referenceType,

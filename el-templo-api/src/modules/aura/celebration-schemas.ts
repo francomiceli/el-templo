@@ -23,10 +23,11 @@ export const celebrationSchema = {
           items: {
             type: "object",
             additionalProperties: false,
-            required: ["id", "amount", "label", "gift"],
+            required: ["id", "amount", "source", "label", "gift"],
             properties: {
               id: { type: "integer" },
               amount: { type: "integer" },
+              source: { type: "string" },
               label: { type: "string" },
               gift: {
                 type: ["object", "null"],

@@ -52,8 +52,22 @@
         <p v-else-if="subline?.kind === 'tenure'" class="mth__tenure">{{ subline.text }}</p>
       </div>
 
-      <AuraChip v-if="auraValue !== null" :value="auraValue" @open="auraOpen = true" />
+      <AuraChip
+        v-if="auraValue !== null"
+        :value="celebration.chipValue.value ?? auraValue"
+        :pulse="celebration.chipPulse.value"
+        :plus="celebration.plusAmount.value"
+        @open="auraOpen = true"
+      />
     </template>
+
+    <!-- Fase 215 (#33): celebración de Aura. Cuelga del encabezado, debajo de la ficha. -->
+    <AuraCelebrationCard
+      v-if="celebration.card.value"
+      :card="celebration.card.value"
+      :shown="celebration.shown.value"
+      @open="openDetailFromCelebration"
+    />
 
     <ProfilePhotoSheet v-model="photoOpen" />
     <AuraDetailSheet v-if="auraValue !== null" v-model="auraOpen" />
@@ -61,7 +75,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from 'src/stores/useUserStore'
 import { formatTenure } from 'src/utils/tenure'
@@ -71,6 +85,10 @@ import VeteranSeal from 'src/components/VeteranSeal.vue'
 import AuraChip from 'src/components/AuraChip.vue'
 import ProfilePhotoSheet from 'src/components/ProfilePhotoSheet.vue'
 import AuraDetailSheet from 'src/components/AuraDetailSheet.vue'
+import AuraCelebrationCard from 'src/components/AuraCelebrationCard.vue'
+import { useAuraApi } from 'src/composables/useAuraApi'
+import { useAuraCelebration } from 'src/composables/useAuraCelebration'
+import { prefersReducedMotion } from 'src/utils/reduced-motion'
 
 const userStore = useUserStore()
 const route = useRoute()
@@ -115,6 +133,45 @@ const photoAriaLabel = computed(() => {
 const photoOpen = ref(false)
 const auraOpen = ref(false)
 
+// Fase 215 (#33): celebración de Aura. Se consulta al montar (el encabezado solo existe en Mi
+// Templo) y al volver a primer plano estando acá. Solo se muestra con perfil cargado y Aura prendida
+// (encabezado visible) y la app en primer plano; si no, no se muestra ni se manda el `ack`.
+const auraApi = useAuraApi()
+const celebration = useAuraCelebration({
+  canShow: () =>
+    profile.value !== null && auraValue.value !== null && document.visibilityState === 'visible',
+  fetchCelebration: () => auraApi.getCelebration(),
+  ack: (upToId) => auraApi.ackCelebration(upToId),
+  onTotal: (total) => userStore.setAuraEarned(total),
+  reducedMotion: prefersReducedMotion,
+})
+
+// Con el perfil listo y la Aura prendida (al montar, o cuando el perfil termina de cargar).
+watch(
+  () => profile.value !== null && auraValue.value !== null,
+  (ready) => {
+    if (ready) void celebration.check()
+  },
+  { immediate: true },
+)
+
+function onVisibilityChange(): void {
+  if (document.visibilityState === 'visible') void celebration.check()
+}
+
+onMounted(() => document.addEventListener('visibilitychange', onVisibilityChange))
+
+onUnmounted(() => {
+  document.removeEventListener('visibilitychange', onVisibilityChange)
+  celebration.cleanup()
+})
+
+/** Tocar la tarjeta abre el detalle de Aura y la cierra. */
+function openDetailFromCelebration(): void {
+  celebration.dismiss()
+  auraOpen.value = true
+}
+
 // Fase 215: destino de la push y del aviso de un regalo (`/mi-templo?aura=detalle`). Solo se reconoce
 // el valor exacto `detalle` y solo abre el detalle PROPIO de Aura (T-215-21-01). Con el módulo apagado
 // (`auraValue` null) no se abre nada y el socio queda en Mi Templo. El parámetro se limpia siempre,
@@ -148,6 +205,8 @@ function onImageError(): void {
 @import 'src/css/premium-card';
 
 .mth {
+  // La tarjeta de celebración de Aura (fase 215, #33) cuelga de acá.
+  position: relative;
   display: flex;
   align-items: center;
   gap: 16px;
