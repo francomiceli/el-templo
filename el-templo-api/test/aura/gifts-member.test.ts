@@ -39,6 +39,7 @@ import {
 import {
   GIFT_CTX,
   cleanupGiftClasses,
+  clearFirstName,
   earnedOf,
   ledgerSum,
   seedAttendance,
@@ -575,10 +576,7 @@ describe("Fase 215-06: rutas del regalo del alumno", () => {
 
       // Visible otra vez pero sin nombre de pila cargado: sigue anónimo.
       await setCommunityVisible(app, oculto.id, true);
-      await app.dbPool.query(
-        "UPDATE users SET first_name = NULL WHERE id = ?",
-        [oculto.id],
-      );
+      await clearFirstName(app, oculto.id);
       const sinNombre = await getPending(token);
       expect(sinNombre.body.givenToday[0].receiver).toEqual({
         firstName: "",

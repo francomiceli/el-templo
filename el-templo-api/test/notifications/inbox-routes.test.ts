@@ -33,7 +33,12 @@ import {
 import { INBOX_GIFT_KIND } from "../../src/modules/notifications/inbox-rules";
 import { mockPrivateMedia } from "../conquer/_helpers";
 import { seedMemberPhoto } from "../members/_profile-photo-helpers";
-import { seedGift, setCommunityVisible } from "../aura/_gift-fixtures";
+import {
+  clearFirstName,
+  deleteGift,
+  seedGift,
+  setCommunityVisible,
+} from "../aura/_gift-fixtures";
 
 const CTX: TenantContext = { tenantId: 1 };
 const BASE = "/api/members/notifications";
@@ -351,7 +356,7 @@ describe("Bandeja de avisos — rutas de la app (fase 215, plan 14)", () => {
       refId: borrado,
       shownAt: visibleAt(30),
     });
-    await app.dbPool.query("DELETE FROM aura_gifts WHERE id = ?", [borrado]);
+    await deleteGift(app, borrado);
 
     const body = await getList(member.token);
     const byTitle = new Map(body.items.map((i) => [i.title, i]));
@@ -481,9 +486,7 @@ describe("Bandeja de avisos — rutas de la app (fase 215, plan 14)", () => {
 
   it("5e) #38: quien regaló sin nombre cargado tampoco se nombra, ni dice Alguien", async () => {
     const giver = await createTestMember(app, { lastName: "Martínez" });
-    await app.dbPool.query("UPDATE users SET first_name = NULL WHERE id = ?", [
-      giver.id,
-    ]);
+    await clearFirstName(app, giver.id);
     const gift = await seedGiftFor(giver.id, member.id);
     await seedInbox(member.id, {
       title: "Alguien te dio Aura",

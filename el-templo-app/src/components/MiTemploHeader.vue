@@ -202,6 +202,7 @@ function onImageError(): void {
 </script>
 
 <style scoped lang="scss">
+@import 'src/css/brand';
 @import 'src/css/premium-card';
 
 .mth {

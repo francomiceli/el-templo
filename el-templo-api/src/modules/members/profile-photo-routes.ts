@@ -13,6 +13,7 @@ import { attachCountryScope } from "../shared/country-scope";
 import { handleServiceError } from "../shared/error-handler";
 import { AppError } from "../shared/errors";
 import { RATE_LIMITS } from "../shared/rate-limits";
+import { perUserRateLimit } from "../shared/per-user-rate-limit";
 import { assertTenant } from "../shared/tenant";
 import {
   profilePhotoConfirmSchema,
@@ -53,10 +54,11 @@ export const profilePhotoMemberRoutes: FastifyPluginAsync = async (fastify) => {
     {
       schema: profilePhotoUploadUrlSchema,
       config: { rateLimit: RATE_LIMITS.photoUpload },
-      preHandler: fastify.rateLimit({
-        ...RATE_LIMITS.photoUploadPerUser,
-        keyGenerator: (request) => `photo-upload:${request.user.userId}`,
-      }),
+      preHandler: perUserRateLimit(
+        fastify,
+        RATE_LIMITS.photoUploadPerUser,
+        "photo-upload",
+      ),
     },
     async (request, reply) => {
       try {
@@ -86,10 +88,11 @@ export const profilePhotoMemberRoutes: FastifyPluginAsync = async (fastify) => {
     {
       schema: profilePhotoConfirmSchema,
       config: { rateLimit: RATE_LIMITS.photoUpload },
-      preHandler: fastify.rateLimit({
-        ...RATE_LIMITS.photoUploadPerUser,
-        keyGenerator: (request) => `photo-confirm:${request.user.userId}`,
-      }),
+      preHandler: perUserRateLimit(
+        fastify,
+        RATE_LIMITS.photoUploadPerUser,
+        "photo-confirm",
+      ),
     },
     async (request, reply) => {
       try {

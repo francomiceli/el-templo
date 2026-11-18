@@ -34,6 +34,7 @@ import { queueGiftNotification } from "../../src/modules/aura/gift-push";
 import { GIFT_ROUTE } from "../../src/modules/aura/gift-rules";
 import {
   cleanupGiftClasses,
+  clearFirstName,
   GIFT_CTX,
   ledgerSum,
   seedAttendance,
@@ -488,9 +489,7 @@ describe("Fase 215-15: push del regalo y bandeja", () => {
 
   it("(10) #38: si quien regala no tiene nombre, la push y la bandeja no nombran a nadie ni dicen Alguien", async () => {
     const g = await dador();
-    await app.dbPool.query("UPDATE users SET first_name = NULL WHERE id = ?", [
-      g.id,
-    ]);
+    await clearFirstName(app, g.id);
     const r = await receptor();
     await service.registerToken(r.id, TOKEN_RECEPTOR, "android");
 

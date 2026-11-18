@@ -23,7 +23,7 @@ import {
   vi,
 } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import {
   createTestApp,
   createTestPlan,
@@ -153,7 +153,16 @@ describe("Fase 214-17: anotados del horario (D-01..D-09)", () => {
     const [branch] = await app.db
       .select({ id: schema.branches.id, tz: schema.branches.timezone })
       .from(schema.branches)
-      .where(eq(schema.branches.isVirtual, false))
+      .where(
+        and(
+          tenantWhere(schema.branches, CTX),
+          eq(schema.branches.isVirtual, false),
+          // El servicio solo sirve horarios de sedes activas: la primera sede
+          // no virtual de la base de pruebas (PARK) esta desactivada.
+          eq(schema.branches.isActive, true),
+        ),
+      )
+      .orderBy(asc(schema.branches.id))
       .limit(1);
     testBranchId = branch.id;
     tz = branch.tz ?? DEFAULT_TENANT_TIMEZONE;
@@ -167,10 +176,20 @@ describe("Fase 214-17: anotados del horario (D-01..D-09)", () => {
     if (esBranchId !== null) {
       await app.db
         .delete(schema.schedules)
-        .where(eq(schema.schedules.branchId, esBranchId));
+        .where(
+          and(
+            tenantWhere(schema.schedules, CTX),
+            eq(schema.schedules.branchId, esBranchId),
+          ),
+        );
       await app.db
         .delete(schema.branches)
-        .where(eq(schema.branches.id, esBranchId));
+        .where(
+          and(
+            tenantWhere(schema.branches, CTX),
+            eq(schema.branches.id, esBranchId),
+          ),
+        );
     }
     await app.close();
   });
@@ -250,14 +269,21 @@ describe("Fase 214-17: anotados del horario (D-01..D-09)", () => {
       cambios.dateOfBirth = campos.dateOfBirth;
     }
     if (campos.branchId !== undefined) cambios.branchId = campos.branchId;
-    if (campos.deletedAt !== undefined) cambios.deletedAt = campos.deletedAt;
     if (Object.keys(cambios).length > 0) {
       await app.db
         .update(schema.users)
         .set(cambios)
         .where(and(tenantWhere(schema.users, CTX), eq(schema.users.id, id)));
     }
+    // El login se hace ANTES de borrar la cuenta: una cuenta eliminada ya no
+    // puede iniciar sesion ("Esta cuenta fue eliminada").
     const token = await getAuthToken(app, email, "pass123456");
+    if (campos.deletedAt !== undefined) {
+      await app.db
+        .update(schema.users)
+        .set({ deletedAt: campos.deletedAt })
+        .where(and(tenantWhere(schema.users, CTX), eq(schema.users.id, id)));
+    }
     return { id, token, firstName, lastName };
   }
 
@@ -766,7 +792,10 @@ describe("Fase 214-17: anotados del horario (D-01..D-09)", () => {
     for (const persona of [yo, propia, espejada, sinEspejo, fallida, nada]) {
       await reservar(persona.id);
     }
-    const filasAntes = await app.db.select().from(schema.memberPhotos);
+    const filasAntes = await app.db
+      .select()
+      .from(schema.memberPhotos)
+      .where(tenantWhere(schema.memberPhotos, CTX));
 
     const body = await pedirOk(yo.token);
 
@@ -784,7 +813,10 @@ describe("Fase 214-17: anotados del horario (D-01..D-09)", () => {
       expect(fila(persona)?.photoUrl).toBeNull();
       expect(fila(persona)?.photoId).toBeNull();
     }
-    const filasDespues = await app.db.select().from(schema.memberPhotos);
+    const filasDespues = await app.db
+      .select()
+      .from(schema.memberPhotos)
+      .where(tenantWhere(schema.memberPhotos, CTX));
     expect(filasDespues).toHaveLength(filasAntes.length);
   });
 

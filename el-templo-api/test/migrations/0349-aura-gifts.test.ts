@@ -12,6 +12,7 @@ import type { RowDataPacket } from "mysql2";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { cleanAllTestData, createTestMember, createTestApp } from "../helpers";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 
 const MIGRATION_SQL = path.resolve(
   __dirname,
@@ -89,11 +90,12 @@ describe("Migración 0349 — aura_gifts", () => {
   }): Promise<void> {
     await app.dbPool.query(
       `INSERT INTO aura_gifts
-         (giver_user_id, receiver_user_id, giver_kind, branch_id, session_date,
-          giver_attendance_id, receiver_attendance_id, coach_gift_date,
-          reason, amount)
-       VALUES (?, ?, ?, ?, '2026-11-18', ?, ?, ?, 'tecnica', 1)`,
+         (tenant_id, giver_user_id, receiver_user_id, giver_kind, branch_id,
+          session_date, giver_attendance_id, receiver_attendance_id,
+          coach_gift_date, reason, amount)
+       VALUES (?, ?, ?, ?, ?, '2026-11-18', ?, ?, ?, 'tecnica', 1)`,
       [
+        TENANT_TEMPLO,
         values.giverUserId,
         values.receiverUserId,
         values.giverKind,
@@ -258,8 +260,8 @@ describe("Migración 0349 — aura_gifts", () => {
       coachGiftDate: "2026-11-18",
     });
     const [rows] = (await app.dbPool.query(
-      "SELECT COUNT(*) AS n FROM aura_gifts WHERE giver_user_id = ?",
-      [giverId],
+      "SELECT COUNT(*) AS n FROM aura_gifts WHERE tenant_id = ? AND giver_user_id = ?",
+      [TENANT_TEMPLO, giverId],
     )) as [Array<RowDataPacket & { n: number }>, unknown];
     expect(Number(rows[0].n)).toBe(3);
   });

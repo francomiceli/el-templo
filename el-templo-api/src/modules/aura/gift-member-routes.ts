@@ -21,6 +21,7 @@
 import type { FastifyPluginAsync } from "fastify";
 import { attachCountryScope } from "../shared/country-scope";
 import { RATE_LIMITS } from "../shared/rate-limits";
+import { perUserRateLimit } from "../shared/per-user-rate-limit";
 import { assertTenant } from "../shared/tenant";
 import { sendGiftError } from "./gift-errors";
 import {
@@ -61,10 +62,11 @@ export const auraGiftMemberRoutes: FastifyPluginAsync = async (fastify) => {
     {
       schema: giftCandidatesSchema,
       config: { rateLimit: RATE_LIMITS.giftCandidates },
-      preHandler: fastify.rateLimit({
-        ...RATE_LIMITS.giftCandidatesPerUser,
-        keyGenerator: (request) => `gift-candidates:${request.user.userId}`,
-      }),
+      preHandler: perUserRateLimit(
+        fastify,
+        RATE_LIMITS.giftCandidatesPerUser,
+        "gift-candidates",
+      ),
     },
     async (request, reply) => {
       try {
@@ -86,10 +88,11 @@ export const auraGiftMemberRoutes: FastifyPluginAsync = async (fastify) => {
     {
       schema: giveGiftSchema,
       config: { rateLimit: RATE_LIMITS.giftGive },
-      preHandler: fastify.rateLimit({
-        ...RATE_LIMITS.giftGivePerUser,
-        keyGenerator: (request) => `gift-give:${request.user.userId}`,
-      }),
+      preHandler: perUserRateLimit(
+        fastify,
+        RATE_LIMITS.giftGivePerUser,
+        "gift-give",
+      ),
     },
     async (request, reply) => {
       try {

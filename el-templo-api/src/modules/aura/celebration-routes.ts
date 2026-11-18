@@ -12,6 +12,7 @@ import type { FastifyPluginAsync } from "fastify";
 import { attachCountryScope } from "../shared/country-scope";
 import { handleServiceError } from "../shared/error-handler";
 import { RATE_LIMITS } from "../shared/rate-limits";
+import { perUserRateLimit } from "../shared/per-user-rate-limit";
 import { assertTenant } from "../shared/tenant";
 import { ackCelebration, getCelebration } from "./celebration-service";
 import {
@@ -32,10 +33,11 @@ export const auraCelebrationRoutes: FastifyPluginAsync = async (fastify) => {
     {
       schema: celebrationSchema,
       config: { rateLimit: RATE_LIMITS.auraCelebration },
-      preHandler: fastify.rateLimit({
-        ...RATE_LIMITS.auraCelebrationPerUser,
-        keyGenerator: (request) => `aura-celebration:${request.user.userId}`,
-      }),
+      preHandler: perUserRateLimit(
+        fastify,
+        RATE_LIMITS.auraCelebrationPerUser,
+        "aura-celebration",
+      ),
     },
     async (request, reply) => {
       try {
@@ -52,11 +54,11 @@ export const auraCelebrationRoutes: FastifyPluginAsync = async (fastify) => {
     {
       schema: celebrationAckSchema,
       config: { rateLimit: RATE_LIMITS.auraCelebration },
-      preHandler: fastify.rateLimit({
-        ...RATE_LIMITS.auraCelebrationPerUser,
-        keyGenerator: (request) =>
-          `aura-celebration-ack:${request.user.userId}`,
-      }),
+      preHandler: perUserRateLimit(
+        fastify,
+        RATE_LIMITS.auraCelebrationPerUser,
+        "aura-celebration-ack",
+      ),
     },
     async (request, reply) => {
       try {

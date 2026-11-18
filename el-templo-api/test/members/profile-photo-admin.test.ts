@@ -364,7 +364,12 @@ describe("POST /:userId/profile-photo/approve", () => {
     await app.db
       .update(schema.memberPhotos)
       .set({ status: "reemplazada" })
-      .where(eq(schema.memberPhotos.id, vista.id));
+      .where(
+        and(
+          tenantWhere(schema.memberPhotos, FOTO_CTX),
+          eq(schema.memberPhotos.id, vista.id),
+        ),
+      );
     const nueva = await seedMemberPhoto(app, m.id);
 
     const res = await approve(staff.token, m.id, vista.id);
@@ -491,7 +496,12 @@ describe("POST /:userId/profile-photo/reject", () => {
     await app.db
       .update(schema.memberPhotos)
       .set({ status: "reemplazada" })
-      .where(eq(schema.memberPhotos.id, vista.id));
+      .where(
+        and(
+          tenantWhere(schema.memberPhotos, FOTO_CTX),
+          eq(schema.memberPhotos.id, vista.id),
+        ),
+      );
     const nueva = await seedMemberPhoto(app, m.id);
 
     const res = await reject(staff.token, m.id, { reason: "otro" }, vista.id);

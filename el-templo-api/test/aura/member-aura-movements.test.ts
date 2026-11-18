@@ -28,6 +28,7 @@ import { tenantValues } from "../../src/modules/shared/tenant";
 import { AURA_AMOUNTS } from "../../src/modules/aura/amounts";
 import {
   cleanupGiftClasses,
+  clearFirstName,
   seedGift,
   seedGiftClass,
   setCommunityVisible,
@@ -491,9 +492,7 @@ describe("GET /api/members/aura/movements con regalos (fase 215, D-13, D-19, D-2
   it("#38: quien dio sin nombre cargado tampoco se nombra", async () => {
     const cls = await claseDeRegalo();
     const dador = await createTestMember(app, { lastName: "Martínez" });
-    await app.dbPool.query("UPDATE users SET first_name = NULL WHERE id = ?", [
-      dador.id,
-    ]);
+    await clearFirstName(app, dador.id);
     const receptor = await createTestMember(app);
     const giftId = await seedGift(app, {
       giverUserId: dador.id,

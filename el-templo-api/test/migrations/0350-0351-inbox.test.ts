@@ -13,6 +13,7 @@ import type { RowDataPacket } from "mysql2";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { cleanAllTestData, createTestMember, createTestApp } from "../helpers";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 
 const MIGRATIONS_DIR = path.resolve(__dirname, "../../src/db/migrations");
 const MIGRATION_SQL_FILES = [
@@ -79,9 +80,14 @@ describe("Migraciones 0350-0351 — bandeja de avisos", () => {
   }): Promise<void> {
     await app.dbPool.query(
       `INSERT INTO member_notifications
-         (user_id, pending_notification_id, dedupe_key, kind, title, body)
-       VALUES (?, ?, ?, 'aura_gift', 'Titulo', 'Cuerpo')`,
-      [values.userId, values.pendingNotificationId, values.dedupeKey],
+         (tenant_id, user_id, pending_notification_id, dedupe_key, kind, title, body)
+       VALUES (?, ?, ?, ?, 'aura_gift', 'Titulo', 'Cuerpo')`,
+      [
+        TENANT_TEMPLO,
+        values.userId,
+        values.pendingNotificationId,
+        values.dedupeKey,
+      ],
     );
   }
 
@@ -224,8 +230,8 @@ describe("Migraciones 0350-0351 — bandeja de avisos", () => {
       dedupeKey: "clave-b",
     });
     const [rows] = (await app.dbPool.query(
-      "SELECT COUNT(*) AS n FROM member_notifications WHERE user_id = ?",
-      [userId],
+      "SELECT COUNT(*) AS n FROM member_notifications WHERE tenant_id = ? AND user_id = ?",
+      [TENANT_TEMPLO, userId],
     )) as [Array<RowDataPacket & { n: number }>, unknown];
     expect(Number(rows[0].n)).toBe(4);
   });
@@ -257,8 +263,8 @@ describe("Migraciones 0350-0351 — bandeja de avisos", () => {
       dedupeKey: "class_reminder:booking:123",
     });
     const [rows] = (await app.dbPool.query(
-      "SELECT COUNT(*) AS n FROM member_notifications WHERE dedupe_key = ?",
-      ["class_reminder:booking:123"],
+      "SELECT COUNT(*) AS n FROM member_notifications WHERE tenant_id = ? AND dedupe_key = ?",
+      [TENANT_TEMPLO, "class_reminder:booking:123"],
     )) as [Array<RowDataPacket & { n: number }>, unknown];
     expect(Number(rows[0].n)).toBe(2);
   });
@@ -275,8 +281,8 @@ describe("Migraciones 0350-0351 — bandeja de avisos", () => {
       dedupeKey: null,
     });
     const [rows] = (await app.dbPool.query(
-      "SELECT COUNT(*) AS n FROM member_notifications WHERE user_id = ? AND dedupe_key IS NULL",
-      [userId],
+      "SELECT COUNT(*) AS n FROM member_notifications WHERE tenant_id = ? AND user_id = ? AND dedupe_key IS NULL",
+      [TENANT_TEMPLO, userId],
     )) as [Array<RowDataPacket & { n: number }>, unknown];
     expect(Number(rows[0].n)).toBe(2);
   });

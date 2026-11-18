@@ -1001,7 +1001,12 @@ describe("bandeja de avisos — /api/members/notifications (fase 215, plan 14)",
     const [fila] = await app.db
       .select({ readAt: schema.memberNotifications.readAt })
       .from(schema.memberNotifications)
-      .where(and(eq(schema.memberNotifications.id, id)));
+      .where(
+        and(
+          eq(schema.memberNotifications.id, id),
+          sql`/* tenant-safe: lectura de evidencia por PK propia, de la fila de cualquiera de los dos gimnasios */ 1 = 1`,
+        ),
+      );
     return fila?.readAt;
   }
 
