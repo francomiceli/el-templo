@@ -128,3 +128,6 @@ Cada vez que un ejecutor se encuentre con una decisión de producto, se anota ac
 | 2026-11-17 | 214-26 | Mientras se envía el reporte | El diálogo no se puede cerrar y "Cancelar" queda deshabilitado hasta que termine |
 | 2026-11-17 | 214-26 | Foto sin identificador | El botón "Reportar foto" queda deshabilitado |
 | 2026-11-17 | 214-26 | Al abrir la foto de un compañero | Cada apertura vuelve al primer paso (ver la foto), sin recordar un reporte a medio hacer |
+| 2026-11-17 | 214-27 | Sección Comunidad en Perfil con una API vieja | La sección y cada opción solo se muestran si el servidor las informa, para no ofrecer algo que no se puede leer ni guardar |
+| 2026-11-17 | 214-27 | Interruptor de Comunidad mientras se guarda | Los toques se ignoran hasta que termina el guardado; si falla, el interruptor vuelve a su valor anterior |
+| 2026-11-17 | 214-27 | Llegar a Perfil desde un aviso a `#comunidad` | Se baja hasta la sección y se resalta con un contorno fijo de 2 segundos, sin animación; con movimiento reducido el desplazamiento es directo |
