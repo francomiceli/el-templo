@@ -40,6 +40,7 @@ export * from "./labs-inquiries";
 export * from "./aura-transactions";
 export * from "./aura-balances";
 export * from "./aura-config";
+export * from "./aura-gifts";
 export * from "./member-notes";
 export * from "./subscription-plans";
 export * from "./plan-programs";
