@@ -268,6 +268,18 @@ de rachas salen de `streak-reward.ts`. La preferencia de visibilidad va en `memb
   escribe al final de la fase, cuando los textos y las pantallas estén cerrados, en `.docs/` del checkout
   principal. Base: `214-RESEARCH.md` §1.
 
+### Modo autónomo (2026-11-17)
+
+- **D-68:** Franco pidió planificar y ejecutar la 214 (y después la 215) "todo autónomamente, sin mi
+  supervisión". Las decisiones que le tocaban a él se toman con la opción recomendada y quedan
+  registradas en `214-DECISIONES-AUTONOMAS.md` para que las revise. Los planificadores y ejecutores las
+  tratan como cerradas. Siguen exigiendo su OK explícito: push, SSH o consultas a producción, instalar
+  dependencias y bump de versión.
+- **D-69:** Las 11 decisiones abiertas del `214-UI-SPEC.md` quedan tomadas con la recomendación del propio
+  UI-SPEC (tabla en `214-DECISIONES-AUTONOMAS.md` §1). En particular: el rechazo de una foto lleva un
+  motivo elegido por el staff (cambia el plan 15), los movimientos de Aura van sin íconos, y los textos
+  borrador se usan tal como están.
+
 ### Claude's Discretion
 
 - Cómo se calcula el "Aura ganada" (suma del ledger sin canjes, o saldo más canjes) mientras la
