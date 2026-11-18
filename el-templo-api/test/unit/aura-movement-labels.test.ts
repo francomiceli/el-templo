@@ -44,10 +44,13 @@ describe("auraMovementLabel (fase 214, D-13)", () => {
 
   it("racha: con y sin referencia", () => {
     expect(auraMovementLabel("streak_bonus", "streak_milestone", 30)).toBe(
-      "Racha de 30 sesiones",
+      "30 días seguidos entrenando en la app",
     );
     expect(auraMovementLabel("streak_bonus", "streak_milestone", null)).toBe(
-      "Racha",
+      "Días seguidos entrenando en la app",
+    );
+    expect(auraMovementLabel("streak_bonus", "streak_milestone", 0)).toBe(
+      "Días seguidos entrenando en la app",
     );
   });
 
@@ -56,7 +59,7 @@ describe("auraMovementLabel (fase 214, D-13)", () => {
       "Entrenamiento en la app",
     );
     expect(auraMovementLabel("goal_plan_completion", null, null)).toBe(
-      "Sesión de tu plan",
+      "Sesión de tu plan online",
     );
     expect(auraMovementLabel("extra_block", null, null)).toBe("Bloque libre");
     expect(auraMovementLabel("stretch", null, null)).toBe("Estiramiento");
@@ -115,6 +118,50 @@ describe("auraMovementLabel con regalos (fase 215, D-13, D-19, D-22)", () => {
         giverLastInitial: "G",
       }),
     ).toBe("Tu profe Fran te dio Aura · Buena técnica");
+  });
+
+  it("ME-01: quien dio hoy está oculto: solo monto y motivo, sin nombre ni Alguien", () => {
+    const label = auraMovementLabel("social", "aura_gift", 7, {
+      ...deAlumno,
+      giverHidden: true,
+      amount: 1,
+    });
+    expect(label).toBe("Te dieron 1 de Aura por Buena energía");
+    expect(label).not.toContain("Sofía");
+    expect(label).not.toContain("Alguien");
+  });
+
+  it("#38: quien dio sin nombre cargado no se nombra y usa el monto del regalo", () => {
+    expect(
+      auraMovementLabel("social", "aura_gift", 7, {
+        ...deAlumno,
+        giverFirstName: null,
+        giverLastInitial: null,
+        reason: "constancia",
+      }),
+    ).toBe("Te dieron 1 de Aura por Constancia");
+    expect(
+      auraMovementLabel("social", "aura_gift", 7, {
+        ...deAlumno,
+        giverFirstName: "   ",
+        amount: 3,
+      }),
+    ).toBe("Te dieron 3 de Aura por Buena energía");
+  });
+
+  it("el profe nunca es anónimo, ni oculto ni sin nombre", () => {
+    expect(
+      auraMovementLabel("social", "aura_gift", 7, {
+        ...deProfe,
+        giverHidden: true,
+      }),
+    ).toBe("Tu profe Fran te dio Aura · Buena técnica");
+    expect(
+      auraMovementLabel("social", "aura_gift", 7, {
+        ...deProfe,
+        giverFirstName: null,
+      }),
+    ).toBe("Tu profe te dio Aura · Buena técnica");
   });
 
   it("sin datos del regalo cae en el texto genérico de regalo", () => {

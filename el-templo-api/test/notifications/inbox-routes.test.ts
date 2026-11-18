@@ -33,7 +33,7 @@ import {
 import { INBOX_GIFT_KIND } from "../../src/modules/notifications/inbox-rules";
 import { mockPrivateMedia } from "../conquer/_helpers";
 import { seedMemberPhoto } from "../members/_profile-photo-helpers";
-import { seedGift } from "../aura/_gift-fixtures";
+import { seedGift, setCommunityVisible } from "../aura/_gift-fixtures";
 
 const CTX: TenantContext = { tenantId: 1 };
 const BASE = "/api/members/notifications";
@@ -46,6 +46,7 @@ interface InboxGift {
   giverLastInitial: string | null;
   giverPhotoUrl: string | null;
   status: "vigente" | "anulado";
+  anonymous: boolean;
 }
 
 interface InboxItem {
@@ -359,6 +360,7 @@ describe("Bandeja de avisos — rutas de la app (fase 215, plan 14)", () => {
       giverLastInitial: "M",
       giverPhotoUrl: null,
       status: "vigente",
+      anonymous: false,
     });
     expect(byTitle.get("Anulado")?.gift?.status).toBe("anulado");
     expect(byTitle.get("Borrado")?.gift).toBeNull();
@@ -397,6 +399,97 @@ describe("Bandeja de avisos — rutas de la app (fase 215, plan 14)", () => {
     const body = sinStorage.json() as InboxList;
     expect(body.items[0].gift?.giverFirstName).toBe("Sofía");
     expect(body.items[0].gift?.giverPhotoUrl).toBeNull();
+  });
+
+  it("5d) ME-01: quien dio y hoy está oculto no se nombra: sin nombre, inicial ni foto, y el texto dice solo monto y motivo", async () => {
+    const giver = await createTestMember(app, {
+      firstName: "Sofía",
+      lastName: "Martínez",
+    });
+    await seedMemberPhoto(app, giver.id, { status: "aprobada" });
+    mockPrivateMedia();
+    const gift = await seedGiftFor(giver.id, member.id);
+    await seedInbox(member.id, {
+      title: "Sofía M. te dio Aura",
+      kind: INBOX_GIFT_KIND,
+      refId: gift,
+    });
+    await setCommunityVisible(app, giver.id, false);
+
+    const body = await getList(member.token);
+
+    expect(body.items).toHaveLength(1);
+    expect(body.items[0].title).toBe("Te dieron 1 de Aura");
+    expect(body.items[0].body).toBe("Motivo: Buena técnica.");
+    expect(body.items[0].gift).toEqual({
+      amount: 1,
+      giverKind: "alumno",
+      giverFirstName: "",
+      giverLastInitial: null,
+      giverPhotoUrl: null,
+      status: "vigente",
+      anonymous: true,
+    });
+    expect(JSON.stringify(body)).not.toContain("Sofía");
+  });
+
+  it("5e) #38: quien regaló sin nombre cargado tampoco se nombra, ni dice Alguien", async () => {
+    const giver = await createTestMember(app, { lastName: "Martínez" });
+    await app.dbPool.query("UPDATE users SET first_name = NULL WHERE id = ?", [
+      giver.id,
+    ]);
+    const gift = await seedGiftFor(giver.id, member.id);
+    await seedInbox(member.id, {
+      title: "Alguien te dio Aura",
+      kind: INBOX_GIFT_KIND,
+      refId: gift,
+    });
+
+    const body = await getList(member.token);
+
+    expect(body.items[0].title).toBe("Te dieron 1 de Aura");
+    expect(body.items[0].gift?.anonymous).toBe(true);
+    expect(body.items[0].gift?.giverFirstName).toBe("");
+    expect(body.items[0].gift?.giverLastInitial).toBeNull();
+    expect(JSON.stringify(body)).not.toContain("Alguien");
+  });
+
+  it("5f) quien dio vuelve a estar visible: el aviso vuelve a nombrarlo; el profe nunca es anónimo", async () => {
+    const giver = await createTestMember(app, {
+      firstName: "Sofía",
+      lastName: "Martínez",
+    });
+    const gift = await seedGiftFor(giver.id, member.id);
+    await seedInbox(member.id, {
+      title: "Sofía M. te dio Aura",
+      kind: INBOX_GIFT_KIND,
+      refId: gift,
+    });
+    await setCommunityVisible(app, giver.id, false);
+    await setCommunityVisible(app, giver.id, true);
+
+    const visible = await getList(member.token);
+    expect(visible.items[0].title).toBe("Sofía M. te dio Aura");
+    expect(visible.items[0].gift?.anonymous).toBe(false);
+    expect(visible.items[0].gift?.giverFirstName).toBe("Sofía");
+
+    const profe = await createTestMember(app, { firstName: "Fran" });
+    await setCommunityVisible(app, profe.id, false);
+    const giftProfe = await seedGiftFor(profe.id, member.id, {
+      giverKind: "profe",
+    });
+    await seedInbox(member.id, {
+      title: "Tu profe Fran te dio Aura",
+      kind: INBOX_GIFT_KIND,
+      refId: giftProfe,
+      shownAt: visibleAt(30),
+    });
+    const conProfe = await getList(member.token);
+    const delProfe = conProfe.items.find(
+      (i) => i.title === "Tu profe Fran te dio Aura",
+    );
+    expect(delProfe?.gift?.anonymous).toBe(false);
+    expect(delProfe?.gift?.giverKind).toBe("profe");
   });
 
   it("5c) un aviso que apunta al regalo de otra persona no lo muestra", async () => {

@@ -9,6 +9,9 @@
 // - D-19: título "Sofía M. te dio Aura" / "Tu profe Fran te dio Aura" y cuerpo
 //   "Motivo: Buena energía." (texto de `giftPushText`; sin monto ni apellido).
 // - D-22: ningún texto promete privacidad que no se pueda garantizar.
+// - #38: si quien regala (alumno) no tiene nombre cargado, la push no lo nombra
+//   ni dice "Alguien": "Te dieron 1 de Aura" y "Motivo: Buena energía.". El profe
+//   sin nombre sigue siendo "Tu profe te dio Aura".
 //
 // Categoría: `motivacion` (decisión autónoma, ver 215-DECISIONES-AUTONOMAS.md).
 // Hallazgo: esa categoría no tiene interruptor en Perfil, así que hoy nadie la
@@ -37,6 +40,8 @@ export interface GiftNotificationInput {
   giverFirstName: string | null;
   giverLastInitial: string | null;
   reason: GiftReason;
+  /** Puntos del regalo, para el texto sin nombre ("Te dieron N de Aura"). */
+  amount: number;
 }
 
 /**
@@ -55,6 +60,7 @@ export async function queueGiftNotification(
       giverFirstName: input.giverFirstName,
       giverLastInitial: input.giverLastInitial,
       reason: input.reason,
+      amount: input.amount,
     });
     await notifications.queueAdHocNotification(
       {

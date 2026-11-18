@@ -24,7 +24,11 @@ const notFoundResponseSchema = {
   },
 } as const;
 
-/** Regalo que acompaña a un aviso `aura_gift`: solo nombre de pila, inicial y foto. */
+/**
+ * Regalo que acompaña a un aviso `aura_gift`: solo nombre de pila, inicial y foto.
+ * Con `anonymous` (quien dio hoy está oculto o no tiene nombre) el nombre viene
+ * vacío y no hay inicial ni foto.
+ */
 const inboxGiftSchema = {
   type: ["object", "null"],
   additionalProperties: false,
@@ -35,9 +39,11 @@ const inboxGiftSchema = {
     "giverLastInitial",
     "giverPhotoUrl",
     "status",
+    "anonymous",
   ],
   properties: {
     amount: { type: "integer" },
+    anonymous: { type: "boolean" },
     giverKind: { type: "string", enum: ["alumno", "profe"] },
     giverFirstName: { type: "string" },
     giverLastInitial: { type: ["string", "null"] },

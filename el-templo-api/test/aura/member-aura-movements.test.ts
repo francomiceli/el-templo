@@ -30,6 +30,7 @@ import {
   cleanupGiftClasses,
   seedGift,
   seedGiftClass,
+  setCommunityVisible,
   type GiftClass,
 } from "./_gift-fixtures";
 
@@ -449,6 +450,74 @@ describe("GET /api/members/aura/movements con regalos (fase 215, D-13, D-19, D-2
       "Sofía M. te dio Aura · Buena energía",
     );
     expect(res.body.earned).toBe(1);
+  });
+
+  it("ME-01: quien dio y hoy está oculto no se nombra: 'Te dieron 1 de Aura por Buena energía'", async () => {
+    const cls = await claseDeRegalo();
+    const dador = await createTestMember(app, {
+      firstName: "Sofía",
+      lastName: "Martínez",
+    });
+    const receptor = await createTestMember(app);
+    const giftId = await seedGift(app, {
+      giverUserId: dador.id,
+      receiverUserId: receptor.id,
+      branchId: cls.branchId,
+      scheduleId: cls.scheduleId,
+      sessionDate: cls.sessionDate,
+      reason: "energia",
+      amount: AURA_AMOUNTS.giftMember,
+    });
+    await seedLedger(receptor.id, [
+      {
+        sourceType: "social",
+        amount: AURA_AMOUNTS.giftMember,
+        referenceType: "aura_gift",
+        referenceId: giftId,
+      },
+    ]);
+    await setCommunityVisible(app, dador.id, false);
+
+    const res = await getMovements(receptor.token);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.movements[0].label).toBe(
+      "Te dieron 1 de Aura por Buena energía",
+    );
+    expect(JSON.stringify(res.body)).not.toContain("Sofía");
+    expect(JSON.stringify(res.body)).not.toContain("Alguien");
+  });
+
+  it("#38: quien dio sin nombre cargado tampoco se nombra", async () => {
+    const cls = await claseDeRegalo();
+    const dador = await createTestMember(app, { lastName: "Martínez" });
+    await app.dbPool.query("UPDATE users SET first_name = NULL WHERE id = ?", [
+      dador.id,
+    ]);
+    const receptor = await createTestMember(app);
+    const giftId = await seedGift(app, {
+      giverUserId: dador.id,
+      receiverUserId: receptor.id,
+      branchId: cls.branchId,
+      scheduleId: cls.scheduleId,
+      sessionDate: cls.sessionDate,
+      reason: "constancia",
+      amount: AURA_AMOUNTS.giftMember,
+    });
+    await seedLedger(receptor.id, [
+      {
+        sourceType: "social",
+        amount: AURA_AMOUNTS.giftMember,
+        referenceType: "aura_gift",
+        referenceId: giftId,
+      },
+    ]);
+
+    const res = await getMovements(receptor.token);
+
+    expect(res.body.movements[0].label).toBe(
+      "Te dieron 1 de Aura por Constancia",
+    );
   });
 
   it("regalo del profe: 'Tu profe Nombre te dio Aura' con el monto del profe y sin apellido", async () => {

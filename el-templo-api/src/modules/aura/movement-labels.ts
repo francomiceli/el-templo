@@ -23,7 +23,7 @@ const FIXED_LABELS: ReadonlyMap<string, string> = new Map([
   ["attendance", "Asistencia a clase"],
   ["onboarding_completion", "Completaste tu perfil"],
   ["training_completion", "Entrenamiento en la app"],
-  ["goal_plan_completion", "Sesión de tu plan"],
+  ["goal_plan_completion", "Sesión de tu plan online"],
   ["extra_block", "Bloque libre"],
   ["stretch", "Estiramiento"],
   ["program_week_completion", "Semana de programa"],
@@ -72,7 +72,9 @@ export function auraMovementLabel(
 
   if (sourceType === "streak_bonus") {
     const sessions = positiveRef(referenceId);
-    return sessions === null ? "Racha" : `Racha de ${sessions} sesiones`;
+    return sessions === null
+      ? "Días seguidos entrenando en la app"
+      : `${sessions} días seguidos entrenando en la app`;
   }
 
   return FIXED_LABELS.get(sourceType) ?? "Movimiento de Aura";

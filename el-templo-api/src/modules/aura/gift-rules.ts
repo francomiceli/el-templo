@@ -11,6 +11,10 @@
  * - D-19: el aviso dice quién dio y el motivo.
  * - D-21: porcentaje de quienes regalaron, para la medición.
  * - D-22: ningún texto promete discreción: el aviso dice siempre quién dio.
+ * - ME-01 y #38 (revisión del 2026-11-18): si la otra persona HOY está oculta de
+ *   las listas, o quien regaló no tiene nombre, el texto no la nombra ni dice
+ *   "Alguien": solo la cantidad y el motivo ("Te dieron 1 de Aura por
+ *   Constancia"). El profe nunca es anónimo: sin nombre es "Tu profe".
  */
 
 import type {
@@ -18,6 +22,7 @@ import type {
   AuraGiftReason,
 } from "../../db/schema/aura-gifts";
 import { addDays } from "../shared/date-utils";
+import { AURA_AMOUNTS } from "./amounts";
 import { isoWeekStart } from "../ratings/roster-attribution";
 
 export type GiftReason = AuraGiftReason;
@@ -101,6 +106,26 @@ export interface GiftLabelInput {
   giverFirstName: string | null;
   giverLastInitial: string | null;
   reason: GiftReason;
+  /** ME-01: quien dio (alumno) hoy está oculto de las listas. */
+  giverHidden?: boolean;
+  /** Puntos del regalo. Sin dato rige el valor del regalo de un alumno. */
+  amount?: number;
+}
+
+/**
+ * ME-01 y #38: el aviso no nombra a quien dio. Solo vale para un alumno: oculto
+ * hoy o sin nombre de pila. El profe se muestra siempre ("Tu profe").
+ */
+export function isAnonymousGiver(input: GiftLabelInput): boolean {
+  if (input.giverKind === "profe") return false;
+  return (
+    input.giverHidden === true || (input.giverFirstName ?? "").trim() === ""
+  );
+}
+
+/** "Te dieron 1 de Aura" (título de la push sin nombre). */
+function receivedAmountPhrase(input: GiftLabelInput): string {
+  return `Te dieron ${input.amount ?? AURA_AMOUNTS.giftMember} de Aura`;
 }
 
 /**
@@ -134,6 +159,12 @@ export function giftPushText(input: GiftLabelInput): {
   title: string;
   body: string;
 } {
+  if (isAnonymousGiver(input)) {
+    return {
+      title: receivedAmountPhrase(input),
+      body: `Motivo: ${giftReasonLabel(input.reason)}.`,
+    };
+  }
   return {
     title: `${giverPhrase(input)} te dio Aura`,
     body: `Motivo: ${giftReasonLabel(input.reason)}.`,
@@ -143,5 +174,8 @@ export function giftPushText(input: GiftLabelInput): {
 /** Texto del movimiento en el detalle de Aura (D-19). */
 export function giftMovementLabel(input: GiftLabelInput | null): string {
   if (input === null) return GIFT_UNKNOWN_LABEL;
+  if (isAnonymousGiver(input)) {
+    return `${receivedAmountPhrase(input)} por ${giftReasonLabel(input.reason)}`;
+  }
   return `${giverPhrase(input)} te dio Aura · ${giftReasonLabel(input.reason)}`;
 }

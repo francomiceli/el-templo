@@ -29,15 +29,19 @@ const giftErrorResponseSchema = {
   },
 } as const;
 
-/** Quien recibió: solo nombre de pila, inicial y foto firmada. */
+/**
+ * Quien recibió: solo nombre de pila, inicial y foto firmada. Con `anonymous`
+ * (hoy está oculto o no tiene nombre) no hay nombre, inicial ni foto.
+ */
 const receiverViewSchema = {
   type: "object",
-  required: ["firstName", "lastInitial", "photoUrl"],
+  required: ["firstName", "lastInitial", "photoUrl", "anonymous"],
   additionalProperties: false,
   properties: {
     firstName: { type: "string" },
     lastInitial: { type: ["string", "null"] },
     photoUrl: { type: ["string", "null"] },
+    anonymous: { type: "boolean" },
   },
 } as const;
 
@@ -84,12 +88,13 @@ export const pendingGiftsSchema = {
           type: "array",
           items: {
             type: "object",
-            required: ["attendanceId", "receiver", "reason"],
+            required: ["attendanceId", "receiver", "reason", "amount"],
             additionalProperties: false,
             properties: {
               attendanceId: { type: "integer" },
               receiver: receiverViewSchema,
               reason: giftReasonSchema,
+              amount: { type: "integer" },
             },
           },
         },

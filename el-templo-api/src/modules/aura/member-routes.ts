@@ -13,7 +13,8 @@
 // descartan y las reversas salen en negativo.
 //
 // Regalos (fase 215, D-13, D-19): las filas `social` con `aura_gift` se leen con
-// quien dio y el motivo. Los datos salen de UNA consulta por página (no una por
+// quien dio y el motivo. Si quien dio hoy esta oculto o no tiene nombre, el texto
+// solo dice cuantos puntos y por que (ME-01, #38). Los datos salen de UNA consulta por página (no una por
 // fila) y solo de los regalos recibidos por el propio usuario. Quien da no ve
 // nada nuevo (D-09): el regalo solo mueve el ledger del que recibe.
 import type { FastifyInstance, FastifyPluginAsync } from "fastify";
@@ -26,6 +27,7 @@ import {
   tenantWhere,
   type TenantContext,
 } from "../shared/tenant";
+import { hiddenCommunityUserIds } from "../scheduling/community-service";
 import { GIFT_REFERENCE, type GiftLabelInput } from "./gift-rules";
 import { earnedAuraForUser, earnedRowsFilter } from "./earned";
 import { auraMovementLabel } from "./movement-labels";
@@ -55,6 +57,8 @@ async function giftLabelInputs(
       id: schema.auraGifts.id,
       giverKind: schema.auraGifts.giverKind,
       reason: schema.auraGifts.reason,
+      amount: schema.auraGifts.amount,
+      giverUserId: schema.auraGifts.giverUserId,
       giverFirstName: schema.users.firstName,
       giverLastInitial: sql<string | null>`LEFT(${schema.users.lastName}, 1)`,
     })
@@ -74,12 +78,21 @@ async function giftLabelInputs(
       ),
     );
 
+  // ME-01: quien dio y hoy esta oculto no se nombra (una consulta por pagina).
+  const hidden = await hiddenCommunityUserIds(
+    db,
+    ctx,
+    rows.filter((row) => row.giverKind === "alumno").map((r) => r.giverUserId),
+  );
+
   for (const row of rows) {
     result.set(row.id, {
       giverKind: row.giverKind,
       giverFirstName: row.giverFirstName,
       giverLastInitial: row.giverKind === "profe" ? null : row.giverLastInitial,
       reason: row.reason,
+      amount: row.amount,
+      giverHidden: hidden.has(row.giverUserId),
     });
   }
   return result;

@@ -17,6 +17,7 @@ import {
   giftMovementLabel,
   giftPersonName,
   giftPushText,
+  isAnonymousGiver,
   giftReasonLabel,
   giftWeekRange,
   giversPct,
@@ -190,6 +191,42 @@ describe("textos del regalo (D-19, D-22)", () => {
     ).toBe("Tu profe Fran te dio Aura");
   });
 
+  it("ME-01 y #38: sin nombre u oculto, la push no nombra a nadie ni dice Alguien", () => {
+    const sinNombre = {
+      ...alumno,
+      giverFirstName: null,
+      giverLastInitial: null,
+    };
+    expect(giftPushText(sinNombre)).toEqual({
+      title: "Te dieron 1 de Aura",
+      body: "Motivo: Buena energía.",
+    });
+    expect(giftPushText({ ...sinNombre, giverFirstName: "  " }).title).toBe(
+      "Te dieron 1 de Aura",
+    );
+    expect(giftPushText({ ...alumno, giverHidden: true, amount: 2 })).toEqual({
+      title: "Te dieron 2 de Aura",
+      body: "Motivo: Buena energía.",
+    });
+    expect(giftPushText(sinNombre).title).not.toContain("Alguien");
+  });
+
+  it("el profe sin nombre sigue siendo Tu profe", () => {
+    expect(giftPushText({ ...profe, giverFirstName: null }).title).toBe(
+      "Tu profe te dio Aura",
+    );
+    expect(isAnonymousGiver({ ...profe, giverFirstName: null })).toBe(false);
+    expect(isAnonymousGiver({ ...profe, giverHidden: true })).toBe(false);
+  });
+
+  it("isAnonymousGiver: cuatro cruces del alumno", () => {
+    expect(isAnonymousGiver(alumno)).toBe(false);
+    expect(isAnonymousGiver({ ...alumno, giverHidden: false })).toBe(false);
+    expect(isAnonymousGiver({ ...alumno, giverHidden: true })).toBe(true);
+    expect(isAnonymousGiver({ ...alumno, giverFirstName: "" })).toBe(true);
+    expect(isAnonymousGiver({ ...alumno, giverFirstName: null })).toBe(true);
+  });
+
   it("detalle del movimiento", () => {
     expect(giftMovementLabel(alumno)).toBe(
       "Sofía M. te dio Aura · Buena energía",
@@ -210,7 +247,12 @@ describe("textos del regalo (D-19, D-22)", () => {
 
   it("ningún texto promete privacidad", () => {
     const texts: string[] = [GIFT_VOID_LABEL, giftMovementLabel(null)];
-    for (const input of [alumno, profe]) {
+    for (const input of [
+      alumno,
+      profe,
+      { ...alumno, giverHidden: true },
+      { ...alumno, giverFirstName: null },
+    ]) {
       const push = giftPushText(input);
       texts.push(push.title, push.body, giftMovementLabel(input));
     }

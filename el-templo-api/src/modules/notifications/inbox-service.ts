@@ -27,7 +27,12 @@ import {
   tenantWhere,
   type TenantContext,
 } from "../shared/tenant";
-import type { GiftGiverKind } from "../aura/gift-rules";
+import {
+  isAnonymousGiver,
+  type GiftGiverKind,
+  type GiftReason,
+} from "../aura/gift-rules";
+import { hiddenCommunityUserIds } from "../scheduling/community-service";
 import {
   INBOX_RETENTION_DAYS,
   formatInboxCursor,
@@ -103,6 +108,12 @@ export interface InboxGiftInfo {
   giverFirstName: string | null;
   giverLastInitial: string | null;
   status: "vigente" | "anulado";
+  reason: GiftReason;
+  /**
+   * ME-01 y #38: quien dio hoy esta oculto o no tiene nombre. Con `true` el
+   * nombre y la inicial ya vienen en null y la ruta no pide la foto.
+   */
+  anonymous: boolean;
 }
 
 export class InboxService {
@@ -341,6 +352,7 @@ export class InboxService {
         giverKind: schema.auraGifts.giverKind,
         giverUserId: schema.auraGifts.giverUserId,
         status: schema.auraGifts.status,
+        reason: schema.auraGifts.reason,
         giverFirstName: schema.users.firstName,
         giverLastInitial: sql<string | null>`LEFT(${schema.users.lastName}, 1)`,
       })
@@ -360,15 +372,32 @@ export class InboxService {
         ),
       );
 
+    const hidden = await hiddenCommunityUserIds(
+      this.db,
+      ctx,
+      rows
+        .filter((row) => row.giverKind === "alumno")
+        .map((r) => r.giverUserId),
+    );
+
     for (const row of rows) {
+      const anonymous = isAnonymousGiver({
+        giverKind: row.giverKind,
+        giverFirstName: row.giverFirstName,
+        giverLastInitial: null,
+        reason: row.reason,
+        giverHidden: hidden.has(row.giverUserId),
+      });
       result.set(row.id, {
         amount: row.amount,
         giverKind: row.giverKind,
         giverUserId: row.giverUserId,
-        giverFirstName: row.giverFirstName,
+        giverFirstName: anonymous ? null : row.giverFirstName,
         giverLastInitial:
-          row.giverKind === "profe" ? null : row.giverLastInitial,
+          row.giverKind === "profe" || anonymous ? null : row.giverLastInitial,
         status: row.status,
+        reason: row.reason,
+        anonymous,
       });
     }
     return result;

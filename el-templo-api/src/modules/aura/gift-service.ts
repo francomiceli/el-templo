@@ -60,6 +60,7 @@ import {
 } from "../shared/tenant";
 import { NotificationService } from "../notifications/service";
 import { GiftError } from "./gift-errors";
+import { hiddenCommunityUserIds } from "../scheduling/community-service";
 import { queueGiftNotification } from "./gift-push";
 import { getCoachGiftAmount } from "./gift-settings";
 import {
@@ -102,6 +103,12 @@ export interface GiftReceiverView {
   firstName: string;
   lastInitial: string | null;
   photoUrl: string | null;
+  /**
+   * ME-01 y #38: quien recibio hoy esta oculto de las listas o no tiene nombre.
+   * Con `true` no hay nombre, inicial ni foto: el texto de la card dice solo
+   * cuantos puntos y por que.
+   */
+  anonymous: boolean;
 }
 
 /** Un regalo vigente que el usuario dio hoy. */
@@ -109,6 +116,7 @@ export interface GivenTodayGift {
   attendanceId: number;
   receiver: GiftReceiverView;
   reason: GiftReason;
+  amount: number;
 }
 
 export interface PendingGiftsResult {
@@ -447,6 +455,7 @@ export class AuraGiftService {
         giverFirstName: memberGiver.firstName,
         giverLastInitial: memberGiver.lastInitial,
         reason: memberResult.reason,
+        amount: memberResult.amount,
       },
       this.fastify.log,
     );
@@ -585,6 +594,7 @@ export class AuraGiftService {
         giverFirstName: coachGiver.firstName,
         giverLastInitial: null,
         reason: coachResult.reason,
+        amount: coachResult.amount,
       },
       this.fastify.log,
     );
@@ -829,6 +839,7 @@ export class AuraGiftService {
         attendanceId: schema.auraGifts.giverAttendanceId,
         receiverUserId: schema.auraGifts.receiverUserId,
         reason: schema.auraGifts.reason,
+        amount: schema.auraGifts.amount,
         createdAt: schema.auraGifts.createdAt,
         timezone: schema.branches.timezone,
         firstName: schema.users.firstName,
@@ -869,21 +880,35 @@ export class AuraGiftService {
     });
     if (today.length === 0) return [];
 
-    const photos = await this.safePhotos(
+    // ME-01: quien recibio y hoy esta oculto (o sin nombre) no se nombra ni se
+    // muestra, y su foto ni se firma.
+    const hidden = await hiddenCommunityUserIds(
+      this.db,
       ctx,
       today.map((row) => row.receiverUserId),
+    );
+    const isAnonymous = (row: (typeof today)[number]): boolean =>
+      hidden.has(row.receiverUserId) || (row.firstName ?? "").trim() === "";
+    const photos = await this.safePhotos(
+      ctx,
+      today.filter((row) => !isAnonymous(row)).map((row) => row.receiverUserId),
     );
     const result: GivenTodayGift[] = [];
     for (const row of today) {
       if (row.attendanceId === null) continue;
+      const anonymous = isAnonymous(row);
       result.push({
         attendanceId: row.attendanceId,
-        receiver: {
-          firstName: row.firstName ?? "",
-          lastInitial: row.lastInitial || null,
-          photoUrl: photos.get(row.receiverUserId) ?? null,
-        },
+        receiver: anonymous
+          ? { firstName: "", lastInitial: null, photoUrl: null, anonymous }
+          : {
+              firstName: row.firstName ?? "",
+              lastInitial: row.lastInitial || null,
+              photoUrl: photos.get(row.receiverUserId) ?? null,
+              anonymous,
+            },
         reason: row.reason,
+        amount: row.amount,
       });
     }
     return result;

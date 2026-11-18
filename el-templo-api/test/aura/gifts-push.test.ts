@@ -41,6 +41,7 @@ import {
   seedGiftPlan,
   seedMember,
   seedMemberWithPlan,
+  setCommunityVisible,
   type GiftClass,
   type GiftPerson,
 } from "./_gift-fixtures";
@@ -58,6 +59,7 @@ interface InboxGift {
   giverFirstName: string;
   giverLastInitial: string | null;
   status: "vigente" | "anulado";
+  anonymous: boolean;
 }
 
 interface InboxItem {
@@ -426,6 +428,7 @@ describe("Fase 215-15: push del regalo y bandeja", () => {
         giverFirstName: "Sofía",
         giverLastInitial: "M",
         reason: "energia",
+        amount: 1,
       },
       app.log,
     );
@@ -433,6 +436,48 @@ describe("Fase 215-15: push del regalo y bandeja", () => {
     const filas = await bandejaDe(r.id);
     expect(filas).toHaveLength(1);
     expect(filas[0].refId).toBe(giftId);
+  });
+
+  it("(10) #38: si quien regala no tiene nombre, la push y la bandeja no nombran a nadie ni dicen Alguien", async () => {
+    const g = await dador();
+    await app.dbPool.query("UPDATE users SET first_name = NULL WHERE id = ?", [
+      g.id,
+    ]);
+    const r = await receptor();
+    await service.registerToken(r.id, TOKEN_RECEPTOR, "android");
+
+    await darRegaloAlumno(g, r, "energia");
+
+    const cola = await colaDe(r.id);
+    expect(cola).toHaveLength(1);
+    expect(cola[0].title).toBe("Te dieron 1 de Aura");
+    expect(cola[0].body).toBe("Motivo: Buena energía.");
+    expect(cola[0].title).not.toContain("Alguien");
+
+    await service.processQueue();
+    const items = await leerBandejaPorRuta(r);
+    const aviso = items.find((item) => item.kind === "aura_gift");
+    expect(aviso?.title).toBe("Te dieron 1 de Aura");
+    expect(aviso?.gift?.anonymous).toBe(true);
+  });
+
+  it("(11) ME-01: si quien regaló se oculta después, la bandeja ya no lo nombra, pero la fila guardada no se pierde", async () => {
+    const g = await dador();
+    const r = await receptor();
+    await service.registerToken(r.id, TOKEN_RECEPTOR, "android");
+    await darRegaloAlumno(g, r, "energia");
+    await service.processQueue();
+    await setCommunityVisible(app, g.id, false);
+
+    const items = await leerBandejaPorRuta(r);
+    const aviso = items.find((item) => item.kind === "aura_gift");
+
+    expect(aviso?.title).toBe("Te dieron 1 de Aura");
+    expect(aviso?.body).toBe("Motivo: Buena energía.");
+    expect(aviso?.gift?.anonymous).toBe(true);
+    expect(aviso?.gift?.giverFirstName).toBe("");
+    const guardada = await bandejaDe(r.id);
+    expect(guardada[0].title).toBe("Sofía M. te dio Aura");
   });
 
   it("(9) si encolar falla, queueGiftNotification no lanza", async () => {
@@ -453,6 +498,7 @@ describe("Fase 215-15: push del regalo y bandeja", () => {
           giverFirstName: "Fran",
           giverLastInitial: null,
           reason: "energia",
+          amount: 2,
         },
         app.log,
       ),

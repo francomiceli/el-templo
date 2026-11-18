@@ -68,8 +68,10 @@ interface PendingBody {
       firstName: string;
       lastInitial: string | null;
       photoUrl: string | null;
+      anonymous: boolean;
     };
     reason: string;
+    amount: number;
   }>;
 }
 
@@ -523,13 +525,66 @@ describe("Fase 215-06: rutas del regalo del alumno", () => {
             firstName: a.firstName,
             lastInitial: "A",
             photoUrl: null,
+            anonymous: false,
           },
           reason: "constancia",
+          amount: 1,
         },
       ]);
       // Las caras de una clase ya regalada también se rechazan.
       expect(caras.statusCode).toBe(409);
       expect(caras.body.code).toBe("REGALO_YA_DADO");
+    });
+
+    it("ME-01 y #38: si quien recibió hoy está oculto, o no tiene nombre, la card de hoy no lo nombra ni muestra su foto", async () => {
+      const g = await dador();
+      const oculto = await companiero();
+      const token = await tokenDe(g);
+      const dado = await postGift(token, {
+        attendanceId: g.attendanceId,
+        receiverAttendanceId: oculto.attendanceId,
+        reason: "constancia",
+      });
+      expect(dado.statusCode).toBe(201);
+
+      // Normal: se nombra.
+      const normal = await getPending(token);
+      expect(normal.body.givenToday[0].receiver.anonymous).toBe(false);
+      expect(normal.body.givenToday[0].receiver.firstName).toBe(
+        oculto.firstName,
+      );
+
+      // Oculto después del regalo: anónimo, con monto y motivo.
+      await setCommunityVisible(app, oculto.id, false);
+      const conOculto = await getPending(token);
+      expect(conOculto.body.givenToday).toEqual([
+        {
+          attendanceId: g.attendanceId,
+          receiver: {
+            firstName: "",
+            lastInitial: null,
+            photoUrl: null,
+            anonymous: true,
+          },
+          reason: "constancia",
+          amount: 1,
+        },
+      ]);
+      expect(JSON.stringify(conOculto.body)).not.toContain(oculto.firstName);
+
+      // Visible otra vez pero sin nombre de pila cargado: sigue anónimo.
+      await setCommunityVisible(app, oculto.id, true);
+      await app.dbPool.query(
+        "UPDATE users SET first_name = NULL WHERE id = ?",
+        [oculto.id],
+      );
+      const sinNombre = await getPending(token);
+      expect(sinNombre.body.givenToday[0].receiver).toEqual({
+        firstName: "",
+        lastInitial: null,
+        photoUrl: null,
+        anonymous: true,
+      });
     });
 
     // ── 6 y 7. tope semanal ─────────────────────────────────────────────────

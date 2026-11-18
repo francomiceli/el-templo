@@ -14,7 +14,7 @@
 //
 // El `userId` sale siempre del JWT: ninguna ruta acepta el id de otra persona.
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../db/schema";
 import { DEFAULT_TENANT_TIMEZONE, todayInTz } from "../shared/date-utils";
@@ -112,6 +112,59 @@ export async function getViewerCommunityState(
     branchId: row.branchId,
     branchCountry,
   };
+}
+
+/**
+ * ME-01 (fase 215): de `userIds`, quienes HOY estan ocultos de las listas
+ * (`effectiveVisible` con la preferencia, la edad, el pais y el dia local de la
+ * sede de cada uno). Es la misma regla que filtra a los anotados. Un id que no
+ * existe no figura como oculto: el llamador decide que hacer sin datos.
+ */
+export async function hiddenCommunityUserIds(
+  db: DbInstance,
+  ctx: TenantContext,
+  userIds: readonly number[],
+  now: Date = new Date(),
+): Promise<Set<number>> {
+  const hidden = new Set<number>();
+  const ids = [...new Set(userIds)];
+  if (ids.length === 0) return hidden;
+
+  const rows = await db
+    .select({
+      id: schema.users.id,
+      dateOfBirth: schema.users.dateOfBirth,
+      branchCountry: schema.branches.country,
+      branchTimezone: schema.branches.timezone,
+      preference: schema.memberProfiles.communityVisible,
+    })
+    .from(schema.users)
+    .leftJoin(
+      schema.branches,
+      and(
+        tenantWhere(schema.branches, ctx),
+        eq(schema.branches.id, schema.users.branchId),
+      ),
+    )
+    .leftJoin(
+      schema.memberProfiles,
+      and(
+        tenantWhere(schema.memberProfiles, ctx),
+        eq(schema.memberProfiles.userId, schema.users.id),
+      ),
+    )
+    .where(and(tenantWhere(schema.users, ctx), inArray(schema.users.id, ids)));
+
+  for (const row of rows) {
+    const visible = effectiveVisible({
+      preference: row.preference ?? null,
+      dateOfBirth: row.dateOfBirth,
+      branchCountry: row.branchCountry ?? "AR",
+      todayLocal: todayInTz(row.branchTimezone ?? DEFAULT_TENANT_TIMEZONE, now),
+    });
+    if (!visible) hidden.add(row.id);
+  }
+  return hidden;
 }
 
 /** Guarda la preferencia del alumno (D-05) y devuelve el estado releido. */

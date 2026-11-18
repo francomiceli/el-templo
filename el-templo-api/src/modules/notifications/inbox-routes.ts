@@ -9,8 +9,10 @@
 // id de aviso ajeno o inexistente responde 404 sin revelar cuál de las dos.
 //
 // Regalos (D-19): el aviso `aura_gift` trae quien dio (nombre de pila, inicial,
-// foto firmada si es alumno). Si quien regaló se ocultó DESPUÉS, el regalo ya se
-// dio y sigue mostrándose en la bandeja de quien lo recibió.
+// foto firmada si es alumno). ME-01 y #38: si quien regaló HOY está oculto de las
+// listas o no tiene nombre, el aviso no lo nombra: sin nombre, inicial ni foto, y
+// el título y el cuerpo guardados se reemplazan por "Te dieron N de Aura" y el
+// motivo (`anonymous: true`).
 import type { FastifyPluginAsync } from "fastify";
 import { attachCountryScope } from "../shared/country-scope";
 import { handleServiceError } from "../shared/error-handler";
@@ -20,6 +22,7 @@ import {
   ProfilePhotoStorageUnavailableError,
   resolveCommunityPhotos,
 } from "../members/profile-photo-service";
+import { giftPushText } from "../aura/gift-rules";
 import { INBOX_GIFT_KIND, INBOX_PAGE_DEFAULT } from "./inbox-rules";
 import { InboxService } from "./inbox-service";
 import {
@@ -58,9 +61,10 @@ export const inboxMemberRoutes: FastifyPluginAsync = async (fastify) => {
         );
         const gifts = await inbox.giftInfoFor(ctx, userId, giftIds);
 
-        // Foto solo para dadores alumno (el profe muestra el círculo de la app).
+        // Foto solo para dadores alumno con nombre visible (el profe muestra el
+        // círculo de la app; quien está oculto no se nombra ni se muestra).
         const photoUserIds = [...gifts.values()]
-          .filter((gift) => gift.giverKind === "alumno")
+          .filter((gift) => gift.giverKind === "alumno" && !gift.anonymous)
           .map((gift) => gift.giverUserId);
         let photos = new Map<number, { url: string; photoId: number }>();
         if (photoUserIds.length > 0) {
@@ -82,11 +86,22 @@ export const inboxMemberRoutes: FastifyPluginAsync = async (fastify) => {
               row.kind === INBOX_GIFT_KIND && row.refId !== null
                 ? gifts.get(row.refId)
                 : undefined;
+            // ME-01: el texto guardado lleva el nombre de quien dio; si hoy no se
+            // puede nombrar, se redacta de nuevo sin él.
+            const anonymousText = info?.anonymous
+              ? giftPushText({
+                  giverKind: "alumno",
+                  giverFirstName: null,
+                  giverLastInitial: null,
+                  reason: info.reason,
+                  amount: info.amount,
+                })
+              : null;
             return {
               id: row.id,
               kind: row.kind,
-              title: row.title,
-              body: row.body,
+              title: anonymousText?.title ?? row.title,
+              body: anonymousText?.body ?? row.body,
               route: row.route,
               destination: row.destinationType,
               destinationSection: row.destinationSection,
@@ -97,11 +112,11 @@ export const inboxMemberRoutes: FastifyPluginAsync = async (fastify) => {
                 ? {
                     amount: info.amount,
                     giverKind: info.giverKind,
-                    giverFirstName:
-                      (info.giverFirstName ?? "").trim() || "Alguien",
+                    anonymous: info.anonymous,
+                    giverFirstName: (info.giverFirstName ?? "").trim(),
                     giverLastInitial: info.giverLastInitial,
                     giverPhotoUrl:
-                      info.giverKind === "alumno"
+                      info.giverKind === "alumno" && !info.anonymous
                         ? (photos.get(info.giverUserId)?.url ?? null)
                         : null,
                     status: info.status,
