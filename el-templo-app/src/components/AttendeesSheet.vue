@@ -2,7 +2,7 @@
   <!-- Fase 214 (plan 25): hoja "Quiénes van" (UI-SPEC Pantallas 3b y 3c, D-51, D-52, D-65). Dibuja
        lo que manda el servidor, en su orden: la app no reordena ni filtra (D-03, D-17). La lista
        vive solo en el estado de este componente y se descarta al cerrar (T-214-25-01). La vista de
-       una foto y "Reportar foto" son del plan 26: acá solo se emite `open-photo`. -->
+       una foto y "Reportar foto" (plan 26) se montan una sola vez abajo, como `AttendeePhotoDialog`. -->
   <q-dialog
     :model-value="modelValue"
     position="bottom"
@@ -128,7 +128,7 @@
                   type="button"
                   class="ash__cell-btn"
                   :aria-label="`Ver la foto de ${attendeeName(a)}`"
-                  @click="emit('open-photo', a)"
+                  @click="openPhoto(a)"
                 >
                   <MemberAvatar
                     :size="56"
@@ -188,12 +188,15 @@
       </div>
     </q-card>
   </q-dialog>
+
+  <AttendeePhotoDialog v-model="photoOpen" :attendee="photoAttendee" />
 </template>
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import axios from 'axios'
 import { useRouter } from 'vue-router'
+import AttendeePhotoDialog from 'src/components/AttendeePhotoDialog.vue'
 import MemberAvatar from 'src/components/MemberAvatar.vue'
 import { useBackButtonClose } from 'src/composables/useBackButtonClose'
 import { useCommunityApi } from 'src/composables/useCommunityApi'
@@ -219,7 +222,7 @@ const emit = defineEmits<{
   'update:modelValue': [value: boolean]
   /** "Reservar" o "Anotarme en la lista de espera": la página corre su propio `onSlotTap`. */
   reserve: []
-  /** Cara tocable: el diálogo de la foto es del plan 26. */
+  /** Cara tocable abierta: aviso para quien necesite saberlo (el diálogo lo monta esta hoja). */
   'open-photo': [attendee: Attendee]
 }>()
 
@@ -236,6 +239,8 @@ const skeletonAnimation = prefersReducedMotion() ? 'none' : 'pulse'
 const status = ref<'loading' | 'ready' | 'notfound' | 'error'>('loading')
 const data = ref<SlotAttendees | null>(null)
 const noticeClosed = ref(false)
+const photoOpen = ref(false)
+const photoAttendee = ref<Attendee | null>(null)
 
 /** Cada apertura o reintento invalida las respuestas en vuelo de la anterior. */
 let requestSeq = 0
@@ -267,6 +272,12 @@ function hiddenNoticeText(d: SlotAttendees): string {
     return `Estás oculto en las listas, por eso ves solo el número: hay ${d.total} anotados.`
   }
   return `Hay ${d.total} anotados. La lista con nombres la ven los alumnos con plan vigente.`
+}
+
+function openPhoto(a: Attendee): void {
+  photoAttendee.value = a
+  photoOpen.value = true
+  emit('open-photo', a)
 }
 
 function close(): void {
@@ -350,6 +361,8 @@ watch(
       // Invalida lo que esté en vuelo, descarta la lista y suelta el botón atrás.
       requestSeq++
       data.value = null
+      photoOpen.value = false
+      photoAttendee.value = null
       backClose.cleanup()
     }
   },
