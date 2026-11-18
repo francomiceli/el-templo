@@ -6,6 +6,7 @@
 
 import { describe, it, expect } from "vitest";
 import { auraMovementLabel } from "../../src/modules/aura/movement-labels";
+import type { GiftLabelInput } from "../../src/modules/aura/gift-rules";
 
 describe("auraMovementLabel (fase 214, D-13)", () => {
   it("asistencia y su reversa", () => {
@@ -84,5 +85,58 @@ describe("auraMovementLabel (fase 214, D-13)", () => {
       "Movimiento de Aura",
     );
     expect(auraMovementLabel("algo_nuevo", "x", 9)).toBe("Movimiento de Aura");
+  });
+});
+
+describe("auraMovementLabel con regalos (fase 215, D-13, D-19, D-22)", () => {
+  const deAlumno: GiftLabelInput = {
+    giverKind: "alumno",
+    giverFirstName: "Sofía",
+    giverLastInitial: "M",
+    reason: "energia",
+  };
+  const deProfe: GiftLabelInput = {
+    giverKind: "profe",
+    giverFirstName: "Fran",
+    giverLastInitial: null,
+    reason: "tecnica",
+  };
+
+  it("regalo de un alumno: nombre, inicial y motivo", () => {
+    expect(auraMovementLabel("social", "aura_gift", 7, deAlumno)).toBe(
+      "Sofía M. te dio Aura · Buena energía",
+    );
+  });
+
+  it("regalo del profe: solo el nombre, sin apellido", () => {
+    expect(
+      auraMovementLabel("social", "aura_gift", 7, {
+        ...deProfe,
+        giverLastInitial: "G",
+      }),
+    ).toBe("Tu profe Fran te dio Aura · Buena técnica");
+  });
+
+  it("sin datos del regalo cae en el texto genérico de regalo", () => {
+    expect(auraMovementLabel("social", "aura_gift", 7)).toBe("Regalo de Aura");
+    expect(auraMovementLabel("social", "aura_gift", 7, null)).toBe(
+      "Regalo de Aura",
+    );
+    expect(auraMovementLabel("social", null, null)).toBe("Regalo de Aura");
+  });
+
+  it("la anulación se lee igual con o sin datos del regalo", () => {
+    expect(auraMovementLabel("social", "aura_gift_void", 7)).toBe(
+      "Regalo anulado",
+    );
+    expect(auraMovementLabel("social", "aura_gift_void", 7, deAlumno)).toBe(
+      "Regalo anulado",
+    );
+  });
+
+  it("los datos del regalo no cambian el texto de otras fuentes", () => {
+    expect(auraMovementLabel("attendance", "attendance", 1, deAlumno)).toBe(
+      "Asistencia a clase",
+    );
   });
 });
