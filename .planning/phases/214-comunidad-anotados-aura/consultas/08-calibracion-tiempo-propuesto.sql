@@ -21,14 +21,14 @@
 -- estimacion = SUM por prescripcion de (IF(seconds > 0, seconds, reps x 3) + GREATEST(rest, 0))
 --              x COALESCE(rounds, totalRounds, 1). Incluye las prescripciones de movilidad del bloque.
 -- Formatos con tiempo que no estan en el CASE (por ejemplo emom_for_time) caen a la estimacion.
--- completed_sessions.duration esta en minutos: ratio = duration x 60 / propuesto_segundos.
+-- completed_sessions.duration esta en SEGUNDOS (sessions/routes.ts:480-485 guarda durationSec, aunque el comentario del schema diga minutos): ratio = duration / propuesto_segundos.
 
 SET SESSION TRANSACTION READ ONLY;
 SET SESSION max_execution_time = 60000;
 
 WITH base AS (
   SELECT cs.id AS cs_id,
-         cs.duration AS duracion_min,
+         cs.duration AS duracion_s,
          s.session_mode,
          sb.id AS bloque_id,
          sb.exercise_count,
@@ -60,7 +60,7 @@ por_vuelta AS (
   GROUP BY p.block_id
 ),
 bloques AS (
-  SELECT b.cs_id, b.duracion_min, b.session_mode,
+  SELECT b.cs_id, b.duracion_s, b.session_mode,
          GREATEST(60, CASE
            WHEN b.tipo IN ('amrap', 'amrap_series', 'time_cap', 'for_tech', 'open_style') AND b.minutes IS NOT NULL
              THEN b.minutes * 60
@@ -82,7 +82,7 @@ bloques AS (
 ),
 sesiones AS (
   SELECT cs_id,
-         MAX(duracion_min) AS duracion_min,
+         MAX(duracion_s) AS duracion_s,
          MAX(session_mode) AS session_mode,
          SUM(propuesto_s) AS propuesto_s
   FROM bloques
@@ -90,7 +90,7 @@ sesiones AS (
 ),
 con_ratio AS (
   SELECT session_mode,
-         duracion_min * 60 / propuesto_s AS ratio
+         duracion_s / propuesto_s AS ratio
   FROM sesiones
   WHERE propuesto_s > 0
 ),
