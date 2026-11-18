@@ -105,11 +105,21 @@
                 Tu nombre de pila, la inicial de tu apellido, tu foto y tu Aura también aparecen en
                 esta lista para tus compañeros.
               </p>
+              <!-- Texto 2 (revisión 2026-11-18): "Entendido" es el botón primario de ancho completo;
+                   "Ocultarme" queda como texto subrayado y chico debajo. -->
+              <q-btn
+                unelevated
+                no-caps
+                class="ash__btn ash__btn--notice"
+                label="Entendido"
+                @click="dismissNotice"
+              />
               <div class="ash__notice-links">
-                <button type="button" class="ash__link ash__link--btn" @click="dismissNotice">
-                  Entendido
-                </button>
-                <button type="button" class="ash__link ash__link--btn" @click="hideMe">
+                <button
+                  type="button"
+                  class="ash__link ash__link--small ash__link--btn"
+                  @click="hideMe"
+                >
                   Ocultarme
                 </button>
               </div>
@@ -599,7 +609,7 @@ onBeforeUnmount(() => {
 
   &__notice-links {
     display: flex;
-    gap: 16px;
+    justify-content: center;
     margin-top: 4px;
   }
 
@@ -618,6 +628,10 @@ onBeforeUnmount(() => {
       outline: 2px solid $pd-terra-ink;
       outline-offset: 2px;
       border-radius: 4px;
+    }
+
+    &--small {
+      font-size: 13px;
     }
 
     &--btn {
@@ -643,6 +657,12 @@ onBeforeUnmount(() => {
     &--inline {
       width: auto;
       margin-top: 16px;
+    }
+
+    // Botón "Entendido" del aviso de la primera vez: ancho completo, bajo el texto.
+    &--notice {
+      width: 100%;
+      margin-top: 12px;
     }
   }
 }
