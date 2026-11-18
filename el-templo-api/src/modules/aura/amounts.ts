@@ -23,6 +23,8 @@ export const AURA_AMOUNTS = {
   extraBlock: 2,
   stretch: 1,
   profilePhoto: 5,
+  // Fase 215 D-10: regalo de un alumno. El del profe es editable (tenant_settings, plan 07).
+  giftMember: 1,
   // Decisión del planificador (discreción de CONTEXT): 15 -> 8 (7,5 redondeado
   // hacia arriba) y 100 -> 50 mantienen su peso en clases. Los programas con un
   // bonus personalizado distinto de 15/100 no se tocan.
