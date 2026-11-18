@@ -65,3 +65,7 @@ Cada vez que un ejecutor se encuentre con una decisión de producto, se anota ac
 
 | Fecha | Plan | Tema | Lo que se tomó |
 |---|---|---|---|
+| 2026-11-17 | 214-21, 214-27 | Motivo del rechazo visible en Perfil (el UI-SPEC no trae el texto) | Segundo renglón "Motivo: {etiqueta}." en la hoja de foto y caption "Motivo: {etiqueta}. Podés subir otra." en Perfil, con las etiquetas que ve el staff; sin renglón para "Otro motivo" |
+| 2026-11-17 | 214-13 | Copia de la foto de ficha al almacenamiento privado | Job cada 15 minutos, una sola vez por foto; si falla queda marcada y no se reintenta. Una foto de ficha nueva aparece en la lista hasta 15 minutos después |
+| 2026-11-17 | 214-17 | Cuentas borradas en la card del horario | Tampoco cuentan en el número de la card (misma cuenta que la hoja) |
+| 2026-11-17 | 214-31 | Migración de repaso de D-49 | Queda preparada en `deploy-2/` y se mueve a migraciones recién para el deploy siguiente al de la 0344 |
