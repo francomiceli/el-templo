@@ -10,8 +10,9 @@
  */
 import { DeleteObjectCommand } from "@aws-sdk/client-s3";
 import type { FastifyInstance } from "fastify";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  AVATAR_KEY_PREFIX,
   CONQUER_POSES,
   CORRECTION_KEY_PREFIX,
   PHOTO_CONTENT_TYPES,
@@ -19,13 +20,19 @@ import {
   PRIVATE_KEY_PREFIX,
   PhotoStorageUnavailableError,
   VideoStorageUnavailableError,
+  avatarOwnerSegment,
+  fichaMirrorKey,
   isCorrectionReplyKey,
+  isOwnAvatarKey,
   isOwnCorrectionVideoKey,
   isOwnPhotoKey,
+  privateAvatarKey,
   privateCheckPhotoKey,
   privateCorrectionReplyKey,
   privateCorrectionVideoKey,
   privateMediaResolver,
+  publicKeyFromFichaUrl,
+  stableHourlySigningDate,
 } from "../../src/modules/conquer/private-media";
 
 /** Doble de fastify con R2 "configurado" y un bucket PUBLICO de videos. */
@@ -468,5 +475,142 @@ describe("privateCorrectionReplyKey / isCorrectionReplyKey", () => {
     ["id no entero", good, 1, 7, 33.5, false],
   ] as const)("%s", (_nombre, key, t, u, c, expected) => {
     expect(isCorrectionReplyKey(key, t, u, c)).toBe(expected);
+  });
+});
+
+// ── Fase 214 plan 13: claves de avatar sin id de usuario y firma estable ─────
+
+describe("claves de avatar (fase 214, D-34)", () => {
+  const PUBLIC_BASE = "https://pub.example";
+
+  beforeEach(() => {
+    vi.stubEnv("JWT_SECRET", "secreto-de-prueba-214");
+    vi.stubEnv("R2_PUBLIC_URL", PUBLIC_BASE);
+  });
+
+  it("AVATAR_KEY_PREFIX no cae bajo private/conquer", () => {
+    expect(AVATAR_KEY_PREFIX).toBe("private/avatars");
+    expect(AVATAR_KEY_PREFIX.startsWith("private/conquer")).toBe(false);
+  });
+
+  it("privateAvatarKey lleva un segmento HMAC y no el id del usuario", () => {
+    const key = privateAvatarKey({ tenantId: 1, userId: 42 });
+    expect(key).toMatch(
+      /^private\/avatars\/1\/[0-9a-f]{24}\/[0-9a-f-]{36}\.jpg$/,
+    );
+    expect(key).not.toContain("/42/");
+    expect(key).not.toContain("42-");
+  });
+
+  it("avatarOwnerSegment es estable y distinto por usuario y por gimnasio", () => {
+    expect(avatarOwnerSegment(1, 42)).toBe(avatarOwnerSegment(1, 42));
+    expect(avatarOwnerSegment(1, 42)).toMatch(/^[0-9a-f]{24}$/);
+    expect(avatarOwnerSegment(1, 42)).not.toBe(avatarOwnerSegment(1, 43));
+    expect(avatarOwnerSegment(1, 42)).not.toBe(avatarOwnerSegment(2, 42));
+  });
+
+  it("avatarOwnerSegment tira un error claro sin JWT_SECRET", () => {
+    vi.stubEnv("JWT_SECRET", "");
+    expect(() => avatarOwnerSegment(1, 42)).toThrow(/JWT_SECRET/);
+  });
+
+  it("isOwnAvatarKey acepta la propia y rechaza otro usuario o gimnasio", () => {
+    const key = privateAvatarKey({ tenantId: 1, userId: 42 });
+    expect(isOwnAvatarKey(key, 1, 42)).toBe(true);
+    expect(isOwnAvatarKey(key, 1, 43)).toBe(false);
+    expect(isOwnAvatarKey(key, 2, 42)).toBe(false);
+    expect(isOwnAvatarKey(key, 1, 42.5)).toBe(false);
+  });
+
+  it("isOwnAvatarKey rechaza traversal, otra extension, otro prefijo, sufijo y ficha", () => {
+    const own = privateAvatarKey({ tenantId: 1, userId: 42 });
+    const seg = avatarOwnerSegment(1, 42);
+    const uuid = own.split("/").pop() as string;
+    expect(isOwnAvatarKey(`private/avatars/1/${seg}/../${uuid}`, 1, 42)).toBe(
+      false,
+    );
+    expect(isOwnAvatarKey(own.replace(/\.jpg$/, ".png"), 1, 42)).toBe(false);
+    expect(
+      isOwnAvatarKey(own.replace("private/avatars", "private/conquer"), 1, 42),
+    ).toBe(false);
+    expect(isOwnAvatarKey(`${own}/x`, 1, 42)).toBe(false);
+    expect(isOwnAvatarKey(`x/${own}`, 1, 42)).toBe(false);
+    expect(
+      isOwnAvatarKey(
+        `private/avatars/1/${seg}/ficha-0123456789abcdef.jpg`,
+        1,
+        42,
+      ),
+    ).toBe(false);
+  });
+
+  it("fichaMirrorKey es determinística, conserva la extension y comparte segmento", () => {
+    const sourceUrl = `${PUBLIC_BASE}/members/photos/42-1700000000000.png`;
+    const a = fichaMirrorKey({ tenantId: 1, userId: 42, sourceUrl });
+    const b = fichaMirrorKey({ tenantId: 1, userId: 42, sourceUrl });
+    expect(a).toBe(b);
+    expect(a.endsWith(".png")).toBe(true);
+    expect(a).toContain("/ficha-");
+    expect(
+      a.startsWith(`${AVATAR_KEY_PREFIX}/1/${avatarOwnerSegment(1, 42)}/`),
+    ).toBe(true);
+    expect(a).not.toContain("/42/");
+    const other = fichaMirrorKey({
+      tenantId: 1,
+      userId: 42,
+      sourceUrl: `${PUBLIC_BASE}/members/photos/42-1700000000001.png`,
+    });
+    expect(other).not.toBe(a);
+  });
+
+  it("publicKeyFromFichaUrl acepta solo la foto de ficha del propio usuario", () => {
+    expect(
+      publicKeyFromFichaUrl(
+        `${PUBLIC_BASE}/members/photos/42-1700000000000.jpg`,
+        42,
+      ),
+    ).toBe("members/photos/42-1700000000000.jpg");
+    expect(
+      publicKeyFromFichaUrl(
+        `${PUBLIC_BASE}/members/photos/42-1700000000000.jpg`,
+        43,
+      ),
+    ).toBeNull();
+    expect(
+      publicKeyFromFichaUrl(`${PUBLIC_BASE}/videos/42-1700000000000.jpg`, 42),
+    ).toBeNull();
+    expect(
+      publicKeyFromFichaUrl(
+        `${PUBLIC_BASE}/members/photos/../42-1700000000000.jpg`,
+        42,
+      ),
+    ).toBeNull();
+    expect(
+      publicKeyFromFichaUrl(
+        `${PUBLIC_BASE}/members/photos/42-1700000000000.gif`,
+        42,
+      ),
+    ).toBeNull();
+    expect(
+      publicKeyFromFichaUrl(
+        `https://otro.example/members/photos/42-1700000000000.jpg`,
+        42,
+      ),
+    ).toBeNull();
+  });
+});
+
+describe("stableHourlySigningDate", () => {
+  it("redondea hacia abajo a la hora", () => {
+    expect(
+      stableHourlySigningDate(
+        new Date("2026-11-17T10:59:59.999Z"),
+      ).toISOString(),
+    ).toBe("2026-11-17T10:00:00.000Z");
+    expect(
+      stableHourlySigningDate(
+        new Date("2026-11-17T11:00:00.000Z"),
+      ).toISOString(),
+    ).toBe("2026-11-17T11:00:00.000Z");
   });
 });
