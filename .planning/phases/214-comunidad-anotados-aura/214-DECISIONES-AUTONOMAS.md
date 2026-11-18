@@ -118,3 +118,8 @@ Cada vez que un ejecutor se encuentre con una decisión de producto, se anota ac
 | 2026-11-17 | 214-24 | Selector en celulares angostos | En pantallas de menos de 420 px el título del encabezado se oculta para dar lugar al selector, y el logo lleva a Mi Templo |
 | 2026-11-17 | 214-24 | Selector y vidriera | Si alguien sin plan ve la vidriera en Entrenar, en celular el selector igual puede aparecer (sigue la pantalla, no el contenido) |
 | 2026-11-17 | 214-24 | Selector con teclado | Enter y Espacio abren el menú del selector de nivel |
+| 2026-11-17 | 214-25 | Tarjeta de horario con anotados | En la pantalla de reservas principal la tarjeta del horario pasa a ir en columna para dar lugar a la fila de anotados; las grillas de prueba y de partner quedan como estaban |
+| 2026-11-17 | 214-25 | Hoja sin lista (404) | Si la lista de anotados no está disponible, el pie de la hoja dice "Cerrar" y no se muestra el total |
+| 2026-11-17 | 214-25 | Error al marcar el aviso como visto | Si falla el registro de que la persona vio el aviso, no se le frena ni se le muestra un error: sigue normalmente |
+| 2026-11-17 | 214-25 | Hoja con error | Si la lista falla al cargar, el encabezado de la hoja no muestra el total de anotados |
+| 2026-11-17 | 214-25 | Al cerrar la hoja | La lista de anotados se descarta al cerrar la hoja y se vuelve a pedir al abrirla |
