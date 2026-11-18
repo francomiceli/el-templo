@@ -23,6 +23,7 @@ import { createTestApp, cleanAllTestData } from "../helpers";
 import * as schema from "../../src/db/schema";
 import { runTenureMilestones } from "../../src/jobs/tenure-milestones";
 import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenureAuraFor } from "../../src/modules/aura/amounts";
 
 // "Ahora" pinneado → hoy en AR (UTC-3) = 2026-06-15.
 const NOW = new Date("2026-06-15T15:00:00Z");
@@ -124,14 +125,14 @@ describe("job aniversarios de permanencia", () => {
     const a6 = await auraRowsFor(m6);
     expect(a6).toHaveLength(1);
     expect(a6[0]).toMatchObject({
-      amount: 100,
+      amount: tenureAuraFor(6),
       referenceId: 6,
       referenceType: "tenure_milestone",
     });
 
     const a3 = await auraRowsFor(m3);
     expect(a3).toHaveLength(1);
-    expect(a3[0]).toMatchObject({ amount: 50, referenceId: 3 });
+    expect(a3[0]).toMatchObject({ amount: tenureAuraFor(3), referenceId: 3 });
 
     // El que no cumple hito no recibe nada.
     expect(await auraRowsFor(mNone)).toHaveLength(0);
