@@ -9,7 +9,7 @@
 // TODOS sus campos y nada más. Eso también garantiza que nunca salgan apellido,
 // teléfono, email ni ids de usuario (D-08). En el body, `additionalProperties:
 // false` descarta el campo de más (no da 400); un `enum` violado sí da 400.
-import { GIFT_REASONS, type GiftReason } from "./gift-rules";
+import { COACH_GIFT_AMOUNT, GIFT_REASONS, type GiftReason } from "./gift-rules";
 
 /** Motivos permitidos, armados desde la única lista (`GIFT_REASONS`). */
 const giftReasonSchema = {
@@ -181,5 +181,84 @@ export const giveGiftSchema = {
     403: giftErrorResponseSchema,
     404: giftErrorResponseSchema,
     409: giftErrorResponseSchema,
+  },
+} as const;
+
+// -----------------------------------------------------------------------------
+// Rutas de admin del regalo del profe (fase 215, plan 08)
+//   POST /api/admin/aura/gifts          el profe da Aura a un alumno de su clase
+//   GET  /api/admin/aura/gift-settings  valor vigente del regalo del profe
+//   PUT  /api/admin/aura/gift-settings  cambia el valor (solo dueño y admin)
+// -----------------------------------------------------------------------------
+
+export interface CoachGiveGiftBody {
+  attendanceId: number;
+  reason: GiftReason;
+}
+
+export interface GiftSettingsBody {
+  coachGiftAmount: number;
+}
+
+/** `POST /gifts` (admin). El 201 solo expone el monto acreditado. */
+export const coachGiveGiftSchema = {
+  body: {
+    type: "object",
+    required: ["attendanceId", "reason"],
+    additionalProperties: false,
+    properties: {
+      attendanceId: { type: "integer", minimum: 1 },
+      reason: giftReasonSchema,
+    },
+  },
+  response: {
+    201: {
+      type: "object",
+      required: ["amount"],
+      additionalProperties: false,
+      properties: {
+        amount: { type: "integer" },
+      },
+    },
+    403: giftErrorResponseSchema,
+    404: giftErrorResponseSchema,
+    409: giftErrorResponseSchema,
+  },
+} as const;
+
+const coachGiftAmountResponseSchema = {
+  type: "object",
+  required: ["coachGiftAmount"],
+  additionalProperties: false,
+  properties: {
+    coachGiftAmount: { type: "integer" },
+  },
+} as const;
+
+/** `GET /gift-settings` (admin). */
+export const getGiftSettingsSchema = {
+  response: {
+    200: coachGiftAmountResponseSchema,
+    403: giftErrorResponseSchema,
+  },
+} as const;
+
+/** `PUT /gift-settings` (admin): entero de 1 a 10. */
+export const putGiftSettingsSchema = {
+  body: {
+    type: "object",
+    required: ["coachGiftAmount"],
+    additionalProperties: false,
+    properties: {
+      coachGiftAmount: {
+        type: "integer",
+        minimum: COACH_GIFT_AMOUNT.min,
+        maximum: COACH_GIFT_AMOUNT.max,
+      },
+    },
+  },
+  response: {
+    200: coachGiftAmountResponseSchema,
+    403: giftErrorResponseSchema,
   },
 } as const;

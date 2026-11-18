@@ -18,7 +18,9 @@
 // fase 214 (D-13) expone además `GET /api/members/aura/movements` (`member-routes.ts`):
 // el detalle privado de la Aura del propio usuario. La fase 215 suma las tres
 // rutas del regalo del alumno (`gift-member-routes.ts`): `GET /gifts/pending`,
-// `GET /gifts/candidates` y `POST /gifts`. La otra ruta clasificada
+// `GET /gifts/candidates` y `POST /gifts`, y las tres del staff (`gift-admin-routes.ts`, bajo
+// `/api/admin/aura`): `POST /gifts` (regalo del profe, D-15) y `GET`/`PUT
+// /gift-settings` (valor del regalo del profe, D-11). La otra ruta clasificada
 // `templo-gamification` en el manifiesto de tenancy es
 // `POST /api/bar-challenge/result` (Phase 115), que vive en la carpeta
 // `bar-challenge/` pero pertenece al mismo módulo Templo; por eso este archivo
@@ -30,6 +32,7 @@
 // `registerModule(app, temploGamificationModule)`.
 import type { ModuleDef } from "../../modules-boot";
 import { barChallengeRoutes } from "../bar-challenge/routes";
+import { auraGiftAdminRoutes } from "./gift-admin-routes";
 import { auraGiftMemberRoutes } from "./gift-member-routes";
 import { auraMemberRoutes } from "./member-routes";
 import { streakMilestoneRewardHandler } from "./streak-reward";
@@ -41,6 +44,7 @@ export const temploGamificationModule: ModuleDef = {
     { plugin: barChallengeRoutes, prefix: "/api/bar-challenge" },
     { plugin: auraMemberRoutes, prefix: "/api/members/aura" },
     { plugin: auraGiftMemberRoutes, prefix: "/api/members/aura" },
+    { plugin: auraGiftAdminRoutes, prefix: "/api/admin/aura" },
   ],
   // `filters` (pricing.adjust, plan 176-08): boarding pass + descuento AURA
   // de la cadena de pricing de subscriptions — ver docblock de
