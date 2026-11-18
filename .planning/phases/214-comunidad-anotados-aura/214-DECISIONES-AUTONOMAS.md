@@ -97,3 +97,6 @@ Cada vez que un ejecutor se encuentre con una decisión de producto, se anota ac
 | 2026-11-17 | 214-17 | Cuentas borradas en los contadores | Las cuentas borradas no cuentan en el total de anotados ni en el de clases de prueba |
 | 2026-11-17 | 214-18 | Detalle de Aura sin referencia | Si un hito de antigüedad o una racha no tiene dato de referencia (vacío o cero), el movimiento se muestra igual con el texto genérico "Antigüedad en El Templo" o "Racha" |
 | 2026-11-17 | 214-18 | Detalle de Aura sin movimientos | Quien todavía no tiene movimientos de Aura ve la lista vacía, sin error |
+| 2026-11-17 | 214-19 | Antigüedad con fecha ilegible o futura | Si la fecha de alta no se puede leer, no se muestra la antigüedad. Si es futura, se muestra "Tu primer mes" |
+| 2026-11-17 | 214-19 | Fecha larga de un movimiento de Aura de otro año | Si el movimiento no es del año en curso, la fecha lleva " de AAAA" al final (el spec no lo definía) |
+| 2026-11-17 | 214-19 | Refrescar el perfil falla | Si no se puede actualizar el perfil, se avisa y se conserva el que ya estaba en pantalla, sin cortar nada |
