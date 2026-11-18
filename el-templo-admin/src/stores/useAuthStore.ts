@@ -36,6 +36,13 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isAuthenticated = computed(() => !!token.value && !!user.value);
 
+  // Módulo de Aura prendido en el gimnasio. Misma señal que la app (`auraVisible`): `/auth/me` trae
+  // `auraEarned` en null con el módulo apagado. Sin dato todavía (recién logueado, antes del primer
+  // `checkAuth`, que corre en cada navegación) se trata como apagado: es lo conservador.
+  const auraEnabled = computed(
+    () => user.value?.auraEarned !== null && user.value?.auraEarned !== undefined
+  );
+
   async function login(email: string, password: string) {
     loading.value = true;
     error.value = null;
@@ -101,5 +108,5 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { token, user, loading, error, isAuthenticated, login, logout, checkAuth };
+  return { token, user, loading, error, isAuthenticated, auraEnabled, login, logout, checkAuth };
 });

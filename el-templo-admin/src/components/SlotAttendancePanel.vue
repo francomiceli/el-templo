@@ -70,7 +70,7 @@
             <q-item-section side v-if="member.attendanceId">
               <div class="row items-center no-wrap q-gutter-xs">
                 <q-btn
-                  v-if="member.gift?.state === 'disponible'"
+                  v-if="giftUiEnabled && member.gift?.state === 'disponible'"
                   flat
                   dense
                   round
@@ -82,10 +82,11 @@
                 >
                   <q-tooltip>Dar Aura</q-tooltip>
                 </q-btn>
-                <!-- Todo el staff ve el botón (#26). Quien no puede dar (no es profe de la sede de
+                <!-- Con el módulo de Aura apagado en el gimnasio no hay nada de regalos, ni el botón
+                     gris (`giftUiEnabled`). Todo el staff ve el botón (#26). Quien no puede dar (no es profe de la sede de
                      la clase: la API devuelve `gift` en null) lo ve deshabilitado con la nota. El
                      tooltip va en el contenedor: un botón deshabilitado no recibe el puntero. -->
-                <span v-else-if="!member.gift && TEMPLO_ENABLED" data-test="gift-disabled">
+                <span v-else-if="giftUiEnabled && !member.gift" data-test="gift-disabled">
                   <q-btn
                     flat
                     dense
@@ -98,7 +99,7 @@
                   <q-tooltip>{{ giftDisabledNote }}</q-tooltip>
                 </span>
                 <q-chip
-                  v-else-if="member.gift?.state === 'dado'"
+                  v-else-if="giftUiEnabled && member.gift?.state === 'dado'"
                   dense
                   square
                   class="text-aura"
@@ -108,7 +109,7 @@
                   <q-tooltip>{{ givenTooltip(member.gift.reason) }}</q-tooltip>
                 </q-chip>
                 <q-chip
-                  v-else-if="member.gift?.state === 'anulado'"
+                  v-else-if="giftUiEnabled && member.gift?.state === 'anulado'"
                   dense
                   square
                   color="grey-4"
@@ -394,6 +395,13 @@ interface GiftTarget {
 }
 
 const giftDialogOpen = ref(false);
+
+/**
+ * Los regalos de Aura solo existen con el módulo prendido en el gimnasio: la misma señal que usa la
+ * app (`auraEarned` de `/auth/me`, en null con el módulo apagado). Apagado, el panel no muestra el
+ * botón de regalo ni gris, ni las marcas de regalos dados.
+ */
+const giftUiEnabled = computed(() => TEMPLO_ENABLED && authStore.auraEnabled);
 const giftTarget = ref<GiftTarget | null>(null);
 
 /**

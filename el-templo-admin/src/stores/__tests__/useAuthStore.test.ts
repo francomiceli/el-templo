@@ -113,3 +113,42 @@ describe('useAuthStore.checkAuth', () => {
     expect(getSpy).not.toHaveBeenCalled();
   });
 });
+
+describe('useAuthStore.auraEnabled', () => {
+  const getSpy = vi.spyOn(api, 'get');
+
+  beforeEach(() => {
+    for (const k of Object.keys(store)) delete store[k];
+    store[ACCESS_KEY] = 'access-1';
+    setActivePinia(createPinia());
+    getSpy.mockReset();
+  });
+
+  it('sin usuario cargado está apagada', () => {
+    expect(useAuthStore().auraEnabled).toBe(false);
+  });
+
+  it('con `auraEarned` en null (módulo apagado) está apagada', async () => {
+    getSpy.mockResolvedValueOnce({ data: { ...COACH, auraEarned: null } });
+    const auth = useAuthStore();
+    await auth.checkAuth();
+
+    expect(auth.auraEnabled).toBe(false);
+  });
+
+  it('con `auraEarned` en 0 está prendida (0 es un valor)', async () => {
+    getSpy.mockResolvedValueOnce({ data: { ...COACH, auraEarned: 0 } });
+    const auth = useAuthStore();
+    await auth.checkAuth();
+
+    expect(auth.auraEnabled).toBe(true);
+  });
+
+  it('si el servidor no manda el campo (login, API vieja) se trata como apagada', async () => {
+    getSpy.mockResolvedValueOnce({ data: COACH });
+    const auth = useAuthStore();
+    await auth.checkAuth();
+
+    expect(auth.auraEnabled).toBe(false);
+  });
+});
