@@ -96,7 +96,7 @@ describe("tenant-tables — clasificación canónica de tablas (COL-01)", () => 
     ).toEqual([]);
   });
 
-  it("los conteos son 135 gym-owned + 5 exentas y cubren las 140 tablas del schema", () => {
+  it("los conteos son 136 gym-owned + 5 exentas y cubren las 141 tablas del schema", () => {
     // Fase 159 (SEM-05) sumó `session_week_regime` a GYM_OWNED_TABLES (era 87,
     // ver el comentario de src/db/tenant-tables.ts:32-41): 87 -> 88, 91 -> 92.
     // Fase 179 sumó `referral_partners`, `partner_referrals`,
@@ -149,12 +149,13 @@ describe("tenant-tables — clasificación canónica de tablas (COL-01)", () => 
     // multisucursal, mig 0334, nace strict en `branch-reassignments`): 131 -> 132,
     // 136 -> 137.
     // Merge 2026-11-13 de Egresos en staging: +3 tablas de la 0331 (expense_*): 132 -> 135, 137 -> 140.
-    expect(GYM_OWNED_TABLES.length).toBe(135);
+    // 2026-11-17 sumó `member_photos` (fase 214, mig 0346, nace strict en members): 135 -> 136, 140 -> 141.
+    expect(GYM_OWNED_TABLES.length).toBe(136);
     expect(TENANT_EXEMPT_TABLES.length).toBe(5);
     // Sin duplicados dentro de cada lista.
     expect(gymOwned.size).toBe(GYM_OWNED_TABLES.length);
     expect(exempt.size).toBe(TENANT_EXEMPT_TABLES.length);
-    expect(schemaTables.size).toBe(140);
+    expect(schemaTables.size).toBe(141);
     expect(gymOwned.size + exempt.size).toBe(schemaTables.size);
   });
 
@@ -458,6 +459,7 @@ describe("TENANT_STRICT_MODULES (fase 170, D-05/D-06)", () => {
       "audit_log",
       "member_logins",
       "member_notes",
+      "member_photos",
       "member_profiles",
       "user_branches",
       "user_sepa_details",

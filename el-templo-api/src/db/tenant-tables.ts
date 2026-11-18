@@ -146,6 +146,8 @@ export const GYM_OWNED_TABLES = [
   "invitations",
   "member_logins",
   "member_notes",
+  // Foto propia (fase 214, mig 0346): nace con tenant_id y strict en members
+  "member_photos",
   "member_profiles",
   // Outbox de Meta Conversions API (fase 195, plan 08, migración 0273): nace con
   // tenant_id y strict (módulo `marketing`).
@@ -680,6 +682,7 @@ export const TENANT_STRICT_MODULES: Record<string, readonly string[]> = {
     "audit_log",
     "member_logins",
     "member_notes",
+    "member_photos",
     "member_profiles",
     "user_branches",
     "user_sepa_details",

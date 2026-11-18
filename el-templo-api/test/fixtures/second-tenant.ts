@@ -485,6 +485,10 @@ export async function limpiarSegundoGimnasio(
   await app.db.execute(
     sql`DELETE FROM stretch_catalog WHERE tenant_id = ${TENANT_DOS}`,
   );
+  // Foto propia (0346): FK a users (alumno y revisor), sale antes que users.
+  await app.db.execute(
+    sql`DELETE FROM member_photos WHERE tenant_id = ${TENANT_DOS}`,
+  );
   // Histórico de recategorizaciones (0334): FK a users y branches, sale antes
   // que ambos.
   await app.db.execute(
