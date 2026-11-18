@@ -26,6 +26,12 @@ import { setModuleFlag, restoreTemploFlags } from "../fixtures/module-flags";
 import { auraTransactions } from "../../src/db/schema/aura-transactions";
 import { tenantValues } from "../../src/modules/shared/tenant";
 import { AURA_AMOUNTS } from "../../src/modules/aura/amounts";
+import {
+  cleanupGiftClasses,
+  seedGift,
+  seedGiftClass,
+  type GiftClass,
+} from "./_gift-fixtures";
 
 type SourceType = typeof auraTransactions.$inferInsert.sourceType;
 
@@ -51,6 +57,7 @@ interface MovementsBody {
 
 let app: FastifyInstance;
 let gym2: SegundoGimnasio;
+const claseCreadas: GiftClass[] = [];
 
 beforeAll(async () => {
   app = await createTestApp();
@@ -62,6 +69,7 @@ beforeEach(async () => {
 });
 
 afterAll(async () => {
+  await cleanupGiftClasses(app, claseCreadas);
   await restoreTemploFlags(app);
   await cleanAllTestData(app);
   await limpiarSegundoGimnasio(app);
@@ -397,5 +405,225 @@ describe("GET /api/members/aura/movements (fase 214, D-13)", () => {
     } finally {
       await setModuleFlag(app, gym2.tenantId, "templo-gamification", false);
     }
+  });
+});
+
+describe("GET /api/members/aura/movements con regalos (fase 215, D-13, D-19, D-22)", () => {
+  async function claseDeRegalo(): Promise<GiftClass> {
+    const cls = await seedGiftClass(app);
+    claseCreadas.push(cls);
+    return cls;
+  }
+
+  it("regalo de un alumno: monto 1 y texto con nombre, inicial del apellido y motivo", async () => {
+    const cls = await claseDeRegalo();
+    const dador = await createTestMember(app, {
+      firstName: "Sofía",
+      lastName: "Martínez",
+    });
+    const receptor = await createTestMember(app);
+    const giftId = await seedGift(app, {
+      giverUserId: dador.id,
+      receiverUserId: receptor.id,
+      branchId: cls.branchId,
+      scheduleId: cls.scheduleId,
+      sessionDate: cls.sessionDate,
+      reason: "energia",
+      amount: AURA_AMOUNTS.giftMember,
+    });
+    await seedLedger(receptor.id, [
+      {
+        sourceType: "social",
+        amount: AURA_AMOUNTS.giftMember,
+        referenceType: "aura_gift",
+        referenceId: giftId,
+      },
+    ]);
+
+    const res = await getMovements(receptor.token);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.movements).toHaveLength(1);
+    expect(res.body.movements[0].amount).toBe(1);
+    expect(res.body.movements[0].label).toBe(
+      "Sofía M. te dio Aura · Buena energía",
+    );
+    expect(res.body.earned).toBe(1);
+  });
+
+  it("regalo del profe: 'Tu profe Nombre te dio Aura' con el monto del profe y sin apellido", async () => {
+    const cls = await claseDeRegalo();
+    const profeId = await createStaffUser(app, {
+      email: `profe-mov-${Date.now().toString(36)}@test.com`,
+      password: "profe-pass-123",
+      firstName: "Fran",
+      lastName: "Gómez",
+      role: "coach",
+      branchId: cls.branchId,
+    });
+    const receptor = await createTestMember(app);
+    const giftId = await seedGift(app, {
+      giverUserId: profeId,
+      receiverUserId: receptor.id,
+      giverKind: "profe",
+      branchId: cls.branchId,
+      scheduleId: cls.scheduleId,
+      sessionDate: cls.sessionDate,
+      reason: "tecnica",
+      amount: 3,
+    });
+    await seedLedger(receptor.id, [
+      {
+        sourceType: "social",
+        amount: 3,
+        referenceType: "aura_gift",
+        referenceId: giftId,
+      },
+    ]);
+
+    const res = await getMovements(receptor.token);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.movements).toHaveLength(1);
+    expect(res.body.movements[0].amount).toBe(3);
+    expect(res.body.movements[0].label).toBe(
+      "Tu profe Fran te dio Aura · Buena técnica",
+    );
+    expect(res.body.movements[0].label).not.toContain("Gómez");
+  });
+
+  it("regalo anulado: dos filas (+1 y -1 'Regalo anulado') y earned es la suma de la página", async () => {
+    const cls = await claseDeRegalo();
+    const dador = await createTestMember(app);
+    const receptor = await createTestMember(app);
+    const giftId = await seedGift(app, {
+      giverUserId: dador.id,
+      receiverUserId: receptor.id,
+      branchId: cls.branchId,
+      scheduleId: cls.scheduleId,
+      sessionDate: cls.sessionDate,
+      reason: "constancia",
+      amount: AURA_AMOUNTS.giftMember,
+      status: "anulado",
+    });
+    await seedLedger(receptor.id, [
+      ...attendanceRows(1, 819001),
+      {
+        sourceType: "social",
+        amount: AURA_AMOUNTS.giftMember,
+        referenceType: "aura_gift",
+        referenceId: giftId,
+      },
+      {
+        sourceType: "social",
+        amount: -AURA_AMOUNTS.giftMember,
+        referenceType: "aura_gift_void",
+        referenceId: giftId,
+      },
+    ]);
+
+    const res = await getMovements(receptor.token);
+
+    expect(res.statusCode).toBe(200);
+    expect(
+      res.body.movements.map((m) => ({ amount: m.amount, label: m.label })),
+    ).toEqual([
+      { amount: -AURA_AMOUNTS.giftMember, label: "Regalo anulado" },
+      {
+        amount: AURA_AMOUNTS.giftMember,
+        label: expect.stringContaining("te dio Aura"),
+      },
+      { amount: AURA_AMOUNTS.attendance, label: "Asistencia a clase" },
+    ]);
+    const suma = res.body.movements.reduce((acc, m) => acc + m.amount, 0);
+    expect(res.body.earned).toBe(suma);
+    expect(res.body.earned).toBe(await getAuraEarnedFromMe(receptor.token));
+  });
+
+  it("D-09: quien da no ve nada de regalo en su detalle", async () => {
+    const cls = await claseDeRegalo();
+    const dador = await createTestMember(app);
+    const receptor = await createTestMember(app);
+    const giftId = await seedGift(app, {
+      giverUserId: dador.id,
+      receiverUserId: receptor.id,
+      branchId: cls.branchId,
+      scheduleId: cls.scheduleId,
+      sessionDate: cls.sessionDate,
+    });
+    await seedLedger(receptor.id, [
+      {
+        sourceType: "social",
+        amount: AURA_AMOUNTS.giftMember,
+        referenceType: "aura_gift",
+        referenceId: giftId,
+      },
+    ]);
+    await seedLedger(dador.id, attendanceRows(1, 819101));
+
+    const res = await getMovements(dador.token);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.movements.map((m) => m.label)).toEqual([
+      "Asistencia a clase",
+    ]);
+    expect(res.body.earned).toBe(AURA_AMOUNTS.attendance);
+  });
+
+  it("un regalo ajeno con el mismo id de referencia no pone nombre en otra fila", async () => {
+    const cls = await claseDeRegalo();
+    const dador = await createTestMember(app, { firstName: "Secreta" });
+    const receptor = await createTestMember(app);
+    const otro = await createTestMember(app);
+    const giftId = await seedGift(app, {
+      giverUserId: dador.id,
+      receiverUserId: receptor.id,
+      branchId: cls.branchId,
+      scheduleId: cls.scheduleId,
+      sessionDate: cls.sessionDate,
+    });
+    // El ledger de `otro` apunta al regalo de `receptor`: no debe revelar al dador.
+    await seedLedger(otro.id, [
+      {
+        sourceType: "social",
+        amount: 1,
+        referenceType: "aura_gift",
+        referenceId: giftId,
+      },
+    ]);
+
+    const res = await getMovements(otro.token);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.movements.map((m) => m.label)).toEqual(["Regalo de Aura"]);
+  });
+
+  it("un regalo borrado cae en 'Regalo de Aura' y la respuesta no trae campos nuevos", async () => {
+    const receptor = await createTestMember(app);
+    await seedLedger(receptor.id, [
+      {
+        sourceType: "social",
+        amount: AURA_AMOUNTS.giftMember,
+        referenceType: "aura_gift",
+        referenceId: 899999,
+      },
+    ]);
+
+    const res = await getMovements(receptor.token);
+
+    expect(res.statusCode).toBe(200);
+    expect(Object.keys(res.body).sort()).toEqual([
+      "earned",
+      "movements",
+      "nextBefore",
+    ]);
+    expect(res.body.movements).toHaveLength(1);
+    expect(Object.keys(res.body.movements[0]).sort()).toEqual([
+      "amount",
+      "createdAt",
+      "id",
+      "label",
+    ]);
+    expect(res.body.movements[0].label).toBe("Regalo de Aura");
   });
 });
