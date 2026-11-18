@@ -482,7 +482,9 @@ import {
 // 2026-11-18 fase 214 (plan 17): 587 -> 588 por la ruta de anotados de un
 // horario (GET slots/:scheduleId/:date/attendees), `tenant-scoped` (`assertTenant`
 // + `tenantWhere` en cada tabla del join).
-const ENTRADAS_BASELINE = 588;
+// 2026-11-18 fase 214 (plan 18): 588 -> 589 por el detalle privado de Aura
+// (GET /api/members/aura/movements), `templo-module` (`templo-gamification`).
+const ENTRADAS_BASELINE = 589;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -625,7 +627,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 587 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 589 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(

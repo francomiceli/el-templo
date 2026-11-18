@@ -2084,8 +2084,13 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
 
   // ══ templo-gamification ═══════════════════════════════════════════════════
   // Doc 04 §2.1: aura + aura-*, lifestyle, bar-challenge. AURA no expone rutas
-  // propias (es un service interno), así que el módulo aporta una sola.
+  // propias (es un service interno), así que el módulo aporta una sola. Fase 214
+  // (D-13) suma el detalle privado de la Aura propia.
   "POST /api/bar-challenge/result": {
+    categoria: "templo-module",
+    modulo: "templo-gamification",
+  },
+  "GET /api/members/aura/movements": {
     categoria: "templo-module",
     modulo: "templo-gamification",
   },
