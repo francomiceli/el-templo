@@ -100,3 +100,7 @@ Cada vez que un ejecutor se encuentre con una decisión de producto, se anota ac
 | 2026-11-17 | 214-19 | Antigüedad con fecha ilegible o futura | Si la fecha de alta no se puede leer, no se muestra la antigüedad. Si es futura, se muestra "Tu primer mes" |
 | 2026-11-17 | 214-19 | Fecha larga de un movimiento de Aura de otro año | Si el movimiento no es del año en curso, la fecha lleva " de AAAA" al final (el spec no lo definía) |
 | 2026-11-17 | 214-19 | Refrescar el perfil falla | Si no se puede actualizar el perfil, se avisa y se conserva el que ya estaba en pantalla, sin cortar nada |
+| 2026-11-17 | 214-20 | Foto: errores de subida | Si la red se cae, hay un conflicto o falla algo desconocido al subir la foto, se muestra "No pudimos subir la foto…" para reintentar |
+| 2026-11-17 | 214-20 | Foto: imagen que no se puede procesar | Si la imagen falla por un motivo que no es el formato, se muestra el mismo texto que cuando el servidor la rechaza por formato |
+| 2026-11-17 | 214-20 | Foto recién confirmada | Apenas se confirma la foto, la persona ve el estado "pendiente de revisión" aunque falle la recarga del perfil |
+| 2026-11-17 | 214-20 | Foto: permisos | Elegir de la galería no pide permiso de cámara |
