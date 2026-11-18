@@ -20,14 +20,14 @@
     }}</span>
 
     <span
-      v-if="badge === 'review'"
+      v-if="showBadge && badge === 'review'"
       class="member-avatar__badge member-avatar__badge--review"
       aria-hidden="true"
     >
       <q-icon name="schedule" size="14px" />
     </span>
     <span
-      v-else-if="badge === 'camera'"
+      v-else-if="showBadge && badge === 'camera'"
       class="member-avatar__badge member-avatar__badge--camera"
       aria-hidden="true"
     >
@@ -39,7 +39,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 
-type AvatarSize = 52 | 56 | 64 | 120 | 160
+type AvatarSize = 32 | 40 | 52 | 56 | 64 | 120 | 160
 
 const props = withDefaults(
   defineProps<{
@@ -49,7 +49,10 @@ const props = withDefaults(
     lastInitial?: string | null
     /** Aro: dorado (solo cuando se ve la ficha de Aura) o blanco. */
     ring?: 'gold' | 'white' | null
-    /** Insignia: `review` (foto en revisión) o `camera` (invita a subir una foto). */
+    /**
+     * Insignia: `review` (foto en revisión) o `camera` (invita a subir una foto). En los tamaños
+     * 32 y 40 (bandeja y card de regalo, fase 215) no se dibuja: no entra sin tapar la cara.
+     */
     badge?: 'review' | 'camera' | null
   }>(),
   { lastInitial: null, ring: null, badge: null },
@@ -80,10 +83,14 @@ const initials = computed(() => {
 
 const ringClass = computed(() => (props.ring ? `member-avatar--ring-${props.ring}` : ''))
 
-// Heading 18 para la cara de 56; Display 22 para el resto (UI-SPEC, Tipografía).
-const initialsClass = computed(() =>
-  props.size === 56 ? 'member-avatar__initials--heading' : 'member-avatar__initials--display',
-)
+const showBadge = computed(() => props.size !== 32 && props.size !== 40)
+
+// Label numérico 13 para 32 y 40 (fase 215), Heading 18 para la cara de 56 y Display 22 para el
+// resto (UI-SPEC, Tipografía).
+const initialsClass = computed(() => {
+  if (props.size === 32 || props.size === 40) return 'member-avatar__initials--label'
+  return props.size === 56 ? 'member-avatar__initials--heading' : 'member-avatar__initials--display'
+})
 
 function onImageError(): void {
   if (failed.value) return
@@ -138,6 +145,10 @@ function onImageError(): void {
     line-height: 1.2;
     color: #fff;
     user-select: none;
+
+    &--label {
+      font-size: 13px;
+    }
 
     &--heading {
       font-size: 18px;
