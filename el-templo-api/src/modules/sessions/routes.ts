@@ -43,6 +43,8 @@ import { assertTenant, tenantValues, tenantWhere } from "../shared/tenant";
 import { isDuplicateKeyError } from "../shared/sql-errors";
 import { AURA_AMOUNTS } from "../aura/amounts";
 import { awardOncePerLocalDay, localDateForBranch } from "../aura/daily-award";
+import { appAuraOnLocalDay, attendanceAuraOnLocalDay } from "../aura/day-cap";
+import { evaluateTrainingAura } from "./proposed-time";
 
 export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
   const sessionService = new SessionGeneratorService(fastify.db);
@@ -557,22 +559,57 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
         .from(schema.completedSessions)
         .where(eq(schema.completedSessions.userId, userId));
 
-      // AURA por sesion completada (D-11), con tope diario (Tanda 2 / #4): un
-      // solo premio por dia local del socio, sin importar cuantas sesiones
-      // cierre. Nunca rompe el cierre.
+      // AURA por sesion completada. Fase 214 D-20/D-64: se acredita solo si estan
+      // todos los bloques, la duracion medida por el servidor llega al 80 % del
+      // tiempo propuesto y ese dia local no hubo asistencia con Aura ni plan a
+      // medida pagado (tope del dia: 3 en total). La regla condiciona SOLO el
+      // Aura: la sesion, la racha y el programa siguen igual. Un solo premio por
+      // dia local (Tanda 2 / #4). Nunca rompe el cierre.
       try {
         const localDate = await localDateForBranch(
           fastify.db,
           ctx,
           user.branchId,
         );
-        await awardOncePerLocalDay(auraService, request.log, {
-          userId,
-          sourceType: "training_completion",
-          referenceType: "training_day",
-          localDate,
-          amount: AURA_AMOUNTS.training,
+        const daySession = await sessionService.getSessionByDayId(dayId, true);
+        const attendedToday =
+          (await attendanceAuraOnLocalDay(fastify.db, ctx, userId, localDate)) >
+          0;
+        const otherAppAuraToday =
+          (await appAuraOnLocalDay(fastify.db, ctx, userId, localDate, {
+            onlySource: "goal_plan_completion",
+          })) > 0;
+        const rule = evaluateTrainingAura({
+          blocks: daySession?.blocks ?? [],
+          blocksCompleted,
+          startedAt: startedAtDate,
+          completedAt,
+          attendedToday,
+          otherAppAuraToday,
         });
+        request.log.info(
+          {
+            dayId,
+            proposedSec: rule.proposedSec,
+            durationSec: rule.durationSec,
+            ratio: rule.ratio,
+            blocksOk: rule.blocksOk,
+            attendedToday,
+            otherAppAuraToday,
+            awarded: rule.awarded,
+            reason: rule.reason,
+          },
+          "Regla de Aura de la sesión",
+        );
+        if (rule.awarded) {
+          await awardOncePerLocalDay(auraService, request.log, {
+            userId,
+            sourceType: "training_completion",
+            referenceType: "training_day",
+            localDate,
+            amount: AURA_AMOUNTS.training,
+          });
+        }
       } catch (auraErr: unknown) {
         request.log.warn(
           { err: auraErr, userId, dayId },
