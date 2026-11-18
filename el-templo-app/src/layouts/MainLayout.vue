@@ -12,20 +12,12 @@
     >
       <q-toolbar v-if="!isDesktop">
         <q-toolbar-title class="header-title">
-          <!-- Fase 214 (D-62): con el selector de nivel visible y menos de 460 px (fase 215: antes 420, por
-               la campana), el título "EL TEMPLO" se oculta y el logo pasa a ser el link a Mi Templo
-               (sin esto la barra desborda a 360 y 390). -->
-          <router-link
-            v-if="hideTitleForLevelSelector"
-            to="/mi-templo"
-            class="header-logo-link"
-            aria-label="El Templo, ir a Mi Templo"
-          >
-            <img src="/icons/icon-48.webp" alt="" class="header-logo" />
-          </router-link>
-          <img v-else src="/icons/icon-48.webp" alt="El Templo" class="header-logo" />
+          <!-- Revisión 2026-11-18 (#19): el título "EL TEMPLO" no se oculta en ningún ancho. Con el
+               selector de nivel visible y menos de 480 px el selector muestra solo su ícono
+               (`compact`) y, en los celulares más angostos, el título se achica (ver los estilos
+               de `.header-title-img`) en lugar de desaparecer. -->
+          <img src="/icons/icon-48.webp" alt="El Templo" class="header-logo" />
           <img
-            v-if="!hideTitleForLevelSelector"
             src="/icons/el-templo-title.png"
             alt="EL TEMPLO"
             class="header-title-img"
@@ -35,7 +27,12 @@
         </q-toolbar-title>
 
         <!-- Fase 214 (D-55, D-62): el selector de nivel vive solo en Entrenar. -->
-        <HeaderLevelDropdown v-if="showLevelSelector" variant="bar" class="header-level-bar" />
+        <HeaderLevelDropdown
+          v-if="showLevelSelector"
+          variant="bar"
+          :compact="isNarrowBar"
+          class="header-level-bar"
+        />
 
         <!-- Fase 215 (D-17): de derecha a izquierda, salir, campana y perfil; los tres de 44x44. -->
         <q-btn
@@ -450,7 +447,8 @@ const isMiTemplo = computed(() => route.path === '/mi-templo')
 const showLevelSelector = computed(
   () => route.name === 'training' && authStore.isAuthenticated && userStore.activeLevel !== null,
 )
-const hideTitleForLevelSelector = computed(() => showLevelSelector.value && $q.screen.width < 460)
+// #19: en celulares angostos el selector muestra solo el ícono del nivel; el título no se oculta.
+const isNarrowBar = computed(() => $q.screen.width < 480)
 
 const showCheckInFab = computed(() => {
   if (!authStore.isAuthenticated) return false
@@ -638,20 +636,42 @@ async function onLogout() {
   padding-top: 16px;
 }
 
+// #19: ancho de la barra de celular. Fijos y sin encogerse: logo 32, selector de nivel (solo ícono
+// por debajo de 480 px, unos 52 más 4 de margen) y los tres botones de 44. El que se adapta es el
+// título: su imagen se escala dentro del espacio que queda (`object-fit: contain`), nunca se corta
+// ni se oculta. Cuentas del espacio para el título en Entrenar (con selector), con el relleno lateral
+// de la barra y el aire del título que se ajustan por debajo de 400 px:
+//   320 px: 320 - 16 - 132 - 56 - 6 - 32 - 6 = 72 px (se ve al 68 %)
+//   360 px: 360 - 16 - 132 - 56 - 6 - 32 - 6 = 112 px (alcanza el tamaño completo, 106 px)
+//   375 px: 127 px (tamaño completo)
+// Fuera de Entrenar (sin selector) sobran 56 px más.
 .header-title {
   display: flex;
   align-items: center;
   gap: 10px;
+  // El aire derecho de Quasar (12) pasa a 6: es el último espacio libre de la barra.
+  padding-right: 6px;
 }
 
 .header-title-img {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
   height: 40px;
   width: auto;
+  object-fit: contain;
+  object-position: left center;
 }
 
-.header-logo-link {
-  display: inline-flex;
-  flex-shrink: 0;
+@media (max-width: 399px) {
+  .header-title {
+    gap: 6px;
+  }
+
+  .main-header :deep(.q-toolbar) {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
 }
 
 .header-level-bar {
@@ -668,6 +688,7 @@ async function onLogout() {
 }
 
 .header-logo {
+  flex: none;
   height: 32px;
   width: 32px;
   border-radius: 6px;

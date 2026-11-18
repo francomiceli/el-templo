@@ -1,7 +1,7 @@
 <template>
   <div
     class="level-trigger"
-    :class="`level-trigger--${variant}`"
+    :class="[`level-trigger--${variant}`, { 'level-trigger--compact': compact }]"
     role="button"
     tabindex="0"
     aria-haspopup="menu"
@@ -10,7 +10,7 @@
     @keydown.space.prevent="menuRef?.toggle()"
   >
     <span class="level-trigger__symbol" aria-hidden="true">{{ greek }}</span>
-    <span class="level-trigger__name" aria-hidden="true">{{ displayName }}</span>
+    <span v-if="!compact" class="level-trigger__name" aria-hidden="true">{{ displayName }}</span>
     <q-icon name="expand_more" class="level-trigger__chevron" aria-hidden="true" />
     <q-menu
       ref="menuRef"
@@ -71,7 +71,12 @@ import {
 
 // Fase 214 (D-62): `bar` = pastilla oscura sobre la barra de arriba (celular);
 // `light` = pastilla clara arriba de las pestañas de Entrenar (escritorio).
-withDefaults(defineProps<{ variant?: 'bar' | 'light' }>(), { variant: 'bar' })
+// Revisión 2026-11-18 (#19): `compact` = solo el ícono (la letra griega) del nivel, sin el nombre, para
+// los celulares angostos. El nombre sigue en el `aria-label` del disparador y en el menú.
+withDefaults(defineProps<{ variant?: 'bar' | 'light'; compact?: boolean }>(), {
+  variant: 'bar',
+  compact: false,
+})
 
 const $q = useQuasar()
 const menuRef = ref<QMenu | null>(null)
@@ -142,6 +147,12 @@ async function onSelect(lvl: Level): Promise<void> {
 
   &__chevron {
     font-size: 20px;
+  }
+
+  // Solo el ícono del nivel: letra + flecha, lo más angosto que se puede sin perder el toque.
+  &--compact {
+    gap: 2px;
+    padding: 0 2px 0 8px;
   }
 
   &:focus-visible {
