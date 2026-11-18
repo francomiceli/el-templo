@@ -92,3 +92,6 @@ Cada vez que un ejecutor se encuentre con una decisión de producto, se anota ac
 | 2026-11-17 | 214-15 | Cola de revisión sin storage | Con la cola vacía se muestra vacía normalmente. Si hay fotos y el almacenamiento privado no está configurado, la cola da error de servicio en vez de mostrar fotos rotas |
 | 2026-11-17 | 214-16 | Usuario Wellhub sin suscripción | Una persona que entra con Wellhub y no tiene suscripción propia no tiene plan en vigor: en la lista de anotados ve solo el número, no los nombres |
 | 2026-11-17 | 214-16 | Mayoría de edad el 29 de febrero | Quien nació un 29 de febrero cumple los 18 el 1 de marzo en los años no bisiestos, y recién ese día pasa a ser visible por defecto en la comunidad |
+| 2026-11-17 | 214-17 | Aura en la lista de anotados | Si la persona ganó 0 de Aura, o el módulo de gamificación está apagado, no se muestra Aura (queda vacío en vez de "0"). Avisar a Franco por si prefiere ver el 0 |
+| 2026-11-17 | 214-17 | Horario de otro país | Si el horario es de una sede de otro país, la lista de anotados da "no encontrado", también para el staff |
+| 2026-11-17 | 214-17 | Cuentas borradas en los contadores | Las cuentas borradas no cuentan en el total de anotados ni en el de clases de prueba |
