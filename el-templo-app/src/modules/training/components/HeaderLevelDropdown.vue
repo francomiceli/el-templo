@@ -1,15 +1,25 @@
 <template>
   <div
-    class="header-greeting__badge header-level-dropdown cursor-pointer"
+    class="level-trigger"
+    :class="`level-trigger--${variant}`"
     role="button"
     tabindex="0"
+    aria-haspopup="menu"
+    :aria-label="triggerLabel"
+    @keydown.enter.prevent="menuRef?.toggle()"
+    @keydown.space.prevent="menuRef?.toggle()"
   >
-    <q-icon name="keyboard_arrow_down" class="header-level-dropdown__chevron" />
-    <div class="header-greeting__badge-stack">
-      <span class="header-greeting__symbol">{{ greek }}</span>
-      <span class="header-greeting__level">{{ displayName }}</span>
-    </div>
-    <q-menu fit anchor="bottom right" self="top right" class="level-menu" :offset="[0, 8]">
+    <span class="level-trigger__symbol" aria-hidden="true">{{ greek }}</span>
+    <span class="level-trigger__name" aria-hidden="true">{{ displayName }}</span>
+    <q-icon name="expand_more" class="level-trigger__chevron" aria-hidden="true" />
+    <q-menu
+      ref="menuRef"
+      fit
+      anchor="bottom right"
+      self="top right"
+      class="level-menu"
+      :offset="[0, 8]"
+    >
       <q-list class="level-menu__list">
         <!-- SPEC "Empezá acá" A3: aclarar la diferencia entre el nivel que
              se está VIENDO y el nivel real del socio, sin cambiar la
@@ -49,8 +59,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useQuasar } from 'quasar'
+import { computed, ref } from 'vue'
+import { useQuasar, type QMenu } from 'quasar'
 import { useUserStore } from 'src/stores/useUserStore'
 import {
   TRAINING_LEVELS,
@@ -59,7 +69,12 @@ import {
   type Level,
 } from 'src/modules/training/level-display'
 
+// Fase 214 (D-62): `bar` = pastilla oscura sobre la barra de arriba (celular);
+// `light` = pastilla clara arriba de las pestañas de Entrenar (escritorio).
+withDefaults(defineProps<{ variant?: 'bar' | 'light' }>(), { variant: 'bar' })
+
 const $q = useQuasar()
+const menuRef = ref<QMenu | null>(null)
 const userStore = useUserStore()
 
 const activeLevel = computed<Level | null>(() => userStore.activeLevel)
@@ -69,6 +84,7 @@ const ownLevel = computed<Level | null>(() => {
 })
 const greek = computed(() => (activeLevel.value ? LEVEL_GREEK_MAP[activeLevel.value] : ''))
 const displayName = computed(() => (activeLevel.value ? LEVEL_DISPLAY_MAP[activeLevel.value] : ''))
+const triggerLabel = computed(() => `Nivel que estás viendo: ${displayName.value}. Cambiar nivel`)
 
 // SPEC "Empezá acá" A3: el badge del header YA muestra `activeLevel` (lo que
 // se está viendo); el menú aclara además cuál es el nivel REAL del socio y,
@@ -92,46 +108,72 @@ async function onSelect(lvl: Level): Promise<void> {
 
 <style lang="scss" scoped>
 @import 'src/css/_brand.scss';
+@import 'src/css/premium-card';
 
-.header-level-dropdown.header-greeting__badge {
-  display: flex;
-  flex-direction: row;
+// Disparador común: pastilla de 36 de alto; el área tocable llega a 44 con pd-hit-44.
+.level-trigger {
+  @include pd-hit-44;
+
+  display: inline-flex;
   align-items: center;
-  gap: 2px;
-  opacity: 1;
-  padding-bottom: 2px;
-  margin-right: 6px;
-}
-
-.header-greeting__badge-stack {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.header-greeting__symbol {
-  font-size: 32px;
-  color: #fff;
-  line-height: 1;
-}
-
-.header-greeting__level {
-  font-size: 10px;
-  color: #fff;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-}
-
-.header-level-dropdown {
+  gap: 4px;
+  height: 36px;
+  padding: 0 4px 0 8px;
+  border-radius: 999px;
   cursor: pointer;
   user-select: none;
+  flex-shrink: 0;
+
+  &__symbol {
+    // Misma fuente que antes (la del cuerpo): Montserrat no trae las letras griegas.
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  &__name {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    line-height: 1;
+  }
 
   &__chevron {
+    font-size: 20px;
+  }
+
+  &:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+  }
+
+  &--bar {
+    background: rgba(44, 35, 24, 0.22);
+    border: 1px solid rgba(255, 255, 255, 0.45);
     color: #fff;
-    opacity: 1;
-    vertical-align: middle;
-    font-size: 24px;
-    padding-right: 6px;
+  }
+
+  &--light {
+    background: #fff;
+    border: 1px solid $pd-light-edge;
+
+    .level-trigger__symbol {
+      color: $pd-terra-ink;
+    }
+
+    .level-trigger__name {
+      color: $pd-ink;
+    }
+
+    .level-trigger__chevron {
+      color: $pd-ink-2;
+    }
+
+    &:focus-visible {
+      outline-color: $pd-terra-ink;
+    }
   }
 }
 
