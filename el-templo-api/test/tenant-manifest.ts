@@ -1301,6 +1301,11 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "POST /api/members/scheduling/attendees/notice-seen": {
     categoria: "tenant-scoped",
   },
+  // Fase 214 (D-01..D-09): anotados de un horario y fecha. Solo lectura, cada
+  // tabla del join con `tenantWhere`.
+  "GET /api/members/scheduling/slots/:scheduleId/:date/attendees": {
+    categoria: "tenant-scoped",
+  },
 
   // ── /api/members/sponsors (fase 199, patrocinadores) ─────────────────────
   // Feed del socio y eventos (escriben `sponsor_views`, gym-owned). El

@@ -23,6 +23,8 @@ import type {
 import { eq, and } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { SchedulingService } from "./service";
+import { AttendeesService } from "./attendees-service";
+import { RATE_LIMITS } from "../shared/rate-limits";
 import { ActivityService } from "./activity-service";
 import { BookingService } from "./booking-service";
 import { HolidayService } from "./holiday-service";
@@ -85,6 +87,7 @@ import {
   trialEligibilitySchema,
   communityVisibilitySchema,
   communityNoticeSeenSchema,
+  slotAttendeesSchema,
   classLabelDescriptionsSchema,
   updateClassLabelDescriptionSchema,
   partnerBenefitSchema,
@@ -1195,6 +1198,7 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
     notificationService,
   );
   subscriptionService.setBookingService(bookingService);
+  const attendeesService = new AttendeesService(fastify);
 
   // Phase 119: self-service trial. BookingService is injected so the trial
   // path reuses the 30-day window + dayOfWeek/holiday validation (D-05).
@@ -1472,6 +1476,35 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
           request.log,
           "member community notice seen",
         );
+      }
+    },
+  );
+
+  // GET /slots/:scheduleId/:date/attendees — fase 214 (D-01..D-09): anotados de
+  // un horario y fecha. Las reglas de privacidad viven en el servicio. Dos
+  // topes: por IP (config) y por usuario (preHandler, el hook de autenticacion
+  // del plugin ya corrio).
+  fastify.get<{ Params: { scheduleId: number; date: string } }>(
+    "/slots/:scheduleId/:date/attendees",
+    {
+      schema: slotAttendeesSchema,
+      config: { rateLimit: RATE_LIMITS.attendees },
+      preHandler: fastify.rateLimit({
+        ...RATE_LIMITS.attendeesPerUser,
+        keyGenerator: (request) => `attendees:${request.user.userId}`,
+      }),
+    },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(request.scope, "scheduling.attendees");
+        return await attendeesService.getSlotAttendees(
+          ctx,
+          request.user.userId,
+          request.params.scheduleId,
+          request.params.date,
+        );
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "member slot attendees");
       }
     },
   );

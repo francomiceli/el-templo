@@ -479,7 +479,10 @@ import {
 // 2026-11-18 fase 214 (plan 16): 585 -> 587 por las 2 rutas de visibilidad del
 // alumno en la lista de anotados (PUT visibility y POST notice-seen),
 // `tenant-scoped` (`assertTenant` + `tenantValues`/`tenantWhere` en el service).
-const ENTRADAS_BASELINE = 587;
+// 2026-11-18 fase 214 (plan 17): 587 -> 588 por la ruta de anotados de un
+// horario (GET slots/:scheduleId/:date/attendees), `tenant-scoped` (`assertTenant`
+// + `tenantWhere` en cada tabla del join).
+const ENTRADAS_BASELINE = 588;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;

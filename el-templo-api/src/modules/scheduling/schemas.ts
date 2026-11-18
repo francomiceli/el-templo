@@ -1074,6 +1074,79 @@ export const communityNoticeSeenSchema = {
 };
 
 /**
+ * Fase 214 (D-01..D-09, D-52): anotados de un horario y fecha.
+ *
+ * GET /api/members/scheduling/slots/:scheduleId/:date/attendees
+ * El objeto, cada fila y `viewer` declaran SOLO los campos permitidos con
+ * `additionalProperties: false`: no hay ningun campo de tipo de persona (ni
+ * rol, ni staff, ni origen de la reserva) ni id de usuario.
+ */
+export const slotAttendeesSchema = {
+  params: {
+    type: "object",
+    required: ["scheduleId", "date"],
+    properties: {
+      scheduleId: { type: "integer", minimum: 1 },
+      date: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+    },
+  },
+  response: {
+    200: {
+      type: "object",
+      required: [
+        "total",
+        "canSeeList",
+        "reason",
+        "attendees",
+        "hiddenCount",
+        "viewer",
+      ],
+      additionalProperties: false,
+      properties: {
+        total: { type: "integer" },
+        canSeeList: { type: "boolean" },
+        reason: { type: "string", enum: ["ok", "sin_plan", "oculto"] },
+        attendees: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: [
+              "firstName",
+              "lastInitial",
+              "photoUrl",
+              "photoId",
+              "aura",
+              "isMe",
+            ],
+            properties: {
+              firstName: { type: "string" },
+              lastInitial: { type: ["string", "null"] },
+              photoUrl: { type: ["string", "null"] },
+              photoId: { type: ["integer", "null"] },
+              aura: { type: ["integer", "null"] },
+              isMe: { type: "boolean" },
+            },
+          },
+        },
+        hiddenCount: { type: "integer" },
+        viewer: {
+          type: "object",
+          additionalProperties: false,
+          required: ["visible", "noticeSeen"],
+          properties: {
+            visible: { type: "boolean" },
+            noticeSeen: { type: "boolean" },
+          },
+        },
+      },
+    },
+    400: errorSchema,
+    404: errorSchema,
+  },
+};
+
+/**
  * Phase 119 (D-20): trialEligibilitySchema
  *
  * GET /api/members/scheduling/trial-eligibility

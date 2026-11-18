@@ -19,4 +19,11 @@ export const RATE_LIMITS = {
   siteData: { max: 60, timeWindow: "1 minute" },
   /** Fase 214 D-45: reportar la foto de otro socio. Frena el abuso del contador (por IP). */
   photoReport: { max: 20, timeWindow: "1 minute" },
+  /** Fase 214: lista de anotados de un horario. Por IP (Wi-Fi compartido en la sede). */
+  attendees: { max: 120, timeWindow: "1 minute" },
+  /**
+   * Fase 214: lo mismo POR USUARIO. Frena que un solo alumno recorra los horarios
+   * de todo el gimnasio para saber donde esta alguien (T-214-17-03).
+   */
+  attendeesPerUser: { max: 40, timeWindow: "1 minute" },
 } as const;
