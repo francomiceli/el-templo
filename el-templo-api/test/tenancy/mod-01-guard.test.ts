@@ -61,13 +61,17 @@
  * -------------
  *   pnpm exec vitest run --no-file-parallelism test/tenancy/mod-01-guard.test.ts --hookTimeout=250000
  */
-import { describe, it, expect, beforeAll, beforeEach, afterEach, afterAll } from "vitest";
-import type { FastifyInstance } from "fastify";
 import {
-  createTestApp,
-  cleanAllTestData,
-  createTestMember,
-} from "../helpers";
+  describe,
+  it,
+  expect,
+  beforeAll,
+  beforeEach,
+  afterEach,
+  afterAll,
+} from "vitest";
+import type { FastifyInstance } from "fastify";
+import { createTestApp, cleanAllTestData, createTestMember } from "../helpers";
 import {
   seedSecondTenant,
   limpiarSegundoGimnasio,
@@ -222,6 +226,33 @@ describe("requireModule — templo-gamification (176-04, ModuleDef en modules/au
     // El handler de bar-challenge nunca devuelve 404 propio (200 en éxito,
     // 400 por schema, 401 sin token) — un 404 acá solo puede ser el guard.
     expect(res.statusCode).not.toBe(404);
+  });
+});
+
+describe("requireModule — templo-gamification: detalle privado de Aura (fase 214, plan 18)", () => {
+  const RUTA_MOVIMIENTOS = "/api/members/aura/movements";
+
+  function getMovimientosComo(token: string) {
+    return app.inject({
+      method: "GET",
+      url: RUTA_MOVIMIENTOS,
+      headers: { authorization: `Bearer ${token}` },
+    });
+  }
+
+  it("OFF: un socio del gimnasio 2 (sin flags) recibe el 404 exacto del guard", async () => {
+    const res = await getMovimientosComo(gym2.socios[0].token);
+
+    expect(res.statusCode).toBe(404);
+    expect(res.json()).toEqual(BODY_404_DEL_GUARD);
+  });
+
+  it("contraste: con el flag prendido ese 404 exacto desaparece", async () => {
+    await setModuleFlag(app, TENANT_DOS, "templo-gamification", true);
+
+    const res = await getMovimientosComo(gym2.socios[0].token);
+
+    expect(res.statusCode).toBe(200);
   });
 });
 
