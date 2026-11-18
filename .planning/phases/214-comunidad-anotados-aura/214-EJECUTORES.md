@@ -107,3 +107,7 @@ Línea de base registrada por el plan 01 en `TYPECHECK-BASELINE.md`:
 - (plan 07) La línea de base real de `vue-tsc` del admin es 36 errores (el plan 07 citaba ~21): usar siempre la de este archivo. Control posterior del plan 07: API 0, admin 36.
 - (plan 07) El selector "Descuento AURA" de `AssignPlanDialog.vue` quedó reemplazado por un comentario D-22 (con instrucciones para restaurarlo). Los envíos de `auraSpend` y sus resets a `null` siguen en el código y la API sigue aceptando el campo: no hay que tocarlos.
 - (plan 07) Los defaults del asistente `ProgramWizardDialog.vue` son `auraWeeklyBonus: 8` y `auraCompletionBonus: 50` (estado inicial y reset).
+- (plan 08) Funciones puras de la regla de D-20 en `sessions/proposed-time.ts` (`evaluateTrainingAura`, `proposedSecondsForSession`) y lecturas del tope del día en `aura/day-cap.ts` (`attendanceAuraOnLocalDay` con `excludeAttendanceId`, `appAuraOnLocalDay`): el plan 10 debe reusar `day-cap.ts`, no escribir otra consulta.
+- (plan 08) La API no tiene script `pnpm lint`: el gate es `pnpm lint:tenant` (más prettier). `goal-plans/routes.ts` ya tenía `sessionGeneratorService`, no instanciar otro.
+- (plan 08) Los tests de integración de cierre que afirman Aura con duración corta quedan rotos hasta el plan 09 (esperado). Control posterior del plan 08: API 0.
+- (plan 08) La consulta 08 de calibración no se corrió: si hay muchas sesiones reales bajo el 80 %, ajustar `SECONDS_PER_REP` o `MIN_BLOCK_SECONDS` en `proposed-time.ts`.

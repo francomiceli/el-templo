@@ -79,3 +79,5 @@ Cada vez que un ejecutor se encuentre con una decisión de producto, se anota ac
 | 2026-11-17 | 214-06 | Resumen del bloque libre al "Seguir entrenando" | La línea "Sumaste N AURA" se mantiene tras seguir entrenando, con el monto acumulado de lo que efectivamente se acreditó en esa vuelta |
 | 2026-11-17 | 214-07 | Descuento por Aura al asignar un plan (admin) | El selector "Descuento AURA" ya no aparece en el diálogo de asignar plan. La API lo sigue aceptando y el código quedó comentado para poder restaurarlo |
 | 2026-11-17 | 214-07 | Asistente de programas: montos de Aura por defecto | Arranca proponiendo 8 de Aura por semana y 50 por programa completo (antes 15 y 100). El admin puede cambiarlos al crear el programa |
+| 2026-11-17 | 214-08 | Sesión con solo bloques alternativos | Si los únicos bloques de la sesión son alternativos, no se acredita Aura por tiempo (se trata como sesión sin bloques). La sesión, la racha y el progreso se registran igual |
+| 2026-11-17 | 214-08 | Entrenamiento de la app y plan a medida el mismo día | Cada uno mira al otro como "otra fuente" para el tope diario: si ya se acreditó Aura por uno ese día, el otro no vuelve a pagar |
