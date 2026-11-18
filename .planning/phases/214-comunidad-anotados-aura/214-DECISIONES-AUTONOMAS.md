@@ -114,3 +114,7 @@ Cada vez que un ejecutor se encuentre con una decisión de producto, se anota ac
 | 2026-11-17 | 214-23 | Sello: animación | El sello respeta la preferencia del teléfono de reducir movimiento (antes no lo hacía) |
 | 2026-11-17 | 214-23 | Nombre en el encabezado | Si la persona no tiene nombre cargado, el encabezado dice "Atleta" |
 | 2026-11-17 | 214-23 | Foto que no carga | Si la foto no se puede mostrar, se vuelve a pedir el perfil una sola vez y después queda la inicial |
+| 2026-11-17 | 214-24 | Selector de nivel | El selector de nivel aparece solo en la pantalla Entrenar y solo si la persona tiene sesión iniciada y un nivel activo |
+| 2026-11-17 | 214-24 | Selector en celulares angostos | En pantallas de menos de 420 px el título del encabezado se oculta para dar lugar al selector, y el logo lleva a Mi Templo |
+| 2026-11-17 | 214-24 | Selector y vidriera | Si alguien sin plan ve la vidriera en Entrenar, en celular el selector igual puede aparecer (sigue la pantalla, no el contenido) |
+| 2026-11-17 | 214-24 | Selector con teclado | Enter y Espacio abren el menú del selector de nivel |
