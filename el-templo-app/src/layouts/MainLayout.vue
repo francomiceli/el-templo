@@ -12,8 +12,19 @@
     >
       <q-toolbar v-if="!isDesktop">
         <q-toolbar-title class="header-title">
-          <img src="/icons/icon-48.webp" alt="El Templo" class="header-logo" />
+          <!-- Fase 214 (D-62): con el selector de nivel visible y menos de 420 px, el título "EL TEMPLO"
+               se oculta y el logo pasa a ser el link a Mi Templo (sin esto la barra desborda a 360 y 390). -->
+          <router-link
+            v-if="hideTitleForLevelSelector"
+            to="/mi-templo"
+            class="header-logo-link"
+            aria-label="El Templo, ir a Mi Templo"
+          >
+            <img src="/icons/icon-48.webp" alt="" class="header-logo" />
+          </router-link>
+          <img v-else src="/icons/icon-48.webp" alt="El Templo" class="header-logo" />
           <img
+            v-if="!hideTitleForLevelSelector"
             src="/icons/el-templo-title.png"
             alt="EL TEMPLO"
             class="header-title-img"
@@ -21,6 +32,9 @@
             @click="router.push('/mi-templo')"
           />
         </q-toolbar-title>
+
+        <!-- Fase 214 (D-55, D-62): el selector de nivel vive solo en Entrenar. -->
+        <HeaderLevelDropdown v-if="showLevelSelector" variant="bar" class="header-level-bar" />
 
         <q-btn v-if="authStore.isAuthenticated" flat round icon="person" to="/profile">
           <q-tooltip>Mi Perfil</q-tooltip>
@@ -195,6 +209,7 @@ import PlanExpiryDialog from 'src/components/PlanExpiryDialog.vue'
 import AvisoPromptDialog from 'src/components/AvisoPromptDialog.vue'
 import AddressPromptDialog from 'src/components/AddressPromptDialog.vue'
 import MiTemploHeader from 'src/components/MiTemploHeader.vue'
+import HeaderLevelDropdown from 'src/modules/training/components/HeaderLevelDropdown.vue'
 import { useTipsSeenStorage } from 'src/composables/useTipsSeenStorage'
 import { TIPS_CONTENT } from 'src/config/tips-content'
 import { isNewMember } from 'src/modules/guia/new-member'
@@ -378,6 +393,11 @@ watch(
 
 const isDesktop = computed(() => $q.screen.width >= 768)
 const isMiTemplo = computed(() => route.path === '/mi-templo')
+// Fase 214 (D-55, D-62): selector de nivel en la barra de celular, solo dentro de Entrenar.
+const showLevelSelector = computed(
+  () => route.name === 'training' && authStore.isAuthenticated && userStore.activeLevel !== null,
+)
+const hideTitleForLevelSelector = computed(() => showLevelSelector.value && $q.screen.width < 420)
 
 const showCheckInFab = computed(() => {
   if (!authStore.isAuthenticated) return false
@@ -574,6 +594,15 @@ async function onLogout() {
 .header-title-img {
   height: 40px;
   width: auto;
+}
+
+.header-logo-link {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.header-level-bar {
+  margin-right: 4px;
 }
 
 .header-logo {
