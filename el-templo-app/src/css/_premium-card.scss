@@ -511,3 +511,27 @@ $pd-wa-b: #0f6b52;
   border-radius: 16px;
   box-shadow: 0 6px 18px rgba(150, 89, 58, 0.06);
 }
+
+// Fase 215 (plan 20): marco de las hojas claras que suben desde abajo (hoja "Dar Aura"), sacado a un
+// mixin para no repetir los valores del UI-SPEC. Las hojas de la 214 (anotados, detalle de Aura) no
+// se migran en esta fase: están en UAT.
+@mixin pd-sheet-light {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 480px;
+  max-height: 85vh;
+  background: $pd-light-surface;
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -10px 40px rgba(44, 35, 24, 0.3);
+}
+
+// Agarradera decorativa de una hoja clara (va con `aria-hidden`).
+@mixin pd-sheet-grabber {
+  flex: none;
+  width: 40px;
+  height: 4px;
+  margin: 8px auto 4px;
+  border-radius: 2px;
+  background: #d9cfc1;
+}
