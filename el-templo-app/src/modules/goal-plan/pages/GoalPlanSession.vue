@@ -10,11 +10,7 @@
     />
 
     <!-- 3-2-1 al arrancar la sesión y entre bloques -->
-    <CountdownOverlay
-      v-if="showCountdown"
-      :kicker="countdownCopy.kicker"
-      @done="onCountdownDone"
-    />
+    <CountdownOverlay v-if="showCountdown" :kicker="countdownCopy.kicker" @done="onCountdownDone" />
 
     <!-- Celebration Screen -->
     <CelebrationScreen
@@ -36,11 +32,7 @@
 
     <!-- Goal Plan Progress Indicator -->
     <GoalPlanProgressIndicator
-      v-else-if="
-        showProgress &&
-        goalPlanStore.activeGoalPlan &&
-        goalPlanStore.activeGoalPlanName
-      "
+      v-else-if="showProgress && goalPlanStore.activeGoalPlan && goalPlanStore.activeGoalPlanName"
       :goal-plan-name="goalPlanStore.activeGoalPlanName"
       :progress="goalPlanStore.activeGoalPlan"
       @continue="onProgressContinue"
@@ -299,11 +291,17 @@ const hasUnsavedProgress = computed(() => {
 
 /**
  * Arranca el player (antes lo hacía el botón COMENZAR de la pantalla intermedia): startedAt, timer,
- * wake lock y el 3-2-1. Al retomar (`resume`) no hay countdown y el startedAt no se pisa.
+ * wake lock y el 3-2-1. Al retomar (`resume`) no hay countdown y el startedAt se reconstruye del
+ * tiempo transcurrido persistido (fase 214, D-48): sin eso, al retomar, el cierre mandaría un inicio
+ * casi igual al fin, la sesión registraría una duración cercana a cero y con D-20 no daría Aura.
  */
 function beginSession(mode: PlayerStartMode): void {
   const isFreshStart = mode !== 'resume'
-  if (isFreshStart) sessionStartedAt.value = new Date().toISOString()
+  const p = player.value
+  sessionStartedAt.value =
+    mode === 'resume' && p
+      ? new Date(Date.now() - p.elapsedSeconds.value * 1000).toISOString()
+      : new Date().toISOString()
   if (player.value) {
     player.value.startTimer()
   }
