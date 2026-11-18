@@ -32,10 +32,6 @@
             <p v-else class="asheet__num">
               <span class="asheet__spark" aria-hidden="true">✦</span>{{ formatAura(earned) }}
             </p>
-            <p class="asheet__private">
-              <q-icon name="lock" size="16px" aria-hidden="true" />
-              <span>Solo vos ves este detalle</span>
-            </p>
           </div>
         </div>
 
@@ -345,17 +341,6 @@ onBeforeUnmount(() => {
   &__spark {
     margin-right: 6px;
     color: $pd-aura-spark;
-  }
-
-  &__private {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin: 0;
-    font-size: 13px;
-    font-weight: 400;
-    line-height: 1.4;
-    color: $pd-ink-2;
   }
 
   &__block-title {
