@@ -10,7 +10,7 @@
  * - D-16: cuatro motivos fijos; el texto sale siempre de `GIFT_REASONS`.
  * - D-19: el aviso dice quién dio y el motivo.
  * - D-21: porcentaje de quienes regalaron, para la medición.
- * - D-22: ningún texto promete que el regalo es privado.
+ * - D-22: ningún texto promete discreción: el aviso dice siempre quién dio.
  */
 
 import type {
@@ -84,4 +84,64 @@ export const GIFT_REFERENCE = {
 export function giversPct(givers: number, total: number): number {
   if (total <= 0) return 0;
   return Math.round((givers * 100) / total);
+}
+
+/** Destino de la push y de la fila de la bandeja: el detalle de Aura. */
+export const GIFT_ROUTE = "/mi-templo?aura=detalle";
+
+/** Texto del movimiento de un regalo anulado. */
+export const GIFT_VOID_LABEL = "Regalo anulado";
+
+/** Texto del movimiento cuando el regalo ya no se encuentra. */
+const GIFT_UNKNOWN_LABEL = "Regalo de Aura";
+
+/** Datos que hacen falta para redactar un regalo recibido (planes 11 y 14). */
+export interface GiftLabelInput {
+  giverKind: GiftGiverKind;
+  giverFirstName: string | null;
+  giverLastInitial: string | null;
+  reason: GiftReason;
+}
+
+/**
+ * "Sofía M." / "Sofía" / "Alguien". Recorta espacios; la inicial es la primera
+ * letra de `lastInitial`.
+ */
+export function giftPersonName(
+  firstName: string | null | undefined,
+  lastInitial: string | null | undefined,
+): string {
+  const first = (firstName ?? "").trim();
+  if (first === "") return "Alguien";
+  const initial = (lastInitial ?? "").trim().charAt(0);
+  return initial === "" ? first : `${first} ${initial}.`;
+}
+
+/**
+ * Quién dio, en la forma en que se lee en la push y en el detalle. El profe va
+ * solo con nombre de pila: "Tu profe Fran".
+ */
+function giverPhrase(input: GiftLabelInput): string {
+  if (input.giverKind === "profe") {
+    const first = (input.giverFirstName ?? "").trim().split(/\s+/)[0] ?? "";
+    return first === "" ? "Tu profe" : `Tu profe ${first}`;
+  }
+  return giftPersonName(input.giverFirstName, input.giverLastInitial);
+}
+
+/** Título y cuerpo de la push del regalo (D-19). */
+export function giftPushText(input: GiftLabelInput): {
+  title: string;
+  body: string;
+} {
+  return {
+    title: `${giverPhrase(input)} te dio Aura`,
+    body: `Motivo: ${giftReasonLabel(input.reason)}.`,
+  };
+}
+
+/** Texto del movimiento en el detalle de Aura (D-19). */
+export function giftMovementLabel(input: GiftLabelInput | null): string {
+  if (input === null) return GIFT_UNKNOWN_LABEL;
+  return `${giverPhrase(input)} te dio Aura · ${giftReasonLabel(input.reason)}`;
 }
