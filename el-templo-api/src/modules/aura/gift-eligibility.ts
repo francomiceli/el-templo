@@ -29,7 +29,17 @@
 // Todas las lecturas llevan `tenantWhere` literal en cada `where` y en cada
 // `join`: `aura_gifts` es strict.
 
-import { and, asc, eq, gte, isNotNull, ne, notInArray, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  eq,
+  gte,
+  isNotNull,
+  ne,
+  notInArray,
+  or,
+  sql,
+} from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../db/schema";
 import {
@@ -400,9 +410,13 @@ export async function listEligibleClassmates(
 }
 
 /**
- * D-05: cuántos regalos vigentes de alumno le dio `giverUserId` a cada persona
- * en la semana (lunes a domingo) de `sessionDate`. Solo cuentan las personas
- * con al menos uno.
+ * D-05: cuántos regalos de alumno le dio `giverUserId` a cada persona en la
+ * semana (lunes a domingo) de `sessionDate`. Solo cuentan las personas con al
+ * menos uno.
+ *
+ * Cuentan los vigentes y los anulados por el staff (ME-02): anular un abuso no
+ * puede devolver el cupo semanal. Los anulados porque se deshizo la asistencia
+ * no cuentan: ahí el regalo nunca debió existir.
  */
 export async function weeklyGiftCountsByReceiver(
   db: DbOrTx,
@@ -422,7 +436,10 @@ export async function weeklyGiftCountsByReceiver(
         tenantWhere(schema.auraGifts, ctx),
         eq(schema.auraGifts.giverUserId, giverUserId),
         eq(schema.auraGifts.giverKind, "alumno"),
-        eq(schema.auraGifts.status, "vigente"),
+        or(
+          eq(schema.auraGifts.status, "vigente"),
+          eq(schema.auraGifts.voidCause, "staff"),
+        ),
         sql`${schema.auraGifts.sessionDate} BETWEEN ${start} AND ${end}`,
       ),
     )

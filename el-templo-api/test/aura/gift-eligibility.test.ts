@@ -379,7 +379,7 @@ describe("Fase 215-04: elegibilidad del regalo", () => {
   // ── weeklyGiftCountsByReceiver (D-05) ─────────────────────────────────────
 
   describe("weeklyGiftCountsByReceiver", () => {
-    it("cuenta los vigentes de la semana e ignora anulados, semana anterior, profe y otro dador", async () => {
+    it("cuenta los vigentes de la semana e ignora anulados sin causa, semana anterior, profe y otro dador", async () => {
       const giver = await darAlumno();
       const r1 = await seedMember(app, { branchId: cls.branchId });
       const r2 = await seedMember(app, { branchId: cls.branchId });
@@ -442,6 +442,37 @@ describe("Fase 215-04: elegibilidad del regalo", () => {
       expect(cuentas.get(r1.id)).toBe(2);
       expect(cuentas.get(r2.id)).toBe(1);
       expect(cuentas.size).toBe(2);
+    });
+
+    it("un regalo anulado por el staff sigue contando y uno anulado por la asistencia no (ME-02)", async () => {
+      const giver = await darAlumno();
+      const receptor = await seedMember(app, { branchId: cls.branchId });
+      const common = {
+        giverUserId: giver.id,
+        receiverUserId: receptor.id,
+        branchId: cls.branchId,
+        scheduleId: cls.scheduleId,
+        sessionDate: cls.sessionDate,
+      };
+      await seedGift(app, {
+        ...common,
+        status: "anulado",
+        voidCause: "staff",
+      });
+      await seedGift(app, {
+        ...common,
+        status: "anulado",
+        voidCause: "asistencia",
+      });
+
+      const cuentas = await weeklyGiftCountsByReceiver(
+        app.db,
+        GIFT_CTX,
+        giver.id,
+        cls.sessionDate,
+      );
+
+      expect(cuentas.get(receptor.id)).toBe(1);
     });
 
     it("la semana va de lunes a domingo, con ambos extremos incluidos", async () => {

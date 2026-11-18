@@ -12,6 +12,7 @@ import { and, eq, sql } from "drizzle-orm";
 import type { ResultSetHeader } from "mysql2";
 import { createTestPlan, getAuthToken, registerUser } from "../helpers";
 import * as schema from "../../src/db/schema";
+import type { AuraGiftVoidCause } from "../../src/db/schema/aura-gifts";
 import {
   tenantValues,
   tenantWhere,
@@ -327,6 +328,7 @@ export async function seedGift(
     reason?: GiftReason;
     amount?: number;
     status?: "vigente" | "anulado";
+    voidCause?: AuraGiftVoidCause;
   },
 ): Promise<number> {
   const kind = input.giverKind ?? "alumno";
@@ -350,6 +352,7 @@ export async function seedGift(
         reason: input.reason ?? "tecnica",
         amount: input.amount ?? (kind === "profe" ? 2 : 1),
         status: input.status ?? "vigente",
+        voidCause: input.voidCause ?? null,
       }),
     )
     .$returningId();
