@@ -212,10 +212,18 @@
               </div>
               <template v-if="kpi.key === 'activeMembers' && wellhubVisitors > 0">
                 <q-separator vertical class="q-mx-md" />
+                <!-- El ícono va ANTES de la columna (no adentro) y el número lleva "+",
+                     para que se lea como algo que se SUMA a los activos y no como parte
+                     del número grande. -->
+                <q-icon
+                  name="confirmation_number"
+                  size="20px"
+                  color="grey-7"
+                  class="col-auto q-mr-sm"
+                />
                 <div class="col-auto wellhub-aside">
                   <div class="row items-center no-wrap text-body2">
-                    <q-icon name="confirmation_number" size="16px" color="grey-7" class="q-mr-xs" />
-                    <span class="text-weight-bold q-mr-xs">{{ wellhubVisitors }}</span>
+                    <span class="text-weight-bold q-mr-xs">+{{ wellhubVisitors }}</span>
                     por Wellhub
                   </div>
                   <div class="text-caption text-grey-6 wellhub-aside__caption">
