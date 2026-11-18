@@ -2094,6 +2094,19 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     categoria: "templo-module",
     modulo: "templo-gamification",
   },
+  // Fase 215 (plan 06): regalo de Aura del alumno.
+  "GET /api/members/aura/gifts/pending": {
+    categoria: "templo-module",
+    modulo: "templo-gamification",
+  },
+  "GET /api/members/aura/gifts/candidates": {
+    categoria: "templo-module",
+    modulo: "templo-gamification",
+  },
+  "POST /api/members/aura/gifts": {
+    categoria: "templo-module",
+    modulo: "templo-gamification",
+  },
 
   // ══ templo-marketing ══════════════════════════════════════════════════════
   // Doc 04 §2.1: blog, academy, gladius, franchise, app-landing.

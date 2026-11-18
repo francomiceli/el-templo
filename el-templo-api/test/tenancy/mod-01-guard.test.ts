@@ -256,6 +256,47 @@ describe("requireModule — templo-gamification: detalle privado de Aura (fase 2
   });
 });
 
+describe("requireModule — templo-gamification: regalo de Aura (fase 215, plan 06)", () => {
+  const RUTA_PENDIENTES = "/api/members/aura/gifts/pending";
+  const RUTA_REGALAR = "/api/members/aura/gifts";
+
+  function getPendientesComo(token: string) {
+    return app.inject({
+      method: "GET",
+      url: RUTA_PENDIENTES,
+      headers: { authorization: `Bearer ${token}` },
+    });
+  }
+
+  function postRegaloComo(token: string) {
+    return app.inject({
+      method: "POST",
+      url: RUTA_REGALAR,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { attendanceId: 1, receiverAttendanceId: 2, reason: "tecnica" },
+    });
+  }
+
+  it("OFF: con el módulo apagado para el gimnasio 2, pendientes y regalar dan el 404 exacto del guard", async () => {
+    const pendientes = await getPendientesComo(gym2.socios[0].token);
+    const regalar = await postRegaloComo(gym2.socios[0].token);
+
+    expect(pendientes.statusCode).toBe(404);
+    expect(pendientes.json()).toEqual(BODY_404_DEL_GUARD);
+    expect(regalar.statusCode).toBe(404);
+    expect(regalar.json()).toEqual(BODY_404_DEL_GUARD);
+  });
+
+  it("contraste: con el flag prendido, pendientes responde 200 con listas vacías", async () => {
+    await setModuleFlag(app, TENANT_DOS, "templo-gamification", true);
+
+    const res = await getPendientesComo(gym2.socios[0].token);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ pending: [], givenToday: [] });
+  });
+});
+
 describe("requireModule — templo-marketing (176-04, ruta pública, D-06)", () => {
   const RUTA_MARKETING = "/api/blog/posts";
 
