@@ -429,7 +429,7 @@ export async function removeCommunityPhoto(
 
 /**
  * D-45: un socio reporta una foto `aprobada` de su gimnasio (propia o de ficha).
- * Un reporte por persona y foto: el repetido no suma. La foto sigue visible.
+ * Un reporte por persona y foto: el repetido y el de la foto propia no suman. La foto sigue visible.
  * 404 si no existe, no es `aprobada` o es de otro gimnasio.
  */
 export async function reportProfilePhoto(
@@ -442,6 +442,7 @@ export async function reportProfilePhoto(
     const [row] = await tx
       .select({
         id: schema.memberPhotos.id,
+        userId: schema.memberPhotos.userId,
         reporterIds: schema.memberPhotos.reporterIds,
       })
       .from(schema.memberPhotos)
@@ -455,6 +456,8 @@ export async function reportProfilePhoto(
       .limit(1)
       .for("update");
     if (!row) throw new NotFoundError("No encontrado");
+    // LO-04: reportar la foto propia no suma (mismo silencio que el reporte repetido).
+    if (row.userId === reporterId) return;
 
     const current = row.reporterIds ?? [];
     if (current.includes(reporterId)) return;

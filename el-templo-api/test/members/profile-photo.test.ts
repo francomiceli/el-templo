@@ -533,6 +533,20 @@ describe("DELETE /profile-photo (D-63)", () => {
 // ── reportar (D-45) ─────────────────────────────────────────────────
 
 describe("POST /profile-photos/:photoId/report (D-45)", () => {
+  it("reportar la foto propia no suma (LO-04)", async () => {
+    const dueno = await createTestMember(app);
+    const foto = await seedPhoto(dueno.id, { status: "aprobada" });
+
+    const res = await app.inject({
+      method: "POST",
+      url: reportUrl(foto.id),
+      headers: auth(dueno.token),
+    });
+
+    expect(res.statusCode).toBe(204);
+    expect((await rowById(foto.id)).reportCount).toBe(0);
+  });
+
   it("suma un reporte por persona: el repetido no cuenta, un segundo socio sí; la foto sigue aprobada", async () => {
     const dueno = await createTestMember(app);
     const r1 = await createTestMember(app);
