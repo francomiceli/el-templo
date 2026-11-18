@@ -1,5 +1,6 @@
 <template>
-  <!-- Fase 214 (plan 21, D-50): normas antes de subir la foto. Se muestra en CADA subida y solo
+  <!-- Fase 214 (plan 21, D-50): normas antes de subir la foto. Se muestran la primera vez y después
+       de un rechazo (revisión 2026-11-18, #6: `utils/photo-rules-memory.ts`) y solo
        "Acepto, elegir foto" (`accept`) abre la cámara, la galería o el selector de archivos. Cerrar
        de cualquier otra forma (Cancelar, Esc, tocar afuera) emite `cancel`. Textos del UI-SPEC
        (Borrador 1). -->

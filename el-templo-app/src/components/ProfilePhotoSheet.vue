@@ -172,6 +172,13 @@ import { useProfilePhoto } from 'src/composables/useProfilePhoto'
 import { useUserStore } from 'src/stores/useUserStore'
 import { AURA_AMOUNTS_UI } from 'src/constants/aura-amounts'
 import { rejectionReasonLabel } from 'src/utils/photo-messages'
+import {
+  readPhotoRules,
+  recordAcceptance,
+  recordAfterPhotoChange,
+  shouldShowPhotoRules,
+  writePhotoRules,
+} from 'src/utils/photo-rules-memory'
 import { prefersReducedMotion } from 'src/utils/reduced-motion'
 import type { PhotoStatus } from 'src/types/community'
 
@@ -206,7 +213,7 @@ const removing = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
 /** Fuente elegida, pendiente de que se acepten las normas. */
 const pendingSource = ref<PhotoSource | null>(null)
-/** Última fuente usada: "Elegir otra" la repite (con las normas de nuevo, D-50). */
+/** Última fuente usada: "Elegir otra" la repite (con las normas solo si hacen falta, #6). */
 let lastSource: PhotoSource | null = null
 
 const photo = computed(() => userStore.profile?.photo ?? null)
@@ -246,19 +253,31 @@ function notifyError(): void {
   }
 }
 
-// ── Elegir la foto: siempre pasa por las normas (D-50) ──
+// ── Elegir la foto: las normas van la primera vez y después de un rechazo (D-50, #6) ──
 function startPick(source: PhotoSource): void {
-  pendingSource.value = source
-  rulesOpen.value = true
+  const userId = userStore.profile?.id
+  const status = photo.value?.status ?? null
+  if (shouldShowPhotoRules(readPhotoRules(userId), status)) {
+    pendingSource.value = source
+    rulesOpen.value = true
+    return
+  }
+  // Ya las aceptó y no le rechazaron nada después: sigue directo, en el mismo gesto del toque.
+  proceedWithSource(source)
 }
 
 function onRulesAccepted(): void {
   const source = pendingSource.value
   pendingSource.value = null
   if (!source) return
+  writePhotoRules(userStore.profile?.id, recordAcceptance(photo.value?.status ?? null))
+  proceedWithSource(source)
+}
+
+function proceedWithSource(source: PhotoSource): void {
   lastSource = source
   if (source === 'file') {
-    // Debe ejecutarse en el mismo gesto del clic en "Acepto": sin `await` antes.
+    // Debe ejecutarse en el mismo gesto del clic (en "Acepto" o en la fila): sin `await` antes.
     fileInput.value?.click()
     return
   }
@@ -300,6 +319,9 @@ function onChooseAnother(): void {
 async function onUpload(): Promise<void> {
   const ok = await photoCtl.upload()
   if (ok) {
+    // Una foto nueva reinicia la marca: si la rechazan otra vez, las normas vuelven (#6).
+    const userId = userStore.profile?.id
+    writePhotoRules(userId, recordAfterPhotoChange(readPhotoRules(userId)))
     view.value = 'main'
     $q.notify({ type: 'positive', message: 'Listo. Tu foto quedó en revisión.', timeout: 3500 })
     return
@@ -315,6 +337,8 @@ async function onConfirmRemove(): Promise<void> {
     const ok = await photoCtl.removePhoto()
     removeOpen.value = false
     if (ok) {
+      const userId = userStore.profile?.id
+      writePhotoRules(userId, recordAfterPhotoChange(readPhotoRules(userId)))
       $q.notify({ type: 'positive', message: 'Listo, quitamos tu foto.', timeout: 3000 })
     } else {
       $q.notify({
