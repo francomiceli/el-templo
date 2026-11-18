@@ -69,3 +69,7 @@ Cada vez que un ejecutor se encuentre con una decisión de producto, se anota ac
 | 2026-11-17 | 214-13 | Copia de la foto de ficha al almacenamiento privado | Job cada 15 minutos, una sola vez por foto; si falla queda marcada y no se reintenta. Una foto de ficha nueva aparece en la lista hasta 15 minutos después |
 | 2026-11-17 | 214-17 | Cuentas borradas en la card del horario | Tampoco cuentan en el número de la card (misma cuenta que la hoja) |
 | 2026-11-17 | 214-31 | Migración de repaso de D-49 | Queda preparada en `deploy-2/` y se mueve a migraciones recién para el deploy siguiente al de la 0344 |
+| 2026-11-17 | 214-08 | Regla del 80 % sin calibrar | La consulta 08 (cuántas sesiones reales pasarían la regla) no se corrió porque pide acceso a producción. La regla sale con la fórmula del plan. Conviene correr la 08 antes de mergear a master |
+| 2026-11-17 | 214-01 | Consulta 08 | El ejecutor la escribió tratando la duración en minutos. Corregida a segundos por el orquestador (`215686b9e`) |
+| 2026-11-17 | 214-32 | Lista de cambios para Apple y Google (D-67) | No la escribe un ejecutor: la escribe el orquestador al cierre, en `.docs/` del checkout principal |
+
