@@ -3,6 +3,7 @@ import {
   int,
   varchar,
   timestamp,
+  boolean,
   mysqlEnum,
   index,
 } from "drizzle-orm/mysql-core";
@@ -81,6 +82,13 @@ export const memberProfiles = mysqlTable(
     introStoriesSeenAt: timestamp("intro_stories_seen_at"),
     introStoriesCompletedAt: timestamp("intro_stories_completed_at"),
     introStoriesLastSlide: int("intro_stories_last_slide"),
+    // Fase 214 (comunidad de anotados), migración 0347: `communityVisible` es la
+    // preferencia explícita del alumno para aparecer en la lista de anotados
+    // (NULL = rige la regla por defecto: adulto y sede argentina, ver
+    // scheduling/community-visibility.ts). `communityNoticeSeenAt` guarda la
+    // primera vez que vio el aviso de visibilidad y no se pisa.
+    communityVisible: boolean("community_visible"),
+    communityNoticeSeenAt: timestamp("community_notice_seen_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
   },
