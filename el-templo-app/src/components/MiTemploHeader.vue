@@ -266,7 +266,7 @@ function onImageError(): void {
   }
 }
 
-// El sello conserva su tamaño (21) y no se recorta: pegado al nombre con margen 8. Va fuera del
+// El sello mide 24 (fase 215, #18) y no se recorta: pegado al nombre con margen 8. Va fuera del
 // bloque `.mth` para ganar en especificidad al margen propio del sello (7).
 .mth .mth__seal {
   flex: none;
