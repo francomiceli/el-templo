@@ -58,7 +58,9 @@ import {
   tenantWhere,
   type TenantContext,
 } from "../shared/tenant";
+import { NotificationService } from "../notifications/service";
 import { GiftError } from "./gift-errors";
+import { queueGiftNotification } from "./gift-push";
 import { getCoachGiftAmount } from "./gift-settings";
 import {
   classHasEnded,
@@ -189,10 +191,12 @@ export interface CoachGiftSlotResult {
 export class AuraGiftService {
   private readonly db: DbInstance;
   private readonly aura: AuraService;
+  private readonly notifications: NotificationService;
 
   constructor(private readonly fastify: FastifyInstance) {
     this.db = fastify.db;
     this.aura = new AuraService(fastify.db);
+    this.notifications = new NotificationService(fastify.db, fastify.log);
   }
 
   /**
@@ -404,14 +408,19 @@ export class AuraGiftService {
         description: "Regalo de Aura #" + giftId,
       });
 
+      // Nombre de quien regala, para el texto de la push (plan 15).
+      const giver = await this.readGiverName(tx, ctx, userId);
+
       return {
         giftId,
         receiverUserId: receiver.userId,
         receiverFirstName: receiver.firstName,
         reason,
         amount: AURA_AMOUNTS.giftMember,
+        giver,
       };
     });
+    const { giver: memberGiver, ...memberResult } = result;
 
     this.fastify.log.info(
       {
@@ -423,8 +432,21 @@ export class AuraGiftService {
       "Regalo de Aura dado",
     );
 
-    // plan 15: push al receptor después del commit
-    return result;
+    // Push al receptor DESPUÉS del commit: su error solo se loguea.
+    await queueGiftNotification(
+      this.notifications,
+      ctx,
+      {
+        giftId: memberResult.giftId,
+        receiverUserId: memberResult.receiverUserId,
+        giverKind: "alumno",
+        giverFirstName: memberGiver.firstName,
+        giverLastInitial: memberGiver.lastInitial,
+        reason: memberResult.reason,
+      },
+      this.fastify.log,
+    );
+    return memberResult;
   }
 
   /**
@@ -524,27 +546,45 @@ export class AuraGiftService {
         description: "Regalo de Aura del profe #" + giftId,
       });
 
+      // Nombre de pila del profe, para el texto de la push (plan 15).
+      const giver = await this.readGiverName(tx, ctx, coach.userId);
+
       return {
         giftId,
         receiverUserId: receiver.userId,
         amount,
         reason,
+        giver,
       };
     });
+    const { giver: coachGiver, ...coachResult } = result;
 
     this.fastify.log.info(
       {
         giftId: result.giftId,
         giverUserId: coach.userId,
-        receiverUserId: result.receiverUserId,
+        receiverUserId: coachResult.receiverUserId,
         attendanceId: input.attendanceId,
-        amount: result.amount,
+        amount: coachResult.amount,
       },
       "Regalo de Aura del profe dado",
     );
 
-    // plan 15: push al receptor después del commit
-    return result;
+    // Push al receptor DESPUÉS del commit: su error solo se loguea.
+    await queueGiftNotification(
+      this.notifications,
+      ctx,
+      {
+        giftId: coachResult.giftId,
+        receiverUserId: coachResult.receiverUserId,
+        giverKind: "profe",
+        giverFirstName: coachGiver.firstName,
+        giverLastInitial: null,
+        reason: coachResult.reason,
+      },
+      this.fastify.log,
+    );
+    return coachResult;
   }
 
   /**
@@ -641,6 +681,31 @@ export class AuraGiftService {
   // ---------------------------------------------------------------------------
   // Internos
   // ---------------------------------------------------------------------------
+
+  /**
+   * Nombre de pila e inicial del apellido de quien regala, para redactar la
+   * push (plan 15). Se lee dentro de la transacción con el scope del gimnasio.
+   */
+  private async readGiverName(
+    tx: DbOrTx,
+    ctx: TenantContext,
+    giverUserId: number,
+  ): Promise<{ firstName: string | null; lastInitial: string | null }> {
+    const [row] = await tx
+      .select({
+        firstName: schema.users.firstName,
+        lastInitial: sql<string | null>`LEFT(${schema.users.lastName}, 1)`,
+      })
+      .from(schema.users)
+      .where(
+        and(tenantWhere(schema.users, ctx), eq(schema.users.id, giverUserId)),
+      )
+      .limit(1);
+    return {
+      firstName: row?.firstName ?? null,
+      lastInitial: row?.lastInitial ?? null,
+    };
+  }
 
   /**
    * Validaciones comunes de la hoja y del alta, siempre en este orden:
