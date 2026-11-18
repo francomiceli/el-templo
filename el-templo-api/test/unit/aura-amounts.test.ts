@@ -28,6 +28,10 @@ describe("aura amounts (fase 214, D-18 y D-19)", () => {
     expect(AURA_AMOUNTS.profilePhoto).toBe(5);
   });
 
+  it("regalo de un alumno vale 1 (fase 215, D-10)", () => {
+    expect(AURA_AMOUNTS.giftMember).toBe(1);
+  });
+
   it("programas sin bonus cargado", () => {
     expect(AURA_AMOUNTS.programWeekDefault).toBe(8);
     expect(AURA_AMOUNTS.programCompletionDefault).toBe(50);
