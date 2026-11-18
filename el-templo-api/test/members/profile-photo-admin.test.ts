@@ -26,7 +26,6 @@ import type { FastifyInstance } from "fastify";
 import { and, eq } from "drizzle-orm";
 import * as schema from "../../src/db/schema";
 import { publicKeyFromFichaUrl } from "../../src/modules/conquer/private-media";
-import { PHOTO_REJECTION_PUSH_BODY } from "../../src/modules/members/profile-photo-service";
 import { NotificationService } from "../../src/modules/notifications/service";
 import { tenantWhere } from "../../src/modules/shared/tenant";
 import {
@@ -423,7 +422,7 @@ describe("POST /:userId/profile-photo/approve", () => {
 // ── rechazar ────────────────────────────────────────────────────────
 
 describe("POST /:userId/profile-photo/reject", () => {
-  it("rechaza con motivo: guarda el motivo, borra el objeto y encola el aviso", async () => {
+  it("rechaza con motivo: guarda el motivo, borra el objeto y NO manda push ni escribe en la bandeja", async () => {
     const remove = vi.fn(async () => undefined);
     mockPrivateMedia({ remove });
     const staff = await createConquerStaff(app, "coach");
@@ -444,6 +443,8 @@ describe("POST /:userId/profile-photo/reject", () => {
     expect(row.rejectionReason).toBe("sin_cara");
     expect(row.reviewedBy).toBe(staff.id);
     expect(remove).toHaveBeenCalledWith(foto.storageKey);
+    // Texto 4 de la revisión: sin push (aunque tenga dispositivo y la categoría
+    // activa) y sin aviso en la bandeja. El motivo se ve en Perfil (`/me`).
     const avisos = await app.db
       .select()
       .from(schema.pendingNotifications)
@@ -453,9 +454,17 @@ describe("POST /:userId/profile-photo/reject", () => {
           eq(schema.pendingNotifications.userId, m.id),
         ),
       );
-    expect(avisos).toHaveLength(1);
-    expect(avisos[0]?.title).toBe("Tu foto no fue aprobada");
-    expect(avisos[0]?.body).toBe(PHOTO_REJECTION_PUSH_BODY.sin_cara);
+    expect(avisos).toHaveLength(0);
+    const bandeja = await app.db
+      .select()
+      .from(schema.memberNotifications)
+      .where(
+        and(
+          tenantWhere(schema.memberNotifications, FOTO_CTX),
+          eq(schema.memberNotifications.userId, m.id),
+        ),
+      );
+    expect(bandeja).toHaveLength(0);
     expect(await profilePhotoAuraRows(app, m.id)).toHaveLength(0);
   });
 

@@ -46,7 +46,6 @@ import * as schema from "../../db/schema";
 import type { MemberPhotoOrigin, PhotoRejectionReason } from "../../db/schema";
 import { AuraService } from "../aura/service";
 import { AURA_AMOUNTS } from "../aura/amounts";
-import { NotificationService } from "../notifications/service";
 import { AppError, NotFoundError } from "../shared/errors";
 import { isDuplicateKeyError } from "../shared/sql-errors";
 import { InvalidPhotoError, reencodeProfilePhoto } from "./photo-reencode";
@@ -624,19 +623,6 @@ export async function resolveCommunityPhotos(
 // Staff: cola de revisión, aprobar, rechazar (plan 15)
 // ---------------------------------------------------------------------------
 
-/** Título fijo del aviso de rechazo (D-69, UI-SPEC Borrador 5). */
-export const PHOTO_REJECTION_PUSH_TITLE = "Tu foto no fue aprobada";
-
-/** Cuerpo del aviso de rechazo según el motivo elegido por el staff (D-69). */
-export const PHOTO_REJECTION_PUSH_BODY: Record<PhotoRejectionReason, string> = {
-  sin_cara:
-    "Subí una foto donde se te vea la cara. Podés hacerlo desde tu perfil.",
-  no_es_propia:
-    "Tiene que ser una foto tuya. Podés subir otra desde tu perfil.",
-  contenido: "La foto no cumple las normas. Podés subir otra desde tu perfil.",
-  otro: "Podés subir otra desde tu perfil.",
-};
-
 const REVIEW_QUEUE_LIMIT = 100;
 
 export interface PhotoReviewItem {
@@ -917,8 +903,9 @@ export async function approveProfilePhoto(
 }
 
 /**
- * Rechaza la foto pendiente (D-31, D-69): guarda el motivo, borra el objeto y
- * avisa al alumno por push (best-effort, categoría `anuncios`). Opera SOLO sobre
+ * Rechaza la foto pendiente (D-31, D-69): guarda el motivo y borra el objeto.
+ * NO manda push ni escribe en la bandeja (decisión de la revisión del
+ * 2026-11-18, texto 4): el alumno ve el estado y el motivo en Perfil. Opera SOLO sobre
  * `photoId` (la foto que el staff vio): si ya no es la pendiente del alumno,
  * 409 `FOTO_PERFIL_CAMBIO` y no rechaza nada. 404 si el alumno no tiene pendiente.
  */
@@ -977,25 +964,6 @@ export async function rejectProfilePhoto(
     await removeBestEffort(fastify, store, storageKey, "la foto rechazada");
   }
 
-  try {
-    await new NotificationService(
-      fastify.db,
-      fastify.log,
-    ).queueAdHocNotification(
-      {
-        userId,
-        title: PHOTO_REJECTION_PUSH_TITLE,
-        body: PHOTO_REJECTION_PUSH_BODY[reason],
-        category: "anuncios",
-      },
-      ctx,
-    );
-  } catch (err: unknown) {
-    fastify.log.warn(
-      { userId, errName: err instanceof Error ? err.name : "unknown" },
-      "Foto rechazada pero falló al encolar el aviso",
-    );
-  }
   return { status: "rechazada" };
 }
 
