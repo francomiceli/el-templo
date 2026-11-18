@@ -19,7 +19,7 @@
 //
 // Las claves de storage y las URLs firmadas son dato sensible: este módulo no
 // loguea nada; quien lo llama loguea a lo sumo `{ checkId, pose }`.
-import { randomUUID } from "node:crypto";
+import { createHash, createHmac, randomUUID } from "node:crypto";
 import {
   DeleteObjectCommand,
   GetObjectCommand,
@@ -101,7 +101,17 @@ export interface PrivateMediaStore {
     contentType: string,
     expiresSec: number,
   ): Promise<string>;
-  presignGet(key: string, expiresSec: number): Promise<string>;
+  /**
+   * Sin `opts` (Conquer): `no-store` y fecha de firma real. Con
+   * `opts.stableHourly` (avatares, fase 214): la fecha de firma se redondea a la
+   * hora, así la misma clave da la misma URL durante una hora y el navegador
+   * puede cachear la imagen.
+   */
+  presignGet(
+    key: string,
+    expiresSec: number,
+    opts?: { stableHourly?: boolean },
+  ): Promise<string>;
   /** Tamaño y tipo del objeto, o null si no existe. */
   head(key: string): Promise<PrivateMediaHead | null>;
   /** Fase 202 DA-45: borra el objeto. Un "no existe" no es error. */
@@ -204,6 +214,105 @@ export function isOwnPhotoKey(
   ).test(key);
 }
 
+/**
+ * Fase 214 D-34: prefijo de las fotos de perfil de la comunidad. Distinto de
+ * `private/conquer/` y de `private/conquer-corrections/`: la regla de 60 días
+ * de R2 va sobre el segundo y no debe vencer los avatares.
+ */
+export const AVATAR_KEY_PREFIX = "private/avatars";
+/** Expiración de la URL firmada de un avatar en una lista (2 horas). */
+export const AVATAR_LIST_GET_EXPIRES_SEC = 2 * 3600;
+/** Expiración de la URL firmada del avatar propio en `GET /auth/me` (24 horas). */
+export const AVATAR_ME_GET_EXPIRES_SEC = 24 * 3600;
+
+/**
+ * Segmento que identifica al dueño en la clave SIN revelar su id: HMAC-SHA256
+ * de `avatar:{tenant}:{user}` con `JWT_SECRET`, 24 caracteres hex. Solo el
+ * servidor puede calcularlo. Sin secreto no se firma con uno vacío.
+ */
+export function avatarOwnerSegment(tenantId: number, userId: number): string {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error(
+      "JWT_SECRET no está configurada: no se puede calcular el segmento del avatar",
+    );
+  }
+  return createHmac("sha256", secret)
+    .update(`avatar:${tenantId}:${userId}`)
+    .digest("hex")
+    .slice(0, 24);
+}
+
+/** `private/avatars/{tenant}/{segmento}/{uuid}.jpg` (el id del usuario no aparece). */
+export function privateAvatarKey(input: {
+  tenantId: number;
+  userId: number;
+}): string {
+  return `${AVATAR_KEY_PREFIX}/${input.tenantId}/${avatarOwnerSegment(input.tenantId, input.userId)}/${randomUUID()}.jpg`;
+}
+
+/**
+ * ¿`key` tiene la forma exacta de `privateAvatarKey` para ESTE gimnasio y
+ * alumno? El segmento se calcula, nunca se lee de la clave. Regex anclada:
+ * sin `..`, sin otro prefijo, sin las claves `ficha-...` (T-214-13-02).
+ */
+export function isOwnAvatarKey(
+  key: string,
+  tenantId: number,
+  userId: number,
+): boolean {
+  if (![tenantId, userId].every((n) => Number.isInteger(n))) return false;
+  return new RegExp(
+    `^${AVATAR_KEY_PREFIX}/${tenantId}/${avatarOwnerSegment(tenantId, userId)}/${UUID_PATTERN}\\.jpg$`,
+  ).test(key);
+}
+
+const FICHA_EXT_PATTERN = /\.(jpg|jpeg|png|webp)$/;
+
+/**
+ * Clave determinística del espejo privado de la foto de ficha:
+ * `private/avatars/{tenant}/{segmento}/ficha-{sha256(sourceUrl) 16 hex}.{ext}`.
+ * Copiar dos veces la misma foto escribe la misma clave (idempotente).
+ */
+export function fichaMirrorKey(input: {
+  tenantId: number;
+  userId: number;
+  sourceUrl: string;
+}): string {
+  const hash = createHash("sha256").update(input.sourceUrl).digest("hex");
+  const ext = FICHA_EXT_PATTERN.exec(input.sourceUrl)?.[1] ?? "jpg";
+  return `${AVATAR_KEY_PREFIX}/${input.tenantId}/${avatarOwnerSegment(input.tenantId, input.userId)}/ficha-${hash.slice(0, 16)}.${ext}`;
+}
+
+/**
+ * Clave del bucket PÚBLICO que corresponde a la `photo_url` de ficha del
+ * usuario, o null si la URL no tiene exactamente la forma que genera
+ * `POST /members/:userId/photo-url` (`members/photos/{userId}-{ts}.{ext}`)
+ * para ESE usuario (T-214-13-03). Es la única fuente de `publicKey` de las
+ * operaciones sobre el bucket público.
+ */
+export function publicKeyFromFichaUrl(
+  url: string,
+  userId: number,
+): string | null {
+  if (!Number.isInteger(userId)) return null;
+  const base = (process.env.R2_PUBLIC_URL ?? "").replace(/\/+$/, "");
+  const prefix = `${base}/`;
+  if (!url.startsWith(prefix)) return null;
+  const key = url.slice(prefix.length);
+  return new RegExp(
+    `^members/photos/${userId}-\\d+\\.(jpg|jpeg|png|webp)$`,
+  ).test(key)
+    ? key
+    : null;
+}
+
+/** Fecha de firma redondeada hacia abajo a la hora: misma URL durante una hora. */
+export function stableHourlySigningDate(now: Date = new Date()): Date {
+  const hour = 3600 * 1000;
+  return new Date(Math.floor(now.getTime() / hour) * hour);
+}
+
 /** Narrowing del "no existe" de S3/R2 (`NotFound` en HEAD, `NoSuchKey`, o HTTP 404). */
 function isObjectMissing(err: unknown): boolean {
   if (
@@ -253,16 +362,28 @@ export const privateMediaResolver = {
           { expiresIn: expiresSec },
         ),
       // T-201-44: la URL de lectura no se cachea en el navegador ni en proxies.
-      presignGet: (key, expiresSec) =>
-        getSignedUrl(
-          client,
-          new GetObjectCommand({
-            Bucket: bucket,
-            Key: key,
-            ResponseCacheControl: "no-store",
-          }),
-          { expiresIn: expiresSec },
-        ),
+      // Fase 214 (T-214-13-05): los avatares piden `stableHourly` y se cachean
+      // solo en el navegador de quien los pide (`private`).
+      presignGet: (key, expiresSec, opts) =>
+        opts?.stableHourly
+          ? getSignedUrl(
+              client,
+              new GetObjectCommand({
+                Bucket: bucket,
+                Key: key,
+                ResponseCacheControl: "private, max-age=3600",
+              }),
+              { expiresIn: expiresSec, signingDate: stableHourlySigningDate() },
+            )
+          : getSignedUrl(
+              client,
+              new GetObjectCommand({
+                Bucket: bucket,
+                Key: key,
+                ResponseCacheControl: "no-store",
+              }),
+              { expiresIn: expiresSec },
+            ),
       head: async (key) => {
         try {
           const res = await client.send(
