@@ -381,6 +381,13 @@ export const NAV_MODEL: NavCategory[] = [
         roles: ALL_STAFF_ROLES,
         badge: 'fotos',
       },
+      {
+        // Regalos de Aura (fase 215, plan 23): valor del regalo del profe, medición y anulación.
+        path: '/alumnos/regalos',
+        label: 'Regalos de Aura',
+        icon: 'volunteer_activism',
+        roles: ['owner', 'admin', 'admin_sede'],
+      },
       { path: '/horarios', label: 'Horarios', icon: 'calendar_month', roles: ALL_STAFF_ROLES },
       {
         // TV (fase 164, unificado tras el retiro del kiosco anónimo RFC 8628):

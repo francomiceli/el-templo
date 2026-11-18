@@ -158,6 +158,14 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
+        // Regalos de Aura (fase 215, plan 23, D-11, D-20, D-21). Va ANTES de `alumnos/:userId`
+        // para que "regalos" no se tome como un id. Los profes no la ven (no anulan): el servidor
+        // valida el rol y acota admin_sede a sus sedes.
+        path: 'alumnos/regalos',
+        component: () => import('pages/RegalosAuraPage.vue'),
+        meta: { allowedRoles: ['admin', 'owner', 'admin_sede'] as AdminRole[] },
+      },
+      {
         path: 'alumnos/:userId',
         component: () => import('pages/AlumnoDetailPage.vue'),
         meta: {
