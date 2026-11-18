@@ -88,6 +88,15 @@ function textFingerprint(title: string, body: string): string {
 }
 
 /**
+ * Comienzo de la clave anti-duplicado de los avisos de una plantilla. Lo usa
+ * `inboxDedupeKey` y la cadencia de las reglas propias (`cooldownDays`), que
+ * busca en la bandeja lo que ya recibió quien no tiene push (HI-01).
+ */
+export function inboxTemplateDedupePrefix(templateKey: string): string {
+  return `t:${templateKey}:`;
+}
+
+/**
  * Clave anti-duplicado de un aviso que NO tiene fila en la cola (persona sin
  * push). Evita que un job que reintenta en cada tick (`class_reminder`: cada 5
  * minutos, con ventana de 10) deje dos filas iguales en la bandeja.
@@ -101,9 +110,9 @@ export function inboxDedupeKey(input: InboxDedupeInput): string {
   let key: string;
   if (input.source === "template") {
     if (input.bookingId != null) {
-      key = `t:${input.templateKey}:b${input.bookingId}`;
+      key = `${inboxTemplateDedupePrefix(input.templateKey)}b${input.bookingId}`;
     } else {
-      key = `t:${input.templateKey}:${utcDay(input.shownAt)}:${textFingerprint(input.title, input.body)}`;
+      key = `${inboxTemplateDedupePrefix(input.templateKey)}${utcDay(input.shownAt)}:${textFingerprint(input.title, input.body)}`;
     }
   } else if (input.inboxRefId != null) {
     key = `a:${input.inboxKind || input.category}:${input.inboxRefId}`;

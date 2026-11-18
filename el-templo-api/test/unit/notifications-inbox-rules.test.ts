@@ -15,6 +15,7 @@ import {
   formatInboxCursor,
   inboxDedupeKey,
   inboxKindFor,
+  inboxTemplateDedupePrefix,
   parseInboxCursor,
 } from "../../src/modules/notifications/inbox-rules";
 
@@ -238,5 +239,54 @@ describe("inboxDedupeKey", () => {
     });
     expect(largo).toMatch(/^h:[0-9a-f]{40}$/);
     expect(largo).toHaveLength(42);
+  });
+});
+
+describe("inboxTemplateDedupePrefix (HI-01)", () => {
+  it("la clave de una plantilla sin reserva empieza con el prefijo", () => {
+    const key = inboxDedupeKey({
+      source: "template",
+      templateKey: "te_extranamos",
+      shownAt: SHOWN_AT,
+      title: "A",
+      body: "B",
+    });
+    expect(key.startsWith(inboxTemplateDedupePrefix("te_extranamos"))).toBe(
+      true,
+    );
+  });
+
+  it("la clave con reserva también empieza con el prefijo", () => {
+    const key = inboxDedupeKey({
+      source: "template",
+      templateKey: "class_reminder",
+      bookingId: 5,
+      shownAt: SHOWN_AT,
+      title: "A",
+      body: "B",
+    });
+    expect(key.startsWith(inboxTemplateDedupePrefix("class_reminder"))).toBe(
+      true,
+    );
+  });
+
+  it("la clave de un día distinto sigue compartiendo el prefijo (la cadencia la mide por ahí)", () => {
+    const day1 = inboxDedupeKey({
+      source: "template",
+      templateKey: "regla_x",
+      shownAt: new Date("2026-11-18T13:00:00Z"),
+      title: "A",
+      body: "B",
+    });
+    const day2 = inboxDedupeKey({
+      source: "template",
+      templateKey: "regla_x",
+      shownAt: new Date("2026-11-19T13:00:00Z"),
+      title: "A",
+      body: "B",
+    });
+    expect(day1).not.toBe(day2);
+    const prefix = inboxTemplateDedupePrefix("regla_x");
+    expect(day1.startsWith(prefix) && day2.startsWith(prefix)).toBe(true);
   });
 });
