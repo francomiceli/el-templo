@@ -107,3 +107,6 @@ Cada vez que un ejecutor se encuentre con una decisión de producto, se anota ac
 | 2026-11-17 | 214-21 | Foto: "Elegir otra" | Al elegir otra foto se vuelven a mostrar las normas antes de subirla, así toda foto pasa por la aceptación |
 | 2026-11-17 | 214-21 | Foto: cerrar las normas | Si la persona cierra las normas sin tocar "Acepto, elegir foto", no se sube nada y la hoja se cancela |
 | 2026-11-17 | 214-21 | Foto: salir de la hoja | La hoja de la foto de perfil tiene un link "Cerrar" en la vista principal (el spec no lo pedía) |
+| 2026-11-17 | 214-22 | Aura: falla la primera carga | Si no se puede cargar el detalle de Aura, se ve solo el título "TU AURA" y el aviso de error con "Reintentar", sin el recuadro del total |
+| 2026-11-17 | 214-22 | Aura: módulo apagado | Si el módulo de Aura no está disponible (404), la hoja se cierra sola sin mostrar ningún mensaje |
+| 2026-11-17 | 214-22 | Aura: botón atrás de Android | El botón "atrás" de Android cierra la hoja del detalle de Aura (el spec no lo pedía) |
