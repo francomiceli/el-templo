@@ -40,7 +40,16 @@
           <span class="mth__name-text">{{ firstName }}</span>
           <VeteranSeal class="mth__seal" :since="memberSince" />
         </h1>
-        <p v-if="tenure" class="mth__tenure">{{ tenure }}</p>
+        <!-- #17: sin foto, la invitación a subirla; con foto (o en revisión), la antigüedad. -->
+        <button
+          v-if="subline?.kind === 'cta'"
+          type="button"
+          class="mth__cta"
+          @click="photoOpen = true"
+        >
+          {{ subline.text }}
+        </button>
+        <p v-else-if="subline?.kind === 'tenure'" class="mth__tenure">{{ subline.text }}</p>
       </div>
 
       <AuraChip v-if="auraValue !== null" :value="auraValue" @open="auraOpen = true" />
@@ -56,6 +65,7 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from 'src/stores/useUserStore'
 import { formatTenure } from 'src/utils/tenure'
+import { headerSubline } from 'src/utils/mi-templo-header'
 import MemberAvatar from 'src/components/MemberAvatar.vue'
 import VeteranSeal from 'src/components/VeteranSeal.vue'
 import AuraChip from 'src/components/AuraChip.vue'
@@ -83,6 +93,15 @@ const auraValue = computed<number | null>(() =>
   userStore.auraVisible ? (profile.value?.auraEarned ?? null) : null,
 )
 const auraVisible = computed(() => auraValue.value !== null)
+
+const subline = computed(() =>
+  headerSubline({
+    hasShownPhoto: approvedUrl.value !== null,
+    hasPendingPhoto: pendingUrl.value !== null,
+    auraVisible: auraVisible.value,
+    tenure: tenure.value,
+  }),
+)
 
 const photoAriaLabel = computed(() => {
   if (approvedUrl.value && pendingUrl.value) {
@@ -198,6 +217,32 @@ function onImageError(): void {
     font-weight: 400;
     line-height: 1.3;
     color: #fff;
+  }
+
+  // #17: invitación a subir la foto. Se ve como la línea de antigüedad pero subrayada; el área
+  // tocable llega a 44 px con padding y margen negativo, sin agrandar el encabezado.
+  &__cta {
+    display: block;
+    max-width: 100%;
+    margin: -12px 0 -14px;
+    padding: 14px 0;
+    border: 0;
+    background: none;
+    font-family: 'Geologica', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.3;
+    color: #fff;
+    text-align: left;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+
+    &:focus-visible {
+      outline: 2px solid #fff;
+      outline-offset: 2px;
+    }
   }
 
   // Esqueletos (D-08): anchos fijos con tope al ancho disponible para que a 360 px nada desborde.
