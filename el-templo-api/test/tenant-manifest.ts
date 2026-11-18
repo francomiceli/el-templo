@@ -650,6 +650,9 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "DELETE /api/admin/members/:userId/partner-referral": {
     categoria: "tenant-scoped",
   },
+  "DELETE /api/admin/members/:userId/profile-photo": {
+    categoria: "tenant-scoped",
+  },
   "GET /api/admin/members": { categoria: "tenant-scoped" },
   "GET /api/admin/members/:userId": { categoria: "tenant-scoped" },
   "GET /api/admin/members/:userId/financial-history": {
@@ -669,6 +672,7 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     categoria: "tenant-scoped",
   },
   "GET /api/admin/members/branches": { categoria: "tenant-scoped" },
+  "GET /api/admin/members/profile-photos": { categoria: "tenant-scoped" },
   "GET /api/admin/members/check-dni": { categoria: "tenant-scoped" },
   "GET /api/admin/members/check-duplicates": { categoria: "tenant-scoped" },
   "GET /api/admin/members/export": { categoria: "tenant-scoped" },
@@ -702,6 +706,12 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     categoria: "tenant-scoped",
   },
   "POST /api/admin/members/:userId/photo/upload-url": {
+    categoria: "tenant-scoped",
+  },
+  "POST /api/admin/members/:userId/profile-photo/approve": {
+    categoria: "tenant-scoped",
+  },
+  "POST /api/admin/members/:userId/profile-photo/reject": {
     categoria: "tenant-scoped",
   },
   "POST /api/admin/members/trial": { categoria: "tenant-scoped" },

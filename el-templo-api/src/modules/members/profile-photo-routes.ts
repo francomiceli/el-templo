@@ -28,7 +28,7 @@ import {
 } from "./profile-photo-service";
 
 /** Errores con código (503 de storage, 400/409 de la foto): `{ error, code }`. */
-function sendPhotoError(
+export function sendPhotoError(
   err: unknown,
   reply: FastifyReply,
   log: FastifyBaseLogger,

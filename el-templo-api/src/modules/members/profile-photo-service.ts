@@ -22,11 +22,31 @@
 // una red de seguridad: la app reduce a ~480 px antes de subir, y el mensaje
 // nunca dice "es muy pesada" (D-33), es accionable.
 //
+// Del lado del staff (plan 15, D-30 a D-32, D-46, D-69): cola de revisión,
+// aprobar (acredita la Aura una sola vez en la vida), rechazar con motivo y
+// aviso, y el estado de la foto propia para `GET /auth/me`.
+//
 // Logs sin claves ni URLs (dato sensible): solo ids y el nombre del error.
-import { and, eq, inArray, isNull, or } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gt,
+  inArray,
+  isNull,
+  or,
+  sql,
+} from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import * as schema from "../../db/schema";
+import type { MemberPhotoOrigin, PhotoRejectionReason } from "../../db/schema";
+import { AuraService } from "../aura/service";
+import { AURA_AMOUNTS } from "../aura/amounts";
+import { NotificationService } from "../notifications/service";
 import { AppError, NotFoundError } from "../shared/errors";
+import { isDuplicateKeyError } from "../shared/sql-errors";
 import {
   tenantValues,
   tenantWhere,
@@ -34,6 +54,7 @@ import {
 } from "../shared/tenant";
 import {
   AVATAR_LIST_GET_EXPIRES_SEC,
+  AVATAR_ME_GET_EXPIRES_SEC,
   PHOTO_MAX_BYTES,
   PRIVATE_PUT_EXPIRES_SEC,
   PhotoStorageUnavailableError,
@@ -120,6 +141,16 @@ async function assertLiveMember(
     )
     .limit(1);
   if (!row) throw new NotFoundError("No encontrado");
+}
+
+/** El store privado, o `null` si no está configurado (nunca lanza por eso). */
+function tryResolveStore(fastify: FastifyInstance): PrivateMediaStore | null {
+  try {
+    return privateMediaResolver.resolve(fastify);
+  } catch (err: unknown) {
+    if (err instanceof PhotoStorageUnavailableError) return null;
+    throw err;
+  }
 }
 
 /** Borra un objeto privado sin dejar que una falla rompa la operación ya hecha. */
@@ -365,18 +396,13 @@ export async function removeCommunityPhoto(
   if (keys.length === 0 && fichaPublicKey === null) return;
 
   // Si el store no está configurado no se falla: las filas ya quedaron `quitada`.
-  let store: PrivateMediaStore;
-  try {
-    store = privateMediaResolver.resolve(fastify);
-  } catch (err: unknown) {
-    if (err instanceof PhotoStorageUnavailableError) {
-      fastify.log.warn(
-        { userId },
-        "Foto de perfil quitada sin storage: quedan objetos por borrar",
-      );
-      return;
-    }
-    throw err;
+  const store = tryResolveStore(fastify);
+  if (store === null) {
+    fastify.log.warn(
+      { userId },
+      "Foto de perfil quitada sin storage: quedan objetos por borrar",
+    );
+    return;
   }
   for (const key of keys) {
     await removeBestEffort(fastify, store, key, "un objeto privado");
@@ -543,4 +569,453 @@ export async function resolveCommunityPhotos(
     }),
   );
   return result;
+}
+
+// ---------------------------------------------------------------------------
+// Staff: cola de revisión, aprobar, rechazar (plan 15)
+// ---------------------------------------------------------------------------
+
+/** Título fijo del aviso de rechazo (D-69, UI-SPEC Borrador 5). */
+export const PHOTO_REJECTION_PUSH_TITLE = "Tu foto no fue aprobada";
+
+/** Cuerpo del aviso de rechazo según el motivo elegido por el staff (D-69). */
+export const PHOTO_REJECTION_PUSH_BODY: Record<PhotoRejectionReason, string> = {
+  sin_cara:
+    "Subí una foto donde se te vea la cara. Podés hacerlo desde tu perfil.",
+  no_es_propia:
+    "Tiene que ser una foto tuya. Podés subir otra desde tu perfil.",
+  contenido: "La foto no cumple las normas. Podés subir otra desde tu perfil.",
+  otro: "Podés subir otra desde tu perfil.",
+};
+
+const REVIEW_QUEUE_LIMIT = 100;
+
+export interface PhotoReviewItem {
+  photoId: number;
+  userId: number;
+  firstName: string | null;
+  lastName: string | null;
+  branchId: number | null;
+  origin: MemberPhotoOrigin;
+  status: "pendiente" | "aprobada";
+  reportCount: number;
+  lastReportedAt: string | null;
+  uploadedAt: string;
+  url: string;
+}
+
+export interface PhotoReviewQueue {
+  items: PhotoReviewItem[];
+  counts: { pending: number; reported: number };
+}
+
+/**
+ * Cola del staff (D-31, D-32): las `pendiente` de origen `alumno` y las `aprobada`
+ * con reportes (de cualquier origen). Reportadas primero, después las más viejas.
+ * `branchIds` acota por sede (admin_sede); un arreglo vacío no ve nada.
+ */
+export async function listPhotoReviewQueue(
+  fastify: FastifyInstance,
+  ctx: TenantContext,
+  branchIds: number[] | undefined,
+): Promise<PhotoReviewQueue> {
+  if (branchIds !== undefined && branchIds.length === 0) {
+    return { items: [], counts: { pending: 0, reported: 0 } };
+  }
+
+  const pendingCond = and(
+    eq(schema.memberPhotos.status, "pendiente"),
+    eq(schema.memberPhotos.origin, "alumno"),
+  );
+  const reportedCond = and(
+    eq(schema.memberPhotos.status, "aprobada"),
+    gt(schema.memberPhotos.reportCount, 0),
+  );
+  const branchFilter =
+    branchIds !== undefined
+      ? inArray(schema.users.branchId, branchIds)
+      : undefined;
+
+  const rows = await fastify.db
+    .select({
+      photoId: schema.memberPhotos.id,
+      userId: schema.memberPhotos.userId,
+      firstName: schema.users.firstName,
+      lastName: schema.users.lastName,
+      branchId: schema.users.branchId,
+      origin: schema.memberPhotos.origin,
+      status: schema.memberPhotos.status,
+      reportCount: schema.memberPhotos.reportCount,
+      lastReportedAt: schema.memberPhotos.lastReportedAt,
+      uploadedAt: schema.memberPhotos.uploadedAt,
+      storageKey: schema.memberPhotos.storageKey,
+    })
+    .from(schema.memberPhotos)
+    .innerJoin(schema.users, eq(schema.users.id, schema.memberPhotos.userId))
+    .where(
+      and(
+        tenantWhere(schema.memberPhotos, ctx),
+        tenantWhere(schema.users, ctx),
+        isNull(schema.users.deletedAt),
+        branchFilter,
+        or(pendingCond, reportedCond),
+      ),
+    )
+    .orderBy(
+      desc(sql`${schema.memberPhotos.reportCount} > 0`),
+      asc(schema.memberPhotos.uploadedAt),
+      asc(schema.memberPhotos.id),
+    )
+    .limit(REVIEW_QUEUE_LIMIT);
+
+  const countFor = async (cond: ReturnType<typeof and>): Promise<number> => {
+    const [row] = await fastify.db
+      .select({ total: count() })
+      .from(schema.memberPhotos)
+      .innerJoin(schema.users, eq(schema.users.id, schema.memberPhotos.userId))
+      .where(
+        and(
+          tenantWhere(schema.memberPhotos, ctx),
+          tenantWhere(schema.users, ctx),
+          isNull(schema.users.deletedAt),
+          branchFilter,
+          cond,
+        ),
+      );
+    return Number(row?.total ?? 0);
+  };
+  const [pending, reported] = await Promise.all([
+    countFor(pendingCond),
+    countFor(reportedCond),
+  ]);
+
+  if (rows.length === 0) return { items: [], counts: { pending, reported } };
+
+  const store = resolveStore(fastify);
+  const items = await Promise.all(
+    rows.map(async (row): Promise<PhotoReviewItem> => {
+      const url = await callStore(fastify, { userId: row.userId }, () =>
+        store.presignGet(row.storageKey, AVATAR_LIST_GET_EXPIRES_SEC, {
+          stableHourly: true,
+        }),
+      );
+      return {
+        photoId: row.photoId,
+        userId: row.userId,
+        firstName: row.firstName,
+        lastName: row.lastName,
+        branchId: row.branchId,
+        origin: row.origin,
+        status: row.status === "pendiente" ? "pendiente" : "aprobada",
+        reportCount: row.reportCount,
+        lastReportedAt: row.lastReportedAt?.toISOString() ?? null,
+        uploadedAt: row.uploadedAt.toISOString(),
+        url,
+      };
+    }),
+  );
+  return { items, counts: { pending, reported } };
+}
+
+export interface ApproveProfilePhotoResult {
+  status: "aprobada";
+  auraAwarded: boolean;
+}
+
+/**
+ * Aprueba la foto pendiente del alumno (D-31): reemplaza a la aprobada anterior
+ * de origen `alumno` y acredita 5 Aura UNA sola vez en la vida (D-30): el unique
+ * del ledger (`reference_id = userId`) es el candado, así que quitar y volver a
+ * subir no vuelve a pagar. Sin pendiente pero con una aprobada reportada: "la
+ * revisé y queda" (reportes en 0, sin Aura). Si no hay ninguna: 404.
+ */
+export async function approveProfilePhoto(
+  fastify: FastifyInstance,
+  ctx: TenantContext,
+  userId: number,
+  reviewerId: number,
+): Promise<ApproveProfilePhotoResult> {
+  await assertLiveMember(fastify, ctx, userId);
+
+  const outcome = await fastify.db.transaction(async (tx) => {
+    const rows = await tx
+      .select({
+        id: schema.memberPhotos.id,
+        storageKey: schema.memberPhotos.storageKey,
+        origin: schema.memberPhotos.origin,
+        status: schema.memberPhotos.status,
+        reportCount: schema.memberPhotos.reportCount,
+      })
+      .from(schema.memberPhotos)
+      .where(
+        and(
+          tenantWhere(schema.memberPhotos, ctx),
+          eq(schema.memberPhotos.userId, userId),
+          inArray(schema.memberPhotos.status, ["pendiente", "aprobada"]),
+        ),
+      )
+      .orderBy(asc(schema.memberPhotos.id))
+      .for("update");
+
+    const pending = [...rows]
+      .reverse()
+      .find((row) => row.status === "pendiente" && row.origin === "alumno");
+
+    if (pending) {
+      const replacedKeys: string[] = [];
+      for (const row of rows) {
+        if (row.status !== "aprobada" || row.origin !== "alumno") continue;
+        await tx
+          .update(schema.memberPhotos)
+          .set({ status: "reemplazada" })
+          .where(
+            and(
+              tenantWhere(schema.memberPhotos, ctx),
+              eq(schema.memberPhotos.id, row.id),
+            ),
+          );
+        replacedKeys.push(row.storageKey);
+      }
+      await tx
+        .update(schema.memberPhotos)
+        .set({
+          status: "aprobada",
+          reviewedAt: new Date(),
+          reviewedBy: reviewerId,
+          reportCount: 0,
+          reporterIds: null,
+          lastReportedAt: null,
+        })
+        .where(
+          and(
+            tenantWhere(schema.memberPhotos, ctx),
+            eq(schema.memberPhotos.id, pending.id),
+          ),
+        );
+      return { kind: "approved" as const, replacedKeys };
+    }
+
+    const reported = rows.filter(
+      (row) => row.status === "aprobada" && row.reportCount > 0,
+    );
+    if (reported.length === 0) {
+      throw new NotFoundError("No hay foto para revisar");
+    }
+    await tx
+      .update(schema.memberPhotos)
+      .set({
+        reportCount: 0,
+        reporterIds: null,
+        lastReportedAt: null,
+        reviewedAt: new Date(),
+        reviewedBy: reviewerId,
+      })
+      .where(
+        and(
+          tenantWhere(schema.memberPhotos, ctx),
+          inArray(
+            schema.memberPhotos.id,
+            reported.map((row) => row.id),
+          ),
+        ),
+      );
+    return { kind: "reviewed" as const, replacedKeys: [] as string[] };
+  });
+
+  if (outcome.replacedKeys.length > 0) {
+    const store = tryResolveStore(fastify);
+    if (store !== null) {
+      for (const oldKey of outcome.replacedKeys) {
+        await removeBestEffort(fastify, store, oldKey, "la foto reemplazada");
+      }
+    }
+  }
+  if (outcome.kind === "reviewed") {
+    return { status: "aprobada", auraAwarded: false };
+  }
+
+  // El premio nunca rompe la aprobación (mismo patrón que aura/daily-award.ts).
+  let auraAwarded = false;
+  try {
+    await new AuraService(fastify.db).award({
+      userId,
+      sourceType: "profile_photo",
+      referenceType: "profile_photo",
+      referenceId: userId,
+      amount: AURA_AMOUNTS.profilePhoto,
+      description: "Foto de perfil aprobada",
+    });
+    auraAwarded = true;
+  } catch (err: unknown) {
+    const { isDuplicate, detail } = isDuplicateKeyError(err);
+    if (isDuplicate) {
+      fastify.log.info({ userId }, "Aura de la foto ya cobrada");
+    } else {
+      fastify.log.warn(
+        { userId, detail },
+        "No se pudo acreditar la Aura de la foto",
+      );
+    }
+  }
+  return { status: "aprobada", auraAwarded };
+}
+
+/**
+ * Rechaza la foto pendiente (D-31, D-69): guarda el motivo, borra el objeto y
+ * avisa al alumno por push (best-effort, categoría `anuncios`). 404 si no hay
+ * pendiente.
+ */
+export async function rejectProfilePhoto(
+  fastify: FastifyInstance,
+  ctx: TenantContext,
+  userId: number,
+  reviewerId: number,
+  reason: PhotoRejectionReason,
+): Promise<{ status: "rechazada" }> {
+  await assertLiveMember(fastify, ctx, userId);
+
+  const storageKey = await fastify.db.transaction(async (tx) => {
+    const [pending] = await tx
+      .select({
+        id: schema.memberPhotos.id,
+        storageKey: schema.memberPhotos.storageKey,
+      })
+      .from(schema.memberPhotos)
+      .where(
+        and(
+          tenantWhere(schema.memberPhotos, ctx),
+          eq(schema.memberPhotos.userId, userId),
+          eq(schema.memberPhotos.origin, "alumno"),
+          eq(schema.memberPhotos.status, "pendiente"),
+        ),
+      )
+      .orderBy(desc(schema.memberPhotos.id))
+      .limit(1)
+      .for("update");
+    if (!pending) throw new NotFoundError("No hay foto para revisar");
+
+    await tx
+      .update(schema.memberPhotos)
+      .set({
+        status: "rechazada",
+        reviewedAt: new Date(),
+        reviewedBy: reviewerId,
+        rejectionReason: reason,
+      })
+      .where(
+        and(
+          tenantWhere(schema.memberPhotos, ctx),
+          eq(schema.memberPhotos.id, pending.id),
+        ),
+      );
+    return pending.storageKey;
+  });
+
+  const store = tryResolveStore(fastify);
+  if (store !== null) {
+    await removeBestEffort(fastify, store, storageKey, "la foto rechazada");
+  }
+
+  try {
+    await new NotificationService(
+      fastify.db,
+      fastify.log,
+    ).queueAdHocNotification(
+      {
+        userId,
+        title: PHOTO_REJECTION_PUSH_TITLE,
+        body: PHOTO_REJECTION_PUSH_BODY[reason],
+        category: "anuncios",
+      },
+      ctx,
+    );
+  } catch (err: unknown) {
+    fastify.log.warn(
+      { userId, errName: err instanceof Error ? err.name : "unknown" },
+      "Foto rechazada pero falló al encolar el aviso",
+    );
+  }
+  return { status: "rechazada" };
+}
+
+// ---------------------------------------------------------------------------
+// Alumno: estado de la foto propia para `GET /auth/me` (plan 15)
+// ---------------------------------------------------------------------------
+
+export interface OwnPhotoState {
+  url: string | null;
+  status: "none" | "pendiente" | "aprobada" | "rechazada";
+  pendingUrl: string | null;
+  rejectionReason: PhotoRejectionReason | null;
+}
+
+/**
+ * Foto propia y su estado (D-32, D-43). `url` sigue la misma regla que la lista
+ * de la comunidad (propia aprobada o espejo de la ficha, siempre firmada). Sin
+ * storage las URLs quedan en null: nunca tira ni devuelve la URL pública.
+ */
+export async function getOwnPhotoState(
+  fastify: FastifyInstance,
+  ctx: TenantContext,
+  userId: number,
+): Promise<OwnPhotoState> {
+  const rows = await fastify.db
+    .select({
+      storageKey: schema.memberPhotos.storageKey,
+      status: schema.memberPhotos.status,
+      rejectionReason: schema.memberPhotos.rejectionReason,
+    })
+    .from(schema.memberPhotos)
+    .where(
+      and(
+        tenantWhere(schema.memberPhotos, ctx),
+        eq(schema.memberPhotos.userId, userId),
+        eq(schema.memberPhotos.origin, "alumno"),
+      ),
+    )
+    .orderBy(desc(schema.memberPhotos.id))
+    .limit(50);
+
+  let url: string | null = null;
+  try {
+    url =
+      (
+        await resolveCommunityPhotos(fastify, ctx, [userId], {
+          expiresSec: AVATAR_ME_GET_EXPIRES_SEC,
+        })
+      ).get(userId)?.url ?? null;
+  } catch (err: unknown) {
+    if (!(err instanceof ProfilePhotoStorageUnavailableError)) throw err;
+  }
+
+  const pending = rows.find((row) => row.status === "pendiente");
+  let pendingUrl: string | null = null;
+  if (pending) {
+    const store = tryResolveStore(fastify);
+    if (store !== null) {
+      try {
+        pendingUrl = await callStore(fastify, { userId }, () =>
+          store.presignGet(pending.storageKey, AVATAR_ME_GET_EXPIRES_SEC, {
+            stableHourly: true,
+          }),
+        );
+      } catch (err: unknown) {
+        if (!(err instanceof ProfilePhotoStorageUnavailableError)) throw err;
+      }
+    }
+  }
+
+  const latest = rows[0];
+  let status: OwnPhotoState["status"] = "none";
+  if (pending) status = "pendiente";
+  else if (latest?.status === "rechazada") status = "rechazada";
+  else if (url !== null) status = "aprobada";
+
+  return {
+    url,
+    status,
+    pendingUrl,
+    rejectionReason:
+      status === "rechazada" ? (latest?.rejectionReason ?? null) : null,
+  };
 }
