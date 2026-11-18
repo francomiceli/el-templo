@@ -279,3 +279,100 @@ export const voidGiftSchema = {
     409: giftErrorResponseSchema,
   },
 } as const;
+
+/** Filtros de `GET /gifts` (admin): `branchId` opcional, período y anulados. */
+export interface AdminGiftsListQuery {
+  branchId?: number;
+  days: 7 | 30 | 90;
+  includeVoided: boolean;
+}
+
+/**
+ * `GET /gifts` (admin, fase 215 plan 10): los regalos del período y la
+ * medición de las últimas 4 semanas (D-20, D-21). El 403 puede venir del rol,
+ * de la sede o del guard de staff: solo `error` y `message` son obligatorios.
+ */
+export const adminGiftsListSchema = {
+  querystring: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      branchId: { type: "integer", minimum: 1 },
+      days: { type: "integer", enum: [7, 30, 90], default: 7 },
+      includeVoided: { type: "boolean", default: false },
+    },
+  },
+  response: {
+    200: {
+      type: "object",
+      required: ["items", "weeks"],
+      additionalProperties: false,
+      properties: {
+        items: {
+          type: "array",
+          items: {
+            type: "object",
+            required: [
+              "id",
+              "sessionDate",
+              "startTime",
+              "giverName",
+              "giverKind",
+              "receiverName",
+              "reason",
+              "amount",
+              "status",
+              "voidCause",
+              "voidedByName",
+            ],
+            additionalProperties: false,
+            properties: {
+              id: { type: "integer" },
+              sessionDate: { type: "string" },
+              startTime: { type: ["string", "null"] },
+              giverName: { type: "string" },
+              giverKind: { type: "string", enum: ["alumno", "profe"] },
+              receiverName: { type: "string" },
+              reason: giftReasonSchema,
+              amount: { type: "integer" },
+              status: { type: "string", enum: ["vigente", "anulado"] },
+              voidCause: { type: ["string", "null"] },
+              voidedByName: { type: ["string", "null"] },
+            },
+          },
+        },
+        weeks: {
+          type: "array",
+          items: {
+            type: "object",
+            required: [
+              "weekStart",
+              "studentGifts",
+              "coachGifts",
+              "attendees",
+              "giversPct",
+            ],
+            additionalProperties: false,
+            properties: {
+              weekStart: { type: "string" },
+              studentGifts: { type: "integer" },
+              coachGifts: { type: "integer" },
+              attendees: { type: "integer" },
+              giversPct: { type: "integer" },
+            },
+          },
+        },
+      },
+    },
+    403: {
+      type: "object",
+      required: ["error", "message"],
+      additionalProperties: false,
+      properties: {
+        error: { type: "string" },
+        message: { type: "string" },
+        code: { type: "string" },
+      },
+    },
+  },
+} as const;

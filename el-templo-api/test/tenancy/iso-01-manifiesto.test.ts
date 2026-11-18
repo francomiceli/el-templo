@@ -492,7 +492,10 @@ import {
 // `templo-module` (`templo-gamification`).
 // 2026-11-18 fase 215 (plan 09): 595 -> 596 por la anulación de un regalo
 // (POST /api/admin/aura/gifts/:id/void), `templo-module` (`templo-gamification`).
-const ENTRADAS_BASELINE = 596;
+// 2026-11-18 fase 215 (plan 10): 596 -> 597 por la lista de regalos y la
+// medición del staff (GET /api/admin/aura/gifts), `templo-module`
+// (`templo-gamification`).
+const ENTRADAS_BASELINE = 597;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -635,7 +638,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 596 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 597 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(
