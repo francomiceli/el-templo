@@ -2,22 +2,17 @@
   <button
     v-if="tier"
     class="veteran-seal"
-    :class="{ 'veteran-seal--pop': popping }"
+    :class="[`veteran-seal--${tier}`, { 'veteran-seal--pop': popping }]"
     :aria-label="label"
     @click="pop"
     @animationend="popping = false"
   >
-    <!-- El polvillo dorado se reserva para el sello de oro (1 año+): es el hito
-         más grande y así los tres niveles se distinguen de un vistazo. -->
-    <span v-if="tier === 'gold'" class="veteran-seal__dust" aria-hidden="true">
-      <span v-for="n in 7" :key="n" :class="`veteran-seal__mote veteran-seal__mote--${n}`" />
-    </span>
     <svg class="veteran-seal__rosette" viewBox="0 0 24 24" aria-hidden="true">
       <defs>
+        <!-- Fase 214 (D-61): el oro del sello pasa a roseta crema, sin dorado (el dorado es de Aura). -->
         <linearGradient id="veteran-seal-gold" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stop-color="#f5dd7e" />
-          <stop offset="0.55" stop-color="#e0b93f" />
-          <stop offset="1" stop-color="#b28a24" />
+          <stop offset="0" stop-color="#fbf8f3" />
+          <stop offset="1" stop-color="#f2ede5" />
         </linearGradient>
         <linearGradient id="veteran-seal-silver" x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" stop-color="#f2f3f6" />
@@ -33,12 +28,18 @@
       <polygon
         points="24,12 21.85,14.64 22.39,18 19.21,19.21 18,22.39 14.64,21.85 12,24 9.36,21.85 6,22.39 4.79,19.21 1.61,18 2.15,14.64 0,12 2.15,9.36 1.61,6 4.79,4.79 6,1.61 9.36,2.15 12,0 14.64,2.15 18,1.61 19.21,4.79 22.39,6 21.85,9.36"
         :fill="`url(#veteran-seal-${tier})`"
-        :stroke="`url(#veteran-seal-${tier})`"
+        :stroke="tier === 'gold' ? '#d9cfc1' : `url(#veteran-seal-${tier})`"
         stroke-width="1.2"
         stroke-linejoin="round"
       />
     </svg>
-    <img src="/logo.webp" alt="" class="veteran-seal__logo" />
+    <!-- Oro: logo terracota (máscara del mismo archivo). Bronce y plata: logo blanco. -->
+    <span
+      v-if="tier === 'gold'"
+      class="veteran-seal__logo veteran-seal__logo--ink"
+      aria-hidden="true"
+    />
+    <img v-else src="/logo.webp" alt="" class="veteran-seal__logo" />
     <q-tooltip anchor="bottom middle" self="top middle" :offset="[0, 6]">{{ label }}</q-tooltip>
   </button>
 </template>
@@ -64,9 +65,7 @@ const months = computed(() => {
   const s = new Date(props.since)
   if (Number.isNaN(s.getTime())) return 0
   const now = new Date()
-  let m =
-    (now.getUTCFullYear() - s.getUTCFullYear()) * 12 +
-    (now.getUTCMonth() - s.getUTCMonth())
+  let m = (now.getUTCFullYear() - s.getUTCFullYear()) * 12 + (now.getUTCMonth() - s.getUTCMonth())
   if (now.getUTCDate() < s.getUTCDate()) m -= 1
   return Math.max(0, m)
 })
@@ -103,7 +102,7 @@ function pop() {
 </script>
 
 <style scoped lang="scss">
-$seal-gold-light: #f5dd7e;
+@import 'src/css/premium-card';
 
 .veteran-seal {
   position: relative;
@@ -150,8 +149,12 @@ $seal-gold-light: #f5dd7e;
   inset: 0;
   width: 100%;
   height: 100%;
-  // Oro un 15% menos claro que el gradiente base para que el logo blanco resalte
+  // Bronce y plata un 8% más oscuros para que el logo blanco resalte. El oro (crema) va sin filtro.
   filter: brightness(0.92);
+
+  .veteran-seal--gold & {
+    filter: none;
+  }
 }
 
 .veteran-seal__logo {
@@ -161,102 +164,30 @@ $seal-gold-light: #f5dd7e;
   object-fit: contain;
   // El logo es bronze sobre transparente — llevarlo a blanco pleno
   filter: brightness(0) invert(1);
-}
 
-// Partículas doradas concentradas alrededor del sello — mismo espíritu que el
-// dust-field del login, pero en un radio de ~20px alrededor del badge.
-// Las motas nacen a la altura del borde inferior del badge (bottom: 0 del
-// contenedor = bottom del sello), no debajo de él — así no invaden la línea
-// de la fecha.
-.veteran-seal__dust {
-  position: absolute;
-  inset: -12px -12px 0;
-  pointer-events: none;
-}
-
-.veteran-seal__mote {
-  position: absolute;
-  bottom: 2px;
-  width: 2px;
-  height: 2px;
-  border-radius: 50%;
-  background: rgba($seal-gold-light, 0.85);
-  animation: veteran-mote-float linear infinite;
-}
-
-@keyframes veteran-mote-float {
-  0% {
-    opacity: 0;
-    transform: translateY(0) translateX(0);
-  }
-
-  15% {
-    opacity: 1;
-  }
-
-  75% {
-    opacity: 1;
-  }
-
-  100% {
-    opacity: 0;
-    transform: translateY(-26px) translateX(var(--drift));
+  // Oro: logo terracota (4.76:1 sobre la roseta crema), pintado con el mismo archivo como máscara.
+  &--ink {
+    display: block;
+    background: $pd-terra-ink;
+    filter: none;
+    -webkit-mask: url('/logo.webp') center / contain no-repeat;
+    mask: url('/logo.webp') center / contain no-repeat;
   }
 }
 
-.veteran-seal__mote--1 {
-  left: 12%;
-  --drift: 5px;
-  animation-duration: 3.2s;
-  animation-delay: 0s;
-}
+// Movimiento reducido: sin escala al pasar ni "pop" al tocar (Fase 214, plan 23).
+@media (prefers-reduced-motion: reduce) {
+  .veteran-seal {
+    transition: none;
 
-.veteran-seal__mote--2 {
-  left: 32%;
-  --drift: -4px;
-  animation-duration: 4.1s;
-  animation-delay: 1.2s;
-}
+    &:hover {
+      transform: none;
+    }
 
-.veteran-seal__mote--3 {
-  left: 50%;
-  --drift: 6px;
-  animation-duration: 3.6s;
-  animation-delay: 0.6s;
-  width: 3px;
-  height: 3px;
-  background: rgba(white, 0.8);
-}
-
-.veteran-seal__mote--4 {
-  left: 68%;
-  --drift: -5px;
-  animation-duration: 4.5s;
-  animation-delay: 2s;
-}
-
-.veteran-seal__mote--5 {
-  left: 84%;
-  --drift: 4px;
-  animation-duration: 3.4s;
-  animation-delay: 0.3s;
-}
-
-.veteran-seal__mote--6 {
-  left: 22%;
-  --drift: 7px;
-  animation-duration: 4.8s;
-  animation-delay: 2.8s;
-  width: 3px;
-  height: 3px;
-}
-
-.veteran-seal__mote--7 {
-  left: 76%;
-  --drift: -6px;
-  animation-duration: 3.9s;
-  animation-delay: 1.6s;
-  background: rgba(white, 0.7);
+    &--pop {
+      animation: none;
+    }
+  }
 }
 /* chore(staging): re-trigger de deploy (paths-filter/event.before) — solo staging. */
 /* reintento 2 tras incidente de GitHub Actions (2026-08-06). */
