@@ -50,7 +50,14 @@ export const profilePhotoMemberRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post<{ Body: { contentType: string; acceptedRules: true } }>(
     "/profile-photo/upload-url",
-    { schema: profilePhotoUploadUrlSchema },
+    {
+      schema: profilePhotoUploadUrlSchema,
+      config: { rateLimit: RATE_LIMITS.photoUpload },
+      preHandler: fastify.rateLimit({
+        ...RATE_LIMITS.photoUploadPerUser,
+        keyGenerator: (request) => `photo-upload:${request.user.userId}`,
+      }),
+    },
     async (request, reply) => {
       try {
         const ctx = assertTenant(
@@ -76,7 +83,14 @@ export const profilePhotoMemberRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post<{ Body: { key: string } }>(
     "/profile-photo/confirm",
-    { schema: profilePhotoConfirmSchema },
+    {
+      schema: profilePhotoConfirmSchema,
+      config: { rateLimit: RATE_LIMITS.photoUpload },
+      preHandler: fastify.rateLimit({
+        ...RATE_LIMITS.photoUploadPerUser,
+        keyGenerator: (request) => `photo-confirm:${request.user.userId}`,
+      }),
+    },
     async (request, reply) => {
       try {
         const ctx = assertTenant(

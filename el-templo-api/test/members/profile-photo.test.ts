@@ -345,6 +345,44 @@ describe("POST /profile-photo/confirm", () => {
     expect(body.error.toLowerCase()).not.toContain("pesad");
   });
 
+  it("objeto sobre el tope: se borra del bucket (ME-03) y no queda fila", async () => {
+    const remove = vi.fn(async () => undefined);
+    mockPrivateMedia({
+      head: async () => ({
+        contentLength: PHOTO_MAX_BYTES + 1,
+        contentType: "image/jpeg",
+      }),
+      remove,
+    });
+    const m = await createTestMember(app);
+    const key = privateAvatarKey({ tenantId: 1, userId: m.id });
+
+    const res = await confirmRaw(m.token, key);
+
+    expect(res.statusCode).toBe(400);
+    expect(remove).toHaveBeenCalledWith(key);
+    expect(await rowsOf(m.id)).toHaveLength(0);
+  });
+
+  it("rate limit por usuario en upload-url: la 7ª petición en un minuto responde 429", async () => {
+    mockPrivateMedia();
+    const m = await createTestMember(app);
+    const pedir = () =>
+      app.inject({
+        method: "POST",
+        url: UPLOAD_URL,
+        headers: auth(m.token),
+        remoteAddress: "203.0.113.50",
+        payload: { contentType: "image/jpeg", acceptedRules: true },
+      });
+
+    for (let i = 0; i < 6; i += 1) {
+      expect((await pedir()).statusCode).toBe(200);
+    }
+
+    expect((await pedir()).statusCode).toBe(429);
+  });
+
   it("objeto vacío o de tipo image/png: 400", async () => {
     const m = await createTestMember(app);
     const key = privateAvatarKey({ tenantId: 1, userId: m.id });

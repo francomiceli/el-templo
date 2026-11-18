@@ -236,6 +236,14 @@ export async function confirmProfilePhoto(
     head.contentLength > PHOTO_MAX_BYTES ||
     head.contentType !== PHOTO_CONTENT_TYPE
   ) {
+    // ME-03: el objeto rechazado no lo referencia ninguna fila y nadie lo
+    // borraría: se elimina acá para que no quede ocupando el bucket.
+    await removeBestEffort(
+      fastify,
+      store,
+      key,
+      "la foto rechazada al confirmar",
+    );
     throw new AppError(
       "No pudimos procesar la foto, probá de nuevo",
       400,

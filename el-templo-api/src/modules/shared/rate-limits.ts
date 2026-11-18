@@ -19,6 +19,14 @@ export const RATE_LIMITS = {
   siteData: { max: 60, timeWindow: "1 minute" },
   /** Fase 214 D-45: reportar la foto de otro socio. Frena el abuso del contador (por IP). */
   photoReport: { max: 20, timeWindow: "1 minute" },
+  /**
+   * Fase 214 (ME-03): pedir la URL de subida y confirmar la foto propia. Cada
+   * pedido firma una URL nueva contra el bucket privado, así que el tope frena
+   * que una cuenta llene el bucket. Por IP en `config` y por usuario en el
+   * `preHandler` (Wi-Fi compartido en la sede).
+   */
+  photoUpload: { max: 20, timeWindow: "1 minute" },
+  photoUploadPerUser: { max: 6, timeWindow: "1 minute" },
   /** Fase 214: lista de anotados de un horario. Por IP (Wi-Fi compartido en la sede). */
   attendees: { max: 120, timeWindow: "1 minute" },
   /**
