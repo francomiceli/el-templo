@@ -36,6 +36,7 @@ import type { ExerciseLevel } from "../sessions/types";
 import { attachCountryScope } from "../shared/country-scope";
 import { assertTenant, tenantValues, tenantWhere } from "../shared/tenant";
 import { isDuplicateKeyError } from "../shared/sql-errors";
+import { AURA_AMOUNTS } from "../aura/amounts";
 import { awardOncePerLocalDay, localDateForBranch } from "../aura/daily-award";
 import { SessionGeneratorService } from "../sessions/service";
 
@@ -428,6 +429,7 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
             sourceType: "goal_plan_completion",
             referenceType: "goal_plan_day",
             localDate,
+            amount: AURA_AMOUNTS.goalPlan,
           });
         } catch (auraErr: unknown) {
           request.log.warn(

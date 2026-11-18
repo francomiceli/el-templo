@@ -41,6 +41,7 @@ import { NotificationService } from "../notifications/service";
 import { attachCountryScope } from "../shared/country-scope";
 import { assertTenant, tenantValues, tenantWhere } from "../shared/tenant";
 import { isDuplicateKeyError } from "../shared/sql-errors";
+import { AURA_AMOUNTS } from "../aura/amounts";
 import { awardOncePerLocalDay, localDateForBranch } from "../aura/daily-award";
 
 export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
@@ -570,6 +571,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
           sourceType: "training_completion",
           referenceType: "training_day",
           localDate,
+          amount: AURA_AMOUNTS.training,
         });
       } catch (auraErr: unknown) {
         request.log.warn(
