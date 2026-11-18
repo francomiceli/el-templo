@@ -30,6 +30,7 @@ import { memberProfiles } from "../../src/db/schema/member-profiles";
 import { tenantValues } from "../../src/modules/shared/tenant";
 import {
   cleanupGiftClasses,
+  clearFirstName,
   seedGift,
   seedGiftClass,
   setCommunityVisible,
@@ -490,9 +491,7 @@ describe("GET /api/members/aura/celebration — regalos", () => {
   it("#38: quien dio sin nombre cargado también sale anónimo", async () => {
     const cls = await claseDeRegalo();
     const dador = await createTestMember(app, { lastName: "Martínez" });
-    await app.dbPool.query("UPDATE users SET first_name = NULL WHERE id = ?", [
-      dador.id,
-    ]);
+    await clearFirstName(app, dador.id);
     const receptor = await createTestMember(app);
     await getCelebration(receptor.token);
     await seedGiftWithLedger(cls, {

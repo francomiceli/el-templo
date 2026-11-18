@@ -149,10 +149,20 @@ export async function cleanupGiftClasses(
     if (cls.createdBranchId === null) continue;
     await app.db
       .delete(schema.schedules)
-      .where(eq(schema.schedules.branchId, cls.createdBranchId));
+      .where(
+        and(
+          tenantWhere(schema.schedules, GIFT_CTX),
+          eq(schema.schedules.branchId, cls.createdBranchId),
+        ),
+      );
     await app.db
       .delete(schema.branches)
-      .where(eq(schema.branches.id, cls.createdBranchId));
+      .where(
+        and(
+          tenantWhere(schema.branches, GIFT_CTX),
+          eq(schema.branches.id, cls.createdBranchId),
+        ),
+      );
   }
 }
 
@@ -357,6 +367,34 @@ export async function seedGift(
     )
     .$returningId();
   return row.id;
+}
+
+/** Borra un regalo por id (`aura_gifts` es strict: lleva `tenant_id`). */
+export async function deleteGift(
+  app: FastifyInstance,
+  giftId: number,
+): Promise<void> {
+  await app.db
+    .delete(schema.auraGifts)
+    .where(
+      and(
+        tenantWhere(schema.auraGifts, GIFT_CTX),
+        eq(schema.auraGifts.id, giftId),
+      ),
+    );
+}
+
+/** Deja a la persona sin nombre de pila (`users` es strict: lleva `tenant_id`). */
+export async function clearFirstName(
+  app: FastifyInstance,
+  userId: number,
+): Promise<void> {
+  await app.db
+    .update(schema.users)
+    .set({ firstName: null })
+    .where(
+      and(tenantWhere(schema.users, GIFT_CTX), eq(schema.users.id, userId)),
+    );
 }
 
 /** Suma del ledger de Aura de un usuario (para conciliar con `aura_balances`). */

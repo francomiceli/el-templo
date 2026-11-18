@@ -167,10 +167,20 @@ describe("Fase 214-17: anotados del horario (D-01..D-09)", () => {
     if (esBranchId !== null) {
       await app.db
         .delete(schema.schedules)
-        .where(eq(schema.schedules.branchId, esBranchId));
+        .where(
+          and(
+            tenantWhere(schema.schedules, CTX),
+            eq(schema.schedules.branchId, esBranchId),
+          ),
+        );
       await app.db
         .delete(schema.branches)
-        .where(eq(schema.branches.id, esBranchId));
+        .where(
+          and(
+            tenantWhere(schema.branches, CTX),
+            eq(schema.branches.id, esBranchId),
+          ),
+        );
     }
     await app.close();
   });
@@ -766,7 +776,10 @@ describe("Fase 214-17: anotados del horario (D-01..D-09)", () => {
     for (const persona of [yo, propia, espejada, sinEspejo, fallida, nada]) {
       await reservar(persona.id);
     }
-    const filasAntes = await app.db.select().from(schema.memberPhotos);
+    const filasAntes = await app.db
+      .select()
+      .from(schema.memberPhotos)
+      .where(tenantWhere(schema.memberPhotos, CTX));
 
     const body = await pedirOk(yo.token);
 
@@ -784,7 +797,10 @@ describe("Fase 214-17: anotados del horario (D-01..D-09)", () => {
       expect(fila(persona)?.photoUrl).toBeNull();
       expect(fila(persona)?.photoId).toBeNull();
     }
-    const filasDespues = await app.db.select().from(schema.memberPhotos);
+    const filasDespues = await app.db
+      .select()
+      .from(schema.memberPhotos)
+      .where(tenantWhere(schema.memberPhotos, CTX));
     expect(filasDespues).toHaveLength(filasAntes.length);
   });
 
