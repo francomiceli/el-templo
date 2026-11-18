@@ -1221,7 +1221,33 @@ Plans:
 7. El staff puede anular un regalo desde el admin y el punto se descuenta
 8. Los puntos mostrados siguen coincidiendo con la suma del ledger por usuario
 
-**Plans:** sin planificar
+**Plans:** 23 planes (cadena secuencial, rama `feat/regalar-aura`)
+
+Plans:
+
+- [ ] 215-01-PLAN.md — Tabla `aura_gifts` (mig 0349) y gates de tenancy
+- [ ] 215-02-PLAN.md — Bandeja `member_notifications` (mig 0350), columnas de bandeja en la cola (mig 0351) y gates
+- [ ] 215-03-PLAN.md — Reglas puras del regalo (ventana, semana, tope, montos, motivos, textos) con tests unitarios
+- [ ] 215-04-PLAN.md — Aura dentro de la transacción del regalo y elegibilidad de quién da y quién recibe
+- [ ] 215-05-PLAN.md — Servicio del regalo del alumno (pendientes, candidatos, dar) y errores con código
+- [ ] 215-06-PLAN.md — Rutas del alumno, topes, manifiesto, guard del módulo y test de integración
+- [ ] 215-07-PLAN.md — Valor del profe por gimnasio y servicio del regalo del profe
+- [ ] 215-08-PLAN.md — Rutas de admin del regalo del profe y del valor, y estado en el panel de asistencia
+- [ ] 215-09-PLAN.md — Anular regalos (admin y al deshacer una asistencia) con reversa exacta
+- [ ] 215-10-PLAN.md — Lista de regalos y medición D-21 para el staff
+- [ ] 215-11-PLAN.md — Regalos con nombre y motivo en el detalle privado de Aura
+- [ ] 215-12-PLAN.md — Escritura de la bandeja desde la cola, sin push, al abrir la push y purga a 90 días
+- [ ] 215-13-PLAN.md — Rutas de la bandeja con aislamiento
+- [ ] 215-14-PLAN.md — Push del regalo de punta a punta
+- [ ] 215-15-PLAN.md — App: datos y textos del regalo
+- [ ] 215-16-PLAN.md — App: datos y textos de la bandeja
+- [ ] 215-17-PLAN.md — App: pantalla Notificaciones y avatares chicos
+- [ ] 215-18-PLAN.md — App: campana en la barra y el riel, contador al día
+- [ ] 215-19-PLAN.md — App: hoja Dar Aura
+- [ ] 215-20-PLAN.md — App: oferta en la card de hoy y detalle de Aura desde el aviso
+- [ ] 215-21-PLAN.md — Admin: regalo del profe desde el panel de asistencia
+- [ ] 215-22-PLAN.md — Admin: página Regalos de Aura (valor, medición, anulación)
+- [ ] 215-23-PLAN.md — Cierre: consultas, gates finales y UAT
 
 ### Phase 216: Pestaña Comunidad (fuera del milestone v6.1)
 
