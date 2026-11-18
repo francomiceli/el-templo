@@ -52,7 +52,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from 'src/stores/useUserStore'
 import { formatTenure } from 'src/utils/tenure'
 import MemberAvatar from 'src/components/MemberAvatar.vue'
@@ -62,6 +63,8 @@ import ProfilePhotoSheet from 'src/components/ProfilePhotoSheet.vue'
 import AuraDetailSheet from 'src/components/AuraDetailSheet.vue'
 
 const userStore = useUserStore()
+const route = useRoute()
+const router = useRouter()
 
 const profile = computed(() => userStore.profile)
 const photo = computed(() => profile.value?.photo ?? null)
@@ -92,6 +95,24 @@ const photoAriaLabel = computed(() => {
 
 const photoOpen = ref(false)
 const auraOpen = ref(false)
+
+// Fase 215: destino de la push y del aviso de un regalo (`/mi-templo?aura=detalle`). Solo se reconoce
+// el valor exacto `detalle` y solo abre el detalle PROPIO de Aura (T-215-21-01). Con el módulo apagado
+// (`auraValue` null) no se abre nada y el socio queda en Mi Templo. El parámetro se limpia siempre,
+// conservando el resto de la consulta y el hash. Se espera a que haya perfil: sin él todavía no se
+// sabe si el módulo está prendido y limpiar antes haría perder el aviso. Funciona al montar y si el
+// parámetro llega con la página ya montada (watch inmediato).
+watch(
+  () => [route.query.aura, profile.value !== null] as const,
+  ([aura, hasProfile]) => {
+    if (aura !== 'detalle' || !hasProfile) return
+    if (auraValue.value !== null) auraOpen.value = true
+    const query = { ...route.query }
+    delete query.aura
+    void router.replace({ path: route.path, query, hash: route.hash })
+  },
+  { immediate: true },
+)
 
 // URL firmada vencida (Pitfall 9): se vuelve a pedir `/me` UNA sola vez; después quedan las
 // iniciales (T-214-23-01). Si la foto cambia y vuelve a fallar, no se insiste.

@@ -233,6 +233,7 @@ import { useNovedadesStore } from 'src/stores/useNovedadesStore'
 import { useSponsorsStore } from 'src/stores/useSponsorsStore'
 import { useTodayBookingStore } from 'src/stores/useTodayBookingStore'
 import { useStretchStore } from 'src/stores/useStretchStore'
+import { useAuraGiftsStore } from 'src/stores/useAuraGiftsStore'
 import { useCardHadContentStore } from 'src/stores/useCardHadContentStore'
 import PushPermissionDialog from 'src/components/PushPermissionDialog.vue'
 import ImprovementPromptDialog from 'src/components/ImprovementPromptDialog.vue'
@@ -265,6 +266,7 @@ const novedadesStore = useNovedadesStore()
 const sponsorsStore = useSponsorsStore()
 const todayBookingStore = useTodayBookingStore()
 const stretchStore = useStretchStore()
+const giftsStore = useAuraGiftsStore()
 const cardFlags = useCardHadContentStore()
 const inboxStore = useNotificationsInboxStore()
 
@@ -316,6 +318,8 @@ watch(
       todayBookingStore.reset()
       // Estiramiento post-clase (fase 213): la oferta del socio anterior no se arrastra al siguiente.
       stretchStore.reset()
+      // Regalos de Aura (fase 215, T-215-21-02): los pendientes del socio anterior no se arrastran.
+      giftsStore.reset()
       // Flags "tuvo contenido" (D-02): los del socio anterior no se arrastran al siguiente.
       cardFlags.reset()
       // Stats/check-ins (fase 203): `statsLoaded` y los datos del socio anterior no se arrastran.
@@ -342,7 +346,11 @@ function refreshStretch(): void {
 watch(
   () => todayBookingStore.attendanceMarkedAt,
   (marked, prev) => {
-    if (prev === null && marked !== null && authStore.isAuthenticated) refreshStretch()
+    if (prev === null && marked !== null && authStore.isAuthenticated) {
+      refreshStretch()
+      // Fase 215: la asistencia recién marcada puede abrir el regalo de esa clase.
+      void giftsStore.load()
+    }
   },
 )
 
@@ -353,6 +361,8 @@ watch(
     if (authStore.isAuthenticated && (path === '/mi-templo' || path === '/reservas')) {
       void todayBookingStore.load()
     }
+    // Fase 215: al volver a Mi Templo los regalos pendientes se piden de nuevo (sin intervalos).
+    if (authStore.isAuthenticated && path === '/mi-templo') void giftsStore.load()
   },
 )
 
