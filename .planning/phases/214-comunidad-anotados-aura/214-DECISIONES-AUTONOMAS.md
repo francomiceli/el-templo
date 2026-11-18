@@ -104,3 +104,6 @@ Cada vez que un ejecutor se encuentre con una decisión de producto, se anota ac
 | 2026-11-17 | 214-20 | Foto: imagen que no se puede procesar | Si la imagen falla por un motivo que no es el formato, se muestra el mismo texto que cuando el servidor la rechaza por formato |
 | 2026-11-17 | 214-20 | Foto recién confirmada | Apenas se confirma la foto, la persona ve el estado "pendiente de revisión" aunque falle la recarga del perfil |
 | 2026-11-17 | 214-20 | Foto: permisos | Elegir de la galería no pide permiso de cámara |
+| 2026-11-17 | 214-21 | Foto: "Elegir otra" | Al elegir otra foto se vuelven a mostrar las normas antes de subirla, así toda foto pasa por la aceptación |
+| 2026-11-17 | 214-21 | Foto: cerrar las normas | Si la persona cierra las normas sin tocar "Acepto, elegir foto", no se sube nada y la hoja se cancela |
+| 2026-11-17 | 214-21 | Foto: salir de la hoja | La hoja de la foto de perfil tiene un link "Cerrar" en la vista principal (el spec no lo pedía) |
