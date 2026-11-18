@@ -171,7 +171,7 @@ const slotAttendanceItemSchema = {
       properties: {
         state: {
           type: "string",
-          enum: ["disponible", "dado", "no_participa"],
+          enum: ["disponible", "dado", "anulado", "no_participa"],
         },
         amount: { type: "integer" },
         reason: { type: ["string", "null"] },

@@ -92,6 +92,16 @@
                   ✦ +{{ member.gift.amount }}
                   <q-tooltip>{{ givenTooltip(member.gift.reason) }}</q-tooltip>
                 </q-chip>
+                <q-chip
+                  v-else-if="member.gift?.state === 'anulado'"
+                  dense
+                  square
+                  color="grey-4"
+                  text-color="grey-9"
+                >
+                  Anulado
+                  <q-tooltip>El regalo de hoy fue anulado y no se puede volver a dar.</q-tooltip>
+                </q-chip>
                 <q-btn
                   flat
                   dense

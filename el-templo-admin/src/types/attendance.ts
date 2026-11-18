@@ -66,7 +66,7 @@ export interface SlotAttendanceItem {
   gift?: SlotAttendanceGift | null;
 }
 
-export type SlotGiftState = 'disponible' | 'dado' | 'no_participa';
+export type SlotGiftState = 'disponible' | 'dado' | 'anulado' | 'no_participa';
 
 export interface SlotAttendanceGift {
   state: SlotGiftState;

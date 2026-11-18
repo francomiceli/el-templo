@@ -73,7 +73,7 @@ interface SettingsBody {
 }
 
 interface PanelGift {
-  state: "disponible" | "dado" | "no_participa";
+  state: "disponible" | "dado" | "anulado" | "no_participa";
   amount: number;
   reason: string | null;
 }
@@ -471,6 +471,28 @@ describe("Fase 215-08: regalo del profe y panel de asistencia", () => {
       expect(fila(oculto.id)?.gift?.state).toBe("no_participa");
       expect(fila(soloReserva.id)).toBeDefined();
       expect(fila(soloReserva.id)?.gift).toBeNull();
+    });
+
+    it("(9b) un regalo anulado sale como anulado en el panel y no deja volver a darlo (LO-01)", async () => {
+      const regalado = await alumno();
+      expect((await darRegalo(coachToken, regalado)).statusCode).toBe(201);
+      await app.db
+        .update(schema.auraGifts)
+        .set({ status: "anulado", voidCause: "staff" })
+        .where(
+          and(
+            tenantWhere(schema.auraGifts, GIFT_CTX),
+            eq(schema.auraGifts.receiverUserId, regalado.id),
+          ),
+        );
+
+      const res = await getPanel(coachToken);
+
+      expect(res.statusCode).toBe(200);
+      const fila = res.body.members.find((m) => m.memberId === regalado.id);
+      expect(fila?.gift?.state).toBe("anulado");
+      const otra = await darRegalo(coachToken, regalado);
+      expect(otra.statusCode).toBe(409);
     });
 
     it("(10) para un admin coachGiftAmount y gift van en null en todas las filas", async () => {

@@ -163,7 +163,11 @@ export interface GiveCoachGiftResult {
 }
 
 /** Estado del regalo del profe en una fila del panel de asistencia. */
-export type CoachGiftRowState = "disponible" | "dado" | "no_participa";
+export type CoachGiftRowState =
+  | "disponible"
+  | "dado"
+  | "anulado"
+  | "no_participa";
 
 export interface CoachGiftRowView {
   state: CoachGiftRowState;
@@ -625,6 +629,7 @@ export class AuraGiftService {
         receiverUserId: schema.auraGifts.receiverUserId,
         amount: schema.auraGifts.amount,
         reason: schema.auraGifts.reason,
+        status: schema.auraGifts.status,
       })
       .from(schema.auraGifts)
       .where(
@@ -655,8 +660,10 @@ export class AuraGiftService {
     for (const member of withAttendance) {
       const gift = given.get(member.memberId);
       if (gift) {
+        // LO-01: un regalo anulado sigue ocupando el lugar del día, pero el
+        // panel no lo muestra como dado.
         byMember.set(member.memberId, {
-          state: "dado",
+          state: gift.status === "anulado" ? "anulado" : "dado",
           amount: gift.amount,
           reason: gift.reason,
         });
