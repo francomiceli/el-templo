@@ -483,7 +483,12 @@ function weekLabel(weekStart: string): string {
   return `${pad2(parts.d)}/${pad2(parts.m)} al ${pad2(end.getUTCDate())}/${pad2(end.getUTCMonth() + 1)}`;
 }
 
+/** El texto sale de la causa, no de si hay nombre: el usuario que anuló pudo borrarse. */
 function voidedByLabel(item: AdminGiftItem): string {
+  if (item.voidCause === 'asistencia') return 'por asistencia anulada';
+  if (item.voidCause === 'staff') {
+    return item.voidedByName ? `por ${item.voidedByName}` : 'por el staff';
+  }
   return item.voidedByName ? `por ${item.voidedByName}` : 'por asistencia anulada';
 }
 
