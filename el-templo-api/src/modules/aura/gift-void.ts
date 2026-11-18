@@ -57,6 +57,8 @@ export interface VoidGiftInput {
 export interface VoidGiftResult {
   receiverUserId: number;
   amount: number;
+  /** Saldo del receptor después de la reversa; puede ser negativo (ME-05). */
+  newBalance: number;
 }
 
 /**
@@ -123,7 +125,7 @@ export async function voidGift(
       throw new GiftError("REGALO_YA_ANULADO");
     }
 
-    await aura.awardInTransaction(tx, ctx, {
+    const newBalance = await aura.awardInTransaction(tx, ctx, {
       userId: gift.receiverUserId,
       sourceType: "social",
       referenceType: GIFT_REFERENCE.void,
@@ -132,8 +134,27 @@ export async function voidGift(
       description: `Regalo anulado #${giftId}`,
     });
 
-    return { receiverUserId: gift.receiverUserId, amount: gift.amount };
+    return {
+      receiverUserId: gift.receiverUserId,
+      amount: gift.amount,
+      newBalance,
+    };
   });
+
+  // ME-05: la reversa no usa `spend` a propósito, así que si el receptor ya
+  // había canjeado esos puntos el saldo queda negativo. No se bloquea la
+  // anulación, pero queda rastro para que el staff lo pueda ver en los logs.
+  if (result.newBalance < 0) {
+    log?.warn(
+      {
+        giftId,
+        receiverUserId: result.receiverUserId,
+        amount: result.amount,
+        newBalance: result.newBalance,
+      },
+      "Regalo anulado con el saldo del receptor en negativo (ya había usado esos puntos)",
+    );
+  }
 
   log?.info(
     { giftId, cause, voidedBy, amount: result.amount },
