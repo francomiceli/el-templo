@@ -32,6 +32,39 @@ fila de la 0344 presente. Si la 0344 se renombro, cambiar el nombre en la subcon
    apunte a ese archivo (hay un comentario en la constante).
 4. Commit aparte y deploy aparte. No mezclarlo con otros cambios.
 
+## Saldos: el repaso es el recalculo definitivo (ME-05)
+
+El ultimo statement del repaso recalcula `aura_balances.balance` como la suma del ledger de cada
+usuario. La 0344 hace lo mismo, pero lo hace mientras la API vieja sigue acreditando: un `award`
+confirmado entre la lectura de la suma y la escritura del saldo deja el saldo sin esa fila, sin
+ruido y sin forma de re-ejecutar la 0344 (su tabla de respaldo ya existe). El repaso corre despues
+del reinicio, con la API nueva y sin la vieja acreditando, asi que ese recalculo corrige cualquier
+saldo pisado en la ventana entre la 0344 y el reinicio. No se edita la 0344.
+
+Antes y despues del repaso, la conciliacion de saldos tiene que dar 0 filas:
+
+```sql
+SELECT b.user_id, b.balance, COALESCE(SUM(t.amount), 0) AS ledger
+FROM aura_balances b
+LEFT JOIN aura_transactions t ON t.user_id = b.user_id
+GROUP BY b.user_id, b.balance
+HAVING b.balance <> COALESCE(SUM(t.amount), 0);
+```
+
+Antes puede dar filas (son las pisadas en la ventana). Despues tiene que dar 0.
+
+## Antes de correrlo: la fila de la 0344 (LO-05)
+
+La condicion (c) del tope del dia lee `_migrations.name = '0344_aura_revaluation.sql'`. Si esa fila
+no existe, la subconsulta da NULL, ninguna fila de tope se actualiza y el runner igual marca el
+repaso como aplicado. Verificar en cada base ANTES de moverlo:
+
+```sql
+SELECT name, applied_at FROM _migrations WHERE name = '0344_aura_revaluation.sql';
+```
+
+Tiene que devolver una fila. Si no, corregir el nombre en la subconsulta antes de copiar el archivo.
+
 ## Control
 
 Correr la consulta 05 (`consultas/`) en staging, bloques 1, 4 y 6, antes y despues del repaso. Los
