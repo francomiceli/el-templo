@@ -285,6 +285,7 @@ describe("eventos y cierre del estiramiento: POST /api/sessions/stretch/{events,
     expect(res.status, JSON.stringify(res.body)).toBe(200);
     expect(res.body).not.toHaveProperty("allDone");
     expect(res.body.auraAwarded).toBe(true);
+    expect(res.body.auraAmount).toBe(AURA_AMOUNTS.stretch);
     expect(res.body.alreadyCompleted).toBe(false);
     expect(res.body.durationSeconds).toBeGreaterThanOrEqual(239);
     expect(res.body.durationSeconds).toBeLessThanOrEqual(241);

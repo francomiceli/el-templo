@@ -107,6 +107,8 @@ export interface StretchCompleteView {
   completedAt: string;
   durationSeconds: number | null;
   auraAwarded: boolean;
+  /** Lo que paga la fuente `stretch` (`AURA_AMOUNTS.stretch`); solo se muestra si `auraAwarded` es true. */
+  auraAmount: number;
   alreadyCompleted: boolean;
   /** Minutos para la pantalla "Listo. X minutos de estiramiento". */
   minutes: number;
@@ -807,6 +809,7 @@ export class StretchService {
         completedAt: now.toISOString(),
         durationSeconds,
         auraAwarded,
+        auraAmount: AURA_AMOUNTS.stretch,
         alreadyCompleted: false,
         minutes: this.minutesFor(durationSeconds, row.plannedSeconds),
       },
@@ -883,6 +886,7 @@ export class StretchService {
       completedAt: (row.completedAt ?? new Date()).toISOString(),
       durationSeconds: row.durationSeconds,
       auraAwarded: row.auraAwarded,
+      auraAmount: AURA_AMOUNTS.stretch,
       alreadyCompleted,
       minutes: this.minutesFor(row.durationSeconds, row.plannedSeconds),
     };
@@ -925,7 +929,10 @@ export class StretchService {
     // La insignia del player sale de la fila del ejercicio (la que muestra el video). Se lee al
     // armar la vista, no se congela en la oferta: así también la tienen las ofertas ya creadas.
     const effortById = new Map(
-      videoRows.map((r) => [r.exerciseId, r.effort.trim().toUpperCase() || null]),
+      videoRows.map((r) => [
+        r.exerciseId,
+        r.effort.trim().toUpperCase() || null,
+      ]),
     );
 
     return {
