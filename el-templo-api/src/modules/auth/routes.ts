@@ -55,6 +55,11 @@ import {
 } from "./refresh-token-service";
 import { enabledModulesFor } from "../shared/module-flags";
 import { earnedAuraForUser } from "../aura/earned";
+import {
+  getOwnPhotoState,
+  removeCommunityPhoto,
+  type OwnPhotoState,
+} from "../members/profile-photo-service";
 import { recordRegisterAttribution } from "../marketing/attribution-service";
 import type { SignupAttributionBody } from "../marketing/attribution-service";
 import { RATE_LIMITS } from "../shared/rate-limits";
@@ -1136,6 +1141,21 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         }
       }
 
+      // Fase 214 (D-32, D-43): la foto propia y su estado. Siempre URL firmada
+      // del bucket privado (la URL pública de la ficha nunca sale por acá). Si
+      // la lectura falla, sin foto: nunca rompe /me.
+      let photo: OwnPhotoState = {
+        url: null,
+        status: "none",
+        pendingUrl: null,
+        rejectionReason: null,
+      };
+      try {
+        photo = await getOwnPhotoState(fastify, ctx, userId);
+      } catch (err: unknown) {
+        request.log.warn({ err, userId }, "No se pudo leer la foto de perfil");
+      }
+
       return {
         id: user.id,
         email: user.email,
@@ -1178,6 +1198,9 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         memberSince: user.createdAt.toISOString(),
         enabledModules,
         auraEarned,
+        // Fase 214 (D-32, D-43): foto propia firmada y su estado.
+        photoUrl: photo.url,
+        photo,
       };
     },
   );
@@ -1578,6 +1601,20 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           error: "Solicitud invalida",
           message: "Contraseña incorrecta",
         });
+      }
+
+      // Fase 214 (T-214-15-07): quitar las fotos de la comunidad (propias y de
+      // ficha) y borrar sus objetos, incluido el público. VA ANTES del update de
+      // abajo: `removeCommunityPhoto` necesita leer `photo_url` para saber cuál
+      // es el objeto público de la ficha. Best-effort: si R2 falta o falla, el
+      // borrado de la cuenta sigue.
+      try {
+        await removeCommunityPhoto(fastify, ctx, userId, null);
+      } catch (err: unknown) {
+        request.log.warn(
+          { err, userId },
+          "No se pudieron quitar las fotos al borrar la cuenta",
+        );
       }
 
       // Anonymize PII and mark as deleted
