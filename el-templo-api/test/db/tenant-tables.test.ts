@@ -96,7 +96,7 @@ describe("tenant-tables — clasificación canónica de tablas (COL-01)", () => 
     ).toEqual([]);
   });
 
-  it("los conteos son 137 gym-owned + 5 exentas y cubren las 142 tablas del schema", () => {
+  it("los conteos son 138 gym-owned + 5 exentas y cubren las 143 tablas del schema", () => {
     // Fase 159 (SEM-05) sumó `session_week_regime` a GYM_OWNED_TABLES (era 87,
     // ver el comentario de src/db/tenant-tables.ts:32-41): 87 -> 88, 91 -> 92.
     // Fase 179 sumó `referral_partners`, `partner_referrals`,
@@ -151,12 +151,13 @@ describe("tenant-tables — clasificación canónica de tablas (COL-01)", () => 
     // Merge 2026-11-13 de Egresos en staging: +3 tablas de la 0331 (expense_*): 132 -> 135, 137 -> 140.
     // 2026-11-17 sumó `member_photos` (fase 214, mig 0346, nace strict en members): 135 -> 136, 140 -> 141.
     // 2026-11-18 sumó `aura_gifts` (fase 215, mig 0349, nace strict en aura-gifts): 136 -> 137, 141 -> 142.
-    expect(GYM_OWNED_TABLES.length).toBe(137);
+    // 2026-11-18 sumó `member_notifications` (fase 215, mig 0350, nace strict en notifications): 137 -> 138, 142 -> 143.
+    expect(GYM_OWNED_TABLES.length).toBe(138);
     expect(TENANT_EXEMPT_TABLES.length).toBe(5);
     // Sin duplicados dentro de cada lista.
     expect(gymOwned.size).toBe(GYM_OWNED_TABLES.length);
     expect(exempt.size).toBe(TENANT_EXEMPT_TABLES.length);
-    expect(schemaTables.size).toBe(142);
+    expect(schemaTables.size).toBe(143);
     expect(gymOwned.size + exempt.size).toBe(schemaTables.size);
   });
 
@@ -522,6 +523,7 @@ describe("TENANT_STRICT_MODULES (fase 170, D-05/D-06)", () => {
     ],
     notifications: [
       "device_tokens",
+      "member_notifications",
       "notification_preferences",
       "notification_templates",
       "pending_notifications",

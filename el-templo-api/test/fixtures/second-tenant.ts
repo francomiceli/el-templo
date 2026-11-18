@@ -493,6 +493,10 @@ export async function limpiarSegundoGimnasio(
   await app.db.execute(
     sql`DELETE FROM aura_gifts WHERE tenant_id = ${TENANT_DOS}`,
   );
+  // Bandeja de avisos (0350): FK a users, sale antes que users.
+  await app.db.execute(
+    sql`DELETE FROM member_notifications WHERE tenant_id = ${TENANT_DOS}`,
+  );
   // Histórico de recategorizaciones (0334): FK a users y branches, sale antes
   // que ambos.
   await app.db.execute(

@@ -148,6 +148,8 @@ export const GYM_OWNED_TABLES = [
   "invitations",
   "member_logins",
   "member_notes",
+  // Bandeja de avisos (fase 215, mig 0350): nace con tenant_id y strict en notifications
+  "member_notifications",
   // Foto propia (fase 214, mig 0346): nace con tenant_id y strict en members
   "member_photos",
   "member_profiles",
@@ -748,6 +750,7 @@ export const TENANT_STRICT_MODULES: Record<string, readonly string[]> = {
   ],
   notifications: [
     "device_tokens",
+    "member_notifications",
     "notification_preferences",
     "notification_templates",
     "pending_notifications",
