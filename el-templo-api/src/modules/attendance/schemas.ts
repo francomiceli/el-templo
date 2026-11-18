@@ -31,6 +31,22 @@ const attendanceRecordSchema = {
   },
 } as const;
 
+/**
+ * Respuesta del check-in del SOCIO (fase 214, D-40, D-56): el registro de
+ * asistencia más lo que esa asistencia acreditó de Aura. `attendanceRecordSchema`
+ * no se toca porque lo comparten el check-in forzado y el del admin.
+ * `auraAwarded`/`auraTotal` vienen en null si esa asistencia no acreditó (por
+ * ejemplo un profe que se auto-registra) o el módulo está apagado.
+ */
+export const memberCheckInResponseSchema = {
+  type: "object",
+  properties: {
+    ...attendanceRecordSchema.properties,
+    auraAwarded: { type: ["integer", "null"] },
+    auraTotal: { type: ["integer", "null"] },
+  },
+} as const;
+
 // =============================================================================
 // Admin Endpoints
 // =============================================================================
@@ -76,7 +92,7 @@ export const memberCheckInSchema = {
     },
   },
   response: {
-    201: attendanceRecordSchema,
+    201: memberCheckInResponseSchema,
     400: errorSchema,
   },
 };

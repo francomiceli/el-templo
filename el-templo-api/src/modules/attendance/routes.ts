@@ -28,6 +28,8 @@ import { ATTENDANCE_ROLES, CHECKIN_ROSTER_ROLES } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
 import { assertTenant } from "../shared/tenant";
 import { requireBranchAccess } from "../shared/branch-access";
+import { isModuleEnabled } from "../shared/module-flags";
+import { auraAwardedForReference, earnedAuraForUser } from "../aura/earned";
 
 // =============================================================================
 // Admin Routes (registered at /api/admin/attendance)
@@ -227,14 +229,54 @@ export const attendanceMemberRoutes: FastifyPluginAsync = async (fastify) => {
           request.user.userId,
           request.body.qrToken,
         );
+        // Fase 214 (D-40, D-56): lo que ESTA asistencia acreditó de Aura, leído
+        // del ledger y no del rol. Por el tope del día (D-64) puede ser menos
+        // de 5. null si no acreditó (p. ej. auto-registro del profe) o el
+        // módulo está apagado. El check-in ya quedó registrado: la lectura del
+        // Aura nunca lo rompe.
+        let auraAwarded: number | null = null;
+        let auraTotal: number | null = null;
+        try {
+          if (
+            await isModuleEnabled(
+              ctx.tenantId,
+              "templo-gamification",
+              fastify.db,
+            )
+          ) {
+            const awarded = await auraAwardedForReference(
+              fastify.db,
+              ctx,
+              request.user.userId,
+              "attendance",
+              "attendance",
+              record.id,
+            );
+            if (awarded > 0) {
+              auraAwarded = awarded;
+              auraTotal = await earnedAuraForUser(
+                fastify.db,
+                ctx,
+                request.user.userId,
+              );
+            }
+          }
+        } catch (auraErr: unknown) {
+          auraAwarded = null;
+          auraTotal = null;
+          request.log.warn(
+            { err: auraErr },
+            "No se pudo leer el Aura del check-in",
+          );
+        }
         // Compat app: nombre largo para el regex baked del front (handler
         // member; el service es compartido con force/coach check-in del admin).
-        return reply
-          .code(201)
-          .send({
-            ...record,
-            branchName: appBranchName(record.branchName, ctx.tenantId),
-          });
+        return reply.code(201).send({
+          ...record,
+          branchName: appBranchName(record.branchName, ctx.tenantId),
+          auraAwarded,
+          auraTotal,
+        });
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "member check-in");
       }
