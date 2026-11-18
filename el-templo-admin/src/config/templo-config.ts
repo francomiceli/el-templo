@@ -293,6 +293,7 @@ export interface NavItem {
    * - 'conquer': pedidos de desbloqueo sin activar (fase 201 D-12) + correcciones con video sin
    *   responder (fase 202 D-26).
    * - 'oficina': menciones sin leer + temas donde soy responsable con novedades (fase 205 D-08).
+   * - 'fotos': fotos de perfil pendientes de revisar + aprobadas con reportes (fase 214 D-45).
    */
   badge?: NavBadge;
 }
@@ -304,7 +305,8 @@ export type NavBadge =
   | 'landing-labs'
   | 'landing-franquicias'
   | 'conquer'
-  | 'oficina';
+  | 'oficina'
+  | 'fotos';
 
 export interface NavCategory {
   header: string;
