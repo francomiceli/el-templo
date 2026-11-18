@@ -50,3 +50,8 @@ _Sketches 030-033 (2026-11-17): fase 214, worktree `et-comunidad`. Numerados des
 | 035 | bandeja-notificaciones | ¿Cómo se ve la bandeja de notificaciones que abre la campana de la barra de arriba: hoja desde abajo (A), pantalla propia (B) o desplegable (C)? | — | app, notificaciones, aura, regalar, fase-215 |
 
 _Sketches 034-035 (2026-11-17): fase 215 (regalar Aura y bandeja de notificaciones), mismo lenguaje que los 030-033: Aura en claro, dorado solo para Aura._
+
+| 036 | sellos-antiguedad | ¿Cómo se ven los tres sellos de antigüedad (3 meses, 6 meses, 1 año o más) usando solo la paleta de la marca: del contorno al relleno (A), por anillos (B) o por tono piedra-oliva-carbón (C)? | ★ B, siempre con el logo chico y del mismo tamaño en los tres niveles (a elegir 21 o 24 px) | app, mi-templo, encabezado, sello, paleta, fase-214 |
+| 037 | celebracion-regalo | ¿Cómo se avisa con una celebración chica (no pantalla completa) que un compañero o el profe le regaló Aura: tarjeta que baja desde arriba (A), hoja desde abajo con botón Ver (B) o globito pegado a la ficha de Aura (C)? Se sumó la D (mezcla C + A) para cualquier Aura | ★ D: sale de la ficha de Aura con el diseño de la tarjeta A, se va sola a los 5 s; solo para Aura sin celebración propia (no asistencia, estiramiento ni bloque libre) | app, mi-templo, aura, regalar, celebracion, fase-215 |
+
+_Sketches 036-037 (2026-11-18): 036 pedido del dueño ("los tres sellos deberían respetar la paleta"), 037 aviso de regalo de Aura recibido (fase 215). Mismo lenguaje que 030-035: dorado solo para Aura._

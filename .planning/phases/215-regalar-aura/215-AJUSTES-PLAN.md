@@ -136,3 +136,50 @@ Reglas: `215-EJECUTORES.md` completo, con estos cambios:
 - API: `npx tsc --noEmit` da 0. App: 20 errores de base, ninguno nuevo. Admin: 36, ninguno nuevo.
 - `pnpm lint:tenant` en la API y lint en la app y el admin.
 - Tests unitarios nuevos en verde con la configuración unitaria.
+
+---
+
+## Plan D: sellos de antigüedad y celebración de Aura (#18 y #33)
+
+Los bocetos son la referencia visual y mandan sobre la descripción de este plan:
+`.planning/sketches/036-sellos-antiguedad/` (variante B, 24 px) y
+`.planning/sketches/037-celebracion-regalo/` (variante D). Hay que leer sus `index.html` y `README.md`.
+
+1. **#18: sellos.** Se reescribe `el-templo-app/src/components/VeteranSeal.vue` según la variante B del
+   036:
+   - los tres niveles son crema con el logo terracota;
+   - el logo es chico y del **mismo tamaño en los tres**;
+   - el nivel lo marca la cantidad de anillos terracota: ninguno a los 3 meses, uno a los 6 y dos al año
+     o más;
+   - el sello pasa a **24 px**;
+   - solo tokens de la paleta, sin degradés metálicos ni gris azulado.
+
+   Los umbrales y los tooltips no cambian. El margen con el nombre se ajusta en `MiTemploHeader.vue` si
+   hace falta.
+2. **#33: celebración de Aura (variante D del 037).**
+   - **Servidor.** La celebración tiene que salir una sola vez por movimiento, aunque el alumno use dos
+     teléfonos, así que el registro de qué ya se celebró vive en el servidor:
+     - Columna `aura_celebrated_until_id` (int, NULL) en el perfil del socio, con migración **0353** (la 0352 la usó el plan B). Hay que verificar el número libre.
+     - `GET /aura/celebration` devuelve los movimientos con `id` mayor a la marca, con `amount > 0`,
+       excluyendo las fuentes que ya tienen celebración propia (`attendance`, `stretch`, `extra_block`)
+       y los regalos anulados. Ordenados del más nuevo al más viejo y con un tope de 20. Cada movimiento
+       trae `id`, `amount`, `label` (el mismo texto de `movement-labels.ts`) y, si es un regalo, quién
+       lo dio con la misma regla de anonimato de ME-01 y #38. También devuelve `total` y `maxId`.
+     - Con la marca en NULL (primera vez) **no devuelve nada**: fija la marca en el máximo actual para
+       no celebrar todo el historial.
+     - `POST /aura/celebration/ack { upToId }` mueve la marca. Nunca la hace retroceder.
+     - Rutas con tenancy. Tests de integración: primera vez, exclusiones, regalo anulado, anonimato,
+       la marca no retrocede y dos llamadas seguidas.
+   - **App.**
+     - Al entrar a Mi Templo (y al volver a primer plano estando ahí) se consulta
+       `GET /aura/celebration`. Si hay movimientos, se muestra la tarjeta de la variante D, que sale de
+       la ficha de Aura del encabezado. La ficha late, el número cuenta hasta el total y la tarjeta se
+       va sola a los 5 s.
+     - Con un solo movimiento se muestra su texto. Con varios: "Sumaste N de Aura", los dos últimos
+       motivos y "y N más".
+     - Al mostrarse se manda el `ack` con `maxId`.
+     - Si el encabezado no está visible, no se muestra y no se manda `ack`: queda para la próxima vez.
+     - Respeta `prefers-reduced-motion`: aparece sin animación.
+     - El composable expone `cleanup()` y no lleva `onUnmounted` adentro.
+   - Los regalos dicen "Juan P. te dio Aura por Buena energía", "Tu profe Fran te dio Aura por Constancia"
+     o, sin nombre, "Te dieron 1 de Aura por Buena energía", nunca "Alguien".
