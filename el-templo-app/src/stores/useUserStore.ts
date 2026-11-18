@@ -11,6 +11,7 @@ import { fullLineLabel, sameSpecialLine } from 'src/utils/special-line'
 import type { MemberPlanStatus } from 'src/types/plan-status'
 import type { MemberEnrollmentProgress } from 'src/modules/programs/types'
 import type { TrialEligibility } from 'src/composables/useSchedulingApi'
+import type { MemberPhotoState } from 'src/types/community'
 
 // Fase 199 (D-05): el tipo vive en types/ para que utilidades puras lo usen sin Pinia.
 export type { MemberPlanStatus }
@@ -71,6 +72,15 @@ export interface UserProfile {
   // Ciudad de la sede (`branches.locality`, ej. "Mar del Plata"). Gatea el
   // pop-up de dirección (ver utils/member-address.ts).
   branchLocality?: string | null
+  // Fase 214; una API vieja no los manda.
+  // Aura ganada (la que se ve en la ficha). `null` = módulo apagado: no se dibuja la ficha.
+  auraEarned?: number | null
+  // Foto de perfil aprobada (URL firmada) y estado completo de la foto propia.
+  photoUrl?: string | null
+  photo?: MemberPhotoState
+  // Preferencia de aparecer en la lista de anotados y si ya vio el aviso.
+  communityVisible?: boolean
+  communityNoticeSeen?: boolean
 }
 
 export interface MemberSubscription {
@@ -250,6 +260,11 @@ export const useUserStore = defineStore('user', () => {
   let midSessionGuard: (() => Promise<boolean>) | null = null
 
   // Getters
+  // Fase 214 (D-58): la ficha de Aura se dibuja solo si hay número, sin mirar el rol.
+  const auraVisible = computed(
+    () => profile.value?.auraEarned !== null && profile.value?.auraEarned !== undefined,
+  )
+
   const fullName = computed(() => {
     if (!profile.value) return ''
     const { firstName, lastName } = profile.value
@@ -406,6 +421,34 @@ export const useUserStore = defineStore('user', () => {
     profile.value = newProfile
   }
 
+  /** Fase 214: refleja el número de Aura que devolvió el servidor (ej. tras un check-in). */
+  function setAuraEarned(value: number) {
+    if (profile.value) {
+      profile.value = { ...profile.value, auraEarned: value }
+    }
+  }
+
+  /** Fase 214: estado de la foto propia; `photoUrl` sigue a la foto aprobada. */
+  function setPhotoState(photo: MemberPhotoState) {
+    if (profile.value) {
+      profile.value = { ...profile.value, photo, photoUrl: photo.url }
+    }
+  }
+
+  /** Fase 214: preferencia de visibilidad en la lista de anotados. */
+  function setCommunityVisible(visible: boolean) {
+    if (profile.value) {
+      profile.value = { ...profile.value, communityVisible: visible }
+    }
+  }
+
+  /** Fase 214: el aviso de la comunidad ya se mostró. */
+  function setCommunityNoticeSeen() {
+    if (profile.value) {
+      profile.value = { ...profile.value, communityNoticeSeen: true }
+    }
+  }
+
   function markOnboardingComplete() {
     if (profile.value) {
       profile.value = { ...profile.value, onboardingCompleted: true }
@@ -482,6 +525,30 @@ export const useUserStore = defineStore('user', () => {
   }
 
   /**
+   * Única llamada a `GET /auth/me` del store: con tope de espera (`NETWORK_WAIT_MS`), guarda el
+   * perfil y limpia `profileStale`. Propaga el error: cada llamador decide qué hacer.
+   */
+  async function fetchProfile(): Promise<void> {
+    const response = await withTimeout(api.get<UserProfile>('/auth/me'), NETWORK_WAIT_MS)
+    setProfile(response.data)
+    profileStale.value = false
+  }
+
+  /**
+   * Fase 214: vuelve a pedir `/auth/me` sin condiciones (a diferencia de `retryProfileLoad`, que
+   * es un no-op con perfil fresco). Best-effort: si falla conserva el perfil que había.
+   */
+  async function refreshProfile(): Promise<void> {
+    try {
+      await fetchProfile()
+    } catch (err: unknown) {
+      log.warn('No se pudo refrescar el perfil, se conserva el anterior', {
+        message: err instanceof Error ? err.message : String(err),
+      })
+    }
+  }
+
+  /**
    * Reintenta cargar `/auth/me` cuando el boot arrancó de forma optimista
    * (sin red). Disparado desde el router en la primera navegación
    * (router/index.ts) — no-op si no hace falta o si ya hay un intento en
@@ -499,9 +566,7 @@ export const useUserStore = defineStore('user', () => {
     if ((!profileStale.value && profile.value !== null) || profileRetrying.value) return
     profileRetrying.value = true
     try {
-      const response = await withTimeout(api.get<UserProfile>('/auth/me'), NETWORK_WAIT_MS)
-      setProfile(response.data)
-      profileStale.value = false
+      await fetchProfile()
       await hydrateSelection()
       void ensureMemberState()
     } catch (err: unknown) {
@@ -998,6 +1063,7 @@ export const useUserStore = defineStore('user', () => {
     isUpdatingCurrentProgram,
     // Getters
     fullName,
+    auraVisible,
     displayLevel,
     subscriptionStatusLabel,
     subscriptionStatusColor,
@@ -1027,6 +1093,11 @@ export const useUserStore = defineStore('user', () => {
     profileRetrying,
     // Actions
     setProfile,
+    setAuraEarned,
+    setPhotoState,
+    setCommunityVisible,
+    setCommunityNoticeSeen,
+    refreshProfile,
     markOnboardingComplete,
     setIntroStoriesProgress,
     saveAddress,

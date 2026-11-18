@@ -8,10 +8,16 @@
  *
  * Sin DB, sin servidor: corre con `vitest.config.unit.ts`.
  */
-import { DeleteObjectCommand } from "@aws-sdk/client-s3";
-import type { FastifyInstance } from "fastify";
-import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  CopyObjectCommand,
+  DeleteObjectCommand,
+  GetObjectCommand,
+  PutObjectCommand,
+} from "@aws-sdk/client-s3";
+import type { FastifyInstance } from "fastify";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  AVATAR_KEY_PREFIX,
   CONQUER_POSES,
   CORRECTION_KEY_PREFIX,
   PHOTO_CONTENT_TYPES,
@@ -19,13 +25,19 @@ import {
   PRIVATE_KEY_PREFIX,
   PhotoStorageUnavailableError,
   VideoStorageUnavailableError,
+  avatarOwnerSegment,
+  fichaMirrorKey,
   isCorrectionReplyKey,
+  isOwnAvatarKey,
   isOwnCorrectionVideoKey,
   isOwnPhotoKey,
+  privateAvatarKey,
   privateCheckPhotoKey,
   privateCorrectionReplyKey,
   privateCorrectionVideoKey,
   privateMediaResolver,
+  publicKeyFromFichaUrl,
+  stableHourlySigningDate,
 } from "../../src/modules/conquer/private-media";
 
 /** Doble de fastify con R2 "configurado" y un bucket PUBLICO de videos. */
@@ -286,6 +298,61 @@ describe("PrivateMediaStore.remove", () => {
   });
 });
 
+describe("PrivateMediaStore.getObject y putObject (fase 215, decisión 5)", () => {
+  function storeWithSend(send: (cmd: unknown) => Promise<unknown>) {
+    vi.stubEnv("R2_PRIVATE_BUCKET_NAME", "bucket-privado");
+    const fastify = { r2: { send }, r2Bucket: "bucket-publico" };
+    return privateMediaResolver.resolve(fastify as unknown as FastifyInstance);
+  }
+
+  it("getObject pide el objeto al bucket PRIVADO y devuelve sus bytes", async () => {
+    const send = vi.fn(async (_cmd: unknown) => ({
+      Body: { transformToByteArray: async () => new Uint8Array([1, 2, 3]) },
+    }));
+    const store = storeWithSend(send);
+
+    const bytes = await store.getObject("private/avatars/1/x/foto.jpg");
+
+    expect(Buffer.isBuffer(bytes)).toBe(true);
+    expect([...bytes]).toEqual([1, 2, 3]);
+    const cmd = send.mock.calls[0]?.[0];
+    expect(cmd).toBeInstanceOf(GetObjectCommand);
+    if (cmd instanceof GetObjectCommand) {
+      expect(cmd.input.Bucket).toBe("bucket-privado");
+      expect(cmd.input.Key).toBe("private/avatars/1/x/foto.jpg");
+    }
+  });
+
+  it("getObject falla si el objeto no trae cuerpo o si el storage falla", async () => {
+    await expect(
+      storeWithSend(async () => ({})).getObject("k"),
+    ).rejects.toThrow();
+    await expect(
+      storeWithSend(async () => {
+        throw new Error("boom");
+      }).getObject("k"),
+    ).rejects.toThrow("boom");
+  });
+
+  it("putObject sobrescribe en el bucket PRIVADO con el tipo y el tamaño", async () => {
+    const send = vi.fn(async (_cmd: unknown) => ({}));
+    const store = storeWithSend(send);
+    const body = Buffer.from([9, 8, 7, 6]);
+
+    await store.putObject("private/avatars/1/x/foto.jpg", body, "image/jpeg");
+
+    const cmd = send.mock.calls[0]?.[0];
+    expect(cmd).toBeInstanceOf(PutObjectCommand);
+    if (cmd instanceof PutObjectCommand) {
+      expect(cmd.input.Bucket).toBe("bucket-privado");
+      expect(cmd.input.Key).toBe("private/avatars/1/x/foto.jpg");
+      expect(cmd.input.Body).toBe(body);
+      expect(cmd.input.ContentType).toBe("image/jpeg");
+      expect(cmd.input.ContentLength).toBe(4);
+    }
+  });
+});
+
 describe("prefijos de claves", () => {
   it("el de correcciones NO empieza con el de fotos (regla de 60 dias, T-201-123)", () => {
     expect(CORRECTION_KEY_PREFIX).toBe("private/conquer-corrections");
@@ -468,5 +535,220 @@ describe("privateCorrectionReplyKey / isCorrectionReplyKey", () => {
     ["id no entero", good, 1, 7, 33.5, false],
   ] as const)("%s", (_nombre, key, t, u, c, expected) => {
     expect(isCorrectionReplyKey(key, t, u, c)).toBe(expected);
+  });
+});
+
+// ── Fase 214 plan 13: claves de avatar sin id de usuario y firma estable ─────
+
+describe("claves de avatar (fase 214, D-34)", () => {
+  const PUBLIC_BASE = "https://pub.example";
+
+  beforeEach(() => {
+    vi.stubEnv("JWT_SECRET", "secreto-de-prueba-214");
+    vi.stubEnv("R2_PUBLIC_URL", PUBLIC_BASE);
+  });
+
+  it("AVATAR_KEY_PREFIX no cae bajo private/conquer", () => {
+    expect(AVATAR_KEY_PREFIX).toBe("private/avatars");
+    expect(AVATAR_KEY_PREFIX.startsWith("private/conquer")).toBe(false);
+  });
+
+  it("privateAvatarKey lleva un segmento HMAC y no el id del usuario", () => {
+    const key = privateAvatarKey({ tenantId: 1, userId: 42 });
+    expect(key).toMatch(
+      /^private\/avatars\/1\/[0-9a-f]{24}\/[0-9a-f-]{36}\.jpg$/,
+    );
+    expect(key).not.toContain("/42/");
+    expect(key).not.toContain("42-");
+  });
+
+  it("avatarOwnerSegment es estable y distinto por usuario y por gimnasio", () => {
+    expect(avatarOwnerSegment(1, 42)).toBe(avatarOwnerSegment(1, 42));
+    expect(avatarOwnerSegment(1, 42)).toMatch(/^[0-9a-f]{24}$/);
+    expect(avatarOwnerSegment(1, 42)).not.toBe(avatarOwnerSegment(1, 43));
+    expect(avatarOwnerSegment(1, 42)).not.toBe(avatarOwnerSegment(2, 42));
+  });
+
+  it("avatarOwnerSegment tira un error claro sin JWT_SECRET", () => {
+    vi.stubEnv("JWT_SECRET", "");
+    expect(() => avatarOwnerSegment(1, 42)).toThrow(/JWT_SECRET/);
+  });
+
+  it("isOwnAvatarKey acepta la propia y rechaza otro usuario o gimnasio", () => {
+    const key = privateAvatarKey({ tenantId: 1, userId: 42 });
+    expect(isOwnAvatarKey(key, 1, 42)).toBe(true);
+    expect(isOwnAvatarKey(key, 1, 43)).toBe(false);
+    expect(isOwnAvatarKey(key, 2, 42)).toBe(false);
+    expect(isOwnAvatarKey(key, 1, 42.5)).toBe(false);
+  });
+
+  it("isOwnAvatarKey rechaza traversal, otra extension, otro prefijo, sufijo y ficha", () => {
+    const own = privateAvatarKey({ tenantId: 1, userId: 42 });
+    const seg = avatarOwnerSegment(1, 42);
+    const uuid = own.split("/").pop() as string;
+    expect(isOwnAvatarKey(`private/avatars/1/${seg}/../${uuid}`, 1, 42)).toBe(
+      false,
+    );
+    expect(isOwnAvatarKey(own.replace(/\.jpg$/, ".png"), 1, 42)).toBe(false);
+    expect(
+      isOwnAvatarKey(own.replace("private/avatars", "private/conquer"), 1, 42),
+    ).toBe(false);
+    expect(isOwnAvatarKey(`${own}/x`, 1, 42)).toBe(false);
+    expect(isOwnAvatarKey(`x/${own}`, 1, 42)).toBe(false);
+    expect(
+      isOwnAvatarKey(
+        `private/avatars/1/${seg}/ficha-0123456789abcdef.jpg`,
+        1,
+        42,
+      ),
+    ).toBe(false);
+  });
+
+  it("fichaMirrorKey es determinística, conserva la extension y comparte segmento", () => {
+    const sourceUrl = `${PUBLIC_BASE}/members/photos/42-1700000000000.png`;
+    const a = fichaMirrorKey({ tenantId: 1, userId: 42, sourceUrl });
+    const b = fichaMirrorKey({ tenantId: 1, userId: 42, sourceUrl });
+    expect(a).toBe(b);
+    expect(a.endsWith(".png")).toBe(true);
+    expect(a).toContain("/ficha-");
+    expect(
+      a.startsWith(`${AVATAR_KEY_PREFIX}/1/${avatarOwnerSegment(1, 42)}/`),
+    ).toBe(true);
+    expect(a).not.toContain("/42/");
+    const other = fichaMirrorKey({
+      tenantId: 1,
+      userId: 42,
+      sourceUrl: `${PUBLIC_BASE}/members/photos/42-1700000000001.png`,
+    });
+    expect(other).not.toBe(a);
+  });
+
+  it("publicKeyFromFichaUrl acepta solo la foto de ficha del propio usuario", () => {
+    expect(
+      publicKeyFromFichaUrl(
+        `${PUBLIC_BASE}/members/photos/42-1700000000000.jpg`,
+        42,
+      ),
+    ).toBe("members/photos/42-1700000000000.jpg");
+    expect(
+      publicKeyFromFichaUrl(
+        `${PUBLIC_BASE}/members/photos/42-1700000000000.jpg`,
+        43,
+      ),
+    ).toBeNull();
+    expect(
+      publicKeyFromFichaUrl(`${PUBLIC_BASE}/videos/42-1700000000000.jpg`, 42),
+    ).toBeNull();
+    expect(
+      publicKeyFromFichaUrl(
+        `${PUBLIC_BASE}/members/photos/../42-1700000000000.jpg`,
+        42,
+      ),
+    ).toBeNull();
+    expect(
+      publicKeyFromFichaUrl(
+        `${PUBLIC_BASE}/members/photos/42-1700000000000.gif`,
+        42,
+      ),
+    ).toBeNull();
+    expect(
+      publicKeyFromFichaUrl(
+        `https://otro.example/members/photos/42-1700000000000.jpg`,
+        42,
+      ),
+    ).toBeNull();
+  });
+});
+
+describe("stableHourlySigningDate", () => {
+  it("redondea hacia abajo a la hora", () => {
+    expect(
+      stableHourlySigningDate(
+        new Date("2026-11-17T10:59:59.999Z"),
+      ).toISOString(),
+    ).toBe("2026-11-17T10:00:00.000Z");
+    expect(
+      stableHourlySigningDate(
+        new Date("2026-11-17T11:00:00.000Z"),
+      ).toISOString(),
+    ).toBe("2026-11-17T11:00:00.000Z");
+  });
+});
+
+describe("copia y borrado de la foto de ficha (fase 214, D-43 y D-63)", () => {
+  /** Cliente R2 simulado: guarda los comandos y puede fallar con un error dado. */
+  function fakeR2(failWith?: Error) {
+    const send = vi.fn(async (_command: unknown) => {
+      if (failWith) throw failWith;
+      return {};
+    });
+    const fastify = {
+      r2: { send },
+      r2Bucket: "bucket-publico",
+    } as unknown as FastifyInstance;
+    return { send, fastify };
+  }
+
+  beforeEach(() => {
+    vi.stubEnv("R2_PRIVATE_BUCKET_NAME", "bucket-privado");
+  });
+
+  it("copyFromPublic manda un CopyObjectCommand al bucket privado con el origen publico", async () => {
+    const { send, fastify } = fakeR2();
+    const store = privateMediaResolver.resolve(fastify);
+    const ok = await store.copyFromPublic(
+      "members/photos/42-1700000000000.jpg",
+      "private/avatars/1/seg/ficha-0123456789abcdef.jpg",
+    );
+    expect(ok).toBe(true);
+    expect(send).toHaveBeenCalledTimes(1);
+    const command = send.mock.calls[0]?.[0];
+    expect(command).toBeInstanceOf(CopyObjectCommand);
+    if (command instanceof CopyObjectCommand) {
+      expect(command.input.Bucket).toBe("bucket-privado");
+      expect(command.input.Key).toBe(
+        "private/avatars/1/seg/ficha-0123456789abcdef.jpg",
+      );
+      expect(command.input.CopySource).toBe(
+        "bucket-publico/members/photos/42-1700000000000.jpg",
+      );
+    }
+  });
+
+  it("copyFromPublic devuelve false si el origen no existe y propaga otros errores", async () => {
+    const missing = new Error("nada");
+    missing.name = "NoSuchKey";
+    const store = privateMediaResolver.resolve(fakeR2(missing).fastify);
+    await expect(
+      store.copyFromPublic("members/photos/1-1.jpg", "k"),
+    ).resolves.toBe(false);
+    const boom = new Error("boom");
+    boom.name = "InternalError";
+    const store2 = privateMediaResolver.resolve(fakeR2(boom).fastify);
+    await expect(
+      store2.copyFromPublic("members/photos/1-1.jpg", "k"),
+    ).rejects.toBe(boom);
+  });
+
+  it("removePublic manda un DeleteObjectCommand al bucket publico", async () => {
+    const { send, fastify } = fakeR2();
+    const store = privateMediaResolver.resolve(fastify);
+    await store.removePublic("members/photos/42-1700000000000.jpg");
+    expect(send).toHaveBeenCalledTimes(1);
+    const command = send.mock.calls[0]?.[0];
+    expect(command).toBeInstanceOf(DeleteObjectCommand);
+    if (command instanceof DeleteObjectCommand) {
+      expect(command.input.Bucket).toBe("bucket-publico");
+      expect(command.input.Key).toBe("members/photos/42-1700000000000.jpg");
+    }
+  });
+
+  it("removePublic tolera un objeto que ya no existe", async () => {
+    const missing = new Error("nada");
+    missing.name = "NoSuchKey";
+    const store = privateMediaResolver.resolve(fakeR2(missing).fastify);
+    await expect(
+      store.removePublic("members/photos/42-1700000000000.jpg"),
+    ).resolves.toBeUndefined();
   });
 });

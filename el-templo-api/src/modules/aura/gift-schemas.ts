@@ -1,0 +1,446 @@
+// Module: aura
+//
+// JSON Schemas de las rutas del regalo del alumno (fase 215, plan 06):
+//   GET  /api/members/aura/gifts/pending     la card de hoy
+//   GET  /api/members/aura/gifts/candidates  las caras de una clase
+//   POST /api/members/aura/gifts             dar el regalo
+//
+// fast-json-stringify descarta lo que no está declarado: cada respuesta lista
+// TODOS sus campos y nada más. Eso también garantiza que nunca salgan apellido,
+// teléfono, email ni ids de usuario (D-08). En el body, `additionalProperties:
+// false` descarta el campo de más (no da 400); un `enum` violado sí da 400.
+import { COACH_GIFT_AMOUNT, GIFT_REASONS, type GiftReason } from "./gift-rules";
+
+/** Motivos permitidos, armados desde la única lista (`GIFT_REASONS`). */
+const giftReasonSchema = {
+  type: "string",
+  enum: GIFT_REASONS.map((reason) => reason.code),
+} as const;
+
+/** Cuerpo de un rechazo del regalo (`giftErrorBody`). */
+const giftErrorResponseSchema = {
+  type: "object",
+  required: ["error", "message", "code"],
+  additionalProperties: false,
+  properties: {
+    error: { type: "string" },
+    message: { type: "string" },
+    code: { type: "string" },
+  },
+} as const;
+
+/**
+ * Quien recibió: solo nombre de pila, inicial y foto firmada. Con `anonymous`
+ * (hoy está oculto o no tiene nombre) no hay nombre, inicial ni foto.
+ */
+const receiverViewSchema = {
+  type: "object",
+  required: ["firstName", "lastInitial", "photoUrl", "anonymous"],
+  additionalProperties: false,
+  properties: {
+    firstName: { type: "string" },
+    lastInitial: { type: ["string", "null"] },
+    photoUrl: { type: ["string", "null"] },
+    anonymous: { type: "boolean" },
+  },
+} as const;
+
+export interface GiftCandidatesQuery {
+  attendanceId: number;
+}
+
+export interface GiveGiftBody {
+  attendanceId: number;
+  receiverAttendanceId: number;
+  reason: GiftReason;
+}
+
+/** `GET /gifts/pending`. */
+export const pendingGiftsSchema = {
+  response: {
+    200: {
+      type: "object",
+      required: ["pending", "givenToday", "unavailableReason"],
+      additionalProperties: false,
+      properties: {
+        // #31: "oculto" si no puede dar Aura solo porque esta oculto de las
+        // listas; null en cualquier otro caso.
+        unavailableReason: { type: ["string", "null"] },
+        pending: {
+          type: "array",
+          items: {
+            type: "object",
+            required: [
+              "attendanceId",
+              "sessionDate",
+              "startTime",
+              "activityName",
+              "expiresOn",
+            ],
+            additionalProperties: false,
+            properties: {
+              attendanceId: { type: "integer" },
+              sessionDate: { type: "string" },
+              startTime: { type: "string" },
+              activityName: { type: "string" },
+              expiresOn: { type: "string" },
+            },
+          },
+        },
+        givenToday: {
+          type: "array",
+          items: {
+            type: "object",
+            required: ["attendanceId", "receiver", "reason", "amount"],
+            additionalProperties: false,
+            properties: {
+              attendanceId: { type: "integer" },
+              receiver: receiverViewSchema,
+              reason: giftReasonSchema,
+              amount: { type: "integer" },
+            },
+          },
+        },
+      },
+    },
+  },
+} as const;
+
+/** `GET /gifts/candidates?attendanceId=`. */
+export const giftCandidatesSchema = {
+  querystring: {
+    type: "object",
+    required: ["attendanceId"],
+    additionalProperties: false,
+    properties: {
+      attendanceId: { type: "integer", minimum: 1 },
+    },
+  },
+  response: {
+    200: {
+      type: "object",
+      required: ["class", "candidates"],
+      additionalProperties: false,
+      properties: {
+        class: {
+          type: "object",
+          required: ["sessionDate", "startTime", "activityName"],
+          additionalProperties: false,
+          properties: {
+            sessionDate: { type: "string" },
+            startTime: { type: "string" },
+            activityName: { type: "string" },
+          },
+        },
+        candidates: {
+          type: "array",
+          items: {
+            type: "object",
+            required: [
+              "receiverAttendanceId",
+              "firstName",
+              "lastInitial",
+              "photoUrl",
+              "blockedReason",
+            ],
+            additionalProperties: false,
+            properties: {
+              receiverAttendanceId: { type: "integer" },
+              firstName: { type: "string" },
+              lastInitial: { type: ["string", "null"] },
+              photoUrl: { type: ["string", "null"] },
+              blockedReason: {
+                type: ["string", "null"],
+                enum: ["tope_semanal", null],
+              },
+            },
+          },
+        },
+      },
+    },
+    403: giftErrorResponseSchema,
+    404: giftErrorResponseSchema,
+    409: giftErrorResponseSchema,
+  },
+} as const;
+
+/** `POST /gifts`. */
+export const giveGiftSchema = {
+  body: {
+    type: "object",
+    required: ["attendanceId", "receiverAttendanceId", "reason"],
+    additionalProperties: false,
+    properties: {
+      attendanceId: { type: "integer", minimum: 1 },
+      receiverAttendanceId: { type: "integer", minimum: 1 },
+      reason: giftReasonSchema,
+    },
+  },
+  response: {
+    201: {
+      type: "object",
+      required: ["receiverFirstName", "reason"],
+      additionalProperties: false,
+      properties: {
+        receiverFirstName: { type: "string" },
+        reason: giftReasonSchema,
+      },
+    },
+    403: giftErrorResponseSchema,
+    404: giftErrorResponseSchema,
+    409: giftErrorResponseSchema,
+  },
+} as const;
+
+// -----------------------------------------------------------------------------
+// Rutas de admin del regalo del profe (fase 215, plan 08)
+//   POST /api/admin/aura/gifts          el profe da Aura a un alumno de su clase
+//   GET  /api/admin/aura/gift-settings  valor vigente del regalo del profe
+//   PUT  /api/admin/aura/gift-settings  cambia el valor (solo dueño y admin)
+// -----------------------------------------------------------------------------
+
+export interface CoachGiveGiftBody {
+  attendanceId: number;
+  reason: GiftReason;
+}
+
+export interface GiftSettingsBody {
+  coachGiftAmount: number;
+}
+
+/** `POST /gifts` (admin). El 201 solo expone el monto acreditado. */
+export const coachGiveGiftSchema = {
+  body: {
+    type: "object",
+    required: ["attendanceId", "reason"],
+    additionalProperties: false,
+    properties: {
+      attendanceId: { type: "integer", minimum: 1 },
+      reason: giftReasonSchema,
+    },
+  },
+  response: {
+    201: {
+      type: "object",
+      required: ["amount"],
+      additionalProperties: false,
+      properties: {
+        amount: { type: "integer" },
+      },
+    },
+    403: giftErrorResponseSchema,
+    404: giftErrorResponseSchema,
+    409: giftErrorResponseSchema,
+  },
+} as const;
+
+const coachGiftAmountResponseSchema = {
+  type: "object",
+  required: ["coachGiftAmount"],
+  additionalProperties: false,
+  properties: {
+    coachGiftAmount: { type: "integer" },
+  },
+} as const;
+
+/** `GET /gift-settings` (admin). */
+export const getGiftSettingsSchema = {
+  response: {
+    200: coachGiftAmountResponseSchema,
+    403: giftErrorResponseSchema,
+  },
+} as const;
+
+/** `PUT /gift-settings` (admin): entero de 1 a 10. */
+export const putGiftSettingsSchema = {
+  body: {
+    type: "object",
+    required: ["coachGiftAmount"],
+    additionalProperties: false,
+    properties: {
+      coachGiftAmount: {
+        type: "integer",
+        minimum: COACH_GIFT_AMOUNT.min,
+        maximum: COACH_GIFT_AMOUNT.max,
+      },
+    },
+  },
+  response: {
+    200: coachGiftAmountResponseSchema,
+    403: giftErrorResponseSchema,
+  },
+} as const;
+
+/** `POST /gifts/:id/void` (admin): anula un regalo vigente. Responde 204. */
+export const voidGiftSchema = {
+  params: {
+    type: "object",
+    required: ["id"],
+    properties: {
+      id: { type: "integer", minimum: 1 },
+    },
+  },
+  response: {
+    204: { type: "null" },
+    403: giftErrorResponseSchema,
+    404: giftErrorResponseSchema,
+    409: giftErrorResponseSchema,
+  },
+} as const;
+
+/** Filtros de `GET /gifts/by-coach` (admin): `branchId` opcional y semanas hacia atrás. */
+export interface AdminGiftsByCoachQuery {
+  branchId?: number;
+  /** 0 = la semana actual, 1 = la anterior, etc. */
+  weeksBack: number;
+}
+
+/**
+ * `GET /gifts/by-coach` (admin, fase 215 ajustes, ME-06): cuántos regalos dio cada
+ * profe en una semana de lunes a domingo (hora de la sede). Cuenta solo regalos
+ * vigentes. El 403 puede venir del rol (`REGALO_SIN_PERMISO`) o de la sede
+ * (`BRANCH_OUT_OF_SCOPE`).
+ */
+export const adminGiftsByCoachSchema = {
+  querystring: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      branchId: { type: "integer", minimum: 1 },
+      weeksBack: { type: "integer", minimum: 0, maximum: 52, default: 0 },
+    },
+  },
+  response: {
+    200: {
+      type: "object",
+      required: ["weekStart", "weekEnd", "total", "coaches"],
+      additionalProperties: false,
+      properties: {
+        weekStart: { type: "string" },
+        weekEnd: { type: "string" },
+        total: { type: "integer" },
+        coaches: {
+          type: "array",
+          items: {
+            type: "object",
+            required: ["userId", "name", "gifts"],
+            additionalProperties: false,
+            properties: {
+              userId: { type: "integer" },
+              name: { type: "string" },
+              gifts: { type: "integer" },
+            },
+          },
+        },
+      },
+    },
+    403: {
+      type: "object",
+      required: ["error", "message"],
+      additionalProperties: false,
+      properties: {
+        error: { type: "string" },
+        message: { type: "string" },
+        code: { type: "string" },
+      },
+    },
+  },
+} as const;
+
+/** Filtros de `GET /gifts` (admin): `branchId` opcional, período y anulados. */
+export interface AdminGiftsListQuery {
+  branchId?: number;
+  days: 7 | 30 | 90;
+  includeVoided: boolean;
+}
+
+/**
+ * `GET /gifts` (admin, fase 215 plan 10): los regalos del período y la
+ * medición de las últimas 4 semanas (D-20, D-21). El 403 puede venir del rol,
+ * de la sede o del guard de staff: solo `error` y `message` son obligatorios.
+ */
+export const adminGiftsListSchema = {
+  querystring: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      branchId: { type: "integer", minimum: 1 },
+      days: { type: "integer", enum: [7, 30, 90], default: 7 },
+      includeVoided: { type: "boolean", default: false },
+    },
+  },
+  response: {
+    200: {
+      type: "object",
+      required: ["items", "truncated", "weeks"],
+      additionalProperties: false,
+      properties: {
+        truncated: { type: "boolean" },
+        items: {
+          type: "array",
+          items: {
+            type: "object",
+            required: [
+              "id",
+              "sessionDate",
+              "startTime",
+              "giverName",
+              "giverKind",
+              "receiverName",
+              "reason",
+              "amount",
+              "status",
+              "voidCause",
+              "voidedByName",
+            ],
+            additionalProperties: false,
+            properties: {
+              id: { type: "integer" },
+              sessionDate: { type: "string" },
+              startTime: { type: ["string", "null"] },
+              giverName: { type: "string" },
+              giverKind: { type: "string", enum: ["alumno", "profe"] },
+              receiverName: { type: "string" },
+              reason: giftReasonSchema,
+              amount: { type: "integer" },
+              status: { type: "string", enum: ["vigente", "anulado"] },
+              voidCause: { type: ["string", "null"] },
+              voidedByName: { type: ["string", "null"] },
+            },
+          },
+        },
+        weeks: {
+          type: "array",
+          items: {
+            type: "object",
+            required: [
+              "weekStart",
+              "studentGifts",
+              "coachGifts",
+              "attendees",
+              "giversPct",
+            ],
+            additionalProperties: false,
+            properties: {
+              weekStart: { type: "string" },
+              studentGifts: { type: "integer" },
+              coachGifts: { type: "integer" },
+              attendees: { type: "integer" },
+              giversPct: { type: "integer" },
+            },
+          },
+        },
+      },
+    },
+    403: {
+      type: "object",
+      required: ["error", "message"],
+      additionalProperties: false,
+      properties: {
+        error: { type: "string" },
+        message: { type: "string" },
+        code: { type: "string" },
+      },
+    },
+  },
+} as const;

@@ -247,6 +247,12 @@ const TABLES_TO_CLEAN = [
   schema.userStatusHistory,
   // Estiramiento post-clase (0340): FK a users, attendance y branches, sale antes.
   schema.stretchOffers,
+  // Foto propia (0346): FK a users (alumno y revisor), sale antes que users.
+  schema.memberPhotos,
+  // Regalos de Aura (0349): FK a users, branches y schedules, sale antes que ellos.
+  schema.auraGifts,
+  // Bandeja de avisos (0350): FK a users, sale antes que users.
+  schema.memberNotifications,
   // Histórico de recategorizaciones (0334): FK a users y branches, basura de test
   // genuina (el cron de los tests la escribe), sale antes que ambos.
   schema.branchReassignments,

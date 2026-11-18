@@ -134,7 +134,6 @@ h6,
 // Tokens del lenguaje premium (solo variables y mixins, no emite CSS)
 @import 'premium-card';
 
-
 // Override white backgrounds globally
 body {
   background-color: $brand-cream !important;
@@ -252,7 +251,7 @@ body {
 // =============================================================================
 // Staging environment marker
 // =============================================================================
-// Paint the desktop rail + header greeting Quasar blue-9 (same hue admin uses)
+// Paint the desktop rail + Mi Templo header (.mth) Quasar blue-9 (same hue admin uses)
 // so it's unmistakable you're on the non-production build. Scoped to
 // body.staging-env, added by the staging-marker boot file only when
 // VITE_APP_ENVIRONMENT=staging — production keeps the warm gold/terracotta brand.
@@ -261,7 +260,7 @@ body.staging-env {
     background: #1565c0 !important;
   }
 
-  .header-greeting {
+  .mth {
     background: #1565c0 !important;
   }
 }

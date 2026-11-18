@@ -68,17 +68,68 @@
             </q-item-section>
 
             <q-item-section side v-if="member.attendanceId">
-              <q-btn
-                flat
-                dense
-                round
-                icon="close"
-                color="negative"
-                size="sm"
-                @click="confirmRemoveCheckIn(member)"
-              >
-                <q-tooltip>Eliminar asistencia</q-tooltip>
-              </q-btn>
+              <div class="row items-center no-wrap q-gutter-xs">
+                <q-btn
+                  v-if="giftUiEnabled && member.gift?.state === 'disponible'"
+                  flat
+                  dense
+                  round
+                  icon="volunteer_activism"
+                  class="text-aura"
+                  size="sm"
+                  :aria-label="`Dar Aura a ${member.memberName}`"
+                  @click="openGift(member)"
+                >
+                  <q-tooltip>Dar Aura</q-tooltip>
+                </q-btn>
+                <!-- Con el módulo de Aura apagado en el gimnasio no hay nada de regalos, ni el botón
+                     gris (`giftUiEnabled`). Todo el staff ve el botón (#26). Quien no puede dar (no es profe de la sede de
+                     la clase: la API devuelve `gift` en null) lo ve deshabilitado con la nota. El
+                     tooltip va en el contenedor: un botón deshabilitado no recibe el puntero. -->
+                <span v-else-if="giftUiEnabled && !member.gift" data-test="gift-disabled">
+                  <q-btn
+                    flat
+                    dense
+                    round
+                    disable
+                    icon="volunteer_activism"
+                    size="sm"
+                    :aria-label="`Dar Aura a ${member.memberName}. ${giftDisabledNote}`"
+                  />
+                  <q-tooltip>{{ giftDisabledNote }}</q-tooltip>
+                </span>
+                <q-chip
+                  v-else-if="giftUiEnabled && member.gift?.state === 'dado'"
+                  dense
+                  square
+                  class="text-aura"
+                  style="background-color: #f6efdc"
+                >
+                  ✦ +{{ member.gift.amount }}
+                  <q-tooltip>{{ givenTooltip(member.gift.reason) }}</q-tooltip>
+                </q-chip>
+                <q-chip
+                  v-else-if="giftUiEnabled && member.gift?.state === 'anulado'"
+                  dense
+                  square
+                  color="grey-4"
+                  text-color="grey-9"
+                >
+                  Anulado
+                  <q-tooltip>El regalo de hoy fue anulado y no se puede volver a dar.</q-tooltip>
+                </q-chip>
+                <q-btn
+                  flat
+                  dense
+                  round
+                  icon="close"
+                  color="negative"
+                  size="sm"
+                  @click="confirmRemoveCheckIn(member)"
+                >
+                  <q-tooltip>Eliminar asistencia</q-tooltip>
+                </q-btn>
+              </div>
             </q-item-section>
           </q-item>
         </q-list>
@@ -159,6 +210,19 @@
       </q-card-section>
     </q-card>
   </q-dialog>
+
+  <!-- Fase 215: una sola instancia del diálogo del regalo del profe. -->
+  <CoachGiftDialog
+    v-if="giftTarget && coachGiftAmount !== null"
+    v-model="giftDialogOpen"
+    :member-name="giftTarget.memberName"
+    :first-name="firstNameOf(giftTarget.memberName)"
+    :attendance-id="giftTarget.attendanceId"
+    :amount="coachGiftAmount"
+    @given="onGiftGiven"
+    @already-given="onGiftAlreadyGiven"
+    @stale="onGiftStale"
+  />
 </template>
 
 <script setup lang="ts">
@@ -168,6 +232,10 @@ import { createLogger } from 'src/utils/logger';
 import { useAttendanceApi } from 'src/composables/useAttendanceApi';
 import { useSchedulingApi } from 'src/composables/useSchedulingApi';
 import { useMembersApi } from 'src/composables/useMembersApi';
+import CoachGiftDialog from 'src/components/CoachGiftDialog.vue';
+import { giftReasonLabel, type GiftReasonCode } from 'src/config/gift-reasons';
+import { COACH_ACTIVIDAD_ROLE, TEMPLO_ENABLED } from 'src/config/templo-config';
+import { useAuthStore } from 'src/stores/useAuthStore';
 import type { SlotAttendanceItem } from 'src/types/attendance';
 import type { ActivityRecord } from 'src/types/scheduling';
 
@@ -176,6 +244,7 @@ const $q = useQuasar();
 const attendanceApi = useAttendanceApi();
 const schedulingApi = useSchedulingApi();
 const membersApi = useMembersApi();
+const authStore = useAuthStore();
 
 // =========================================================================
 // Props & Emits
@@ -200,6 +269,9 @@ const emit = defineEmits<{
 
 const attendanceList = ref<SlotAttendanceItem[]>([]);
 const loadingAttendance = ref(false);
+
+// Fase 215 (D-15): lo que suma el regalo del profe. Null si quien mira no regala como profe.
+const coachGiftAmount = ref<number | null>(null);
 
 // Member search state
 interface MemberSearchOption {
@@ -289,6 +361,7 @@ async function loadAttendance() {
   try {
     const result = await attendanceApi.getSlotAttendance(props.scheduleId, props.date);
     attendanceList.value = result.members;
+    coachGiftAmount.value = result.coachGiftAmount ?? null;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
     log.error('Error loading slot attendance', { error: message });
@@ -310,6 +383,75 @@ function formatTime(dateStr: string): string {
   } catch {
     return dateStr;
   }
+}
+
+// =========================================================================
+// Regalo de Aura del profe (fase 215)
+// =========================================================================
+
+interface GiftTarget {
+  attendanceId: number;
+  memberName: string;
+}
+
+const giftDialogOpen = ref(false);
+
+/**
+ * Los regalos de Aura solo existen con el módulo prendido en el gimnasio: la misma señal que usa la
+ * app (`auraEarned` de `/auth/me`, en null con el módulo apagado). Apagado, el panel no muestra el
+ * botón de regalo ni gris, ni las marcas de regalos dados.
+ */
+const giftUiEnabled = computed(() => TEMPLO_ENABLED && authStore.auraEnabled);
+const giftTarget = ref<GiftTarget | null>(null);
+
+/**
+ * Nota del botón deshabilitado (#26). Dar Aura es de los profes con la sede de la clase; la API
+ * no cambia y sigue rechazando al resto. Un profe sin esa sede ve la nota con "de esta sede".
+ */
+const giftDisabledNote = computed(() => {
+  const role = authStore.user?.role;
+  const isCoachLike = role === 'coach' || role === COACH_ACTIVIDAD_ROLE;
+  return isCoachLike
+    ? 'Solo los profes de esta sede pueden dar Aura'
+    : 'Solo los profes pueden dar Aura';
+});
+
+function firstNameOf(fullName: string): string {
+  return fullName.trim().split(/\s+/)[0] ?? fullName;
+}
+
+function givenTooltip(reason: string | null): string {
+  return reason ? `Ya le diste Aura hoy · ${giftReasonLabel(reason)}` : 'Ya le diste Aura hoy';
+}
+
+function openGift(member: SlotAttendanceItem) {
+  if (!member.attendanceId) return;
+  giftTarget.value = { attendanceId: member.attendanceId, memberName: member.memberName };
+  giftDialogOpen.value = true;
+}
+
+function markGiftGiven(amount: number | null, reason: GiftReasonCode | null) {
+  const target = giftTarget.value;
+  if (!target) return;
+  const row = attendanceList.value.find((m) => m.attendanceId === target.attendanceId);
+  if (!row?.gift) return;
+  row.gift = {
+    state: 'dado',
+    amount: amount ?? row.gift.amount,
+    reason,
+  };
+}
+
+function onGiftGiven(payload: { amount: number; reason: GiftReasonCode }) {
+  markGiftGiven(payload.amount, payload.reason);
+}
+
+function onGiftAlreadyGiven() {
+  markGiftGiven(null, null);
+}
+
+function onGiftStale() {
+  void loadAttendance();
 }
 
 // =========================================================================
@@ -528,7 +670,7 @@ function confirmRemoveCheckIn(member: SlotAttendanceItem) {
 
   $q.dialog({
     title: 'Eliminar asistencia',
-    message: `Eliminar asistencia de ${member.memberName}? Se revertira el AURA y las clases.`,
+    message: `Eliminar asistencia de ${member.memberName}? Se revertirá el AURA y las clases, y se anulan los regalos de Aura de esa clase.`,
     cancel: { label: 'Cancelar', flat: true },
     ok: { label: 'Eliminar', color: 'negative' },
   }).onOk(async () => {

@@ -41,13 +41,14 @@ export function useAttendanceApi() {
   async function getSlotAttendance(
     scheduleId: number,
     date: string
-  ): Promise<{ members: SlotAttendanceItem[] }> {
+  ): Promise<{ members: SlotAttendanceItem[]; coachGiftAmount?: number | null }> {
     loading.value = true;
     error.value = null;
     try {
-      const { data } = await api.get<{ members: SlotAttendanceItem[] }>(
-        `/admin/attendance/slot/${scheduleId}/${date}`
-      );
+      const { data } = await api.get<{
+        members: SlotAttendanceItem[];
+        coachGiftAmount?: number | null;
+      }>(`/admin/attendance/slot/${scheduleId}/${date}`);
       return data;
     } catch (err: unknown) {
       error.value = extractError(err, 'Error cargando asistencia del horario');

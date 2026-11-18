@@ -12,6 +12,10 @@
     >
       <q-toolbar v-if="!isDesktop">
         <q-toolbar-title class="header-title">
+          <!-- Revisión 2026-11-18 (#19): el título "EL TEMPLO" no se oculta en ningún ancho. Con el
+               selector de nivel visible y menos de 480 px el selector muestra solo su ícono
+               (`compact`) y, en los celulares más angostos, el título se achica (ver los estilos
+               de `.header-title-img`) en lugar de desaparecer. -->
           <img src="/icons/icon-48.webp" alt="El Templo" class="header-logo" />
           <img
             src="/icons/el-templo-title.png"
@@ -22,42 +26,45 @@
           />
         </q-toolbar-title>
 
-        <q-btn v-if="authStore.isAuthenticated" flat round icon="person" to="/profile">
+        <!-- Fase 214 (D-55, D-62): el selector de nivel vive solo en Entrenar. -->
+        <HeaderLevelDropdown
+          v-if="showLevelSelector"
+          variant="bar"
+          :compact="isNarrowBar"
+          class="header-level-bar"
+        />
+
+        <!-- Fase 215 (D-17): de derecha a izquierda, salir, campana y perfil; los tres de 44x44. -->
+        <q-btn
+          v-if="authStore.isAuthenticated"
+          flat
+          round
+          icon="person"
+          to="/profile"
+          class="bar-btn-44"
+        >
           <q-tooltip>Mi Perfil</q-tooltip>
         </q-btn>
-        <q-btn v-if="authStore.isAuthenticated" flat round icon="logout" @click="onLogout">
+        <NotificationBell v-if="authStore.isAuthenticated" class="bar-btn-44" />
+        <q-btn
+          v-if="authStore.isAuthenticated"
+          flat
+          round
+          icon="logout"
+          class="bar-btn-44"
+          @click="onLogout"
+        >
           <q-tooltip>Cerrar sesion</q-tooltip>
         </q-btn>
       </q-toolbar>
 
-      <!-- Greeting row — desktop only (stays in sticky header) -->
-      <div v-if="isDesktop && isMiTemplo && authStore.isAuthenticated" class="header-greeting">
-        <div class="header-greeting__text">
-          <!-- Sin perfil: esqueleto, nunca "Atleta" ni una fecha en la zona por defecto (D-08). -->
-          <h1 class="header-greeting__name">
-            <q-skeleton
-              v-if="!profileReady"
-              type="text"
-              tag="span"
-              animation="none"
-              class="header-greeting__sk-name"
-            />
-            <template v-else>
-              Hola, {{ memberName }}!<VeteranSeal :since="memberSince" />
-            </template>
-          </h1>
-          <p class="header-greeting__date">
-            <q-skeleton
-              v-if="!profileReady"
-              type="text"
-              tag="span"
-              animation="none"
-              class="header-greeting__sk-date"
-            />
-            <template v-else>{{ formattedDate }}</template>
-          </p>
-        </div>
-        <HeaderLevelDropdown v-if="userStore.activeLevel" />
+      <!-- Encabezado de Mi Templo — solo escritorio (queda en el header fijo). Fase 214: el mismo
+           componente que en celular (D-27). -->
+      <div
+        v-if="isDesktop && isMiTemplo && authStore.isAuthenticated"
+        class="mi-templo-header-wrap"
+      >
+        <MiTemploHeader />
       </div>
     </q-header>
 
@@ -99,6 +106,21 @@
           <q-icon name="person" size="24px" />
           <span class="desktop-rail__label">Mi Perfil</span>
         </router-link>
+        <!-- Fase 215 (D-17, D-18): bandeja de notificaciones, entre Mi Perfil y Salir. -->
+        <router-link
+          to="/notificaciones"
+          class="desktop-rail__tab"
+          :class="{ 'desktop-rail__tab--active': route.name === 'notifications' }"
+          :aria-label="bellAriaLabel(inboxStore.unreadCount)"
+          :aria-current="route.name === 'notifications' ? 'page' : undefined"
+        >
+          <q-icon
+            :name="inboxStore.unreadCount > 0 ? 'notifications' : 'notifications_none'"
+            size="24px"
+          />
+          <span class="desktop-rail__label">Notificaciones</span>
+          <NotificationCountBadge :count="inboxStore.unreadCount" placement="rail" />
+        </router-link>
         <button class="desktop-rail__tab desktop-rail__tab--btn" @click="onLogout">
           <q-icon name="logout" size="24px" />
           <span class="desktop-rail__label">Salir</span>
@@ -107,35 +129,9 @@
     </aside>
 
     <q-page-container :class="{ 'with-desktop-rail': isDesktop }">
-      <!-- Greeting row — mobile only (scrolls with content) -->
+      <!-- Encabezado de Mi Templo — solo celular (se va con el scroll). Fase 214: un solo componente. -->
       <div v-if="!isDesktop && isMiTemplo && authStore.isAuthenticated" class="mobile-greeting">
-        <div class="header-greeting">
-          <div class="header-greeting__text">
-            <h1 class="header-greeting__name">
-              <q-skeleton
-                v-if="!profileReady"
-                type="text"
-                tag="span"
-                animation="none"
-                class="header-greeting__sk-name"
-              />
-              <template v-else>
-                Hola, {{ memberName }}!<VeteranSeal :since="memberSince" />
-              </template>
-            </h1>
-            <p class="header-greeting__date">
-              <q-skeleton
-                v-if="!profileReady"
-                type="text"
-                tag="span"
-                animation="none"
-                class="header-greeting__sk-date"
-              />
-              <template v-else>{{ formattedDate }}</template>
-            </p>
-          </div>
-          <HeaderLevelDropdown v-if="userStore.activeLevel" />
-        </div>
+        <MiTemploHeader />
       </div>
       <router-view />
     </q-page-container>
@@ -234,6 +230,7 @@ import { useNovedadesStore } from 'src/stores/useNovedadesStore'
 import { useSponsorsStore } from 'src/stores/useSponsorsStore'
 import { useTodayBookingStore } from 'src/stores/useTodayBookingStore'
 import { useStretchStore } from 'src/stores/useStretchStore'
+import { useAuraGiftsStore } from 'src/stores/useAuraGiftsStore'
 import { useCardHadContentStore } from 'src/stores/useCardHadContentStore'
 import PushPermissionDialog from 'src/components/PushPermissionDialog.vue'
 import ImprovementPromptDialog from 'src/components/ImprovementPromptDialog.vue'
@@ -241,8 +238,12 @@ import RatingPromptDialog from 'src/components/RatingPromptDialog.vue'
 import PlanExpiryDialog from 'src/components/PlanExpiryDialog.vue'
 import AvisoPromptDialog from 'src/components/AvisoPromptDialog.vue'
 import AddressPromptDialog from 'src/components/AddressPromptDialog.vue'
+import MiTemploHeader from 'src/components/MiTemploHeader.vue'
+import NotificationBell from 'src/components/NotificationBell.vue'
+import NotificationCountBadge from 'src/components/NotificationCountBadge.vue'
+import { useNotificationsInboxStore } from 'src/stores/useNotificationsInboxStore'
+import { bellAriaLabel } from 'src/utils/notifications-view'
 import HeaderLevelDropdown from 'src/modules/training/components/HeaderLevelDropdown.vue'
-import VeteranSeal from 'src/components/VeteranSeal.vue'
 import { useTipsSeenStorage } from 'src/composables/useTipsSeenStorage'
 import { TIPS_CONTENT } from 'src/config/tips-content'
 import { isNewMember } from 'src/modules/guia/new-member'
@@ -262,7 +263,9 @@ const novedadesStore = useNovedadesStore()
 const sponsorsStore = useSponsorsStore()
 const todayBookingStore = useTodayBookingStore()
 const stretchStore = useStretchStore()
+const giftsStore = useAuraGiftsStore()
 const cardFlags = useCardHadContentStore()
+const inboxStore = useNotificationsInboxStore()
 
 // Fase 193 (D-20/D-21): hidrata el número de ventas del servidor + el texto
 // por defecto de WhatsApp una vez por sesión, mismo patrón `watch` +
@@ -300,6 +303,8 @@ watch(
       // boot ya los hidrató para este socio es un no-op.
       const userId = authStore.user?.id
       if (userId !== undefined) void cardFlags.hydrate(userId)
+      // Fase 215 (D-17): contador de la campana al iniciar sesión (fail-open: nunca lanza).
+      void inboxStore.refreshCount()
     } else {
       avisosStore.reset()
       // Novedades de Mi Templo: la próxima sesión (otro socio/sede) arranca de cero.
@@ -310,10 +315,14 @@ watch(
       todayBookingStore.reset()
       // Estiramiento post-clase (fase 213): la oferta del socio anterior no se arrastra al siguiente.
       stretchStore.reset()
+      // Regalos de Aura (fase 215, T-215-21-02): los pendientes del socio anterior no se arrastran.
+      giftsStore.reset()
       // Flags "tuvo contenido" (D-02): los del socio anterior no se arrastran al siguiente.
       cardFlags.reset()
       // Stats/check-ins (fase 203): `statsLoaded` y los datos del socio anterior no se arrastran.
       progressionStore.reset()
+      // Fase 215 (T-215-19-01): el contador del socio anterior no se arrastra al siguiente.
+      inboxStore.reset()
     }
   },
   { immediate: true },
@@ -334,7 +343,11 @@ function refreshStretch(): void {
 watch(
   () => todayBookingStore.attendanceMarkedAt,
   (marked, prev) => {
-    if (prev === null && marked !== null && authStore.isAuthenticated) refreshStretch()
+    if (prev === null && marked !== null && authStore.isAuthenticated) {
+      refreshStretch()
+      // Fase 215: la asistencia recién marcada puede abrir el regalo de esa clase.
+      void giftsStore.load()
+    }
   },
 )
 
@@ -345,6 +358,8 @@ watch(
     if (authStore.isAuthenticated && (path === '/mi-templo' || path === '/reservas')) {
       void todayBookingStore.load()
     }
+    // Fase 215: al volver a Mi Templo los regalos pendientes se piden de nuevo (sin intervalos).
+    if (authStore.isAuthenticated && path === '/mi-templo') void giftsStore.load()
   },
 )
 
@@ -373,6 +388,8 @@ function onVisibilityChange(): void {
   if (document.visibilityState === 'visible' && authStore.isAuthenticated) {
     void todayBookingStore.load()
     refreshStretch()
+    // Fase 215: contador de la campana al volver a primer plano (una consulta liviana por evento).
+    void inboxStore.refreshCount()
     if (userStore.profileStale) void userStore.retryProfileLoad()
   }
 }
@@ -426,34 +443,12 @@ watch(
 
 const isDesktop = computed(() => $q.screen.width >= 768)
 const isMiTemplo = computed(() => route.path === '/mi-templo')
-
-const memberSince = computed(() => userStore.profile?.memberSince ?? null)
-
-// Fase 203 (D-08): sin perfil el saludo es un esqueleto, sin tope (el perfil lo resuelve
-// `retryProfileLoad`). "Atleta" queda solo para perfiles sin nombre.
-const profileReady = computed(() => userStore.profile !== null)
-
-const memberName = computed(() => {
-  const profile = userStore.profile
-  return profile?.firstName ?? profile?.displayName ?? 'Atleta'
-})
-
-// Formatea un 'YYYY-MM-DD' como "Hoy es <día> <n> de <mes>". Mediodía UTC +
-// timeZone 'UTC' = el día calendario exacto, sin corrimiento por zona.
-function formatGreetingDate(dateStr: string): string {
-  const date = new Date(`${dateStr}T12:00:00Z`).toLocaleDateString('es-ES', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    timeZone: 'UTC',
-  })
-  return 'Hoy es ' + date.charAt(0).toUpperCase() + date.slice(1)
-}
-
-// D-04: 'hoy' en la zona de la sede, no del teléfono (un socio de Madrid con el
-// teléfono en hora AR veía el día equivocado de 19 a 24). Sale del store del
-// turno de hoy: su reloj de 30 s cambia la fecha solo a la medianoche de la sede.
-const formattedDate = computed(() => formatGreetingDate(todayBookingStore.todayStr))
+// Fase 214 (D-55, D-62): selector de nivel en la barra de celular, solo dentro de Entrenar.
+const showLevelSelector = computed(
+  () => route.name === 'training' && authStore.isAuthenticated && userStore.activeLevel !== null,
+)
+// #19: en celulares angostos el selector muestra solo el ícono del nivel; el título no se oculta.
+const isNarrowBar = computed(() => $q.screen.width < 480)
 
 const showCheckInFab = computed(() => {
   if (!authStore.isAuthenticated) return false
@@ -622,104 +617,83 @@ async function onLogout() {
       padding-left: 200px;
     }
 
-    .header-greeting {
-      background: linear-gradient(135deg, $brand-terracotta 0%, $brand-aged-gold 100%);
+    // El degradé lo pone el propio encabezado (hereda este radio).
+    .mi-templo-header-wrap {
       border-radius: 0 0 12px 12px;
     }
   }
 }
 
 .main-header--desktop .q-toolbar,
-.main-header--desktop .header-greeting {
+.main-header--desktop .mi-templo-header-wrap {
   max-width: 630px;
   margin-left: auto;
   margin-right: auto;
 }
 
-.main-header--desktop .header-greeting {
+// En escritorio el encabezado tenía 16 arriba (en celular, 8).
+.main-header--desktop .mi-templo-header-wrap :deep(.mth) {
   padding-top: 16px;
 }
 
+// #19: ancho de la barra de celular. Fijos y sin encogerse: logo 32, selector de nivel (solo ícono
+// por debajo de 480 px, unos 52 más 4 de margen) y los tres botones de 44. El que se adapta es el
+// título: su imagen se escala dentro del espacio que queda (`object-fit: contain`), nunca se corta
+// ni se oculta. Cuentas del espacio para el título en Entrenar (con selector), con el relleno lateral
+// de la barra y el aire del título que se ajustan por debajo de 400 px:
+//   320 px: 320 - 16 - 132 - 56 - 6 - 32 - 6 = 72 px (se ve al 68 %)
+//   360 px: 360 - 16 - 132 - 56 - 6 - 32 - 6 = 112 px (alcanza el tamaño completo, 106 px)
+//   375 px: 127 px (tamaño completo)
+// Fuera de Entrenar (sin selector) sobran 56 px más.
 .header-title {
   display: flex;
   align-items: center;
   gap: 10px;
+  // El aire derecho de Quasar (12) pasa a 6: es el último espacio libre de la barra.
+  padding-right: 6px;
 }
 
 .header-title-img {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
   height: 40px;
   width: auto;
+  object-fit: contain;
+  object-position: left center;
+}
+
+@media (max-width: 399px) {
+  .header-title {
+    gap: 6px;
+  }
+
+  .main-header :deep(.q-toolbar) {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+}
+
+.header-level-bar {
+  margin-right: 4px;
+  flex-shrink: 0;
+}
+
+// Fase 215 (UI-SPEC Pantalla 3): perfil, campana y salir pasan de 42 a 44 de caja (regla de
+// tocables de 44 de la 214) y no se encogen: el que se encoge es el título.
+.bar-btn-44 {
+  min-width: 44px;
+  min-height: 44px;
+  flex-shrink: 0;
 }
 
 .header-logo {
+  flex: none;
   height: 32px;
   width: 32px;
   border-radius: 6px;
   background-color: #f5f0e8;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-
-.header-greeting {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  padding: 8px 16px 14px;
-
-  &__text {
-    flex: 1;
-  }
-
-  &__name {
-    font-family: 'Montserrat', sans-serif;
-    font-size: 22px;
-    font-weight: 600;
-    color: #fff;
-    margin: 0;
-    line-height: 1.2;
-  }
-
-  &__date {
-    font-family: 'Geologica', sans-serif;
-    font-size: 13px;
-    line-height: 1.2; // igual que el esqueleto (1.2em), así la fecha no mueve el layout al llegar
-    color: #fff;
-    margin: 2px 0 0;
-  }
-
-  // Esqueletos del saludo (D-08): anchos fijos y alto de línea del texto real (type="text" = 1.2em).
-  &__sk-name {
-    display: block; // tag="span": un div dentro de h1/p no es HTML válido
-    width: 160px;
-    max-width: 100%;
-  }
-
-  &__sk-date {
-    display: block;
-    width: 200px;
-    max-width: 100%;
-  }
-
-  &__badge {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    opacity: 1;
-    padding-bottom: 2px;
-    margin-right: 6px;
-  }
-
-  &__symbol {
-    font-size: 32px;
-    color: #fff;
-    line-height: 1;
-  }
-
-  &__level {
-    font-size: 10px;
-    color: #fff;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-  }
 }
 
 /* ------------------------------------------------------------------

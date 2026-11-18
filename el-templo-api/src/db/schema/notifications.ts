@@ -25,6 +25,8 @@ export const notificationCategoryEnum = mysqlEnum("notification_category", [
   "anuncios",
   "planes",
   "referidos",
+  // Fase 215 (ajustes, #30): push del regalo de Aura recibido, migración 0352.
+  "regalos_aura",
 ]);
 
 export const notificationStatusEnum = mysqlEnum("notification_status", [
@@ -41,10 +43,10 @@ export const devicePlatformEnum = mysqlEnum("device_platform", [
 // Pedido de Franco (2026-09-03): homogeneidad sistema/propias -- 'system'
 // son las 18 filas de TEMPLATE_SEEDS (types.ts), 'custom' las que crea el
 // admin con una condicion recetada (ver notificationTriggerTypeEnum abajo).
-export const notificationTemplateKindEnum = mysqlEnum(
-  "kind",
-  ["system", "custom"],
-);
+export const notificationTemplateKindEnum = mysqlEnum("kind", [
+  "system",
+  "custom",
+]);
 
 // Catalogo cerrado de condiciones recetadas. Fuente de verdad del
 // vocabulario + validacion de rango: src/modules/notifications/rules.ts
@@ -155,10 +157,9 @@ export const notificationTemplates = mysqlTable(
     scopeBranchIds: json("scope_branch_ids").$type<number[] | null>(),
     scopeCountries: json("scope_countries").$type<string[] | null>(),
     cooldownDays: int("cooldown_days").default(30).notNull(),
-    createdBy: int("created_by").references(
-      (): AnyMySqlColumn => users.id,
-      { onDelete: "set null" },
-    ),
+    createdBy: int("created_by").references((): AnyMySqlColumn => users.id, {
+      onDelete: "set null",
+    }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
   },
@@ -229,10 +230,9 @@ export const pendingNotifications = mysqlTable(
     // Migración 0219: ON DELETE SET NULL -- ahora se puede borrar CUALQUIER
     // template (homogéneo, también los de sistema); el histórico de
     // pending_notifications ya enviadas queda con template_id NULL.
-    templateId: int("template_id").references(
-      () => notificationTemplates.id,
-      { onDelete: "set null" },
-    ),
+    templateId: int("template_id").references(() => notificationTemplates.id, {
+      onDelete: "set null",
+    }),
     // Fix "recordatorio de clase" (2026-09-24, migración 0239): vincula la
     // fila a la reserva que la originó -- dedupe robusto del job
     // `class_reminder` (jobs/notification-cron.ts: corre cada 5 min y no debe
@@ -259,6 +259,10 @@ export const pendingNotifications = mysqlTable(
     sentAt: timestamp("sent_at"),
     errorMessage: varchar("error_message", { length: 500 }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
+    // Fase 215: tipo de aviso y referencia (id del regalo) que el barrido copia a
+    // la bandeja; NULL en filas viejas (migración 0351).
+    inboxKind: varchar("inbox_kind", { length: 32 }),
+    inboxRefId: int("inbox_ref_id"),
   },
   (table) => [
     index("idx_pending_notifications_queue").on(

@@ -74,5 +74,7 @@ export interface FreeBlockCompleteResponse {
   completionId: number
   durationSeconds: number
   auraAwarded: boolean
+  /** Lo que paga la fuente (lo manda el servidor; un servidor viejo no lo manda) */
+  auraAmount?: number
   auraAvailableToday: boolean
 }

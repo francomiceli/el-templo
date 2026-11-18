@@ -40,10 +40,7 @@ import {
   type AnticipatedBooking,
 } from "../modules/notifications/anticipated-bookings";
 import { slotFromStartTime } from "../modules/ratings/roster-attribution";
-import {
-  buildClassDateTime,
-  todayInTz,
-} from "../modules/shared/date-utils";
+import { buildClassDateTime, todayInTz } from "../modules/shared/date-utils";
 import {
   forEachActiveTenant,
   tenantWhere,
@@ -716,6 +713,19 @@ export async function runNotificationQueueTick(
     failed += r.failed;
     purged += r.purged;
   });
+
+  // Fase 215 (D-17, LO-04): la bandeja de avisos conserva 90 días. La purga es
+  // cross-tenant, así que corre UNA vez por tick y no por gimnasio. No lanza:
+  // si falla, solo se loguea.
+  try {
+    const purgedInbox = await new NotificationService(db, log).purgeOldInbox();
+    if (purgedInbox > 0) {
+      log.info({ purgedInbox }, "Old inbox notifications purged");
+    }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    log.error({ err: message }, "Inbox purge step failed");
+  }
 
   return { sent, failed, purged };
 }

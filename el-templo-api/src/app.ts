@@ -20,6 +20,7 @@ import { adminRoutes } from "./modules/admin";
 import { goalPlanRoutes } from "./modules/goal-plans";
 import { memberRoutes } from "./modules/members";
 import { leadsRoutes } from "./modules/members/leads-routes";
+import { profilePhotoMemberRoutes } from "./modules/members/profile-photo-routes";
 import {
   subscriptionRoutes,
   memberSubscriptionRoutes,
@@ -56,7 +57,7 @@ import {
 import { programRoutes } from "./modules/programs";
 import { anatomyRoutes } from "./modules/anatomy";
 import { conquerMemberRoutes, conquerAdminRoutes } from "./modules/conquer";
-import { notificationRoutes } from "./modules/notifications";
+import { inboxMemberRoutes, notificationRoutes } from "./modules/notifications";
 import { communicationsRoutes, tvAvisosRoutes } from "./modules/communications";
 import { referralMemberRoutes } from "./modules/referrals/routes";
 import { referralAdminRoutes } from "./modules/referrals/admin-routes";
@@ -283,6 +284,9 @@ export async function buildApp(opts: BuildAppOptions = {}) {
     prefix: "/api/members/attendance",
   });
 
+  // Member-facing profile photo routes (fase 214: foto propia, quitar, reportar)
+  await app.register(profilePhotoMemberRoutes, { prefix: "/api/members" });
+
   // Member-facing subscription route (read-only, no admin role required)
   await app.register(memberSubscriptionRoutes, {
     prefix: "/api/members/subscription",
@@ -441,6 +445,12 @@ export async function buildApp(opts: BuildAppOptions = {}) {
 
   // Notification routes (push notifications, preferences, admin templates)
   await app.register(notificationRoutes, { prefix: "/api/notifications" });
+
+  // Fase 215 (plan 14): bandeja de avisos de la app. Núcleo, sin `moduleScope`:
+  // funciona con el módulo de Aura apagado.
+  await app.register(inboxMemberRoutes, {
+    prefix: "/api/members/notifications",
+  });
 
   // Fase 193 — Comunicaciones. Core para todos los tenants (D-23): NO va
   // envuelto en `moduleScope`. Solo las rutas de avisos de TV se gatean por

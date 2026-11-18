@@ -9,9 +9,9 @@
       </div>
 
       <!-- Zone B: AURA reward -->
-      <div class="aura-reward">
+      <div v-if="auraAwarded > 0" class="aura-reward">
         <div class="aura-glow">
-          <span class="aura-number">+{{ auraAwarded || 50 }}</span>
+          <span class="aura-number">+{{ auraAwarded }}</span>
         </div>
         <span class="aura-label">AURA</span>
         <span class="aura-subtitle">Ganaste tu primera recompensa</span>

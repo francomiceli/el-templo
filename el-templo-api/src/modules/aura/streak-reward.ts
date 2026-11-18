@@ -29,6 +29,7 @@ import type { MySql2Database } from "drizzle-orm/mysql2";
 import type * as schema from "../../db/schema";
 import { systemSettings } from "../../db/schema";
 import type { EventMap } from "../shared/hooks";
+import { AURA_STREAK } from "./amounts";
 import { AuraService } from "./service";
 
 type DbInstance = MySql2Database<typeof schema>;
@@ -41,12 +42,14 @@ export const STREAK_SETTINGS_KEYS = {
   MILESTONE_100_AURA: "streak.milestone_100_aura",
 } as const;
 
+// Respaldo armado desde `amounts.ts`. Un override en `system_settings`
+// (claves `streak.*`) le gana a estos valores; hoy prod no tiene ninguno.
 export const STREAK_DEFAULTS = {
-  MILESTONE_7_AURA: 20,
-  MILESTONE_14_AURA: 35,
-  MILESTONE_30_AURA: 50,
-  MILESTONE_60_AURA: 100,
-  MILESTONE_100_AURA: 200,
+  MILESTONE_7_AURA: AURA_STREAK[7],
+  MILESTONE_14_AURA: AURA_STREAK[14],
+  MILESTONE_30_AURA: AURA_STREAK[30],
+  MILESTONE_60_AURA: AURA_STREAK[60],
+  MILESTONE_100_AURA: AURA_STREAK[100],
 } as const;
 
 export interface StreakMilestoneConfig {

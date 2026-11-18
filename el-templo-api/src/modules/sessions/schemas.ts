@@ -301,6 +301,7 @@ export const completeFreeBlockResponse = {
       completionId: { type: "integer" },
       durationSeconds: { type: "integer" },
       auraAwarded: { type: "boolean" },
+      auraAmount: { type: "integer" },
       auraAvailableToday: { type: "boolean" },
     },
   },

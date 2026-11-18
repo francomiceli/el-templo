@@ -15,7 +15,9 @@ import {
   ANALITICAS_ROLES,
   OFICINA_ROLES,
   TABLERO_ROLES,
+  COMUNIDAD_ROLES,
 } from 'src/config/templo-config';
+import { COMUNIDAD_TABS } from 'src/constants/comunidad';
 
 /**
  * Landing por rol al entrar en '/' (D-14). Orden CRÍTICO (Pitfall 2):
@@ -139,6 +141,26 @@ const routes: RouteRecordRaw[] = [
             'coach_actividad',
           ] as AdminRole[],
         },
+      },
+      {
+        // Fotos de perfil (fase 214, D-46) y Regalos de Aura (fase 215) viven en la página
+        // Comunidad (Gerencia), una pestaña cada una. Las rutas viejas redirigen a su pestaña por
+        // si hay enlaces guardados. Van ANTES de `alumnos/:userId` para que "fotos" y "regalos" no
+        // se tomen como un id.
+        path: 'alumnos/fotos',
+        redirect: { path: '/comunidad', query: { tab: COMUNIDAD_TABS.fotos } },
+      },
+      {
+        path: 'alumnos/regalos',
+        redirect: { path: '/comunidad', query: { tab: COMUNIDAD_TABS.regalos } },
+      },
+      {
+        // Comunidad (fase 215, ajustes): hub de pestañas como Caja. `allowedRoles` es la unión de
+        // las pestañas; cada pestaña mantiene sus roles adentro (Fotos: todo el staff, el servidor
+        // acota admin_sede; Regalos: dueño, admin y admin_sede, los profes no anulan).
+        path: 'comunidad',
+        component: () => import('pages/ComunidadPage.vue'),
+        meta: { allowedRoles: COMUNIDAD_ROLES },
       },
       {
         path: 'alumnos/:userId',

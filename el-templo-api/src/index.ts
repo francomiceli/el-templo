@@ -27,6 +27,7 @@ import { startMarketingGoogleJob } from "./jobs/marketing-google";
 import { startWeeklyBoardCloseJob } from "./jobs/weekly-board-close";
 import { startMarketingMetaJob } from "./jobs/marketing-meta";
 import { startOfficeAutoTopicsJob } from "./jobs/office-auto-topics";
+import { startFichaPhotoMirrorJob } from "./jobs/ficha-photo-mirror";
 
 async function start() {
   const app = await buildApp();
@@ -70,6 +71,9 @@ async function start() {
     startOfficeAutoTopicsJob(app.db);
     // Fase 206 (plan 07): cierre semanal del Tablero de gerencia (cron horario).
     startWeeklyBoardCloseJob(app.db);
+    // Fase 214 (plan 13): espejo privado de la foto de ficha cada 15 min (necesita
+    // `app` por el cliente R2). Barre por gimnasio activo.
+    startFichaPhotoMirrorJob(app);
     await startMarkNoShowsJob(app.db);
     await startNotificationJobs(app.db);
   } catch (err: unknown) {

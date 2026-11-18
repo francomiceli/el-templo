@@ -210,6 +210,19 @@ export const PARTNERS_ROLES: AdminRole[] = ['gestion', 'admin', 'owner'];
 export const OFICINA_ROLES: AdminRole[] = ['admin', 'owner'];
 
 /**
+ * Comunidad (fase 215, ajustes): pestaña Fotos para todo el staff (el servidor acota
+ * admin_sede) y pestaña Regalos de Aura para dueño, admin y admin_sede (los profes y la
+ * recepción no anulan regalos). Espeja los roles de cada ruta del API. El gate REAL es el API:
+ * esto solo decide nav, `meta.allowedRoles` y qué pestañas se dibujan.
+ */
+export const COMUNIDAD_FOTOS_ROLES: AdminRole[] = ALL_STAFF_ROLES;
+export const COMUNIDAD_REGALOS_ROLES: AdminRole[] = ['owner', 'admin', 'admin_sede'];
+/** "Comunidad" se muestra si el rol ve al menos una pestaña. */
+export const COMUNIDAD_ROLES: AdminRole[] = ALL_STAFF_ROLES.filter(
+  (role) => COMUNIDAD_FOTOS_ROLES.includes(role) || COMUNIDAD_REGALOS_ROLES.includes(role)
+);
+
+/**
  * Televisores de sucursal (fase 164): Dueño + coach + cuenta tv (incidente
  * 2026-09: la tele quedaba logueada con la cuenta de un coach y un cambio de
  * sedes la dejaba en 403 silencioso — la cuenta `tv` es dedicada, ve TODAS las
@@ -293,6 +306,7 @@ export interface NavItem {
    * - 'conquer': pedidos de desbloqueo sin activar (fase 201 D-12) + correcciones con video sin
    *   responder (fase 202 D-26).
    * - 'oficina': menciones sin leer + temas donde soy responsable con novedades (fase 205 D-08).
+   * - 'fotos': fotos de perfil pendientes de revisar + aprobadas con reportes (fase 214 D-45).
    */
   badge?: NavBadge;
 }
@@ -304,7 +318,8 @@ export type NavBadge =
   | 'landing-labs'
   | 'landing-franquicias'
   | 'conquer'
-  | 'oficina';
+  | 'oficina'
+  | 'fotos';
 
 export interface NavCategory {
   header: string;
@@ -332,6 +347,16 @@ export const NAV_MODEL: NavCategory[] = [
       // pelotita cuenta menciones sin leer y temas donde el usuario es responsable con actividad
       // nueva. Es genérica (no `templo`).
       { path: '/oficina', label: 'Oficina', icon: 'forum', roles: OFICINA_ROLES, badge: 'oficina' },
+      {
+        // Comunidad (fase 215, ajustes): Fotos de perfil y Regalos de Aura en una página con
+        // pestañas (como Caja con Egresos). Cada pestaña mantiene sus roles; la pelotita cuenta
+        // las fotos pendientes y reportadas (fase 214 D-45). Genérica (no `templo`).
+        path: '/comunidad',
+        label: 'Comunidad',
+        icon: 'groups',
+        roles: COMUNIDAD_ROLES,
+        badge: 'fotos',
+      },
     ],
   },
   {

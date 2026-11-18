@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sketch 031 · ronda 3 — Aura en el encabezado sin fondo oscuro</title>
+<link rel="stylesheet" href="../themes/default.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Geologica:wght@300;400;500;600;700&family=Montserrat:wght@600;700;800&family=Cinzel:wght@600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+<style>
+  :root { --page: #f2ede5; --ink: #2c2318; --ink-2: #6b6459; --terra: #96593a; --line: #e5dbcd; --sand: #f3ede4; --aura: #7d6520; --aura-tint: #f6efdc; --aura-gold: #d4b46a; --cream: #f0e6d6; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #e9e3da; font-family: 'Geologica', system-ui, sans-serif; color: var(--ink); }
+  button { font: inherit; color: inherit; border: 0; background: none; padding: 0; cursor: pointer; }
+  .material-icons { font-size: inherit; line-height: 1; vertical-align: middle; }
+  #controls { position: sticky; top: 0; z-index: 50; background: #fff; border-bottom: 1px solid #ddd; padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; font: 13px system-ui; }
+  .ctl { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+  .ctl > span { color: #555; margin-right: 4px; font-weight: 600; }
+  .ctl button { border: 1px solid #ccc; background: #fafafa; border-radius: 6px; padding: 5px 9px; }
+  .ctl button.on { background: #2c2318; color: #fff; border-color: #2c2318; }
+  .stage { display: flex; gap: 32px; justify-content: center; align-items: flex-start; padding: 24px 16px 80px; flex-wrap: wrap; }
+  .col { display: flex; flex-direction: column; align-items: center; }
+  .col-label { font: 600 13px system-ui; text-align: center; margin-bottom: 4px; }
+  .col-sub { font: 12px system-ui; color: #666; text-align: center; max-width: 360px; margin-bottom: 10px; line-height: 1.4; min-height: 84px; }
+
+  .phone { position: relative; width: var(--w, 390px); height: 600px; border-radius: 28px 28px 0 0; overflow: hidden; box-shadow: 0 0 0 10px #1d1a17, 0 20px 50px rgba(0,0,0,.25); background: var(--page); transition: width .2s; display: flex; flex-direction: column; }
+  .appbar { flex: none; height: 56px; display: flex; align-items: center; gap: 10px; padding: 0 10px 0 14px; background: linear-gradient(135deg, #96593a, #b89b5e); color: #fff; font: 800 18px 'Montserrat', sans-serif; letter-spacing: .02em; }
+  .appbar i { width: 30px; height: 30px; border-radius: 7px; background: #f2ede5; }
+  .appbar .r { margin-left: auto; display: flex; gap: 4px; }
+  .appbar .ib { width: 40px; height: 40px; display: grid; place-items: center; font-size: 24px; }
+  .greet { flex: none; display: flex; align-items: center; gap: 12px; background: linear-gradient(135deg, #96593a, #b89b5e); color: #fff; padding: 8px 16px 16px; }
+  .txt { flex: 1; min-width: 0; }
+  .name { margin: 0; font: 600 22px/1.2 'Montserrat', sans-serif; display: flex; align-items: center; gap: 6px; }
+  .since { margin: 3px 0 0; font-size: 13px; }
+  .seal { flex: none; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; color: #5b4310; background: linear-gradient(135deg, #f5dd7e, #e0b93f 55%, #b28a24); box-shadow: 0 1px 2px rgba(0,0,0,.25); }
+  .seal.terra { background: #f2ede5; color: var(--terra); }
+  .av { --s: 52px; flex: none; position: relative; width: var(--s); height: var(--s); border-radius: 50%; display: grid; place-items: center; background: rgba(255,255,255,.18); color: #fff; font: 700 18px 'Montserrat', sans-serif; box-shadow: 0 0 0 2px #f6efdc, 0 0 0 3.5px var(--aura-gold); }
+  .av img { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+  .av.add { border: 1.5px dashed rgba(255,255,255,.85); box-shadow: none; font-size: 24px; }
+  .av .bd { position: absolute; right: -4px; bottom: -4px; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: #fbf8f3; color: var(--aura); font-size: 13px; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+
+  .body { flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .tc-wrap { border-radius: 21px; padding: 1.5px; background: linear-gradient(115deg, #4a3a2b 0%, #a35f3c 30%, #f0d2b4 45%, #a35f3c 60%, #4a3a2b 100%); background-size: 250% 250%; animation: flow 7s linear infinite; box-shadow: 0 10px 24px rgba(44,35,24,.2); }
+  @keyframes flow { 0% { background-position: 0% 50% } 100% { background-position: 250% 50% } }
+  .tc { position: relative; overflow: hidden; height: 180px; padding: 18px; border-radius: 20px; background: #2c2318; color: var(--cream); }
+  .tc::after { content: ''; position: absolute; left: 18px; right: 18px; bottom: 0; height: 2px; background: linear-gradient(90deg, transparent, #a35f3c, #e9bf9b, #a35f3c, transparent); }
+  .tc small { font: 700 11px 'Cinzel', serif; letter-spacing: .16em; color: #e3c9a8; }
+  .tc b { display: block; margin-top: 8px; font: 700 22px 'Montserrat', sans-serif; }
+  .tc p { margin: 6px 0 0; font-size: 14px; color: #c9bba6; }
+  .tc .cta { position: absolute; left: 18px; bottom: 18px; height: 40px; padding: 0 22px; border-radius: 999px; display: grid; place-items: center; background: linear-gradient(135deg, #a35f3c, #7e4529); color: #fff; font-weight: 600; font-size: 14px; }
+  .ph { height: 90px; border-radius: 16px; background: #fff; border: 1px solid var(--line); padding: 14px 16px; font: 800 12px 'Montserrat', sans-serif; letter-spacing: .08em; color: var(--terra); }
+
+  /* ── tratamientos de Aura, todos sin fondo oscuro ── */
+  .aura { flex: none; display: flex; flex-direction: column; align-items: center; }
+  .aura b { font: 800 23px/1 'Montserrat', sans-serif; }
+  .aura small { margin-top: 3px; font: 700 10px 'Cinzel', serif; letter-spacing: .18em; }
+  .aura:active { transform: scale(.97); }
+
+  /* L1 · Ficha clara: marfil con filete dorado, hermana de los pop-ups claros */
+  .L1 .aura-w { flex: none; border-radius: 17px; padding: 1.5px; background: linear-gradient(125deg, #b8954a 0%, #e6cf8e 30%, #fff6da 48%, #e6cf8e 64%, #b8954a 100%); box-shadow: 0 6px 16px rgba(60,40,15,.22); }
+  .L1 .aura { position: relative; min-width: 80px; padding: 9px 16px 10px; border-radius: 16px; background: linear-gradient(180deg, #fffdf8, #f6efdc); }
+  .L1 .aura b { color: #6a5217; }
+  .L1 .aura small { color: #8a6d1f; display: flex; align-items: center; gap: 4px; }
+  .L1 .aura small::before { content: '✦'; font: 9px system-ui; letter-spacing: 0; color: #c9a227; }
+
+  /* L2 · Vidrio: translúcida sobre el degradé, como una pastilla del propio encabezado */
+  .L2 .aura { min-width: 80px; padding: 9px 16px 10px; border-radius: 16px; background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.45); backdrop-filter: blur(4px); box-shadow: inset 0 1px 0 rgba(255,255,255,.35); }
+  .L2 .aura b { color: #fff; text-shadow: 0 1px 2px rgba(80,45,20,.35); }
+  .L2 .aura small { color: #fff3d2; display: flex; align-items: center; gap: 4px; }
+  .L2 .aura small::before { content: '✦'; font: 9px system-ui; letter-spacing: 0; color: #ffe9a6; }
+
+  /* L3 · Tipográfica: sin ficha, el número va directo sobre el degradé con un filete al costado */
+  .L3 .aura { align-items: flex-end; padding: 2px 0 2px 14px; border-left: 1px solid rgba(255,255,255,.45); }
+  .L3 .aura b { font-size: 30px; color: #fff; text-shadow: 0 1px 2px rgba(80,45,20,.35); display: flex; align-items: baseline; gap: 4px; }
+  .L3 .aura b::before { content: '✦'; font: 14px system-ui; color: #ffe9a6; }
+  .L3 .aura small { color: #fff3d2; letter-spacing: .24em; }
+
+  /* L4 · Medallón: moneda marfil con canto dorado */
+  .L4 .aura { width: 66px; height: 66px; justify-content: center; border-radius: 50%; background: radial-gradient(circle at 35% 28%, #fffdf8, #f3e7c6 70%); box-shadow: 0 0 0 2px #c9a94f, 0 0 0 3.5px #f8e9b8, 0 0 0 5px #b8954a, 0 6px 14px rgba(60,40,15,.28); }
+  .L4 .aura b { font-size: 19px; color: #6a5217; }
+  .L4 .aura small { margin-top: 1px; font-size: 8.5px; color: #8a6d1f; letter-spacing: .16em; }
+  .L4 .greet { padding-right: 20px; }
+
+  /* detalle de Aura, privado y claro */
+  .veil { position: fixed; inset: 0; z-index: 80; background: rgba(44,35,24,.45); display: grid; place-items: end center; opacity: 0; pointer-events: none; transition: opacity .2s; }
+  .veil.show { opacity: 1; pointer-events: auto; }
+  .sheet { width: 390px; max-width: 100%; max-height: 88vh; overflow-y: auto; border-radius: 22px 22px 0 0; background: #fbf8f3; transform: translateY(30px); transition: transform .25s; }
+  .veil.show .sheet { transform: none; }
+  .sheet .grip { width: 40px; height: 4px; margin: 10px auto 0; border-radius: 4px; background: #d9cfc1; }
+  .hero { margin: 12px 16px 4px; border-radius: 20px; padding: 1.5px; background: linear-gradient(125deg, #b8954a 0%, #e6cf8e 30%, #fff6da 48%, #e6cf8e 64%, #b8954a 100%); }
+  .hero > div { padding: 18px 18px 16px; border-radius: 18.5px; background: linear-gradient(180deg, #fffdf8, #f6efdc); text-align: center; }
+  .hero small { font: 700 11px 'Cinzel', serif; letter-spacing: .2em; color: #8a6d1f; }
+  .hero b { display: block; margin-top: 6px; font: 800 44px/1 'Montserrat', sans-serif; color: #6a5217; }
+  .hero b i { font-style: normal; font-size: 24px; color: #c9a227; vertical-align: 8px; margin-right: 4px; }
+  .hero p { margin: 8px 0 0; font-size: 13px; color: var(--ink-2); display: flex; align-items: center; justify-content: center; gap: 6px; }
+  .sheet h4 { margin: 16px 20px 4px; font: 800 12px 'Montserrat', sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--terra); }
+  .mv { display: flex; align-items: center; gap: 12px; padding: 10px 20px; border-top: 1px solid #f1eadf; font-size: 14.5px; }
+  .mv .ic { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--sand); color: var(--terra); font-size: 18px; }
+  .mv span { flex: 1; }
+  .mv small { display: block; font-size: 12.5px; color: var(--ink-2); }
+  .mv b { font: 700 15px 'Montserrat', sans-serif; color: var(--aura); }
+  .mv b.neg { color: #a8423f; }
+  .more { display: block; width: calc(100% - 40px); margin: 12px 20px 20px; height: 42px; border-radius: 999px; border: 1.5px solid var(--terra); background: #fff; color: var(--terra); font-weight: 600; }
+</style>
+</head>
+<body>
+
+<div id="controls">
+  <div class="ctl" data-ctl="foto"><span>Foto</span>
+    <button data-v="si" class="on">Con foto</button><button data-v="no">Sin foto</button><button data-v="pend">En revisión</button>
+  </div>
+  <div class="ctl" data-ctl="pts"><span>Puntos</span>
+    <button data-v="15">15</button><button data-v="320" class="on">320</button><button data-v="1.240">1.240</button>
+  </div>
+  <div class="ctl" data-ctl="sello"><span>Sello de antigüedad</span>
+    <button data-v="oro">Dorado (hoy)</button><button data-v="terra" class="on">Sin dorado</button><button data-v="no">Sin sello</button>
+  </div>
+  <div class="ctl" data-ctl="w"><span>Ancho</span>
+    <button data-v="360">360</button><button data-v="390" class="on">390</button><button data-v="412">412</button>
+  </div>
+</div>
+
+<div class="stage">
+  <div class="col"><div class="col-label">★ L1 · Ficha clara (elegida)</div>
+    <div class="col-sub">Marfil con filete dorado y el número en dorado oscuro. Es la hermana clara de la card de hoy, como los pop-ups de la app. Resalta sobre el degradé sin sumar otra pieza oscura.</div>
+    <div class="phone L1" data-v="L1"></div></div>
+  <div class="col"><div class="col-label">L2 · Vidrio</div>
+    <div class="col-sub">Pastilla translúcida del mismo color del encabezado, con el número en blanco y la chispa dorada. Se integra tanto que casi no es una pieza aparte. Lo más discreto que sigue pareciendo tocable.</div>
+    <div class="phone L2" data-v="L2"></div></div>
+  <div class="col"><div class="col-label">L3 · Solo el número</div>
+    <div class="col-sub">Sin ficha: el número grande directo sobre el degradé, con un filete fino que lo separa del nombre. Lo más liviano y lo más grande a la vez. No parece un botón.</div>
+    <div class="phone L3" data-v="L3"></div></div>
+  <div class="col"><div class="col-label">L4 · Medallón</div>
+    <div class="col-sub">Una moneda marfil con canto dorado. Es la más "objeto": se lee como algo que tenés. Con cuatro cifras el número queda apretado (probá 1.240).</div>
+    <div class="phone L4" data-v="L4"></div></div>
+</div>
+
+<div class="veil" id="veil"><div class="sheet">
+  <div class="grip"></div>
+  <div class="hero"><div><small>TU AURA</small><b><i>✦</i><span id="tot">320</span></b><p><span class="material-icons" style="font-size:15px">lock</span>Solo vos ves este detalle</p></div></div>
+  <h4>Últimos movimientos</h4>
+  <div class="mv"><span class="ic"><span class="material-icons">how_to_reg</span></span><span>Asistencia<small>Hoy · Mario Bravo</small></span><b>+5</b></div>
+  <div class="mv"><span class="ic"><span class="material-icons">self_improvement</span></span><span>Estiramiento<small>Ayer</small></span><b>+1</b></div>
+  <div class="mv"><span class="ic"><span class="material-icons">how_to_reg</span></span><span>Asistencia<small>Ayer · Mario Bravo</small></span><b>+5</b></div>
+  <div class="mv"><span class="ic"><span class="material-icons">photo_camera</span></span><span>Foto de perfil<small>Lun 10 nov</small></span><b>+5</b></div>
+  <div class="mv"><span class="ic"><span class="material-icons">workspace_premium</span></span><span>2 años en El Templo<small>Sáb 8 nov</small></span><b>+50</b></div>
+  <div class="mv"><span class="ic"><span class="material-icons">undo</span></span><span>Asistencia anulada<small>Jue 6 nov</small></span><b class="neg">−5</b></div>
+  <div class="mv"><span class="ic"><span class="material-icons">fitness_center</span></span><span>Entrenamiento en la app<small>Mié 5 nov</small></span><b>+3</b></div>
+  <button class="more" id="close">Ver más</button>
+</div></div>
+
+<script>
+  const s = { foto: 'si', pts: '320', sello: 'terra' }
+  const seal = () => s.sello === 'no' ? '' : `<span class="seal ${s.sello === 'terra' ? 'terra' : ''}"><span class="material-icons">verified</span></span>`
+  const avatar = () => s.foto === 'si' ? `<span class="av">FM<img src="https://randomuser.me/api/portraits/men/46.jpg" alt="" onerror="this.remove()"></span>`
+    : s.foto === 'pend' ? `<span class="av">FM<span class="bd"><span class="material-icons">schedule</span></span></span>`
+    : `<span class="av add"><span class="material-icons">add_a_photo</span></span>`
+  const hint = () => s.foto === 'no' ? 'Subí tu foto y sumá 5 de Aura' : s.foto === 'pend' ? 'Foto en revisión' : '2 años y 3 meses en El Templo'
+  function ficha(v) {
+    const inner = `<button class="aura" data-aura><b>${s.pts}</b><small>AURA</small></button>`
+    return v === 'L1' ? `<div class="aura-w">${inner}</div>` : inner
+  }
+  const bar = `<div class="appbar"><i></i>EL TEMPLO<span class="r"><span class="ib"><span class="material-icons">person</span></span><span class="ib"><span class="material-icons">logout</span></span></span></div>`
+  const today = `<div class="tc-wrap"><div class="tc"><small>HOY · MARTES</small><b>Deuteros II · Tren superior</b><p>18:00 · Mario Bravo</p><span class="cta">Ver la sesión</span></div></div><div class="ph">TUS SESIONES</div>`
+  function render() {
+    document.querySelectorAll('.phone').forEach((p) => { p.innerHTML = `${bar}<div class="greet">${avatar()}<div class="txt"><h1 class="name">Franco${seal()}</h1><p class="since">${hint()}</p></div>${ficha(p.dataset.v)}</div><div class="body">${today}</div>` })
+    document.getElementById('tot').textContent = s.pts
+  }
+  document.querySelectorAll('.ctl').forEach((ctl) => ctl.addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return
+    ctl.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b))
+    if (ctl.dataset.ctl === 'w') { document.querySelectorAll('.phone').forEach((p) => p.style.setProperty('--w', b.dataset.v + 'px')); return }
+    s[ctl.dataset.ctl] = b.dataset.v; render()
+  }))
+  const veil = document.getElementById('veil')
+  document.body.addEventListener('click', (e) => { if (e.target.closest('[data-aura]')) veil.classList.add('show'); else if (e.target === veil || e.target.id === 'close') veil.classList.remove('show') })
+  render()
+</script>
+</body>
+</html>

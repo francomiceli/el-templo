@@ -127,6 +127,7 @@ export const stretchCompleteResponse = {
       completedAt: { type: "string" },
       durationSeconds: { type: ["integer", "null"] },
       auraAwarded: { type: "boolean" },
+      auraAmount: { type: "integer" },
       alreadyCompleted: { type: "boolean" },
       minutes: { type: "integer" },
     },

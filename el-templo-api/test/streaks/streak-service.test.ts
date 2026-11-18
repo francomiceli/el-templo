@@ -27,6 +27,15 @@ import {
   cleanAllTestData,
   seedApprovedSession,
 } from "../helpers";
+import { AURA_AMOUNTS } from "../../src/modules/aura/amounts";
+import { AURA_TIME_RATIO } from "../../src/modules/sessions/proposed-time";
+import {
+  STANDARD_BLOCKS,
+  cleanupFixtureExercises,
+  rolesOf,
+  seedSessionWithBlocks,
+  startedAtForRatio,
+} from "../sessions/_aura-session-fixtures";
 import * as schema from "../../src/db/schema";
 import {
   tenantWhere,
@@ -73,12 +82,6 @@ describe("Streak Service Integration", () => {
     await app.db.delete(schema.auraConfig);
     await app.db.insert(schema.auraConfig).values([
       {
-        sourceType: "training_completion",
-        defaultAmount: 10,
-        description: "Completed a training session",
-        isActive: true,
-      },
-      {
         sourceType: "streak_bonus",
         defaultAmount: 20,
         description: "Streak milestone bonus",
@@ -107,13 +110,18 @@ describe("Streak Service Integration", () => {
   });
 
   afterAll(async () => {
+    await cleanupFixtureExercises(app);
     await app.close();
   });
 
   /**
    * Helper: complete a session with a given dayId and date
    */
-  async function completeSession(dayId: string, date: string) {
+  async function completeSession(
+    dayId: string,
+    date: string,
+    opts: { startedAt?: string; blocksCompleted?: string[] } = {},
+  ) {
     return app.inject({
       method: "POST",
       url: "/api/sessions/complete",
@@ -121,9 +129,9 @@ describe("Streak Service Integration", () => {
       payload: {
         dayId,
         date,
-        startedAt: new Date().toISOString(),
+        startedAt: opts.startedAt ?? new Date().toISOString(),
         rpe: 7,
-        blocksCompleted: ["INITIUM", "NUCLEUS"],
+        blocksCompleted: opts.blocksCompleted ?? ["INITIUM", "NUCLEUS"],
       },
     });
   }
@@ -224,8 +232,17 @@ describe("Streak Service Integration", () => {
   it("awards AURA on session completion", async () => {
     const today = new Date().toISOString().split("T")[0];
 
-    // Complete a session
-    await completeSession("W1-lunes-alfa", today);
+    // Complete a session. D-20: la sesion tiene bloques y el cierre manda un
+    // inicio que alcanza el 80 % del tiempo propuesto con todos los bloques.
+    const { proposedSec } = await seedSessionWithBlocks(
+      app,
+      "W1-lunes-alfa",
+      STANDARD_BLOCKS,
+    );
+    await completeSession("W1-lunes-alfa", today, {
+      startedAt: startedAtForRatio(proposedSec, AURA_TIME_RATIO),
+      blocksCompleted: rolesOf(STANDARD_BLOCKS),
+    });
 
     // Check AURA transaction was created
     const transactions = await app.db
@@ -241,7 +258,7 @@ describe("Streak Service Integration", () => {
       (t) => t.sourceType === "training_completion",
     );
     expect(trainingTx).toBeDefined();
-    expect(trainingTx!.amount).toBe(10);
+    expect(trainingTx!.amount).toBe(AURA_AMOUNTS.training);
     expect(trainingTx!.referenceType).toBe("training_day");
 
     // Check balance
@@ -251,7 +268,7 @@ describe("Streak Service Integration", () => {
       .where(eq(schema.auraBalances.userId, memberId));
 
     expect(balance).toBeDefined();
-    expect(balance.balance).toBeGreaterThanOrEqual(10);
+    expect(balance.balance).toBeGreaterThanOrEqual(AURA_AMOUNTS.training);
   });
 
   /**

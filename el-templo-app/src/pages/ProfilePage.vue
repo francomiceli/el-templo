@@ -14,7 +14,21 @@
         </div>
       </header>
       <header v-else class="profile-head">
-        <div class="profile-head__avatar" aria-hidden="true">{{ initials }}</div>
+        <button
+          type="button"
+          class="profile-head__avatar"
+          :aria-label="photoAriaLabel"
+          @click="photoOpen = true"
+        >
+          <MemberAvatar
+            :size="64"
+            :url="shownPhotoUrl"
+            :first-name="userStore.profile.firstName ?? null"
+            :last-initial="lastInitial"
+            :badge="avatarBadge"
+            @image-error="onAvatarImageError"
+          />
+        </button>
         <div class="profile-head__info">
           <h1 class="profile-head__name">{{ userStore.fullName }}</h1>
           <p class="profile-head__email">{{ userStore.profile?.email }}</p>
@@ -101,6 +115,79 @@
         </div>
       </section>
 
+      <!-- Fase 214 (plan 27, UI-SPEC 4b): foto, visibilidad en las listas y detalle del Aura. -->
+      <section v-if="showCommunity" id="comunidad" ref="communityRef" class="profile-section">
+        <h2 class="profile-title">Comunidad</h2>
+        <div class="profile-card">
+          <button
+            v-if="userStore.profile?.photo !== undefined"
+            type="button"
+            class="profile-row profile-row--link"
+            @click="photoOpen = true"
+          >
+            <q-icon name="photo_camera" size="22px" class="profile-row__icon" aria-hidden="true" />
+            <div class="profile-row__text">
+              <span class="profile-row__label">Foto de perfil</span>
+              <span
+                class="profile-row__value profile-row__value--regular"
+                :class="{
+                  'profile-row__value--terra': photoRow.tone === 'terra',
+                  'profile-row__value--neg': photoRow.tone === 'neg',
+                }"
+                >{{ photoRow.value }}</span
+              >
+              <span class="profile-row__caption">{{ photoRow.caption }}</span>
+            </div>
+            <q-icon
+              name="chevron_right"
+              size="22px"
+              class="profile-row__chevron"
+              aria-hidden="true"
+            />
+          </button>
+          <label
+            v-if="userStore.profile?.communityVisible !== undefined"
+            ref="visibilityRowRef"
+            class="profile-row"
+            :class="{ 'profile-row--flash': visibilityFlash }"
+          >
+            <div class="profile-row__text profile-row__value--grow">
+              <span class="profile-row__value profile-row__value--regular"
+                >Aparecer en las listas de la clase</span
+              >
+              <span class="profile-row__caption">{{ VISIBILITY_CAPTION }}</span>
+            </div>
+            <q-toggle
+              :model-value="userStore.profile?.communityVisible"
+              color="primary"
+              @update:model-value="onVisibilityChange"
+            />
+          </label>
+          <button
+            v-if="auraEarned !== null"
+            type="button"
+            class="profile-row profile-row--link"
+            :aria-label="`Tu Aura: ${formatAura(auraEarned)}. Ver el detalle`"
+            @click="auraOpen = true"
+          >
+            <q-icon name="auto_awesome" size="22px" class="profile-row__icon" aria-hidden="true" />
+            <div class="profile-row__text">
+              <span class="profile-row__label">Tu Aura</span>
+              <span class="profile-row__aura">
+                <span class="profile-row__spark" aria-hidden="true">✦</span>
+                {{ formatAura(auraEarned) }}
+              </span>
+            </div>
+            <q-icon
+              name="chevron_right"
+              size="22px"
+              class="profile-row__chevron"
+              aria-hidden="true"
+            />
+          </button>
+        </div>
+      </section>
+
       <section class="profile-section">
         <h2 class="profile-title">Ajustes</h2>
         <!-- SPEC "La Guía pasa a ser las historias" (2026-09-24): se retira la entrada "Empezá acá"
@@ -178,6 +265,9 @@
         </button>
       </div>
     </div>
+
+    <ProfilePhotoSheet v-model="photoOpen" />
+    <AuraDetailSheet v-if="auraEarned !== null" v-model="auraOpen" />
 
     <!-- Dirección: mismo par de campos que el pop-up de Mi Templo, en el diálogo claro de trámites. -->
     <q-dialog v-model="showAddressDialog">
@@ -266,8 +356,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onBeforeUnmount, reactive } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, ref, onMounted, onBeforeUnmount, reactive, nextTick, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useQuasar } from 'quasar'
 import { useUserStore, MEMBER_STATE_MAX_AGE_MS } from 'stores/useUserStore'
 import { useAuthStore } from 'stores/useAuthStore'
 import { api } from 'src/boot/axios'
@@ -278,14 +369,24 @@ import { resolveProfileSubscriptionView } from 'src/utils/profile-subscription-v
 import TemploLoader from 'src/components/TemploLoader.vue'
 import PremiumDialogCard from 'src/components/PremiumDialogCard.vue'
 import AddressFields from 'src/components/AddressFields.vue'
+import MemberAvatar from 'src/components/MemberAvatar.vue'
+import ProfilePhotoSheet from 'src/components/ProfilePhotoSheet.vue'
+import AuraDetailSheet from 'src/components/AuraDetailSheet.vue'
+import { useCommunityApi } from 'src/composables/useCommunityApi'
+import { formatAura } from 'src/utils/aura-format'
 import {
-  ADDRESS_PROMPT_LOCALITY,
-  composeAddress,
-  splitAddress,
-} from 'src/utils/member-address'
+  defaultPreferences,
+  visibleNotificationCategories,
+} from 'src/utils/notification-categories'
+import { rejectionReasonLabel } from 'src/utils/photo-messages'
+import { AURA_AMOUNTS_UI } from 'src/constants/aura-amounts'
+import { ADDRESS_PROMPT_LOCALITY, composeAddress, splitAddress } from 'src/utils/member-address'
 
 const log = createLogger('ProfilePage')
+const route = useRoute()
 const router = useRouter()
+const $q = useQuasar()
+const community = useCommunityApi()
 const userStore = useUserStore()
 const authStore = useAuthStore()
 const deadline = useLoadDeadline()
@@ -303,46 +404,148 @@ const subscriptionView = computed(() =>
   }),
 )
 
-/** Iniciales del avatar (nombre y apellido). Solo se dibuja con el perfil cargado (D-08). */
-const initials = computed(() => {
-  const parts = userStore.fullName.trim().split(/\s+/)
-  const first = parts[0]?.[0] ?? ''
-  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : ''
-  return (first + last).toUpperCase()
+/** Foto propia (fase 214): la aprobada o, si solo hay una pendiente, esa con la insignia de revisión. */
+const photoState = computed(() => userStore.profile?.photo ?? null)
+const approvedUrl = computed(() => photoState.value?.url ?? null)
+const pendingUrl = computed(() => photoState.value?.pendingUrl ?? null)
+const shownPhotoUrl = computed(() => approvedUrl.value ?? pendingUrl.value)
+const lastInitial = computed(() => userStore.profile?.lastName?.trim().charAt(0) ?? null)
+const avatarBadge = computed<'review' | 'camera' | null>(() => {
+  if (pendingUrl.value) return 'review'
+  return shownPhotoUrl.value ? null : 'camera'
+})
+// Mismo texto que el encabezado de Mi Templo.
+const photoAriaLabel = computed(() => {
+  if (approvedUrl.value && pendingUrl.value) {
+    return 'Tu foto de perfil. Tenés una foto nueva en revisión'
+  }
+  if (approvedUrl.value) return 'Tu foto de perfil'
+  if (pendingUrl.value) return 'Tu foto está en revisión'
+  return 'Subí tu foto de perfil'
+})
+const photoOpen = ref(false)
+const auraOpen = ref(false)
+
+// URL firmada vencida: se vuelve a pedir `/me` una sola vez; después quedan las iniciales.
+let refetchedOnce = false
+function onAvatarImageError(): void {
+  if (refetchedOnce) return
+  refetchedOnce = true
+  void userStore.refreshProfile()
+}
+
+// Sección "Comunidad" (UI-SPEC 4b). Con una API vieja sin los campos, no se ofrece lo que no existe.
+const showCommunity = computed(() => {
+  const p = userStore.profile
+  if (!p) return false
+  return p.photo !== undefined || p.communityVisible !== undefined || userStore.auraVisible
+})
+const auraEarned = computed<number | null>(() =>
+  userStore.auraVisible ? (userStore.profile?.auraEarned ?? null) : null,
+)
+
+interface PhotoRow {
+  value: string
+  caption: string
+  tone: 'ink' | 'terra' | 'neg'
+}
+const photoRow = computed<PhotoRow>(() => {
+  const state = photoState.value
+  switch (state?.status) {
+    case 'pendiente':
+      return {
+        value: 'En revisión',
+        caption: 'La ven tus compañeros cuando la aprobemos.',
+        tone: 'ink',
+      }
+    case 'aprobada':
+      return {
+        value: 'Aprobada',
+        caption: 'Aparece en las listas de la clase.',
+        tone: 'ink',
+      }
+    case 'rechazada': {
+      // Supuesto registrado en 214-DECISIONES-AUTONOMAS.md §5 (D-69).
+      const label = rejectionReasonLabel(state.rejectionReason)
+      return {
+        value: 'No fue aprobada',
+        caption: label ? `Motivo: ${label}. Podés subir otra.` : 'Podés subir otra.',
+        tone: 'neg',
+      }
+    }
+    default:
+      return {
+        value: 'Subí tu foto',
+        caption: `La primera foto aprobada suma ${AURA_AMOUNTS_UI.profilePhoto} de Aura.`,
+        tone: 'terra',
+      }
+  }
 })
 
-// Notification categories (per D-18)
-const notificationCategories = [
-  {
-    key: 'entrenamiento',
-    label: 'Entrenamiento',
-    description: 'Recordatorios de check-in, resumen semanal',
-  },
-  {
-    key: 'programas',
-    label: 'Programas',
-    description: 'Confirmación de inscripción, avance semanal',
-  },
-  {
-    key: 'planes',
-    label: 'Planes',
-    description: 'Cuando cargamos tu plan y avisos de vencimiento',
-  },
-  {
-    key: 'anuncios',
-    label: 'Novedades',
-    description: 'Nuevas funciones y actualizaciones',
-  },
-]
+const VISIBILITY_CAPTION =
+  'Tus compañeros ven tu nombre de pila, la inicial de tu apellido, tu foto y tu Aura. Si lo apagás, vos tampoco ves quiénes van.'
+const visibilitySaving = ref(false)
+
+/** Optimista: el interruptor cambia ya; si el servidor no lo guarda, vuelve atrás (T-214-27-01). */
+async function onVisibilityChange(next: boolean): Promise<void> {
+  const previous = userStore.profile?.communityVisible
+  if (visibilitySaving.value || previous === undefined || previous === next) return
+  visibilitySaving.value = true
+  userStore.setCommunityVisible(next)
+  try {
+    await community.setVisibility(next)
+    $q.notify({
+      type: 'positive',
+      message: next ? 'Listo, ya aparecés en las listas.' : 'Listo, ya no aparecés en las listas.',
+    })
+  } catch (err: unknown) {
+    userStore.setCommunityVisible(previous)
+    log.error('No se pudo guardar la visibilidad en las listas', {
+      error: err instanceof Error ? err.message : String(err),
+    })
+    $q.notify({ type: 'negative', message: 'No pudimos guardar el cambio. Probá de nuevo.' })
+  } finally {
+    visibilitySaving.value = false
+  }
+}
+
+// Aterrizaje desde "Ocultarme" de la hoja de anotados (`/profile#comunidad`): baja a la sección,
+// enfoca el interruptor y lo resalta 2 s.
+const communityRef = ref<HTMLElement | null>(null)
+const visibilityRowRef = ref<HTMLElement | null>(null)
+const visibilityFlash = ref(false)
+let flashTimer: ReturnType<typeof setTimeout> | null = null
+let landed = false
+
+async function landOnCommunity(): Promise<void> {
+  if (landed || route.hash !== '#comunidad') return
+  await nextTick()
+  const section = communityRef.value
+  if (!section) return
+  landed = true
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  section.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' })
+  visibilityRowRef.value?.querySelector<HTMLElement>('[role="switch"], [role="checkbox"]')?.focus({
+    preventScroll: true,
+  })
+  visibilityFlash.value = true
+  flashTimer = setTimeout(() => {
+    visibilityFlash.value = false
+    flashTimer = null
+  }, 2000)
+}
+
+// La sección solo existe con el perfil cargado: se aterriza apenas aparece.
+watch(showCommunity, (visible) => {
+  if (visible) void landOnCommunity()
+})
+
+// Notification categories (per D-18; #30 suma "Regalos de Aura", solo con el módulo de Aura prendido)
+const notificationCategories = computed(() => visibleNotificationCategories(userStore.auraVisible))
 
 // Notification preferences state
 const preferencesLoading = ref(true)
-const preferences = reactive<Record<string, boolean>>({
-  entrenamiento: true,
-  programas: true,
-  planes: true,
-  anuncios: true,
-})
+const preferences = reactive<Record<string, boolean>>(defaultPreferences())
 
 async function loadPreferences() {
   preferencesLoading.value = true
@@ -458,9 +661,14 @@ onMounted(() => {
   // (dentro de la frescura no pide nada) y las preferencias no esperan a la suscripción.
   void userStore.ensureMemberState({ maxAgeMs: MEMBER_STATE_MAX_AGE_MS })
   void loadPreferences()
+  void landOnCommunity()
 })
 
-onBeforeUnmount(() => deadline.cleanup())
+onBeforeUnmount(() => {
+  deadline.cleanup()
+  community.cleanup()
+  if (flashTimer !== null) clearTimeout(flashTimer)
+})
 </script>
 
 <style scoped lang="scss">
@@ -487,20 +695,22 @@ onBeforeUnmount(() => deadline.cleanup())
   gap: 16px;
 
   &__avatar {
+    // Botón que abre la hoja de foto (UI-SPEC 4a): sin aro, la insignia sale de MemberAvatar.
     flex: none;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: block;
     width: 64px;
     height: 64px;
+    padding: 0;
+    border: 0;
     border-radius: 50%;
-    background: linear-gradient(135deg, $pd-btn-a, $pd-btn-b); // blanco encima ≥ 4.9:1
-    box-shadow: 0 6px 16px rgba(126, 69, 41, 0.25);
-    font-family: 'Montserrat', sans-serif;
-    font-size: 22px;
-    font-weight: 700;
-    letter-spacing: 0.02em;
-    color: #fff;
+    background: none;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+
+    &:focus-visible {
+      outline: 2px solid $pd-terra-ink;
+      outline-offset: 3px;
+    }
   }
 
   &__avatar-sk {
@@ -614,6 +824,37 @@ onBeforeUnmount(() => deadline.cleanup())
     &--muted {
       color: $pd-ink-2;
     }
+
+    // Filas de Comunidad (UI-SPEC 4b): valor en 400, no en 500 como las filas viejas.
+    &--regular {
+      font-weight: 400;
+    }
+
+    &--terra {
+      color: $pd-terra-ink;
+    }
+
+    &--neg {
+      color: $pd-neg-title;
+    }
+  }
+
+  // Valor de Tu Aura: número en Montserrat 700, dorado de texto sobre claro.
+  &__aura {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    color: $pd-gold-ink;
+  }
+
+  &__spark {
+    color: $pd-gold; // decorativa
+  }
+
+  // Resalte del interruptor al llegar desde "Ocultarme": contorno fijo, sin movimiento.
+  &--flash {
+    outline: 2px solid $pd-terra-ink;
+    outline-offset: -2px;
   }
 
   &__caption {

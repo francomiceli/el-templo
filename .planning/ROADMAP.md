@@ -281,45 +281,45 @@ Plans:
 **Ola 1**
 
 - [x] 188.1-01-PLAN.md — API: extracción del emisor de tokens + `POST /api/members/auth/login` scoped al tenant
-- [x] 188.1-05-PLAN.md — Kaia: esqueleto de `kaia-app/`, toolchain, paleta sin hex y manifest PWA *(incluye checkpoint humano por `workbox-build`)*
+- [x] 188.1-05-PLAN.md — Kaia: esqueleto de `kaia-app/`, toolchain, paleta sin hex y manifest PWA _(incluye checkpoint humano por `workbox-build`)_
 
-**Ola 2** *(bloqueada por la Ola 1)*
+**Ola 2** _(bloqueada por la Ola 1)_
 
 - [x] 188.1-02-PLAN.md — API: `GET /api/public/tenant/branding` + namespace `contact.*` + excepción acotada del hook pre-login
 - [x] 188.1-06-PLAN.md — Kaia: infraestructura copiada (axios con `X-Tenant-Slug`, token storage, logger, Sentry, tz) + tests
 
-**Ola 3** *(bloqueada por la Ola 2)*
+**Ola 3** _(bloqueada por la Ola 2)_
 
 - [x] 188.1-03-PLAN.md — API: contacto en el wizard de alta + `GET/PATCH /api/admin/gym/settings` con contacto y slug
 - [x] 188.1-07-PLAN.md — Kaia: proyecto nativo `org.eltemplo.kaia` (Android/iOS) + assets placeholder + `cap sync`
 - [x] 188.1-08-PLAN.md — Kaia: branding en runtime (`boot/tenant`, store de tenant, `setCssVar`, slug por hostname)
 
-**Ola 4** *(bloqueada por la Ola 3)*
+**Ola 4** _(bloqueada por la Ola 3)_
 
 - [x] 188.1-04-PLAN.md — Admin: campos de contacto en el wizard + tarjeta de código de gimnasio y contacto en Ajustes
 - [x] 188.1-09-PLAN.md — Kaia: store de auth, boot de sesión y guard puro del router + rutas
 
-**Ola 5** *(bloqueada por la Ola 4)*
+**Ola 5** _(bloqueada por la Ola 4)_
 
 - [x] 188.1-10-PLAN.md — Kaia: shell, picker de gimnasio, login, cambio de contraseña forzado y los 4 estados especiales
 
-**Ola 6** *(bloqueada por la Ola 5)*
+**Ola 6** _(bloqueada por la Ola 5)_
 
 - [x] 188.1-11-PLAN.md — Kaia: pelotitas de día, cards de ejercicio, bloques de agrupación y `RoutineView`
 
-**Ola 7** *(bloqueada por la Ola 6)*
+**Ola 7** _(bloqueada por la Ola 6)_
 
 - [x] 188.1-12-PLAN.md — Kaia: pantalla Mi rutina con banner descartable, chips, aviso de inicio futuro y empty state con WhatsApp
 
-**Ola 8** *(bloqueada por la Ola 7)*
+**Ola 8** _(bloqueada por la Ola 7)_
 
 - [x] 188.1-13-PLAN.md — Kaia: autoasignación de plantillas, historial y detalle en solo lectura
 
-**Ola 9** *(bloqueada por la Ola 8)*
+**Ola 9** _(bloqueada por la Ola 8)_
 
 - [x] 188.1-14-PLAN.md — CI/deploy de la quinta app, 4 workflows nativos, runbook del vhost y `CLAUDE.md` de 3 a 5 apps
 
-**Ola 10** *(bloqueada por la Ola 9)*
+**Ola 10** _(bloqueada por la Ola 9)_
 
 - [ ] 188.1-15-PLAN.md — Verificación integral + `188.1-UAT.md` + checkpoint humano (no auto-aprobable)
 
@@ -439,9 +439,10 @@ Plans:
 5. El menú del admin de un gimnasio cliente queda ordenado (Mi jornada, Seguimiento, Asistencia en Gestión, Planes sin sección duplicada) y el del Templo queda idéntico
 6. Un gimnasio no ve datos ni superficies del Templo en horarios/reservas; El Templo sigue exactamente igual (reservas, cancelación, check-in con reserva, no-show)
 7. Un gimnasio híbrido muestra sus horarios libres (actividades "sin reserva") en la grilla de Kaia como información, sin poder reservarlos; la llegada con QR en ese horario cuenta como llegada libre
-**Plans:** 19/19 plans ejecutados (secuenciales, worktree compartido) — UAT pendiente
+   **Plans:** 19/19 plans ejecutados (secuenciales, worktree compartido) — UAT pendiente
 
 Plans:
+
 - [x] 192.2-01-PLAN.md — módulo `clases` + migración 0251 (ON para El Templo) + base de dev `eltemplo_192_2`
 - [x] 192.2-02-PLAN.md — gate de horarios/reservas por `clases` + inventario de consumidores + manifiesto/ISO
 - [x] 192.2-03-PLAN.md — fuga de etiqueta derivada cerrada (sessions por tenant) + sin push del Templo para gimnasios
@@ -842,37 +843,37 @@ Plans:
 
 (182-183 pueden solaparse conceptualmente con 184-186: la capa de plataforma no depende del diseño del catálogo salvo el default de módulos de PLAT-03.)
 
-| Phase | Milestone | Plans Complete | Status | Completed |
-| ----- | --------- | -------------- | ------ | --------- |
-| 181. Diseño del módulo | v6.1 | 6/6 | Complete (en master) | - |
-| 182. Rol plataforma + wizard | v6.1 | ejecutada | En el tren, SIN PUSH | - |
-| 183. Panel de tenants | v6.1 | ejecutada | En el tren, SIN PUSH | - |
-| 184. Catálogo modelo + taxos | v6.1 | ejecutada | En el tren, UAT pendiente | - |
-| 185. Catálogo ciclo de vida | v6.1 | ejecutada | En el tren, UAT pendiente | - |
-| 186. Carga inicial catálogo | v6.1 | ejecutada | En el tren, SIN PUSH | - |
-| 187. Plantillas de rutina | v6.1 | ejecutada | En el tren, UAT pendiente | - |
-| 188. Asignación de rutinas | v6.1 | ejecutada | En el tren, UAT pendiente | - |
-| 188.1 Chasis de Kaia | v6.1 | 15/15 | En el tren, UAT pendiente | - |
-| 189. Ejecución y registro | v6.1 | 15/15 | En el tren, UAT 1-7 pendiente | - |
-| 190. Valoración y evolución | v6.1 | 12/12 | En el tren, UAT pendiente | - |
-| 191. Panel del profesor | v6.1 | 14/14 | En el tren, UAT pendiente | - |
-| 192. Onboarding tenant 2 | v6.1 | en curso | En el tren, UAT guiado 192-13 en curso | - |
-| 192.1 Asistencia gimnasios | v6.1 | 11/11 | En el tren, UAT pendiente | - |
-| 192.2 Clases gimnasios | v6.1 | 19/19 | En el tren, UAT pendiente | - |
-| 192.3 Workout Engine | v6.1 | 19/19 | Rama aparte, por integrar al tren | - |
-| 193. Comunicaciones | fuera | 16/17 | EN MASTER (UAT pendiente) | - |
-| 194. Invitaciones | fuera | completa | EN MASTER (UAT pendiente) | 2026-10-07 |
-| 195. Web SEO + atribución | fuera | 14/14 | EN STAGING, no en master (human_needed) | - |
-| 196. Personalizados Online | fuera | 47 planes (13 en esta lista) | ARCHIVADA (reemplazada por 201) | - |
-| 197. Entrenar en tabs + Libre | fuera | 22/23 | EN MASTER (tabs/Libre/Desafíos ocultos) | 2026-10-21 |
-| 198. AURA configurable | fuera | 0/TBD | En espera, sin planificar | - |
-| 199. Rediseño Mi Templo | fuera | 20/21 | EN MASTER (UAT parcial) | 2026-10-16 |
-| 200. Anatomía funcional | fuera | 23/23 | EN MASTER | 2026-10-22 |
-| 201. Conquer v2 | fuera | 34/35 | EN MASTER (tab oculta) | 2026-10-27 |
-| 202. Conquer tutoriales | fuera | 15/15 | EN MASTER | 2026-10-27 |
-| 203. Carga sin parpadeos | fuera | 16/17 (02 cancelado) | En master | 2026-10-28 |
-| 204. Usuarios Wellhub | fuera | 16/16 | EN MASTER | 2026-10-27 |
-| 205. Oficina | fuera | 5/5 | Código en `feat/oficina`, SIN PUSH (CI + UAT pendientes) | - |
+| Phase                         | Milestone | Plans Complete               | Status                                                   | Completed  |
+| ----------------------------- | --------- | ---------------------------- | -------------------------------------------------------- | ---------- |
+| 181. Diseño del módulo        | v6.1      | 6/6                          | Complete (en master)                                     | -          |
+| 182. Rol plataforma + wizard  | v6.1      | ejecutada                    | En el tren, SIN PUSH                                     | -          |
+| 183. Panel de tenants         | v6.1      | ejecutada                    | En el tren, SIN PUSH                                     | -          |
+| 184. Catálogo modelo + taxos  | v6.1      | ejecutada                    | En el tren, UAT pendiente                                | -          |
+| 185. Catálogo ciclo de vida   | v6.1      | ejecutada                    | En el tren, UAT pendiente                                | -          |
+| 186. Carga inicial catálogo   | v6.1      | ejecutada                    | En el tren, SIN PUSH                                     | -          |
+| 187. Plantillas de rutina     | v6.1      | ejecutada                    | En el tren, UAT pendiente                                | -          |
+| 188. Asignación de rutinas    | v6.1      | ejecutada                    | En el tren, UAT pendiente                                | -          |
+| 188.1 Chasis de Kaia          | v6.1      | 15/15                        | En el tren, UAT pendiente                                | -          |
+| 189. Ejecución y registro     | v6.1      | 15/15                        | En el tren, UAT 1-7 pendiente                            | -          |
+| 190. Valoración y evolución   | v6.1      | 12/12                        | En el tren, UAT pendiente                                | -          |
+| 191. Panel del profesor       | v6.1      | 14/14                        | En el tren, UAT pendiente                                | -          |
+| 192. Onboarding tenant 2      | v6.1      | en curso                     | En el tren, UAT guiado 192-13 en curso                   | -          |
+| 192.1 Asistencia gimnasios    | v6.1      | 11/11                        | En el tren, UAT pendiente                                | -          |
+| 192.2 Clases gimnasios        | v6.1      | 19/19                        | En el tren, UAT pendiente                                | -          |
+| 192.3 Workout Engine          | v6.1      | 19/19                        | Rama aparte, por integrar al tren                        | -          |
+| 193. Comunicaciones           | fuera     | 16/17                        | EN MASTER (UAT pendiente)                                | -          |
+| 194. Invitaciones             | fuera     | completa                     | EN MASTER (UAT pendiente)                                | 2026-10-07 |
+| 195. Web SEO + atribución     | fuera     | 14/14                        | EN STAGING, no en master (human_needed)                  | -          |
+| 196. Personalizados Online    | fuera     | 47 planes (13 en esta lista) | ARCHIVADA (reemplazada por 201)                          | -          |
+| 197. Entrenar en tabs + Libre | fuera     | 22/23                        | EN MASTER (tabs/Libre/Desafíos ocultos)                  | 2026-10-21 |
+| 198. AURA configurable        | fuera     | 0/TBD                        | En espera, sin planificar                                | -          |
+| 199. Rediseño Mi Templo       | fuera     | 20/21                        | EN MASTER (UAT parcial)                                  | 2026-10-16 |
+| 200. Anatomía funcional       | fuera     | 23/23                        | EN MASTER                                                | 2026-10-22 |
+| 201. Conquer v2               | fuera     | 34/35                        | EN MASTER (tab oculta)                                   | 2026-10-27 |
+| 202. Conquer tutoriales       | fuera     | 15/15                        | EN MASTER                                                | 2026-10-27 |
+| 203. Carga sin parpadeos      | fuera     | 16/17 (02 cancelado)         | En master                                                | 2026-10-28 |
+| 204. Usuarios Wellhub         | fuera     | 16/16                        | EN MASTER                                                | 2026-10-27 |
+| 205. Oficina                  | fuera     | 5/5                          | Código en `feat/oficina`, SIN PUSH (CI + UAT pendientes) | -          |
 
 ## Coverage
 
@@ -942,6 +943,7 @@ Plans:
 **Plans:** 23 plans (ejecución secuencial, un plan por wave)
 
 Plans:
+
 - [x] 200-01-PLAN.md — Contrato de tipos, 16 regiones, 28 músculos, glosario, grupos de alumno y validador
 - [x] 200-02-PLAN.md — Catálogo de banderas (§3.1/§3.2) y citas del Apéndice A con validación
 - [x] 200-03-PLAN.md — Relaciones de las 7 rutas PULL + ficha completa de FL
@@ -1073,6 +1075,7 @@ Plans:
 **Plans:** 16 plans (16 olas secuenciales — ejecutores comparten worktree)
 
 Plans:
+
 - [x] 204-01-PLAN.md — Migración 0300 (attendance_source += wellhub_manual, tabla wellhub_conversions) + gates de tenancy
 - [x] 204-02-PLAN.md — Helper wellhub-sources + fixtures de las 3 personas + fugas D-18 de asistencia (no-show, QR, límites)
 - [x] 204-03-PLAN.md — Fugas D-18 de reservas (límites semanal/presupuesto/bonus, regla del día) + guards del webhook
@@ -1110,6 +1113,7 @@ Plans:
 **Plans:** 10 plans (secuenciales, una wave cada uno)
 
 Plans:
+
 - [x] 206-01-PLAN.md — Esquema: `weekly_board_snapshots` + `weekly_board_leads`, migración 0319, 5 conteos de tenancy
 - [x] 206-02-PLAN.md — Calendario del Tablero (semana AR, cierres lunes/viernes, estados, ventana de leads) + moneda por país (TDD)
 - [x] 206-03-PLAN.md — Fuentes por sede 1: Embudo (sede de la clase) y Renovaciones (sede del alumno) + tests de coincidencia
@@ -1141,7 +1145,8 @@ Plans:
 **Plans:** 5 plans (secuenciales, ejecutores sonnet en worktree compartido)
 
 Plans:
-- [x] 205-01-PLAN.md — Migración 0316 (4 tablas office_*) + schema + gates de tenancy (121→125)
+
+- [x] 205-01-PLAN.md — Migración 0316 (4 tablas office\_\*) + schema + gates de tenancy (121→125)
 - [x] 205-02-PLAN.md — Servicio y 8 rutas `/api/admin/office` + manifiesto ISO-01 + tests
 - [x] 205-03-PLAN.md — Job `office-auto-topics` (3 detectores, auto-cierre, despertar dormidos) + CON-04 + tests
 - [x] 205-04-PLAN.md — Admin: menú con badge, rutas, composable, página lista+detalle, compositor con menciones, diálogo
@@ -1168,6 +1173,7 @@ Plans:
 **Plans:** 13/13 plans executed
 
 Plans:
+
 - [x] 213-01-PLAN.md — node_modules por symlink + tablas `stretch_catalog`/`stretch_offers`, semilla de la lista curada y gates de tenancy
 - [x] 213-02-PLAN.md — Regla pura de selección con la tabla de referencia del SPEC (TDD)
 - [x] 213-03-PLAN.md — Reglas puras de grupo (crc32), momento del push con tope 21:30, ventana y tope de frecuencia (TDD)
@@ -1181,6 +1187,82 @@ Plans:
 - [x] 213-11-PLAN.md — Card de Mi Templo: "Estirar" como principal + cableado y `card_seen`
 - [x] 213-12-PLAN.md — Deep link del push con la app cerrada y sin sesión
 - [x] 213-13-PLAN.md — Checklist de UAT + consulta de medición a 4 semanas + gates finales
+
+### Phase 214: Comunidad: anotados en la clase y Aura visible (fuera del milestone v6.1)
+
+**Estado (2026-11-18)**: fase EJECUTADA 32/32 en modo autónomo (pedido de Franco) + arreglos de la revisión de código (`214-REVIEW.md`: 1 alto y 3 medios corregidos, 2 aceptados). Verificación `human_needed` (`214-VERIFICATION.md`): sin gaps bloqueantes; faltan el primer CI de los tests de integración, el UAT de Franco en teléfono real (`214-UAT.md`), las consultas a producción y el segundo deploy del repaso (`deploy-2/`). Rama `feat/comunidad-anotados-aura` (worktree `et-comunidad`), migraciones 0344-0347, SIN PUSH, sin bump. Decisiones tomadas sin consultar en `214-DECISIONES-AUTONOMAS.md`. Lista para las tiendas en `.docs/TIENDAS-fase214-apple-google.md` del checkout principal.
+
+**Goal**: El alumno ve quiénes ya están anotados en la clase, y su Aura deja de ser invisible: puntos y movimientos propios, puntos al lado de cada anotado, encabezado de Mi Templo con nombre, foto, antigüedad y Aura, y foto de perfil subida por él mismo, con los valores de Aura reacomodados antes de mostrarlos
+**Depends on**: nada. Límite original "no se toca la economía de Aura", enmendado por Franco en el discuss: se cambian los montos y la escala (una clase = 5) con el historial re-valorizado, se suman 5 puntos por la foto y se apaga el descuento por Aura. Quedan FUERA los niveles de estatus y regalar Aura (fase propia, a continuación). Decisiones en `214-CONTEXT.md`
+**Success Criteria** (what must be TRUE):
+
+1. En la lista de anotados (hoja desde abajo con caras en grilla, que se abre desde el número de anotados de cada horario, sin etiquetas de profe ni Wellhub) un alumno con plan vigente ve nombre de pila, inicial del apellido, foto aprobada o iniciales y puntos de Aura de quienes tienen reserva vigente, en orden de reserva; nunca apellido completo, teléfono, sesiones de prueba, cancelados ni lista de espera
+2. Quien se oculta desde Perfil cuenta en el número, aparece agrupado como "y otros N más" y deja de ver la lista de los demás; menores y alumnos de sedes fuera de Argentina arrancan ocultos
+3. Cada usuario ve sus puntos de Aura y, en un detalle privado, sus últimos movimientos; nadie puede leer los de otro. El staff ve su Aura igual que un alumno
+4. Los valores nuevos rigen para todas las fuentes (clase 5, onboarding 5, antigüedad 15/25/50, rachas 5/10/15/25/50, app y plan a medida 3, bloque libre 2, estirar 1, foto 5), el historial está re-valorizado y los puntos que muestra la app coinciden con la suma del ledger por usuario
+5. Entrenar en la app da Aura solo si la sesión duró al menos el 80 % del tiempo propuesto y están todos los bloques, y no suma el día que el alumno asistió a clase
+6. El admin ya no ofrece el descuento por Aura
+7. El alumno sube su propia foto, queda pendiente hasta que el staff la aprueba desde el admin, y el staff puede quitarla; ninguna foto se rechaza por pesada
+8. El encabezado de Mi Templo es un solo componente (escritorio y celular) con nombre, foto, antigüedad y puntos de Aura, sin "Hola", sin fecha y sin contador de sesiones. El selector de nivel pasa a la barra de arriba, solo dentro de Entrenar
+9. Hay línea de base de 4 semanas antes de lanzar (reservas y asistencias por alumno activo por semana) y la misma medición después
+10. Funciona en teléfono real, iOS incluido
+
+**Plans:** sin planificar
+
+### Phase 215: Regalar Aura (fuera del milestone v6.1)
+
+**Estado (2026-11-18)**: fase PLANIFICADA y EJECUTADA 24/24 en modo autónomo (pedido de Franco) + arreglos de la revisión de código (`215-REVIEW.md`: 1 alto y 3 medios corregidos, 1 parcial, 3 pendientes de decisión de Franco). Verificación `human_needed` (`215-VERIFICATION.md`): 8/8 criterios conectados en el código, sin gaps bloqueantes; faltan el primer CI de los tests de integración, el UAT de Franco (`215-UAT.md`), ver las pantallas en un teléfono y probar la push real. Rama `feat/regalar-aura` (worktree `et-comunidad`, sale del tag `fase-214-ejecutada`), migraciones 0349-0351 (la 0348 queda reservada para el repaso de la 214), SIN PUSH, sin bump. Decisiones tomadas sin consultar en `215-DECISIONES-AUTONOMAS.md`.
+
+**Goal**: Una persona le da Aura a otra como reconocimiento (los alumnos a un compañero de su clase, los profes a sus alumnos del día), y quien recibe se entera por push y por una bandeja de notificaciones nueva
+**Depends on**: Fase 214 (Aura visible con la escala nueva, lista de anotados, visibilidad, detalle privado). Decisiones en `215-CONTEXT.md`
+**Success Criteria** (what must be TRUE):
+
+1. Después de una clase a la que asistió, el alumno puede darle 1 punto de Aura a un solo compañero que también asistió, desde Mi Templo, eligiendo un motivo de una lista, hasta el final del día siguiente
+2. Un alumno no puede regalarle a la misma persona más de 2 veces por semana, ni regalarle al profe
+3. El profe puede darle Aura (2 puntos, valor editable desde el admin) una vez por día a cada uno de sus alumnos de ese día, desde el panel de asistencia
+4. Regalar no le descuenta Aura a quien regala, y lo recibido aparece en el detalle privado de quien recibe
+5. Quien se ocultó de las listas no regala ni recibe
+6. Quien recibe un regalo recibe una push y lo ve en la bandeja de notificaciones de la barra de arriba, que guarda todos los avisos que la app manda de ahora en más, con marca de sin leer
+7. El staff puede anular un regalo desde el admin y el punto se descuenta
+8. Los puntos mostrados siguen coincidiendo con la suma del ledger por usuario
+
+**Plans:** 24 planes (cadena secuencial, rama `feat/regalar-aura`)
+
+Plans:
+
+- [ ] 215-01-PLAN.md — Tabla `aura_gifts` (mig 0349) y gates de tenancy
+- [ ] 215-02-PLAN.md — Bandeja `member_notifications` (mig 0350), columnas de bandeja en la cola (mig 0351) y gates
+- [ ] 215-03-PLAN.md — Reglas puras del regalo (ventana, semana, tope, montos, motivos, textos) con tests unitarios
+- [ ] 215-04-PLAN.md — Aura dentro de la transacción del regalo y elegibilidad de quién da y quién recibe
+- [ ] 215-05-PLAN.md — Servicio del regalo del alumno (pendientes, candidatos, dar) y errores con código
+- [ ] 215-06-PLAN.md — Rutas del alumno, topes, manifiesto, guard del módulo y test de integración
+- [ ] 215-07-PLAN.md — Valor del profe por gimnasio y servicio del regalo del profe
+- [ ] 215-08-PLAN.md — Rutas de admin del regalo del profe y del valor, y estado en el panel de asistencia
+- [ ] 215-09-PLAN.md — Anular regalos (admin y al deshacer una asistencia) con reversa exacta
+- [ ] 215-10-PLAN.md — Lista de regalos y medición D-21 para el staff
+- [ ] 215-11-PLAN.md — Regalos con nombre y motivo en el detalle privado de Aura
+- [ ] 215-12-PLAN.md — Bandeja: reglas puras (cursor, tipo, clave anti-duplicado) y servicio de escritura idempotente
+- [ ] 215-13-PLAN.md — Bandeja: enganche en la cola, sin push, Novedades, abrir la push y purga a 90 días, con test
+- [ ] 215-14-PLAN.md — Rutas de la bandeja con aislamiento
+- [ ] 215-15-PLAN.md — Push del regalo de punta a punta
+- [ ] 215-16-PLAN.md — App: datos y textos del regalo
+- [ ] 215-17-PLAN.md — App: datos y textos de la bandeja
+- [ ] 215-18-PLAN.md — App: pantalla Notificaciones y avatares chicos
+- [ ] 215-19-PLAN.md — App: campana en la barra y el riel, contador al día
+- [ ] 215-20-PLAN.md — App: hoja Dar Aura
+- [ ] 215-21-PLAN.md — App: oferta en la card de hoy y detalle de Aura desde el aviso
+- [ ] 215-22-PLAN.md — Admin: regalo del profe desde el panel de asistencia
+- [ ] 215-23-PLAN.md — Admin: página Regalos de Aura (valor, medición, anulación)
+- [ ] 215-24-PLAN.md — Cierre: consultas, gates finales y UAT
+
+### Phase 216: Pestaña Comunidad (fuera del milestone v6.1)
+
+**Estado (2026-11-17)**: IDEA de Franco, sin discutir. Preparar el discuss el 2026-11-18. Texto literal en la sección Deferred de `215-CONTEXT.md`.
+
+**Goal**: Provisorio: una pestaña Comunidad con las novedades arriba y, debajo, el movimiento de regalos de Aura ("tal persona le dio Aura a tal alumno", con la sede; "el profe Fran le dio Aura a…")
+**Depends on**: Fases 214 y 215
+
+**Plans:** sin planificar
 
 ---
 
@@ -1199,6 +1281,7 @@ Pedido de administración del 2026-11-10. Decisiones D-01..D-24 en `.planning/eg
 **Goal**: El ledger y las cajas guardan importes con centavos exactos de punta a punta, y cada cobro guarda la sede del alumno al momento del pago
 **Depends on**: nada. Decisiones en `207-CONTEXT.md`
 **Success Criteria**:
+
 1. Cobros, traslados, ajustes, retiros, arqueos y saldos aceptan y muestran centavos (hasta 2 decimales) en ARS y EUR
 2. Con datos enteros, Caja, Reportes, Analíticas y Tablero dan exactamente lo mismo que antes
 3. Cada cobro nuevo guarda la sede del alumno en ese momento; los históricos se completan con la sede actual; cambiar la sede de un alumno no altera los cobros pasados
@@ -1208,6 +1291,7 @@ Pedido de administración del 2026-11-10. Decisiones D-01..D-24 en `.planning/eg
 **Plans:** 12 plans (secuenciales, una wave cada uno)
 
 Plans:
+
 - [x] 207-01-PLAN.md — Base: migraciones 0327 (15 columnas a DECIMAL(14,2) + `member_branch_id`) y 0328 (backfill), schemas Drizzle, helper `shared/money.ts` y keyword Ajv `moneyTwoDecimals`
 - [x] 207-02-PLAN.md — Ledger: `TransactionService`/`BalanceService` en centavos y schemas de las rutas de transacciones (body y respuesta)
 - [x] 207-03-PLAN.md — Cajas I: saldos, saldo inicial, fondo de cambio, arqueos (gestión y cierre de jornada) y guard de efectivo
@@ -1226,6 +1310,7 @@ Plans:
 **Goal**: Las cuentas reflejan dónde está la plata: cuentas en dólares, Tesoro como efectivo sin sede, cheque como medio, y los retiros de sede entran a Caja central o Tesoro
 **Depends on**: 207
 **Success Criteria**:
+
 1. Se pueden crear cajas/cuentas en USD; los saldos y reportes por moneda incluyen USD
 2. Se puede crear el Tesoro (efectivo sin sede, una por moneda) con saldo de apertura
 3. Cheque existe como medio; hay una regla única de coherencia medio↔cuenta (efectivo solo desde efectivo/Tesoro; transferencia/débito/tarjeta/cheque solo desde banco)
@@ -1235,6 +1320,7 @@ Plans:
 **Plans:** 11 plans (secuenciales, una wave cada uno)
 
 Plans:
+
 - [x] 208-01-PLAN.md — Base: migración 0329 (`is_treasury` + `cheque`), schemas, lista única de monedas ARS/EUR/USD y regla pura medio↔cuenta
 - [x] 208-02-PLAN.md — API: cuentas en USD, alta de Tesoro (owner) con saldo de apertura, `isTreasury` en Saldos/Excel, resolver de caja por moneda
 - [x] 208-03-PLAN.md — API: aplicar la regla medio↔cuenta en egresos, traslados, cobros y resolver de caja (cheque → banco)
@@ -1252,6 +1338,7 @@ Plans:
 **Goal**: Administración registra gastos con reparto entre sedes y Casa Matriz y uno o varios pagos desde distintas cuentas, y ve lo pagado y lo imputado por mes, en una sección propia del admin
 **Depends on**: 207 (sede del alumno), 208. Decisiones en `209-CONTEXT.md`. Plata en unidades enteras (D-23)
 **Success Criteria**:
+
 1. Sección "Egresos" en Finanzas (Gastos, Por pagar, Resumen, Rubros). "Egreso" sale del diálogo de Caja
 2. Gasto: concepto, beneficiario, rubro, mes de imputación, importe entero, moneda, estimado o confirmado con historial de correcciones, links de comprobante, observaciones
 3. Reparto directo, en partes iguales entre las sedes del país o por montos. Suma exacta. Casa Matriz como destino
@@ -1264,6 +1351,7 @@ Fuera de alcance por D-24: tipo de cambio por API, repartos guardados, reparto p
 **Plans:** 17 plans (secuenciales, una wave cada uno)
 
 Plans:
+
 - [x] 209-01-PLAN.md — Base: migración 0331 (3 tablas de gastos, repartos y pagos), schema, los 5 conteos de tenancy, roles de Egresos y acciones de audit
 - [x] 209-02-PLAN.md — Contratos (`expense-types.ts`), cálculo puro con test (reparto, estado, tipo de cambio, prorrateos) y helper de sedes operativas
 - [x] 209-03-PLAN.md — Service: alta de gasto con reparto, idempotencia y auditoría + detalle con estado e historial
@@ -1287,6 +1375,7 @@ Plans:
 **Goal**: El día que arranca Egresos, el dueño deja cada cuenta bancaria en el saldo real del banco con un ajuste trazable, igual que el arqueo de apertura de Caja central y Tesoro
 **Depends on**: 209. Decisiones en `209.1-CONTEXT.md`. Sin migración
 **Success Criteria**:
+
 1. Caja → Cuentas: acción "Saldo de apertura" en cada banco activo (solo owner), con el saldo de la app y la diferencia antes de confirmar
 2. Confirmar deja el saldo exacto con un ajuste interno y rastro en audit, sin tocar historial ni corte
 3. Los cobros no cambian (Resumen de cobros, Tablero, Reportes)
@@ -1294,6 +1383,7 @@ Plans:
 **Plans:** 3 plans (secuenciales)
 
 Plans:
+
 - [x] 209.1-01-PLAN.md — API: el arqueo de apertura acepta cuentas banco (saldo según el banco, fecha del país, audit `bank_opening_balance`) + test de saldo exacto, permisos e ingresos intactos
 - [x] 209.1-02-PLAN.md — Admin: botón "Saldo de apertura" por banco activo (owner) y `ArqueoAperturaDialog` con modo banco
 - [x] 209.1-03-PLAN.md — Cierre: inventario con greps, no-regresión, gates y SUMMARY para Franco con checklist y paso operativo del día de arranque
@@ -1305,6 +1395,7 @@ Plans:
 **Goal**: Cada cuenta se puede conciliar contra el efectivo o el extracto bancario, y los cambios de moneda quedan registrados con su comisión
 **Depends on**: 209
 **Success Criteria**:
+
 1. Extracto por cuenta y período: apertura, cobros, pagos, traslados recibidos/enviados, ajustes, saldo final, con drill-down a cada movimiento y quién lo registró/corrigió y por qué
 2. "Cobros por conciliar" visible en el extracto y el Resumen, con acceso a la bandeja
 3. Cambio de moneda: entregado, recibido, comisión (gasto automático "Gastos bancarios" a Casa Matriz), cotización real a la vista
@@ -1314,6 +1405,7 @@ Plans:
 **Goal**: Owner/admin leen, por mes, el resultado y margen de cada sede y el consolidado argentino
 **Depends on**: 209
 **Success Criteria**:
+
 1. Por sede: cobros a sus alumnos (sede guardada en el cobro), costos asignados por rubro, resultado, margen ("sin base de cálculo" si no hubo cobros)
 2. Casa Matriz con sus costos; consolidado AR descuenta Casa Matriz una vez; Barcelona aparte en EUR
 3. Solo owner/admin
@@ -1324,6 +1416,7 @@ Decisiones de implementación en `211-CONTEXT.md` (2026-11-13).
 **Plans:** 6 plans (secuenciales, una wave cada uno)
 
 Plans:
+
 - [x] 211-01-PLAN.md — Contratos del Resultado, cálculo puro con test unitario (columnas, consolidado, margen, monedas) y lector nuevo de cobros a alumnos por sede en `TransactionService` (solo agregados) con su test
 - [x] 211-02-PLAN.md — API: `ExpenseResultService` sobre `computeMonth`, Excel de una hoja, `EXPENSES_RESULT_ROLES`, schemas, rutas `/expense-records/result` y `/result/export`, manifiesto ISO-01 (+2)
 - [x] 211-03-PLAN.md — Tests de la API: ISO-03 (+2 casos con control positivo) y escenario HTTP con literales (qué cobro cuenta, sede, moneda, identidades contra el Resumen y los cobros, Excel = JSON, roles, 400)
@@ -1338,6 +1431,7 @@ Plans:
 **Goal**: Administración prepara, compara, aprueba y emite la rendición mensual de cada sede con inversores, y registra sus pagos
 **Depends on**: 211
 **Success Criteria**:
+
 1. Acuerdo por sede con vigencia: participación, beneficiarios, impuestos pactados con fórmula de piezas fijas
 2. Borrador mensual con inclusión/exclusión de cada gasto con motivo y variantes comparables
 3. Aprobar congela los números (snapshot) y genera la versión breve en PDF

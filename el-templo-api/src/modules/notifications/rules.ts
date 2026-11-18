@@ -19,12 +19,14 @@
  * `countAudienceForRule` corre SOLO los pasos 1-2 (sin cooldown ni encolado)
  * para el preview del editor admin ("hoy alcanzaría N socios").
  */
-import { and, eq, gte, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, isNull, like, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { tenantWhere, type TenantContext } from "../shared/tenant";
 import { addDays, todayInTz } from "../shared/date-utils";
+import { escapeLikeTerm } from "../shared/sql-like";
+import { inboxTemplateDedupePrefix } from "./inbox-rules";
 import {
   deriveCoveredUntilBatch,
   deriveReminderCoveredUntilBatch,
@@ -569,6 +571,28 @@ export async function evaluateCustomRulesForTenant(
         ),
       );
     const recentSet = new Set(recentRows.map((r) => r.userId));
+
+    // Fase 215 (HI-01): quien no tiene push nunca deja fila en la cola, así que
+    // su cadencia se mide también en la bandeja (clave `t:<plantilla>:...`).
+    // Sin esto cada corrida del job le sumaría un aviso nuevo por día.
+    const recentInboxRows = await db
+      .select({ userId: schema.memberNotifications.userId })
+      .from(schema.memberNotifications)
+      .where(
+        and(
+          tenantWhere(schema.memberNotifications, ctx),
+          inArray(schema.memberNotifications.userId, candidateIds),
+          like(
+            schema.memberNotifications.dedupeKey,
+            `${escapeLikeTerm(inboxTemplateDedupePrefix(rule.templateKey))}%`,
+          ),
+          gte(
+            schema.memberNotifications.createdAt,
+            sql`DATE_SUB(NOW(), INTERVAL ${rule.cooldownDays} DAY)`,
+          ),
+        ),
+      );
+    for (const row of recentInboxRows) recentSet.add(row.userId);
 
     for (const userId of candidateIds) {
       if (recentSet.has(userId)) {

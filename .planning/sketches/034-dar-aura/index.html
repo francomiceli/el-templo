@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sketch 034 — Dar Aura a un compañero</title>
+<link rel="stylesheet" href="../themes/default.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Geologica:wght@300;400;500;600;700&family=Montserrat:wght@600;700;800&family=Cinzel:wght@600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+<style>
+  :root { --page: #f2ede5; --ink: #2c2318; --ink-2: #6b6459; --terra: #96593a; --line: #e5dbcd; --sand: #f3ede4; --sage: #3f6a47; --sage-tint: #e9f0e6; --aura: #6a5217; --aura-tint: #f6efdc; --aura-gold: #c9a227; --cream: #f0e6d6; --btn-a: #a35f3c; --btn-b: #7e4529; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #e9e3da; font-family: 'Geologica', system-ui, sans-serif; color: var(--ink); }
+  button { font: inherit; color: inherit; border: 0; background: none; padding: 0; cursor: pointer; }
+  .material-icons { font-size: inherit; line-height: 1; vertical-align: middle; }
+  #controls { position: sticky; top: 0; z-index: 50; background: #fff; border-bottom: 1px solid #ddd; padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; font: 13px system-ui; }
+  .ctl { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+  .ctl > span { color: #555; margin-right: 4px; font-weight: 600; }
+  .ctl button { border: 1px solid #ccc; background: #fafafa; border-radius: 6px; padding: 5px 9px; }
+  .ctl button.on { background: #2c2318; color: #fff; border-color: #2c2318; }
+  #stage { display: flex; gap: 32px; justify-content: center; align-items: flex-start; padding: 24px 16px 80px; flex-wrap: wrap; }
+  .col { display: flex; flex-direction: column; align-items: center; }
+  .col-label { font: 600 13px system-ui; text-align: center; margin-bottom: 4px; }
+  .col-sub { font: 12px system-ui; color: #666; text-align: center; max-width: 360px; margin-bottom: 10px; line-height: 1.4; min-height: 84px; }
+  .phone { position: relative; width: 390px; height: 800px; border-radius: 28px; overflow: hidden; box-shadow: 0 0 0 10px #1d1a17, 0 20px 50px rgba(0,0,0,.25); background: var(--page); display: flex; flex-direction: column; }
+  .appbar { flex: none; height: 56px; display: flex; align-items: center; gap: 10px; padding: 0 14px; background: linear-gradient(135deg, #96593a, #b89b5e); color: #fff; font: 800 18px 'Montserrat', sans-serif; }
+  .appbar i { width: 30px; height: 30px; border-radius: 7px; background: #f2ede5; }
+  .appbar .bk { font-size: 24px; display: grid; place-items: center; color: #fff; }
+  .greet { flex: none; display: flex; align-items: center; gap: 12px; padding: 8px 16px 16px; background: linear-gradient(135deg, #96593a, #b89b5e); color: #fff; }
+  .greet h1 { margin: 0; font: 600 22px 'Montserrat', sans-serif; }
+  .greet p { margin: 2px 0 0; font-size: 13px; }
+  .scroll { flex: 1; overflow-y: auto; scrollbar-width: none; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .tabbar { flex: none; height: 56px; display: flex; justify-content: space-around; align-items: center; background: linear-gradient(135deg, #7d5d42, #96593a); color: #f2ede5; font-size: 10px; }
+  .tabbar span { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .tabbar .material-icons { font-size: 24px; }
+
+  .av { --s: 56px; flex: none; position: relative; overflow: hidden; width: var(--s); height: var(--s); border-radius: 50%; display: grid; place-items: center; background: linear-gradient(135deg, #8a5236, #6b3a22); color: #fff; font: 700 calc(var(--s) * .32) 'Montserrat', sans-serif; }
+  .av img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+
+  /* card de hoy después de la clase */
+  .tc-wrap { border-radius: 21px; padding: 1.5px; background: linear-gradient(115deg, #4a3a2b 0%, #a35f3c 30%, #f0d2b4 45%, #a35f3c 60%, #4a3a2b 100%); box-shadow: 0 10px 24px rgba(44,35,24,.2); }
+  .tc { position: relative; padding: 18px; border-radius: 20px; background: #2c2318; color: var(--cream); }
+  .tc small { font: 700 11px 'Cinzel', serif; letter-spacing: .16em; color: #e3c9a8; }
+  .tc b { display: block; margin-top: 8px; font: 700 21px 'Montserrat', sans-serif; }
+  .tc p { margin: 4px 0 14px; font-size: 14px; color: #c9bba6; }
+  .tc .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .cta { height: 42px; padding: 0 20px; border-radius: 999px; display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, var(--btn-a), var(--btn-b)); color: #fff; font-weight: 600; font-size: 14.5px; }
+  .cta.ghost { background: rgba(240,230,214,.12); color: var(--cream); }
+  .cta.gold { background: linear-gradient(180deg, #fffdf8, #f6efdc); color: var(--aura); box-shadow: inset 0 0 0 1.5px #d9bf74; }
+  .cta.gold i { font-style: normal; color: var(--aura-gold); }
+  .cta[disabled] { opacity: .45; cursor: default; }
+  .done { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 10px 12px; border-radius: 14px; background: rgba(240,230,214,.1); font-size: 13.5px; }
+  .done .av { --s: 32px; }
+  .ph { height: 86px; border-radius: 16px; background: #fff; border: 1px solid var(--line); padding: 14px 16px; font: 800 12px 'Montserrat', sans-serif; letter-spacing: .08em; color: var(--terra); }
+
+  /* hoja */
+  .veil { position: absolute; inset: 0; z-index: 20; background: rgba(44,35,24,.42); opacity: 0; pointer-events: none; transition: opacity .2s; }
+  .veil.show { opacity: 1; pointer-events: auto; }
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 21; max-height: 86%; display: flex; flex-direction: column; border-radius: 22px 22px 0 0; background: #fbf8f3; box-shadow: 0 -10px 40px rgba(44,35,24,.3); transform: translateY(105%); transition: transform .28s cubic-bezier(.2,.8,.2,1); }
+  .sheet.show { transform: none; }
+  .grip { width: 40px; height: 4px; margin: 8px auto 4px; border-radius: 4px; background: #d9cfc1; }
+  .sheet header { padding: 4px 20px 12px; }
+  .sheet header small, .full small.k { font: 700 11px 'Cinzel', serif; letter-spacing: .14em; text-transform: uppercase; color: var(--terra); }
+  .sheet header h3 { margin: 2px 0 0; font: 700 19px 'Montserrat', sans-serif; }
+  .sheet header p { margin: 2px 0 0; font-size: 13.5px; color: var(--ink-2); }
+  .sheet .body { flex: 1; overflow-y: auto; padding: 0 20px 8px; }
+  .sheet footer { padding: 12px 20px 18px; border-top: 1px solid var(--line); }
+  .wide { width: 100%; height: 46px; justify-content: center; font-size: 15px; }
+  .fg { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px 6px; padding: 4px 0 10px; }
+  .cell { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; min-width: 0; padding: 6px 0; border-radius: 14px; transition: background .15s; }
+  .cell .nm { max-width: 100%; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cell.sel { background: var(--aura-tint); box-shadow: inset 0 0 0 1.5px #d9bf74; }
+  .cell.sel .av { box-shadow: 0 0 0 2px #fbf8f3, 0 0 0 4px var(--aura-gold); }
+  .cell.off { opacity: .4; cursor: default; }
+  .cell .why { font-size: 10.5px; color: var(--ink-2); }
+  h4 { margin: 14px 0 8px; font: 800 12px 'Montserrat', sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--terra); }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { height: 38px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); background: #fff; font-size: 14px; }
+  .chip.sel { background: var(--aura-tint); border-color: #d9bf74; color: var(--aura); font-weight: 600; }
+  .who { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 16px; background: #fff; border: 1px solid var(--line); }
+  .who b { font: 700 16px 'Montserrat', sans-serif; }
+  .who span { font-size: 13px; color: var(--ink-2); }
+  .who .ch { margin-left: auto; color: var(--terra); font-size: 13.5px; text-decoration: underline; text-underline-offset: 3px; }
+  .hint { margin: 10px 0 0; font-size: 12.5px; color: var(--ink-2); line-height: 1.4; }
+
+  /* C: pantalla completa por pasos */
+  .full { flex: 1; display: flex; flex-direction: column; padding: 20px 20px 18px; overflow-y: auto; }
+  .full h3 { margin: 4px 0 4px; font: 700 22px 'Montserrat', sans-serif; }
+  .full p.s { margin: 0 0 12px; font-size: 14px; color: var(--ink-2); }
+  .steps { display: flex; gap: 6px; margin-bottom: 14px; }
+  .steps i { flex: 1; height: 4px; border-radius: 4px; background: #e1d7c9; }
+  .steps i.on { background: var(--terra); }
+  .full .cta { margin-top: auto; }
+  .okv { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; padding: 24px; }
+  .okv .av { --s: 88px; box-shadow: 0 0 0 3px #fbf8f3, 0 0 0 6px var(--aura-gold); }
+  .okv h3 { margin: 12px 0 0; font: 700 22px 'Montserrat', sans-serif; }
+  .okv p { margin: 0; color: var(--ink-2); font-size: 14.5px; }
+  .okv .pill { margin-top: 4px; padding: 4px 12px; border-radius: 999px; background: var(--aura-tint); color: var(--aura); font: 700 13px 'Montserrat', sans-serif; }
+  .flash { position: absolute; left: 50%; bottom: 70px; z-index: 30; transform: translate(-50%, 20px); padding: 10px 16px; border-radius: 999px; background: #2c2318; color: var(--cream); font-size: 13.5px; white-space: nowrap; opacity: 0; transition: all .25s; pointer-events: none; }
+  .flash.show { opacity: 1; transform: translate(-50%, 0); }
+</style>
+</head>
+<body>
+
+<div id="controls">
+  <div class="ctl" data-ctl="st"><span>Estado</span>
+    <button data-v="puede" class="on">Tiene un regalo para dar</button><button data-v="dio">Ya lo dio</button><button data-v="solo">Fue el único de la clase</button>
+  </div>
+  <div class="ctl"><button id="reset" style="background:#2c2318;color:#fff;border-color:#2c2318">↺ Empezar de nuevo</button></div>
+</div>
+
+<div id="stage">
+  <div class="col"><div class="col-label">A · Hoja en dos toques</div>
+    <div class="col-sub">La card de hoy ofrece "Dale Aura a un compañero". Se abre la misma hoja de caras de "Quiénes van": tocás a una persona, elegís el motivo y confirmás. Todo en una hoja, sin salir de Mi Templo.</div>
+    <div class="phone" data-v="A"></div></div>
+  <div class="col"><div class="col-label">B · Hoja en dos pasos</div>
+    <div class="col-sub">Primero solo las caras, grandes. Al elegir a alguien la hoja cambia y muestra a esa persona arriba con los motivos abajo. Menos cosas a la vez; un toque más.</div>
+    <div class="phone" data-v="B"></div></div>
+  <div class="col"><div class="col-label">C · Pantalla completa</div>
+    <div class="col-sub">Abre una pantalla propia con dos pasos y un cierre que muestra a quién le diste Aura. Se siente más importante, y saca al alumno de Mi Templo.</div>
+    <div class="phone" data-v="C"></div></div>
+</div>
+
+<script>
+  const P = [
+    ['Sofía M.', 'women/44'], ['Nicolás R.', null], ['Camila G.', 'women/68'], ['Lucía F.', null],
+    ['Martín D.', 'men/75', 'Ya le diste 2 esta semana'], ['Juli S.', 'women/12'], ['Tomás B.', null], ['Agustina L.', 'women/26'],
+  ]
+  const WHY = ['Buena técnica', 'Constancia', 'Buena energía', 'Me ayudó']
+  const s = { st: 'puede', A: fresh(), B: fresh(), C: fresh() }
+  function fresh() { return { open: false, who: null, why: null, done: false, step: 1 } }
+  const ini = (n) => n.replace('.', '').split(' ').map((x) => x[0]).join('').toUpperCase()
+  const av = (p) => `<span class="av">${ini(p[0])}${p[1] ? `<img src="https://randomuser.me/api/portraits/${p[1]}.jpg" alt="" onerror="this.remove()">` : ''}</span>`
+  const first = (p) => p[0].split(' ')[0]
+  const tabbar = `<div class="tabbar">${[['account_balance', 'Mi Templo'], ['menu_book', 'Guía'], ['sports_mma', 'Entrenar'], ['event_available', 'Reservas'], ['card_membership', 'Planes']].map(([i, l]) => `<span><span class="material-icons">${i}</span>${l}</span>`).join('')}</div>`
+  const faces = (v) => `<div class="fg">${P.map((p, i) => `<button class="cell ${s[v].who === i ? 'sel' : ''} ${p[2] ? 'off' : ''}" ${p[2] ? '' : `data-act="who" data-i="${i}"`} data-v="${v}">${av(p)}<span class="nm">${p[0]}</span>${p[2] ? `<span class="why">${p[2]}</span>` : ''}</button>`).join('')}</div>`
+  const chips = (v) => `<div class="chips">${WHY.map((w, i) => `<button class="chip ${s[v].why === i ? 'sel' : ''}" data-act="why" data-i="${i}" data-v="${v}">${w}</button>`).join('')}</div>`
+  const ready = (v) => s[v].who !== null && s[v].why !== null
+
+  function todayCard(v) {
+    const x = s[v], gave = s.st === 'dio' || x.done
+    const p = P[x.who ?? 0]
+    const done = gave ? `<div class="done">${av(p)}<span>Le diste Aura a <b style="display:inline;font:600 13.5px Geologica">${first(p)}</b> · ${WHY[x.why ?? 2]}</span></div>` : ''
+    const btn = s.st === 'solo' ? '' : gave ? '' : `<button class="cta gold" data-act="open" data-v="${v}"><i>✦</i>Dale Aura a un compañero</button>`
+    return `<div class="tc-wrap"><div class="tc"><small>HOY · YA ENTRENASTE</small><b>Deuteros II · Tren superior</b><p>18:00 · Mario Bravo</p>
+      <div class="row"><button class="cta ghost"><span class="material-icons">self_improvement</span>Estirar</button>${btn}</div>${done}</div></div>
+      ${s.st === 'puede' && !gave ? '<p class="hint" style="margin:-2px 4px 0">Tenés un regalo de Aura por la clase de hoy. Podés darlo hasta mañana a la noche.</p>' : ''}
+      <div class="ph">TUS SESIONES</div>`
+  }
+  function sheetA() {
+    const x = s.A
+    return `<div class="veil ${x.open ? 'show' : ''}" data-act="close" data-v="A"></div><div class="sheet ${x.open ? 'show' : ''}"><div class="grip"></div>
+      <header><small>Dar Aura</small><h3>¿A quién de tu clase?</h3><p>Hoy 18:00 · elegí a una sola persona</p></header>
+      <div class="body">${faces('A')}<h4>¿Por qué?</h4>${chips('A')}<p class="hint">A ${x.who !== null ? first(P[x.who]) : 'esa persona'} le llega un aviso con tu nombre y el motivo. A vos no te descuenta nada.</p></div>
+      <footer><button class="cta wide" data-act="give" data-v="A" ${ready('A') ? '' : 'disabled'}>${ready('A') ? `Darle Aura a ${first(P[x.who])}` : 'Elegí a quién y por qué'}</button></footer></div>`
+  }
+  function sheetB() {
+    const x = s.B
+    const step1 = `<header><small>Dar Aura · 1 de 2</small><h3>¿A quién de tu clase?</h3><p>Hoy 18:00 · elegí a una sola persona</p></header><div class="body">${faces('B')}</div>`
+    const p = P[x.who ?? 0]
+    const step2 = `<header><small>Dar Aura · 2 de 2</small><h3>¿Por qué?</h3></header><div class="body"><div class="who">${av(p)}<span><b>${p[0]}</b><br><span>Va a recibir un aviso con tu nombre</span></span><button class="ch" data-act="back" data-v="B">Cambiar</button></div><h4>Elegí un motivo</h4>${chips('B')}<p class="hint">A vos no te descuenta nada.</p></div>
+      <footer><button class="cta wide" data-act="give" data-v="B" ${x.why !== null ? '' : 'disabled'}>${x.why !== null ? `Darle Aura a ${first(p)}` : 'Elegí un motivo'}</button></footer>`
+    return `<div class="veil ${x.open ? 'show' : ''}" data-act="close" data-v="B"></div><div class="sheet ${x.open ? 'show' : ''}"><div class="grip"></div>${x.step === 1 ? step1 : step2}</div>`
+  }
+  function fullC() {
+    const x = s.C, p = P[x.who ?? 0]
+    if (x.done) return `<div class="okv">${av(p)}<h3>Le diste Aura a ${first(p)}</h3><p>${WHY[x.why]}</p><span class="pill">✦ +1 para ${first(p)}</span><button class="cta" style="margin-top:22px" data-act="exit" data-v="C">Volver a Mi Templo</button></div>`
+    const steps = `<div class="steps"><i class="on"></i><i class="${x.step === 2 ? 'on' : ''}"></i></div>`
+    if (x.step === 1) return `<div class="full">${steps}<small class="k">Dar Aura</small><h3>¿A quién de tu clase?</h3><p class="s">Hoy 18:00 · Mario Bravo. Elegí a una sola persona.</p>${faces('C')}<button class="cta wide" data-act="next" data-v="C" ${x.who !== null ? '' : 'disabled'}>Seguir</button></div>`
+    return `<div class="full">${steps}<small class="k">Dar Aura</small><h3>¿Por qué a ${first(p)}?</h3><p class="s">Le llega un aviso con tu nombre y el motivo.</p><div class="who" style="margin-bottom:6px">${av(p)}<span><b>${p[0]}</b></span><button class="ch" data-act="back" data-v="C">Cambiar</button></div><h4>Elegí un motivo</h4>${chips('C')}<button class="cta wide" data-act="give" data-v="C" ${x.why !== null ? '' : 'disabled'}>${x.why !== null ? `Darle Aura a ${first(p)}` : 'Elegí un motivo'}</button></div>`
+  }
+  function phone(v) {
+    const x = s[v]
+    if (v === 'C' && x.open) return `<div class="appbar"><button class="bk" data-act="exit" data-v="C"><span class="material-icons">arrow_back</span></button>Dar Aura</div>${fullC()}`
+    const home = `<div class="appbar"><i></i>EL TEMPLO</div><div class="greet"><span class="av" style="--s:44px;box-shadow:0 0 0 2px #f6efdc,0 0 0 3.5px #d4b46a">FM<img src="https://randomuser.me/api/portraits/men/46.jpg" alt="" onerror="this.remove()"></span><div><h1>Franco</h1><p>2 años y 3 meses en El Templo</p></div></div><div class="scroll">${todayCard(v)}</div>${tabbar}`
+    return `${home}${v === 'A' ? sheetA() : v === 'B' ? sheetB() : ''}<div class="flash" data-flash></div>`
+  }
+  function render() { document.querySelectorAll('.phone').forEach((p) => { const st = p.querySelector('.sheet .body')?.scrollTop || 0; p.innerHTML = phone(p.dataset.v); const b = p.querySelector('.sheet .body'); if (b) b.scrollTop = st }) }
+  function flash(v, t) { const f = document.querySelector(`.phone[data-v="${v}"] [data-flash]`); if (!f) return; f.textContent = t; f.classList.add('show'); setTimeout(() => f.classList.remove('show'), 2000) }
+  document.getElementById('stage').addEventListener('click', (e) => {
+    const t = e.target.closest('[data-act]'); if (!t || t.disabled) return
+    const v = t.dataset.v, x = s[v], a = t.dataset.act, i = Number(t.dataset.i)
+    if (a === 'open') { x.open = true; x.step = 1 }
+    if (a === 'close') x.open = false
+    if (a === 'who') { x.who = x.who === i && v === 'A' ? null : i; if (v === 'B') x.step = 2 }
+    if (a === 'why') x.why = x.why === i ? null : i
+    if (a === 'back') { x.step = 1; x.why = null }
+    if (a === 'next') x.step = 2
+    if (a === 'exit') x.open = false
+    if (a === 'give') { x.done = true; if (v !== 'C') { x.open = false; render(); flash(v, `Le diste Aura a ${first(P[x.who])}`); return } }
+    render()
+  })
+  document.querySelector('.ctl[data-ctl="st"]').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; e.currentTarget.querySelectorAll('button').forEach((y) => y.classList.toggle('on', y === b)); s.st = b.dataset.v; s.A = fresh(); s.B = fresh(); s.C = fresh(); render() })
+  document.getElementById('reset').addEventListener('click', () => { s.A = fresh(); s.B = fresh(); s.C = fresh(); render() })
+  render()
+</script>
+</body>
+</html>

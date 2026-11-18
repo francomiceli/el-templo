@@ -31,6 +31,7 @@ import {
 } from "../helpers";
 import * as schema from "../../src/db/schema";
 import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
+import { AURA_AMOUNTS } from "../../src/modules/aura/amounts";
 import {
   TENANT_DOS,
   TENANT_TEMPLO,
@@ -230,7 +231,7 @@ describe("POST /api/admin/attendance/force — memberId de otro gimnasio", () =>
     expectAlumnoNoEncontrado(res);
   });
 
-  it("control: coach del gimnasio 2 con socio propio → 201 y AURA +10", async () => {
+  it("control: coach del gimnasio 2 con socio propio → 201 y acredita la Aura de la asistencia", async () => {
     const socioDos = gym2.socios[0].id;
     const antes = await foto(socioDos);
 
@@ -248,11 +249,11 @@ describe("POST /api/admin/attendance/force — memberId de otro gimnasio", () =>
     const despues = await foto(socioDos);
     expect(despues.attendance).toBe(antes.attendance + 1);
     expect(despues.auraTx).toBe(antes.auraTx + 1);
-    expect(despues.saldo).toBe(antes.saldo + 10);
+    expect(despues.saldo).toBe(antes.saldo + AURA_AMOUNTS.attendance);
     expect(despues.completedSessions).toBe(antes.completedSessions + 1);
   });
 
-  it("control: coach del Templo con socio del Templo → 201 y AURA +10", async () => {
+  it("control: coach del Templo con socio del Templo → 201 y acredita la Aura de la asistencia", async () => {
     const antes = await foto(temploSocioId);
     const res = await post(temploCoachToken, "/force", {
       memberId: temploSocioId,
@@ -262,7 +263,7 @@ describe("POST /api/admin/attendance/force — memberId de otro gimnasio", () =>
     expect(res.statusCode, res.body).toBe(201);
     const despues = await foto(temploSocioId);
     expect(despues.attendance).toBe(antes.attendance + 1);
-    expect(despues.saldo).toBe(SALDO_INICIAL + 10);
+    expect(despues.saldo).toBe(SALDO_INICIAL + AURA_AMOUNTS.attendance);
   });
 });
 
@@ -294,7 +295,7 @@ describe("POST /api/admin/attendance/slot/:scheduleId/:date/check-in — memberI
     expect(await foto(socioDos)).toEqual(antes);
   });
 
-  it("control: coach del gimnasio 2 con socio propio → 201 y AURA +10", async () => {
+  it("control: coach del gimnasio 2 con socio propio → 201 y acredita la Aura de la asistencia", async () => {
     const socioDos = gym2.socios[0].id;
     const antes = await foto(socioDos);
 
@@ -307,11 +308,11 @@ describe("POST /api/admin/attendance/slot/:scheduleId/:date/check-in — memberI
     expect(res.statusCode, res.body).toBe(201);
     const despues = await foto(socioDos);
     expect(despues.attendance).toBe(antes.attendance + 1);
-    expect(despues.saldo).toBe(antes.saldo + 10);
+    expect(despues.saldo).toBe(antes.saldo + AURA_AMOUNTS.attendance);
     expect(despues.bookings).toBe(antes.bookings + 1);
   });
 
-  it("control: coach del Templo con socio del Templo → 201 y AURA +10", async () => {
+  it("control: coach del Templo con socio del Templo → 201 y acredita la Aura de la asistencia", async () => {
     const antes = await foto(temploSocioId);
     const res = await post(
       temploCoachToken,
@@ -321,7 +322,7 @@ describe("POST /api/admin/attendance/slot/:scheduleId/:date/check-in — memberI
     expect(res.statusCode, res.body).toBe(201);
     const despues = await foto(temploSocioId);
     expect(despues.attendance).toBe(antes.attendance + 1);
-    expect(despues.saldo).toBe(SALDO_INICIAL + 10);
+    expect(despues.saldo).toBe(SALDO_INICIAL + AURA_AMOUNTS.attendance);
   });
 });
 

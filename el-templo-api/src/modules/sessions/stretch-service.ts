@@ -18,7 +18,7 @@
  *   upsert no-op sobre `uq_stretch_offers_tenant_user_date`.
  * - D-16: el grupo del experimento (`arm`) se fija al crear la fila.
  *
- * - D-08 (reabierta el 2026-11-12): completar acredita +5 AURA (fuente
+ * - D-08 (reabierta el 2026-11-12): completar acredita AURA (fuente
  *   `stretch`) una vez por dia local, solo por el tiempo: al menos 3 minutos
  *   medidos por el servidor entre `started_at` (ultimo ingreso al player) y
  *   `completed_at`. No hay marcado de ejercicios.
@@ -52,6 +52,7 @@ import {
   awardOncePerLocalDay,
   resolveBranchTimezone,
 } from "../aura/daily-award";
+import { AURA_AMOUNTS } from "../aura/amounts";
 import type { AuraService } from "../aura/service";
 import { buildClassDateTime, todayInTz } from "../shared/date-utils";
 import { buildVideoResolver } from "../shared/exercise-video-fallback";
@@ -106,6 +107,8 @@ export interface StretchCompleteView {
   completedAt: string;
   durationSeconds: number | null;
   auraAwarded: boolean;
+  /** Lo que paga la fuente `stretch` (`AURA_AMOUNTS.stretch`); solo se muestra si `auraAwarded` es true. */
+  auraAmount: number;
   alreadyCompleted: boolean;
   /** Minutos para la pantalla "Listo. X minutos de estiramiento". */
   minutes: number;
@@ -705,7 +708,7 @@ export class StretchService {
   /**
    * Fase 213 D-08/D-12: cierre del estiramiento.
    *
-   * Guarda `completed_at` y la duracion, y acredita +5 AURA (fuente `stretch`)
+   * Guarda `completed_at` y la duracion, y acredita AURA (fuente `stretch`, monto en `AURA_AMOUNTS.stretch`)
    * una vez por dia local si la duracion llega a `STRETCH_AURA_MIN_SECONDS`. No
    * hay marcado de ejercicios. La duracion sale de dos marcas del SERVIDOR
    * (`started_at` y `now`): el body solo trae el `offerId`.
@@ -806,6 +809,7 @@ export class StretchService {
         completedAt: now.toISOString(),
         durationSeconds,
         auraAwarded,
+        auraAmount: AURA_AMOUNTS.stretch,
         alreadyCompleted: false,
         minutes: this.minutesFor(durationSeconds, row.plannedSeconds),
       },
@@ -837,6 +841,7 @@ export class StretchService {
       sourceType: "stretch",
       referenceType: "stretch_day",
       localDate: row.localDate,
+      amount: AURA_AMOUNTS.stretch,
       description: "Estiramiento post-clase",
     });
     if (!awarded) return false;
@@ -881,6 +886,7 @@ export class StretchService {
       completedAt: (row.completedAt ?? new Date()).toISOString(),
       durationSeconds: row.durationSeconds,
       auraAwarded: row.auraAwarded,
+      auraAmount: AURA_AMOUNTS.stretch,
       alreadyCompleted,
       minutes: this.minutesFor(row.durationSeconds, row.plannedSeconds),
     };
@@ -923,7 +929,10 @@ export class StretchService {
     // La insignia del player sale de la fila del ejercicio (la que muestra el video). Se lee al
     // armar la vista, no se congela en la oferta: así también la tienen las ofertas ya creadas.
     const effortById = new Map(
-      videoRows.map((r) => [r.exerciseId, r.effort.trim().toUpperCase() || null]),
+      videoRows.map((r) => [
+        r.exerciseId,
+        r.effort.trim().toUpperCase() || null,
+      ]),
     );
 
     return {

@@ -91,6 +91,12 @@ const routes: RouteRecordRaw[] = [
         name: 'change-password',
         component: () => import('pages/ChangePasswordPage.vue'),
       },
+      // Bandeja de notificaciones (Fase 215, D-17/D-18): pantalla propia a la que lleva la campana.
+      {
+        path: 'notificaciones',
+        name: 'notifications',
+        component: () => import('pages/NotificationsPage.vue'),
+      },
       // "Activar invitación" (Fase 194, D-06): dentro del layout autenticado; el guard de
       // onboarding NO la intercepta (`onboardingExemptRoutes` en guards.ts).
       {
