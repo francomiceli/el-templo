@@ -34,11 +34,11 @@ de la fase 214 (marcadas "plan NN" sin prefijo) y suma las de la 215 con el pref
 
 Línea de base al arrancar la 215 (punta de la 214):
 
-| App | Comando (desde la carpeta de la app) | Errores de base |
-|---|---|---|
-| API | `npx tsc --noEmit` | 0 |
-| App | `/home/franco/projects/el-templo/el-templo-web/node_modules/.bin/vue-tsc --noEmit -p tsconfig.json` | 20 |
-| Admin | el mismo `vue-tsc` por ruta absoluta | 36 |
+| App   | Comando (desde la carpeta de la app)                                                                | Errores de base |
+| ----- | --------------------------------------------------------------------------------------------------- | --------------- |
+| API   | `npx tsc --noEmit`                                                                                  | 0               |
+| App   | `/home/franco/projects/el-templo/el-templo-web/node_modules/.bin/vue-tsc --noEmit -p tsconfig.json` | 20              |
+| Admin | el mismo `vue-tsc` por ruta absoluta                                                                | 36              |
 
 - Donde un plan diga "`tsc` da 0" para la app o el admin, vale "no hay errores nuevos respecto de la
   línea de base". En la API sí tiene que dar 0.
@@ -61,7 +61,7 @@ Línea de base al arrancar la 215 (punta de la 214):
   pueden correr en local.
 - (plan 02) **Tests unitarios puros: correrlos con la config unitaria**, que no usa base de datos y tarda
   menos de un segundo: desde `el-templo-api`, `npx vitest run --config vitest.config.unit.ts
-  test/unit/<archivo>.test.ts`. Solo incluye `test/unit/**`. Verificado: `test/unit/aura-amounts.test.ts`
+test/unit/<archivo>.test.ts`. Solo incluye `test/unit/**`. Verificado: `test/unit/aura-amounts.test.ts`
   da 6 de 6 en verde.
 - (plan 02) **No correr tests con la config por defecto** (`npx vitest run <archivo>` a secas): su
   `test/setup.ts` se cuelga 120 segundos provisionando la base de pruebas y deja los tests "skipped". Los
@@ -181,3 +181,7 @@ Línea de base al arrancar la 215 (punta de la 214):
 - (plan 32) Docs de cierre en esta carpeta: `214-ANUNCIO.md` (Borrador 7, título de la push sin definir: lo elige Franco), `214-UAT.md` (94 casillas), `214-GATES-FINALES.md` (tabla de consultas 04 a 08). Falta la lista para tiendas (D-67) en `.docs/` del checkout principal, que solo recuerda la sección 12 del UAT.
 - (plan 32) Trampa: `pnpm typecheck:tests` de la API imprime un bloque de texto sin líneas `error TS`; leer "Deuda NUEVA" (hoy 18 discrepancias contra su baseline, deuda ajena, `attendance.test.ts` ya traía el import duplicado). La API no tiene `pnpm lint`: su gate es `lint:tenant`.
 - (plan 32) Trampa: prettier reescribe las tablas de los `.md`; correrlo antes de `git add`. Los tests de integración de la fase nunca corrieron en local: se validan en el primer push a staging (requiere OK de Franco). Control posterior del plan 32: API 0, sin código tocado, sin cambios en dependencias, sin push.
+- (215-01) Tabla nueva `aura_gifts` (mig 0349, `schema/aura-gifts.ts`, registrada en `tenant-tables.ts`). Una tabla gym-owned nueva mueve los conteos fijos (136 a 137 gym-owned, 141 a 142 en el schema) y obliga a tocar `TABLES_TO_CLEAN` y `limpiarSegundoGimnasio`; los planes siguientes no deberían agregar tablas sin repetir eso.
+- (215-01) Los NULL no chocan en los UNIQUE: el servicio debe llenar siempre `coach_gift_date` cuando `giver_kind = 'profe'` y `giver_attendance_id` cuando el que regala es alumno. Un regalo anulado sigue ocupando su UNIQUE, así que nunca se borra la fila (se marca anulada).
+- (215-01) Todo insert en `aura_gifts` va con `tenantValues` y cada `.where(...)` lleva `tenantWhere` literal adentro (los gates de tenancy lo buscan en el texto). No hay FK a `attendance`: los tests pueden usar ids de asistencia arbitrarios.
+- (215-01) Control posterior del plan 01: API 0, `lint:tenant` 0, app y admin no tocados, sin cambios en dependencias, sin push; la 0349 está libre en origin/master y origin/staging y su SQL no tiene `;` en comentarios.
