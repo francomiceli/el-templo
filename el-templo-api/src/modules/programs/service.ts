@@ -107,7 +107,8 @@ export class ProgramsService {
     return rows.map((r) => ({
       ...r,
       auraWeeklyBonus: r.auraWeeklyBonus ?? AURA_AMOUNTS.programWeekDefault,
-      auraCompletionBonus: r.auraCompletionBonus ?? AURA_AMOUNTS.programCompletionDefault,
+      auraCompletionBonus:
+        r.auraCompletionBonus ?? AURA_AMOUNTS.programCompletionDefault,
       createdAt: r.createdAt.toISOString(),
     }));
   }
@@ -196,8 +197,10 @@ export class ProgramsService {
       description: program.description,
       durationWeeks: program.durationWeeks,
       sessionsPerWeekToAdvance: program.sessionsPerWeekToAdvance,
-      auraWeeklyBonus: program.auraWeeklyBonus ?? AURA_AMOUNTS.programWeekDefault,
-      auraCompletionBonus: program.auraCompletionBonus ?? AURA_AMOUNTS.programCompletionDefault,
+      auraWeeklyBonus:
+        program.auraWeeklyBonus ?? AURA_AMOUNTS.programWeekDefault,
+      auraCompletionBonus:
+        program.auraCompletionBonus ?? AURA_AMOUNTS.programCompletionDefault,
       goalPlanType: program.goalPlanType,
       isActive: program.isActive,
       createdAt: program.createdAt.toISOString(),
@@ -886,8 +889,10 @@ export class ProgramsService {
     }
 
     const program = programRows[0];
-    const auraWeeklyBonus = program.auraWeeklyBonus ?? AURA_AMOUNTS.programWeekDefault;
-    const auraCompletionBonus = program.auraCompletionBonus ?? AURA_AMOUNTS.programCompletionDefault;
+    const auraWeeklyBonus =
+      program.auraWeeklyBonus ?? AURA_AMOUNTS.programWeekDefault;
+    const auraCompletionBonus =
+      program.auraCompletionBonus ?? AURA_AMOUNTS.programCompletionDefault;
 
     // 3. Increment sessionsCompletedThisWeek
     const newSessionCount = enrollment.sessionsCompletedThisWeek + 1;

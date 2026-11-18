@@ -43,6 +43,7 @@ import {
   notWellhubAttendanceSql,
   notWellhubBookingSql,
 } from "../shared/wellhub-sources";
+import { AURA_AMOUNTS } from "../aura/amounts";
 import { AuraService } from "../aura/service";
 import { CheckInService } from "../check-ins/service";
 import type { DayCheckIn } from "../check-ins/types";
@@ -388,7 +389,7 @@ export class AttendanceService {
       sourceType: "attendance",
       referenceType: "attendance",
       referenceId: recordId,
-      amount: 10,
+      amount: AURA_AMOUNTS.attendance,
       description: "Asistencia confirmada",
     });
 
@@ -520,7 +521,7 @@ export class AttendanceService {
    *
    * Bypasses all enforcement (subscription, overdue, weekly, monthly).
    * Creates attendance with source="manual" and status="confirmado".
-   * Awards 10 AURA immediately. Still decrements classesRemaining to keep budget accurate.
+   * Awards the attendance AURA immediately. Still decrements classesRemaining to keep budget accurate.
    *
    * Fase 173 (D-02, plan 173-07): `ctx` PRIMERO, se propaga a
    * `recordPresencialSession` y `getRecordById` (no hay lectura propia de
@@ -560,7 +561,7 @@ export class AttendanceService {
       sourceType: "attendance",
       referenceType: "attendance",
       referenceId: recordId,
-      amount: 10,
+      amount: AURA_AMOUNTS.attendance,
       description: "Asistencia confirmada (manual)",
     });
 
@@ -1038,7 +1039,7 @@ export class AttendanceService {
       sourceType: "attendance",
       referenceType: "attendance",
       referenceId: recordId,
-      amount: 10,
+      amount: AURA_AMOUNTS.attendance,
       description: reason
         ? `Asistencia manual: ${reason}`
         : "Asistencia confirmada (manual)",
@@ -1294,11 +1295,11 @@ export class AttendanceService {
         );
     }
 
-    // Reverse AURA: spend 10 AURA as a reversal
+    // Reverse AURA: descuenta lo que vale una asistencia
     try {
       await this.auraService.spend({
         userId: attRecord.memberId,
-        amount: 10,
+        amount: AURA_AMOUNTS.attendanceReversal,
         description: `Reversa asistencia #${attendanceId}`,
         referenceType: "attendance_reversal",
       });
@@ -1400,7 +1401,7 @@ export class AttendanceService {
    * from real online/autonomous sessions. Best-effort: failures are logged
    * but do not bubble up (the check-in itself already succeeded).
    *
-   * No AURA is awarded here — the check-in path already grants 10 AURA via
+   * No AURA is awarded here — the check-in path already grants AURA via
    * sourceType='attendance', and we don't want presencial members to get
    * double credit.
    *

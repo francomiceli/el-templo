@@ -3,6 +3,7 @@ import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import { memberProfiles, onboardingAnalytics } from "../../db/schema";
 import { users } from "../../db/schema/users";
+import { AURA_AMOUNTS } from "../aura/amounts";
 import type { AuraService } from "../aura/service";
 import type * as schema from "../../db/schema";
 import {
@@ -62,15 +63,17 @@ export class OnboardingService {
       }),
     );
 
-    // Award 50 AURA (per D-22)
+    // Aura del onboarding (fase 214 D-19)
     let auraAwarded = 0;
     try {
-      auraAwarded = await this.auraService.award({
+      await this.auraService.award({
         userId: input.userId,
         sourceType: "onboarding_completion",
-        amount: 50,
+        amount: AURA_AMOUNTS.onboarding,
         description: "Onboarding quiz completed",
       });
+      // `award` devuelve el saldo: el monto acreditado es la constante.
+      auraAwarded = AURA_AMOUNTS.onboarding;
     } catch (err: unknown) {
       // AURA failure should not fail onboarding (graceful degradation)
       this.log?.error(
@@ -166,16 +169,18 @@ export class OnboardingService {
         .where(and(tenantWhere(users, ctx), eq(users.id, input.userId)));
     }
 
-    // Award 50 AURA only on first completion (graceful degradation)
+    // Aura del onboarding (fase 214 D-19), solo la primera vez (graceful degradation)
     let auraAwarded = 0;
     if (!isRepeat) {
       try {
-        auraAwarded = await this.auraService.award({
+        await this.auraService.award({
           userId: input.userId,
           sourceType: "onboarding_completion",
-          amount: 50,
+          amount: AURA_AMOUNTS.onboarding,
           description: "Onboarding quiz completed",
         });
+        // `award` devuelve el saldo: el monto acreditado es la constante.
+        auraAwarded = AURA_AMOUNTS.onboarding;
       } catch (err: unknown) {
         this.log?.error(
           { err, userId: input.userId },
