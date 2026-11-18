@@ -1211,7 +1211,7 @@ Plans:
 
 ### Phase 215: Regalar Aura (fuera del milestone v6.1)
 
-**Estado (2026-11-17)**: discuss CERRADO, 22 decisiones en `215-CONTEXT.md`. Se planifica cuando la 214 esté ejecutada. Depende de la 214 sin mergear: por ahora los documentos viven en la rama `feat/comunidad-anotados-aura` (worktree `et-comunidad`). SIN PUSH.
+**Estado (2026-11-18)**: fase PLANIFICADA y EJECUTADA 24/24 en modo autónomo (pedido de Franco) + arreglos de la revisión de código (`215-REVIEW.md`: 1 alto y 3 medios corregidos, 1 parcial, 3 pendientes de decisión de Franco). Verificación `human_needed` (`215-VERIFICATION.md`): 8/8 criterios conectados en el código, sin gaps bloqueantes; faltan el primer CI de los tests de integración, el UAT de Franco (`215-UAT.md`), ver las pantallas en un teléfono y probar la push real. Rama `feat/regalar-aura` (worktree `et-comunidad`, sale del tag `fase-214-ejecutada`), migraciones 0349-0351 (la 0348 queda reservada para el repaso de la 214), SIN PUSH, sin bump. Decisiones tomadas sin consultar en `215-DECISIONES-AUTONOMAS.md`.
 
 **Goal**: Una persona le da Aura a otra como reconocimiento (los alumnos a un compañero de su clase, los profes a sus alumnos del día), y quien recibe se entera por push y por una bandeja de notificaciones nueva
 **Depends on**: Fase 214 (Aura visible con la escala nueva, lista de anotados, visibilidad, detalle privado). Decisiones en `215-CONTEXT.md`
