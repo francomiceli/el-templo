@@ -34,4 +34,16 @@ export const RATE_LIMITS = {
    * de todo el gimnasio para saber donde esta alguien (T-214-17-03).
    */
   attendeesPerUser: { max: 40, timeWindow: "1 minute" },
+  /**
+   * Fase 215: dar el regalo de Aura. Por IP en `config` (Wi-Fi compartido en la
+   * sede) y por usuario en el `preHandler`. En el uso normal no se nota.
+   */
+  giftGive: { max: 30, timeWindow: "1 minute" },
+  giftGivePerUser: { max: 10, timeWindow: "1 minute" },
+  /**
+   * Fase 215: abrir las caras de una clase. El tope por usuario frena que un
+   * alumno recorra clases para saber quien fue a cuales.
+   */
+  giftCandidates: { max: 120, timeWindow: "1 minute" },
+  giftCandidatesPerUser: { max: 30, timeWindow: "1 minute" },
 } as const;
