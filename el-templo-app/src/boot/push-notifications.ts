@@ -4,6 +4,7 @@ import { PushNotifications } from '@capacitor/push-notifications'
 import { FirebaseMessaging } from '@capacitor-firebase/messaging'
 import { useAuthStore } from 'src/stores/useAuthStore'
 import { useNotificationStore } from 'src/stores/useNotificationStore'
+import { useNotificationsInboxStore } from 'src/stores/useNotificationsInboxStore'
 import { api } from 'src/boot/axios'
 import { createLogger } from 'src/utils/logger'
 import { APP_SECTIONS, CONTACT_SALES_ROUTE, FALLBACK_ROUTE } from 'src/config/destinations'
@@ -143,6 +144,12 @@ export default boot(async ({ router }) => {
     }
   }
 
+  // Fase 215 (D-17): con la app abierta llega una push: se actualiza el número de la campana. No se
+  // muestra nada (D-29). Sin sesión no hay bandeja que consultar.
+  function refreshInboxCount(): void {
+    if (useAuthStore().isAuthenticated) void useNotificationsInboxStore().refreshCount()
+  }
+
   function handleTapNavigation(
     data: Record<string, string> | undefined,
     notificationId: string | undefined,
@@ -188,6 +195,7 @@ export default boot(async ({ router }) => {
     await PushNotifications.addListener('pushNotificationReceived', (notification) => {
       log.info('Foreground notification suppressed', { title: notification.title })
       // Per D-29: Do NOT show anything when app is in foreground
+      refreshInboxCount()
     })
 
     await PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
@@ -228,6 +236,7 @@ export default boot(async ({ router }) => {
         title: event.notification.title,
       })
       // Per D-29: Do NOT show anything when app is in foreground
+      refreshInboxCount()
     })
 
     await FirebaseMessaging.addListener('notificationActionPerformed', (event) => {

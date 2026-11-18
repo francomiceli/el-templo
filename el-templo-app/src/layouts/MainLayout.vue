@@ -12,8 +12,9 @@
     >
       <q-toolbar v-if="!isDesktop">
         <q-toolbar-title class="header-title">
-          <!-- Fase 214 (D-62): con el selector de nivel visible y menos de 420 px, el título "EL TEMPLO"
-               se oculta y el logo pasa a ser el link a Mi Templo (sin esto la barra desborda a 360 y 390). -->
+          <!-- Fase 214 (D-62): con el selector de nivel visible y menos de 460 px (fase 215: antes 420, por
+               la campana), el título "EL TEMPLO" se oculta y el logo pasa a ser el link a Mi Templo
+               (sin esto la barra desborda a 360 y 390). -->
           <router-link
             v-if="hideTitleForLevelSelector"
             to="/mi-templo"
@@ -36,10 +37,26 @@
         <!-- Fase 214 (D-55, D-62): el selector de nivel vive solo en Entrenar. -->
         <HeaderLevelDropdown v-if="showLevelSelector" variant="bar" class="header-level-bar" />
 
-        <q-btn v-if="authStore.isAuthenticated" flat round icon="person" to="/profile">
+        <!-- Fase 215 (D-17): de derecha a izquierda, salir, campana y perfil; los tres de 44x44. -->
+        <q-btn
+          v-if="authStore.isAuthenticated"
+          flat
+          round
+          icon="person"
+          to="/profile"
+          class="bar-btn-44"
+        >
           <q-tooltip>Mi Perfil</q-tooltip>
         </q-btn>
-        <q-btn v-if="authStore.isAuthenticated" flat round icon="logout" @click="onLogout">
+        <NotificationBell v-if="authStore.isAuthenticated" class="bar-btn-44" />
+        <q-btn
+          v-if="authStore.isAuthenticated"
+          flat
+          round
+          icon="logout"
+          class="bar-btn-44"
+          @click="onLogout"
+        >
           <q-tooltip>Cerrar sesion</q-tooltip>
         </q-btn>
       </q-toolbar>
@@ -91,6 +108,21 @@
         >
           <q-icon name="person" size="24px" />
           <span class="desktop-rail__label">Mi Perfil</span>
+        </router-link>
+        <!-- Fase 215 (D-17, D-18): bandeja de notificaciones, entre Mi Perfil y Salir. -->
+        <router-link
+          to="/notificaciones"
+          class="desktop-rail__tab"
+          :class="{ 'desktop-rail__tab--active': route.name === 'notifications' }"
+          :aria-label="bellAriaLabel(inboxStore.unreadCount)"
+          :aria-current="route.name === 'notifications' ? 'page' : undefined"
+        >
+          <q-icon
+            :name="inboxStore.unreadCount > 0 ? 'notifications' : 'notifications_none'"
+            size="24px"
+          />
+          <span class="desktop-rail__label">Notificaciones</span>
+          <NotificationCountBadge :count="inboxStore.unreadCount" placement="rail" />
         </router-link>
         <button class="desktop-rail__tab desktop-rail__tab--btn" @click="onLogout">
           <q-icon name="logout" size="24px" />
@@ -209,6 +241,10 @@ import PlanExpiryDialog from 'src/components/PlanExpiryDialog.vue'
 import AvisoPromptDialog from 'src/components/AvisoPromptDialog.vue'
 import AddressPromptDialog from 'src/components/AddressPromptDialog.vue'
 import MiTemploHeader from 'src/components/MiTemploHeader.vue'
+import NotificationBell from 'src/components/NotificationBell.vue'
+import NotificationCountBadge from 'src/components/NotificationCountBadge.vue'
+import { useNotificationsInboxStore } from 'src/stores/useNotificationsInboxStore'
+import { bellAriaLabel } from 'src/utils/notifications-view'
 import HeaderLevelDropdown from 'src/modules/training/components/HeaderLevelDropdown.vue'
 import { useTipsSeenStorage } from 'src/composables/useTipsSeenStorage'
 import { TIPS_CONTENT } from 'src/config/tips-content'
@@ -230,6 +266,7 @@ const sponsorsStore = useSponsorsStore()
 const todayBookingStore = useTodayBookingStore()
 const stretchStore = useStretchStore()
 const cardFlags = useCardHadContentStore()
+const inboxStore = useNotificationsInboxStore()
 
 // Fase 193 (D-20/D-21): hidrata el número de ventas del servidor + el texto
 // por defecto de WhatsApp una vez por sesión, mismo patrón `watch` +
@@ -267,6 +304,8 @@ watch(
       // boot ya los hidrató para este socio es un no-op.
       const userId = authStore.user?.id
       if (userId !== undefined) void cardFlags.hydrate(userId)
+      // Fase 215 (D-17): contador de la campana al iniciar sesión (fail-open: nunca lanza).
+      void inboxStore.refreshCount()
     } else {
       avisosStore.reset()
       // Novedades de Mi Templo: la próxima sesión (otro socio/sede) arranca de cero.
@@ -281,6 +320,8 @@ watch(
       cardFlags.reset()
       // Stats/check-ins (fase 203): `statsLoaded` y los datos del socio anterior no se arrastran.
       progressionStore.reset()
+      // Fase 215 (T-215-19-01): el contador del socio anterior no se arrastra al siguiente.
+      inboxStore.reset()
     }
   },
   { immediate: true },
@@ -340,6 +381,8 @@ function onVisibilityChange(): void {
   if (document.visibilityState === 'visible' && authStore.isAuthenticated) {
     void todayBookingStore.load()
     refreshStretch()
+    // Fase 215: contador de la campana al volver a primer plano (una consulta liviana por evento).
+    void inboxStore.refreshCount()
     if (userStore.profileStale) void userStore.retryProfileLoad()
   }
 }
@@ -397,7 +440,7 @@ const isMiTemplo = computed(() => route.path === '/mi-templo')
 const showLevelSelector = computed(
   () => route.name === 'training' && authStore.isAuthenticated && userStore.activeLevel !== null,
 )
-const hideTitleForLevelSelector = computed(() => showLevelSelector.value && $q.screen.width < 420)
+const hideTitleForLevelSelector = computed(() => showLevelSelector.value && $q.screen.width < 460)
 
 const showCheckInFab = computed(() => {
   if (!authStore.isAuthenticated) return false
@@ -603,6 +646,15 @@ async function onLogout() {
 
 .header-level-bar {
   margin-right: 4px;
+  flex-shrink: 0;
+}
+
+// Fase 215 (UI-SPEC Pantalla 3): perfil, campana y salir pasan de 42 a 44 de caja (regla de
+// tocables de 44 de la 214) y no se encogen: el que se encoge es el título.
+.bar-btn-44 {
+  min-width: 44px;
+  min-height: 44px;
+  flex-shrink: 0;
 }
 
 .header-logo {
