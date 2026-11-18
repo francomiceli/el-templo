@@ -25,6 +25,7 @@ import * as schema from "../../db/schema";
 import { SchedulingService } from "./service";
 import { AttendeesService } from "./attendees-service";
 import { RATE_LIMITS } from "../shared/rate-limits";
+import { perUserRateLimit } from "../shared/per-user-rate-limit";
 import { ActivityService } from "./activity-service";
 import { BookingService } from "./booking-service";
 import { HolidayService } from "./holiday-service";
@@ -1489,10 +1490,11 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
     {
       schema: slotAttendeesSchema,
       config: { rateLimit: RATE_LIMITS.attendees },
-      preHandler: fastify.rateLimit({
-        ...RATE_LIMITS.attendeesPerUser,
-        keyGenerator: (request) => `attendees:${request.user.userId}`,
-      }),
+      preHandler: perUserRateLimit(
+        fastify,
+        RATE_LIMITS.attendeesPerUser,
+        "attendees",
+      ),
     },
     async (request, reply) => {
       try {
