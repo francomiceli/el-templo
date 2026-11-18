@@ -1,7 +1,7 @@
 ---
 phase: 214
 slug: comunidad-anotados-aura
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-11-17
@@ -857,6 +857,22 @@ Ajustes menores que tomé sin preguntar, por regla (avisar si alguno molesta):
 Sin dependencias nuevas (D-35).
 
 ---
+
+## Notas del verificador (segunda verificación, 2026-11-17)
+
+El UI-SPEC quedó APROBADO en las 6 dimensiones. Estas tres precisiones son obligatorias para quien
+planifique o implemente:
+
+- **Glifo del nivel:** se mantiene la fuente actual del glifo (no Montserrat, que no trae las letras
+  griegas en su subset latino). Solo cambia el tamaño a 18.
+- **Aro de la foto del encabezado:** es dorado solo cuando se ve la ficha de Aura (aunque tenga 0). Si el
+  Aura está apagada para el gimnasio y la ficha no se muestra, el aro es blanco. Esto vale para todos
+  los estados de la foto de la Pantalla 1.
+- **Rol Display:** incluye también Montserrat 700 ("¡Adentro!" y las iniciales). No es un peso nuevo.
+
+Los botones y textos genéricos sin origen declarado ("Cerrar", "Reintentar", "Cancelar", "Reportar",
+"Quitar foto", "Quitar", "Aprobar", "Rechazar", "Pendiente", "Subiendo…", "Ver ficha" y los `aria-label`
+nuevos) se consideran borrador, igual que el resto.
 
 ## Checker Sign-Off
 
