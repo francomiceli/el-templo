@@ -31,6 +31,7 @@ import {
   isAnonymousGiver,
   type GiftGiverKind,
   type GiftReason,
+  type GiftVoidCause,
 } from "../aura/gift-rules";
 import { hiddenCommunityUserIds } from "../scheduling/community-service";
 import {
@@ -108,6 +109,8 @@ export interface InboxGiftInfo {
   giverFirstName: string | null;
   giverLastInitial: string | null;
   status: "vigente" | "anulado";
+  /** Causa de la anulación (#28, #37). Null si está vigente o es un dato viejo. */
+  voidCause: GiftVoidCause | null;
   reason: GiftReason;
   /**
    * ME-01 y #38: quien dio hoy esta oculto o no tiene nombre. Con `true` el
@@ -352,6 +355,7 @@ export class InboxService {
         giverKind: schema.auraGifts.giverKind,
         giverUserId: schema.auraGifts.giverUserId,
         status: schema.auraGifts.status,
+        voidCause: schema.auraGifts.voidCause,
         reason: schema.auraGifts.reason,
         giverFirstName: schema.users.firstName,
         giverLastInitial: sql<string | null>`LEFT(${schema.users.lastName}, 1)`,
@@ -396,6 +400,7 @@ export class InboxService {
         giverLastInitial:
           row.giverKind === "profe" || anonymous ? null : row.giverLastInitial,
         status: row.status,
+        voidCause: row.status === "anulado" ? row.voidCause : null,
         reason: row.reason,
         anonymous,
       });

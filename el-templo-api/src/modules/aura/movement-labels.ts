@@ -12,8 +12,8 @@
 import { formatMilestoneLabel } from "../shared/tenure-milestones";
 import {
   GIFT_REFERENCE,
-  GIFT_VOID_LABEL,
   giftMovementLabel,
+  giftVoidLabel,
   type GiftLabelInput,
 } from "./gift-rules";
 
@@ -53,7 +53,7 @@ export function auraMovementLabel(
 ): string {
   if (sourceType === "social") {
     return referenceType === GIFT_REFERENCE.void
-      ? GIFT_VOID_LABEL
+      ? giftVoidLabel(gift?.voidCause ?? null)
       : giftMovementLabel(gift ?? null);
   }
 

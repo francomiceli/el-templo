@@ -561,7 +561,7 @@ describe("GET /api/members/aura/movements con regalos (fase 215, D-13, D-19, D-2
     expect(res.body.movements[0].label).not.toContain("Gómez");
   });
 
-  it("regalo anulado: dos filas (+1 y -1 'Regalo anulado') y earned es la suma de la página", async () => {
+  it("regalo anulado: dos filas (+1 y -1 con la causa de la anulación) y earned es la suma de la página", async () => {
     const cls = await claseDeRegalo();
     const dador = await createTestMember(app);
     const receptor = await createTestMember(app);
@@ -574,6 +574,7 @@ describe("GET /api/members/aura/movements con regalos (fase 215, D-13, D-19, D-2
       reason: "constancia",
       amount: AURA_AMOUNTS.giftMember,
       status: "anulado",
+      voidCause: "asistencia",
     });
     await seedLedger(receptor.id, [
       ...attendanceRows(1, 819001),
@@ -597,7 +598,10 @@ describe("GET /api/members/aura/movements con regalos (fase 215, D-13, D-19, D-2
     expect(
       res.body.movements.map((m) => ({ amount: m.amount, label: m.label })),
     ).toEqual([
-      { amount: -AURA_AMOUNTS.giftMember, label: "Regalo anulado" },
+      {
+        amount: -AURA_AMOUNTS.giftMember,
+        label: "Regalo anulado: la asistencia se corrigió",
+      },
       {
         amount: AURA_AMOUNTS.giftMember,
         label: expect.stringContaining("te dio Aura"),
@@ -607,6 +611,36 @@ describe("GET /api/members/aura/movements con regalos (fase 215, D-13, D-19, D-2
     const suma = res.body.movements.reduce((acc, m) => acc + m.amount, 0);
     expect(res.body.earned).toBe(suma);
     expect(res.body.earned).toBe(await getAuraEarnedFromMe(receptor.token));
+  });
+
+  it("regalo anulado por el staff: el movimiento dice 'Regalo anulado por el staff' (#37)", async () => {
+    const cls = await claseDeRegalo();
+    const dador = await createTestMember(app);
+    const receptor = await createTestMember(app);
+    const giftId = await seedGift(app, {
+      giverUserId: dador.id,
+      receiverUserId: receptor.id,
+      branchId: cls.branchId,
+      scheduleId: cls.scheduleId,
+      sessionDate: cls.sessionDate,
+      status: "anulado",
+      voidCause: "staff",
+    });
+    await seedLedger(receptor.id, [
+      {
+        sourceType: "social",
+        amount: -AURA_AMOUNTS.giftMember,
+        referenceType: "aura_gift_void",
+        referenceId: giftId,
+      },
+    ]);
+
+    const res = await getMovements(receptor.token);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.movements.map((m) => m.label)).toEqual([
+      "Regalo anulado por el staff",
+    ]);
   });
 
   it("D-09: quien da no ve nada de regalo en su detalle", async () => {

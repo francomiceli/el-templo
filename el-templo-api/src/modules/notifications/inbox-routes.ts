@@ -120,6 +120,7 @@ export const inboxMemberRoutes: FastifyPluginAsync = async (fastify) => {
                         ? (photos.get(info.giverUserId)?.url ?? null)
                         : null,
                     status: info.status,
+                    voidCause: info.voidCause,
                   }
                 : null,
             };

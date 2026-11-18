@@ -255,14 +255,18 @@ export async function giverAccess(
   db: DbInstance,
   ctx: TenantContext,
   userId: number,
-): Promise<{ canGive: boolean }> {
+): Promise<{ canGive: boolean; hiddenOnly: boolean }> {
   const state = await getViewerCommunityState(db, ctx, userId);
   const access = listAccess({
     isStaff: state.isStaff,
     hasPlanInEffect: state.hasPlanInEffect,
     viewerVisible: state.visible,
   });
-  return { canGive: access.canSeeList && !state.isStaff };
+  const canGive = access.canSeeList && !state.isStaff;
+  // #31: no da Aura SOLO porque esta oculto (alumno con plan en vigor). El staff
+  // y quien no tiene plan (o viene por Wellhub) nunca cuentan como "oculto".
+  const hiddenOnly = !state.isStaff && access.reason === "oculto";
+  return { canGive, hiddenOnly };
 }
 
 const STAFF_ROLES: ReadonlyArray<(typeof ALL_STAFF_ROLES)[number]> =

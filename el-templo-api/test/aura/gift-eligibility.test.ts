@@ -336,6 +336,7 @@ describe("Fase 215-04: elegibilidad del regalo", () => {
       const acceso = await giverAccess(app.db, GIFT_CTX, giver.id);
 
       expect(acceso.canGive).toBe(true);
+      expect(acceso.hiddenOnly).toBe(false);
     });
 
     it("no puede regalar quien se ocultó", async () => {
@@ -345,6 +346,8 @@ describe("Fase 215-04: elegibilidad del regalo", () => {
       const acceso = await giverAccess(app.db, GIFT_CTX, giver.id);
 
       expect(acceso.canGive).toBe(false);
+      // #31: con plan, el unico motivo es estar oculto.
+      expect(acceso.hiddenOnly).toBe(true);
     });
 
     it("no puede regalar quien no tiene plan en vigor", async () => {
@@ -356,6 +359,7 @@ describe("Fase 215-04: elegibilidad del regalo", () => {
       const acceso = await giverAccess(app.db, GIFT_CTX, sinPlan.id);
 
       expect(acceso.canGive).toBe(false);
+      expect(acceso.hiddenOnly).toBe(false);
     });
 
     it("no puede regalar el staff, aunque tenga plan", async () => {

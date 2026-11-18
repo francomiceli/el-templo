@@ -60,9 +60,12 @@ export const pendingGiftsSchema = {
   response: {
     200: {
       type: "object",
-      required: ["pending", "givenToday"],
+      required: ["pending", "givenToday", "unavailableReason"],
       additionalProperties: false,
       properties: {
+        // #31: "oculto" si no puede dar Aura solo porque esta oculto de las
+        // listas; null en cualquier otro caso.
+        unavailableReason: { type: ["string", "null"] },
         pending: {
           type: "array",
           items: {

@@ -55,6 +55,7 @@ import {
 const PASSWORD = "pass123456";
 
 interface PendingBody {
+  unavailableReason: "oculto" | null;
   pending: Array<{
     attendanceId: number;
     sessionDate: string;
@@ -734,9 +735,45 @@ describe("Fase 215-06: rutas del regalo del alumno", () => {
       });
 
       expect(pendientes.statusCode).toBe(200);
-      expect(pendientes.body).toEqual({ pending: [], givenToday: [] });
+      // #31: oculto con plan y con una clase por regalar: la app le explica por qué.
+      expect(pendientes.body).toEqual({
+        pending: [],
+        givenToday: [],
+        unavailableReason: "oculto",
+      });
       expect(res.statusCode).toBe(409);
       expect(res.body.code).toBe("REGALO_NO_DISPONIBLE");
+    });
+
+    it("#31: oculto con plan pero sin ninguna clase por regalar no ve el texto (unavailableReason null)", async () => {
+      // Sin compañeros en la clase no habría oferta que tapar.
+      const g = await dador();
+      await setCommunityVisible(app, g.id, false);
+
+      const pendientes = await getPending(await tokenDe(g));
+
+      expect(pendientes.statusCode).toBe(200);
+      expect(pendientes.body).toEqual({
+        pending: [],
+        givenToday: [],
+        unavailableReason: null,
+      });
+    });
+
+    it("#31: volver a aparecer en las listas devuelve la oferta y apaga el texto", async () => {
+      const g = await dador();
+      await companiero();
+      await setCommunityVisible(app, g.id, false);
+      const token = await tokenDe(g);
+      expect((await getPending(token)).body.unavailableReason).toBe("oculto");
+
+      await setCommunityVisible(app, g.id, true);
+      const despues = await getPending(token);
+
+      expect(despues.body.unavailableReason).toBeNull();
+      expect(despues.body.pending.map((p) => p.attendanceId)).toContain(
+        g.attendanceId,
+      );
     });
 
     it("dador sin plan vigente: pending vacío y POST 409 REGALO_NO_DISPONIBLE", async () => {
@@ -751,9 +788,24 @@ describe("Fase 215-06: rutas del regalo del alumno", () => {
         reason: "tecnica",
       });
 
-      expect(pendientes.body).toEqual({ pending: [], givenToday: [] });
+      // #31: sin plan (o Wellhub sin plan) no se le muestra nada.
+      expect(pendientes.body).toEqual({
+        pending: [],
+        givenToday: [],
+        unavailableReason: null,
+      });
       expect(res.statusCode).toBe(409);
       expect(res.body.code).toBe("REGALO_NO_DISPONIBLE");
+    });
+
+    it("#31: oculto y sin plan vigente no ve el texto de 'activá Aparecer en las listas' (unavailableReason null)", async () => {
+      const sinPlan = await companiero(cls, { status: "freemium" });
+      await companiero();
+      await setCommunityVisible(app, sinPlan.id, false);
+
+      const pendientes = await getPending(await tokenDe(sinPlan));
+
+      expect(pendientes.body.unavailableReason).toBeNull();
     });
 
     // ── 11. asistencia ajena ────────────────────────────────────────────────
@@ -820,7 +872,11 @@ describe("Fase 215-06: rutas del regalo del alumno", () => {
       });
 
       expect(pendientes.statusCode).toBe(200);
-      expect(pendientes.body).toEqual({ pending: [], givenToday: [] });
+      expect(pendientes.body).toEqual({
+        pending: [],
+        givenToday: [],
+        unavailableReason: null,
+      });
       expect(caras.statusCode).toBe(404);
       expect(caras.body.code).toBe("REGALO_NO_ENCONTRADO");
       expect(caras.raw).not.toContain(a.firstName);

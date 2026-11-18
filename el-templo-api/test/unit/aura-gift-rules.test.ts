@@ -12,6 +12,7 @@ import {
   GIFT_REFERENCE,
   GIFT_ROUTE,
   GIFT_VOID_LABEL,
+  giftVoidLabel,
   GIFT_WEEKLY_CAP,
   giftExpiresOn,
   giftMovementLabel,
@@ -241,12 +242,26 @@ describe("textos del regalo (D-19, D-22)", () => {
     expect(GIFT_VOID_LABEL).toBe("Regalo anulado");
   });
 
+  it("regalo anulado con causa (#28, #37)", () => {
+    expect(giftVoidLabel("asistencia")).toBe(
+      "Regalo anulado: la asistencia se corrigió",
+    );
+    expect(giftVoidLabel("staff")).toBe("Regalo anulado por el staff");
+    expect(giftVoidLabel(null)).toBe("Regalo anulado");
+    expect(giftVoidLabel(undefined)).toBe("Regalo anulado");
+  });
+
   it("el destino es el detalle de Aura", () => {
     expect(GIFT_ROUTE).toBe("/mi-templo?aura=detalle");
   });
 
   it("ningún texto promete privacidad", () => {
-    const texts: string[] = [GIFT_VOID_LABEL, giftMovementLabel(null)];
+    const texts: string[] = [
+      GIFT_VOID_LABEL,
+      giftVoidLabel("asistencia"),
+      giftVoidLabel("staff"),
+      giftMovementLabel(null),
+    ];
     for (const input of [
       alumno,
       profe,

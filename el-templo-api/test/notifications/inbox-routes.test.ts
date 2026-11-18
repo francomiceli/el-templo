@@ -46,6 +46,7 @@ interface InboxGift {
   giverLastInitial: string | null;
   giverPhotoUrl: string | null;
   status: "vigente" | "anulado";
+  voidCause: "staff" | "asistencia" | null;
   anonymous: boolean;
 }
 
@@ -163,6 +164,7 @@ describe("Bandeja de avisos — rutas de la app (fase 215, plan 14)", () => {
     opts: {
       giverKind?: "alumno" | "profe";
       status?: "vigente" | "anulado";
+      voidCause?: "staff" | "asistencia";
     } = {},
   ): Promise<number> {
     return seedGift(app, {
@@ -173,6 +175,7 @@ describe("Bandeja de avisos — rutas de la app (fase 215, plan 14)", () => {
       scheduleId: null,
       sessionDate: "2026-01-05",
       status: opts.status,
+      voidCause: opts.voidCause,
     });
   }
 
@@ -360,10 +363,52 @@ describe("Bandeja de avisos — rutas de la app (fase 215, plan 14)", () => {
       giverLastInitial: "M",
       giverPhotoUrl: null,
       status: "vigente",
+      voidCause: null,
       anonymous: false,
     });
     expect(byTitle.get("Anulado")?.gift?.status).toBe("anulado");
     expect(byTitle.get("Borrado")?.gift).toBeNull();
+  });
+
+  it("5a) regalo anulado: trae la causa (staff o asistencia) y uno vigente la trae en null (#28, #37)", async () => {
+    const giver = await createTestMember(app, {
+      firstName: "Sofía",
+      lastName: "Martínez",
+    });
+    const porStaff = await seedGiftFor(giver.id, member.id, {
+      status: "anulado",
+      voidCause: "staff",
+    });
+    const porAsistencia = await seedGiftFor(giver.id, member.id, {
+      status: "anulado",
+      voidCause: "asistencia",
+    });
+    const viejo = await seedGiftFor(giver.id, member.id, {
+      status: "anulado",
+    });
+    const vigente = await seedGiftFor(giver.id, member.id);
+    const casos: Array<[string, number]> = [
+      ["Staff", porStaff],
+      ["Asistencia", porAsistencia],
+      ["Viejo", viejo],
+      ["Vigente", vigente],
+    ];
+    for (const [i, [title, refId]] of casos.entries()) {
+      await seedInbox(member.id, {
+        title,
+        kind: INBOX_GIFT_KIND,
+        refId,
+        shownAt: visibleAt(10 + i),
+      });
+    }
+
+    const body = await getList(member.token);
+    const byTitle = new Map(body.items.map((i) => [i.title, i]));
+
+    expect(byTitle.get("Staff")?.gift?.voidCause).toBe("staff");
+    expect(byTitle.get("Asistencia")?.gift?.voidCause).toBe("asistencia");
+    expect(byTitle.get("Viejo")?.gift?.voidCause).toBeNull();
+    expect(byTitle.get("Vigente")?.gift?.voidCause).toBeNull();
   });
 
   it("5b) la foto del dador alumno sale firmada, y sin storage el aviso se lee igual sin foto", async () => {
@@ -428,6 +473,7 @@ describe("Bandeja de avisos — rutas de la app (fase 215, plan 14)", () => {
       giverLastInitial: null,
       giverPhotoUrl: null,
       status: "vigente",
+      voidCause: null,
       anonymous: true,
     });
     expect(JSON.stringify(body)).not.toContain("Sofía");
@@ -524,6 +570,8 @@ describe("Bandeja de avisos — rutas de la app (fase 215, plan 14)", () => {
       giverLastInitial: null,
       giverPhotoUrl: null,
       status: "vigente",
+      voidCause: null,
+      anonymous: false,
     });
   });
 

@@ -181,6 +181,36 @@ describe("auraMovementLabel con regalos (fase 215, D-13, D-19, D-22)", () => {
     );
   });
 
+  it("la anulación suma la causa si se conoce (#28, #37)", () => {
+    expect(
+      auraMovementLabel("social", "aura_gift_void", 7, {
+        ...deAlumno,
+        voidCause: "asistencia",
+      }),
+    ).toBe("Regalo anulado: la asistencia se corrigió");
+    expect(
+      auraMovementLabel("social", "aura_gift_void", 7, {
+        ...deAlumno,
+        voidCause: "staff",
+      }),
+    ).toBe("Regalo anulado por el staff");
+    expect(
+      auraMovementLabel("social", "aura_gift_void", 7, {
+        ...deAlumno,
+        voidCause: null,
+      }),
+    ).toBe("Regalo anulado");
+  });
+
+  it("la causa de la anulación no cambia el texto del regalo recibido", () => {
+    expect(
+      auraMovementLabel("social", "aura_gift", 7, {
+        ...deAlumno,
+        voidCause: "staff",
+      }),
+    ).toBe(auraMovementLabel("social", "aura_gift", 7, deAlumno));
+  });
+
   it("los datos del regalo no cambian el texto de otras fuentes", () => {
     expect(auraMovementLabel("attendance", "attendance", 1, deAlumno)).toBe(
       "Asistencia a clase",

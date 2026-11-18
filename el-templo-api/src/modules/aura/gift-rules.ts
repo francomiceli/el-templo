@@ -20,6 +20,7 @@
 import type {
   AuraGiftGiverKind,
   AuraGiftReason,
+  AuraGiftVoidCause,
 } from "../../db/schema/aura-gifts";
 import { addDays } from "../shared/date-utils";
 import { AURA_AMOUNTS } from "./amounts";
@@ -27,6 +28,7 @@ import { isoWeekStart } from "../ratings/roster-attribution";
 
 export type GiftReason = AuraGiftReason;
 export type GiftGiverKind = AuraGiftGiverKind;
+export type GiftVoidCause = AuraGiftVoidCause;
 
 /** Motivos que elige quien regala (D-16), en el orden en que se muestran. */
 export const GIFT_REASONS: readonly { code: GiftReason; label: string }[] = [
@@ -97,6 +99,18 @@ export const GIFT_ROUTE = "/mi-templo?aura=detalle";
 /** Texto del movimiento de un regalo anulado. */
 export const GIFT_VOID_LABEL = "Regalo anulado";
 
+/**
+ * Texto del movimiento de un regalo anulado, con el motivo si se conoce
+ * (#28, #37): `asistencia` = se deshizo o anuló la asistencia; `staff` = lo
+ * anuló una persona del staff. Sin causa (dato viejo) queda el texto genérico.
+ */
+export function giftVoidLabel(cause: GiftVoidCause | null | undefined): string {
+  if (cause === "asistencia")
+    return `${GIFT_VOID_LABEL}: la asistencia se corrigió`;
+  if (cause === "staff") return `${GIFT_VOID_LABEL} por el staff`;
+  return GIFT_VOID_LABEL;
+}
+
 /** Texto del movimiento cuando el regalo ya no se encuentra. */
 const GIFT_UNKNOWN_LABEL = "Regalo de Aura";
 
@@ -110,6 +124,8 @@ export interface GiftLabelInput {
   giverHidden?: boolean;
   /** Puntos del regalo. Sin dato rige el valor del regalo de un alumno. */
   amount?: number;
+  /** Causa de la anulación, solo para el movimiento `aura_gift_void`. */
+  voidCause?: GiftVoidCause | null;
 }
 
 /**

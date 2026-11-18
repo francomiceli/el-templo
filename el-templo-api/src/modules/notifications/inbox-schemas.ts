@@ -39,6 +39,7 @@ const inboxGiftSchema = {
     "giverLastInitial",
     "giverPhotoUrl",
     "status",
+    "voidCause",
     "anonymous",
   ],
   properties: {
@@ -49,6 +50,9 @@ const inboxGiftSchema = {
     giverLastInitial: { type: ["string", "null"] },
     giverPhotoUrl: { type: ["string", "null"] },
     status: { type: "string", enum: ["vigente", "anulado"] },
+    // #28, #37: por qué se anuló. `staff` o `asistencia` (se deshizo la
+    // asistencia); null si está vigente.
+    voidCause: { type: ["string", "null"] },
   },
 } as const;
 

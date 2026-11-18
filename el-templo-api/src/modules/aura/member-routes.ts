@@ -58,6 +58,7 @@ async function giftLabelInputs(
       giverKind: schema.auraGifts.giverKind,
       reason: schema.auraGifts.reason,
       amount: schema.auraGifts.amount,
+      voidCause: schema.auraGifts.voidCause,
       giverUserId: schema.auraGifts.giverUserId,
       giverFirstName: schema.users.firstName,
       giverLastInitial: sql<string | null>`LEFT(${schema.users.lastName}, 1)`,
@@ -93,6 +94,7 @@ async function giftLabelInputs(
       reason: row.reason,
       amount: row.amount,
       giverHidden: hidden.has(row.giverUserId),
+      voidCause: row.voidCause,
     });
   }
   return result;
@@ -144,9 +146,11 @@ export const auraMemberRoutes: FastifyPluginAsync = async (fastify) => {
         const hasMore = rows.length > limit;
         const page = hasMore ? rows.slice(0, limit) : rows;
         const earned = await earnedAuraForUser(fastify.db, ctx, userId);
+        // El regalo y su anulación apuntan al mismo id: la anulación lee la causa.
         const giftIds = page.flatMap((row) =>
           row.sourceType === "social" &&
-          row.referenceType === GIFT_REFERENCE.gift &&
+          (row.referenceType === GIFT_REFERENCE.gift ||
+            row.referenceType === GIFT_REFERENCE.void) &&
           row.referenceId !== null
             ? [row.referenceId]
             : [],

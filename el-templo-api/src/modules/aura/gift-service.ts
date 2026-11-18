@@ -122,6 +122,13 @@ export interface GivenTodayGift {
 export interface PendingGiftsResult {
   pending: PendingGift[];
   givenToday: GivenTodayGift[];
+  /**
+   * #31: `oculto` si el alumno tiene plan y clases por regalar pero NO puede dar
+   * Aura solo porque esta oculto de las listas (la app le dice que se active en
+   * Perfil). Null en cualquier otro caso: quien no tiene plan o viene por
+   * Wellhub, el staff y quien no tiene nada que regalar no ven ningun texto.
+   */
+  unavailableReason: "oculto" | null;
 }
 
 export interface GiftCandidate {
@@ -213,16 +220,41 @@ export class AuraGiftService {
 
   /**
    * Regalos pendientes de la card y regalos vigentes que dio hoy. Quien no
-   * puede dar recibe listas vacías, sin explicación (D-07).
+   * puede dar recibe listas vacías (D-07), con una sola excepcion (#31): el
+   * alumno que no da Aura solo porque esta oculto recibe
+   * `unavailableReason: "oculto"` si tendria algo para regalar.
    */
   async listPending(
     ctx: TenantContext,
     userId: number,
     now: Date = new Date(),
   ): Promise<PendingGiftsResult> {
-    const { canGive } = await giverAccess(this.db, ctx, userId);
-    if (!canGive) return { pending: [], givenToday: [] };
+    const { canGive, hiddenOnly } = await giverAccess(this.db, ctx, userId);
+    if (!canGive) {
+      // La oferta que se taparia: solo se calcula para el oculto con plan.
+      const wouldOffer =
+        hiddenOnly && (await this.computePending(ctx, userId, now)).length > 0;
+      return {
+        pending: [],
+        givenToday: [],
+        unavailableReason: wouldOffer ? "oculto" : null,
+      };
+    }
 
+    const pending = await this.computePending(ctx, userId, now);
+    const givenToday = await this.listGivenToday(ctx, userId, now);
+    return { pending, givenToday, unavailableReason: null };
+  }
+
+  /**
+   * Clases de la ventana que todavia se pueden regalar, vence antes primero.
+   * No mira si la persona puede dar: eso lo decide quien llama.
+   */
+  private async computePending(
+    ctx: TenantContext,
+    userId: number,
+    now: Date,
+  ): Promise<PendingGift[]> {
     const recent = await listRecentClassAttendances(this.db, ctx, userId, now);
 
     const attendanceIds = recent.map((cls) => cls.attendanceId);
@@ -281,9 +313,7 @@ export class AuraGiftService {
         a.startTime.localeCompare(b.startTime) ||
         a.attendanceId - b.attendanceId,
     );
-
-    const givenToday = await this.listGivenToday(ctx, userId, now);
-    return { pending, givenToday };
+    return pending;
   }
 
   /**
