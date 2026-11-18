@@ -1354,6 +1354,16 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   },
   "PUT /api/notifications/preferences": { categoria: "tenant-scoped" },
 
+  // ── /api/members/notifications (fase 215, bandeja) ────────────────────────
+  // Bandeja de avisos de la app. Núcleo (sin `moduleScope`): `assertTenant` +
+  // `tenantWhere` en cada lectura y escritura del servicio.
+  "GET /api/members/notifications": { categoria: "tenant-scoped" },
+  "GET /api/members/notifications/unread-count": {
+    categoria: "tenant-scoped",
+  },
+  "POST /api/members/notifications/:id/read": { categoria: "tenant-scoped" },
+  "POST /api/members/notifications/read-all": { categoria: "tenant-scoped" },
+
   // ── /api/tv (kiosco anónimo) — RETIRADO 2026-08-12 ──────────────────────────
   // Todo el plugin de device (pairing público + poll device-authed + telemetría)
   // se eliminó al pasar la pantalla TV a una vista autenticada del admin. Ya no hay

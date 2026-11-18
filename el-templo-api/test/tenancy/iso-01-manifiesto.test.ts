@@ -495,7 +495,10 @@ import {
 // 2026-11-18 fase 215 (plan 10): 596 -> 597 por la lista de regalos y la
 // medición del staff (GET /api/admin/aura/gifts), `templo-module`
 // (`templo-gamification`).
-const ENTRADAS_BASELINE = 597;
+// 2026-11-18 fase 215 (plan 14): 597 -> 601 por las 4 rutas de la bandeja de
+// avisos (GET /api/members/notifications, GET unread-count, POST :id/read y
+// POST read-all), `tenant-scoped` (núcleo, sin `moduleScope`).
+const ENTRADAS_BASELINE = 601;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -638,7 +641,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 597 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 601 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(
