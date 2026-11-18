@@ -164,10 +164,43 @@ export function giftPersonName(
  */
 function giverPhrase(input: GiftLabelInput): string {
   if (input.giverKind === "profe") {
-    const first = (input.giverFirstName ?? "").trim().split(/\s+/)[0] ?? "";
-    return first === "" ? "Tu profe" : `Tu profe ${first}`;
+    const first = coachFirstName(input);
+    return first === null ? "Tu profe" : `Tu profe ${first}`;
   }
   return giftPersonName(input.giverFirstName, input.giverLastInitial);
+}
+
+/** Nombre de pila del profe, o null si no tiene. */
+function coachFirstName(input: GiftLabelInput): string | null {
+  const first = (input.giverFirstName ?? "").trim().split(/\s+/)[0] ?? "";
+  return first === "" ? null : first;
+}
+
+/**
+ * Quién dio, para las pantallas que arman su propia frase (celebración de Aura,
+ * #33). Misma regla de anonimato que los textos (ME-01 y #38): con `anonymous`
+ * el nombre es null y la pantalla no debe nombrar a nadie ni decir "Alguien". El
+ * profe nunca es anónimo y va solo con nombre de pila (null = "Tu profe"); el
+ * alumno va con nombre e inicial ("Juan P.").
+ */
+export interface GiftGiverDisplay {
+  kind: GiftGiverKind;
+  anonymous: boolean;
+  name: string | null;
+}
+
+export function giftGiverDisplay(input: GiftLabelInput): GiftGiverDisplay {
+  if (isAnonymousGiver(input)) {
+    return { kind: input.giverKind, anonymous: true, name: null };
+  }
+  if (input.giverKind === "profe") {
+    return { kind: "profe", anonymous: false, name: coachFirstName(input) };
+  }
+  return {
+    kind: "alumno",
+    anonymous: false,
+    name: giftPersonName(input.giverFirstName, input.giverLastInitial),
+  };
 }
 
 /** Título y cuerpo de la push del regalo (D-19). */

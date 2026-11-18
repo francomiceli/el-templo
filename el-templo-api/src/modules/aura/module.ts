@@ -32,6 +32,7 @@
 // `registerModule(app, temploGamificationModule)`.
 import type { ModuleDef } from "../../modules-boot";
 import { barChallengeRoutes } from "../bar-challenge/routes";
+import { auraCelebrationRoutes } from "./celebration-routes";
 import { auraGiftAdminRoutes } from "./gift-admin-routes";
 import { auraGiftMemberRoutes } from "./gift-member-routes";
 import { auraMemberRoutes } from "./member-routes";
@@ -43,6 +44,7 @@ export const temploGamificationModule: ModuleDef = {
   routes: [
     { plugin: barChallengeRoutes, prefix: "/api/bar-challenge" },
     { plugin: auraMemberRoutes, prefix: "/api/members/aura" },
+    { plugin: auraCelebrationRoutes, prefix: "/api/members/aura" },
     { plugin: auraGiftMemberRoutes, prefix: "/api/members/aura" },
     { plugin: auraGiftAdminRoutes, prefix: "/api/admin/aura" },
   ],

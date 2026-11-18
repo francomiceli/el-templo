@@ -89,6 +89,12 @@ export const memberProfiles = mysqlTable(
     // primera vez que vio el aviso de visibilidad y no se pisa.
     communityVisible: boolean("community_visible"),
     communityNoticeSeenAt: timestamp("community_notice_seen_at"),
+    // Fase 215 (#33), migración 0353: marca de la celebración de Aura. Es el id del
+    // último movimiento del ledger que ya no hace falta celebrar. NULL = nunca se
+    // consultó (la primera consulta fija la marca sin celebrar el historial). Vive
+    // en el servidor para que la celebración salga una sola vez aunque el alumno
+    // use dos teléfonos. Nunca retrocede.
+    auraCelebratedUntilId: int("aura_celebrated_until_id"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
   },

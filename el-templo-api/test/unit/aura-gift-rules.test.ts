@@ -17,6 +17,7 @@ import {
   giftExpiresOn,
   giftMovementLabel,
   giftPersonName,
+  giftGiverDisplay,
   giftPushText,
   isAnonymousGiver,
   giftReasonLabel,
@@ -280,5 +281,62 @@ describe("textos del regalo (D-19, D-22)", () => {
     for (const text of texts) {
       expect(text.toLowerCase()).not.toContain("privad");
     }
+  });
+});
+
+describe("giftGiverDisplay (fase 215, #33)", () => {
+  const base = {
+    giverKind: "alumno" as const,
+    giverFirstName: "Juan",
+    giverLastInitial: "P",
+    reason: "energia" as const,
+  };
+
+  it("alumno visible: nombre con inicial del apellido", () => {
+    expect(giftGiverDisplay(base)).toEqual({
+      kind: "alumno",
+      anonymous: false,
+      name: "Juan P.",
+    });
+  });
+
+  it("alumno visible sin inicial: solo el nombre de pila", () => {
+    expect(giftGiverDisplay({ ...base, giverLastInitial: null }).name).toBe(
+      "Juan",
+    );
+  });
+
+  it("alumno oculto: anónimo y sin nombre, aunque tenga nombre cargado", () => {
+    expect(giftGiverDisplay({ ...base, giverHidden: true })).toEqual({
+      kind: "alumno",
+      anonymous: true,
+      name: null,
+    });
+  });
+
+  it("alumno sin nombre de pila: anónimo, nunca 'Alguien'", () => {
+    for (const giverFirstName of [null, "", "   "]) {
+      const display = giftGiverDisplay({ ...base, giverFirstName });
+      expect(display.anonymous).toBe(true);
+      expect(display.name).toBeNull();
+    }
+  });
+
+  it("profe: nunca anónimo y solo con nombre de pila", () => {
+    expect(
+      giftGiverDisplay({
+        ...base,
+        giverKind: "profe",
+        giverFirstName: "Fran Gómez",
+        giverLastInitial: "G",
+        giverHidden: true,
+      }),
+    ).toEqual({ kind: "profe", anonymous: false, name: "Fran" });
+  });
+
+  it("profe sin nombre: name null y no anónimo (la pantalla dice 'Tu profe')", () => {
+    expect(
+      giftGiverDisplay({ ...base, giverKind: "profe", giverFirstName: null }),
+    ).toEqual({ kind: "profe", anonymous: false, name: null });
   });
 });

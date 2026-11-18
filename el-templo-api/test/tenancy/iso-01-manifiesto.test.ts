@@ -500,7 +500,10 @@ import {
 // POST read-all), `tenant-scoped` (núcleo, sin `moduleScope`).
 // 2026-11-18 fase 215 (ajustes, plan C): 601 -> 602 por el conteo de regalos por
 // profe (GET /api/admin/aura/gifts/by-coach), `templo-module` (`templo-gamification`).
-const ENTRADAS_BASELINE = 602;
+// 2026-11-18 fase 215 (ajustes, plan D): 602 -> 604 por la celebración de Aura
+// (GET /api/members/aura/celebration y POST celebration/ack), `templo-module`
+// (`templo-gamification`).
+const ENTRADAS_BASELINE = 604;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -643,7 +646,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 602 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 604 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(

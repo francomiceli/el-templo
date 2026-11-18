@@ -297,6 +297,46 @@ describe("requireModule — templo-gamification: regalo de Aura (fase 215, plan 
   });
 });
 
+describe("requireModule — templo-gamification: celebración de Aura (fase 215, #33)", () => {
+  const RUTA_CELEBRACION = "/api/members/aura/celebration";
+
+  function getCelebracionComo(token: string) {
+    return app.inject({
+      method: "GET",
+      url: RUTA_CELEBRACION,
+      headers: { authorization: `Bearer ${token}` },
+    });
+  }
+
+  function postAckComo(token: string) {
+    return app.inject({
+      method: "POST",
+      url: `${RUTA_CELEBRACION}/ack`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { upToId: 1 },
+    });
+  }
+
+  it("OFF: con el módulo apagado para el gimnasio 2, la consulta y el ack dan el 404 exacto del guard", async () => {
+    const consulta = await getCelebracionComo(gym2.socios[0].token);
+    const ack = await postAckComo(gym2.socios[0].token);
+
+    expect(consulta.statusCode).toBe(404);
+    expect(consulta.json()).toEqual(BODY_404_DEL_GUARD);
+    expect(ack.statusCode).toBe(404);
+    expect(ack.json()).toEqual(BODY_404_DEL_GUARD);
+  });
+
+  it("contraste: con el flag prendido la consulta responde 200 y sin movimientos", async () => {
+    await setModuleFlag(app, TENANT_DOS, "templo-gamification", true);
+
+    const res = await getCelebracionComo(gym2.socios[0].token);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().movements).toEqual([]);
+  });
+});
+
 describe("requireModule — templo-marketing (176-04, ruta pública, D-06)", () => {
   const RUTA_MARKETING = "/api/blog/posts";
 

@@ -46,4 +46,10 @@ export const RATE_LIMITS = {
    */
   giftCandidates: { max: 120, timeWindow: "1 minute" },
   giftCandidatesPerUser: { max: 30, timeWindow: "1 minute" },
+  /**
+   * Fase 215 (#33): celebración de Aura. La app consulta al entrar a Mi Templo y
+   * al volver a primer plano: el uso normal es de unas pocas por minuto.
+   */
+  auraCelebration: { max: 120, timeWindow: "1 minute" },
+  auraCelebrationPerUser: { max: 20, timeWindow: "1 minute" },
 } as const;
