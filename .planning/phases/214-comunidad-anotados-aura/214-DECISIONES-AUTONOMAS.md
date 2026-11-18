@@ -123,3 +123,8 @@ Cada vez que un ejecutor se encuentre con una decisión de producto, se anota ac
 | 2026-11-17 | 214-25 | Error al marcar el aviso como visto | Si falla el registro de que la persona vio el aviso, no se le frena ni se le muestra un error: sigue normalmente |
 | 2026-11-17 | 214-25 | Hoja con error | Si la lista falla al cargar, el encabezado de la hoja no muestra el total de anotados |
 | 2026-11-17 | 214-25 | Al cerrar la hoja | La lista de anotados se descarta al cerrar la hoja y se vuelve a pedir al abrirla |
+| 2026-11-17 | 214-26 | Reporte de foto no disponible (404) | Si la foto ya no está disponible al reportarla, se muestra un aviso y el diálogo se cierra |
+| 2026-11-17 | 214-26 | Reporte con error o demasiados intentos (429) | Se muestra un aviso y el paso de confirmación queda abierto para reintentar |
+| 2026-11-17 | 214-26 | Mientras se envía el reporte | El diálogo no se puede cerrar y "Cancelar" queda deshabilitado hasta que termine |
+| 2026-11-17 | 214-26 | Foto sin identificador | El botón "Reportar foto" queda deshabilitado |
+| 2026-11-17 | 214-26 | Al abrir la foto de un compañero | Cada apertura vuelve al primer paso (ver la foto), sin recordar un reporte a medio hacer |
