@@ -10,8 +10,13 @@ import {
   COACH_GIFT_AMOUNT,
   GIFT_REASONS,
   GIFT_REFERENCE,
+  GIFT_ROUTE,
+  GIFT_VOID_LABEL,
   GIFT_WEEKLY_CAP,
   giftExpiresOn,
+  giftMovementLabel,
+  giftPersonName,
+  giftPushText,
   giftReasonLabel,
   giftWeekRange,
   giversPct,
@@ -141,5 +146,82 @@ describe("porcentaje de quienes regalaron (D-21)", () => {
   it("sin base da 0", () => {
     expect(giversPct(0, 0)).toBe(0);
     expect(giversPct(5, 0)).toBe(0);
+  });
+});
+
+describe("textos del regalo (D-19, D-22)", () => {
+  const alumno = {
+    giverKind: "alumno",
+    giverFirstName: "Sofía",
+    giverLastInitial: "M",
+    reason: "energia",
+  } as const;
+  const profe = {
+    giverKind: "profe",
+    giverFirstName: "Fran",
+    giverLastInitial: null,
+    reason: "tecnica",
+  } as const;
+
+  it("giftPersonName arma nombre e inicial", () => {
+    expect(giftPersonName("Sofía", "M")).toBe("Sofía M.");
+    expect(giftPersonName("Sofía", null)).toBe("Sofía");
+    expect(giftPersonName("", null)).toBe("Alguien");
+    expect(giftPersonName("  Sofía  ", "  M ")).toBe("Sofía M.");
+    expect(giftPersonName(null, "M")).toBe("Alguien");
+    expect(giftPersonName("Sofía", "")).toBe("Sofía");
+  });
+
+  it("push de un alumno dice quién dio y el motivo", () => {
+    expect(giftPushText(alumno)).toEqual({
+      title: "Sofía M. te dio Aura",
+      body: "Motivo: Buena energía.",
+    });
+  });
+
+  it("push del profe va solo con el nombre de pila", () => {
+    expect(giftPushText(profe)).toEqual({
+      title: "Tu profe Fran te dio Aura",
+      body: "Motivo: Buena técnica.",
+    });
+    expect(
+      giftPushText({ ...profe, giverFirstName: "Fran", giverLastInitial: "G" })
+        .title,
+    ).toBe("Tu profe Fran te dio Aura");
+  });
+
+  it("detalle del movimiento", () => {
+    expect(giftMovementLabel(alumno)).toBe(
+      "Sofía M. te dio Aura · Buena energía",
+    );
+    expect(giftMovementLabel(profe)).toBe(
+      "Tu profe Fran te dio Aura · Buena técnica",
+    );
+  });
+
+  it("regalo que ya no se encuentra y regalo anulado", () => {
+    expect(giftMovementLabel(null)).toBe("Regalo de Aura");
+    expect(GIFT_VOID_LABEL).toBe("Regalo anulado");
+  });
+
+  it("el destino es el detalle de Aura", () => {
+    expect(GIFT_ROUTE).toBe("/mi-templo?aura=detalle");
+  });
+
+  it("ningún texto promete privacidad", () => {
+    const texts: string[] = [GIFT_VOID_LABEL, giftMovementLabel(null)];
+    for (const input of [alumno, profe]) {
+      const push = giftPushText(input);
+      texts.push(push.title, push.body, giftMovementLabel(input));
+    }
+    for (const reason of GIFT_REASONS) {
+      texts.push(
+        giftMovementLabel({ ...alumno, reason: reason.code }),
+        giftPushText({ ...profe, reason: reason.code }).body,
+      );
+    }
+    for (const text of texts) {
+      expect(text.toLowerCase()).not.toContain("privad");
+    }
   });
 });
