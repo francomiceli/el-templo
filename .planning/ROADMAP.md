@@ -1206,17 +1206,29 @@ Plans:
 
 ### Phase 215: Regalar Aura (fuera del milestone v6.1)
 
-**Estado (2026-11-17)**: fase AGREGADA, en discuss. Sale de la reunión del 2026-11-16 (Matías: "el Nach te dio 10 puntos porque...", "que todos lo puedan regalar") y de la decisión de Franco de sacarla de la 214 y hacerla justo después. Depende de la 214 sin mergear: por ahora los documentos viven en la rama `feat/comunidad-anotados-aura` (worktree `et-comunidad`). SIN PUSH. Criterios provisorios hasta cerrar `215-CONTEXT.md`.
+**Estado (2026-11-17)**: discuss CERRADO, 22 decisiones en `215-CONTEXT.md`. Se planifica cuando la 214 esté ejecutada. Depende de la 214 sin mergear: por ahora los documentos viven en la rama `feat/comunidad-anotados-aura` (worktree `et-comunidad`). SIN PUSH.
 
-**Goal**: Una persona puede darle Aura a otra como reconocimiento, con reglas simples que eviten el abuso, y quien la recibe se entera
-**Depends on**: Fase 214 (Aura visible con la escala nueva, lista de anotados, fotos). Insumos: `214-AURA-VALORES-RESEARCH.md` §2 y §8 (cómo lo resuelven Bonusly, HeyTaco y Peloton) y la sección "Fase siguiente" de `214-CONTEXT.md`
+**Goal**: Una persona le da Aura a otra como reconocimiento (los alumnos a un compañero de su clase, los profes a sus alumnos del día), y quien recibe se entera por push y por una bandeja de notificaciones nueva
+**Depends on**: Fase 214 (Aura visible con la escala nueva, lista de anotados, visibilidad, detalle privado). Decisiones en `215-CONTEXT.md`
 **Success Criteria** (what must be TRUE):
 
-1. Provisorio: quien regala lo hace en pocos toques desde un lugar que ya existe en la app
-2. Provisorio: hay un tope claro de cuánto se puede regalar y a quién
-3. Provisorio: quien recibe se entera, y el regalo queda en su detalle de Aura
-4. Provisorio: el staff puede anular un regalo
-5. Provisorio: lo regalado no rompe la conciliación de Aura (puntos mostrados = suma del ledger)
+1. Después de una clase a la que asistió, el alumno puede darle 1 punto de Aura a un solo compañero que también asistió, desde Mi Templo, eligiendo un motivo de una lista, hasta el final del día siguiente
+2. Un alumno no puede regalarle a la misma persona más de 2 veces por semana, ni regalarle al profe
+3. El profe puede darle Aura (2 puntos, valor editable desde el admin) una vez por día a cada uno de sus alumnos de ese día, desde el panel de asistencia
+4. Regalar no le descuenta Aura a quien regala, y lo recibido aparece en el detalle privado de quien recibe
+5. Quien se ocultó de las listas no regala ni recibe
+6. Quien recibe un regalo recibe una push y lo ve en la bandeja de notificaciones de la barra de arriba, que guarda todos los avisos que la app manda de ahora en más, con marca de sin leer
+7. El staff puede anular un regalo desde el admin y el punto se descuenta
+8. Los puntos mostrados siguen coincidiendo con la suma del ledger por usuario
+
+**Plans:** sin planificar
+
+### Phase 216: Pestaña Comunidad (fuera del milestone v6.1)
+
+**Estado (2026-11-17)**: IDEA de Franco, sin discutir. Preparar el discuss el 2026-11-18. Texto literal en la sección Deferred de `215-CONTEXT.md`.
+
+**Goal**: Provisorio: una pestaña Comunidad con las novedades arriba y, debajo, el movimiento de regalos de Aura ("tal persona le dio Aura a tal alumno", con la sede; "el profe Fran le dio Aura a…")
+**Depends on**: Fases 214 y 215
 
 **Plans:** sin planificar
 
