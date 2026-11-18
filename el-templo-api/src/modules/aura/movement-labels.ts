@@ -10,6 +10,12 @@
 // fila con un valor desconocido (fuente futura o dato viejo) cae en el texto
 // genérico en vez de romper la respuesta.
 import { formatMilestoneLabel } from "../shared/tenure-milestones";
+import {
+  GIFT_REFERENCE,
+  GIFT_VOID_LABEL,
+  giftMovementLabel,
+  type GiftLabelInput,
+} from "./gift-rules";
 
 const REVERSAL_REFERENCE = "attendance_reversal";
 
@@ -31,11 +37,26 @@ function positiveRef(referenceId: number | null): number | null {
     : null;
 }
 
+/**
+ * Texto de un movimiento del detalle privado.
+ *
+ * Fase 215: la fuente `social` es el regalo entre personas. El regalo recibido
+ * se lee con quien lo dio y el motivo (D-13, D-19) y la anulación como "Regalo
+ * anulado" (D-22), sin nombres. El cuarto parámetro lo arma la ruta con UNA
+ * consulta por página; si falta (regalo borrado), cae en el texto genérico.
+ */
 export function auraMovementLabel(
   sourceType: string,
   referenceType: string | null,
   referenceId: number | null,
+  gift?: GiftLabelInput | null,
 ): string {
+  if (sourceType === "social") {
+    return referenceType === GIFT_REFERENCE.void
+      ? GIFT_VOID_LABEL
+      : giftMovementLabel(gift ?? null);
+  }
+
   if (sourceType === "manual_adjustment") {
     return referenceType === REVERSAL_REFERENCE
       ? "Asistencia anulada"
