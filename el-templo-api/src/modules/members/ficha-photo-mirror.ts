@@ -213,8 +213,16 @@ export async function mirrorFichaPhotos(
         stale.push(row.storageKey);
       }
 
-      // Otra corrida pudo insertar esta misma clave: no se duplica.
-      if (!rows.some((row) => row.storageKey === storageKey)) {
+      // Otra corrida pudo insertar esta misma clave: no se duplica. Las filas
+      // `fallida` NO cuentan: la clave sale solo de la URL de origen, así que
+      // cada intento fallido de esta misma URL ya la usó. Si contaran, la
+      // copia exitosa tras un fallo no dejaba la fila `aprobada`, la URL
+      // seguía siendo candidata y se copiaba en cada corrida.
+      if (
+        !rows.some(
+          (row) => row.storageKey === storageKey && row.status !== "fallida",
+        )
+      ) {
         await tx.insert(schema.memberPhotos).values(
           tenantValues(ctx, {
             userId: candidate.id,
