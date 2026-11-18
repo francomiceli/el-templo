@@ -90,3 +90,5 @@ Cada vez que un ejecutor se encuentre con una decisión de producto, se anota ac
 | 2026-11-17 | 214-15 | Aviso de rechazo con los anuncios apagados | Si la persona tiene apagada la categoría de anuncios, no recibe el push de foto rechazada y se entera solo por el estado en Perfil. Queda anotado para Franco |
 | 2026-11-17 | 214-15 | Estado de la foto en Perfil con varias fotos | "En revisión" gana sobre cualquier otro estado. "Rechazada" se muestra si la última foto subida por la persona fue rechazada |
 | 2026-11-17 | 214-15 | Cola de revisión sin storage | Con la cola vacía se muestra vacía normalmente. Si hay fotos y el almacenamiento privado no está configurado, la cola da error de servicio en vez de mostrar fotos rotas |
+| 2026-11-17 | 214-16 | Usuario Wellhub sin suscripción | Una persona que entra con Wellhub y no tiene suscripción propia no tiene plan en vigor: en la lista de anotados ve solo el número, no los nombres |
+| 2026-11-17 | 214-16 | Mayoría de edad el 29 de febrero | Quien nació un 29 de febrero cumple los 18 el 1 de marzo en los años no bisiestos, y recién ese día pasa a ser visible por defecto en la comunidad |
