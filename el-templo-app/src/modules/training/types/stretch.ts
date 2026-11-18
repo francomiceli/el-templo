@@ -59,6 +59,8 @@ export interface StretchCompleteResponse {
   completedAt: string
   durationSeconds: number | null
   auraAwarded: boolean
+  /** Lo que paga la fuente (lo manda el servidor; un servidor viejo no lo manda) */
+  auraAmount?: number
   alreadyCompleted: boolean
   /**
    * Minutos para la pantalla "Listo. X minutos de estiramiento". Solo vale cuando
