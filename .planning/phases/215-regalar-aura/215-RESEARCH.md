@@ -476,10 +476,10 @@ sigue ese modelo con cupo atado a asistencia en vez de cupo mensual.
 | A4  | Las asistencias de prueba se distinguen por la reserva ligada              | §2        | Un alumno de prueba podría recibir                                   |
 | A5  | Qué familia ISO-03 exige caso para `/api/members/aura` y `/api/admin/aura` | §6        | `CASOS_BASELINE` mal movido en CI                                    |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. ¿Push al anular un regalo? Recomendación: no.
-2. ¿El regalo de la 215 se mostrará en la 216? Fuera de alcance; la tabla propia lo permite.
+1. ¿Push al anular un regalo? RESUELTO: no (plan 09 y plan 15; decisión "Regalo anulado en la bandeja").
+2. ¿El regalo de la 215 se mostrará en la 216? RESUELTO: fuera de alcance de la 215; la tabla propia `aura_gifts` lo permite.
 
 ## Environment Availability
 
