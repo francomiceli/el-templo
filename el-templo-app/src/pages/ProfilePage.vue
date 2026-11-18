@@ -374,6 +374,10 @@ import ProfilePhotoSheet from 'src/components/ProfilePhotoSheet.vue'
 import AuraDetailSheet from 'src/components/AuraDetailSheet.vue'
 import { useCommunityApi } from 'src/composables/useCommunityApi'
 import { formatAura } from 'src/utils/aura-format'
+import {
+  defaultPreferences,
+  visibleNotificationCategories,
+} from 'src/utils/notification-categories'
 import { rejectionReasonLabel } from 'src/utils/photo-messages'
 import { AURA_AMOUNTS_UI } from 'src/constants/aura-amounts'
 import { ADDRESS_PROMPT_LOCALITY, composeAddress, splitAddress } from 'src/utils/member-address'
@@ -536,38 +540,12 @@ watch(showCommunity, (visible) => {
   if (visible) void landOnCommunity()
 })
 
-// Notification categories (per D-18)
-const notificationCategories = [
-  {
-    key: 'entrenamiento',
-    label: 'Entrenamiento',
-    description: 'Recordatorios de check-in, resumen semanal',
-  },
-  {
-    key: 'programas',
-    label: 'Programas',
-    description: 'Confirmación de inscripción, avance semanal',
-  },
-  {
-    key: 'planes',
-    label: 'Planes',
-    description: 'Cuando cargamos tu plan y avisos de vencimiento',
-  },
-  {
-    key: 'anuncios',
-    label: 'Novedades',
-    description: 'Nuevas funciones y actualizaciones',
-  },
-]
+// Notification categories (per D-18; #30 suma "Regalos de Aura", solo con el módulo de Aura prendido)
+const notificationCategories = computed(() => visibleNotificationCategories(userStore.auraVisible))
 
 // Notification preferences state
 const preferencesLoading = ref(true)
-const preferences = reactive<Record<string, boolean>>({
-  entrenamiento: true,
-  programas: true,
-  planes: true,
-  anuncios: true,
-})
+const preferences = reactive<Record<string, boolean>>(defaultPreferences())
 
 async function loadPreferences() {
   preferencesLoading.value = true
