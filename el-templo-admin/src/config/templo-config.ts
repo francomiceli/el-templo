@@ -374,6 +374,13 @@ export const NAV_MODEL: NavCategory[] = [
     header: 'Gestión',
     items: [
       { path: '/alumnos', label: 'Alumnos', icon: 'people', roles: ALL_STAFF_ROLES },
+      {
+        path: '/alumnos/fotos',
+        label: 'Fotos',
+        icon: 'face',
+        roles: ALL_STAFF_ROLES,
+        badge: 'fotos',
+      },
       { path: '/horarios', label: 'Horarios', icon: 'calendar_month', roles: ALL_STAFF_ROLES },
       {
         // TV (fase 164, unificado tras el retiro del kiosco anónimo RFC 8628):

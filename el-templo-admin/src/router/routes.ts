@@ -141,6 +141,23 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
+        // Revisión de fotos de perfil (fase 214, D-46). Va ANTES de `alumnos/:userId` para que
+        // "fotos" no se tome como un id. Mismos roles que la ficha: el servidor acota admin_sede.
+        path: 'alumnos/fotos',
+        component: () => import('pages/FotosPerfilPage.vue'),
+        meta: {
+          allowedRoles: [
+            'coach',
+            'admin',
+            'owner',
+            'gestion',
+            'recepcion',
+            'admin_sede',
+            'coach_actividad',
+          ] as AdminRole[],
+        },
+      },
+      {
         path: 'alumnos/:userId',
         component: () => import('pages/AlumnoDetailPage.vue'),
         meta: {
