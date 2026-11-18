@@ -262,3 +262,20 @@ export const putGiftSettingsSchema = {
     403: giftErrorResponseSchema,
   },
 } as const;
+
+/** `POST /gifts/:id/void` (admin): anula un regalo vigente. Responde 204. */
+export const voidGiftSchema = {
+  params: {
+    type: "object",
+    required: ["id"],
+    properties: {
+      id: { type: "integer", minimum: 1 },
+    },
+  },
+  response: {
+    204: { type: "null" },
+    403: giftErrorResponseSchema,
+    404: giftErrorResponseSchema,
+    409: giftErrorResponseSchema,
+  },
+} as const;

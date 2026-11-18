@@ -247,6 +247,7 @@ export const attendanceAdminRoutes: FastifyPluginAsync = async (fastify) => {
         const result = await attendanceService.removeCheckIn(
           request.params.attendanceId,
           ctx,
+          request.user.userId,
         );
         return result;
       } catch (err: unknown) {

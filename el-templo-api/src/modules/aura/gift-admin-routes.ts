@@ -5,6 +5,8 @@
 //   POST /gifts          el profe da Aura a un alumno de su clase (D-15)
 //   GET  /gift-settings  valor vigente del regalo del profe (D-11)
 //   PUT  /gift-settings  cambia el valor (solo dueño y admin)
+//   POST /gifts/:id/void anula un regalo vigente (dueño, admin y admin_sede;
+//                        el admin_sede solo en sus sedes, D-20)
 //
 // Roles (cada ruta con su propio chequeo, además del guard de staff):
 //   - POST: solo profes (`isCoachLikeRole`). La sede sale de `request.scope`,
@@ -16,6 +18,7 @@
 // controla el acceso y se arma la respuesta. Los rechazos del regalo salen por
 // `sendGiftError` (conserva el `code`); el resto, por `handleServiceError`.
 import type { FastifyPluginAsync, FastifyReply } from "fastify";
+import { enforcedBranchIds } from "../shared/branch-access";
 import { attachCountryScope } from "../shared/country-scope";
 import { handleServiceError } from "../shared/error-handler";
 import {
@@ -32,9 +35,11 @@ import {
   getGiftSettingsSchema,
   putGiftSettingsSchema,
   type CoachGiveGiftBody,
+  voidGiftSchema,
   type GiftSettingsBody,
 } from "./gift-schemas";
 import { AuraGiftService } from "./gift-service";
+import { voidGift } from "./gift-void";
 
 /** 403 con el cuerpo del regalo (`REGALO_SIN_PERMISO`). */
 function denyGift(reply: FastifyReply): void {
@@ -51,6 +56,8 @@ const SETTINGS_READ_ROLES: readonly string[] = [
   ADMIN_SEDE_ROLE,
 ];
 const SETTINGS_WRITE_ROLES: readonly string[] = ADMIN_ROLES;
+// Anular: dueño, admin y admin_sede (los profes y la recepción, no).
+const VOID_ROLES: readonly string[] = [...ADMIN_ROLES, ADMIN_SEDE_ROLE];
 
 export const auraGiftAdminRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.addHook("onRequest", async (request, reply) => {
@@ -87,6 +94,29 @@ export const auraGiftAdminRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.code(201).send({ amount: result.amount });
       } catch (err: unknown) {
         sendGiftError(err, reply, request.log, "aura.admin.gift");
+      }
+    },
+  );
+
+  // POST /gifts/:id/void — anula un regalo vigente y descuenta lo recibido.
+  // Fuera de las sedes del admin_sede responde 404 (no revela el regalo).
+  fastify.post<{ Params: { id: number } }>(
+    "/gifts/:id/void",
+    { schema: voidGiftSchema },
+    async (request, reply) => {
+      try {
+        if (!VOID_ROLES.includes(request.user.role)) return denyGift(reply);
+        const ctx = assertTenant(request.scope, "aura.admin.gift.void");
+        await voidGift(fastify.db, ctx, {
+          giftId: request.params.id,
+          voidedBy: request.user.userId,
+          cause: "staff",
+          allowedBranchIds: enforcedBranchIds(request.scope),
+          log: request.log,
+        });
+        return reply.code(204).send();
+      } catch (err: unknown) {
+        sendGiftError(err, reply, request.log, "aura.admin.gift.void");
       }
     },
   );

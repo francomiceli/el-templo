@@ -48,6 +48,7 @@ import {
   attendanceAuraCredited,
 } from "../aura/day-cap";
 import { localDateForBranch } from "../aura/daily-award";
+import { voidGiftsForAttendance } from "../aura/gift-void";
 import { AuraService, InsufficientBalanceError } from "../aura/service";
 import { CheckInService } from "../check-ins/service";
 import type { DayCheckIn } from "../check-ins/types";
@@ -1218,6 +1219,7 @@ export class AttendanceService {
   async removeCheckIn(
     attendanceId: number,
     ctx: TenantContext,
+    voidedBy: number | null = null,
   ): Promise<{ removed: boolean }> {
     // Get the attendance record
     const [attRecord] = await this.db
@@ -1260,6 +1262,17 @@ export class AttendanceService {
     // 'reservado'. Se usa `session_date` (Pitfall 8), no la fecha UTC de
     // `checked_in_at`.
     if (attRecord.source === "wellhub_manual") {
+      // Fase 215 (D-08): los regalos que esta asistencia dio o recibió se anulan
+      // ANTES del borrado, sin aviso. Fuera de todo try: si la anulación falla,
+      // el deshacer falla entero y no quedan regalos colgados.
+      await voidGiftsForAttendance(
+        this.db,
+        ctx,
+        attendanceId,
+        voidedBy,
+        this.log,
+      );
+
       await this.db
         .delete(schema.attendance)
         .where(
@@ -1291,6 +1304,16 @@ export class AttendanceService {
       );
       return { removed: true };
     }
+
+    // Fase 215 (D-08): igual que arriba, los regalos de esta asistencia se
+    // anulan antes de borrarla y un error corta el deshacer.
+    await voidGiftsForAttendance(
+      this.db,
+      ctx,
+      attendanceId,
+      voidedBy,
+      this.log,
+    );
 
     // Delete the attendance record
     await this.db
