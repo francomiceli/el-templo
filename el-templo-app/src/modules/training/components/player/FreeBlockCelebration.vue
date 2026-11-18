@@ -1,17 +1,17 @@
 <template>
   <!-- Fase 197 D-15 (pantalla 4): celebración del bloque libre. Mismo marco que la de la sesión
        completa (CelebrationFrame).
-       T-197-38: el "+5 AURA" se muestra SOLO con `auraAwarded`, que viene de la respuesta del
-       servidor (el cliente nunca lo decide). -->
+       T-197-38: el monto de AURA se muestra SOLO con `auraAwarded` y `auraAmount`, que vienen de la
+       respuesta del servidor (el cliente nunca lo decide). -->
   <CelebrationFrame
     kicker="Bloque libre"
     title="¡Bloque completado!"
     cta-label="Ver resumen"
     @cta="emit('view-summary')"
   >
-    <template v-if="auraAwarded">
+    <template v-if="auraAwarded && auraAmount">
       <div class="fb-aura">
-        <span class="fb-aura__amount">+5</span>
+        <span class="fb-aura__amount">+{{ auraAmount }}</span>
         <span class="fb-aura__label">AURA</span>
       </div>
       <p class="fb-meta">Tu primer bloque libre de hoy</p>
@@ -28,8 +28,10 @@ import CelebrationFrame from './CelebrationFrame.vue'
 import CelebrationQuote from './CelebrationQuote.vue'
 
 interface Props {
-  /** true solo si el servidor acreditó los +5 AURA de este bloque */
+  /** true solo si el servidor acreditó AURA en este bloque */
   auraAwarded: boolean
+  /** Monto que acreditó el servidor; null = no lo mandó, no se muestra */
+  auraAmount?: number | null
   /** Cita de cierre */
   quote: Quote
 }
@@ -45,7 +47,7 @@ const emit = defineEmits<Emits>()
 <style scoped lang="scss">
 @import 'src/css/premium-card';
 
-// "+5 AURA": el único dorado de la pantalla (D-18). El glow es decoración, el texto es sólido.
+// Monto de AURA: el único dorado de la pantalla (D-18). El glow es decoración, el texto es sólido.
 .fb-aura {
   display: flex;
   flex-direction: column;
@@ -78,7 +80,7 @@ const emit = defineEmits<Emits>()
   color: $pd-cream-3;
 }
 
-// Pulso del "+5": solo escala (el texto nunca baja su opacidad) y solo con movimiento permitido.
+// Pulso del monto: solo escala (el texto nunca baja su opacidad) y solo con movimiento permitido.
 @media (prefers-reduced-motion: no-preference) {
   .fb-aura__amount {
     animation: fb-aura-pulse 1.6s ease-in-out infinite;

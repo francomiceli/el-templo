@@ -26,10 +26,11 @@
       @done="onCountdownDone"
     />
 
-    <!-- Pantalla 4: celebración. T-197-39: el "+5" sale de la respuesta del servidor -->
+    <!-- Pantalla 4: celebración. T-197-39: el monto de AURA sale de la respuesta del servidor -->
     <FreeBlockCelebration
       v-else-if="stage === 'celebration'"
       :aura-awarded="lastResult?.auraAwarded === true"
+      :aura-amount="lastResult?.auraAmount ?? null"
       :quote="celebrationQuote"
       @view-summary="onCelebrationViewSummary"
     />
@@ -41,6 +42,7 @@
       :completed-exercise-ids="savedExerciseIds"
       :duration-seconds="lastResult.durationSeconds"
       :aura-awarded="awardedInRun"
+      :aura-amount="awardedAmount"
       :can-earn-aura="canEarnAura"
       :day-label="dayLabel"
       @done="onSummaryDone"
@@ -129,6 +131,8 @@ const lastResult = ref<FreeBlockCompleteResponse | null>(null)
 const savedExerciseIds = ref<number[]>([])
 /** true si algún cierre de esta visita acreditó el AURA del día */
 const awardedInRun = ref(false)
+/** Monto que acreditó ese cierre (del servidor); null si no se acreditó o el servidor no lo mandó */
+const awardedAmount = ref<number | null>(null)
 
 /**
  * Cierre del bloque (D-12): guarda en el servidor y actualiza el estado de la visita.
@@ -161,7 +165,10 @@ async function saveBlock(input: SingleBlockSaveInput): Promise<FreeBlockComplete
   completionId.value = res.completionId
   lastResult.value = res
   savedExerciseIds.value = [...new Set([...savedExerciseIds.value, ...input.exercisesCompleted])]
-  if (res.auraAwarded) awardedInRun.value = true
+  if (res.auraAwarded) {
+    awardedInRun.value = true
+    awardedAmount.value = res.auraAmount ?? null
+  }
   return res
 }
 
