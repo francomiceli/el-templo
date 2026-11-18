@@ -3,7 +3,8 @@
  *
  * La bandeja (`member_notifications`) guarda una copia de cada aviso personal
  * que la app manda, durante 90 días (la cola `pending_notifications` se purga
- * a las 24 h). Este servicio solo ESCRIBE; las lecturas las suma el plan 14.
+ * a las 24 h). Escribe (planes 12 y 13) y, desde el plan 14, lee para la app:
+ * lista paginada, contador de sin leer y marcar leído.
  *
  * Dos caminos de escritura, dos UNIQUE:
  * - `recordFromQueue`: el aviso salió de una fila de la cola. Lo hace único
@@ -17,12 +18,22 @@
  *
  * La bandeja NUNCA frena la push: todo error se atrapa y se loguea.
  */
-import { and, eq, isNull, lt, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
-import { tenantValues, type TenantContext } from "../shared/tenant";
-import { INBOX_RETENTION_DAYS, inboxKindFor } from "./inbox-rules";
+import {
+  tenantValues,
+  tenantWhere,
+  type TenantContext,
+} from "../shared/tenant";
+import type { GiftGiverKind } from "../aura/gift-rules";
+import {
+  INBOX_RETENTION_DAYS,
+  formatInboxCursor,
+  inboxKindFor,
+  parseInboxCursor,
+} from "./inbox-rules";
 
 type DbInstance = MySql2Database<typeof schema>;
 
@@ -57,6 +68,37 @@ export interface InboxDirectInput {
   destinationSection: string | null;
   whatsappText: string | null;
   shownAt: Date;
+}
+
+/** Fila de la lista de la bandeja (lo que la ruta necesita, sin `user_id`). */
+export interface InboxListRow {
+  id: number;
+  kind: string;
+  refId: number | null;
+  title: string;
+  body: string;
+  route: string | null;
+  destinationType: string;
+  destinationSection: string | null;
+  whatsappText: string | null;
+  shownAt: Date;
+  readAt: Date | null;
+}
+
+/** Una página de la bandeja y el cursor de la siguiente (null si no hay más). */
+export interface InboxPage {
+  rows: InboxListRow[];
+  nextBefore: string | null;
+}
+
+/** Datos del regalo que acompañan a un aviso `aura_gift`. */
+export interface InboxGiftInfo {
+  amount: number;
+  giverKind: GiftGiverKind;
+  giverUserId: number;
+  giverFirstName: string | null;
+  giverLastInitial: string | null;
+  status: "vigente" | "anulado";
 }
 
 export class InboxService {
@@ -201,5 +243,192 @@ export class InboxService {
       this.log.info({ deletedCount }, "Purgados avisos viejos de la bandeja");
     }
     return deletedCount;
+  }
+
+  /**
+   * Página de avisos de la persona, del más nuevo al más viejo. Solo los ya
+   * visibles (`shown_at <= NOW()`). Se pagina por `(shown_at, id)`: `before` es
+   * el `nextBefore` de la página anterior; un cursor inválido se ignora y se
+   * devuelve la primera página.
+   */
+  async listForUser(
+    ctx: TenantContext,
+    userId: number,
+    opts: { before?: string; limit: number },
+  ): Promise<InboxPage> {
+    const cursor =
+      opts.before !== undefined ? parseInboxCursor(opts.before) : null;
+    const shownAt = cursor ? new Date(cursor.shownAtMs) : null;
+
+    const found = await this.db
+      .select({
+        id: schema.memberNotifications.id,
+        kind: schema.memberNotifications.kind,
+        refId: schema.memberNotifications.refId,
+        title: schema.memberNotifications.title,
+        body: schema.memberNotifications.body,
+        route: schema.memberNotifications.route,
+        destinationType: schema.memberNotifications.destinationType,
+        destinationSection: schema.memberNotifications.destinationSection,
+        whatsappText: schema.memberNotifications.whatsappText,
+        shownAt: schema.memberNotifications.shownAt,
+        readAt: schema.memberNotifications.readAt,
+      })
+      .from(schema.memberNotifications)
+      .where(
+        and(
+          tenantWhere(schema.memberNotifications, ctx),
+          eq(schema.memberNotifications.userId, userId),
+          lte(schema.memberNotifications.shownAt, sql`NOW()`),
+          cursor && shownAt
+            ? or(
+                lt(schema.memberNotifications.shownAt, shownAt),
+                and(
+                  eq(schema.memberNotifications.shownAt, shownAt),
+                  lt(schema.memberNotifications.id, cursor.id),
+                ),
+              )
+            : undefined,
+        ),
+      )
+      .orderBy(
+        desc(schema.memberNotifications.shownAt),
+        desc(schema.memberNotifications.id),
+      )
+      .limit(opts.limit + 1);
+
+    const hasMore = found.length > opts.limit;
+    const rows = hasMore ? found.slice(0, opts.limit) : found;
+    const last = rows[rows.length - 1];
+    return {
+      rows,
+      nextBefore:
+        hasMore && last ? formatInboxCursor(last.shownAt, last.id) : null,
+    };
+  }
+
+  /**
+   * Datos de los regalos recibidos por `receiverUserId`, por id de regalo, en
+   * UNA consulta con quien dio unido. Del dador solo salen el nombre de pila y
+   * la inicial del apellido. Filtrar por el receptor es una segunda defensa: un
+   * aviso nunca puede traer un regalo de otra persona. Un regalo que no existe
+   * (o no es de esa persona) no aparece en el mapa.
+   */
+  async giftInfoFor(
+    ctx: TenantContext,
+    receiverUserId: number,
+    giftIds: readonly number[],
+  ): Promise<Map<number, InboxGiftInfo>> {
+    const result = new Map<number, InboxGiftInfo>();
+    if (giftIds.length === 0) return result;
+
+    const rows = await this.db
+      .select({
+        id: schema.auraGifts.id,
+        amount: schema.auraGifts.amount,
+        giverKind: schema.auraGifts.giverKind,
+        giverUserId: schema.auraGifts.giverUserId,
+        status: schema.auraGifts.status,
+        giverFirstName: schema.users.firstName,
+        giverLastInitial: sql<string | null>`LEFT(${schema.users.lastName}, 1)`,
+      })
+      .from(schema.auraGifts)
+      .innerJoin(
+        schema.users,
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.auraGifts.giverUserId),
+        ),
+      )
+      .where(
+        and(
+          tenantWhere(schema.auraGifts, ctx),
+          eq(schema.auraGifts.receiverUserId, receiverUserId),
+          inArray(schema.auraGifts.id, [...giftIds]),
+        ),
+      );
+
+    for (const row of rows) {
+      result.set(row.id, {
+        amount: row.amount,
+        giverKind: row.giverKind,
+        giverUserId: row.giverUserId,
+        giverFirstName: row.giverFirstName,
+        giverLastInitial:
+          row.giverKind === "profe" ? null : row.giverLastInitial,
+        status: row.status,
+      });
+    }
+    return result;
+  }
+
+  /** Cantidad de avisos visibles y sin leer de la persona. */
+  async unreadCount(ctx: TenantContext, userId: number): Promise<number> {
+    const [row] = await this.db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(schema.memberNotifications)
+      .where(
+        and(
+          tenantWhere(schema.memberNotifications, ctx),
+          eq(schema.memberNotifications.userId, userId),
+          lte(schema.memberNotifications.shownAt, sql`NOW()`),
+          isNull(schema.memberNotifications.readAt),
+        ),
+      );
+    return Number(row?.count ?? 0);
+  }
+
+  /**
+   * Marca leído un aviso propio. Devuelve false si no existe o es de otra
+   * persona (la ruta responde 404 sin revelar cuál de las dos). Marcar dos veces
+   * responde igual: no se exige `read_at IS NULL` y el SELECT previo evita
+   * depender de `affectedRows` (FOUND_ROWS cuenta encontradas, no cambiadas).
+   */
+  async markRead(
+    ctx: TenantContext,
+    userId: number,
+    id: number,
+  ): Promise<boolean> {
+    const [own] = await this.db
+      .select({ id: schema.memberNotifications.id })
+      .from(schema.memberNotifications)
+      .where(
+        and(
+          tenantWhere(schema.memberNotifications, ctx),
+          eq(schema.memberNotifications.id, id),
+          eq(schema.memberNotifications.userId, userId),
+        ),
+      )
+      .limit(1);
+    if (!own) return false;
+
+    await this.db
+      .update(schema.memberNotifications)
+      .set({
+        readAt: sql`COALESCE(${schema.memberNotifications.readAt}, NOW())`,
+      })
+      .where(
+        and(
+          tenantWhere(schema.memberNotifications, ctx),
+          eq(schema.memberNotifications.id, id),
+          eq(schema.memberNotifications.userId, userId),
+        ),
+      );
+    return true;
+  }
+
+  /** Marca leídos todos los avisos visibles y sin leer de la persona. */
+  async markAllRead(ctx: TenantContext, userId: number): Promise<void> {
+    await this.db
+      .update(schema.memberNotifications)
+      .set({ readAt: new Date() })
+      .where(
+        and(
+          tenantWhere(schema.memberNotifications, ctx),
+          eq(schema.memberNotifications.userId, userId),
+          lte(schema.memberNotifications.shownAt, sql`NOW()`),
+          isNull(schema.memberNotifications.readAt),
+        ),
+      );
   }
 }
