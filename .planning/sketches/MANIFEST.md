@@ -46,3 +46,7 @@ cálida (terracotta, clay, bronze sobre marble cream) — **sin azul y sin dorad
 | 033 | aviso-asistencia | ¿Cómo avisa la app que se registró la asistencia y se sumaron 5 de Aura: píldora sobre la barra (A), celebración a pantalla completa (B) o resumen con tu clase (C)? | ★ B: celebración a pantalla completa, igual para alumnos y staff. Sin el +5 cuando la asistencia no acredita Aura | app, asistencia, aura, fase-214 |
 
 _Sketches 030-033 (2026-11-17): fase 214, worktree `et-comunidad`. Numerados desde 030 porque el 029 (`aviso-evento-flex-final`) existe sin commitear en el checkout principal. Dirección: mismo lenguaje del rework (terracota, crema, card oscura), con el dorado usado solo para los puntos de Aura._
+| 034 | dar-aura | ¿Cómo le da Aura un alumno a un compañero después de la clase, desde Mi Templo: hoja en dos toques (A), hoja en dos pasos (B) o pantalla completa (C)? | — | app, mi-templo, aura, regalar, fase-215 |
+| 035 | bandeja-notificaciones | ¿Cómo se ve la bandeja de notificaciones que abre la campana de la barra de arriba: hoja desde abajo (A), pantalla propia (B) o desplegable (C)? | — | app, notificaciones, aura, regalar, fase-215 |
+
+_Sketches 034-035 (2026-11-17): fase 215 (regalar Aura y bandeja de notificaciones), mismo lenguaje que los 030-033: Aura en claro, dorado solo para Aura._
