@@ -305,9 +305,10 @@ export const adminGiftsListSchema = {
   response: {
     200: {
       type: "object",
-      required: ["items", "weeks"],
+      required: ["items", "truncated", "weeks"],
       additionalProperties: false,
       properties: {
+        truncated: { type: "boolean" },
         items: {
           type: "array",
           items: {

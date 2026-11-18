@@ -165,6 +165,16 @@
       </div>
     </div>
 
+    <q-banner
+      v-if="truncated"
+      rounded
+      class="bg-orange-1 text-grey-9 q-mb-md"
+      data-test="regalos-truncated"
+    >
+      Hay más regalos de los que se pueden mostrar: faltan los más viejos. Elegí un período más
+      corto o una sede para verlos.
+    </q-banner>
+
     <!-- Tabla -->
     <q-table
       v-model:pagination="pagination"
@@ -410,6 +420,7 @@ const loadState = ref<LoadState>('loading');
 const refreshing = ref(false);
 const items = ref<AdminGiftItem[]>([]);
 const weeks = ref<GiftWeek[]>([]);
+const truncated = ref(false);
 const branches = ref<BranchOption[]>([]);
 const selectedBranchId = ref<number | null>(null);
 const days = ref<DaysFilter>(7);
@@ -495,6 +506,7 @@ async function load(options: { silent?: boolean } = {}): Promise<void> {
     });
     if (seq !== loadSeq) return;
     items.value = response.items;
+    truncated.value = response.truncated;
     weeks.value = response.weeks;
     if (!options.silent) pagination.value = { ...pagination.value, page: 1 };
     loadState.value = 'ready';

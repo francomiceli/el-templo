@@ -42,6 +42,8 @@ export interface GiftWeek {
 
 export interface AdminGiftsResponse {
   items: AdminGiftItem[];
+  /** true si la lista se cortó en el tope y faltan los regalos más viejos. */
+  truncated: boolean;
   weeks: GiftWeek[];
 }
 

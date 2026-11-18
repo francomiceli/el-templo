@@ -175,7 +175,7 @@ export const auraGiftAdminRoutes: FastifyPluginAsync = async (fastify) => {
         }
         const todayLocal = todayInTz(timezone);
 
-        const [items, weeks] = await Promise.all([
+        const [list, weeks] = await Promise.all([
           listAdminGifts(fastify.db, ctx, {
             branchIds,
             days,
@@ -184,7 +184,7 @@ export const auraGiftAdminRoutes: FastifyPluginAsync = async (fastify) => {
           }),
           weeklyGiftUsage(fastify.db, ctx, { branchIds, todayLocal }),
         ]);
-        return { items, weeks };
+        return { items: list.items, truncated: list.truncated, weeks };
       } catch (err: unknown) {
         sendGiftError(err, reply, request.log, "aura.admin.gift.list");
       }

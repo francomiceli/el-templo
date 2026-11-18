@@ -79,6 +79,7 @@ interface WeekUsage {
 }
 
 interface ListBody {
+  truncated: boolean;
   items: GiftItem[];
   weeks: WeekUsage[];
 }
@@ -278,6 +279,7 @@ describe("Fase 215-10: lista de regalos y medición para el staff", () => {
 
       expect(res.statusCode).toBe(200);
       expect(res.body.items.map((i) => i.id)).toEqual([delProfe, delAlumno]);
+      expect(res.body.truncated).toBe(false);
       const [profe, alumnoItem] = res.body.items;
       expect(profe).toMatchObject({
         giverName: coach.fullName,

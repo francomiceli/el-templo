@@ -50,7 +50,11 @@ import {
 
 type DbInstance = MySql2Database<typeof schema>;
 
-/** Tope de filas de la lista (el período máximo es de 90 días). */
+/**
+ * Tope de filas de la lista. Hay un regalo posible por asistencia, así que en un
+ * gimnasio grande 500 filas pueden no cubrir el período: cuando se corta, la
+ * respuesta lo avisa con `truncated` (ME-04).
+ */
 export const ADMIN_GIFTS_LIMIT = 500;
 
 /** Cantidad de semanas de la medición (la actual y las 3 anteriores). */
@@ -97,6 +101,12 @@ function fullName(
   return name === "" ? fallback : name;
 }
 
+export interface AdminGiftList {
+  items: AdminGiftItem[];
+  /** true si había más regalos que `ADMIN_GIFTS_LIMIT` (los más viejos no salen). */
+  truncated: boolean;
+}
+
 /**
  * Regalos del período (`days` días terminando hoy), del más reciente al más
  * viejo. Con `includeVoided` falso solo salen los vigentes.
@@ -105,9 +115,11 @@ export async function listAdminGifts(
   db: DbInstance,
   ctx: TenantContext,
   filters: AdminGiftFilters,
-): Promise<AdminGiftItem[]> {
+): Promise<AdminGiftList> {
   const { branchIds, days, includeVoided, todayLocal } = filters;
-  if (branchIds !== undefined && branchIds.length === 0) return [];
+  if (branchIds !== undefined && branchIds.length === 0) {
+    return { items: [], truncated: false };
+  }
 
   const giver = alias(schema.users, "gift_giver");
   const receiver = alias(schema.users, "gift_receiver");
@@ -181,9 +193,10 @@ export async function listAdminGifts(
       desc(schema.schedules.startTime),
       desc(schema.auraGifts.id),
     )
-    .limit(ADMIN_GIFTS_LIMIT);
+    .limit(ADMIN_GIFTS_LIMIT + 1);
 
-  return rows.map((row) => ({
+  const truncated = rows.length > ADMIN_GIFTS_LIMIT;
+  const items = rows.slice(0, ADMIN_GIFTS_LIMIT).map((row) => ({
     id: row.id,
     sessionDate: row.sessionDate,
     startTime: row.startTime ?? null,
@@ -211,6 +224,8 @@ export async function listAdminGifts(
             `Usuario #${row.voidedByUserId}`,
           ),
   }));
+
+  return { items, truncated };
 }
 
 const STAFF_ROLES: ReadonlyArray<(typeof ALL_STAFF_ROLES)[number]> =
