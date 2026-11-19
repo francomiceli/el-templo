@@ -1,5 +1,5 @@
 <template>
-  <q-layout view="lHh Lpr lFf">
+  <q-layout view="lHh Lpr lFf" @scroll="onLayoutScroll">
     <!-- D-16 (fase 199): la foto de fondo es el primer hijo y va DETRÁS (z-index -1) -->
     <div class="app-bg" aria-hidden="true" />
 
@@ -35,14 +35,28 @@
         />
 
         <!-- Fase 215 (D-17): de derecha a izquierda, salir, campana y perfil; los tres de 44x44. -->
+        <!-- 2026-11-19 (sketch 038): el botón de perfil lleva el ícono y, si hay foto, la foto en el
+             mismo lugar. En Mi Templo la foto aparece cuando la del encabezado queda tapada por la
+             barra; en las demás pantallas está siempre. Sin foto queda el ícono. -->
         <q-btn
           v-if="authStore.isAuthenticated"
           flat
           round
-          icon="person"
           to="/profile"
-          class="bar-btn-44"
+          class="bar-btn-44 bar-profile"
+          :class="{ 'bar-profile--photo': showBarPhoto }"
+          aria-label="Mi Perfil"
         >
+          <q-icon name="person" class="bar-profile__icon" />
+          <MemberAvatar
+            v-if="barPhotoUrl"
+            class="bar-profile__photo"
+            :size="32"
+            :url="barPhotoUrl"
+            :first-name="userStore.profile?.firstName ?? null"
+            :ring="userStore.auraVisible ? 'gold' : 'white'"
+            @image-error="barPhotoFailed = true"
+          />
           <q-tooltip>Mi Perfil</q-tooltip>
         </q-btn>
         <NotificationBell v-if="authStore.isAuthenticated" class="bar-btn-44" />
@@ -239,6 +253,7 @@ import PlanExpiryDialog from 'src/components/PlanExpiryDialog.vue'
 import AvisoPromptDialog from 'src/components/AvisoPromptDialog.vue'
 import AddressPromptDialog from 'src/components/AddressPromptDialog.vue'
 import MiTemploHeader from 'src/components/MiTemploHeader.vue'
+import MemberAvatar from 'src/components/MemberAvatar.vue'
 import NotificationBell from 'src/components/NotificationBell.vue'
 import NotificationCountBadge from 'src/components/NotificationCountBadge.vue'
 import { useNotificationsInboxStore } from 'src/stores/useNotificationsInboxStore'
@@ -250,6 +265,7 @@ import { isNewMember } from 'src/modules/guia/new-member'
 import { ANATOMIA_ALUMNOS_ENABLED } from 'src/config/featureFlags'
 import { maybeRequestReview } from 'src/utils/in-app-review'
 import { DEFAULT_BRANCH_TZ } from 'src/utils/tz'
+import { isHeaderPhotoHidden, showsBarPhoto, shownPhotoUrl } from 'src/utils/bar-profile-photo'
 
 const $q = useQuasar()
 const router = useRouter()
@@ -450,6 +466,29 @@ const showLevelSelector = computed(
 // #19: en celulares angostos el selector muestra solo el ícono del nivel; el título no se oculta.
 const isNarrowBar = computed(() => $q.screen.width < 480)
 
+// Foto de perfil en la barra (sketch 038). Se guarda solo el sí/no, y se escribe únicamente cuando
+// cambia: el layout avisa cada movimiento del scroll y no hay que redibujar por cada uno.
+const headerPhotoHidden = ref(false)
+function onLayoutScroll(details: { position: number }): void {
+  const hidden = isHeaderPhotoHidden(details.position)
+  if (hidden !== headerPhotoHidden.value) headerPhotoHidden.value = hidden
+}
+const barPhotoUrl = computed(() => shownPhotoUrl(userStore.profile?.photo))
+// Si la imagen no carga (URL firmada vencida) vuelve el ícono. Una URL nueva vuelve a intentar: en
+// Mi Templo el encabezado ya pide `/me` de nuevo cuando le pasa lo mismo.
+const barPhotoFailed = ref(false)
+watch(barPhotoUrl, () => {
+  barPhotoFailed.value = false
+})
+const showBarPhoto = computed(() =>
+  showsBarPhoto({
+    url: barPhotoUrl.value,
+    failed: barPhotoFailed.value,
+    isMiTemplo: isMiTemplo.value,
+    headerPhotoHidden: headerPhotoHidden.value,
+  }),
+)
+
 const showCheckInFab = computed(() => {
   if (!authStore.isAuthenticated) return false
   if (!userStore.profile) return false
@@ -577,6 +616,7 @@ async function onLogout() {
 
 <style scoped lang="scss">
 @import 'src/css/brand';
+@import 'src/css/premium-card';
 @import 'src/css/quasar.variables.scss';
 
 // D-16 fase 199: la foto va DETRÁS de páginas y cards. z-index negativo dentro
@@ -685,6 +725,69 @@ async function onLogout() {
   min-width: 44px;
   min-height: 44px;
   flex-shrink: 0;
+}
+
+// Foto de perfil en la barra (sketch 038). El ícono y la foto ocupan el mismo lugar del botón: al
+// mostrarse la foto, el ícono se achica y se va y la foto sube. La foto se queda montada (solo se
+// oculta) para no volver a pedir la imagen en cada scroll.
+.bar-profile {
+  // La foto se centra contra el botón y no contra su contenido (igual que el badge de la campana).
+  :deep(.q-btn__content) {
+    position: static;
+  }
+
+  &__icon {
+    transition:
+      opacity 180ms ease,
+      transform 180ms ease;
+  }
+
+  // Dos clases para ganarle al `position: relative` propio del avatar.
+  .bar-profile__photo {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    margin: -16px 0 0 -16px;
+    opacity: 0;
+    transform: translateY(9px) scale(0.7);
+    transition:
+      opacity 220ms ease,
+      transform 220ms ease;
+    pointer-events: none;
+
+    // Aro más fino que el del encabezado (3 en vez de 4): la foto con aro mide 38 dentro del botón
+    // de 44.
+    &.member-avatar--ring-gold {
+      box-shadow:
+        0 0 0 1.5px $pd-gold-tint,
+        0 0 0 3px $pd-gold;
+    }
+
+    &.member-avatar--ring-white {
+      box-shadow:
+        0 0 0 1.5px rgba(255, 255, 255, 0.55),
+        0 0 0 3px #fff;
+    }
+  }
+
+  &--photo {
+    .bar-profile__icon {
+      opacity: 0;
+      transform: scale(0.55);
+    }
+
+    .bar-profile__photo {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &__icon,
+    .bar-profile__photo {
+      transition: none;
+    }
+  }
 }
 
 .header-logo {

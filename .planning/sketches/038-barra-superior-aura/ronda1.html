@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sketch 038 — Barra de arriba y Aura</title>
+<link rel="stylesheet" href="../themes/default.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Geologica:wght@300;400;500;600;700&family=Montserrat:wght@600;700;800&family=Cinzel:wght@600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+<style>
+  /* Valores reales de staging (77552deee): _brand.scss, _premium-card.scss, MainLayout.vue,
+     MiTemploHeader.vue, AuraChip.vue, MemberAvatar.vue, NotificationCountBadge.vue. */
+  :root {
+    --page: #f2ede5; --ink: #2c2318; --ink-2: #5f584d; --terra: #96593a; --line: #e5dbcd; --sand: #f3ede4;
+    --aura-ink: #7d6520; --aura-deep: #6a5217; --aura-tint: #f6efdc; --ivory: #fffdf8;
+    --gold: #d4b46a; --gold-bright: #f0d58f; --spark: #c9a227; --cream: #f0e6d6; --light: #fbf8f3;
+    --frame: linear-gradient(125deg, #b8954a 0%, #e6cf8e 30%, #fff6da 48%, #e6cf8e 64%, #b8954a 100%);
+    --head: linear-gradient(135deg, #96593a 0%, #7d5d42 100%);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #e9e3da; font-family: 'Geologica', system-ui, sans-serif; color: var(--ink); }
+  button { font: inherit; color: inherit; border: 0; background: none; padding: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .material-icons { font-size: inherit; line-height: 1; vertical-align: middle; }
+
+  #controls { position: sticky; top: 0; z-index: 50; background: #fff; border-bottom: 1px solid #ddd; padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; font: 13px system-ui; }
+  .ctl { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+  .ctl > span { color: #555; margin-right: 4px; font-weight: 600; }
+  .ctl button { border: 1px solid #ccc; background: #fafafa; border-radius: 6px; padding: 5px 9px; }
+  .ctl button:hover { background: #f0f0f0; }
+  .ctl button.on { background: #2c2318; color: #fff; border-color: #2c2318; }
+  .ctl button.go { background: #7d6520; color: #fff; border-color: #7d6520; font-weight: 600; }
+  .stage { display: flex; gap: 32px; justify-content: center; align-items: flex-start; padding: 24px 16px 80px; flex-wrap: wrap; }
+  .col { display: flex; flex-direction: column; align-items: center; }
+  .col-label { font: 600 13px system-ui; text-align: center; margin-bottom: 4px; }
+  .col-sub { font: 12px system-ui; color: #666; text-align: center; max-width: 360px; margin-bottom: 10px; line-height: 1.4; min-height: 102px; }
+
+  .phone { position: relative; width: var(--w, 390px); height: 540px; border-radius: 28px 28px 0 0; overflow: hidden; box-shadow: 0 0 0 10px #1d1a17, 0 20px 50px rgba(0,0,0,.25); background: var(--page); transition: width .2s; display: flex; flex-direction: column; }
+
+  /* ── Barra de arriba (q-toolbar: 50 de alto, 12 de relleno; 8 por debajo de 400) ── */
+  .appbar { flex: none; position: relative; z-index: 2; height: 50px; display: flex; align-items: center; padding: 0 12px; background: var(--head); color: #fff; }
+  .appbar.elev { box-shadow: 0 2px 6px rgba(0,0,0,.28); }
+  .brand { flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 10px; padding-right: 6px; }
+  .logo { flex: none; width: 32px; height: 32px; border-radius: 6px; background: #f5f0e8; box-shadow: 0 2px 4px rgba(0,0,0,.2); }
+  .title { flex: 0 1 auto; min-width: 0; max-width: 100%; height: 40px; width: auto; object-fit: contain; object-position: left center; }
+  .narrow .appbar { padding: 0 8px; }
+  .narrow .brand { gap: 6px; }
+  .ib { flex: none; position: relative; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-size: 24px; color: #fff; transition: background .15s; }
+  .ib:hover, .avb:hover { background: rgba(255,255,255,.14); }
+  .ib .n { position: absolute; top: 4px; right: 4px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 999px; background: var(--light); box-shadow: 0 0 0 2px #7e4529; color: var(--terra); font: 700 11px/18px 'Montserrat', sans-serif; text-align: center; }
+  .lvl { flex: none; height: 36px; margin-right: 4px; padding: 0 2px 0 10px; display: flex; align-items: center; gap: 2px; border-radius: 18px; background: rgba(44,35,24,.22); border: 1px solid rgba(255,255,255,.45); color: #fff; font: 700 17px 'Montserrat', sans-serif; }
+  .lvl .material-icons { font-size: 20px; }
+
+  /* ── Encabezado de Mi Templo (MiTemploHeader) ── */
+  .greet { flex: none; position: relative; z-index: 1; display: flex; align-items: center; gap: 16px; padding: 8px 16px 16px; background: var(--head); color: #fff; }
+  .txt { flex: 1; min-width: 0; }
+  .name { margin: 0; display: flex; align-items: center; min-width: 0; font: 600 22px/1.2 'Montserrat', sans-serif; }
+  .nt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .seal { flex: none; width: 24px; height: 24px; margin-left: 8px; filter: drop-shadow(0 1px 2px rgba(0,0,0,.3)); }
+  .since { margin: 2px 0 0; font: 400 13px/1.3 'Geologica', sans-serif; }
+  .since.cta { font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+  .pb { flex: none; display: block; border-radius: 50%; }
+  .av { --s: 52px; flex: none; position: relative; width: var(--s); height: var(--s); border-radius: 50%; display: grid; place-items: center; background: linear-gradient(135deg, #a35f3c, #7e4529); color: #fff; font: 700 18px 'Montserrat', sans-serif; box-shadow: 0 0 0 2px var(--aura-tint), 0 0 0 4px var(--gold); }
+  .av.white { box-shadow: 0 0 0 2px rgba(255,255,255,.55), 0 0 0 4px #fff; }
+  .av img { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+  .av.add { background: rgba(255,255,255,.18); border: 2px dashed rgba(255,255,255,.85); box-shadow: none; font-size: 24px; }
+
+  /* Aura: piezas comunes */
+  [data-aura] { transition: transform .15s ease; }
+  [data-aura]:active { transform: scale(.97); }
+  .num { font: 800 22px/1 'Montserrat', sans-serif; color: var(--aura-deep); font-variant-numeric: tabular-nums; }
+  .lab { margin-top: 4px; font: 700 11px 'Cinzel', serif; letter-spacing: .18em; color: var(--aura-ink); white-space: nowrap; }
+  .lab i, .sp { font-style: normal; color: var(--spark); }
+  .plus { position: absolute; top: 0; left: 50%; z-index: 5; font: 800 20px 'Montserrat', sans-serif; color: var(--gold-bright); text-shadow: 0 1px 3px rgba(44,35,24,.85); pointer-events: none; animation: rise 1.4s ease-out forwards; }
+  .pulse { animation: pulse 1.1s ease-out; }
+  @keyframes pulse { 0% { transform: scale(1); } 30% { transform: scale(1.09); } 100% { transform: scale(1); } }
+  @keyframes rise { 0% { opacity: 0; transform: translate(-50%, 6px); } 20% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -34px); } }
+
+  /* ════════ HOY · ficha marfil con filete dorado y sombra (AuraChip) ════════ */
+  .chip { flex: none; position: relative; padding: 2px; border-radius: 16px; background: var(--frame); box-shadow: 0 6px 16px rgba(60,40,15,.22); }
+  .chip > .in { display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 80px; padding: 8px 16px; border-radius: 14px; background: linear-gradient(180deg, var(--ivory), var(--aura-tint)); }
+
+  /* ════════ A · Solapa: la ficha se apoya en el borde de abajo y se funde con la página ════════ */
+  .tab { flex: none; align-self: flex-end; position: relative; margin-bottom: -16px; padding: 2px 2px 0; border-radius: 18px 18px 0 0; background: linear-gradient(180deg, rgba(242,237,229,0) 45%, var(--page) 100%), var(--frame); transform-origin: 50% 100%; }
+  .tab > .in { display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 84px; height: 62px; padding: 4px 16px 8px; border-radius: 16px 16px 0 0; background: linear-gradient(180deg, var(--ivory) 0%, var(--aura-tint) 50%, var(--page) 100%); }
+  .tab::before, .tab::after { content: ''; position: absolute; bottom: 0; width: 14px; height: 14px; }
+  .tab::before { right: 100%; background: radial-gradient(circle at 0 0, rgba(242,237,229,0) 13.5px, var(--page) 14px); }
+  .tab::after { left: 100%; background: radial-gradient(circle at 100% 0, rgba(242,237,229,0) 13.5px, var(--page) 14px); }
+
+  /* ════════ B · Medalla en la foto: el Aura cuelga del aro dorado ════════ */
+  .vB .greet { gap: 20px; padding-bottom: 28px; }
+  .vB .av { --s: 60px; font-size: 20px; }
+  .avw { flex: none; position: relative; }
+  .medal { position: absolute; left: -14px; right: -14px; bottom: -15px; width: max-content; margin: 0 auto; padding: 1.5px; border-radius: 999px; background: var(--frame); box-shadow: 0 3px 8px rgba(60,40,15,.32); white-space: nowrap; }
+  .medal > .in { display: flex; align-items: center; gap: 4px; height: 24px; padding: 0 10px; border-radius: 999px; background: linear-gradient(180deg, var(--ivory), var(--aura-tint)); font: 800 13px/1 'Montserrat', sans-serif; color: var(--aura-deep); font-variant-numeric: tabular-nums; }
+  .medal .sp { font-size: 10px; }
+  /* área tocable de 44 sin agrandar la pieza */
+  .medal::after { content: ''; position: absolute; inset: -6px -8px -14px; }
+
+  /* ════════ C · Carnet: la persona y su Aura en una tarjeta clara que pisa el encabezado ════════ */
+  .strip { flex: none; height: 42px; background: var(--head); }
+  .carnet { flex: none; position: relative; z-index: 1; display: flex; align-items: stretch; margin: -32px 16px 0; border-radius: 20px; background: var(--light); box-shadow: 0 0 0 1px rgba(125,93,66,.14), 0 10px 24px rgba(44,35,24,.18); color: var(--ink); }
+  .who { flex: 1; min-width: 0; display: flex; align-items: center; gap: 14px; padding: 14px 12px 14px 16px; }
+  .carnet .av { --s: 48px; }
+  .carnet .av.white { box-shadow: 0 0 0 2px var(--light), 0 0 0 4px #d9cfc1; }
+  .carnet .av.add { background: var(--sand); border-color: var(--terra); color: var(--terra); }
+  .carnet .name { font-size: 20px; color: var(--ink); }
+  .carnet .since { font-size: 12.5px; color: var(--ink-2); }
+  .carnet .since.cta { color: var(--terra); }
+  .carnet .seal { filter: drop-shadow(0 1px 1px rgba(44,35,24,.22)); }
+  .caura { flex: none; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 88px; padding: 0 16px; border-radius: 0 20px 20px 0; background: linear-gradient(180deg, var(--ivory), var(--aura-tint)); }
+  .caura::before { content: ''; position: absolute; left: 0; top: 12px; bottom: 12px; width: 1.5px; background: linear-gradient(180deg, rgba(201,169,79,0), #c9a94f 22%, #e6cf8e 50%, #c9a94f 78%, rgba(201,169,79,0)); }
+  .vC .body { padding-top: 14px; }
+
+  /* ════════ D · Barra personal: Aura y foto en la barra fija ════════ */
+  .pill { flex: none; position: relative; height: 32px; margin-right: 2px; padding: 0 12px; display: flex; align-items: center; gap: 5px; border-radius: 999px; background: rgba(44,35,24,.3); border: 1px solid rgba(212,180,106,.85); box-shadow: inset 0 1px 0 rgba(255,255,255,.08); color: var(--gold-bright); font: 800 15px/1 'Montserrat', sans-serif; font-variant-numeric: tabular-nums; }
+  .pill .sp { font-size: 11px; color: var(--gold-bright); }
+  .pill::after { content: ''; position: absolute; inset: -6px 0; }
+  .avb { flex: none; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; transition: background .15s; }
+  .avb .av { --s: 32px; font-size: 12px; box-shadow: 0 0 0 1.5px var(--aura-tint), 0 0 0 3px var(--gold); }
+  .avb .av.white { box-shadow: 0 0 0 1.5px rgba(255,255,255,.55), 0 0 0 3px #fff; }
+  .vD .greet { padding: 6px 16px 16px; }
+  .vD .name { font-size: 24px; }
+
+  /* ── Página ── */
+  .body { flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .tc-wrap { border-radius: 21px; padding: 1.5px; background: linear-gradient(115deg, #4a3a2b 0%, #a35f3c 30%, #f0d2b4 45%, #a35f3c 60%, #4a3a2b 100%); background-size: 250% 250%; animation: flow 7s linear infinite; box-shadow: 0 10px 24px rgba(44,35,24,.2); }
+  @keyframes flow { 0% { background-position: 0% 50%; } 100% { background-position: 250% 50%; } }
+  .tc { position: relative; overflow: hidden; height: 180px; padding: 18px; border-radius: 20px; background: #2c2318; color: var(--cream); }
+  .tc::after { content: ''; position: absolute; left: 18px; right: 18px; bottom: 0; height: 2px; background: linear-gradient(90deg, transparent, #a35f3c, #e9bf9b, #a35f3c, transparent); }
+  .tc small { font: 700 11px 'Cinzel', serif; letter-spacing: .16em; color: #e3c9a8; }
+  .tc b { display: block; margin-top: 8px; font: 700 22px 'Montserrat', sans-serif; }
+  .tc p { margin: 6px 0 0; font-size: 14px; color: #c9bba6; }
+  .tc .cta { position: absolute; left: 18px; bottom: 18px; height: 40px; padding: 0 22px; border-radius: 999px; display: grid; place-items: center; background: linear-gradient(135deg, #a35f3c, #7e4529); color: #fff; font-weight: 600; font-size: 14px; }
+  .ph { flex: none; height: 90px; border-radius: 16px; background: #fff; border: 1px solid var(--line); padding: 14px 16px; font: 800 12px 'Montserrat', sans-serif; letter-spacing: .08em; color: var(--terra); }
+  .doors { display: flex; gap: 18px; padding: 2px 2px 0; font: 700 15px 'Montserrat', sans-serif; color: #8c806f; }
+  .doors b { color: var(--terra); border-bottom: 2px solid var(--terra); padding-bottom: 4px; }
+
+  /* ── Detalle de Aura (hoja privada) y avisos del sketch ── */
+  .veil { position: fixed; inset: 0; z-index: 80; background: rgba(44,35,24,.45); display: grid; place-items: end center; opacity: 0; pointer-events: none; transition: opacity .2s; }
+  .veil.show { opacity: 1; pointer-events: auto; }
+  .sheet { width: 390px; max-width: 100%; max-height: 88vh; overflow-y: auto; border-radius: 22px 22px 0 0; background: var(--light); transform: translateY(30px); transition: transform .25s; }
+  .veil.show .sheet { transform: none; }
+  .sheet .grip { width: 40px; height: 4px; margin: 10px auto 0; border-radius: 4px; background: #d9cfc1; }
+  .hero { margin: 12px 16px 4px; border-radius: 20px; padding: 1.5px; background: var(--frame); }
+  .hero > div { padding: 18px 18px 16px; border-radius: 18.5px; background: linear-gradient(180deg, var(--ivory), var(--aura-tint)); text-align: center; }
+  .hero small { font: 700 11px 'Cinzel', serif; letter-spacing: .2em; color: var(--aura-ink); }
+  .hero b { display: block; margin-top: 6px; font: 800 44px/1 'Montserrat', sans-serif; color: var(--aura-deep); }
+  .hero b i { font-style: normal; font-size: 24px; color: var(--spark); vertical-align: 8px; margin-right: 4px; }
+  .hero p { margin: 8px 0 0; font-size: 13px; color: var(--ink-2); display: flex; align-items: center; justify-content: center; gap: 6px; }
+  .sheet h4 { margin: 16px 20px 4px; font: 800 12px 'Montserrat', sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--terra); }
+  .mv { display: flex; align-items: center; gap: 12px; padding: 10px 20px; border-top: 1px solid #f1eadf; font-size: 14.5px; }
+  .mv .ic { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--sand); color: var(--terra); font-size: 18px; }
+  .mv span { flex: 1; }
+  .mv small { display: block; font-size: 12.5px; color: var(--ink-2); }
+  .mv b { font: 700 15px 'Montserrat', sans-serif; color: var(--aura-ink); }
+  .more { display: block; width: calc(100% - 40px); margin: 12px 20px 20px; height: 42px; border-radius: 999px; border: 1.5px solid var(--terra); background: #fff; color: var(--terra); font-weight: 600; }
+  #toast { position: fixed; left: 50%; bottom: 28px; z-index: 90; transform: translate(-50%, 20px); padding: 10px 18px; border-radius: 999px; background: #2c2318; color: var(--cream); font: 500 13.5px 'Geologica', sans-serif; box-shadow: 0 8px 20px rgba(0,0,0,.3); opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  @media (prefers-reduced-motion: reduce) { .tc-wrap, .pulse, .plus { animation: none; } .plus { display: none; } }
+</style>
+</head>
+<body>
+
+<div id="controls">
+  <div class="ctl" data-ctl="screen"><span>Pantalla</span>
+    <button data-v="mt" class="on">Mi Templo</button><button data-v="en">Entrenar</button>
+  </div>
+  <div class="ctl" data-ctl="aura"><span>Aura</span>
+    <button data-v="85">85</button><button data-v="1240" class="on">1.240</button><button data-v="12480">12.480</button><button data-v="off">Apagada</button>
+  </div>
+  <div class="ctl" data-ctl="name"><span>Nombre</span>
+    <button data-v="Franco" class="on">Franco</button><button data-v="Maximiliano">Maximiliano</button>
+  </div>
+  <div class="ctl" data-ctl="foto"><span>Foto</span>
+    <button data-v="si" class="on">Con foto</button><button data-v="no">Sin foto</button>
+  </div>
+  <div class="ctl" data-ctl="salir"><span>Cerrar sesión</span>
+    <button data-v="bar" class="on">En la barra (hoy)</button><button data-v="perfil">Dentro de Perfil</button>
+  </div>
+  <div class="ctl" data-ctl="w"><span>Ancho</span>
+    <button data-v="360">360</button><button data-v="390" class="on">390</button><button data-v="412">412</button>
+  </div>
+  <div class="ctl"><button class="go" id="celebrate">✦ Simular +5 de Aura</button></div>
+</div>
+
+<div class="stage">
+  <div class="col"><div class="col-label">Hoy (staging)</div>
+    <div class="col-sub">Como está: barra con logo, título y tres botones. Debajo, foto, nombre, antigüedad y la ficha marfil de Aura. La ficha es la única pieza clara y con sombra sobre el degradé: flota en el medio, sin apoyarse en nada.</div>
+    <div class="phone vH" data-v="H"></div></div>
+  <div class="col"><div class="col-label">A · Solapa</div>
+    <div class="col-sub">El cambio más chico. La misma ficha, pero apoyada en el borde de abajo del encabezado y fundida con la página, como la solapa de una carpeta. Deja de flotar: nace de la página y se asoma al encabezado. Sin sombra.</div>
+    <div class="phone vA" data-v="A"></div></div>
+  <div class="col"><div class="col-label">B · Medalla en la foto</div>
+    <div class="col-sub">El Aura cuelga de la foto, que ya lleva el aro dorado: foto y puntos pasan a ser una sola pieza. El costado derecho queda libre y un nombre largo ya no se corta. No dice la palabra AURA: queda la chispa ✦ sola.</div>
+    <div class="phone vB" data-v="B"></div></div>
+  <div class="col"><div class="col-label">C · Carnet</div>
+    <div class="col-sub">Foto, nombre, antigüedad y Aura salen del degradé y pasan a una tarjeta clara que pisa el borde del encabezado, como un carnet de socio. El Aura es el extremo derecho de la tarjeta, con un filete dorado. Marfil sobre claro: ya no contrasta con el fondo.</div>
+    <div class="phone vC" data-v="C"></div></div>
+  <div class="col"><div class="col-label">D · Barra personal</div>
+    <div class="col-sub">El Aura sube a la barra fija como pastilla y se ve en todas las pantallas. La foto con su aro reemplaza al botón de perfil y Cerrar sesión pasa adentro de Perfil. En Mi Templo queda solo el nombre y la antigüedad. Es la que más cambia (probá Entrenar a 360).</div>
+    <div class="phone vD" data-v="D"></div></div>
+</div>
+
+<div class="veil" id="veil"><div class="sheet">
+  <div class="grip"></div>
+  <div class="hero"><div><small>TU AURA</small><b><i>✦</i><span id="tot" data-num>1.240</span></b><p><span class="material-icons" style="font-size:15px">lock</span>Solo vos ves este detalle</p></div></div>
+  <h4>Últimos movimientos</h4>
+  <div class="mv"><span class="ic"><span class="material-icons">how_to_reg</span></span><span>Asistencia<small>Hoy · Moreno</small></span><b>+5</b></div>
+  <div class="mv"><span class="ic"><span class="material-icons">card_giftcard</span></span><span>Regalo de un compañero<small>Ayer</small></span><b>+1</b></div>
+  <div class="mv"><span class="ic"><span class="material-icons">how_to_reg</span></span><span>Asistencia<small>Ayer · Moreno</small></span><b>+5</b></div>
+  <button class="more" id="close">Cerrar</button>
+</div></div>
+<div id="toast"></div>
+
+<script>
+  const ICONS = '../../../el-templo-app/public/icons/'
+  const s = { screen: 'mt', aura: 1240, auraOn: true, name: 'Franco', foto: 'si', salir: 'bar' }
+  const fmt = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+  const initials = () => s.name.charAt(0) + 'M'
+
+  // Sello de 1 año o más (036 B): roseta crema, dos anillos terracota y el logo chico.
+  const seal = () => `<svg class="seal" viewBox="0 0 24 24" aria-hidden="true"><polygon points="24,12 21.85,14.64 22.39,18 19.21,19.21 18,22.39 14.64,21.85 12,24 9.36,21.85 6,22.39 4.79,19.21 1.61,18 2.15,14.64 0,12 2.15,9.36 1.61,6 4.79,4.79 6,1.61 9.36,2.15 12,0 14.64,2.15 18,1.61 19.21,4.79 22.39,6 21.85,9.36" fill="#f2ede5" stroke="#d9cfc1" stroke-width="1.2" stroke-linejoin="round"/><circle cx="12" cy="12" r="10" fill="none" stroke="#96593a" stroke-width=".9"/><circle cx="12" cy="12" r="8" fill="none" stroke="#96593a" stroke-width=".9"/><path fill="#96593a" d="M12 7.6 16.2 10H7.8zM8.6 10.8h1.2v4H8.6zM11.4 10.8h1.2v4h-1.2zM14.2 10.8h1.2v4h-1.2zM7.8 15.3h8.4v1.1H7.8z"/></svg>`
+
+  const face = () => `${initials()}<img src="https://randomuser.me/api/portraits/men/46.jpg" alt="" onerror="this.remove()">`
+  const ring = () => (s.auraOn ? '' : ' white')
+  // Foto del encabezado: sin foto, el círculo punteado para subirla.
+  const photo = () => `<button class="pb" data-toast="Abre la hoja para subir o cambiar la foto">${
+    s.foto === 'no' ? `<span class="av add"><span class="material-icons">add_a_photo</span></span>` : `<span class="av${ring()}">${face()}</span>`
+  }</button>`
+  const text = () => {
+    const cta = s.foto === 'no' && s.auraOn
+    return `<div class="txt"><h1 class="name"><span class="nt">${s.name}</span>${seal()}</h1><p class="since${cta ? ' cta' : ''}">${cta ? 'Subí tu foto y sumá Aura' : '2 años y 3 meses en El Templo'}</p></div>`
+  }
+  const numLab = () => `<span class="num" data-num>${fmt(s.aura)}</span><span class="lab"><i>✦</i> AURA</span>`
+
+  function bar(v) {
+    const lvl = s.screen === 'en' ? `<button class="lvl" data-toast="Abre el selector de nivel"><span>Δ</span><span class="material-icons">expand_more</span></button>` : ''
+    const bell = `<button class="ib" data-toast="Abre Notificaciones"><span class="material-icons">notifications</span><span class="n">2</span></button>`
+    let right
+    if (v === 'D') {
+      const pill = s.auraOn ? `<button class="pill" data-aura><span class="sp">✦</span><span data-num>${fmt(s.aura)}</span></button>` : ''
+      const me = s.foto === 'no' ? `<span class="av${ring()}">${initials()}</span>` : `<span class="av${ring()}">${face()}</span>`
+      right = `${pill}${bell}<button class="avb" data-toast="Abre Mi Perfil (ahí queda Cerrar sesión)">${me}</button>`
+    } else {
+      const out = s.salir === 'bar' ? `<button class="ib" data-toast="Cierra la sesión"><span class="material-icons">logout</span></button>` : ''
+      right = `<button class="ib" data-toast="Abre Mi Perfil"><span class="material-icons">person</span></button>${bell}${out}`
+    }
+    return `<div class="appbar${s.screen === 'en' ? ' elev' : ''}"><span class="brand"><img class="logo" src="${ICONS}icon-48.webp" alt=""><img class="title" src="${ICONS}el-templo-title.png" alt="EL TEMPLO"></span>${lvl}${right}</div>`
+  }
+
+  function greet(v) {
+    if (s.screen !== 'mt') return ''
+    const on = s.auraOn
+    if (v === 'H') return `<div class="greet">${photo()}${text()}${on ? `<button class="chip" data-aura><span class="in">${numLab()}</span></button>` : ''}</div>`
+    if (v === 'A') return `<div class="greet">${photo()}${text()}${on ? `<button class="tab" data-aura><span class="in">${numLab()}</span></button>` : ''}</div>`
+    if (v === 'B') return `<div class="greet"><span class="avw">${photo()}${on ? `<button class="medal" data-aura><span class="in"><i class="sp">✦</i><b data-num>${fmt(s.aura)}</b></span></button>` : ''}</span>${text()}</div>`
+    if (v === 'C') return `<div class="strip"></div><div class="carnet"><div class="who">${photo()}${text()}</div>${on ? `<button class="caura" data-aura>${numLab()}</button>` : ''}</div>`
+    return `<div class="greet">${text()}</div>`
+  }
+
+  const today = `<div class="tc-wrap"><div class="tc"><small>HOY · JUEVES</small><b>Deuteros II · Tren superior</b><p>18:00 · Moreno</p><span class="cta">Ver la sesión</span></div></div><div class="ph">TUS SESIONES</div><div class="ph">NOVEDADES</div>`
+  const train = `<div class="doors"><b>Semana</b><span>Desafíos</span><span>Conquer</span></div><div class="ph" style="height:220px">HOY · TREN SUPERIOR</div><div class="ph">MAÑANA</div>`
+
+  function render() {
+    document.querySelectorAll('.phone').forEach((p) => {
+      p.innerHTML = `${bar(p.dataset.v)}${greet(p.dataset.v)}<div class="body">${s.screen === 'mt' ? today : train}</div>`
+    })
+    document.getElementById('tot').textContent = fmt(s.aura)
+  }
+
+  let toastTimer
+  function toast(msg) {
+    const t = document.getElementById('toast')
+    t.textContent = msg
+    t.classList.add('show')
+    clearTimeout(toastTimer)
+    toastTimer = setTimeout(() => t.classList.remove('show'), 1800)
+  }
+
+  document.querySelectorAll('.ctl[data-ctl]').forEach((ctl) => ctl.addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return
+    ctl.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b))
+    const k = ctl.dataset.ctl
+    if (k === 'w') {
+      document.querySelectorAll('.phone').forEach((p) => { p.style.setProperty('--w', b.dataset.v + 'px'); p.classList.toggle('narrow', Number(b.dataset.v) < 400) })
+      return
+    }
+    if (k === 'aura') { s.auraOn = b.dataset.v !== 'off'; if (s.auraOn) s.aura = Number(b.dataset.v) }
+    else s[k] = b.dataset.v
+    render()
+  }))
+
+  // Celebración (fase 215, #33): la pieza de Aura late y sube el "+5" en cada variante.
+  document.getElementById('celebrate').addEventListener('click', () => {
+    const pieces = document.querySelectorAll('.phone [data-aura]')
+    if (!pieces.length) { toast(s.auraOn ? 'En esta pantalla solo la D muestra el Aura' : 'Con el Aura apagada no hay celebración'); return }
+    s.aura += 5
+    pieces.forEach((el) => {
+      el.classList.remove('pulse'); void el.offsetWidth; el.classList.add('pulse')
+      const p = document.createElement('span'); p.className = 'plus'; p.textContent = '+5'
+      el.appendChild(p); setTimeout(() => p.remove(), 1400)
+    })
+    setTimeout(() => document.querySelectorAll('[data-num]').forEach((n) => { n.textContent = fmt(s.aura) }), 450)
+  })
+
+  const veil = document.getElementById('veil')
+  document.body.addEventListener('click', (e) => {
+    if (e.target.closest('.phone [data-aura]')) { veil.classList.add('show'); return }
+    if (e.target === veil || e.target.id === 'close') { veil.classList.remove('show'); return }
+    const t = e.target.closest('[data-toast]')
+    if (t) toast(t.dataset.toast)
+  })
+
+  render()
+</script>
+</body>
+</html>

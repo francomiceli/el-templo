@@ -6,15 +6,13 @@
        (nunca como HTML). -->
   <q-page class="notif-page">
     <div class="notif">
+      <!-- 2026-11-19: el encabezado usa la misma grilla que las filas. La flecha va en un círculo
+           igual al de los íconos de la lista (40, en la columna de los íconos) y el título arranca en
+           la columna del texto. -->
       <header class="notif__header">
-        <q-btn
-          flat
-          round
-          icon="arrow_back"
-          class="notif__back"
-          aria-label="Volver"
-          @click="goBack"
-        />
+        <button type="button" class="notif__back" aria-label="Volver" @click="goBack">
+          <q-icon name="arrow_back" size="20px" aria-hidden="true" />
+        </button>
         <h1 class="notif__title">Notificaciones</h1>
       </header>
 
@@ -334,18 +332,48 @@ onBeforeUnmount(() => {
   padding-bottom: env(safe-area-inset-bottom, 0px);
   background: $pd-light-surface;
 
+  // Misma grilla que las filas: 16 de margen, círculo de 40 y 16 de aire hasta el texto.
   &__header {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 16px 16px 8px;
+    gap: 16px;
+    padding: 14px 16px 6px;
   }
 
+  // Círculo arena de 40, igual al de los íconos de la lista. El área tocable llega a 44.
   &__back {
     flex: none;
-    width: 44px;
-    height: 44px;
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: #f3ede4;
     color: $pd-terra-ink;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+
+    &::after {
+      content: '';
+      position: absolute;
+      inset: -2px;
+    }
+
+    &:focus-visible {
+      outline: 2px solid $pd-terra-ink;
+      outline-offset: 2px;
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      transition: transform 120ms ease;
+
+      &:active {
+        transform: scale(0.94);
+      }
+    }
   }
 
   &__title {
@@ -354,8 +382,8 @@ onBeforeUnmount(() => {
     margin: 0;
     font-family: 'Montserrat', sans-serif;
     font-weight: 700;
-    font-size: 18px;
-    line-height: 1.3;
+    font-size: 22px;
+    line-height: 1.2;
     color: $pd-ink;
   }
 
