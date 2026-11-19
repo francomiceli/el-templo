@@ -45,6 +45,10 @@ import {
 } from "../shared/wellhub-sources";
 import { AuraService } from "../aura/service";
 import { CheckInService } from "../check-ins/service";
+import {
+  loadInvitationRosterTags,
+  type InvitationRosterTag,
+} from "../referrals/invitation-roster-tag";
 import type { DayCheckIn } from "../check-ins/types";
 import type {
   AttendanceRecord,
@@ -660,6 +664,10 @@ export class AttendanceService {
       // cuando `opts.includeCheckIns` (coach + admin/dueño); null para el resto
       // del staff, ya que es dato de salud autorreportado. Ver check-ins.
       checkIn: DayCheckIn | null;
+      // Invitado que todavía no compró (invitación activa sin convertir y status
+      // 'prueba'): accesos usados / presupuesto, para la etiqueta del profe. Null para
+      // cualquier otro alumno (socio común o invitado que ya compró).
+      invitation: InvitationRosterTag | null;
     }>;
   }> {
     // Fecha de cobertura para el pill "Venc" (bug Joaquim Mas 2026-07-07).
@@ -758,6 +766,7 @@ export class AttendanceService {
         anniversaryLabel: string | null;
         birthdayLabel: string | null;
         checkIn: DayCheckIn | null;
+        invitation: InvitationRosterTag | null;
       }
     >();
 
@@ -783,6 +792,7 @@ export class AttendanceService {
         anniversaryLabel: null,
         birthdayLabel: birthdayLabelOn(b.dateOfBirth, date),
         checkIn: null,
+        invitation: null,
       });
       createdAtByMember.set(b.memberId, b.createdAt);
     }
@@ -820,6 +830,7 @@ export class AttendanceService {
           anniversaryLabel: null,
           birthdayLabel: birthdayLabelOn(a.dateOfBirth, date),
           checkIn: null,
+          invitation: null,
         });
       }
       createdAtByMember.set(a.memberId, a.createdAt);
@@ -860,6 +871,15 @@ export class AttendanceService {
         if (milestone !== null) {
           entry.anniversaryLabel = `Cumple ${milestone.label} en El Templo`;
         }
+      }
+    }
+
+    // ─── Etiqueta "invitado" (para el profe) ────────────────────────────────
+    // UNA consulta en lote por roster: solo los invitados que todavía no compraron.
+    if (memberIds.length > 0) {
+      const tags = await loadInvitationRosterTags(this.db, ctx, memberIds);
+      for (const [memberId, entry] of memberMap) {
+        entry.invitation = tags.get(memberId) ?? null;
       }
     }
 

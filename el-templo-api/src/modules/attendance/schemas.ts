@@ -145,6 +145,16 @@ const slotAttendanceItemSchema = {
         sleep: { type: ["string", "null"] },
       },
     },
+    // Invitado que todavía no compró (invitación activa sin convertir y users.status
+    // 'prueba'): accesos usados / presupuesto, para la etiqueta del profe. Null para
+    // cualquier otro alumno. Declarado acá porque fast-json-stringify descarta lo no declarado.
+    invitation: {
+      type: ["object", "null"],
+      properties: {
+        accessesUsed: { type: ["integer", "null"] },
+        accessesBudget: { type: ["integer", "null"] },
+      },
+    },
   },
 } as const;
 

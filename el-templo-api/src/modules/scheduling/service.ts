@@ -61,6 +61,7 @@ import {
   ConflictError,
 } from "../shared/errors";
 import { HolidayService } from "./holiday-service";
+import { loadInvitationRosterTags } from "../referrals/invitation-roster-tag";
 import {
   getEffectiveCapacity,
   resolveEffectiveCapacity,
@@ -635,6 +636,13 @@ export class SchedulingService {
       )
       .orderBy(schema.bookings.bookedAt);
 
+    // Etiqueta "invitado" para el profe: UNA consulta en lote por roster.
+    const invitationTags = await loadInvitationRosterTags(
+      this.db,
+      ctx,
+      bookingRows.map((r) => r.memberId),
+    );
+
     const bookings: BookingRecord[] = bookingRows.map((r) => ({
       id: r.id,
       memberId: r.memberId,
@@ -660,6 +668,7 @@ export class SchedulingService {
       memberBranchId: r.memberBranchId,
       memberBranchName: r.memberBranchName ?? null,
       source: r.source ?? null,
+      invitation: invitationTags.get(r.memberId) ?? null,
     }));
 
     // Query attendance records for this branch + date
