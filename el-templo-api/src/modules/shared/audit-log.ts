@@ -50,6 +50,10 @@ export type AuditAction =
   // Módulo de Renovaciones (2026-09-24): cualquier cambio manual sobre un
   // renewal_followup (mensaje, no_renovo+motivo, volver a en_proceso).
   | "renewal_followup_updated"
+  // Seguimiento de invitados (Invitaciones): mismo registro `renewal_followups` sobre la
+  // sub de accesos de la invitación, con acción propia para distinguirlo de Renovaciones.
+  // `audit_log.action` es varchar(50): sin migración.
+  | "invitation_followup_updated"
   // Cadencia de mensajes en Sesiones de Prueba (brief Nacho, 2026-09-26):
   // cualquier cambio manual sobre un trial_followup (marcar/desmarcar
   // M1/M2/M3, Respondió, Perdida+motivo).
