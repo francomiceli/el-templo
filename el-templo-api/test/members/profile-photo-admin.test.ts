@@ -7,6 +7,7 @@
  *   - POST   /api/admin/members/:userId/profile-photo/reject
  *   - DELETE /api/admin/members/:userId/profile-photo
  *   - GET    /api/auth/me (photoUrl y photo)
+ *   - GET    /api/admin/members/:userId (ownPhotoUrl, 2026-11-19)
  *   - POST   /api/auth/me/delete-account (limpieza de fotos)
  *
  * Integración contra el MySQL de tests. Usuarios SIEMPRE con fábricas (ids
@@ -780,6 +781,145 @@ describe("GET /auth/me (foto)", () => {
     expect(me.photoUrl).toBeNull();
     expect(me.photo.pendingUrl).toBeNull();
     expect(me.photo.status).toBe("pendiente");
+  });
+});
+
+// ── ficha del admin: foto propia aprobada ───────────────────────────
+
+interface MemberDetailBody {
+  id: number;
+  photoUrl: string | null;
+  ownPhotoUrl: string | null;
+}
+
+async function readMemberDetail(
+  token: string,
+  userId: number,
+): Promise<MemberDetailBody> {
+  const res = await app.inject({
+    method: "GET",
+    url: `${ADMIN}/${userId}`,
+    headers: auth(token),
+  });
+  expect(res.statusCode).toBe(200);
+  return res.json<MemberDetailBody>();
+}
+
+describe("GET /admin/members/:userId (ownPhotoUrl para la ficha)", () => {
+  it("con la propia aprobada y sin foto de ficha: ownPhotoUrl firmada del bucket privado y photoUrl sigue nulo", async () => {
+    mockPrivateMedia();
+    const staff = await createConquerStaff(app, "admin");
+    const m = await createTestMember(app);
+    await uploadAndConfirmAsMember(app, m.token);
+    await approve(staff.token, m.id);
+
+    const body = await readMemberDetail(staff.token, m.id);
+
+    expect(body.photoUrl).toBeNull();
+    expect(body.ownPhotoUrl).not.toBeNull();
+    expect(
+      body.ownPhotoUrl?.startsWith("https://r2.test/get/private/avatars/1/"),
+    ).toBe(true);
+    expect(body.ownPhotoUrl).not.toContain(FOTO_PUBLIC_URL);
+    // Aprobar no copia la foto a la ficha pública.
+    expect(await readUserPhotoUrl(app, m.id)).toBeNull();
+  });
+
+  it("con la propia todavía pendiente: ownPhotoUrl nulo", async () => {
+    mockPrivateMedia();
+    const staff = await createConquerStaff(app, "admin");
+    const m = await createTestMember(app);
+    await uploadAndConfirmAsMember(app, m.token);
+
+    const body = await readMemberDetail(staff.token, m.id);
+
+    expect(body.ownPhotoUrl).toBeNull();
+  });
+
+  it("rechazada o quitada: ownPhotoUrl nulo", async () => {
+    mockPrivateMedia();
+    const staff = await createConquerStaff(app, "admin");
+    const rechazada = await createTestMember(app);
+    const quitada = await createTestMember(app);
+    await seedMemberPhoto(app, rechazada.id, { status: "rechazada" });
+    await seedMemberPhoto(app, quitada.id, { status: "quitada" });
+
+    expect(
+      (await readMemberDetail(staff.token, rechazada.id)).ownPhotoUrl,
+    ).toBeNull();
+    expect(
+      (await readMemberDetail(staff.token, quitada.id)).ownPhotoUrl,
+    ).toBeNull();
+  });
+
+  it("solo con el espejo de la ficha: ownPhotoUrl nulo (el espejo no cuenta como foto propia)", async () => {
+    mockPrivateMedia();
+    const staff = await createConquerStaff(app, "admin");
+    const m = await createTestMember(app);
+    const publicUrl = `${FOTO_PUBLIC_URL}/members/photos/${m.id}-1700000000000.jpg`;
+    await setUserPhotoUrl(app, m.id, publicUrl);
+    await seedMemberPhoto(app, m.id, {
+      origin: "ficha",
+      status: "aprobada",
+      sourceUrl: publicUrl,
+    });
+
+    const body = await readMemberDetail(staff.token, m.id);
+
+    expect(body.photoUrl).toBe(publicUrl);
+    expect(body.ownPhotoUrl).toBeNull();
+  });
+
+  it("con foto de ficha y propia aprobada: vienen las dos (la ficha decide cuál muestra)", async () => {
+    mockPrivateMedia();
+    const staff = await createConquerStaff(app, "admin");
+    const m = await createTestMember(app);
+    const publicUrl = `${FOTO_PUBLIC_URL}/members/photos/${m.id}-1700000000000.jpg`;
+    await setUserPhotoUrl(app, m.id, publicUrl);
+    const propia = await seedMemberPhoto(app, m.id, { status: "aprobada" });
+
+    const body = await readMemberDetail(staff.token, m.id);
+
+    expect(body.photoUrl).toBe(publicUrl);
+    expect(body.ownPhotoUrl).toBe(`https://r2.test/get/${propia.storageKey}`);
+  });
+
+  it("entre varias aprobadas devuelve la más nueva", async () => {
+    mockPrivateMedia();
+    const staff = await createConquerStaff(app, "admin");
+    const m = await createTestMember(app);
+    await seedMemberPhoto(app, m.id, { status: "aprobada" });
+    const nueva = await seedMemberPhoto(app, m.id, { status: "aprobada" });
+
+    const body = await readMemberDetail(staff.token, m.id);
+
+    expect(body.ownPhotoUrl).toBe(`https://r2.test/get/${nueva.storageKey}`);
+  });
+
+  it("sin storage configurado: la ficha responde 200 con ownPhotoUrl nulo", async () => {
+    vi.stubEnv("R2_PRIVATE_BUCKET_NAME", "");
+    const staff = await createConquerStaff(app, "admin");
+    const m = await createTestMember(app);
+    await seedMemberPhoto(app, m.id, { status: "aprobada" });
+
+    const body = await readMemberDetail(staff.token, m.id);
+
+    expect(body.ownPhotoUrl).toBeNull();
+  });
+
+  it("si el storage falla al firmar: la ficha responde 200 con ownPhotoUrl nulo", async () => {
+    mockPrivateMedia({
+      presignGet: async () => {
+        throw new Error("r2 caído");
+      },
+    });
+    const staff = await createConquerStaff(app, "admin");
+    const m = await createTestMember(app);
+    await seedMemberPhoto(app, m.id, { status: "aprobada" });
+
+    const body = await readMemberDetail(staff.token, m.id);
+
+    expect(body.ownPhotoUrl).toBeNull();
   });
 });
 

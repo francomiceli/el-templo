@@ -1048,3 +1048,44 @@ export async function getOwnPhotoState(
       status === "rechazada" ? (latest?.rejectionReason ?? null) : null,
   };
 }
+
+/**
+ * Foto propia APROBADA del alumno para la ficha del admin (pedido de Franco,
+ * 2026-11-19): la ficha la muestra cuando el staff no cargó una. Solo la de
+ * origen `alumno` (nunca el espejo de la ficha) y siempre firmada del bucket
+ * privado: aprobarla no la copia a `users.photo_url`, que es pública. Sin
+ * storage, o si el storage falla, devuelve `null`: la ficha nunca se cae por esto.
+ */
+export async function getApprovedOwnPhotoUrl(
+  fastify: FastifyInstance,
+  ctx: TenantContext,
+  userId: number,
+): Promise<string | null> {
+  const [approved] = await fastify.db
+    .select({ storageKey: schema.memberPhotos.storageKey })
+    .from(schema.memberPhotos)
+    .where(
+      and(
+        tenantWhere(schema.memberPhotos, ctx),
+        eq(schema.memberPhotos.userId, userId),
+        eq(schema.memberPhotos.origin, "alumno"),
+        eq(schema.memberPhotos.status, "aprobada"),
+      ),
+    )
+    .orderBy(desc(schema.memberPhotos.id))
+    .limit(1);
+  if (!approved) return null;
+
+  const store = tryResolveStore(fastify);
+  if (store === null) return null;
+  try {
+    return await callStore(fastify, { userId }, () =>
+      store.presignGet(approved.storageKey, AVATAR_LIST_GET_EXPIRES_SEC, {
+        stableHourly: true,
+      }),
+    );
+  } catch (err: unknown) {
+    if (err instanceof ProfilePhotoStorageUnavailableError) return null;
+    throw err;
+  }
+}

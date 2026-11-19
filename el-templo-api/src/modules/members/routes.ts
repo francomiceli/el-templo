@@ -146,6 +146,7 @@ import {
 import { sendPhotoError } from "./profile-photo-routes";
 import {
   approveProfilePhoto,
+  getApprovedOwnPhotoUrl,
   listPhotoReviewQueue,
   rejectProfilePhoto,
   removeCommunityPhoto,
@@ -845,6 +846,11 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         segmentUpdatedAt: profile?.segmentUpdatedAt?.toISOString() ?? null,
         avatarType: profile?.avatarType ?? null,
         onboardingProfile,
+        ownPhotoUrl: await getApprovedOwnPhotoUrl(
+          fastify,
+          ctx,
+          request.params.userId,
+        ),
       };
     },
   );
