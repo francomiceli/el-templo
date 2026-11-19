@@ -1,5 +1,6 @@
 <script setup lang="ts">
 // deploy: política con la dirección del socio, redeploy tras fix de tests me-address (paths-filter, 2026-11-05)
+// deploy: política con la comunidad (214+215), redeploy tras dos CI rojos (el último push solo tocó api+admin, paths-filter, 2026-11-19)
 useHead({
   title: "Política de Privacidad | El Templo",
   meta: [

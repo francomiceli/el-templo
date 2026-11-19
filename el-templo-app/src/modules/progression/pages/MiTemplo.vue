@@ -164,6 +164,7 @@
 // deploy: Egresos + Resultado por sede + Excel de recategorizaciones, redeploy tras CI rojo de egresos-identidades (paths-filter, 2026-11-13)
 // deploy: 1.9.4 dirección del socio, redeploy tras fix de tests me-address (paths-filter, 2026-11-05)
 // deploy: fase 213 estiramiento, redeploy tras CI rojo por 3 tests del API (paths-filter, 2026-11-12)
+// deploy: fases 214+215 comunidad y regalar Aura, redeploy tras dos CI rojos (el último push solo tocó api+admin, paths-filter, 2026-11-19)
 /**
  * MiTemplo page — personalized daily briefing ("Tu Dia").
  *
