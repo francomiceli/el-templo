@@ -265,7 +265,7 @@ import { isNewMember } from 'src/modules/guia/new-member'
 import { ANATOMIA_ALUMNOS_ENABLED } from 'src/config/featureFlags'
 import { maybeRequestReview } from 'src/utils/in-app-review'
 import { DEFAULT_BRANCH_TZ } from 'src/utils/tz'
-import { isHeaderPhotoHidden, showsBarPhoto, shownPhotoUrl } from 'src/utils/bar-profile-photo'
+import { nextHeaderPhotoHidden, showsBarPhoto, shownPhotoUrl } from 'src/utils/bar-profile-photo'
 
 const $q = useQuasar()
 const router = useRouter()
@@ -470,7 +470,10 @@ const isNarrowBar = computed(() => $q.screen.width < 480)
 // cambia: el layout avisa cada movimiento del scroll y no hay que redibujar por cada uno.
 const headerPhotoHidden = ref(false)
 function onLayoutScroll(details: { position: number }): void {
-  const hidden = isHeaderPhotoHidden(details.position)
+  // Con un diálogo u hoja abierta Quasar fija el body (clase `q-body--prevent-scroll`) y el scroll
+  // pasa a 0 sin que el socio se haya movido: ese aviso se ignora.
+  const scrollLocked = document.body.classList.contains('q-body--prevent-scroll')
+  const hidden = nextHeaderPhotoHidden(headerPhotoHidden.value, details.position, scrollLocked)
   if (hidden !== headerPhotoHidden.value) headerPhotoHidden.value = hidden
 }
 const barPhotoUrl = computed(() => shownPhotoUrl(userStore.profile?.photo))

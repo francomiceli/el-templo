@@ -3,6 +3,7 @@ import type { MemberPhotoState } from 'src/types/community'
 import {
   HEADER_PHOTO_HIDDEN_AT,
   isHeaderPhotoHidden,
+  nextHeaderPhotoHidden,
   showsBarPhoto,
   shownPhotoUrl,
 } from '../bar-profile-photo'
@@ -52,6 +53,22 @@ describe('isHeaderPhotoHidden', () => {
 
   it('rebote de iOS (scroll negativo): la foto del encabezado se ve', () => {
     expect(isHeaderPhotoHidden(-30)).toBe(false)
+  })
+})
+
+describe('nextHeaderPhotoHidden', () => {
+  it('sin nada abierto: sigue al scroll', () => {
+    expect(nextHeaderPhotoHidden(false, 300, false)).toBe(true)
+    expect(nextHeaderPhotoHidden(true, 0, false)).toBe(false)
+  })
+
+  it('con una hoja abierta el scroll "vuelve" a 0: se conserva lo que había', () => {
+    expect(nextHeaderPhotoHidden(true, 0, true)).toBe(true)
+    expect(nextHeaderPhotoHidden(false, 0, true)).toBe(false)
+  })
+
+  it('con una hoja abierta tampoco se enciende por un valor alto', () => {
+    expect(nextHeaderPhotoHidden(false, 500, true)).toBe(false)
   })
 })
 
