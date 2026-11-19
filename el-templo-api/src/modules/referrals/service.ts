@@ -59,6 +59,8 @@ import type {
   ReferralAssignmentResult,
   ReferralConfig,
   ReferralLinkView,
+  InvitationDiscountBreakdown,
+  InvitationDiscountLink,
   ReferralOverview,
   ReferralAbResults,
   ReferralAbVariantResult,
@@ -70,6 +72,27 @@ type DbInstance = MySql2Database<typeof schema>;
 interface LinkSide {
   counterpartyId: number;
   percent: number;
+  /** Lado de la CONTRAPARTE respecto de quien paga. */
+  side: InvitationDiscountLink["side"];
+}
+
+/** Opciones del cálculo del descuento por invitación (cobro y previews). */
+export interface InvitationDiscountOptions {
+  simulatePendingQualification?: boolean;
+  simulateInvitationLink?: { inviterId: number };
+}
+
+/**
+ * Un vínculo "vence pronto" (aviso al staff) si la contraparte tiene membresía
+ * vigente pero le quedan este número de días o menos. El front no lo hardcodea:
+ * lo recibe resuelto en `expiresSoon`.
+ */
+export const INVITATION_EXPIRES_SOON_DAYS = 7;
+
+/** Días enteros entre dos fechas YYYY-MM-DD (0 = el mismo día). */
+function daysBetween(from: string, to: string): number {
+  const ms = Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`);
+  return Math.round(ms / 86_400_000);
 }
 
 /** Reintentos máximos ante colisión del UNIQUE de referral_code (Security V6). */
@@ -215,11 +238,36 @@ export class ReferralService {
   async computeInvitationDiscountPercent(
     ctx: TenantContext,
     userId: number,
-    opts?: {
-      simulatePendingQualification?: boolean;
-      simulateInvitationLink?: { inviterId: number };
-    },
+    opts?: InvitationDiscountOptions,
   ): Promise<number> {
+    // Sin nombres: los caminos de cobro real no hacen la query de `users`.
+    return (await this.buildInvitationBreakdown(ctx, userId, opts, false))
+      .percent;
+  }
+
+  /**
+   * Desglose del MISMO cálculo que `computeInvitationDiscountPercent` (que es un
+   * envoltorio de esta implementación): el % final y, por vínculo considerado,
+   * la contraparte, su lado, hasta cuándo tiene membresía y si cuenta hoy. Sirve
+   * para EXPLICAR el descuento al staff en los previews de cobro; trae nombre y
+   * vencimiento de otra persona, así que no debe salir por endpoints del socio.
+   * Mismas opciones y mismo `today`/criterio de cobertura que el cobro.
+   */
+  async computeInvitationDiscountBreakdown(
+    ctx: TenantContext,
+    userId: number,
+    opts?: InvitationDiscountOptions,
+  ): Promise<InvitationDiscountBreakdown> {
+    return this.buildInvitationBreakdown(ctx, userId, opts, true);
+  }
+
+  /** Única implementación del cálculo; `withNames` agrega la query de nombres. */
+  private async buildInvitationBreakdown(
+    ctx: TenantContext,
+    userId: number,
+    opts: InvitationDiscountOptions | undefined,
+    withNames: boolean,
+  ): Promise<InvitationDiscountBreakdown> {
     const invitationSettings = await getInvitationSettings(
       this.db,
       ctx,
@@ -258,14 +306,23 @@ export class ReferralService {
 
     const sides: LinkSide[] = links.map((link) =>
       link.referredId === userId
-        ? { counterpartyId: link.referrerId, percent: inviteePercent }
-        : { counterpartyId: link.referredId, percent: perLinkPercent },
+        ? {
+            counterpartyId: link.referrerId,
+            percent: inviteePercent,
+            side: "invitador",
+          }
+        : {
+            counterpartyId: link.referredId,
+            percent: perLinkPercent,
+            side: "invitado",
+          },
     );
     const simulated = opts?.simulateInvitationLink;
     if (simulated && !links.some((link) => link.referredId === userId)) {
       sides.push({
         counterpartyId: simulated.inviterId,
         percent: inviteePercent,
+        side: "invitador",
       });
     }
 
@@ -274,20 +331,68 @@ export class ReferralService {
     // `ctx` obligatorio: subscriptions es strict (reconciliación tren v6.0).
     // Fase 194 D-10d: cobertura de MEMBRESÍA (excluye planes `is_trial`): una
     // contraparte con solo accesos de invitación NO genera descuento.
+    const counterpartyIds = sides.map((side) => side.counterpartyId);
     const coveredMap = await deriveMembershipCoveredUntilBatch(
       this.db,
-      sides.map((side) => side.counterpartyId),
+      counterpartyIds,
       ctx,
     );
+    const nameMap = withNames
+      ? await this.fullNamesById(ctx, counterpartyIds)
+      : new Map<number, string>();
+
     let total = 0;
+    const detail: InvitationDiscountLink[] = [];
     for (const side of sides) {
       const coveredUntil = coveredMap.get(side.counterpartyId) ?? null;
-      if (coveredUntil !== null && coveredUntil >= today) {
+      const active = coveredUntil !== null && coveredUntil >= today;
+      if (active) {
         total += side.percent;
       }
+      const daysLeft =
+        active && coveredUntil !== null
+          ? daysBetween(today, coveredUntil)
+          : null;
+      detail.push({
+        userId: side.counterpartyId,
+        name: nameMap.get(side.counterpartyId) ?? "",
+        side: side.side,
+        percent: active ? side.percent : 0,
+        coveredUntil,
+        active,
+        daysLeft,
+        expiresSoon:
+          active &&
+          daysLeft !== null &&
+          daysLeft <= INVITATION_EXPIRES_SOON_DAYS,
+      });
     }
 
-    return Math.min(total, maxPercentCap);
+    return { percent: Math.min(total, maxPercentCap), links: detail };
+  }
+
+  /** Nombre completo por userId, en UNA query (`users` es strict: con `tenantWhere`). */
+  private async fullNamesById(
+    ctx: TenantContext,
+    userIds: number[],
+  ): Promise<Map<number, string>> {
+    const nameMap = new Map<number, string>();
+    if (userIds.length === 0) return nameMap;
+    const rows = await this.db
+      .select({
+        id: users.id,
+        firstName: users.firstName,
+        lastName: users.lastName,
+      })
+      .from(users)
+      .where(and(tenantWhere(users, ctx), inArray(users.id, userIds)));
+    for (const row of rows) {
+      nameMap.set(
+        row.id,
+        [row.firstName, row.lastName].filter(Boolean).join(" ").trim(),
+      );
+    }
+    return nameMap;
   }
 
   /**
@@ -361,28 +466,7 @@ export class ReferralService {
       counterpartyIds,
       ctx,
     );
-    const nameMap = new Map<number, string>();
-    if (counterpartyIds.length > 0) {
-      // T-173-08: `users` es strict — el nombre de la contraparte se filtra por
-      // tenant (defensa contra homónimo de otro gimnasio si referrals cruzara
-      // ids). El batch de nombres de master llegaba sin este filtro.
-      const rows = await this.db
-        .select({
-          id: users.id,
-          firstName: users.firstName,
-          lastName: users.lastName,
-        })
-        .from(users)
-        .where(
-          and(tenantWhere(users, ctx), inArray(users.id, counterpartyIds)),
-        );
-      for (const row of rows) {
-        nameMap.set(
-          row.id,
-          [row.firstName, row.lastName].filter(Boolean).join(" ").trim(),
-        );
-      }
-    }
+    const nameMap = await this.fullNamesById(ctx, counterpartyIds);
 
     for (const link of links) {
       const isReferrer = link.referrerId === userId;

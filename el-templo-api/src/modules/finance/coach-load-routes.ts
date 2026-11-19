@@ -1085,10 +1085,12 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
     pricePaid: number,
   ): Promise<number> {
     try {
+      // Solo necesita el monto: sin el detalle de invitación (ahorra sus queries).
       const preview = await subscriptionService.getRenewalPreview(
         ctx,
         userId,
         undefined,
+        { omitInvitationDetail: true },
       );
       return preview.finalPrice;
     } catch (err: unknown) {

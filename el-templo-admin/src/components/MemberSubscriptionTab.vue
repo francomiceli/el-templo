@@ -366,6 +366,9 @@
                 }}</q-item-section
               >
             </q-item>
+            <div v-if="renewalInvitationDetail" class="q-px-md q-pb-xs">
+              <InvitationDiscountDetail :detail="renewalInvitationDetail" />
+            </div>
             <q-item v-if="renewalPartnerAmount > 0 && renewalPreview">
               <q-item-section
                 >Descuento partner ({{ renewalPreview.partnerDiscountPercent }}%)</q-item-section
@@ -745,6 +748,8 @@ import FixedSchedulePicker from 'src/components/scheduling/FixedSchedulePicker.v
 import { DAY_SHORT_LABELS, type DayOfWeek } from 'src/types/scheduling';
 import EditSubscriptionStartDateDialog from 'src/components/EditSubscriptionStartDateDialog.vue';
 import SubscriptionCard from 'src/components/SubscriptionCard.vue';
+import InvitationDiscountDetail from 'src/components/InvitationDiscountDetail.vue';
+import { withClientPricingState } from 'src/utils/invitation-discount-detail';
 import type { SubscriptionScheduleChangeEntry } from 'src/types/subscription';
 
 const log = createLogger('MemberSubscriptionTab');
@@ -1169,6 +1174,16 @@ const renewalInvitationAmount = computed(() =>
   renewalStandardPricing.value && renewalPreview.value?.winningDiscount === 'invitation'
     ? renewalPreview.value.invitationDiscountAmount
     : 0
+);
+
+// Explicación del descuento por invitación. El preview se pide sin prorrateo ni precio
+// personalizado (el precio digitado es el final): con alguno activo el detalle tiene que
+// decir lo mismo que muestra la pantalla (sin descuento), no lo que el preview aplicaría.
+const renewalInvitationDetail = computed(() =>
+  withClientPricingState(renewalPreview.value?.invitationDiscountDetail, {
+    prorated: renewalProrate.value,
+    priceOverride: renewalOverrideActive.value,
+  })
 );
 
 const renewalPartnerAmount = computed(() =>

@@ -459,6 +459,9 @@
                       </div>
                     </div>
                   </div>
+                  <div v-if="pricingInvitationDetail" class="q-mt-sm">
+                    <InvitationDiscountDetail :detail="pricingInvitationDetail" />
+                  </div>
                 </q-card-section>
               </q-card>
             </template>
@@ -648,6 +651,9 @@
                       }}
                     </q-item-section>
                   </q-item>
+                  <div v-if="changeInvitationDetail" class="q-px-md q-pb-xs">
+                    <InvitationDiscountDetail :detail="changeInvitationDetail" />
+                  </div>
                   <q-item v-if="changePlanPreviewData.partnerDiscountAmount > 0">
                     <q-item-section>
                       Descuento partner ({{ changePlanPreviewData.partnerDiscountPercent }}%)
@@ -794,6 +800,9 @@
                       -{{ formatPrice(pricingDisplay.invitationAmount, displayCurrency) }}
                     </q-item-section>
                   </q-item>
+                  <div v-if="pricingInvitationDetail" class="q-px-md q-pb-xs">
+                    <InvitationDiscountDetail :detail="pricingInvitationDetail" />
+                  </div>
                   <q-item v-if="pricingDisplay.partnerAmount > 0">
                     <q-item-section>
                       Descuento partner ({{ pricingDisplay.partnerPercent }}%)
@@ -859,6 +868,9 @@
                       -{{ formatPrice(pricingDisplay.invitationAmount, displayCurrency) }}
                     </q-item-section>
                   </q-item>
+                  <div v-if="pricingInvitationDetail" class="q-px-md q-pb-xs">
+                    <InvitationDiscountDetail :detail="pricingInvitationDetail" />
+                  </div>
                   <q-item v-if="pricingDisplay.partnerAmount > 0">
                     <q-item-section>
                       Descuento partner ({{ pricingDisplay.partnerPercent }}%)
@@ -1121,6 +1133,8 @@ import {
 import { DAY_SHORT_LABELS, type DayOfWeek } from 'src/types/scheduling';
 import type { MemberProfile, BranchOption } from 'src/types/member';
 import FixedSchedulePicker from 'src/components/scheduling/FixedSchedulePicker.vue';
+import InvitationDiscountDetail from 'src/components/InvitationDiscountDetail.vue';
+import { withClientPricingState } from 'src/utils/invitation-discount-detail';
 // Phase 111 REQ-2: stacked MemberFormDialog overlay for the "Editar alumno"
 // banner CTA. Lazy import to avoid a circular ref (MemberFormDialog does not
 // import AssignPlanDialog, but the parent pages do — keep this localized).
@@ -1638,6 +1652,26 @@ const pricingDisplay = computed(() => {
     finalPrice: base,
   };
 });
+
+// Explicación del descuento por invitación (solo informativa). Los previews del
+// servidor se piden SIN prorrateo ni precio personalizado (el precio digitado es el
+// final), así que con alguno activo el detalle tiene que decir lo mismo que muestra
+// la pantalla: sin descuento. 'Mantener vencimiento' viaja como precio personalizado.
+const clientPricingState = computed(() => ({
+  prorated: assignForm.value.prorateToMonthEnd,
+  priceOverride:
+    isKeepMode.value ||
+    (assignForm.value.useOverride && assignForm.value.priceOverrideAmount !== null),
+}));
+
+const pricingInvitationDetail = computed(() =>
+  withClientPricingState(pricingPreview.value?.invitationDiscountDetail, clientPricingState.value)
+);
+
+// El resumen del cambio inmediato muestra los montos del change-plan-preview tal cual.
+const changeInvitationDetail = computed(
+  () => changePlanPreviewData.value?.invitationDiscountDetail ?? null
+);
 
 // Monto base a cobrar — Phase 107 D-02/D-07.
 // - override: cobra exactamente lo digitado, sin prorata.

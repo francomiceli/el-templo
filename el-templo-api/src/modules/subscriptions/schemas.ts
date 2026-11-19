@@ -117,6 +117,45 @@ const subscriptionDetailSchema = {
   },
 } as const;
 
+/**
+ * Explicación del descuento por invitación de un preview de cobro (solo staff).
+ * `null` si el pagador no tiene vínculos. Sin esta entrada en el schema de respuesta
+ * fast-json-stringify descarta el campo (Pitfall 4).
+ */
+const invitationDiscountDetailSchema = {
+  type: ["object", "null"],
+  properties: {
+    applied: { type: "boolean" },
+    reason: {
+      type: ["string", "null"],
+      enum: [
+        "counterparty_not_covered",
+        "plan_not_eligible",
+        "prorated",
+        "price_override",
+        "other_discount_won",
+        null,
+      ],
+    },
+    links: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          userId: { type: "integer" },
+          name: { type: "string" },
+          side: { type: "string", enum: ["invitador", "invitado"] },
+          percent: { type: "integer" },
+          coveredUntil: { type: ["string", "null"] },
+          active: { type: "boolean" },
+          daysLeft: { type: ["integer", "null"] },
+          expiresSoon: { type: "boolean" },
+        },
+      },
+    },
+  },
+} as const;
+
 const pricingPreviewResponseSchema = {
   type: "object",
   properties: {
@@ -150,6 +189,7 @@ const pricingPreviewResponseSchema = {
     invitationDiscountPercent: { type: "integer" },
     invitationDiscountAmount: { type: "integer" },
     invitationDiscountCapped: { type: "boolean" },
+    invitationDiscountDetail: invitationDiscountDetailSchema,
     winningDiscount: {
       type: "string",
       enum: ["none", "aura", "partner", "invitation", "boarding_pass"],
@@ -928,6 +968,7 @@ export const changePlanPreviewSchema = {
         invitationDiscountPercent: { type: "integer" },
         invitationDiscountAmount: { type: "integer" },
         invitationDiscountCapped: { type: "boolean" },
+        invitationDiscountDetail: invitationDiscountDetailSchema,
         winningDiscount: {
           type: "string",
           enum: ["none", "aura", "partner", "invitation", "boarding_pass"],
@@ -1072,6 +1113,7 @@ export const renewalPreviewSchema = {
         invitationDiscountPercent: { type: "number" },
         invitationDiscountAmount: { type: "integer" },
         invitationDiscountCapped: { type: "boolean" },
+        invitationDiscountDetail: invitationDiscountDetailSchema,
         winningDiscount: {
           type: "string",
           enum: ["none", "aura", "partner", "invitation", "boarding_pass"],

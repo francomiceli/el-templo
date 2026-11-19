@@ -77,6 +77,7 @@ import {
 } from "./pricing";
 import {
   prepareChargeDiscounts,
+  resolveInvitationDiscountDetail,
   settleChargeDiscounts,
   settlementColumns,
   type ChargeSettlement,
@@ -109,6 +110,7 @@ import { EnrollmentService } from "../programs/enrollment-service";
 import { SettingsService } from "../settings/service";
 import { PRICING_SETTINGS_KEYS } from "../settings/keys";
 import { ReferralService } from "../referrals/service";
+import type { InvitationDiscountDetail } from "../referrals/types";
 import {
   attributeInvitationPurchase,
   invitationConvertedAtGateSql,
@@ -709,12 +711,19 @@ export class SubscriptionService {
     override?: { amount: number; reason?: string };
     prorate?: { computed: number };
     prorateToMonthEnd?: boolean;
+    /**
+     * Solo `mode: "preview"`: explicar el descuento por invitación al staff
+     * (`invitationDetail`). El cobro real nunca lo calcula (cero queries extra).
+     */
+    explainInvitation?: boolean;
   }): Promise<{
     resolved: ResolvedPlanPrice;
     partnerCandidate: { linkId: number; percent: number } | null;
     settlement: ChargeSettlement;
     /** Precio tras el filter y el crédito, ANTES de partner/invitación (`settlement.finalPrice` es el cobrado). */
     priceAfterFilter: number;
+    /** Explicación del descuento por invitación; `null` fuera de preview o sin vínculos. */
+    invitationDetail: InvitationDiscountDetail | null;
   }> {
     const { mode, ctx, userId, plan } = params;
     const charge = mode === "charge";
@@ -730,27 +739,29 @@ export class SubscriptionService {
             params.prorateToMonthEnd,
           )
         : null;
+    const arbiterDeps = {
+      db: this.db,
+      log: this.log,
+      referralService: new ReferralService(this.db, this.log),
+    };
+    const arbiterInput = {
+      userId,
+      plan,
+      basePrice: Math.max(
+        0,
+        (params.basePrice ??
+          this.getBasePrice(
+            plan,
+            await this.resolvePriceType(params.priceTypeRequested),
+          )) - credit,
+      ),
+      isPriceOverride: params.override !== undefined,
+      prorateToMonthEnd: params.prorateToMonthEnd,
+    };
     const prepared = await prepareChargeDiscounts(
-      {
-        db: this.db,
-        log: this.log,
-        referralService: new ReferralService(this.db, this.log),
-      },
+      arbiterDeps,
       ctx,
-      {
-        userId,
-        plan,
-        basePrice: Math.max(
-          0,
-          (params.basePrice ??
-            this.getBasePrice(
-              plan,
-              await this.resolvePriceType(params.priceTypeRequested),
-            )) - credit,
-        ),
-        isPriceOverride: params.override !== undefined,
-        prorateToMonthEnd: params.prorateToMonthEnd,
-      },
+      arbiterInput,
       partnerCandidate,
     );
     const resolved = await resolvePlanPrice({
@@ -781,12 +792,23 @@ export class SubscriptionService {
       exclusive: resolved.exclusive,
       prepared,
     });
+    // Solo preview y solo si el llamador lo pidió: el cobro real no hace queries extra.
+    const invitationDetail =
+      !charge && params.explainInvitation === true
+        ? await resolveInvitationDiscountDetail(
+            arbiterDeps,
+            ctx,
+            arbiterInput,
+            settlement,
+          )
+        : null;
     return {
       resolved,
       // Con boarding pass el partner no participa (tampoco consume su beneficio).
       partnerCandidate: resolved.exclusive ? null : partnerCandidate,
       settlement,
       priceAfterFilter,
+      invitationDetail,
     };
   }
 
@@ -4570,6 +4592,7 @@ export class SubscriptionService {
         invitationDiscountPercent: 0,
         invitationDiscountAmount: 0,
         invitationDiscountCapped: false,
+        invitationDiscountDetail: null,
         winningDiscount: "none",
         partnerDiscountPercent: 0,
         partnerDiscountAmount: 0,
@@ -4593,16 +4616,18 @@ export class SubscriptionService {
     // rechaza por exceder el monto real). El preview no conoce `priceTypeApplied`,
     // `moduleInput` ni override (modo "mantener vencimiento"): asume precio regular
     // sin boarding pass, como siempre.
-    const { settlement, partnerCandidate } = await this.computeChargeDiscounts({
-      mode: "preview",
-      auraSupported: false,
-      ctx,
-      userId,
-      plan: targetPlan,
-      priceTypeRequested: "regular",
-      moduleInput: {},
-      prorationCredit: proration.remainingValue,
-    });
+    const { settlement, partnerCandidate, invitationDetail } =
+      await this.computeChargeDiscounts({
+        mode: "preview",
+        auraSupported: false,
+        ctx,
+        userId,
+        plan: targetPlan,
+        priceTypeRequested: "regular",
+        moduleInput: {},
+        prorationCredit: proration.remainingValue,
+        explainInvitation: true,
+      });
 
     return {
       allowed: true,
@@ -4613,6 +4638,7 @@ export class SubscriptionService {
       invitationDiscountPercent: settlement.invitationPercent,
       invitationDiscountAmount: settlement.invitationAmount,
       invitationDiscountCapped: settlement.invitationCapped,
+      invitationDiscountDetail: invitationDetail,
       winningDiscount: settlement.winningDiscount,
       partnerDiscountPercent: settlement.partnerWon
         ? (partnerCandidate?.percent ?? 0)
@@ -5774,6 +5800,8 @@ export class SubscriptionService {
     prorateToMonthEnd?: boolean;
     priceOverrideAmount?: number;
     priceOverrideReason?: string;
+    /** Solo preview: explicar el descuento por invitación (ver `computeChargeDiscounts`). */
+    explainInvitation?: boolean;
   }): Promise<{
     inherited: { base: number; source: RenewalBaseSource };
     /** Tipo de precio con el que se persiste la sub renovada. */
@@ -5784,6 +5812,7 @@ export class SubscriptionService {
     partnerCandidate: { linkId: number; percent: number } | null;
     /** Precio de la renovación ANTES de partner/invitación. */
     priceBeforeDiscount: number;
+    invitationDetail: InvitationDiscountDetail | null;
   }> {
     const { mode, ctx, userId, currentSub, plan, newStartDate } = params;
     const inherited = await resolveRenewalBase(
@@ -5851,9 +5880,10 @@ export class SubscriptionService {
       }
     }
 
-    const { settlement, partnerCandidate, priceAfterFilter } =
+    const { settlement, partnerCandidate, priceAfterFilter, invitationDetail } =
       await this.computeChargeDiscounts({
         mode,
+        explainInvitation: params.explainInvitation,
         chargeCallSite: "renew",
         auraSupported: false,
         ctx,
@@ -5873,6 +5903,7 @@ export class SubscriptionService {
       settlement,
       partnerCandidate,
       priceBeforeDiscount: priceAfterFilter,
+      invitationDetail,
     };
   }
 
@@ -5918,6 +5949,7 @@ export class SubscriptionService {
       prorateToMonthEnd: options.prorateToMonthEnd,
       priceOverrideAmount: options.priceOverrideAmount,
       priceOverrideReason: options.priceOverrideReason,
+      explainInvitation: options.omitInvitationDetail !== true,
     });
     const { settlement, partnerCandidate } = charge;
     // Vencimientos de las dos variantes, para que el admin muestre el que el
@@ -5945,6 +5977,7 @@ export class SubscriptionService {
       invitationDiscountPercent: settlement.invitationPercent,
       invitationDiscountAmount: settlement.invitationAmount,
       invitationDiscountCapped: settlement.invitationCapped,
+      invitationDiscountDetail: charge.invitationDetail,
       winningDiscount: settlement.winningDiscount,
       partnerDiscountPercent: settlement.partnerWon
         ? (partnerCandidate?.percent ?? 0)
@@ -6676,7 +6709,7 @@ export class SubscriptionService {
     // `exclusiveBenefits: false`: el preview NO tiene rama de precio de boarding
     // pass, solo reporta `boardingPassEligible` (Pitfall 5). Sin `override` ni
     // `prorateToMonthEnd` en la firma del preview.
-    const { resolved, partnerCandidate, settlement } =
+    const { resolved, partnerCandidate, settlement, invitationDetail } =
       await this.computeChargeDiscounts({
         mode: "preview",
         ctx,
@@ -6684,6 +6717,7 @@ export class SubscriptionService {
         plan,
         priceTypeRequested: priceType,
         moduleInput: moduleInput ?? {},
+        explainInvitation: true,
       });
 
     const basePrice = resolved.basePrice;
@@ -6746,6 +6780,7 @@ export class SubscriptionService {
       invitationDiscountPercent: settlement.invitationPercent,
       invitationDiscountAmount: settlement.invitationAmount,
       invitationDiscountCapped: settlement.invitationCapped,
+      invitationDiscountDetail: invitationDetail,
       winningDiscount: settlement.winningDiscount,
       partnerDiscountPercent,
       partnerDiscountAmount,

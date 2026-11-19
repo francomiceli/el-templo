@@ -630,6 +630,11 @@ describe("caracterización pre-194: renewSubscription y getRenewalPreview", () =
       invitationDiscountPercent: 10,
       invitationDiscountAmount: 10000,
       invitationDiscountCapped: false,
+      // Explicación para el staff (solo explica: no cambia ningún monto).
+      invitationDiscountDetail: expect.objectContaining({
+        applied: true,
+        reason: null,
+      }),
       winningDiscount: "invitation",
       partnerDiscountPercent: 0,
       partnerDiscountAmount: 0,

@@ -437,6 +437,11 @@ export interface RenewalPreview {
   /** Monto ya recortado por el tope en dinero. */
   invitationDiscountAmount: number;
   invitationDiscountCapped: boolean;
+  /**
+   * Explicación del descuento por invitación (de quién depende, hasta cuándo, por qué
+   * no se aplicó). `null` si quien paga no tiene vínculos. Solo informativo.
+   */
+  invitationDiscountDetail?: InvitationDiscountDetail | null;
   winningDiscount: 'none' | 'partner' | 'invitation';
   partnerDiscountPercent: number;
   partnerDiscountAmount: number;
@@ -509,6 +514,11 @@ export interface ChangePlanPreview {
   invitationDiscountPercent: number;
   invitationDiscountAmount: number;
   invitationDiscountCapped: boolean;
+  /**
+   * Explicación del descuento por invitación (de quién depende, hasta cuándo, por qué
+   * no se aplicó). `null` si quien paga no tiene vínculos. Solo informativo.
+   */
+  invitationDiscountDetail?: InvitationDiscountDetail | null;
   winningDiscount: WinningDiscount;
   // Fase 179 (D-09/D-10/D-20, plan 179-14): % y monto de descuento de
   // partner que el cobro real (changePlanNow) va a aplicar, ya restado de
@@ -516,6 +526,42 @@ export interface ChangePlanPreview {
   partnerDiscountPercent: number;
   partnerDiscountAmount: number;
   expiryDate?: string;
+}
+
+// ─── Descuento por invitación: explicación para el staff ────────────────────
+
+/** Un vínculo considerado en el descuento por invitación de quien paga. */
+export interface InvitationDiscountLink {
+  /** Contraparte del vínculo (la otra persona). */
+  userId: number;
+  name: string;
+  /** `invitador` = la contraparte invitó a quien paga; `invitado` = quien paga la invitó. */
+  side: 'invitador' | 'invitado';
+  /** % que aporta este vínculo si cuenta hoy; 0 si no está activo. */
+  percent: number;
+  /** Fin de la membresía de la contraparte (YYYY-MM-DD), o null si no tiene. */
+  coveredUntil: string | null;
+  /** La contraparte tiene membresía vigente hoy: el vínculo cuenta. */
+  active: boolean;
+  /** Días hasta `coveredUntil` (0 = vence hoy); null si no está activa. */
+  daysLeft: number | null;
+  /** Vence pronto (umbral definido en el servidor). */
+  expiresSoon: boolean;
+}
+
+export type InvitationDiscountReason =
+  | 'counterparty_not_covered'
+  | 'plan_not_eligible'
+  | 'prorated'
+  | 'price_override'
+  | 'other_discount_won';
+
+export interface InvitationDiscountDetail {
+  /** El descuento por invitación es el que se cobra. */
+  applied: boolean;
+  /** `null` si se aplicó; si no, el motivo. */
+  reason: InvitationDiscountReason | null;
+  links: InvitationDiscountLink[];
 }
 
 // ─── Pricing Types ──────────────────────────────────────────────────────────
@@ -538,6 +584,11 @@ export interface PricingPreview {
   invitationDiscountPercent: number;
   invitationDiscountAmount: number;
   invitationDiscountCapped: boolean;
+  /**
+   * Explicación del descuento por invitación (de quién depende, hasta cuándo, por qué
+   * no se aplicó). `null` si quien paga no tiene vínculos. Solo informativo.
+   */
+  invitationDiscountDetail?: InvitationDiscountDetail | null;
   winningDiscount: WinningDiscount;
   partnerDiscountPercent: number | null;
   partnerDiscountAmount: number | null;
