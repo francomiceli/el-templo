@@ -19,6 +19,22 @@ export function isHeaderPhotoHidden(scrollTop: number): boolean {
 }
 
 /**
+ * Estado siguiente de "la foto del encabezado está tapada" ante un aviso de scroll del layout.
+ *
+ * `scrollLocked`: hay un diálogo u hoja abierta. Quasar fija el `body` mientras tanto y la posición
+ * de scroll pasa a 0 aunque el socio no se haya movido; al cerrar la devuelve a donde estaba. Esos
+ * avisos no son un scroll del socio y se ignoran: si no, la barra cambiaría la foto por el ícono (y
+ * de vuelta) cada vez que se abre una hoja estando scrolleado.
+ */
+export function nextHeaderPhotoHidden(
+  current: boolean,
+  scrollTop: number,
+  scrollLocked: boolean,
+): boolean {
+  return scrollLocked ? current : isHeaderPhotoHidden(scrollTop)
+}
+
+/**
  * La foto que el socio ve como suya: la aprobada (o la de la ficha) y, si no hay, la que tiene en
  * revisión. Es la misma regla del encabezado de Mi Templo.
  */

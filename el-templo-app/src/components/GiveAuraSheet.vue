@@ -5,7 +5,7 @@
        quién está apagada y qué dice cada error. Los candidatos viven solo en el estado de este
        componente y se descartan al cerrar (T-215-20-03). Ningún texto promete privacidad (D-22). -->
   <q-dialog
-    :model-value="modelValue"
+    :model-value="dialogOpen"
     position="bottom"
     :persistent="sending"
     :transition-duration="dialogDuration"
@@ -223,6 +223,26 @@ const dialogDuration = reducedMotion ? 0 : 280
 const skeletonAnimation = reducedMotion ? 'none' : 'pulse'
 
 const status = ref<Status>('loading')
+
+// 2026-11-19: la hoja se muestra recién cuando llegó la clase, o a los 350 ms con el esqueleto si la
+// red tarda. Antes subía con las 8 celdas de esqueleto y, al llegar la lista, cambiaba de alto en
+// plena animación (con una sola cara perdía un renglón): parecía que se abría dos veces.
+const REVEAL_FALLBACK_MS = 350
+const revealed = ref(false)
+let revealTimer: ReturnType<typeof setTimeout> | null = null
+
+function clearRevealTimer(): void {
+  if (revealTimer !== null) {
+    clearTimeout(revealTimer)
+    revealTimer = null
+  }
+}
+
+const dialogOpen = computed(() => props.modelValue && revealed.value)
+
+watch(status, (value) => {
+  if (value !== 'loading') revealed.value = true
+})
 const candidates = ref<GiftCandidate[]>([])
 /** Clase que devolvió el servidor; sirve para el subtítulo si no llegó `gift`. */
 const loadedClass = ref<{ sessionDate: string; startTime: string } | null>(null)
@@ -433,11 +453,17 @@ watch(
     if (open) {
       selectedId.value = null
       selectedReason.value = null
+      revealed.value = false
+      clearRevealTimer()
+      revealTimer = setTimeout(() => {
+        revealed.value = true
+      }, REVEAL_FALLBACK_MS)
       void backClose.attach()
       void loadCandidates(false)
     } else {
       // Invalida lo que esté en vuelo y suelta el botón atrás.
       requestSeq++
+      clearRevealTimer()
       backClose.cleanup()
     }
   },
@@ -446,6 +472,7 @@ watch(
 
 onBeforeUnmount(() => {
   requestSeq++
+  clearRevealTimer()
   backClose.cleanup()
   giftsApi.cleanup()
 })
