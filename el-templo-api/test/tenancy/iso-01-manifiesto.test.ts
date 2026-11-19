@@ -470,7 +470,12 @@ import {
 // 2026-11-13: 557 -> 558 por el export a Excel de ese histórico:
 // GET /api/admin/reports/multibranch-reassignments/export, `tenant-scoped`.
 // 2026-11-13: + export de recategorizaciones en esta rama = 577.
-const ENTRADAS_BASELINE = 577;
+// 2026-11-19: 577 -> 580 por el seguimiento de invitados (la bandeja de Invitaciones como
+// lista de seguimiento): `GET /api/admin/referrals/invitations/pending-count`, `PATCH
+// /api/admin/referrals/invitations/:invitationId/followup` y `POST
+// /api/admin/referrals/invitations/:invitationId/notes`, las 3 `tenant-scoped`
+// (`assertTenant` + `tenantWhere`/`tenantValues` en el service).
+const ENTRADAS_BASELINE = 580;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -613,7 +618,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 577 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 580 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(

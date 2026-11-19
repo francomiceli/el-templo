@@ -261,14 +261,19 @@ export const EXCEPCIONES_NOMBRADAS: Readonly<Record<string, string>> = {
 // iso-03-referrals.test.ts.
 // 2026-11-05: 61 -> 62 por PUT /api/auth/me/address (dirección del socio,
 // pop-up de Mi Templo), con su caso + control en iso-03-auth.test.ts.
-const CASOS_BASELINE = 62;
+// 2026-11-19: 62 -> 65 por el seguimiento de invitados: `GET
+// /api/admin/referrals/invitations/pending-count`, `PATCH
+// /api/admin/referrals/invitations/:invitationId/followup` y `POST
+// /api/admin/referrals/invitations/:invitationId/notes`, con su caso + control en
+// iso-03-referrals.test.ts.
+const CASOS_BASELINE = 65;
 
 /** Los seis archivos de la batería ISO-03 de analytics + resto del core. */
 const ARCHIVOS_BATERIA = [
   "iso-03-analytics.test.ts", // plan 175.1-02 — 22 rutas
   "iso-03-campaigns.test.ts", // plan 175.1-03 — 11 rutas (+1 fase 180: POST /exchange)
   "iso-03-notifications.test.ts", // plan 175.1-04 — 8 rutas
-  "iso-03-referrals.test.ts", // plan 175.1-05 — 3 rutas (+2 Invitaciones, fase 194-10; +2 reporte/bandeja, fase 194-20; 2 más ya cubiertas por members, ver EXCEPCIONES_NOMBRADAS)
+  "iso-03-referrals.test.ts", // plan 175.1-05 — 3 rutas (+2 Invitaciones, fase 194-10; +2 reporte/bandeja, fase 194-20; +3 seguimiento de invitados; 2 más ya cubiertas por members, ver EXCEPCIONES_NOMBRADAS)
   "iso-03-improvement-proposals.test.ts", // plan 175.1-05 — 4 rutas
   "iso-03-auth.test.ts", // plan 175.1-05 — 4 rutas (+1 "Empezá acá": POST /me/intro-stories; +1 PUT /me/address)
 ] as const;
@@ -412,7 +417,7 @@ describe("cobertura de la batería ISO-03 de analytics+resto — contra el manif
     ).toEqual([]);
   });
 
-  it("la batería cubre exactamente las 62 rutas de analytics+resto del baseline", () => {
+  it("la batería cubre exactamente las 65 rutas de analytics+resto del baseline", () => {
     expect(
       RUTAS_ANALYTICS_RESTO.length,
       `El manifiesto tiene ${RUTAS_ANALYTICS_RESTO.length} rutas de ` +
