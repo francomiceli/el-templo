@@ -301,6 +301,29 @@ export interface InvitationReportParams {
   to?: string;
 }
 
+/** Estado de seguimiento de un invitado (lo deriva el servidor, ver `invitation-follow-status`). */
+export type InvitationFollowStatus =
+  | 'con_accesos'
+  | 'para_contactar'
+  | 'compro'
+  | 'compro_tarde'
+  | 'no_sigue';
+
+/** Por qué se le terminaron los accesos: se gastó el cupo o se venció el plazo. */
+export type InvitationEndReason = 'agotados' | 'plazo';
+
+/** Seguimiento manual (mismo molde que Renovaciones). `subscriptionId` null = no se puede registrar. */
+export interface InvitationFollowup {
+  subscriptionId: number | null;
+  manualStatus: 'en_proceso' | 'no_renovo';
+  /** 0-4 */
+  messageCount: number;
+  lastMessageAt: string | null;
+  reasonId: number | null;
+  reasonLabel: string | null;
+  reasonNote: string | null;
+}
+
 export interface InvitationLeadRow {
   invitationId: number;
   invitee: { userId: number; firstName: string; lastName: string; phone: string | null };
@@ -315,17 +338,52 @@ export interface InvitationLeadRow {
   branchName: string;
   branchesTrained: string[];
   stage: LeadStage;
+  followStatus: InvitationFollowStatus;
+  /** null mientras todavía tiene accesos. */
+  endReason: InvitationEndReason | null;
+  /** 'YYYY-MM-DD': cuándo se le terminaron los accesos. */
+  endedOn: string | null;
+  followup: InvitationFollowup;
+  lastNote: { content: string; createdAt: string; authorName: string | null } | null;
   leadStatus: 'en_seguimiento' | 'ganado' | 'perdido' | null;
   channel: 'self_service' | 'assisted';
 }
 
 export interface InvitationLeadListParams {
   stage?: LeadStage;
+  followStatus?: InvitationFollowStatus;
   branchId?: number;
   from?: string;
   to?: string;
   page?: number;
   pageSize?: number;
+}
+
+/** Cuerpo del PATCH del seguimiento: todo opcional, igual al de Renovaciones. */
+export interface InvitationFollowupUpdateInput {
+  messageCount?: number;
+  manualStatus?: 'en_proceso' | 'no_renovo';
+  reasonId?: number | null;
+  reasonNote?: string | null;
+}
+
+/** Nota registrada con POST /invitations/:invitationId/notes. */
+export interface InvitationNote {
+  id: number;
+  userId: number;
+  authorId: number;
+  authorName: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** GET /invitations/pending-count: aviso del seguimiento (ya acotado por rol). */
+export interface InvitationsPendingCount {
+  /** Invitados "para contactar". */
+  open: number;
+  /** De los `open`, los que no tienen ningún mensaje registrado. */
+  uncontacted: number;
 }
 
 export interface InvitationLeadList {
