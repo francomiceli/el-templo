@@ -57,6 +57,7 @@ import {
   REASON_REQUIRED,
   ReasonRequiredError,
 } from "./followup-core";
+import { fetchLastNotes, staffName } from "./last-notes";
 import { MemberService } from "../members/service";
 import type { MemberNote } from "../members/types";
 import type {
@@ -154,15 +155,6 @@ interface ExpiringRow {
   followupUpdatedAt: Date | null;
   editorFirstName: string | null;
   editorLastName: string | null;
-}
-
-/** "Nombre Apellido" de un staff — mismo formato que `authorName` de `MemberService.getNotes`. */
-function staffName(
-  firstName: string | null,
-  lastName: string | null,
-): string | null {
-  const name = [firstName, lastName].filter(Boolean).join(" ");
-  return name === "" ? null : name;
 }
 
 /** Categoría del pase "Actividades con Aura" (fase 161) — ver `RenewalActivityType`. */
@@ -664,46 +656,12 @@ export class RenewalsService {
     return rows;
   }
 
-  /** Última `member_notes` por socio — reducido en JS (ver docblock del archivo). */
-  private async fetchLastNotes(
+  /** Última `member_notes` por socio (consulta compartida con Invitaciones: `last-notes.ts`). */
+  private fetchLastNotes(
     ctx: TenantContext,
     userIds: number[],
   ): Promise<Map<number, RenewalLastNote>> {
-    const rows = await this.db
-      .select({
-        userId: schema.memberNotes.userId,
-        content: schema.memberNotes.content,
-        createdAt: schema.memberNotes.createdAt,
-        authorFirstName: schema.users.firstName,
-        authorLastName: schema.users.lastName,
-      })
-      .from(schema.memberNotes)
-      .leftJoin(
-        schema.users,
-        and(
-          tenantWhere(schema.users, ctx),
-          eq(schema.users.id, schema.memberNotes.authorId),
-        ),
-      )
-      .where(
-        and(
-          tenantWhere(schema.memberNotes, ctx),
-          inArray(schema.memberNotes.userId, userIds),
-        ),
-      )
-      .orderBy(desc(schema.memberNotes.createdAt), desc(schema.memberNotes.id));
-
-    const map = new Map<number, RenewalLastNote>();
-    for (const r of rows) {
-      if (!map.has(r.userId)) {
-        map.set(r.userId, {
-          content: r.content,
-          createdAt: r.createdAt.toISOString(),
-          authorName: staffName(r.authorFirstName, r.authorLastName),
-        });
-      }
-    }
-    return map;
+    return fetchLastNotes(this.db, ctx, userIds);
   }
 
   /**
