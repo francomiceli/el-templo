@@ -12,6 +12,31 @@
      hacer con él del lado del cliente. -->
 <template>
   <div>
+    <!-- Aviso: invitados a los que se les terminaron los accesos y nadie contactó todavía.
+         Lleva a la pestaña Invitaciones ya filtrada en "Para contactar". Mismo estilo suave
+         que el aviso de sesiones de prueba de la app. -->
+    <q-banner
+      v-if="adminStore.invitationsPending.open > 0"
+      dense
+      rounded
+      class="bg-red-1 text-negative q-mb-md invitations-banner"
+    >
+      <template #avatar>
+        <q-icon name="notifications_active" color="negative" size="20px" />
+      </template>
+      <span class="text-weight-medium">{{ invitationsBannerText }}</span>
+      <template #action>
+        <q-btn
+          flat
+          dense
+          no-caps
+          color="negative"
+          label="Ver invitaciones"
+          @click="goToInvitations"
+        />
+      </template>
+    </q-banner>
+
     <div class="row items-center q-mb-md">
       <div class="col text-caption text-grey-7">
         Vencimientos de membresía y su seguimiento — reemplaza la planilla semanal
@@ -342,6 +367,7 @@ import { formatDate } from 'src/utils/format-date';
 import { downloadBlob } from 'src/utils/download-blob';
 import { useRenewalsApi } from 'src/composables/useRenewalsApi';
 import { useAuthStore } from 'src/stores/useAuthStore';
+import { useAdminStore } from 'src/stores/useAdminStore';
 import { DUENO_ROLES } from 'src/config/templo-config';
 import { getWeekRange } from 'src/utils/renewals-week';
 import { renewalStatusMeta, renewalLastTouchLabel } from 'src/utils/renewal-status';
@@ -370,6 +396,22 @@ const log = createLogger('RenovacionesTab');
 const $q = useQuasar();
 const renewalsApi = useRenewalsApi();
 const authStore = useAuthStore();
+
+const adminStore = useAdminStore();
+
+// ============================================================================
+// Aviso de invitados para contactar
+// ============================================================================
+
+const invitationsBannerText = computed(() => {
+  const { open, uncontacted } = adminStore.invitationsPending;
+  const base = `Hay ${open} ${open === 1 ? 'invitado' : 'invitados'} para contactar`;
+  return uncontacted > 0 ? `${base} (${uncontacted} sin ningún mensaje)` : base;
+});
+
+function goToInvitations() {
+  void router.push({ path: '/reportes', query: { tab: 'invitaciones', estado: 'para_contactar' } });
+}
 
 const canManageReasons = computed(() =>
   (DUENO_ROLES as readonly string[]).includes(authStore.user?.role ?? '')
@@ -885,6 +927,11 @@ onUnmounted(() => {
 </script>
 
 <style scoped lang="scss">
+/* Centrar la campanita verticalmente: Quasar le pone self-start al avatar. */
+.invitations-banner :deep(.q-banner__avatar.self-start) {
+  align-self: center !important;
+}
+
 :deep(.renewal-row--para-cerrar) {
   background-color: rgba($warning, 0.12);
   box-shadow: inset 3px 0 0 $warning;
