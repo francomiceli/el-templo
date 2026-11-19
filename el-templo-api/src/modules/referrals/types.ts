@@ -20,6 +20,61 @@ export interface ReferralConfig {
 }
 
 /**
+ * Un vínculo de invitación tal como lo considera el cálculo del descuento de un
+ * pagador (para EXPLICARLO en pantalla al staff). Trae el nombre completo y el
+ * vencimiento de OTRA persona: solo puede viajar en endpoints de staff, nunca
+ * en los del socio.
+ */
+export interface InvitationDiscountLink {
+  /** userId de la contraparte del vínculo. */
+  userId: number;
+  /** Nombre completo de la contraparte. */
+  name: string;
+  /**
+   * Lado de la contraparte respecto de quien paga: `invitador` = la contraparte
+   * invitó a quien paga; `invitado` = quien paga la invitó.
+   */
+  side: "invitador" | "invitado";
+  /** % que aporta este vínculo si cuenta hoy; 0 si no está activo. */
+  percent: number;
+  /** Fin de la cobertura de MEMBRESÍA de la contraparte (YYYY-MM-DD), o null. */
+  coveredUntil: string | null;
+  /** El vínculo cuenta hoy para el descuento (contraparte con membresía vigente). */
+  active: boolean;
+  /** Días desde hoy hasta `coveredUntil` (0 = vence hoy); null si no está cubierta. */
+  daysLeft: number | null;
+  /** `active` y `daysLeft` <= INVITATION_EXPIRES_SOON_DAYS. */
+  expiresSoon: boolean;
+}
+
+/** % final del descuento por invitación de un pagador y los vínculos considerados. */
+export interface InvitationDiscountBreakdown {
+  /** Idéntico a `computeInvitationDiscountPercent` (mismo cálculo, con tope). */
+  percent: number;
+  links: InvitationDiscountLink[];
+}
+
+/** Por qué el descuento por invitación NO es el que se cobra en un preview. */
+export type InvitationDiscountReason =
+  | "counterparty_not_covered"
+  | "plan_not_eligible"
+  | "prorated"
+  | "price_override"
+  | "other_discount_won";
+
+/**
+ * Explicación del descuento por invitación de un preview de cobro (solo para
+ * staff). `null` en el preview cuando quien paga no tiene ningún vínculo.
+ */
+export interface InvitationDiscountDetail {
+  /** El descuento por invitación es el que se cobra en este preview. */
+  applied: boolean;
+  /** `null` si `applied`; si no, el motivo por el que no se aplicó. */
+  reason: InvitationDiscountReason | null;
+  links: InvitationDiscountLink[];
+}
+
+/**
  * Vista de un vínculo de referido para las pantallas de visibilidad (fase 158,
  * VIS-01/VIS-03). El `state` es DERIVADO con `deriveCoveredUntil` de la
  * contraparte (D-28), nunca con `users.status`; los vínculos `revoked` no se

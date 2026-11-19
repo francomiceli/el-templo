@@ -7,6 +7,7 @@
 
 import type { PaymentMethod } from "../finance/types";
 import type { AdminRole } from "../shared/permissions";
+import type { InvitationDiscountDetail } from "../referrals/types";
 
 // ─── Enum Union Types ────────────────────────────────────────────────────────
 
@@ -587,6 +588,12 @@ export interface RenewalPreview {
   /** Monto de la invitación ya recortado por el tope en dinero (D-10c). */
   invitationDiscountAmount: number;
   invitationDiscountCapped: boolean;
+  /**
+   * Explicación del descuento por invitación para el STAFF (de quién depende, hasta
+   * cuándo, por qué no se aplicó). `null` si el pagador no tiene vínculos. Trae
+   * nombre y vencimiento de otra persona: solo viaja por endpoints de staff.
+   */
+  invitationDiscountDetail: InvitationDiscountDetail | null;
   /** AURA y boarding pass no existen en la renovación: acá solo `none | partner | invitation`. */
   winningDiscount: WinningDiscount;
   partnerDiscountPercent: number;
@@ -608,6 +615,8 @@ export interface RenewalPreviewOptions {
   /** Precio personalizado (>= 0) o, con `prorateToMonthEnd`, el proporcional editado. */
   priceOverrideAmount?: number;
   priceOverrideReason?: string;
+  /** No calcular `invitationDiscountDetail` (quien solo necesita el monto ahorra las queries). */
+  omitInvitationDetail?: boolean;
 }
 
 export interface RenewSubscriptionInput {
@@ -741,6 +750,12 @@ export interface ChangePlanPreview {
   invitationDiscountPercent: number;
   invitationDiscountAmount: number;
   invitationDiscountCapped: boolean;
+  /**
+   * Explicación del descuento por invitación para el STAFF (de quién depende, hasta
+   * cuándo, por qué no se aplicó). `null` si el pagador no tiene vínculos. Trae
+   * nombre y vencimiento de otra persona: solo viaja por endpoints de staff.
+   */
+  invitationDiscountDetail: InvitationDiscountDetail | null;
   // Cuál de los descuentos compitió y ganó (el árbitro aplica UNO; en el cambio
   // inmediato AURA no participa, así que solo `none | partner | invitation`).
   winningDiscount: WinningDiscount;
@@ -778,6 +793,12 @@ export interface PricingPreview {
   invitationDiscountPercent: number;
   invitationDiscountAmount: number;
   invitationDiscountCapped: boolean;
+  /**
+   * Explicación del descuento por invitación para el STAFF (de quién depende, hasta
+   * cuándo, por qué no se aplicó). `null` si el pagador no tiene vínculos. Trae
+   * nombre y vencimiento de otra persona: solo viaja por endpoints de staff.
+   */
+  invitationDiscountDetail: InvitationDiscountDetail | null;
   // Cuál de los descuentos compitió y ganó en este cobro (el árbitro aplica UNO).
   winningDiscount: WinningDiscount;
   // Partners (fase 179, D-09/D-10/D-20): descuento de partner ya aplicado en

@@ -59,6 +59,11 @@ import {
   getInvitationSettings,
 } from "../referrals/invitation-settings";
 import type { ReferralService } from "../referrals/service";
+import type {
+  InvitationDiscountBreakdown,
+  InvitationDiscountDetail,
+  InvitationDiscountReason,
+} from "../referrals/types";
 import type { TenantContext } from "../shared/tenant";
 import {
   planAllowsInvitationDiscount,
@@ -157,6 +162,21 @@ function discountGatesClosed(input: InvitationCandidateInput): boolean {
 }
 
 /**
+ * Opciones del cálculo del % para un cobro o su preview: simula la cualificación del
+ * vínculo `pending` y el vínculo que nace al comprar. Las usan el candidato y el
+ * detalle, para que expliquen exactamente lo mismo que se cobra.
+ */
+function previewDiscountOptions(link: InvitationLinkToMaterialize | null): {
+  simulatePendingQualification: true;
+  simulateInvitationLink?: { inviterId: number };
+} {
+  return {
+    simulatePendingQualification: true,
+    ...(link ? { simulateInvitationLink: { inviterId: link.inviterId } } : {}),
+  };
+}
+
+/**
  * Candidato de descuento por invitación de un cobro, o `null` si algún gate cierra
  * (D-10b / prorrateo / D-20 / base > 0) o no hay nada que descontar NI vínculo
  * por crear. Solo lectura: no cualifica ni crea vínculos.
@@ -185,12 +205,7 @@ export async function resolveInvitationDiscountCandidate(
   const percent = await referralService.computeInvitationDiscountPercent(
     ctx,
     input.userId,
-    {
-      simulatePendingQualification: true,
-      ...(link
-        ? { simulateInvitationLink: { inviterId: link.inviterId } }
-        : {}),
-    },
+    previewDiscountOptions(link),
   );
   // Sin % y sin vínculo por crear no hay nada que ofrecer ni materializar.
   if (percent <= 0 && link === null) return null;
@@ -206,6 +221,68 @@ export async function resolveInvitationDiscountCandidate(
     capApplied,
     linkToMaterialize: link,
   };
+}
+
+/**
+ * Motivo por el que la invitación NO es el descuento que se cobra, derivado de lo que
+ * el árbitro YA decidió (gates + ganador), sin reimplementar reglas. `undefined` = no
+ * hay nada que explicar (cobro de monto 0, o un recorte a 0 sin otro ganador).
+ */
+function notAppliedReason(
+  input: InvitationCandidateInput,
+  breakdown: InvitationDiscountBreakdown,
+  outcome: Pick<ChargeSettlement, "winningDiscount">,
+): InvitationDiscountReason | undefined {
+  if (!planAllowsInvitationDiscount(input.plan)) return "plan_not_eligible";
+  if (input.prorateToMonthEnd === true) return "prorated";
+  // Nada que cobrar (p. ej. el crédito del plan vigente cubre todo): no hay descuento
+  // que explicar.
+  if (input.basePrice <= 0) return undefined;
+  if (input.isPriceOverride) return "price_override";
+  if (breakdown.percent <= 0) return "counterparty_not_covered";
+  if (
+    outcome.winningDiscount === "aura" ||
+    outcome.winningDiscount === "partner" ||
+    outcome.winningDiscount === "boarding_pass"
+  ) {
+    return "other_discount_won";
+  }
+  return undefined;
+}
+
+/**
+ * Explicación del descuento por invitación de un PREVIEW (solo staff: trae nombre y
+ * vencimiento de otra persona). `null` si el pagador no tiene ningún vínculo. El
+ * desglose usa las mismas opciones que el candidato y el motivo sale de los gates y
+ * del ganador que el árbitro ya resolvió. Solo lectura; los cobros reales no lo llaman.
+ */
+export async function resolveInvitationDiscountDetail(
+  deps: DiscountArbiterDeps,
+  ctx: TenantContext,
+  input: InvitationCandidateInput,
+  outcome: Pick<ChargeSettlement, "winningDiscount">,
+): Promise<InvitationDiscountDetail | null> {
+  const { db, log, referralService } = deps;
+  const settings = await getInvitationSettings(db, ctx, log);
+  const link = await findLinkableInvitation(
+    db,
+    ctx,
+    input.userId,
+    settings.latePurchaseWindowDays,
+  );
+  const breakdown = await referralService.computeInvitationDiscountBreakdown(
+    ctx,
+    input.userId,
+    previewDiscountOptions(link),
+  );
+  if (breakdown.links.length === 0) return null;
+
+  if (outcome.winningDiscount === "invitation") {
+    return { applied: true, reason: null, links: breakdown.links };
+  }
+  const reason = notAppliedReason(input, breakdown, outcome);
+  if (reason === undefined) return null;
+  return { applied: false, reason, links: breakdown.links };
 }
 
 /**
