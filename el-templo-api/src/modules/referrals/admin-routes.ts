@@ -103,10 +103,11 @@ function requireRoles(roles: readonly string[], message: string) {
   return async function gate(
     request: FastifyRequest,
     reply: FastifyReply,
-  ): Promise<void> {
+  ): Promise<FastifyReply | undefined> {
     if (!roles.includes(request.user.role)) {
-      await reply.code(403).send({ error: "Acceso denegado", message });
+      return reply.code(403).send({ error: "Acceso denegado", message });
     }
+    return undefined;
   };
 }
 

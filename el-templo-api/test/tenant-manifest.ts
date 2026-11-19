@@ -781,8 +781,9 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "GET /api/admin/referrals/ab-results": { categoria: "tenant-scoped" },
   // Fase 194-20 (D-19 / D-18): reporte del programa de Invitaciones y bandeja de
   // leads de invitación. Leen `invitations`, `referral_credits`, `subscriptions`,
-  // `users` y `attendance` (gym-owned) con `tenantWhere` en cada tabla; el gate es
-  // gestion/admin/owner (mismo plugin que ab-results).
+  // `users` y `attendance` (gym-owned) con `tenantWhere` en cada tabla; el gate del reporte
+  // es gestion/admin/owner (como ab-results) y el de la bandeja, desde el seguimiento de
+  // invitados, es gestion/admin_sede/admin/owner (ver más abajo).
   "GET /api/admin/referrals/invitations/report": {
     categoria: "tenant-scoped",
   },
