@@ -43,17 +43,20 @@ import {
   ConflictError,
   NotFoundError,
 } from "../shared/errors";
-import { assertBranchInEnforcedScope } from "../shared/branch-access";
 import {
   tenantValues,
   tenantWhere,
   type TenantContext,
 } from "../shared/tenant";
 import { isDuplicateKeyError } from "../shared/sql-errors";
-import { auditLog } from "../shared/audit-log";
 import { normalizePhoneE164 } from "../shared/phone";
 import { todayInTz } from "../shared/date-utils";
-import type { TxHandle } from "../finance/balance-service";
+import {
+  applyFollowupUpdate,
+  assertRowInActorScope,
+  REASON_REQUIRED,
+  ReasonRequiredError,
+} from "./followup-core";
 import { MemberService } from "../members/service";
 import type { MemberNote } from "../members/types";
 import type {
@@ -81,29 +84,10 @@ import type {
  */
 export const RENEWAL_FOLLOWUP_WINDOW_DAYS = 5;
 
-/**
- * Código estable del 400 (SPEC §"PATCH .../:subscriptionId": "manualStatus=
- * 'no_renovo' exige reasonId activo del tenant (400 REASON_REQUIRED)") —
- * mismo patrón que `BRANCH_OUT_OF_SCOPE` (`shared/branch-access.ts`): una
- * constante exportada para que `routes.ts` matchee exacto en vez de parsear
- * el mensaje.
- */
-export const REASON_REQUIRED = "REASON_REQUIRED";
-
-/**
- * El default `handleServiceError` solo emite `{ error, message }`, así que
- * `routes.ts` agrega el `code` explícitamente — mismo patrón que
- * `BranchOutOfScopeError`/`BRANCH_OUT_OF_SCOPE`.
- */
-export class ReasonRequiredError extends BadRequestError {
-  readonly code = REASON_REQUIRED;
-
-  constructor(
-    message = "El motivo es obligatorio para marcar 'No renueva' y tiene que estar activo",
-  ) {
-    super(message);
-  }
-}
+// `REASON_REQUIRED` y `ReasonRequiredError` viven en el núcleo compartido del seguimiento
+// (`followup-core.ts`, también lo usa Invitaciones); se re-exportan acá para no mover
+// a los que ya los importaban de este archivo.
+export { REASON_REQUIRED, ReasonRequiredError };
 
 /** Rango máximo de días entre dateFrom/dateTo (SPEC §"GET /api/admin/renewals"). */
 export const RENEWAL_MAX_RANGE_DAYS = 93;
@@ -849,21 +833,8 @@ export class RenewalsService {
     if (!sub) {
       throw new NotFoundError("Suscripción no encontrada");
     }
-    if (actor.branchIds != null) {
-      assertBranchInEnforcedScope(
-        sub.branchId,
-        actor.branchIds,
-        "Suscripción no encontrada",
-      );
-    } else if (!actor.isOwner) {
-      // admin/gestion: sin alcance forzado por sede, pero SÍ por país (mismo
-      // recorte que `listRenewals` aplica vía `filters.country`) — sin esto,
-      // un admin de Argentina podría PATCHear/anotar una sub de una sede de
-      // España del MISMO tenant.
-      if (actor.country === null || sub.branchCountry !== actor.country) {
-        throw new NotFoundError("Suscripción no encontrada");
-      }
-    }
+    // Mismo recorte que Invitaciones (núcleo compartido): sede forzada o, si no, país.
+    assertRowInActorScope(sub, actor, "Suscripción no encontrada");
     return sub;
   }
 
@@ -889,123 +860,13 @@ export class RenewalsService {
       throw new NotFoundError("Suscripción no encontrada");
     }
 
-    const [before] = await this.db
-      .select()
-      .from(schema.renewalFollowups)
-      .where(
-        and(
-          tenantWhere(schema.renewalFollowups, ctx),
-          eq(schema.renewalFollowups.subscriptionId, subscriptionId),
-        ),
-      )
-      .limit(1);
-
-    const finalManualStatus: RenewalManualStatus =
-      input.manualStatus ?? before?.manualStatus ?? "en_proceso";
-
-    let resolvedReasonId: number | null;
-    let resolvedReasonNote: string | null;
-
-    if (finalManualStatus === "no_renovo") {
-      // Resuelto EXPLÍCITAMENTE contra `input.reasonId` (incluso si vino
-      // `null`) — un PATCH `{ manualStatus: "no_renovo", reasonId: null }` NO
-      // puede colarse sin motivo con solo pasar `null` en vez de omitir el
-      // campo (el `!== undefined` de la versión anterior lo dejaba pasar).
-      resolvedReasonId =
-        input.reasonId !== undefined
-          ? input.reasonId
-          : (before?.reasonId ?? null);
-      if (resolvedReasonId === null) {
-        throw new ReasonRequiredError();
-      }
-      // Solo revalida contra la DB cuando ESTE PATCH toca el motivo o recién
-      // transiciona a no_renovo — un PATCH que solo mueve `messageCount`
-      // sobre una fila que ya estaba en no_renovo no repite el chequeo (si el
-      // motivo se desactivó DESPUÉS, esa es una decisión de otra pantalla, no
-      // algo que este PATCH deba rechazar retroactivamente).
-      const debeValidarMotivo =
-        input.reasonId !== undefined ||
-        (input.manualStatus === "no_renovo" &&
-          before?.manualStatus !== "no_renovo");
-      if (debeValidarMotivo) {
-        const [reason] = await this.db
-          .select({ id: schema.renewalReasons.id })
-          .from(schema.renewalReasons)
-          .where(
-            and(
-              tenantWhere(schema.renewalReasons, ctx),
-              eq(schema.renewalReasons.id, resolvedReasonId),
-              eq(schema.renewalReasons.isActive, true),
-            ),
-          )
-          .limit(1);
-        if (!reason) {
-          throw new ReasonRequiredError("Motivo inválido o inactivo");
-        }
-      }
-      resolvedReasonNote =
-        input.reasonNote !== undefined
-          ? input.reasonNote
-          : (before?.reasonNote ?? null);
-    } else {
-      // Volver a en_proceso limpia el motivo (SPEC línea 33), sin importar lo
-      // que venga en el body.
-      resolvedReasonId = null;
-      resolvedReasonNote = null;
-    }
-
-    const finalMessageCount = input.messageCount ?? before?.messageCount ?? 0;
-    const messageChanged =
-      input.messageCount !== undefined &&
-      input.messageCount !== (before?.messageCount ?? 0);
-    const finalLastMessageAt = messageChanged
-      ? new Date()
-      : (before?.lastMessageAt ?? null);
-
-    await this.db.transaction(async (tx: TxHandle) => {
-      await tx
-        .insert(schema.renewalFollowups)
-        .values(
-          tenantValues(ctx, {
-            subscriptionId,
-            userId: subRow.userId,
-            messageCount: finalMessageCount,
-            lastMessageAt: finalLastMessageAt,
-            manualStatus: finalManualStatus,
-            reasonId: resolvedReasonId,
-            reasonNote: resolvedReasonNote,
-            updatedBy: actor.userId,
-          }),
-        )
-        .onDuplicateKeyUpdate({
-          set: {
-            messageCount: finalMessageCount,
-            ...(messageChanged ? { lastMessageAt: finalLastMessageAt } : {}),
-            manualStatus: finalManualStatus,
-            reasonId: resolvedReasonId,
-            reasonNote: resolvedReasonNote,
-            updatedBy: actor.userId,
-          },
-        });
-
-      const [after] = await tx
-        .select()
-        .from(schema.renewalFollowups)
-        .where(
-          and(
-            tenantWhere(schema.renewalFollowups, ctx),
-            eq(schema.renewalFollowups.subscriptionId, subscriptionId),
-          ),
-        )
-        .limit(1);
-
-      await auditLog.write(ctx, tx, {
-        actorId: actor.userId,
-        action: "renewal_followup_updated",
-        targetKind: "renewal_followup",
-        targetId: after?.id ?? 0,
-        payload: { before: before ?? null, after: after ?? null },
-      });
+    // Resolución de motivo, contador, upsert y audit: núcleo compartido con Invitaciones.
+    await applyFollowupUpdate(this.db, ctx, {
+      subscriptionId,
+      userId: subRow.userId,
+      input,
+      actorId: actor.userId,
+      auditAction: "renewal_followup_updated",
     });
 
     const row = await this.fetchSingleRow(ctx, subscriptionId);
