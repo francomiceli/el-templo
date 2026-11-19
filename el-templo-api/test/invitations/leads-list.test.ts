@@ -7,6 +7,10 @@
  * `todayInTz(<tz de la sede>)`; el único reloj falso es el del caso de zonas
  * horarias (solo `Date`, y solo alrededor de la llamada al servicio). El
  * aislamiento entre gimnasios vive en `iso-03-referrals.test.ts`.
+ *
+ * Desde el seguimiento de invitados la bandeja la opera también `admin_sede` (acotado a sus
+ * sedes): la matriz de roles y el alcance viven en `followup-roles.test.ts`; los campos de
+ * seguimiento de cada fila, en `followup-list.test.ts`.
  */
 import {
   describe,
@@ -185,6 +189,20 @@ describe("Fase 194-20 D-18 — bandeja de leads de invitación", () => {
         branchName: branchRow.name,
         branchesTrained: [branchRow.name],
         stage: "entrenando",
+        // Lista de seguimiento (ver followup-list.test.ts): vigente y sin gestión.
+        followStatus: "con_accesos",
+        endReason: null,
+        endedOn: null,
+        followup: {
+          subscriptionId: invited.subscriptionId,
+          manualStatus: "en_proceso",
+          messageCount: 0,
+          lastMessageAt: null,
+          reasonId: null,
+          reasonLabel: null,
+          reasonNote: null,
+        },
+        lastNote: null,
         leadStatus: "en_seguimiento",
         channel: "assisted",
       },
