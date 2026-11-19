@@ -791,12 +791,30 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "GET /api/admin/referrals/ab-results": { categoria: "tenant-scoped" },
   // Fase 194-20 (D-19 / D-18): reporte del programa de Invitaciones y bandeja de
   // leads de invitación. Leen `invitations`, `referral_credits`, `subscriptions`,
-  // `users` y `attendance` (gym-owned) con `tenantWhere` en cada tabla; el gate es
-  // gestion/admin/owner (mismo plugin que ab-results).
+  // `users` y `attendance` (gym-owned) con `tenantWhere` en cada tabla; el gate del reporte
+  // es gestion/admin/owner (como ab-results) y el de la bandeja, desde el seguimiento de
+  // invitados, es gestion/admin_sede/admin/owner (ver más abajo).
   "GET /api/admin/referrals/invitations/report": {
     categoria: "tenant-scoped",
   },
   "GET /api/admin/referrals/invitations": { categoria: "tenant-scoped" },
+  // Seguimiento de invitados (la bandeja pasa a ser una lista de seguimiento como
+  // Renovaciones): `pending-count` (aviso rojo), `PATCH .../followup` (escribe
+  // `renewal_followups` sobre la sub de accesos de la invitación, `audit_log` y, en la misma
+  // transacción, `users.lead_status`) y `POST .../notes` (`member_notes`). Las tres
+  // resuelven el gimnasio con `assertTenant(request.scope, …)`, llevan `tenantWhere` /
+  // `tenantValues` en cada tabla y responden 404 igual que un inexistente ante una
+  // invitación de otro gimnasio. Gate: gestion/admin_sede/admin/owner (admin_sede acotado
+  // a sus sedes), no el de los reportes agregados.
+  "GET /api/admin/referrals/invitations/pending-count": {
+    categoria: "tenant-scoped",
+  },
+  "PATCH /api/admin/referrals/invitations/:invitationId/followup": {
+    categoria: "tenant-scoped",
+  },
+  "POST /api/admin/referrals/invitations/:invitationId/notes": {
+    categoria: "tenant-scoped",
+  },
 
   // ── /api/admin/renewals ───────────────────────────────────────────────────
   // Módulo de Renovaciones (brief Nacho, 2026-09-24): pantalla operativa de

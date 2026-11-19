@@ -21,6 +21,7 @@ import {
   FINANCE_READ_ROLES,
   FINANCE_VOID_ROLES,
   FINANCE_WRITE_ROLES,
+  INVITATION_FOLLOWUP_ROLES,
   ADMIN_SEDE_ROLE,
   COACH_ACTIVIDAD_ROLE,
   isCoachLikeRole,
@@ -105,6 +106,23 @@ describe("RBAC sets — core white-label + Templo overrides", () => {
       "owner",
     ]);
     expect([...REFERRAL_PROGRAM_REPORT_ROLES]).not.toContain("admin_sede");
+  });
+
+  it("INVITATION_FOLLOWUP_ROLES = gestion, admin_sede, admin, owner (seguimiento de invitados, como Caja); sin recepción ni coach", () => {
+    // La bandeja de Invitaciones es una lista de trabajo POR FILA con sede propia (como
+    // Renovaciones): `admin_sede` entra acotado a sus sedes. Los reportes agregados
+    // (REFERRAL_PROGRAM_REPORT_ROLES) siguen sin él.
+    expect([...INVITATION_FOLLOWUP_ROLES]).toEqual([
+      "gestion",
+      "admin_sede",
+      "admin",
+      "owner",
+    ]);
+    expect([...INVITATION_FOLLOWUP_ROLES].sort()).toEqual(
+      [...CAJA_ROLES].sort(),
+    );
+    expect([...INVITATION_FOLLOWUP_ROLES]).not.toContain("recepcion");
+    expect([...INVITATION_FOLLOWUP_ROLES]).not.toContain("coach");
   });
 
   it("PROGRAMAS_ROLES is Dueño-only (owner + admin) — closes D-15", () => {
@@ -210,6 +228,7 @@ describe("RBAC — rol admin_sede (sede-scoped)", () => {
     FINANCE_LOAD_ROLES,
     FINANCE_VOID_ROLES,
     FINANCE_ADJUSTMENT_ROLES,
+    INVITATION_FOLLOWUP_ROLES,
   };
 
   const NO_ENTRA = {

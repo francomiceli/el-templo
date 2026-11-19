@@ -503,7 +503,12 @@ import {
 // 2026-11-18 fase 215 (ajustes, plan D): 602 -> 604 por la celebración de Aura
 // (GET /api/members/aura/celebration y POST celebration/ack), `templo-module`
 // (`templo-gamification`).
-const ENTRADAS_BASELINE = 604;
+// 2026-11-19: 604 -> 607 por el seguimiento de invitados (la bandeja de Invitaciones como
+// lista de seguimiento): `GET /api/admin/referrals/invitations/pending-count`, `PATCH
+// /api/admin/referrals/invitations/:invitationId/followup` y `POST
+// /api/admin/referrals/invitations/:invitationId/notes`, las 3 `tenant-scoped`
+// (`assertTenant` + `tenantWhere`/`tenantValues` en el service).
+const ENTRADAS_BASELINE = 607;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -646,7 +651,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 604 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 607 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(

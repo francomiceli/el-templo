@@ -6,73 +6,31 @@
      derivan de las membresías (ver docblock del service en la API): el menú
      lo explica en vez de ofrecer una opción que el sistema pisaría. El motivo
      sigue siendo obligatorio (alimenta los KPIs), por eso "No renueva" abre
-     un submenú con los motivos activos — dos clicks. -->
+     un submenú con los motivos activos — dos clicks.
+
+     El menú en sí es genérico (`FollowupStatusMenu`, lo comparte con Invitaciones):
+     acá solo se traduce la fila de Renovaciones a sus props. -->
 <template>
-  <q-badge
-    :color="meta.color"
+  <FollowupStatusMenu
     :label="renewalStatusLabel(row)"
-    class="cursor-pointer renewal-status-badge"
-    role="button"
-    :aria-label="`Estado: ${renewalStatusLabel(row)}. Cambiar estado`"
-  >
-    <q-icon v-if="isManual" name="arrow_drop_down" size="14px" class="q-ml-xs" />
-    <q-menu anchor="bottom left" self="top left">
-      <q-list dense style="min-width: 220px">
-        <template v-if="isManual">
-          <q-item v-if="row.status === 'no_renovo'" clickable v-close-popup @click="setEnProceso">
-            <q-item-section avatar><q-icon name="undo" size="18px" /></q-item-section>
-            <q-item-section>Volver a En proceso</q-item-section>
-          </q-item>
-
-          <q-item clickable>
-            <q-item-section avatar
-              ><q-icon name="cancel" color="negative" size="18px"
-            /></q-item-section>
-            <q-item-section>
-              {{ row.status === 'no_renovo' ? 'Cambiar motivo' : 'No renueva' }}
-            </q-item-section>
-            <q-item-section side><q-icon name="keyboard_arrow_right" /></q-item-section>
-
-            <q-menu anchor="top end" self="top start">
-              <q-list dense style="min-width: 180px">
-                <q-item-label header>Motivo</q-item-label>
-                <q-item
-                  v-for="reason in reasons"
-                  :key="reason.id"
-                  clickable
-                  v-close-popup
-                  :active="row.status === 'no_renovo' && row.reasonId === reason.id"
-                  @click="setNoRenueva(reason.id)"
-                >
-                  <q-item-section>{{ reason.label }}</q-item-section>
-                </q-item>
-                <q-item v-if="reasons.length === 0">
-                  <q-item-section class="text-grey-6">No hay motivos activos</q-item-section>
-                </q-item>
-              </q-list>
-            </q-menu>
-          </q-item>
-
-          <q-separator />
-          <q-item clickable v-close-popup @click="emit('open-details')">
-            <q-item-section avatar><q-icon name="edit_note" size="18px" /></q-item-section>
-            <q-item-section>Más opciones (nota del motivo)…</q-item-section>
-          </q-item>
-        </template>
-
-        <q-item v-else>
-          <q-item-section class="text-caption text-grey-7" style="max-width: 240px">
-            {{ derivedExplanation }}
-          </q-item-section>
-        </q-item>
-      </q-list>
-    </q-menu>
-  </q-badge>
+    :color="meta.color"
+    :editable="isManual"
+    :negative="row.status === 'no_renovo'"
+    :reason-id="row.reasonId"
+    :reasons="reasons"
+    negative-label="No renueva"
+    reset-label="Volver a En proceso"
+    :explanation="derivedExplanation"
+    @reset="setEnProceso"
+    @negative="setNoRenueva"
+    @open-details="emit('open-details')"
+  />
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
 import { renewalStatusMeta, renewalStatusLabel } from 'src/utils/renewal-status';
+import FollowupStatusMenu from 'src/components/seguimiento/FollowupStatusMenu.vue';
 import type { RenewalRow, RenewalReason, RenewalFollowupUpdateInput } from 'src/types/renewals';
 
 const props = defineProps<{
@@ -113,9 +71,3 @@ function setNoRenueva(reasonId: number) {
   emit('change', { manualStatus: 'no_renovo', reasonId });
 }
 </script>
-
-<style scoped lang="scss">
-.renewal-status-badge {
-  user-select: none;
-}
-</style>

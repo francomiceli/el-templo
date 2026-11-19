@@ -371,7 +371,24 @@ export const slotDetailSchema = {
       properties: {
         schedule: scheduleSlotSchema,
         date: { type: "string" },
-        bookings: { type: "array", items: bookingRecordSchema },
+        bookings: {
+          type: "array",
+          items: {
+            ...bookingRecordSchema,
+            properties: {
+              ...bookingRecordSchema.properties,
+              // Invitado que todavía no compró: accesos usados / presupuesto, para la
+              // etiqueta del profe en el roster. Null para cualquier otro alumno.
+              invitation: {
+                type: ["object", "null"],
+                properties: {
+                  accessesUsed: { type: ["integer", "null"] },
+                  accessesBudget: { type: ["integer", "null"] },
+                },
+              },
+            },
+          },
+        },
         maxCapacity: { type: "integer" },
         // Per-date cancellation state for this exact date. exceptionCreatedAt
         // is the restore cutoff the dialog uses to list "se restaurarán".

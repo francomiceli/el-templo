@@ -5,6 +5,12 @@
 // cualquier campo extra en vez de ignorarlo.
 
 import type { FastifyReply, FastifyRequest } from "fastify";
+import {
+  renewalFollowupUpdateSchema,
+  renewalNoteCreateSchema,
+  type RenewalFollowupBody,
+  type RenewalNoteBody,
+} from "../renewals/schemas";
 
 /** Código de invitación: alfanumérico y guion (formato `PREFIJO-XXXX`). */
 const codeProperty = {
@@ -220,11 +226,24 @@ export const INVITATION_LEAD_STAGE_VALUES = [
   "convertido",
 ] as const;
 
-/** GET /api/admin/referrals/invitations?stage&branchId&from&to&page&pageSize */
+/** Estados de seguimiento filtrables de la bandeja (los mismos que `InvitationFollowStatus`). */
+export const INVITATION_FOLLOW_STATUS_VALUES = [
+  "con_accesos",
+  "para_contactar",
+  "compro",
+  "compro_tarde",
+  "no_sigue",
+] as const;
+
+/** GET /api/admin/referrals/invitations?stage&followStatus&branchId&from&to&page&pageSize */
 export const invitationLeadsQuerySchema = {
   type: "object",
   properties: {
     stage: { type: "string", enum: [...INVITATION_LEAD_STAGE_VALUES] },
+    followStatus: {
+      type: "string",
+      enum: [...INVITATION_FOLLOW_STATUS_VALUES],
+    },
     branchId: { type: "integer", minimum: 1 },
     from: dateProperty,
     to: dateProperty,
@@ -234,6 +253,126 @@ export const invitationLeadsQuerySchema = {
   additionalProperties: false,
 } as const;
 
+/**
+ * Fila de la bandeja en la respuesta. fast-json-stringify SOLO serializa lo declarado:
+ * todo campo nuevo de `InvitationLeadRow` tiene que estar acá o viaja descartado.
+ */
+const invitationLeadRowSchema = {
+  type: "object",
+  properties: {
+    invitationId: { type: "integer" },
+    invitee: {
+      type: "object",
+      properties: {
+        userId: { type: "integer" },
+        firstName: { type: "string" },
+        lastName: { type: "string" },
+        phone: { type: ["string", "null"] },
+      },
+    },
+    inviter: {
+      type: "object",
+      properties: {
+        userId: { type: "integer" },
+        name: { type: "string" },
+      },
+    },
+    activatedAt: { type: "string" },
+    accessesUsed: { type: ["integer", "null"] },
+    accessesBudget: { type: ["integer", "null"] },
+    accessExpiresOn: { type: "string" },
+    branchId: { type: "integer" },
+    branchName: { type: "string" },
+    branchesTrained: { type: "array", items: { type: "string" } },
+    stage: { type: "string", enum: [...INVITATION_LEAD_STAGE_VALUES] },
+    followStatus: {
+      type: "string",
+      enum: [...INVITATION_FOLLOW_STATUS_VALUES],
+    },
+    endReason: { type: ["string", "null"], enum: ["agotados", "plazo", null] },
+    endedOn: { type: ["string", "null"] },
+    followup: {
+      type: "object",
+      properties: {
+        subscriptionId: { type: ["integer", "null"] },
+        manualStatus: { type: "string", enum: ["en_proceso", "no_renovo"] },
+        messageCount: { type: "integer" },
+        lastMessageAt: { type: ["string", "null"] },
+        reasonId: { type: ["integer", "null"] },
+        reasonLabel: { type: ["string", "null"] },
+        reasonNote: { type: ["string", "null"] },
+      },
+    },
+    lastNote: {
+      type: ["object", "null"],
+      properties: {
+        content: { type: "string" },
+        createdAt: { type: "string" },
+        authorName: { type: ["string", "null"] },
+      },
+    },
+    leadStatus: {
+      type: ["string", "null"],
+      enum: ["en_seguimiento", "ganado", "perdido", null],
+    },
+    channel: { type: "string", enum: ["self_service", "assisted"] },
+  },
+} as const;
+
+/** Ruta GET /invitations: query validado + página tipada. */
+export const invitationLeadsRouteSchema = {
+  querystring: invitationLeadsQuerySchema,
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        rows: { type: "array", items: invitationLeadRowSchema },
+        total: { type: "integer" },
+        page: { type: "integer" },
+        pageSize: { type: "integer" },
+      },
+    },
+  },
+} as const;
+
+/** Ruta GET /invitations/pending-count. */
+export const invitationPendingCountRouteSchema = {
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        uncontacted: { type: "integer" },
+        open: { type: "integer" },
+      },
+    },
+  },
+} as const;
+
+const invitationIdParams = {
+  type: "object",
+  required: ["invitationId"],
+  properties: { invitationId: { type: "integer", minimum: 1 } },
+} as const;
+
+/**
+ * PATCH /invitations/:invitationId/followup — el MISMO cuerpo que
+ * `PATCH /api/admin/renewals/:subscriptionId` (se reusa su schema: una sola definición
+ * de las reglas 0-4 mensajes / manualStatus / reasonId / reasonNote). Responde la fila
+ * actualizada de la bandeja. Sin schema de error: el 400 `REASON_REQUIRED` lleva `code`.
+ */
+export const invitationFollowupRouteSchema = {
+  params: invitationIdParams,
+  body: renewalFollowupUpdateSchema.body,
+  response: { 200: invitationLeadRowSchema },
+} as const;
+
+/** POST /invitations/:invitationId/notes — la misma nota que `POST /api/admin/renewals/:subscriptionId/notes`. */
+export const invitationNoteRouteSchema = {
+  params: invitationIdParams,
+  body: renewalNoteCreateSchema.body,
+  response: { 201: renewalNoteCreateSchema.response[201] },
+} as const;
+
 export interface InvitationReportQuery {
   from?: string;
   to?: string;
@@ -241,9 +380,19 @@ export interface InvitationReportQuery {
 
 export interface InvitationLeadsQuery {
   stage?: (typeof INVITATION_LEAD_STAGE_VALUES)[number];
+  followStatus?: (typeof INVITATION_FOLLOW_STATUS_VALUES)[number];
   branchId?: number;
   from?: string;
   to?: string;
   page?: number;
   pageSize?: number;
 }
+
+export interface InvitationFollowupParams {
+  invitationId: number;
+}
+
+/** Mismo cuerpo que el PATCH de Renovaciones. */
+export type InvitationFollowupBody = RenewalFollowupBody;
+
+export type InvitationNoteBody = RenewalNoteBody;

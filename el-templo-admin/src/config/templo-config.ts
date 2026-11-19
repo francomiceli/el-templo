@@ -314,7 +314,9 @@ export interface NavItem {
    * Badge slot ("pelotita" roja con un conteo). Cada clave mapea a un contador
    * del adminStore (ver `badgeCount` en AdminLayout.vue):
    * - 'pending': sesiones pendientes de aprobar (Sesiones).
-   * - 'app-trials': SP nuevas desde la app pendientes de seguimiento (Reportes).
+   * - 'app-trials': SP nuevas desde la app pendientes de seguimiento.
+   * - 'reportes': pelotita del ítem Reportes = SP nuevas desde la app pendientes de seguimiento +
+   *   invitados sin ningún mensaje registrado (pestaña Invitaciones).
    * - 'landing-academy' | 'landing-labs' | 'landing-franquicias': leads del sitio
    *   público todavía en estado "new" (grupo Landing).
    * - 'conquer': pedidos de desbloqueo sin activar (fase 201 D-12) + correcciones con video sin
@@ -328,6 +330,7 @@ export interface NavItem {
 export type NavBadge =
   | 'pending'
   | 'app-trials'
+  | 'reportes'
   | 'landing-academy'
   | 'landing-labs'
   | 'landing-franquicias'
@@ -493,7 +496,7 @@ export const NAV_MODEL: NavCategory[] = [
         label: 'Reportes',
         icon: 'summarize',
         roles: REPORTES_ROLES,
-        badge: 'app-trials',
+        badge: 'reportes',
       },
       { path: '/analiticas', label: 'Analíticas', icon: 'analytics', roles: ANALITICAS_ROLES },
     ],

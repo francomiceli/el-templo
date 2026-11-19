@@ -3,6 +3,7 @@
  */
 
 import type { MemberSeniority } from "../shared/date-utils";
+import type { InvitationRosterTag } from "../referrals/invitation-roster-tag";
 
 // Re-exported so consumers of the slot endpoints can reference the tenure
 // union from the scheduling contract (Phase 136 D-06).
@@ -172,6 +173,13 @@ export interface BookingRecord {
    * los constructores de BookingRecord lo dejan sin definir.
    */
   source?: string | null;
+  /**
+   * Invitado que todavía no compró (invitación activa sin convertir y `users.status =
+   * 'prueba'`): accesos usados / presupuesto, para la etiqueta del profe en el roster.
+   * `null` para cualquier otro alumno. Opcional: lo setea `getSlotDetail`; el resto de los
+   * constructores de BookingRecord lo dejan sin definir.
+   */
+  invitation?: InvitationRosterTag | null;
 }
 
 /**

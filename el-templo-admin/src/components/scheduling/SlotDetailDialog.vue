@@ -270,7 +270,9 @@
                     >{{ booking.memberName }}</q-item-label
                   >
                   <q-item-label
-                    v-if="isVisitorBooking(booking) || isWellhubBooking(booking)"
+                    v-if="
+                      isVisitorBooking(booking) || isWellhubBooking(booking) || booking.invitation
+                    "
                     caption
                   >
                     <q-badge
@@ -283,6 +285,10 @@
                       :color="WELLHUB_COLOR"
                       :label="WELLHUB_LABEL"
                       :class="{ 'q-ml-xs': isVisitorBooking(booking) }"
+                    />
+                    <InvitationTag
+                      :invitation="booking.invitation"
+                      :class="{ 'q-ml-xs': isVisitorBooking(booking) || isWellhubBooking(booking) }"
                     />
                   </q-item-label>
                 </q-item-section>
@@ -344,6 +350,7 @@
                     :label="WELLHUB_LABEL"
                     class="q-ml-xs"
                   />
+                  <InvitationTag :invitation="booking.invitation" class="q-ml-xs" />
                 </q-item-label>
               </q-item-section>
               <q-item-section side>
@@ -404,6 +411,7 @@
                       :label="WELLHUB_LABEL"
                       class="q-ml-xs"
                     />
+                    <InvitationTag :invitation="booking.invitation" class="q-ml-xs" />
                   </q-item-label>
                 </q-item-section>
                 <q-item-section side>
@@ -467,6 +475,7 @@
                       :label="WELLHUB_LABEL"
                       class="q-ml-xs"
                     />
+                    <InvitationTag :invitation="booking.invitation" class="q-ml-xs" />
                   </q-item-label>
                 </q-item-section>
                 <q-item-section side>
@@ -534,6 +543,7 @@
                     :label="WELLHUB_LABEL"
                     class="q-ml-xs"
                   />
+                  <InvitationTag :invitation="member.invitation" class="q-ml-xs" />
                   <MemberTags
                     :segment="member.segment"
                     :seniority="member.seniority"
@@ -907,6 +917,7 @@ import { useMembersApi } from 'src/composables/useMembersApi';
 import { extractError, isExpectedClientError } from 'src/utils/extract-error';
 import TrialMemberFormDialog from 'src/components/TrialMemberFormDialog.vue';
 import MemberTags from 'src/components/scheduling/MemberTags.vue';
+import InvitationTag from 'src/components/scheduling/InvitationTag.vue';
 import CheckInChips from 'src/components/scheduling/CheckInChips.vue';
 import type { BranchOption, MemberProfile } from 'src/types/member';
 import type {

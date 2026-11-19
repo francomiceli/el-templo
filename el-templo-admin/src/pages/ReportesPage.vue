@@ -74,14 +74,23 @@
           :label="adminStore.appTrialsPendingCount"
         />
       </q-tab>
-      <!-- Fase 194 (D-19/D-18): reporte del programa de invitaciones y bandeja de leads.
-           Solo gestion/admin/owner (el API responde 403 al resto). -->
+      <!-- Fase 194 (D-19/D-18): lista de seguimiento de invitados y reporte del programa.
+           Gestion/admin_sede/admin/owner (el API responde 403 al resto). El numerito rojo son
+           los invitados "para contactar" que todavía no recibieron ningún mensaje. -->
       <q-tab
         v-if="invitationsTabVisible"
         name="invitaciones"
         label="Invitaciones"
         icon="card_giftcard"
-      />
+      >
+        <q-badge
+          v-if="adminStore.invitationsPending.uncontacted > 0"
+          color="negative"
+          floating
+          rounded
+          :label="adminStore.invitationsPending.uncontacted"
+        />
+      </q-tab>
       <!-- Fase 204 (D-16): reporte Wellhub. Autocarga: no pasa por fetchTabData. -->
       <q-tab name="wellhub" label="Wellhub" icon="fitness_center" />
       <!-- Recategorización: agregado CROSS-SEDE (dry-run del cron sobre todo
@@ -781,10 +790,13 @@
       </q-tab-panel>
 
       <!-- ================================================================ -->
-      <!-- Invitaciones Tab (Fase 194: D-19 reporte + D-18 bandeja de leads) -->
+      <!-- Invitaciones Tab (Fase 194: D-18 lista de seguimiento + D-19 reporte del programa) -->
       <!-- ================================================================ -->
       <q-tab-panel v-if="invitationsTabVisible" name="invitaciones">
-        <InvitationsReport :branch-options="branchOptions" />
+        <InvitationsReport
+          :branch-options="branchOptions"
+          :show-program-report="invitationProgramReportVisible"
+        />
       </q-tab-panel>
 
       <!-- ================================================================ -->
@@ -1071,23 +1083,41 @@ const activeTab = ref(initialTab);
 // Rol de alcance forzado por sede (admin_sede): sin pestaña de Recategorización
 // y sin opción "Todas las sedes" en el selector.
 const branchScoped = computed(() => isBranchScopedRole(authStore.user?.role));
-if (branchScoped.value && activeTab.value === 'recategorizacion') {
-  activeTab.value = 'accesos';
-}
-// Deep link a una pestaña que el rol no ve: vuelve a la primera.
-if (!isAdminOrOwner.value && activeTab.value === 'origen-altas') {
-  activeTab.value = 'accesos';
-}
 
-// Fase 194 (D-19/D-18): la bandeja trae teléfonos de leads y el API la limita a
-// gestion/admin/owner (403 al resto): la pestaña se oculta en vez de mostrar un error.
+// Fase 194 (D-19/D-18): la lista de seguimiento trae teléfonos de invitados y el API la limita a
+// gestion/admin_sede/admin/owner (403 al resto): la pestaña se oculta en vez de mostrar un error.
 const invitationsTabVisible = computed(() => {
+  const role = authStore.user?.role;
+  return role === 'gestion' || role === 'admin_sede' || role === 'admin' || role === 'owner';
+});
+// El reporte del programa (KPIs por mes) sigue siendo solo gestion/admin/owner: a un admin de
+// sede el API le responde 403, así que dentro de la pestaña ni se pide.
+const invitationProgramReportVisible = computed(() => {
   const role = authStore.user?.role;
   return role === 'gestion' || role === 'admin' || role === 'owner';
 });
-if (!invitationsTabVisible.value && activeTab.value === 'invitaciones') {
+
+// Pestañas que el rol no ve (deep link con `?tab=`): se vuelve a la primera.
+function isTabAllowed(tab: string): boolean {
+  if (tab === 'recategorizacion') return !branchScoped.value;
+  if (tab === 'origen-altas') return isAdminOrOwner.value;
+  if (tab === 'invitaciones') return invitationsTabVisible.value;
+  return true;
+}
+if (!isTabAllowed(activeTab.value)) {
   activeTab.value = 'accesos';
 }
+
+// Ya estando en Reportes la URL puede cambiar de pestaña (el aviso de Renovaciones lleva a
+// `?tab=invitaciones&estado=para_contactar`): la pantalla no se vuelve a montar, así que se escucha.
+watch(
+  () => route.query.tab,
+  (tab) => {
+    if (typeof tab === 'string' && VALID_TABS.includes(tab) && isTabAllowed(tab)) {
+      activeTab.value = tab;
+    }
+  }
+);
 
 // -- Source filter options ---------------------------------------------------
 
@@ -1776,9 +1806,10 @@ watch(activeTab, () => {
 // -- Lifecycle ---------------------------------------------------------------
 
 onMounted(async () => {
-  // Refresca la pelotita de SP de app (badge de la tab) al entrar a Reportes,
+  // Refresca las pelotitas de SP de app e invitados (badges de las tabs) al entrar a Reportes,
   // sin depender de que el layout ya la haya cargado.
   void adminStore.fetchAppTrialsPendingCount();
+  if (invitationsTabVisible.value) void adminStore.fetchInvitationsPendingCount();
   await fetchBranches();
   await fetchTabData();
 });

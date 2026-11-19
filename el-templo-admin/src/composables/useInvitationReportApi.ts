@@ -2,8 +2,9 @@
  * Fase 194 (D-19 / D-18): reporte del programa de Invitaciones y bandeja de leads.
  *
  * Wrapper de GET /admin/referrals/invitations/report y GET /admin/referrals/invitations
- * (194-20). Roles gestion/admin/owner: el servidor es la autoridad (403 al resto) y
- * acota por país a admin/gestion. Mismo molde que `useReportsApi`: refs `loading`/`error`,
+ * (194-20). El reporte es de gestion/admin/owner; la lista de seguimiento (con su
+ * contador, el PATCH del seguimiento y las notas) suma a admin_sede. El servidor es
+ * la autoridad (403 al resto) y acota por país/sede según el rol. Mismo molde que `useReportsApi`: refs `loading`/`error`,
  * `extractError` y `cleanup()` (sin hook de desmontaje: el caller es dueño del ciclo).
  */
 
@@ -12,10 +13,14 @@ import { api } from 'src/boot/axios';
 import { createLogger } from 'src/utils/logger';
 import { extractError } from 'src/utils/extract-error';
 import type {
+  InvitationFollowupUpdateInput,
   InvitationLeadList,
   InvitationLeadListParams,
+  InvitationLeadRow,
+  InvitationNote,
   InvitationReport,
   InvitationReportParams,
+  InvitationsPendingCount,
 } from 'src/types/report';
 
 const log = createLogger('useInvitationReportApi');
@@ -60,10 +65,57 @@ export function useInvitationReportApi() {
     }
   }
 
+  /** GET /admin/referrals/invitations/pending-count — invitados para contactar (aviso rojo). */
+  async function pendingCount(): Promise<InvitationsPendingCount> {
+    const { data } = await api.get<InvitationsPendingCount>(
+      '/admin/referrals/invitations/pending-count'
+    );
+    return data;
+  }
+
+  /** PATCH /admin/referrals/invitations/:id/followup — devuelve la fila ya actualizada. */
+  async function updateFollowup(
+    invitationId: number,
+    input: InvitationFollowupUpdateInput
+  ): Promise<InvitationLeadRow> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.patch<InvitationLeadRow>(
+        `/admin/referrals/invitations/${invitationId}/followup`,
+        input
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error actualizando el seguimiento');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /** POST /admin/referrals/invitations/:id/notes — observación nueva del invitado. */
+  async function addNote(invitationId: number, content: string): Promise<InvitationNote> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.post<InvitationNote>(
+        `/admin/referrals/invitations/${invitationId}/notes`,
+        { content }
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error agregando la observación');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   function cleanup() {
     loading.value = false;
     error.value = null;
   }
 
-  return { loading, error, getReport, listLeads, cleanup };
+  return { loading, error, getReport, listLeads, pendingCount, updateFollowup, addNote, cleanup };
 }

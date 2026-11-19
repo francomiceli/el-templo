@@ -14,7 +14,7 @@
  * Referencia literal para el gate de cobertura (175.1-06,
  * `EXCEPCIONES_NOMBRADAS`): NO re-testear acá, NO perderlas del conteo.
  *
- * LAS 7 RUTAS QUE SÍ CUBRE ESTE ARCHIVO
+ * LAS 10 RUTAS QUE SÍ CUBRE ESTE ARCHIVO
  * -----------------------------------------------------------------------
  *   - `GET /api/admin/referrals/ab-results` — staff, agregado.
  *   - `GET /api/members/referrals` — socio, propio.
@@ -27,6 +27,11 @@
  *     KPIs y descuentos del PROPIO gimnasio, nunca la suma de los dos.
  *   - `GET /api/admin/referrals/invitations` — staff (fase 194-20): la bandeja
  *     de leads solo trae invitaciones del propio gimnasio.
+ *   - `GET /api/admin/referrals/invitations/pending-count`,
+ *     `PATCH /api/admin/referrals/invitations/:invitationId/followup` y
+ *     `POST /api/admin/referrals/invitations/:invitationId/notes` — staff
+ *     (seguimiento de invitados): el contador cuenta solo el propio gimnasio, y
+ *     el seguimiento / la nota sobre una invitación ajena es 404 sin escribir nada.
  *
  * `GET /api/admin/referrals/ab-results` — ACOTADO AL GIMNASIO DEL REQUEST
  * (decisión de Franco 2026-08-18; revierte la exención global de 173/175-04)
@@ -65,8 +70,10 @@ import { todayInTz } from "../../src/modules/shared/date-utils";
 import {
   createActiveSub,
   createInvitationRow,
+  createInvitedUser,
   createMembershipPlan,
   createTrialPlan,
+  ensurePhysicalBranch,
   fixtureCtx,
   uniquePhone10,
 } from "../invitations/_helpers";
@@ -146,7 +153,7 @@ function porQueImportaElAislamiento(ruta: string, detalle: string): string {
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe("precondiciones de la batería", () => {
-  it("las 7 rutas de este archivo son las que faltan del manifiesto (las otras 2 ya las cubre iso-03-members-ficha.test.ts:490,692)", () => {
+  it("las 10 rutas de este archivo son las que faltan del manifiesto (las otras 2 ya las cubre iso-03-members-ficha.test.ts:490,692)", () => {
     const RUTAS_NUEVAS_DE_ESTE_ARCHIVO = [
       "GET /api/admin/referrals/ab-results",
       "GET /api/members/referrals",
@@ -155,9 +162,12 @@ describe("precondiciones de la batería", () => {
       "POST /api/members/referrals/invitations/activate",
       "GET /api/admin/referrals/invitations/report",
       "GET /api/admin/referrals/invitations",
+      "GET /api/admin/referrals/invitations/pending-count",
+      "PATCH /api/admin/referrals/invitations/:invitationId/followup",
+      "POST /api/admin/referrals/invitations/:invitationId/notes",
     ];
-    expect(RUTAS_NUEVAS_DE_ESTE_ARCHIVO.length).toBe(7);
-    expect(new Set(RUTAS_NUEVAS_DE_ESTE_ARCHIVO).size).toBe(7);
+    expect(RUTAS_NUEVAS_DE_ESTE_ARCHIVO.length).toBe(10);
+    expect(new Set(RUTAS_NUEVAS_DE_ESTE_ARCHIVO).size).toBe(10);
   });
 
   it("el referrer de El Templo y el del gimnasio 2 comparten el MISMO apellido a propósito (insumo del caso de colisión de nombre)", async () => {
@@ -728,5 +738,264 @@ describe("leads de invitación — GET /api/admin/referrals/invitations (acotado
     const body = JSON.parse(res.body) as BandejaBody;
     expect(body.total).toBe(0);
     expect(body.rows).toEqual([]);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Seguimiento de invitados — pending-count, PATCH followup y POST notes
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Request con cuerpo como un staff (el helper `postComo` de arriba no manda payload). */
+function enviarComo(
+  method: "PATCH" | "POST",
+  url: string,
+  token: string,
+  payload: Record<string, unknown>,
+) {
+  return app.inject({
+    method,
+    url,
+    payload,
+    headers: { authorization: `Bearer ${token}` },
+  });
+}
+
+interface InvitadoParaContactar {
+  invitationId: number;
+  subscriptionId: number;
+  userId: number;
+}
+
+/**
+ * Invitado de UN gimnasio con el plazo vencido ayer (`para_contactar`), armado con los
+ * fixtures de invitaciones (sede, planes e invitado propios de ese gimnasio).
+ */
+async function sembrarInvitadoParaContactar(
+  tenantId: number,
+  ficha: { referrerId: number },
+): Promise<InvitadoParaContactar> {
+  const ctx = fixtureCtx(app, tenantId);
+  const sede = await ensurePhysicalBranch(ctx, "AR");
+  const env = {
+    branchId: sede.id,
+    today: todayInTz(sede.timezone),
+    trialPlanId: (await createTrialPlan(ctx)).id,
+    membershipPlanId: (await createMembershipPlan(ctx)).id,
+  };
+  return createInvitedUser(ctx, env, ficha.referrerId, { expiresOffset: -1 });
+}
+
+/** Fila de `renewal_followups` de una sub, buscada en el gimnasio indicado. */
+async function seguimientoDe(
+  tenantId: number,
+  subscriptionId: number,
+): Promise<{ tenantId: number; messageCount: number } | undefined> {
+  const [fila] = await app.db
+    .select({
+      tenantId: schema.renewalFollowups.tenantId,
+      messageCount: schema.renewalFollowups.messageCount,
+    })
+    .from(schema.renewalFollowups)
+    .where(
+      and(
+        tenantWhere(schema.renewalFollowups, { tenantId }),
+        eq(schema.renewalFollowups.subscriptionId, subscriptionId),
+      ),
+    );
+  return fila;
+}
+
+describe("contador del aviso rojo — GET /api/admin/referrals/invitations/pending-count (acotado al gimnasio)", () => {
+  const RUTA = "GET /api/admin/referrals/invitations/pending-count";
+
+  async function leerContador(
+    token: string,
+  ): Promise<{ open: number; uncontacted: number }> {
+    const res = await getComo(
+      "/api/admin/referrals/invitations/pending-count",
+      token,
+    );
+    expect(res.statusCode, `${RUTA} falló: ${res.body}`).toBe(200);
+    return JSON.parse(res.body) as { open: number; uncontacted: number };
+  }
+
+  it("aislamiento: el staff del gimnasio 2 cuenta solo SUS invitados (2), el de El Templo solo el suyo (1) — nunca la suma", async () => {
+    await sembrarInvitadoParaContactar(TENANT_TEMPLO, templo);
+    await sembrarInvitadoParaContactar(TENANT_DOS, dos);
+    await sembrarInvitadoParaContactar(TENANT_DOS, dos);
+
+    const comoDos = await leerContador(gym2.adminToken);
+    expect(
+      comoDos.open,
+      porQueImportaElAislamiento(
+        RUTA,
+        `el staff del gimnasio ${TENANT_DOS} contó open=${comoDos.open} (esperaba 2; 3 = sumó los de El Templo)`,
+      ),
+    ).toBe(2);
+    expect(comoDos.uncontacted).toBe(2);
+
+    const comoTemplo = await leerContador(templeAdminToken);
+    expect(comoTemplo.open).toBe(1);
+    expect(comoTemplo.uncontacted).toBe(1);
+  });
+
+  it("control: cada staff recibe 200 sobre SU gimnasio, también sin invitados (cero 403 por tenant)", async () => {
+    for (const token of [gym2.adminToken, templeAdminToken]) {
+      expect(await leerContador(token)).toEqual({ open: 0, uncontacted: 0 });
+    }
+  });
+});
+
+describe("seguimiento de un invitado — PATCH /api/admin/referrals/invitations/:invitationId/followup (acotado al gimnasio)", () => {
+  const RUTA = "PATCH /api/admin/referrals/invitations/:invitationId/followup";
+  const url = (id: number) => `/api/admin/referrals/invitations/${id}/followup`;
+
+  it("aislamiento: la invitación del OTRO gimnasio da 404 (igual que una inexistente) y no se escribe ningún seguimiento", async () => {
+    const deTemplo = await sembrarInvitadoParaContactar(TENANT_TEMPLO, templo);
+    const deDos = await sembrarInvitadoParaContactar(TENANT_DOS, dos);
+
+    const dosSobreTemplo = await enviarComo(
+      "PATCH",
+      url(deTemplo.invitationId),
+      gym2.adminToken,
+      { messageCount: 1 },
+    );
+    expect(
+      dosSobreTemplo.statusCode,
+      porQueImportaElAislamiento(
+        RUTA,
+        `el staff del gimnasio ${TENANT_DOS} recibió ${dosSobreTemplo.statusCode} sobre una invitación de El Templo (esperaba 404)`,
+      ),
+    ).toBe(404);
+    const inexistente = await enviarComo(
+      "PATCH",
+      url(2_000_000_000),
+      gym2.adminToken,
+      { messageCount: 1 },
+    );
+    expect(JSON.parse(dosSobreTemplo.body)).toEqual(
+      JSON.parse(inexistente.body),
+    );
+    expect(await seguimientoDe(TENANT_TEMPLO, deTemplo.subscriptionId)).toBe(
+      undefined,
+    );
+
+    const temploSobreDos = await enviarComo(
+      "PATCH",
+      url(deDos.invitationId),
+      templeAdminToken,
+      { messageCount: 1 },
+    );
+    expect(temploSobreDos.statusCode).toBe(404);
+    expect(await seguimientoDe(TENANT_DOS, deDos.subscriptionId)).toBe(
+      undefined,
+    );
+  });
+
+  it("control: cada staff actualiza SU invitación (200) y el seguimiento queda estampado con SU gimnasio", async () => {
+    const deTemplo = await sembrarInvitadoParaContactar(TENANT_TEMPLO, templo);
+    const deDos = await sembrarInvitadoParaContactar(TENANT_DOS, dos);
+
+    const comoDos = await enviarComo(
+      "PATCH",
+      url(deDos.invitationId),
+      gym2.adminToken,
+      { messageCount: 2 },
+    );
+    expect(comoDos.statusCode, `${RUTA} falló: ${comoDos.body}`).toBe(200);
+    const comoTemplo = await enviarComo(
+      "PATCH",
+      url(deTemplo.invitationId),
+      templeAdminToken,
+      { messageCount: 3 },
+    );
+    expect(comoTemplo.statusCode, `${RUTA} falló: ${comoTemplo.body}`).toBe(
+      200,
+    );
+
+    expect(await seguimientoDe(TENANT_DOS, deDos.subscriptionId)).toEqual({
+      tenantId: TENANT_DOS,
+      messageCount: 2,
+    });
+    expect(await seguimientoDe(TENANT_TEMPLO, deTemplo.subscriptionId)).toEqual(
+      { tenantId: TENANT_TEMPLO, messageCount: 3 },
+    );
+    // Cruzado: la sub de un gimnasio no tiene seguimiento en el otro.
+    expect(await seguimientoDe(TENANT_TEMPLO, deDos.subscriptionId)).toBe(
+      undefined,
+    );
+  });
+});
+
+describe("nota de un invitado — POST /api/admin/referrals/invitations/:invitationId/notes (acotado al gimnasio)", () => {
+  const RUTA = "POST /api/admin/referrals/invitations/:invitationId/notes";
+  const url = (id: number) => `/api/admin/referrals/invitations/${id}/notes`;
+
+  async function notasDe(
+    tenantId: number,
+    userId: number,
+  ): Promise<Array<{ tenantId: number; content: string }>> {
+    return app.db
+      .select({
+        tenantId: schema.memberNotes.tenantId,
+        content: schema.memberNotes.content,
+      })
+      .from(schema.memberNotes)
+      .where(
+        and(
+          tenantWhere(schema.memberNotes, { tenantId }),
+          eq(schema.memberNotes.userId, userId),
+        ),
+      );
+  }
+
+  it("aislamiento: la invitación del OTRO gimnasio da 404 y no se escribe ninguna nota", async () => {
+    const deTemplo = await sembrarInvitadoParaContactar(TENANT_TEMPLO, templo);
+
+    const res = await enviarComo(
+      "POST",
+      url(deTemplo.invitationId),
+      gym2.adminToken,
+      { content: "nota cruzada" },
+    );
+
+    expect(
+      res.statusCode,
+      porQueImportaElAislamiento(
+        RUTA,
+        `el staff del gimnasio ${TENANT_DOS} recibió ${res.statusCode} al anotar sobre un invitado de El Templo (esperaba 404)`,
+      ),
+    ).toBe(404);
+    expect(await notasDe(TENANT_TEMPLO, deTemplo.userId)).toEqual([]);
+    expect(await notasDe(TENANT_DOS, deTemplo.userId)).toEqual([]);
+  });
+
+  it("control: cada staff anota sobre SU invitado (201) y la nota queda estampada con SU gimnasio", async () => {
+    const deTemplo = await sembrarInvitadoParaContactar(TENANT_TEMPLO, templo);
+    const deDos = await sembrarInvitadoParaContactar(TENANT_DOS, dos);
+
+    const comoDos = await enviarComo(
+      "POST",
+      url(deDos.invitationId),
+      gym2.adminToken,
+      { content: "nota del gimnasio dos" },
+    );
+    expect(comoDos.statusCode, `${RUTA} falló: ${comoDos.body}`).toBe(201);
+    const comoTemplo = await enviarComo(
+      "POST",
+      url(deTemplo.invitationId),
+      templeAdminToken,
+      { content: "nota de El Templo" },
+    );
+    expect(comoTemplo.statusCode, `${RUTA} falló: ${comoTemplo.body}`).toBe(
+      201,
+    );
+
+    expect(await notasDe(TENANT_DOS, deDos.userId)).toEqual([
+      { tenantId: TENANT_DOS, content: "nota del gimnasio dos" },
+    ]);
+    expect(await notasDe(TENANT_TEMPLO, deTemplo.userId)).toEqual([
+      { tenantId: TENANT_TEMPLO, content: "nota de El Templo" },
+    ]);
   });
 });

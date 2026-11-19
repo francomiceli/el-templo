@@ -17,6 +17,16 @@
 // `deriveLeadStage` (etapa del lead de invitación, D-18) usa el mismo criterio
 // sin socio/inactivo: `convertido` si la invitación tiene `converted_at`, y si no
 // invitado | entrenando | vencido.
+//
+// `deriveFollowStatus` (estado de SEGUIMIENTO de la bandeja, lista de trabajo del
+// admin) suma lo MANUAL (`renewal_followups.manual_status` de la sub de accesos) y
+// "compró fuera de la ventana de compra tardía":
+//   converted_at                              -> compro
+//   compró membresía paga desde la activación -> compro_tarde
+//   seguimiento manual `no_renovo`            -> no_sigue
+//   accesos terminados                        -> para_contactar
+//   si no                                     -> con_accesos
+// La expresión SQL espejo es `invitationFollowStatusSql` (invitation-lead-list.ts).
 
 /** Estado del invitado visto por el INVITADOR en "Mis invitados". */
 export type InviteeState =
@@ -28,6 +38,20 @@ export type InviteeState =
 
 /** Etapa del lead de invitación (listado del admin y ficha del invitado). */
 export type LeadStage = "invitado" | "entrenando" | "vencido" | "convertido";
+
+/**
+ * Estado de seguimiento de una invitación en la bandeja del admin (lista de
+ * trabajo): qué hay que hacer con el invitado.
+ */
+export type InvitationFollowStatus =
+  | "con_accesos"
+  | "para_contactar"
+  | "compro"
+  | "compro_tarde"
+  | "no_sigue";
+
+/** Por qué terminaron los accesos: se usaron todos, o se venció el plazo con accesos sin usar. */
+export type InvitationEndReason = "agotados" | "plazo";
 
 /** Datos de los accesos de una invitación (los mismos para estado y etapa). */
 interface AccessWindow {
@@ -51,6 +75,19 @@ export interface InviteeStateInput extends AccessWindow {
 export interface LeadStageInput extends AccessWindow {
   /** La invitación tiene `converted_at` (compró dentro de la ventana de D-13). */
   converted: boolean;
+}
+
+export interface FollowStatusInput extends AccessWindow {
+  /** La invitación tiene `converted_at` (compró dentro de la ventana de D-13). */
+  converted: boolean;
+  /**
+   * Compró una membresía paga no-trial creada desde la activación
+   * (`paidSinceActivationSql`), en cualquier estado. Si `converted` es falso, es una
+   * compra FUERA de la ventana de compra tardía.
+   */
+  purchasedSinceActivation: boolean;
+  /** `renewal_followups.manual_status` de la sub de accesos; `null` = sin gestión manual. */
+  manualStatus: "en_proceso" | "no_renovo" | null;
 }
 
 /**
@@ -101,4 +138,32 @@ export function deriveLeadStage(input: LeadStageInput): LeadStage {
   if (input.converted) return "convertido";
   if (accessesEnded(input)) return "vencido";
   return activeAccessStage(input);
+}
+
+/**
+ * Estado de seguimiento (lista de trabajo de la bandeja). Mismo orden que la
+ * expresión SQL `invitationFollowStatusSql`: `compro` -> `compro_tarde` ->
+ * `no_sigue` -> `para_contactar` -> `con_accesos`. Si divergen, la fuente de verdad
+ * es esta función.
+ */
+export function deriveFollowStatus(
+  input: FollowStatusInput,
+): InvitationFollowStatus {
+  if (input.converted) return "compro";
+  if (input.purchasedSinceActivation) return "compro_tarde";
+  if (input.manualStatus === "no_renovo") return "no_sigue";
+  if (accessesEnded(input)) return "para_contactar";
+  return "con_accesos";
+}
+
+/**
+ * Motivo del fin de los accesos: `null` mientras siguen vigentes; `agotados` si no
+ * quedan accesos (`classes_remaining = 0`, aunque además haya vencido el plazo);
+ * `plazo` si venció el plazo con accesos sin usar. Espejo SQL: `invitationEndReasonSql`.
+ */
+export function deriveEndReason(
+  window: AccessWindow,
+): InvitationEndReason | null {
+  if (!accessesEnded(window)) return null;
+  return window.classesRemaining === 0 ? "agotados" : "plazo";
 }

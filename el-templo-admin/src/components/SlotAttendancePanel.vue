@@ -48,7 +48,10 @@
             </q-item-section>
 
             <q-item-section>
-              <q-item-label>{{ member.memberName }}</q-item-label>
+              <q-item-label>
+                {{ member.memberName }}
+                <InvitationTag :invitation="member.invitation" class="q-ml-xs" />
+              </q-item-label>
               <q-item-label caption>
                 <template v-if="member.attendanceId && member.checkedInAt">
                   {{ formatTime(member.checkedInAt) }}
@@ -236,6 +239,7 @@ import CoachGiftDialog from 'src/components/CoachGiftDialog.vue';
 import { giftReasonLabel, type GiftReasonCode } from 'src/config/gift-reasons';
 import { COACH_ACTIVIDAD_ROLE, TEMPLO_ENABLED } from 'src/config/templo-config';
 import { useAuthStore } from 'src/stores/useAuthStore';
+import InvitationTag from 'src/components/scheduling/InvitationTag.vue';
 import type { SlotAttendanceItem } from 'src/types/attendance';
 import type { ActivityRecord } from 'src/types/scheduling';
 

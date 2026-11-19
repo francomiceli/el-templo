@@ -12,6 +12,31 @@
      hacer con él del lado del cliente. -->
 <template>
   <div>
+    <!-- Aviso: invitados a los que se les terminaron los accesos y nadie contactó todavía.
+         Lleva a la pestaña Invitaciones ya filtrada en "Para contactar". Mismo estilo suave
+         que el aviso de sesiones de prueba de la app. -->
+    <q-banner
+      v-if="adminStore.invitationsPending.open > 0"
+      dense
+      rounded
+      class="bg-red-1 text-negative q-mb-md invitations-banner"
+    >
+      <template #avatar>
+        <q-icon name="notifications_active" color="negative" size="20px" />
+      </template>
+      <span class="text-weight-medium">{{ invitationsBannerText }}</span>
+      <template #action>
+        <q-btn
+          flat
+          dense
+          no-caps
+          color="negative"
+          label="Ver invitaciones"
+          @click="goToInvitations"
+        />
+      </template>
+    </q-banner>
+
     <div class="row items-center q-mb-md">
       <div class="col text-caption text-grey-7">
         Vencimientos de membresía y su seguimiento — reemplaza la planilla semanal
@@ -238,31 +263,10 @@
 
       <template #body-cell-messageCount="props">
         <q-td :props="props">
-          <div class="row items-center no-wrap q-gutter-xs">
-            <q-btn-group dense>
-              <q-btn
-                v-for="n in [0, 1, 2, 3, 4]"
-                :key="n"
-                dense
-                size="sm"
-                :color="props.row.messageCount === n ? 'primary' : 'grey-4'"
-                :text-color="props.row.messageCount === n ? 'white' : 'grey-8'"
-                :label="String(n)"
-                @click="setMessageCount(props.row, n)"
-              />
-            </q-btn-group>
-            <q-btn
-              flat
-              round
-              dense
-              size="sm"
-              icon="send"
-              :disable="props.row.messageCount >= 4"
-              @click="incrementMessageCount(props.row)"
-            >
-              <q-tooltip>Marcar mensaje enviado (+1)</q-tooltip>
-            </q-btn>
-          </div>
+          <MessageCounter
+            :count="props.row.messageCount"
+            @set="(n) => patchFollowup(props.row, { messageCount: n })"
+          />
           <div v-if="renewalLastTouchLabel(props.row)" class="text-caption text-grey-6">
             {{ renewalLastTouchLabel(props.row) }}
           </div>
@@ -277,43 +281,15 @@
         <q-td :props="props">{{ props.row.reasonLabel ?? '—' }}</q-td>
       </template>
 
-      <!-- Observación editable en la celda (feedback 2026-09-29, mismo gesto
-         que Comentarios en SP): click → escribir → se guarda al salir del
-         campo, Esc cancela. Cada guardado es una nota NUEVA del socio (la
-         anterior queda en el historial de la ficha), por eso el campo
-         arranca vacío en vez de precargar la última. -->
+      <!-- Observación editable en la celda: el gesto vive en FollowupNoteCell (lo
+         comparte con Invitaciones). -->
       <template #body-cell-lastNote="props">
-        <q-td :props="props" class="note-cell">
-          <q-input
-            v-if="editingNoteSubId === props.row.subscriptionId"
-            v-model="noteDraft"
-            type="textarea"
-            autogrow
-            dense
-            outlined
-            autofocus
-            maxlength="2000"
-            placeholder="Nueva observación…"
-            :loading="savingNoteSubId === props.row.subscriptionId"
-            @blur="saveInlineNote(props.row)"
-            @keydown.esc.prevent="cancelInlineNote"
+        <q-td :props="props" style="min-width: 200px">
+          <FollowupNoteCell
+            :note="props.row.lastNote"
+            :save="(content) => saveInlineNote(props.row, content)"
+            @editing-change="onNoteEditingChange"
           />
-          <div v-else class="cursor-pointer note-display" @click="startInlineNote(props.row)">
-            <template v-if="props.row.lastNote">
-              <span class="ellipsis-note">{{ props.row.lastNote.content }}</span>
-              <q-tooltip max-width="320px">
-                <div style="white-space: pre-wrap">{{ props.row.lastNote.content }}</div>
-                <div class="text-caption q-mt-xs">
-                  {{ formatDate(props.row.lastNote.createdAt) }}
-                  <template v-if="props.row.lastNote.authorName">
-                    · {{ props.row.lastNote.authorName }}
-                  </template>
-                  — click para agregar otra
-                </div>
-              </q-tooltip>
-            </template>
-            <span v-else class="text-grey-5"> <q-icon name="edit" size="14px" /> Agregar… </span>
-          </div>
         </q-td>
       </template>
 
@@ -352,29 +328,11 @@
                 />
                 <q-icon v-if="!props.row.phoneE164" name="warning" color="warning" size="16px" />
               </div>
-              <div class="row items-center no-wrap q-gutter-xs">
-                <q-btn-group dense>
-                  <q-btn
-                    v-for="n in [0, 1, 2, 3, 4]"
-                    :key="n"
-                    dense
-                    size="sm"
-                    :color="props.row.messageCount === n ? 'primary' : 'grey-4'"
-                    :text-color="props.row.messageCount === n ? 'white' : 'grey-8'"
-                    :label="String(n)"
-                    @click="setMessageCount(props.row, n)"
-                  />
-                </q-btn-group>
-                <q-btn
-                  flat
-                  round
-                  dense
-                  size="sm"
-                  icon="send"
-                  :disable="props.row.messageCount >= 4"
-                  @click="incrementMessageCount(props.row)"
-                />
-              </div>
+              <MessageCounter
+                :count="props.row.messageCount"
+                :tooltip="false"
+                @set="(n) => patchFollowup(props.row, { messageCount: n })"
+              />
               <div v-if="renewalLastTouchLabel(props.row)" class="text-caption text-grey-6">
                 Última gestión: {{ renewalLastTouchLabel(props.row) }}
               </div>
@@ -409,6 +367,7 @@ import { formatDate } from 'src/utils/format-date';
 import { downloadBlob } from 'src/utils/download-blob';
 import { useRenewalsApi } from 'src/composables/useRenewalsApi';
 import { useAuthStore } from 'src/stores/useAuthStore';
+import { useAdminStore } from 'src/stores/useAdminStore';
 import { DUENO_ROLES } from 'src/config/templo-config';
 import { getWeekRange } from 'src/utils/renewals-week';
 import { renewalStatusMeta, renewalLastTouchLabel } from 'src/utils/renewal-status';
@@ -416,6 +375,8 @@ import KpiCard from 'src/components/comunicaciones/KpiCard.vue';
 import RenewalMemberDialog from 'src/components/renovaciones/RenewalMemberDialog.vue';
 import RenewalReasonsDialog from 'src/components/renovaciones/RenewalReasonsDialog.vue';
 import RenewalStatusMenu from 'src/components/renovaciones/RenewalStatusMenu.vue';
+import MessageCounter from 'src/components/seguimiento/MessageCounter.vue';
+import FollowupNoteCell from 'src/components/seguimiento/FollowupNoteCell.vue';
 import type {
   RenewalRow,
   RenewalKpis,
@@ -435,6 +396,22 @@ const log = createLogger('RenovacionesTab');
 const $q = useQuasar();
 const renewalsApi = useRenewalsApi();
 const authStore = useAuthStore();
+
+const adminStore = useAdminStore();
+
+// ============================================================================
+// Aviso de invitados para contactar
+// ============================================================================
+
+const invitationsBannerText = computed(() => {
+  const { open, uncontacted } = adminStore.invitationsPending;
+  const base = `Hay ${open} ${open === 1 ? 'invitado' : 'invitados'} para contactar`;
+  return uncontacted > 0 ? `${base} (${uncontacted} sin ningún mensaje)` : base;
+});
+
+function goToInvitations() {
+  void router.push({ path: '/reportes', query: { tab: 'invitaciones', estado: 'para_contactar' } });
+}
 
 const canManageReasons = computed(() =>
   (DUENO_ROLES as readonly string[]).includes(authStore.user?.role ?? '')
@@ -795,42 +772,17 @@ async function patchFollowup(row: RenewalRow, input: RenewalFollowupUpdateInput)
   }
 }
 
-function setMessageCount(row: RenewalRow, n: number) {
-  if (row.messageCount === n) return;
-  void patchFollowup(row, { messageCount: n });
-}
-
-function incrementMessageCount(row: RenewalRow) {
-  if (row.messageCount >= 4) return;
-  void patchFollowup(row, { messageCount: row.messageCount + 1 });
-}
-
 // ─── Observación inline ───────────────────────────────────────────────────
 
-const editingNoteSubId = ref<number | null>(null);
-const savingNoteSubId = ref<number | null>(null);
-const noteDraft = ref('');
+// Cuántas observaciones se están escribiendo (el refresco en segundo plano espera).
+const editingNotes = ref(0);
 
-function startInlineNote(row: RenewalRow) {
-  editingNoteSubId.value = row.subscriptionId;
-  noteDraft.value = '';
+function onNoteEditingChange(editing: boolean) {
+  editingNotes.value += editing ? 1 : -1;
 }
 
-function cancelInlineNote() {
-  editingNoteSubId.value = null;
-  noteDraft.value = '';
-}
-
-async function saveInlineNote(row: RenewalRow) {
-  // `@blur` puede dispararse de nuevo mientras se guarda (el input pierde el
-  // foco al pasar a loading) — el primer guardado manda.
-  if (savingNoteSubId.value === row.subscriptionId) return;
-  const content = noteDraft.value.trim();
-  if (!content) {
-    cancelInlineNote();
-    return;
-  }
-  savingNoteSubId.value = row.subscriptionId;
+/** Guarda la observación como nota nueva; false = falló y el borrador queda abierto. */
+async function saveInlineNote(row: RenewalRow, content: string): Promise<boolean> {
   try {
     const note = await renewalsApi.addNote(row.subscriptionId, content);
     // Busca la fila vigente (un refresco pudo reemplazar el objeto mientras
@@ -845,18 +797,16 @@ async function saveInlineNote(row: RenewalRow) {
       },
     });
     $q.notify({ type: 'positive', message: 'Observación guardada', timeout: 1500 });
-    cancelInlineNote();
+    return true;
   } catch (err: unknown) {
     log.error('Error guardando observación', {
       error: err instanceof Error ? err.message : String(err),
     });
-    // Se deja el borrador abierto para no perder lo escrito.
     $q.notify({
       type: 'negative',
       message: renewalsApi.error.value ?? 'No se pudo guardar la observación',
     });
-  } finally {
-    savingNoteSubId.value = null;
+    return false;
   }
 }
 
@@ -941,7 +891,7 @@ const BACKGROUND_REFRESH_MS = 60_000;
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
 
 function backgroundRefresh() {
-  if (document.hidden || loading.value || editingNoteSubId.value !== null) return;
+  if (document.hidden || loading.value || editingNotes.value > 0) return;
   void loadRows({ background: true });
 }
 
@@ -977,21 +927,9 @@ onUnmounted(() => {
 </script>
 
 <style scoped lang="scss">
-.ellipsis-note {
-  display: inline-block;
-  max-width: 180px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  vertical-align: bottom;
-}
-
-.note-cell {
-  min-width: 200px;
-}
-
-.note-display {
-  min-height: 20px;
+/* Centrar la campanita verticalmente: Quasar le pone self-start al avatar. */
+.invitations-banner :deep(.q-banner__avatar.self-start) {
+  align-self: center !important;
 }
 
 :deep(.renewal-row--para-cerrar) {

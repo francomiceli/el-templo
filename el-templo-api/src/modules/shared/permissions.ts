@@ -141,8 +141,10 @@ export const ANALYTICS_ADMIN_ROLES = ["admin", "owner", "admin_sede"] as const;
 
 /**
  * Roles que ven los reportes agregados del programa de Invitaciones/Referidos
- * (`GET /admin/referrals/ab-results`, y desde la Fase 194 el reporte y la bandeja
- * de leads de invitación; antes se llamaba `REFERRAL_AB_RESULTS_ROLES`) — 2026-09-09. Superficie SIN dimensión de
+ * (`GET /admin/referrals/ab-results`, y desde la Fase 194 el reporte
+ * `GET /admin/referrals/invitations/report`; antes se llamaba `REFERRAL_AB_RESULTS_ROLES`)
+ * — 2026-09-09. La bandeja de leads (y su seguimiento) salió de este set: ver
+ * `INVITATION_FOLLOWUP_ROLES`. Superficie SIN dimensión de
  * sede (números de TODO el gimnasio, no filtrables por branch): el admin_sede
  * queda afuera a propósito, a diferencia de `ANALYTICS_OPERATIONAL_ROLES` (del
  * que este set se separa) — no hay `enforceBranchScope` que lo acote y mostrarle
@@ -150,6 +152,25 @@ export const ANALYTICS_ADMIN_ROLES = ["admin", "owner", "admin_sede"] as const;
  */
 export const REFERRAL_PROGRAM_REPORT_ROLES = [
   "gestion",
+  "admin",
+  "owner",
+] as const;
+
+/**
+ * Roles que operan el SEGUIMIENTO de invitados del programa de Invitaciones
+ * (bandeja `GET /admin/referrals/invitations`, su contador `pending-count` y las
+ * escrituras `PATCH .../:invitationId/followup` y `POST .../:invitationId/notes`).
+ * A diferencia del reporte agregado (`REFERRAL_PROGRAM_REPORT_ROLES`), esta es una
+ * lista de trabajo POR FILA con sede propia (`invitations.branch_id`), igual que
+ * Renovaciones: por eso entra `admin_sede`, que la ve y la opera acotada a sus
+ * sedes (`enforcedBranchIds`). Mismos roles que `CAJA_ROLES` (gestion, admin_sede,
+ * admin, owner), pero como literal propio para que abrir o cerrar este seguimiento
+ * sea una decisión de este módulo y no un efecto de Caja. Recepción y coach quedan
+ * afuera (403).
+ */
+export const INVITATION_FOLLOWUP_ROLES = [
+  "gestion",
+  "admin_sede",
   "admin",
   "owner",
 ] as const;

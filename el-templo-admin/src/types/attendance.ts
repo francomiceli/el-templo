@@ -34,6 +34,15 @@ export const sourceLabels: Record<AttendanceSource, string> = {
 };
 
 /**
+ * Invitado que todavía no compró un plan (programa de Invitaciones): la etiqueta
+ * "Invitación · 2/3" del profe. Los contadores son null en un vínculo heredado sin accesos.
+ */
+export interface RosterInvitation {
+  accessesUsed: number | null;
+  accessesBudget: number | null;
+}
+
+/**
  * Slot attendance item from GET /admin/attendance/slot/:scheduleId/:date
  */
 export interface SlotAttendanceItem {
@@ -64,6 +73,8 @@ export interface SlotAttendanceItem {
   // Fase 215 (D-15): regalo de Aura del profe. `null` o ausente = quien mira no
   // regala como profe (dueño, admin, recepción): la fila no muestra nada.
   gift?: SlotAttendanceGift | null;
+  // Invitado que todavía no compró (etiqueta "Invitación"); null para el resto.
+  invitation: RosterInvitation | null;
 }
 
 export type SlotGiftState = 'disponible' | 'dado' | 'anulado' | 'no_participa';
