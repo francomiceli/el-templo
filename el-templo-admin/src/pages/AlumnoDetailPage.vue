@@ -26,7 +26,8 @@
             <div class="relative-position">
               <MemberPhotoUpload
                 :userId="memberProfile.id"
-                :currentPhotoUrl="memberProfile.photoUrl"
+                :currentPhotoUrl="memberProfile.photoUrl ?? memberProfile.ownPhotoUrl ?? null"
+                :fromMember="!memberProfile.photoUrl && !!memberProfile.ownPhotoUrl"
                 @uploaded="onPhotoUploaded"
               />
               <!-- ALUM-05 (D-07): badge de nivel griego gateado por superficie Templo -->
