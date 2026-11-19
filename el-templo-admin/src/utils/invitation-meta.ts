@@ -56,6 +56,11 @@ export function followStatusMeta(row: {
     : FOLLOW_STATUS_META[row.followStatus];
 }
 
+/** Ya compró un plan (a tiempo o tarde): no hay nada que seguir ni vender. */
+export function hasPurchased(row: { followStatus: InvitationFollowStatus }): boolean {
+  return row.followStatus === 'compro' || row.followStatus === 'compro_tarde';
+}
+
 /** Opciones del filtro "Estado" de la lista de seguimiento (`value: null` = todos). */
 export const FOLLOW_STATUS_FILTER_OPTIONS: Array<{
   label: string;

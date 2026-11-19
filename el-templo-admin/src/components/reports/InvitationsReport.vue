@@ -1,107 +1,24 @@
 <template>
   <div>
     <!-- ================================================================== -->
-    <!-- Rango de meses del reporte (los KPIs son de todo el gimnasio, o de  -->
-    <!-- tu país si sos gestión/admin; la sede solo filtra la bandeja).      -->
+    <!-- Seguimiento de invitados: lista de trabajo igual a la de Renovaciones. -->
+    <!-- Va arriba: es lo que se usa todos los días.                         -->
     <!-- ================================================================== -->
-    <div class="row items-center q-col-gutter-sm q-mb-md">
-      <div class="col text-caption text-grey-7">
-        Rendimiento del programa de invitaciones por mes de activación
-      </div>
-      <div class="col-auto" style="min-width: 150px">
-        <q-select
-          v-model="rangeFrom"
-          :options="monthOptions"
-          label="Desde"
-          dense
-          outlined
-          emit-value
-          map-options
-          :disable="loadingReport"
-        />
-      </div>
-      <div class="col-auto" style="min-width: 150px">
-        <q-select
-          v-model="rangeTo"
-          :options="monthOptions"
-          label="Hasta"
-          dense
-          outlined
-          emit-value
-          map-options
-          :disable="loadingReport"
-        />
+    <div class="row items-center q-mb-sm">
+      <div class="col text-subtitle1">Seguimiento de invitados</div>
+      <div class="col-auto">
+        <q-btn flat round dense icon="refresh" :loading="loadingLeads" @click="reloadLeads()">
+          <q-tooltip>Actualizar (ver lo que cargó otra persona)</q-tooltip>
+        </q-btn>
       </div>
     </div>
-    <div v-if="!rangeValid" class="text-negative text-caption q-mb-md">
-      El mes inicial no puede ser posterior al final.
-    </div>
-
-    <!-- ================================================================== -->
-    <!-- KPIs del rango -->
-    <!-- ================================================================== -->
-    <div class="row q-col-gutter-sm q-mb-md">
-      <div v-for="card in kpiCards" :key="card.key" class="col-6 col-md-3">
-        <KpiCard
-          :label="card.label"
-          :value="card.value"
-          :hint="card.hint"
-          :icon="card.icon"
-          :active="false"
-          :loading="loadingReport"
-        />
-      </div>
-    </div>
-
-    <!-- ================================================================== -->
-    <!-- Tabla por mes -->
-    <!-- ================================================================== -->
-    <q-table
-      :rows="monthRows"
-      :columns="monthColumns"
-      row-key="month"
-      :loading="loadingReport"
-      :pagination="{ rowsPerPage: 0 }"
-      hide-pagination
-      flat
-      bordered
-      dense
-      class="q-mb-md"
-    >
-      <template #body-cell-month="props">
-        <q-td :props="props" class="text-weight-medium">{{ monthLabel(props.row.month) }}</q-td>
-      </template>
-      <template #body-cell-conversionRate="props">
-        <q-td :props="props">{{ formatPercent(props.row.conversionRate) }}</q-td>
-      </template>
-      <!-- Una línea por moneda: ARS y EUR nunca se suman. -->
-      <template #body-cell-discounts="props">
-        <q-td :props="props">
-          <template v-if="props.row.discounts.length > 0">
-            <div v-for="d in props.row.discounts" :key="d.currency">
-              {{ formatPrice(d.amount, d.currency) }}
-              <span class="text-caption text-grey-7">({{ d.credits }})</span>
-            </div>
-          </template>
-          <span v-else class="text-grey-5">-</span>
-        </q-td>
-      </template>
-      <template #no-data>
-        <div class="full-width text-center q-pa-md text-grey-6">Sin datos en el rango</div>
-      </template>
-    </q-table>
-
-    <!-- ================================================================== -->
-    <!-- Bandeja de leads de invitación -->
-    <!-- ================================================================== -->
-    <div class="text-subtitle1 q-mb-sm">Leads de invitación</div>
 
     <div class="row q-col-gutter-sm q-mb-md items-end">
       <div class="col-12 col-sm-4 col-md-3">
         <q-select
-          v-model="stageFilter"
-          :options="stageOptions"
-          label="Etapa"
+          v-model="statusFilter"
+          :options="FOLLOW_STATUS_FILTER_OPTIONS"
+          label="Estado"
           dense
           outlined
           emit-value
@@ -131,28 +48,13 @@
       flat
       bordered
       dense
+      :grid="$q.screen.lt.md"
+      class="q-mb-lg"
       @request="onLeadsRequest"
     >
+      <!-- ── Desktop/tablet: celdas custom ───────────────────────────── -->
       <template #body-cell-invitee="props">
-        <q-td :props="props">
-          <div class="row items-center no-wrap">
-            <router-link :to="`/alumnos/${props.row.invitee.userId}`" class="text-primary">
-              {{ props.row.invitee.firstName }} {{ props.row.invitee.lastName }}
-            </router-link>
-            <q-btn
-              round
-              flat
-              dense
-              icon="chat"
-              color="positive"
-              class="q-ml-xs"
-              :disable="!props.row.invitee.phone"
-              @click="contactInvitee(props.row.invitee.phone)"
-            >
-              <q-tooltip>Contactar por WhatsApp</q-tooltip>
-            </q-btn>
-          </div>
-        </q-td>
+        <q-td :props="props"><InvitationInvitee :row="props.row" /></q-td>
       </template>
       <template #body-cell-inviter="props">
         <q-td :props="props">
@@ -161,16 +63,13 @@
           </router-link>
         </q-td>
       </template>
-      <template #body-cell-activatedAt="props">
-        <q-td :props="props">{{ formatDate(props.row.activatedAt) }}</q-td>
-      </template>
       <template #body-cell-accesses="props">
         <q-td :props="props">
           {{ accessesLabel(props.row.accessesUsed, props.row.accessesBudget) ?? '-' }}
         </q-td>
       </template>
-      <template #body-cell-accessExpiresOn="props">
-        <q-td :props="props">{{ formatDate(props.row.accessExpiresOn) }}</q-td>
+      <template #body-cell-ended="props">
+        <q-td :props="props"><InvitationEnded :row="props.row" /></q-td>
       </template>
       <template #body-cell-branches="props">
         <q-td :props="props">
@@ -181,43 +80,52 @@
           <div class="text-caption text-grey-7">Activó en {{ props.row.branchName }}</div>
         </q-td>
       </template>
-      <template #body-cell-stage="props">
+      <template #body-cell-status="props">
         <q-td :props="props">
-          <q-chip
-            dense
-            text-color="white"
-            :color="LEAD_STAGE_META[props.row.stage as LeadStage].color"
-            :label="LEAD_STAGE_META[props.row.stage as LeadStage].label"
+          <InvitationStatusChip
+            :row="props.row"
+            :reasons="reasons"
+            @change="(input) => patchFollowup(props.row, input)"
+            @open-details="openNoSigueDialog(props.row)"
           />
         </q-td>
       </template>
-      <!-- Estado del lead: 'ganado' lo pone la compra (exige plan cargado en el
-           PATCH), así que no se edita acá; el resto se cambia con el PATCH existente. -->
-      <template #body-cell-leadStatus="props">
+      <template #body-cell-messageCount="props">
         <q-td :props="props">
-          <q-chip
-            v-if="props.row.leadStatus === 'ganado'"
+          <MessageCounter
+            :count="props.row.followup.messageCount"
+            :disabled="followupLocked(props.row)"
+            :title="followupLocked(props.row) ? lockedHint(props.row) : undefined"
+            @set="(n) => patchFollowup(props.row, { messageCount: n })"
+          />
+          <div v-if="lastMessageLabel(props.row)" class="text-caption text-grey-6">
+            {{ lastMessageLabel(props.row) }}
+          </div>
+        </q-td>
+      </template>
+      <template #body-cell-reason="props">
+        <q-td :props="props"><InvitationReason :row="props.row" /></q-td>
+      </template>
+      <template #body-cell-lastNote="props">
+        <q-td :props="props" style="min-width: 200px">
+          <FollowupNoteCell
+            :note="props.row.lastNote"
+            :save="(content) => saveNote(props.row, content)"
+          />
+        </q-td>
+      </template>
+      <template #body-cell-actions="props">
+        <q-td :props="props">
+          <q-btn
+            v-if="!hasPurchased(props.row)"
             dense
-            color="positive"
-            text-color="white"
-            label="Ganado"
-          >
-            <q-tooltip>Lo marca la compra del plan</q-tooltip>
-          </q-chip>
-          <q-select
-            v-else
-            :model-value="props.row.leadStatus"
-            :options="LEAD_STATUS_OPTIONS"
-            dense
-            outlined
-            emit-value
-            map-options
-            options-dense
-            placeholder="Sin estado"
-            style="min-width: 150px"
-            :loading="savingUserId === props.row.invitee.userId"
-            :disable="savingUserId === props.row.invitee.userId"
-            @update:model-value="onLeadStatusChange(props.row, $event)"
+            no-caps
+            outline
+            size="sm"
+            color="primary"
+            icon="shopping_cart"
+            label="Vender plan"
+            @click="sellPlan(props.row)"
           />
         </q-td>
       </template>
@@ -230,44 +138,240 @@
           />
         </q-td>
       </template>
+
+      <!-- ── Celular: tarjetas (sin scroll horizontal de página) ─────── -->
+      <template #item="props">
+        <div class="col-12 q-pa-xs">
+          <q-card flat bordered>
+            <q-card-section class="q-pb-none">
+              <div class="row items-center justify-between no-wrap">
+                <InvitationInvitee :row="props.row" />
+                <InvitationStatusChip
+                  :row="props.row"
+                  :reasons="reasons"
+                  @change="(input) => patchFollowup(props.row, input)"
+                  @open-details="openNoSigueDialog(props.row)"
+                />
+              </div>
+              <div class="text-caption text-grey-7">
+                Invitado por {{ props.row.inviter.name }} ·
+                {{
+                  accessesLabel(props.row.accessesUsed, props.row.accessesBudget) ?? 'Sin accesos'
+                }}
+                · {{ props.row.channel === 'assisted' ? 'Asistida' : 'Autogestión' }}
+              </div>
+            </q-card-section>
+            <q-card-section class="q-pt-sm q-gutter-y-xs">
+              <div class="row items-baseline q-gutter-x-xs">
+                <span class="text-grey-7">Terminó:</span>
+                <InvitationEnded :row="props.row" />
+              </div>
+              <div class="text-caption text-grey-7">
+                <template v-if="props.row.branchesTrained.length > 0">
+                  Entrenó en {{ props.row.branchesTrained.join(', ') }}
+                </template>
+                <template v-else>Aún no entrenó</template>
+                · activó en {{ props.row.branchName }}
+              </div>
+              <MessageCounter
+                :count="props.row.followup.messageCount"
+                :disabled="followupLocked(props.row)"
+                :title="followupLocked(props.row) ? lockedHint(props.row) : undefined"
+                :tooltip="false"
+                @set="(n) => patchFollowup(props.row, { messageCount: n })"
+              />
+              <div v-if="lastMessageLabel(props.row)" class="text-caption text-grey-6">
+                {{ lastMessageLabel(props.row) }}
+              </div>
+              <div v-if="props.row.followStatus === 'no_sigue'" class="row q-gutter-x-xs">
+                <span class="text-grey-7">Motivo:</span>
+                <InvitationReason :row="props.row" />
+              </div>
+              <FollowupNoteCell
+                :note="props.row.lastNote"
+                :save="(content) => saveNote(props.row, content)"
+              />
+              <q-btn
+                v-if="!hasPurchased(props.row)"
+                dense
+                no-caps
+                outline
+                size="sm"
+                color="primary"
+                icon="shopping_cart"
+                label="Vender plan"
+                @click="sellPlan(props.row)"
+              />
+            </q-card-section>
+          </q-card>
+        </div>
+      </template>
+
       <template #no-data>
         <div class="full-width text-center q-pa-lg text-grey-6">
-          No hay invitaciones activadas con estos filtros
+          No hay invitaciones con estos filtros
         </div>
       </template>
     </q-table>
+
+    <InvitationNoSigueDialog
+      v-model="noSigueDialogOpen"
+      :row="noSigueRow"
+      :reasons="reasons"
+      :saving="savingNoSigue"
+      @save="onNoSigueSave"
+    />
+
+    <!-- ================================================================== -->
+    <!-- Reporte del programa: solo gestión, admin y dueño (a un admin de sede -->
+    <!-- el API le responde 403, así que ni se pide).                        -->
+    <!-- ================================================================== -->
+    <template v-if="showProgramReport">
+      <div class="text-subtitle1 q-mb-sm">Reporte del programa</div>
+      <!-- ================================================================== -->
+      <!-- Rango de meses del reporte (los KPIs son de todo el gimnasio, o de  -->
+      <!-- tu país si sos gestión/admin; la sede solo filtra la lista).      -->
+      <!-- ================================================================== -->
+      <div class="row items-center q-col-gutter-sm q-mb-md">
+        <div class="col text-caption text-grey-7">
+          Rendimiento del programa de invitaciones por mes de activación
+        </div>
+        <div class="col-auto" style="min-width: 150px">
+          <q-select
+            v-model="rangeFrom"
+            :options="monthOptions"
+            label="Desde"
+            dense
+            outlined
+            emit-value
+            map-options
+            :disable="loadingReport"
+          />
+        </div>
+        <div class="col-auto" style="min-width: 150px">
+          <q-select
+            v-model="rangeTo"
+            :options="monthOptions"
+            label="Hasta"
+            dense
+            outlined
+            emit-value
+            map-options
+            :disable="loadingReport"
+          />
+        </div>
+      </div>
+      <div v-if="!rangeValid" class="text-negative text-caption q-mb-md">
+        El mes inicial no puede ser posterior al final.
+      </div>
+
+      <!-- ================================================================== -->
+      <!-- KPIs del rango -->
+      <!-- ================================================================== -->
+      <div class="row q-col-gutter-sm q-mb-md">
+        <div v-for="card in kpiCards" :key="card.key" class="col-6 col-md-3">
+          <KpiCard
+            :label="card.label"
+            :value="card.value"
+            :hint="card.hint"
+            :icon="card.icon"
+            :active="false"
+            :loading="loadingReport"
+          />
+        </div>
+      </div>
+
+      <!-- ================================================================== -->
+      <!-- Tabla por mes -->
+      <!-- ================================================================== -->
+      <q-table
+        :rows="monthRows"
+        :columns="monthColumns"
+        row-key="month"
+        :loading="loadingReport"
+        :pagination="{ rowsPerPage: 0 }"
+        hide-pagination
+        flat
+        bordered
+        dense
+        class="q-mb-md"
+      >
+        <template #body-cell-month="props">
+          <q-td :props="props" class="text-weight-medium">{{ monthLabel(props.row.month) }}</q-td>
+        </template>
+        <template #body-cell-conversionRate="props">
+          <q-td :props="props">{{ formatPercent(props.row.conversionRate) }}</q-td>
+        </template>
+        <!-- Una línea por moneda: ARS y EUR nunca se suman. -->
+        <template #body-cell-discounts="props">
+          <q-td :props="props">
+            <template v-if="props.row.discounts.length > 0">
+              <div v-for="d in props.row.discounts" :key="d.currency">
+                {{ formatPrice(d.amount, d.currency) }}
+                <span class="text-caption text-grey-7">({{ d.credits }})</span>
+              </div>
+            </template>
+            <span v-else class="text-grey-5">-</span>
+          </q-td>
+        </template>
+        <template #no-data>
+          <div class="full-width text-center q-pa-md text-grey-6">Sin datos en el rango</div>
+        </template>
+      </q-table>
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useQuasar, type QTableColumn } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { extractError } from 'src/utils/extract-error';
-import { formatDate } from 'src/utils/format-date';
 import { formatPrice } from 'src/utils/format-price';
-import { accessesLabel, LEAD_STAGE_META } from 'src/utils/invitation-meta';
+import {
+  accessesLabel,
+  FOLLOW_STATUS_FILTER_OPTIONS,
+  hasPurchased,
+  parseFollowStatus,
+} from 'src/utils/invitation-meta';
+import { formatDayMonth } from 'src/utils/renewal-status';
 import { useInvitationReportApi } from 'src/composables/useInvitationReportApi';
-import { useMembersApi, type LeadStatusValue } from 'src/composables/useMembersApi';
+import { useRenewalsApi } from 'src/composables/useRenewalsApi';
+import { useAdminStore } from 'src/stores/useAdminStore';
 import KpiCard from 'src/components/comunicaciones/KpiCard.vue';
-import type { LeadStage } from 'src/types/member';
+import MessageCounter from 'src/components/seguimiento/MessageCounter.vue';
+import FollowupNoteCell from 'src/components/seguimiento/FollowupNoteCell.vue';
+import InvitationEnded from 'src/components/reports/InvitationEnded.vue';
+import InvitationInvitee from 'src/components/reports/InvitationInvitee.vue';
+import InvitationNoSigueDialog from 'src/components/reports/InvitationNoSigueDialog.vue';
+import InvitationReason from 'src/components/reports/InvitationReason.vue';
+import InvitationStatusChip from 'src/components/reports/InvitationStatusChip.vue';
+import type { RenewalReason } from 'src/types/renewals';
 import type {
+  InvitationFollowStatus,
+  InvitationFollowupUpdateInput,
   InvitationLeadRow,
   InvitationReport,
   InvitationReportDiscount,
 } from 'src/types/report';
 
 const props = defineProps<{
-  /** Sedes para el filtro de la bandeja (el selector de la página, con "Todas" = undefined). */
+  /** Sedes para el filtro de la lista (el selector de la página, con "Todas" = undefined). */
   branchOptions: Array<{ label: string; value: number | undefined }>;
+  /** Reporte del programa (KPIs y tabla por mes): solo gestión, admin y dueño; el API le da 403 al resto. */
+  showProgramReport: boolean;
 }>();
 
 const log = createLogger('InvitationsReport');
 const $q = useQuasar();
+const route = useRoute();
+const router = useRouter();
 const reportApi = useInvitationReportApi();
-const membersApi = useMembersApi();
+const renewalsApi = useRenewalsApi();
+const adminStore = useAdminStore();
 
-// -- Reporte (D-19) -----------------------------------------------------------
+// -- Reporte del programa (D-19) -----------------------------------------------------------
 
 const report = ref<InvitationReport | null>(null);
 const loadingReport = ref(false);
@@ -389,23 +493,17 @@ const monthColumns: QTableColumn[] = [
   { name: 'discounts', label: 'Descuentos del mes', field: 'discounts', align: 'right' },
 ];
 
-// -- Bandeja de leads (D-18) ---------------------------------------------------
+// -- Lista de seguimiento (D-18) -----------------------------------------------
 
 const leadRows = ref<InvitationLeadRow[]>([]);
 const loadingLeads = ref(false);
-const savingUserId = ref<number | null>(null);
 const pagination = ref({ page: 1, rowsPerPage: 25, rowsNumber: 0 });
+// Motivos de "No sigue": los mismos que Renovaciones.
+const reasons = ref<RenewalReason[]>([]);
 
-const stageFilter = ref<LeadStage | null>(null);
+// El estado puede venir en la URL (`?estado=para_contactar`): lo usa el aviso de Renovaciones.
+const statusFilter = ref<InvitationFollowStatus | null>(parseFollowStatus(route.query.estado));
 const branchFilter = ref<number | null>(null);
-
-const stageOptions = [
-  { label: 'Todas las etapas', value: null },
-  ...(Object.keys(LEAD_STAGE_META) as LeadStage[]).map((stage) => ({
-    label: LEAD_STAGE_META[stage].label,
-    value: stage,
-  })),
-];
 
 // El selector de la página usa `undefined` para "Todas las sedes"; el q-select
 // de acá usa null.
@@ -413,29 +511,39 @@ const branchFilterOptions = computed(() =>
   props.branchOptions.map((o) => ({ label: o.label, value: o.value ?? null }))
 );
 
-// 'ganado' no se ofrece: lo marca la compra, y el PATCH exige un plan cargado.
-const LEAD_STATUS_OPTIONS: Array<{ label: string; value: LeadStatusValue }> = [
-  { label: 'En seguimiento', value: 'en_seguimiento' },
-  { label: 'Perdido', value: 'perdido' },
-];
-
 const leadColumns: QTableColumn[] = [
   { name: 'invitee', label: 'Invitado', field: 'invitee', align: 'left' },
   { name: 'inviter', label: 'Invitado por', field: 'inviter', align: 'left' },
-  { name: 'activatedAt', label: 'Activación', field: 'activatedAt', align: 'left' },
   { name: 'accesses', label: 'Accesos', field: 'accessesUsed', align: 'left' },
-  { name: 'accessExpiresOn', label: 'Vence', field: 'accessExpiresOn', align: 'left' },
+  { name: 'ended', label: 'Terminó', field: 'endedOn', align: 'left' },
   { name: 'branches', label: 'Sedes', field: 'branchesTrained', align: 'left' },
-  { name: 'stage', label: 'Etapa', field: 'stage', align: 'left' },
-  { name: 'leadStatus', label: 'Estado del lead', field: 'leadStatus', align: 'left' },
+  { name: 'status', label: 'Estado', field: 'followStatus', align: 'left' },
+  { name: 'messageCount', label: 'Mensaje', field: 'followup', align: 'left' },
+  { name: 'reason', label: 'Motivo', field: 'followup', align: 'left' },
+  { name: 'lastNote', label: 'Observación', field: 'lastNote', align: 'left' },
+  { name: 'actions', label: 'Acción', field: 'invitationId', align: 'left' },
   { name: 'channel', label: 'Canal', field: 'channel', align: 'left' },
 ];
+
+/**
+ * Deja el filtro de estado en la URL (junto con la pestaña) para que al volver de Cobros
+ * (`returnTo` = fullPath) la lista quede igual. Mergea con la query existente.
+ */
+function syncQuery(): void {
+  void router.replace({
+    query: {
+      ...route.query,
+      tab: 'invitaciones',
+      estado: statusFilter.value ?? undefined,
+    },
+  });
+}
 
 async function loadLeads(page: number, pageSize: number): Promise<void> {
   loadingLeads.value = true;
   try {
     const data = await reportApi.listLeads({
-      stage: stageFilter.value ?? undefined,
+      followStatus: statusFilter.value ?? undefined,
       branchId: branchFilter.value ?? undefined,
       page,
       pageSize,
@@ -445,43 +553,125 @@ async function loadLeads(page: number, pageSize: number): Promise<void> {
   } catch (err: unknown) {
     $q.notify({
       type: 'negative',
-      message: extractError(err, 'Error cargando los leads de invitación'),
+      message: extractError(err, 'Error cargando los invitados'),
     });
   } finally {
     loadingLeads.value = false;
   }
 }
 
+/** Recarga la página actual y el aviso rojo (para ver lo que cargó otra persona). */
+function reloadLeads(): void {
+  void loadLeads(pagination.value.page, pagination.value.rowsPerPage);
+  void adminStore.fetchInvitationsPendingCount();
+}
+
 function onLeadsRequest(req: { pagination: { page: number; rowsPerPage: number } }): void {
   void loadLeads(req.pagination.page, req.pagination.rowsPerPage);
 }
 
-async function onLeadStatusChange(
-  row: InvitationLeadRow,
-  next: LeadStatusValue | null
-): Promise<void> {
-  if (next === null || next === row.leadStatus) return;
-  savingUserId.value = row.invitee.userId;
+async function loadReasons(): Promise<void> {
   try {
-    // PATCH existente (el servidor valida rol y reglas del lead).
-    const snapshot = await membersApi.updateLead(row.invitee.userId, { leadStatus: next });
-    row.leadStatus = snapshot.leadStatus;
-    $q.notify({ type: 'positive', message: 'Estado del lead actualizado', timeout: 1500 });
+    reasons.value = await renewalsApi.listReasons(false);
   } catch (err: unknown) {
-    const message = extractError(err, 'No se pudo actualizar el estado del lead');
-    log.warn('Failed to update invitation lead status', {
-      error: message,
-      userId: row.invitee.userId,
-    });
-    $q.notify({ type: 'negative', message });
-  } finally {
-    savingUserId.value = null;
+    log.warn('No se pudieron cargar los motivos', { error: extractError(err, 'sin detalle') });
   }
 }
 
-function contactInvitee(phone: string | null): void {
-  if (!phone) return;
-  window.open(`https://wa.me/${phone.replace(/\D/g, '')}`, '_blank');
+// -- Acciones de fila ---------------------------------------------------------
+
+/** Sin plan de accesos cargado (409 del API) o ya compró: no se registra seguimiento. */
+function followupLocked(row: InvitationLeadRow): boolean {
+  return hasPurchased(row) || row.followup.subscriptionId === null;
+}
+
+function lockedHint(row: InvitationLeadRow): string {
+  return hasPurchased(row)
+    ? 'Ya compró: no hace falta seguimiento'
+    : 'Este invitado no tiene accesos cargados: no se puede registrar seguimiento';
+}
+
+function lastMessageLabel(row: InvitationLeadRow): string | null {
+  const at = row.followup.lastMessageAt;
+  return at ? `Último mensaje: ${formatDayMonth(at)}` : null;
+}
+
+function replaceRow(updated: InvitationLeadRow): void {
+  const idx = leadRows.value.findIndex((r) => r.invitationId === updated.invitationId);
+  if (idx !== -1) leadRows.value[idx] = updated;
+}
+
+/** PATCH del seguimiento: reemplaza la fila por la del servidor y refresca el aviso rojo. */
+async function patchFollowup(
+  row: InvitationLeadRow,
+  input: InvitationFollowupUpdateInput
+): Promise<boolean> {
+  try {
+    replaceRow(await reportApi.updateFollowup(row.invitationId, input));
+    void adminStore.fetchInvitationsPendingCount();
+    return true;
+  } catch (err: unknown) {
+    const message = extractError(err, 'No se pudo actualizar el seguimiento');
+    log.warn('Failed to update invitation followup', {
+      error: message,
+      invitationId: row.invitationId,
+    });
+    $q.notify({ type: 'negative', message });
+    return false;
+  }
+}
+
+/** Nota nueva del invitado; false = falló y el borrador queda abierto. */
+async function saveNote(row: InvitationLeadRow, content: string): Promise<boolean> {
+  try {
+    const note = await reportApi.addNote(row.invitationId, content);
+    // Busca la fila vigente: un refresco pudo reemplazar el objeto mientras se guardaba.
+    const current = leadRows.value.find((r) => r.invitationId === row.invitationId) ?? row;
+    replaceRow({
+      ...current,
+      lastNote: {
+        content: note.content,
+        createdAt: note.createdAt,
+        authorName: note.authorName || null,
+      },
+    });
+    $q.notify({ type: 'positive', message: 'Observación guardada', timeout: 1500 });
+    return true;
+  } catch (err: unknown) {
+    const message = extractError(err, 'No se pudo guardar la observación');
+    log.warn('Failed to add invitation note', { error: message, invitationId: row.invitationId });
+    $q.notify({ type: 'negative', message });
+    return false;
+  }
+}
+
+// "No sigue" con nota del motivo
+const noSigueDialogOpen = ref(false);
+const noSigueRow = ref<InvitationLeadRow | null>(null);
+const savingNoSigue = ref(false);
+
+function openNoSigueDialog(row: InvitationLeadRow): void {
+  noSigueRow.value = row;
+  noSigueDialogOpen.value = true;
+}
+
+async function onNoSigueSave(input: InvitationFollowupUpdateInput): Promise<void> {
+  const row = noSigueRow.value;
+  if (!row) return;
+  savingNoSigue.value = true;
+  try {
+    if (await patchFollowup(row, input)) noSigueDialogOpen.value = false;
+  } finally {
+    savingNoSigue.value = false;
+  }
+}
+
+/** Mismo deep-link que "Renovar": Cobros con el socio elegido y vuelta a esta lista. */
+function sellPlan(row: InvitationLeadRow): void {
+  void router.push({
+    path: '/cobros',
+    query: { memberId: String(row.invitee.userId), returnTo: route.fullPath },
+  });
 }
 
 // -- Wiring -------------------------------------------------------------------
@@ -493,18 +683,21 @@ watch([rangeFrom, rangeTo], ([from, to], [prevFrom, prevTo]) => {
   void loadReport();
 });
 
-watch([stageFilter, branchFilter], () => {
+watch([statusFilter, branchFilter], () => {
+  syncQuery();
   void loadLeads(1, pagination.value.rowsPerPage);
 });
 
 onMounted(() => {
-  void loadReport();
+  syncQuery();
+  if (props.showProgramReport) void loadReport();
   void loadLeads(1, pagination.value.rowsPerPage);
+  void loadReasons();
 });
 
 // Los composables no se limpian solos: el componente es dueño del ciclo de vida.
 onBeforeUnmount(() => {
   reportApi.cleanup();
-  membersApi.cleanup();
+  renewalsApi.cleanup();
 });
 </script>
