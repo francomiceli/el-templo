@@ -48,7 +48,10 @@
             </q-item-section>
 
             <q-item-section>
-              <q-item-label>{{ member.memberName }}</q-item-label>
+              <q-item-label>
+                {{ member.memberName }}
+                <InvitationTag :invitation="member.invitation" class="q-ml-xs" />
+              </q-item-label>
               <q-item-label caption>
                 <template v-if="member.attendanceId && member.checkedInAt">
                   {{ formatTime(member.checkedInAt) }}
@@ -168,6 +171,7 @@ import { createLogger } from 'src/utils/logger';
 import { useAttendanceApi } from 'src/composables/useAttendanceApi';
 import { useSchedulingApi } from 'src/composables/useSchedulingApi';
 import { useMembersApi } from 'src/composables/useMembersApi';
+import InvitationTag from 'src/components/scheduling/InvitationTag.vue';
 import type { SlotAttendanceItem } from 'src/types/attendance';
 import type { ActivityRecord } from 'src/types/scheduling';
 

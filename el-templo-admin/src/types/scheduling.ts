@@ -2,6 +2,7 @@
  * Scheduling types for the admin app.
  * Mirrors the API types from el-templo-api/src/modules/scheduling/types.ts.
  */
+import type { RosterInvitation } from './attendance';
 
 export type BookingStatus =
   | 'reservado'
@@ -164,6 +165,9 @@ export interface BookingRecord {
   memberBranchName: string | null;
   // Fase 204 D-10: 'wellhub' para reservas Wellhub.
   source?: string | null;
+  // Invitado que todavía no compró (etiqueta "Invitación" del profe). Solo lo trae el detalle
+  // de una clase (`GET /schedules/:id/detail`); en el resto de las respuestas no viene.
+  invitation?: RosterInvitation | null;
 }
 
 export interface HolidayRecord {

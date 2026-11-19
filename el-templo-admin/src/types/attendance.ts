@@ -34,6 +34,15 @@ export const sourceLabels: Record<AttendanceSource, string> = {
 };
 
 /**
+ * Invitado que todavía no compró un plan (programa de Invitaciones): la etiqueta
+ * "Invitación · 2/3" del profe. Los contadores son null en un vínculo heredado sin accesos.
+ */
+export interface RosterInvitation {
+  accessesUsed: number | null;
+  accessesBudget: number | null;
+}
+
+/**
  * Slot attendance item from GET /admin/attendance/slot/:scheduleId/:date
  */
 export interface SlotAttendanceItem {
@@ -61,4 +70,6 @@ export interface SlotAttendanceItem {
   // Registro del día del alumno (cómo llegó a la clase). Sólo lo completa el
   // server para coach + admin/dueño; null para gestión/recepción.
   checkIn: DayCheckIn | null;
+  // Invitado que todavía no compró (etiqueta "Invitación"); null para el resto.
+  invitation: RosterInvitation | null;
 }
