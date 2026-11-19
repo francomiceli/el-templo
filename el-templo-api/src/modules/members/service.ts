@@ -1624,13 +1624,14 @@ export class MemberService {
       convertedAt: Date | null;
       leadStatus: string | null;
     },
+    exec: MySql2Database<typeof schema> | TxHandle = this.db,
   ): Promise<boolean> {
     if (user.convertedAt !== null || user.leadStatus !== null) {
       return true;
     }
     // Fase 173 (T-173-18): `ctx` ya llegaba en la firma pero no filtraba nada
     // (trampa (a)) — `tenantWhere` inline, primer término del `and(...)`.
-    const [trial] = await this.db
+    const [trial] = await exec
       .select({ id: schema.bookings.id })
       .from(schema.bookings)
       .where(
@@ -1645,14 +1646,20 @@ export class MemberService {
     return trial !== undefined;
   }
 
+  /**
+   * `exec` (opcional): pool (por defecto) o handle de transacción. Lo usa el seguimiento de
+   * Invitaciones para mover el `lead_status` en la MISMA transacción que el seguimiento
+   * manual, con las mismas reglas que el `PATCH /api/admin/leads/:userId`.
+   */
   async updateLead(
     ctx: TenantContext,
     userId: number,
     input: UpdateLeadInput,
+    exec: MySql2Database<typeof schema> | TxHandle = this.db,
   ): Promise<LeadSnapshot> {
     // Fase 173 (D-06): `tenantWhere` inline — un `userId` de otro gimnasio
     // tiene que verse EXACTO igual que uno inexistente.
-    const [user] = await this.db
+    const [user] = await exec
       .select({
         id: schema.users.id,
         status: schema.users.status,
@@ -1673,7 +1680,10 @@ export class MemberService {
     // (status pasa a 'activo'/'inactivo'). Exigir status='prueba' hacía que
     // toda edición sobre esas filas muriera en 409 (154 de 601 filas en prod).
     // El gate ahora rechaza solo a quien NUNCA fue lead.
-    if (user.status !== "prueba" && !(await this.wasEverLead(ctx, user))) {
+    if (
+      user.status !== "prueba" &&
+      !(await this.wasEverLead(ctx, user, exec))
+    ) {
       throw new ConflictError(
         "El usuario nunca fue un lead (no tiene sesión de prueba registrada)",
       );
@@ -1682,7 +1692,7 @@ export class MemberService {
     if (input.purchasedPlanId !== undefined && input.purchasedPlanId !== null) {
       // Fase 173 (D-06): un plan de otro gimnasio tiene que rechazarse igual
       // que uno inexistente — `tenantWhere` inline.
-      const [plan] = await this.db
+      const [plan] = await exec
         .select({ id: schema.subscriptionPlans.id })
         .from(schema.subscriptionPlans)
         .where(
@@ -1738,7 +1748,7 @@ export class MemberService {
     }
 
     if (Object.keys(updateData).length > 0) {
-      await this.db
+      await exec
         .update(schema.users)
         .set(updateData)
         .where(
@@ -1754,7 +1764,7 @@ export class MemberService {
     // LEFT en INNER en silencio y perdería la fila cuando createdBy/purchasedPlanId
     // son NULL.
     const creator = alias(schema.users, "creator");
-    const [snapshot] = await this.db
+    const [snapshot] = await exec
       .select({
         userId: schema.users.id,
         leadStatus: schema.users.leadStatus,
