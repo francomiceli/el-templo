@@ -80,6 +80,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from 'src/stores/useUserStore'
 import { formatTenure } from 'src/utils/tenure'
 import { headerSubline } from 'src/utils/mi-templo-header'
+import { shownPhotoUrl } from 'src/utils/bar-profile-photo'
 import MemberAvatar from 'src/components/MemberAvatar.vue'
 import VeteranSeal from 'src/components/VeteranSeal.vue'
 import AuraChip from 'src/components/AuraChip.vue'
@@ -99,7 +100,7 @@ const photo = computed(() => profile.value?.photo ?? null)
 const approvedUrl = computed(() => photo.value?.url ?? null)
 const pendingUrl = computed(() => photo.value?.pendingUrl ?? null)
 // Con una aprobada se muestra esa; si solo hay una pendiente, se muestra la pendiente con la insignia.
-const shownUrl = computed(() => approvedUrl.value ?? pendingUrl.value)
+const shownUrl = computed(() => shownPhotoUrl(photo.value))
 
 const firstName = computed(() => profile.value?.firstName ?? 'Atleta')
 const lastInitial = computed(() => profile.value?.lastName?.trim().charAt(0) ?? null)
