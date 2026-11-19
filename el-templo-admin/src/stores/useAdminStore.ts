@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { api } from 'src/boot/axios';
+import type { InvitationsPendingCount } from 'src/types/report';
 
 export interface LandingInboxCounts {
   academy: number;
@@ -15,6 +16,10 @@ export const useAdminStore = defineStore('admin', () => {
   // Pelotita de Reportes: SP creadas desde la app pendientes de que gestión
   // inicie el seguimiento (dentro del país del usuario).
   const appTrialsPendingCount = ref(0);
+  // Invitados "para contactar" (open) y, de ellos, los que no tienen ningún mensaje
+  // (uncontacted): numerito rojo de la pestaña Invitaciones, suma a la pelotita de Reportes
+  // y aviso en Renovaciones. El API ya lo acota por rol/sede.
+  const invitationsPending = ref<InvitationsPendingCount>({ open: 0, uncontacted: 0 });
   // Pelotitas del grupo Landing: leads del sitio público todavía en estado
   // "new" (Academy, Labs, Franquicias). Un solo request para las tres.
   const landingInbox = ref<LandingInboxCounts>({ academy: 0, labs: 0, franchise: 0 });
@@ -45,6 +50,18 @@ export const useAdminStore = defineStore('admin', () => {
     } catch {
       // Silently fail - badge will show 0
       appTrialsPendingCount.value = 0;
+    }
+  }
+
+  async function fetchInvitationsPendingCount() {
+    try {
+      const { data } = await api.get<InvitationsPendingCount>(
+        '/admin/referrals/invitations/pending-count'
+      );
+      invitationsPending.value = { open: data.open, uncontacted: data.uncontacted };
+    } catch {
+      // Silently fail - badge will show 0
+      invitationsPending.value = { open: 0, uncontacted: 0 };
     }
   }
 
@@ -111,12 +128,14 @@ export const useAdminStore = defineStore('admin', () => {
     lowSessionsAlert,
     weeksAhead,
     appTrialsPendingCount,
+    invitationsPending,
     landingInbox,
     conquerRequestsCount,
     conquerCorrectionsCount,
     oficinaBadgeCount,
     fetchPendingCount,
     fetchAppTrialsPendingCount,
+    fetchInvitationsPendingCount,
     fetchLandingInbox,
     fetchConquerRequestsCount,
     fetchConquerCorrectionsCount,

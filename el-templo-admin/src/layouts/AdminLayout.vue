@@ -105,6 +105,8 @@ function badgeCount(item: NavItem): number {
       return adminStore.pendingCount;
     case 'app-trials':
       return adminStore.appTrialsPendingCount;
+    case 'reportes':
+      return adminStore.appTrialsPendingCount + adminStore.invitationsPending.uncontacted;
     case 'landing-academy':
       return adminStore.landingInbox.academy;
     case 'landing-labs':
@@ -132,8 +134,8 @@ const canSeeLanding = computed(() =>
 // comes from isNavItemVisible on the trainingOnly items).
 const canSeeTraining = computed(() => canAccessTraining(authStore.user));
 
-// Quiénes ven Reportes (y por ende la pelotita de SP desde la app): gestión,
-// admin y dueño. Mismo set que REPORTES_ROLES en templo-config.ts.
+// Quiénes ven Reportes (y por ende su pelotita): gestión, admin de sede, admin y dueño.
+// Mismo set que REPORTES_ROLES en templo-config.ts.
 const canSeeReports = computed(() => {
   const role = authStore.user?.role;
   return role === 'gestion' || role === 'admin' || role === 'owner' || role === 'admin_sede';
@@ -164,6 +166,7 @@ onMounted(() => {
   }
   if (canSeeReports.value) {
     adminStore.fetchAppTrialsPendingCount();
+    adminStore.fetchInvitationsPendingCount();
   }
   if (canSeeLanding.value) {
     adminStore.fetchLandingInbox();
@@ -186,6 +189,7 @@ watch(
     }
     if (canSeeReports.value) {
       adminStore.fetchAppTrialsPendingCount();
+      adminStore.fetchInvitationsPendingCount();
     }
     if (canSeeLanding.value) {
       adminStore.fetchLandingInbox();
