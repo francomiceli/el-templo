@@ -50,6 +50,7 @@ import {
   pendingNotifications,
 } from "../../src/db/schema/notifications";
 import { NotificationService } from "../../src/modules/notifications/service";
+import { AURA_AMOUNTS } from "../../src/modules/aura/amounts";
 
 const ADMIN_URL = "/api/admin/scheduling";
 const MEMBER_URL = "/api/members/scheduling";
@@ -970,10 +971,7 @@ describe("Scheduling API", () => {
         })
         .from(schedules)
         .where(
-          and(
-            tenantWhere(schedules, TEMPLO_CTX),
-            eq(schedules.id, slotRow.id),
-          ),
+          and(tenantWhere(schedules, TEMPLO_CTX), eq(schedules.id, slotRow.id)),
         );
       expect(scheduleRow.isActive).toBe(false);
       expect(scheduleRow.inactiveReason).toContain(fromDate);
@@ -988,9 +986,7 @@ describe("Scheduling API", () => {
       return d.toISOString().slice(0, 10);
     }
 
-    async function getAdminWeek(
-      weekStart: string,
-    ): Promise<WeeklySlotView[]> {
+    async function getAdminWeek(weekStart: string): Promise<WeeklySlotView[]> {
       const res = await app.inject({
         method: "GET",
         url: `${ADMIN_URL}/schedules/weekly?branchId=${testBranchId}&weekStart=${weekStart}`,
@@ -1017,10 +1013,7 @@ describe("Scheduling API", () => {
         })
         .from(schedules)
         .where(
-          and(
-            tenantWhere(schedules, TEMPLO_CTX),
-            eq(schedules.id, scheduleId),
-          ),
+          and(tenantWhere(schedules, TEMPLO_CTX), eq(schedules.id, scheduleId)),
         );
       return row;
     }
@@ -1067,9 +1060,7 @@ describe("Scheduling API", () => {
 
       // Semana anterior SIN alumnos: no aparece.
       const emptyWeekBefore = await getAdminWeek(mondayPlusWeeks(0));
-      expect(
-        emptyWeekBefore.find((s) => s.id === slot.id),
-      ).toBeUndefined();
+      expect(emptyWeekBefore.find((s) => s.id === slot.id)).toBeUndefined();
     });
 
     it("cancelar todas las semanas (toggle off) NO elimina: el slot sigue en la grilla admin con deletedFrom null", async () => {
@@ -1144,12 +1135,7 @@ describe("Scheduling API", () => {
         (await deleteFromDate(slot.id, mondayPlusWeeks(1))).statusCode,
       ).toBe(200);
 
-      const replacement = await createScheduleSlot(
-        act.id,
-        1,
-        "07:00",
-        "08:00",
-      );
+      const replacement = await createScheduleSlot(act.id, 1, "07:00", "08:00");
       expect(replacement.id).not.toBe(slot.id);
       expect(replacement.isActive).toBe(true);
     });
@@ -1476,10 +1462,7 @@ describe("Scheduling API", () => {
         })
         .from(bookings)
         .where(
-          and(
-            tenantWhere(bookings, TEMPLO_CTX),
-            eq(bookings.id, booking2.id),
-          ),
+          and(tenantWhere(bookings, TEMPLO_CTX), eq(bookings.id, booking2.id)),
         );
 
       expect(promotedBooking.status).toBe("reservado");
@@ -3152,7 +3135,7 @@ describe("Scheduling API", () => {
         .select({ balance: auraBalances.balance })
         .from(auraBalances)
         .where(eq(auraBalances.userId, member.id));
-      expect(auraRow.balance).toBeGreaterThanOrEqual(10);
+      expect(auraRow.balance).toBeGreaterThanOrEqual(AURA_AMOUNTS.attendance);
     });
 
     it("POST /slot/:scheduleId/:date/check-in NOT blocked by retroactive attendance with different sessionDate", async () => {

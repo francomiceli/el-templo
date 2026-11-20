@@ -11,6 +11,10 @@
       />
       <q-icon v-else name="person" size="64px" color="grey-5" />
     </q-avatar>
+    <!-- Foto propia aprobada del alumno (bucket privado), sin foto cargada por el staff -->
+    <div v-if="currentPhotoUrl && fromMember" class="text-caption text-grey-7 q-mb-xs">
+      Subida por el alumno
+    </div>
 
     <!-- Action buttons -->
     <div class="row q-gutter-xs justify-center">
@@ -77,10 +81,15 @@ import { useMembersApi } from 'src/composables/useMembersApi';
 
 const log = createLogger('MemberPhotoUpload');
 
-const props = defineProps<{
-  userId: number;
-  currentPhotoUrl: string | null;
-}>();
+const props = withDefaults(
+  defineProps<{
+    userId: number;
+    currentPhotoUrl: string | null;
+    /** La foto mostrada es la propia aprobada del alumno, no una cargada por el staff. */
+    fromMember?: boolean;
+  }>(),
+  { fromMember: false }
+);
 
 const emit = defineEmits<{
   uploaded: [url: string];

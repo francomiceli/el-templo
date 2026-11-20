@@ -33,15 +33,16 @@
       <q-btn color="primary" label="Volver" class="result-btn" @click="goBack" />
     </div>
 
-    <!-- Success state -->
-    <div v-else-if="state === 'success'" class="result-container">
-      <q-icon name="check_circle" size="100px" color="positive" />
-      <h2 class="result-title">Asistencia registrada</h2>
-      <p v-if="resultBranchName" class="result-message">
-        {{ resultBranchName }}
-      </p>
-      <q-btn color="primary" label="Volver" class="result-btn" @click="goBack" />
-    </div>
+    <!-- Success state: celebración a pantalla completa (fase 214, D-40, D-56) -->
+    <CheckInCelebration
+      v-else-if="state === 'success'"
+      :branch-name="resultBranchName"
+      :checked-in-at="resultCheckedInAt"
+      :timezone="userStore.profile?.branchTimezone ?? DEFAULT_BRANCH_TZ"
+      :aura-awarded="resultAuraAwarded"
+      :aura-total="resultAuraTotal"
+      @done="onCelebrationDone"
+    />
 
     <!-- Error state -->
     <div v-else-if="state === 'error'" class="result-container">
@@ -67,7 +68,10 @@ import { useAttendanceApi } from 'src/composables/useAttendanceApi'
 import { createLogger } from 'src/utils/logger'
 import { extractError } from 'src/utils/extract-error'
 import TemploLoader from 'src/components/TemploLoader.vue'
+import CheckInCelebration from 'src/components/CheckInCelebration.vue'
 import { useTodayBookingStore } from 'src/stores/useTodayBookingStore'
+import { useUserStore } from 'src/stores/useUserStore'
+import { DEFAULT_BRANCH_TZ } from 'src/utils/tz'
 
 type PageState = 'scanning' | 'permission-denied' | 'success' | 'error' | 'loading'
 
@@ -75,10 +79,15 @@ const router = useRouter()
 const { checkIn, cleanup } = useAttendanceApi()
 const log = createLogger('CheckIn')
 const todayBookingStore = useTodayBookingStore()
+const userStore = useUserStore()
 
 const state = ref<PageState>('scanning')
 const errorMessage = ref('')
 const resultBranchName = ref('')
+const resultCheckedInAt = ref('')
+// Fase 214: lo que acreditó el check-in según el servidor (null = no acreditó o API vieja).
+const resultAuraAwarded = ref<number | null>(null)
+const resultAuraTotal = ref<number | null>(null)
 
 let scanner: Html5Qrcode | null = null
 let scanProcessed = false
@@ -142,6 +151,9 @@ async function onScanSuccess(decodedText: string) {
   try {
     const record = await checkIn(decodedText)
     resultBranchName.value = record.branchName.replace(/^El Templo\s+/i, 'Sede ')
+    resultCheckedInAt.value = record.checkedInAt
+    resultAuraAwarded.value = record.auraAwarded ?? null
+    resultAuraTotal.value = record.auraTotal ?? null
     state.value = 'success'
     log.info('Check-in successful', { branchName: record.branchName })
     // D-06: primero marcar (la categoría sale de la reserva que estaba en ventana
@@ -162,6 +174,17 @@ async function onScanSuccess(decodedText: string) {
 
 function goBack() {
   router.back()
+}
+
+// "Listo" o Escape: primero el número del encabezado (sin volver a pedir /me), después volver.
+let celebrationClosed = false
+function onCelebrationDone() {
+  if (celebrationClosed) return
+  celebrationClosed = true
+  if (resultAuraTotal.value !== null) {
+    userStore.setAuraEarned(resultAuraTotal.value)
+  }
+  goBack()
 }
 
 onMounted(() => {

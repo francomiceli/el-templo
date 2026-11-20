@@ -10,6 +10,10 @@ export interface AttendanceRecord {
   confirmedAt: string | null
   status: 'registrado' | 'confirmado'
   source: 'qr' | 'manual'
+  // Fase 214: Aura que sumó este check-in (`null` = no acreditó) y total ganado tras sumarla.
+  // Opcionales: una API vieja no los manda.
+  auraAwarded?: number | null
+  auraTotal?: number | null
 }
 
 interface AttendanceHistoryResponse {

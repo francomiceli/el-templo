@@ -377,27 +377,12 @@
                    (`boardingPass` en assignPlan), el toggle simplemente no se
                    ofrece: assignForm.boardingPass queda siempre en false. -->
 
-              <!-- AURA discount -->
-              <div
-                v-if="
-                  !assignForm.boardingPass &&
-                  !assignForm.useOverride &&
-                  !assignForm.prorateToMonthEnd
-                "
-                class="q-mb-md"
-              >
-                <q-select
-                  v-model="assignForm.auraSpend"
-                  :options="auraOptions"
-                  label="Descuento AURA"
-                  dense
-                  outlined
-                  emit-value
-                  map-options
-                  clearable
-                  @update:model-value="onPricingOptionChange"
-                />
-              </div>
+              <!-- Descuento AURA (fase 214 D-22): retirado de la UI el 2026-11-17
+                   hasta que se defina la economía de Aura. Cero canjes en la
+                   historia. El soporte sigue en la API (`auraSpend` en assignPlan
+                   y en el preview) y los tramos 500/1.000/2.000/5.000 no se
+                   tocaron: volver a ofrecerlo es restaurar este bloque.
+                   assignForm.auraSpend queda siempre en null. -->
 
               <!-- Price override -->
               <div v-if="!assignForm.prorateToMonthEnd" class="q-mb-md">
@@ -1128,7 +1113,6 @@ import { useTransactionsApi } from 'src/composables/useTransactionsApi';
 import { usePricingSettingsApi } from 'src/composables/usePricingSettingsApi';
 import {
   PLAN_TIER_LABELS,
-  AURA_DISCOUNT_TIERS,
   PRICE_TYPE_LABELS,
   isInvitationPlan,
   type PlanListItem,
@@ -1588,18 +1572,6 @@ const priceTypeOptions = computed(() => {
     opts.push({ label: PRICE_TYPE_LABELS.credit_card, value: 'credit_card' as PriceType });
   }
   return opts;
-});
-
-const auraOptions = computed(() => {
-  const balance = pricingPreview.value?.auraBalance ?? 0;
-  return [
-    { label: 'Sin descuento AURA', value: null },
-    ...AURA_DISCOUNT_TIERS.map((t) => ({
-      label: `Gastar ${t.spend} AURA = ${t.percent}% descuento`,
-      value: t.spend,
-      disable: t.spend > balance,
-    })),
-  ];
 });
 
 // Fase 194 (D-08/D-21, Pitfall 6): el admin NO calcula descuentos. Los montos de

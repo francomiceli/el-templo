@@ -15,7 +15,12 @@
 
       <!-- Card de hoy (D-01/D-03, variante A'): la acción del día arriba de todo. Reemplaza a las
            4 cards viejas (sesión, clase reservada, estado sin sesión y programa). Solo pinta el modelo de resolveTodayCard. -->
-      <TodayCard :model="todayCard" @open-program="programSheetOpen = true" />
+      <TodayCard
+        :model="todayCard"
+        :gift="todayGift"
+        @open-program="programSheetOpen = true"
+        @open-gift="giftSheetOpen = true"
+      />
 
       <!-- Novedades (D-08): mismo diseño del sketch 004, debajo de la card de hoy.
            Sin novedades no renderiza nada (L50) y es fail-open (D-12). Fase 203 (D-02): reserva el
@@ -148,6 +153,10 @@
       @show-card="memberCardOpen = true"
     />
     <MemberCard v-model="memberCardOpen" />
+
+    <!-- Fase 215 (D-14): hoja "Dar Aura". Una sola, abierta desde la fila de regalo de la card con
+         la clase que vence antes. Tras dar o si los pendientes quedaron viejos la hoja emite `stale` y se vuelven a pedir. -->
+    <GiveAuraSheet v-model="giftSheetOpen" :gift="giftToGive" @stale="giftsStore.load()" />
   </q-page>
 </template>
 
@@ -178,6 +187,7 @@ import { mainBlock } from 'src/modules/training/utils/blockMeta'
 import type { Session } from 'src/modules/training/types/session'
 import TodayCard from '../components/TodayCard.vue'
 import ProgramSheet from '../components/ProgramSheet.vue'
+import GiveAuraSheet from 'src/components/GiveAuraSheet.vue'
 import { pickNextRoute, resolveTodayCard } from '../utils/today-card'
 import { MI_TEMPLO_CARD_KEYS, resolveMiTemploSlots } from '../utils/mi-templo-slots'
 import type { CheckInAnswers } from '../utils/check-in-summary'
@@ -198,9 +208,17 @@ import { useSponsorsStore, type Sponsor } from 'src/stores/useSponsorsStore'
 import { useNotificationStore } from 'src/stores/useNotificationStore'
 import { useTodayBookingStore } from 'src/stores/useTodayBookingStore'
 import { useStretchStore } from 'src/stores/useStretchStore'
+import { useAuraGiftsStore } from 'src/stores/useAuraGiftsStore'
+import {
+  HIDDEN_GIFT_NOTICE,
+  HIDDEN_GIFT_NOTICE_TEXT,
+  giftCardAriaLabel,
+  giftCardHelp,
+  givenTodayText,
+} from 'src/utils/gift-view'
 import { useLoadDeadline } from 'src/composables/useLoadDeadline'
 import { addDaysStr, formatHHMM, weekStartsFor } from 'src/utils/check-in-window'
-import { dowInTz, todayInTz } from 'src/utils/tz'
+import { DEFAULT_BRANCH_TZ, dowInTz, todayInTz } from 'src/utils/tz'
 import { useRouter } from 'vue-router'
 
 // Fase 203 (D-01/D-02): altos de los esqueletos = alto de la card final, medido de sus estilos, para
@@ -230,6 +248,7 @@ const { fetchStats, requestEvaluation } = useProgressionApi()
 const { fetchTodayCheckIns, submitCheckIn } = useCheckInApi()
 const todayBookingStore = useTodayBookingStore()
 const stretchStore = useStretchStore()
+const giftsStore = useAuraGiftsStore()
 // Fase 203 (D-07): tope de carga de la página. Se arma UNA vez al montar (en `onMounted`), nunca
 // dentro de un `watch`: cada `start()` vuelve `passed` a false.
 const deadline = useLoadDeadline()
@@ -245,6 +264,46 @@ const {
 // en el store (`ensureMemberState`); la página no los pide por su cuenta.
 const programProgress = computed(() => userStore.myProgress)
 const programSheetOpen = ref(false)
+const giftSheetOpen = ref(false)
+
+// Fase 215 (D-14, UI-SPEC Pantalla 1): fila de regalo de la card. El servidor decide qué hay para
+// dar (`cardState`); acá solo se arman los textos con `gift-view.ts`, con el "hoy" de la SEDE (nunca
+// el del teléfono). Sin dato (`null`) la card no muestra nada y no explica.
+// La clase que vence antes (`pending[0]`): la que abre la hoja.
+const giftToGive = computed(() => {
+  const state = giftsStore.cardState
+  return state?.kind === 'offer' ? state.first : null
+})
+
+const todayGift = computed(() => {
+  const state = giftsStore.cardState
+  if (!state) return null
+  if (state.kind === 'offer') {
+    const siteToday = todayInTz(
+      userStore.profile?.branchTimezone ?? DEFAULT_BRANCH_TZ,
+      todayBookingStore.now,
+    )
+    return {
+      kind: 'offer' as const,
+      help: giftCardHelp(giftsStore.pending, siteToday),
+      ariaLabel: giftCardAriaLabel(state.first, siteToday),
+    }
+  }
+  // #31: oculto con algo para regalar. Solo si el servidor lo dice; la app no lo deduce.
+  if (state.kind === 'hidden') {
+    return {
+      kind: 'hidden' as const,
+      parts: HIDDEN_GIFT_NOTICE,
+      ariaLabel: `${HIDDEN_GIFT_NOTICE_TEXT}. Abre tu Perfil.`,
+    }
+  }
+  return {
+    kind: 'given' as const,
+    text: givenTodayText(state.gift),
+    anonymous: state.gift.receiver.anonymous === true,
+    receiver: state.gift.receiver,
+  }
+})
 // Marca tocada en el carrusel de patrocinadores: abre la hoja de detalle (plan 19).
 const selectedSponsor = ref<Sponsor | null>(null)
 const sheetOpen = computed({
@@ -593,6 +652,9 @@ onMounted(() => {
   // Estiramiento post-clase (fase 213): fail-open y sin `await`. La card arranca en `none` (= como
   // hoy) y pasa a "Estirar" cuando llega el dato; un dato previo del día se conserva (sin parpadeo).
   void stretchStore.load()
+  // Regalo de Aura (fase 215): fail-open y sin `await`. La fila de la card aparece solo cuando llega
+  // el dato; uno previo del mismo día se conserva (sin parpadeo).
+  void giftsStore.load()
 
   // Estado del socio (suscripción, plan-status, trial-eligibility, my-progress, current-program y
   // enrollments): reusa la carga del boot/layout si está en vuelo o fresca, y refresca si está

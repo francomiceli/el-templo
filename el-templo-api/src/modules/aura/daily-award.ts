@@ -3,7 +3,7 @@
 // Premio de AURA "una vez por dia local" (tope diario). Lo comparten el cierre
 // de bloques libres (Fase 197 D-12), el cierre de sesion de Entrenamiento y el
 // de plan por objetivos (Tanda 2 / hallazgo #4): sin tope, un cliente podia
-// fabricar dayIds y cobrar 10 AURA por cada uno.
+// fabricar dayIds y cobrar AURA por cada uno.
 //
 // El candado es el unique `unique_user_source_ref` de `aura_transactions`
 // (userId, sourceType, referenceType, referenceId): con referenceId = YYYYMMDD
@@ -27,6 +27,8 @@ export interface DailyAwardInput {
   referenceType: string;
   /** Fecha local de la sede del socio, `YYYY-MM-DD`. */
   localDate: string;
+  /** Monto de `AURA_AMOUNTS`; nunca depender de `aura_config`. */
+  amount: number;
   description?: string;
 }
 
@@ -45,6 +47,7 @@ export async function awardOncePerLocalDay(
       userId: input.userId,
       sourceType: input.sourceType,
       referenceType: input.referenceType,
+      amount: input.amount,
       referenceId: Number(input.localDate.replace(/-/g, "")),
       description: input.description,
     });

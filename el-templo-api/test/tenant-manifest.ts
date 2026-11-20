@@ -650,6 +650,9 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "DELETE /api/admin/members/:userId/partner-referral": {
     categoria: "tenant-scoped",
   },
+  "DELETE /api/admin/members/:userId/profile-photo": {
+    categoria: "tenant-scoped",
+  },
   "GET /api/admin/members": { categoria: "tenant-scoped" },
   "GET /api/admin/members/:userId": { categoria: "tenant-scoped" },
   "GET /api/admin/members/:userId/financial-history": {
@@ -669,6 +672,7 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     categoria: "tenant-scoped",
   },
   "GET /api/admin/members/branches": { categoria: "tenant-scoped" },
+  "GET /api/admin/members/profile-photos": { categoria: "tenant-scoped" },
   "GET /api/admin/members/check-dni": { categoria: "tenant-scoped" },
   "GET /api/admin/members/check-duplicates": { categoria: "tenant-scoped" },
   "GET /api/admin/members/export": { categoria: "tenant-scoped" },
@@ -702,6 +706,12 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     categoria: "tenant-scoped",
   },
   "POST /api/admin/members/:userId/photo/upload-url": {
+    categoria: "tenant-scoped",
+  },
+  "POST /api/admin/members/:userId/profile-photo/approve": {
+    categoria: "tenant-scoped",
+  },
+  "POST /api/admin/members/:userId/profile-photo/reject": {
     categoria: "tenant-scoped",
   },
   "POST /api/admin/members/trial": { categoria: "tenant-scoped" },
@@ -1236,6 +1246,14 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "GET /api/members/attendance/history": { categoria: "tenant-scoped" },
   "POST /api/members/attendance/check-in": { categoria: "tenant-scoped" },
 
+  // ── /api/members/profile-photo (fase 214, foto propia del alumno) ─────────
+  "POST /api/members/profile-photo/upload-url": { categoria: "tenant-scoped" },
+  "POST /api/members/profile-photo/confirm": { categoria: "tenant-scoped" },
+  "DELETE /api/members/profile-photo": { categoria: "tenant-scoped" },
+  "POST /api/members/profile-photos/:photoId/report": {
+    categoria: "tenant-scoped",
+  },
+
   // ── /api/members/improvement-proposals ────────────────────────────────────
   "GET /api/members/improvement-proposals/prompt-status": {
     categoria: "tenant-scoped",
@@ -1293,6 +1311,19 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     categoria: "tenant-scoped",
   },
   "POST /api/members/scheduling/reserve-trial": { categoria: "tenant-scoped" },
+  // Fase 214 (D-05, D-06): preferencia de visibilidad en la lista de anotados y
+  // aviso visto. Upsert en member_profiles (strict), `userId` del JWT.
+  "PUT /api/members/scheduling/attendees/visibility": {
+    categoria: "tenant-scoped",
+  },
+  "POST /api/members/scheduling/attendees/notice-seen": {
+    categoria: "tenant-scoped",
+  },
+  // Fase 214 (D-01..D-09): anotados de un horario y fecha. Solo lectura, cada
+  // tabla del join con `tenantWhere`.
+  "GET /api/members/scheduling/slots/:scheduleId/:date/attendees": {
+    categoria: "tenant-scoped",
+  },
 
   // ── /api/members/sponsors (fase 199, patrocinadores) ─────────────────────
   // Feed del socio y eventos (escriben `sponsor_views`, gym-owned). El
@@ -1340,6 +1371,16 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     categoria: "tenant-scoped",
   },
   "PUT /api/notifications/preferences": { categoria: "tenant-scoped" },
+
+  // ── /api/members/notifications (fase 215, bandeja) ────────────────────────
+  // Bandeja de avisos de la app. Núcleo (sin `moduleScope`): `assertTenant` +
+  // `tenantWhere` en cada lectura y escritura del servicio.
+  "GET /api/members/notifications": { categoria: "tenant-scoped" },
+  "GET /api/members/notifications/unread-count": {
+    categoria: "tenant-scoped",
+  },
+  "POST /api/members/notifications/:id/read": { categoria: "tenant-scoped" },
+  "POST /api/members/notifications/read-all": { categoria: "tenant-scoped" },
 
   // ── /api/tv (kiosco anónimo) — RETIRADO 2026-08-12 ──────────────────────────
   // Todo el plugin de device (pairing público + poll device-authed + telemetría)
@@ -2071,8 +2112,63 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
 
   // ══ templo-gamification ═══════════════════════════════════════════════════
   // Doc 04 §2.1: aura + aura-*, lifestyle, bar-challenge. AURA no expone rutas
-  // propias (es un service interno), así que el módulo aporta una sola.
+  // propias (es un service interno), así que el módulo aporta una sola. Fase 214
+  // (D-13) suma el detalle privado de la Aura propia.
   "POST /api/bar-challenge/result": {
+    categoria: "templo-module",
+    modulo: "templo-gamification",
+  },
+  "GET /api/members/aura/movements": {
+    categoria: "templo-module",
+    modulo: "templo-gamification",
+  },
+  // Fase 215 (plan 06): regalo de Aura del alumno.
+  "GET /api/members/aura/gifts/pending": {
+    categoria: "templo-module",
+    modulo: "templo-gamification",
+  },
+  "GET /api/members/aura/gifts/candidates": {
+    categoria: "templo-module",
+    modulo: "templo-gamification",
+  },
+  "POST /api/members/aura/gifts": {
+    categoria: "templo-module",
+    modulo: "templo-gamification",
+  },
+  // Fase 215 (plan 08): regalo del profe y su valor, del lado del staff.
+  "POST /api/admin/aura/gifts": {
+    categoria: "templo-module",
+    modulo: "templo-gamification",
+  },
+  "GET /api/admin/aura/gift-settings": {
+    categoria: "templo-module",
+    modulo: "templo-gamification",
+  },
+  "PUT /api/admin/aura/gift-settings": {
+    categoria: "templo-module",
+    modulo: "templo-gamification",
+  },
+  // Fase 215 (plan 09): anular un regalo vigente.
+  "POST /api/admin/aura/gifts/:id/void": {
+    categoria: "templo-module",
+    modulo: "templo-gamification",
+  },
+  // Fase 215 (plan 10): lista de regalos y medición para el staff.
+  "GET /api/admin/aura/gifts": {
+    categoria: "templo-module",
+    modulo: "templo-gamification",
+  },
+  // Fase 215 (ajustes, ME-06): regalos de cada profe por semana.
+  "GET /api/admin/aura/gifts/by-coach": {
+    categoria: "templo-module",
+    modulo: "templo-gamification",
+  },
+  // Fase 215 (ajustes, #33): celebración de Aura al abrir Mi Templo.
+  "GET /api/members/aura/celebration": {
+    categoria: "templo-module",
+    modulo: "templo-gamification",
+  },
+  "POST /api/members/aura/celebration/ack": {
     categoria: "templo-module",
     modulo: "templo-gamification",
   },

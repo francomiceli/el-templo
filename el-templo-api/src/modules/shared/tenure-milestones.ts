@@ -18,6 +18,8 @@
  * legacy: para ellos createdAt es la fecha de import, no la real).
  */
 
+import { tenureAuraFor } from "../aura/amounts";
+
 /** Meses de los dos primeros hitos sub-anuales. */
 const SUB_YEAR_MILESTONES = [3, 6] as const;
 
@@ -32,15 +34,12 @@ export function isMilestone(months: number): boolean {
 }
 
 /**
- * Puntos de Aura que regala cada hito (decisión Franco 2026-08-06):
- * 3m=50, 6m=100, 1 año=250, y cada año siguiente=250 fijo. El default supera
- * al premio automático más alto que existía (racha de 100 días = 200), para que
- * el aniversario se sienta como el reconocimiento más grande.
+ * Puntos de Aura que regala cada hito (fase 214 D-19, reemplaza los valores de
+ * 2026-08-06): 3m=15, 6m=25, 1 año=50, y cada año siguiente=50 fijo. Los montos
+ * viven en `aura/amounts.ts`.
  */
 export function milestoneAura(months: number): number {
-  if (months === 3) return 50;
-  if (months === 6) return 100;
-  return 250; // 12, 24, 36, ...
+  return tenureAuraFor(months);
 }
 
 /**

@@ -28,7 +28,8 @@ import {
 } from "./password-reset-service";
 import { EmailService } from "../email";
 import { appBranchName } from "../shared/app-branch-name";
-import { DEFAULT_TENANT_TIMEZONE } from "../shared/date-utils";
+import { DEFAULT_TENANT_TIMEZONE, todayInTz } from "../shared/date-utils";
+import { effectiveVisible } from "../scheduling/community-visibility";
 import { SegmentationService } from "../segmentation/service";
 import { SubscriptionService } from "../subscriptions/service";
 import {
@@ -54,6 +55,12 @@ import {
   RefreshTokenError,
 } from "./refresh-token-service";
 import { enabledModulesFor } from "../shared/module-flags";
+import { earnedAuraForUser } from "../aura/earned";
+import {
+  getOwnPhotoState,
+  removeCommunityPhoto,
+  type OwnPhotoState,
+} from "../members/profile-photo-service";
 import { recordRegisterAttribution } from "../marketing/attribution-service";
 import type { SignupAttributionBody } from "../marketing/attribution-service";
 import { RATE_LIMITS } from "../shared/rate-limits";
@@ -1096,6 +1103,8 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           introStoriesSeenAt: memberProfiles.introStoriesSeenAt,
           introStoriesCompletedAt: memberProfiles.introStoriesCompletedAt,
           introStoriesLastSlide: memberProfiles.introStoriesLastSlide,
+          communityVisible: memberProfiles.communityVisible,
+          communityNoticeSeenAt: memberProfiles.communityNoticeSeenAt,
         })
         .from(memberProfiles)
         .where(
@@ -1114,6 +1123,19 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       const introStoriesLastSlide =
         profileRows[0]?.introStoriesLastSlide ?? null;
 
+      // Fase 214 (D-05, D-06, D-47): visibilidad efectiva en la lista de
+      // anotados (preferencia guardada o regla por defecto a la fecha local de
+      // la sede) y si ya vio el aviso. Sale de la lectura de arriba, sin
+      // consulta extra.
+      const communityVisible = effectiveVisible({
+        preference: profileRows[0]?.communityVisible ?? null,
+        dateOfBirth: user.dateOfBirth,
+        branchCountry,
+        todayLocal: todayInTz(branchTimezone),
+      });
+      const communityNoticeSeen =
+        (profileRows[0]?.communityNoticeSeenAt ?? null) !== null;
+
       // Fase 176 (D-08, MOD-01/MOD-02): campo aditivo, ordenado
       // alfabéticamente para que la respuesta sea determinística (el `Set`
       // que devuelve `enabledModulesFor` no garantiza orden). Nadie lo
@@ -1121,6 +1143,34 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       const enabledModules = Array.from(
         await enabledModulesFor(ctx.tenantId, fastify.db),
       ).sort();
+
+      // Fase 214 (D-02, D-12): Aura ganada del propio usuario (por JWT, nunca
+      // de otro). Sin distinción por rol: D-15 revocada por Franco el
+      // 2026-11-17. null si el módulo está apagado o la lectura falla: la
+      // lectura del Aura nunca rompe /me.
+      let auraEarned: number | null = null;
+      if (enabledModules.includes("templo-gamification")) {
+        try {
+          auraEarned = await earnedAuraForUser(fastify.db, ctx, userId);
+        } catch (err: unknown) {
+          request.log.warn({ err, userId }, "No se pudo leer el Aura ganada");
+        }
+      }
+
+      // Fase 214 (D-32, D-43): la foto propia y su estado. Siempre URL firmada
+      // del bucket privado (la URL pública de la ficha nunca sale por acá). Si
+      // la lectura falla, sin foto: nunca rompe /me.
+      let photo: OwnPhotoState = {
+        url: null,
+        status: "none",
+        pendingUrl: null,
+        rejectionReason: null,
+      };
+      try {
+        photo = await getOwnPhotoState(fastify, ctx, userId);
+      } catch (err: unknown) {
+        request.log.warn({ err, userId }, "No se pudo leer la foto de perfil");
+      }
 
       return {
         id: user.id,
@@ -1153,6 +1203,9 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         introStoriesSeenAt,
         introStoriesCompletedAt,
         introStoriesLastSlide,
+        // Fase 214 (D-05, D-06): visibilidad efectiva y aviso visto.
+        communityVisible,
+        communityNoticeSeen,
         // Phase 115 (R1, D-15): bar challenge attempt fields. Always present
         // in the response — null for users who haven't participated.
         barChallengeCompleted: user.barChallengeCompleted,
@@ -1163,6 +1216,10 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         // analytics (los legacy cuentan por createdAt).
         memberSince: user.createdAt.toISOString(),
         enabledModules,
+        auraEarned,
+        // Fase 214 (D-32, D-43): foto propia firmada y su estado.
+        photoUrl: photo.url,
+        photo,
       };
     },
   );
@@ -1563,6 +1620,20 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           error: "Solicitud invalida",
           message: "Contraseña incorrecta",
         });
+      }
+
+      // Fase 214 (T-214-15-07): quitar las fotos de la comunidad (propias y de
+      // ficha) y borrar sus objetos, incluido el público. VA ANTES del update de
+      // abajo: `removeCommunityPhoto` necesita leer `photo_url` para saber cuál
+      // es el objeto público de la ficha. Best-effort: si R2 falta o falla, el
+      // borrado de la cuenta sigue.
+      try {
+        await removeCommunityPhoto(fastify, ctx, userId, null);
+      } catch (err: unknown) {
+        request.log.warn(
+          { err, userId },
+          "No se pudieron quitar las fotos al borrar la cuenta",
+        );
       }
 
       // Anonymize PII and mark as deleted

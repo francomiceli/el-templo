@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sketch 036 — Sellos de antigüedad</title>
+<link rel="stylesheet" href="../themes/default.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Geologica:wght@300;400;500;600;700&family=Montserrat:wght@600;700;800&family=Cinzel:wght@600;700&display=swap" rel="stylesheet" />
+<style>
+  /* Paleta de la marca (fuente de verdad: quasar.variables.scss). Los sellos usan SOLO estos tokens; Aged Gold queda para Aura. */
+  :root {
+    --cream: #F2EDE5; --sand: #E5D9C8; --stone: #D9CFC1; --terra: #96593a; --terra-l: #C07A56;
+    --clay: #A0755A; --char: #3D3732; --olive: #8A8472; --gold: #B89B5E;
+    --ink: #2c2318; --aura-gold: #d4b46a;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #e9e3da; font-family: 'Geologica', system-ui, sans-serif; color: var(--ink); }
+  h1.pg { margin: 0; padding: 18px 20px 4px; font: 700 18px system-ui; }
+  p.pg { margin: 0; padding: 0 20px 6px; font: 13px/1.45 system-ui; color: #555; max-width: 900px; }
+  section { padding: 14px 16px 26px; border-top: 1px solid #d5cdc0; }
+  section.ref { background: #ded7cb; }
+  .sec-h { max-width: 1240px; margin: 0 auto 12px; }
+  .sec-h h2 { margin: 0; font: 700 16px system-ui; }
+  .sec-h p { margin: 3px 0 0; font: 13px/1.45 system-ui; color: #555; max-width: 880px; }
+  .tag { display: inline-block; padding: 1px 8px; border-radius: 999px; font: 600 11px system-ui; background: #2c2318; color: #fff; margin-right: 6px; vertical-align: 1px; }
+  .tag.warn { background: #b34a4a; }
+  .row { display: flex; flex-wrap: wrap; gap: 26px; justify-content: center; align-items: flex-start; }
+  .col { width: 375px; }
+  .cap { font: 600 12.5px system-ui; margin: 0 0 6px; text-align: center; }
+  .cap small { display: block; font-weight: 400; color: #666; font-size: 11.5px; }
+
+  /* maqueta: encabezado de Mi Templo a 375 px (copia de MiTemploHeader.vue) */
+  .hd { width: 375px; border-radius: 22px 22px 0 0; overflow: hidden; box-shadow: 0 0 0 7px #1d1a17, 0 12px 30px rgba(0,0,0,.22); background: var(--cream); }
+  .appbar { height: 52px; display: flex; align-items: center; gap: 10px; padding: 0 14px; background: linear-gradient(135deg, #96593a, #b89b5e); color: #fff; font: 800 17px 'Montserrat', sans-serif; letter-spacing: .02em; }
+  .appbar i { width: 28px; height: 28px; border-radius: 7px; background: var(--cream); }
+  .appbar .bell { margin-left: auto; font-size: 18px; opacity: .9; }
+  .mth { display: flex; align-items: center; gap: 16px; padding: 8px 16px 16px; background: linear-gradient(135deg, #96593a 0%, #b89b5e 100%); }
+  .photo { flex: none; position: relative; width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; background: linear-gradient(135deg, #8a5236, #6b3a22); color: #fff; font: 700 17px 'Montserrat', sans-serif; box-shadow: 0 0 0 2px #f6efdc, 0 0 0 4px var(--aura-gold); }
+  .txt { flex: 1; min-width: 0; }
+  .nm { display: flex; align-items: center; margin: 0; font: 600 22px/1.2 'Montserrat', sans-serif; color: #fff; }
+  .nm .seal { flex: none; margin-left: 8px; line-height: 0; filter: drop-shadow(0 1px 2px rgba(0,0,0,.3)); }
+  .tn { margin: 2px 0 0; font: 400 13px/1.3 'Geologica', sans-serif; color: #fff; }
+  .chip { flex: none; padding: 2px; border-radius: 16px; background: linear-gradient(135deg, #f5dd7e, #d4b46a 55%, #a8843a); box-shadow: 0 6px 16px rgba(60,40,15,.22); }
+  .chip .in { display: flex; flex-direction: column; align-items: center; min-width: 80px; padding: 8px 16px; border-radius: 14px; background: linear-gradient(180deg, #fffdf8, #f6efdc); }
+  .chip b { font: 800 22px/1 'Montserrat', sans-serif; color: #6a5217; }
+  .chip span { margin-top: 4px; font: 700 10px 'Cinzel', serif; letter-spacing: .18em; color: #7d6520; white-space: nowrap; }
+  .chip em { font-style: normal; color: #c9a227; }
+  .strip { height: 16px; background: var(--cream); }
+
+  /* lupa */
+  .lupa { width: 375px; margin-top: 18px; display: flex; gap: 10px; justify-content: center; }
+  .lupa .z { flex: 1; border-radius: 14px; padding: 10px 6px 8px; text-align: center; background: linear-gradient(135deg, #96593a 0%, #b89b5e 100%); color: #fff; font: 600 11px/1.3 system-ui; }
+  .lupa .z svg { display: block; margin: 0 auto 6px; }
+  .lupa .z small { display: block; font-weight: 400; opacity: .9; }
+  .sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+  .sz { max-width: 1240px; margin: 10px auto 8px; font: 600 12.5px system-ui; }
+  section.ref2 { opacity: .85; }
+  .note { max-width: 1240px; margin: 14px auto 0; font: 12.5px/1.5 system-ui; color: #444; }
+  .note b { color: #222; }
+</style>
+</head>
+<body>
+
+<svg class="sprite" aria-hidden="true">
+  <defs>
+    <linearGradient id="g-gold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fbf8f3"/><stop offset="1" stop-color="#f2ede5"/></linearGradient>
+    <linearGradient id="g-silver" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f2f3f6"/><stop offset=".55" stop-color="#c8ccd4"/><stop offset="1" stop-color="#9aa0ab"/></linearGradient>
+    <linearGradient id="g-bronze" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e8c9a0"/><stop offset=".55" stop-color="#c98a4e"/><stop offset="1" stop-color="#8a5a2b"/></linearGradient>
+    <!-- Logo del Templo simplificado: frontón, arquitrabe, 4 columnas, base -->
+    <symbol id="tmp" viewBox="0 0 24 21">
+      <polygon points="1,6.4 12,1 23,6.4"/>
+      <rect x="1.6" y="7.3" width="20.8" height="1.7"/>
+      <rect x="3.4" y="10" width="2.2" height="6.6"/><rect x="8.4" y="10" width="2.2" height="6.6"/>
+      <rect x="13.4" y="10" width="2.2" height="6.6"/><rect x="18.4" y="10" width="2.2" height="6.6"/>
+      <rect x="1.6" y="17.3" width="20.8" height="1.4"/><rect x="0.6" y="19.2" width="22.8" height="1.4"/>
+    </symbol>
+  </defs>
+</svg>
+
+<h1 class="pg">Sketch 036 — Sellos de antigüedad con la paleta de la marca</h1>
+<p class="pg">Cada variante es una familia de tres sellos (3 meses · 6 meses · 1 año o más) con solo colores de la paleta, sin dorado. Se muestran en el encabezado de Mi Templo a 375 px, al tamaño real (21 px) y con lupa debajo. El aro dorado de la foto y la ficha de Aura son los únicos dorados del encabezado.</p>
+
+<section class="ref">
+  <div class="sec-h"><h2><span class="tag warn">HOY</span>Referencia: como está en la app</h2>
+  <p>Bronce y plata usan degradés metálicos (naranja cobrizo y gris azulado) que no son de la paleta. El de 1 año ya es crema con logo terracota (fase 214, D-61).</p></div>
+  <div class="row" id="row-hoy"></div>
+</section>
+
+<section>
+  <div class="sec-h"><h2><span class="tag">A</span>Variante A · Del contorno al relleno</h2>
+  <p>Mismo roseta en los tres. Nivel 1 es solo contorno crema (hueco), nivel 2 va relleno de arcilla profunda (#7d5d42, el secundario de la app) con el logo crema, nivel 3 queda como hoy: roseta crema llena con logo terracota (el más luminoso). Se lee por cuánto "peso" tiene el sello.</p></div>
+  <div class="row" id="row-A"></div>
+  <p class="note"><b>Frente al aro de Aura:</b> ninguno es dorado ni redondo liso; la roseta dentada ya los separa del aro. <b>Riesgo:</b> el contorno del nivel 1 es fino a 21 px.</p>
+</section>
+
+<section>
+  <div class="sec-h"><h2><span class="tag">B</span>Variante B · Anillos</h2>
+  <p>Mismo color en los tres (roseta crema, logo terracota). El nivel lo marca la cantidad de anillos terracota adentro: ninguno, uno, dos. Es la familia más "de una sola pieza" y la que mejor se lee como una misma insignia que crece.</p></div>
+  <div class="row" id="row-B"></div>
+  <p class="note"><b>Frente al aro de Aura:</b> los anillos son terracota, no dorados. <b>Riesgo:</b> a 21 px el logo se achica con cada anillo y la diferencia 1 → 2 anillos es sutil; si gana, convendría pasar el sello a 24 px.</p>
+</section>
+
+<section>
+  <div class="sec-h"><h2><span class="tag">C</span>Variante C · Tono: piedra, oliva, carbón</h2>
+  <p>Mismo roseta y logo; cambia el color de relleno según la antigüedad y se oscurece con los años: Warm Stone con logo carbón, Olive Stone con logo crema y Deep Charcoal con logo crema. El nivel 3 deja de ser crema.</p></div>
+  <div class="row" id="row-C"></div>
+  <p class="note"><b>Frente al aro de Aura:</b> es la que más se aleja del dorado (los tonos neutros y el carbón no se parecen al aro claro). <b>Riesgo:</b> cambia el sello de 1 año que hoy ya está aprobado.</p>
+</section>
+
+<script>
+  const T = { cream: '#F2EDE5', sand: '#E5D9C8', stone: '#D9CFC1', terra: '#96593a', clay: '#A0755A', clayD: '#7d5d42', char: '#3D3732', olive: '#8A8472' }
+  const ROSETTE = '24,12 21.85,14.64 22.39,18 19.21,19.21 18,22.39 14.64,21.85 12,24 9.36,21.85 6,22.39 4.79,19.21 1.61,18 2.15,14.64 0,12 2.15,9.36 1.61,6 4.79,4.79 6,1.61 9.36,2.15 12,0 14.64,2.15 18,1.61 19.21,4.79 22.39,6 21.85,9.36'
+  const LEVELS = [
+    { n: 1, tn: '3 meses en El Templo', lab: 'Nivel 1 · 3 meses', old: 'bronce' },
+    { n: 2, tn: '6 meses en El Templo', lab: 'Nivel 2 · 6 meses', old: 'plata' },
+    { n: 3, tn: '1 año en El Templo', lab: 'Nivel 3 · 1 año o más', old: 'crema' },
+  ]
+  const logo = (w, color) => { const h = w * 21 / 24; return `<use href="#tmp" x="${12 - w / 2}" y="${12 - h / 2 + 0.2}" width="${w}" height="${h}" style="color:${color}" fill="currentColor"/>` }
+  const poly = (fill, stroke, sw) => `<polygon points="${ROSETTE}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" stroke-linejoin="round"/>`
+  const ring = (r, color) => `<circle cx="12" cy="12" r="${r}" fill="none" stroke="${color}" stroke-width="0.9"/>`
+
+  const BODY = {
+    hoy: [
+      () => poly('url(#g-bronze)', 'url(#g-bronze)', 1.2).replace('<polygon', '<polygon style="filter:brightness(.92)"') + logo(16, '#fff'),
+      () => poly('url(#g-silver)', 'url(#g-silver)', 1.2).replace('<polygon', '<polygon style="filter:brightness(.92)"') + logo(16, '#fff'),
+      () => poly('url(#g-gold)', T.stone, 1.2) + logo(16, T.terra),
+    ],
+    A: [
+      () => poly('none', T.cream, 1.5) + logo(13.5, T.cream),
+      () => poly(T.clayD, T.cream, 1.2) + logo(14, T.cream),
+      () => poly(T.cream, T.stone, 1.2) + logo(16, T.terra),
+    ],
+    B: [
+      () => poly(T.cream, T.stone, 1.2) + logo(10, T.terra),
+      () => poly(T.cream, T.stone, 1.2) + ring(9.2, T.terra) + logo(10, T.terra),
+      () => poly(T.cream, T.stone, 1.2) + ring(10, T.terra) + ring(8, T.terra) + logo(10, T.terra),
+    ],
+    C: [
+      () => poly(T.stone, T.cream, 1) + logo(16, T.char),
+      () => poly(T.olive, T.cream, 1.2) + logo(16, T.cream),
+      () => poly(T.char, T.stone, 1.2) + logo(16, T.cream),
+    ],
+  }
+  const seal = (v, i, s = 21) => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" aria-hidden="true">${BODY[v][i]()}</svg>`
+
+  function header(v, i, sz = 21) {
+    const L = LEVELS[i]
+    return `<div class="hd"><div class="appbar"><i></i>EL TEMPLO<span class="bell">🔔</span></div>
+      <div class="mth"><span class="photo">FM</span>
+        <div class="txt"><h1 class="nm"><span>Franco</span><span class="seal">${seal(v, i, sz)}</span></h1><p class="tn">${L.tn}</p></div>
+        <div class="chip"><div class="in"><b>320</b><span><em>✦</em> AURA</span></div></div></div>
+      <div class="strip"></div></div>`
+  }
+  function build(v, sz = 21, rid = v) {
+    const name = v === 'hoy' ? 'Hoy' : 'Variante ' + v
+    document.getElementById('row-' + rid).innerHTML = LEVELS.map((L, i) => `<div class="col">
+      <p class="cap">${name}${sz !== 21 ? ' (' + sz + ' px)' : ''} · ${L.lab}${v === 'hoy' ? `<small>hoy: ${L.old}</small>` : ''}</p>
+      ${header(v, i, sz)}
+      <div class="lupa"><div class="z">${seal(v, i, 56)}${name}${sz !== 21 ? ' · ' + sz + ' px' : ''} · N${L.n}<small>${L.tn.replace(' en El Templo', '')}</small></div></div></div>`).join('')
+  }
+  ;['hoy', 'A', 'B', 'C'].forEach((v) => build(v))
+  build('B', 24, 'B24')
+</script>
+</body>
+</html>

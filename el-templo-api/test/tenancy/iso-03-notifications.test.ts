@@ -55,10 +55,20 @@
  * @see test/tenancy/iso-03-campaigns.test.ts — el precedente inmediato (175.1-03)
  * @see .planning/phases/175.1-.../175.1-CONTEXT.md — D-01, D-07, D-11
  */
-import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
+import {
+  describe,
+  it,
+  expect,
+  beforeAll,
+  beforeEach,
+  afterAll,
+  afterEach,
+} from "vitest";
 import type { FastifyInstance } from "fastify";
-import { sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { createTestApp, cleanAllTestData, getAuthToken } from "../helpers";
+import * as schema from "../../src/db/schema";
+import { tenantValues } from "../../src/modules/shared/tenant";
 import {
   seedSecondTenant,
   limpiarSegundoGimnasio,
@@ -164,13 +174,19 @@ function deleteComo(url: string, token: string) {
 }
 
 /** Body mínimo válido para crear una regla propia (kind custom). */
-function bodyReglaPropia(extra: Record<string, unknown> = {}): Record<string, unknown> {
+function bodyReglaPropia(
+  extra: Record<string, unknown> = {},
+): Record<string, unknown> {
   return {
     name: `${MARCA_ISO03N} regla`,
     category: "planes",
     title: `${MARCA_ISO03N} Tu cuota vence pronto`,
     body: "Renová antes del vencimiento",
-    destination: { type: "app_section", section: "mi_templo", whatsappText: null },
+    destination: {
+      type: "app_section",
+      section: "mi_templo",
+      whatsappText: null,
+    },
     triggerType: "plan_expires_in_days",
     triggerValue: 5,
     cooldownDays: 30,
@@ -189,7 +205,10 @@ async function activarSociosDeAmbosGimnasios(): Promise<void> {
   );
   const idsDos = [dos.memberId, gym2.socios[0].id, gym2.socios[1].id];
   await app.db.execute(
-    sql`UPDATE users SET status = 'activo' WHERE tenant_id = ${TENANT_DOS} AND id IN (${sql.join(idsDos.map((id) => sql`${id}`), sql`, `)})`,
+    sql`UPDATE users SET status = 'activo' WHERE tenant_id = ${TENANT_DOS} AND id IN (${sql.join(
+      idsDos.map((id) => sql`${id}`),
+      sql`, `,
+    )})`,
   );
 }
 
@@ -198,7 +217,12 @@ function porQueImportaElAislamiento(ruta: string, detalle: string): string {
   return (
     `${ruta} mezcló datos de El Templo (${TENANT_TEMPLO}) y el gimnasio ` +
     `${TENANT_DOS}: ${detalle}. Revisar el \`tenantWhere(tabla, ctx)\` del ` +
-    `método que sirve esta ruta en src/modules/notifications/*.ts. NO ` +
+    // Sin barra-asterisco en el texto: `sinComentarios` de la batería ISO-03
+    // (iso-03-cobertura-analytics-resto) es un regex ingenuo y lo toma por
+    // apertura de un comentario de bloque, que se cierra en el primer cierre
+    // de comentario que encuentre, aunque esté 800 líneas más abajo (los
+    // `tenant-safe` del SQL). Eso borraba todos los `describe` de este archivo.
+    `método que sirve esta ruta en los archivos de src/modules/notifications. NO ` +
     `"arreglar" esto filtrando en el front.`
   );
 }
@@ -251,7 +275,10 @@ describe("listar plantillas — GET /api/notifications/admin/templates", () => {
     ).toBe(1);
     expect(
       colisionantes[0]?.title,
-      porQueImportaElAislamiento(RUTA, "el título debería ser el propio del gimnasio 2"),
+      porQueImportaElAislamiento(
+        RUTA,
+        "el título debería ser el propio del gimnasio 2",
+      ),
     ).toBe(dos.templateTitle);
     expect(colisionantes[0]?.title).not.toBe(templo.templateTitle);
   });
@@ -279,12 +306,19 @@ describe("actualizar plantilla — PUT /api/notifications/admin/templates/:id", 
   const RUTA = "PUT /api/notifications/admin/templates/:id";
 
   it("aislamiento: el owner del gimnasio 2 no puede editar la plantilla de El Templo (404 'no encontrado', NUNCA 403) y NO la modifica", async () => {
-    const res = await putComo(`/admin/templates/${templo.templateId}`, dos.ownerToken, {
-      title: `${MARCA_ISO03N} HACKEADO`,
-    });
+    const res = await putComo(
+      `/admin/templates/${templo.templateId}`,
+      dos.ownerToken,
+      {
+        title: `${MARCA_ISO03N} HACKEADO`,
+      },
+    );
     expect(
       res.statusCode,
-      porQueImportaElAislamiento(RUTA, `esperaba 404, recibió ${res.statusCode}`),
+      porQueImportaElAislamiento(
+        RUTA,
+        `esperaba 404, recibió ${res.statusCode}`,
+      ),
     ).toBe(404);
     const body = JSON.parse(res.body) as { message: string };
     expect(body.message).toContain("Template no encontrado");
@@ -303,11 +337,19 @@ describe("actualizar plantilla — PUT /api/notifications/admin/templates/:id", 
 
   it("aislamiento: el owner del gimnasio 2 SÍ edita SU propia plantilla (misma key que la de El Templo), sin tocar la de El Templo — 'un PUT no pisa la del otro'", async () => {
     const nuevoTitulo = `${MARCA_ISO03N} Editado Gdos`;
-    const res = await putComo(`/admin/templates/${dos.templateId}`, dos.ownerToken, {
-      title: nuevoTitulo,
-    });
+    const res = await putComo(
+      `/admin/templates/${dos.templateId}`,
+      dos.ownerToken,
+      {
+        title: nuevoTitulo,
+      },
+    );
     expect(res.statusCode, res.body).toBe(200);
-    const body = JSON.parse(res.body) as { id: number; title: string; templateKey: string };
+    const body = JSON.parse(res.body) as {
+      id: number;
+      title: string;
+      templateKey: string;
+    };
     expect(body.templateKey).toBe(TEMPLATE_KEY_COLISION);
     expect(body.title).toBe(nuevoTitulo);
 
@@ -354,7 +396,11 @@ describe("sembrar catálogo — POST /api/notifications/admin/seed-templates", (
     // El Templo siembra su catálogo PRIMERO.
     const resTemplo = await postComo("/admin/seed-templates", templeAdminToken);
     expect(resTemplo.statusCode, resTemplo.body).toBe(200);
-    const filaTemploAntes = await filaTemplatePorTenantYKey(app, TENANT_TEMPLO, SEED_KEY_REAL);
+    const filaTemploAntes = await filaTemplatePorTenantYKey(
+      app,
+      TENANT_TEMPLO,
+      SEED_KEY_REAL,
+    );
     expect(
       filaTemploAntes,
       `precondición: El Templo debería tener la key ${SEED_KEY_REAL} sembrada`,
@@ -364,7 +410,11 @@ describe("sembrar catálogo — POST /api/notifications/admin/seed-templates", (
     const resDos = await postComo("/admin/seed-templates", dos.ownerToken);
     expect(resDos.statusCode, resDos.body).toBe(200);
 
-    const filaDos = await filaTemplatePorTenantYKey(app, TENANT_DOS, SEED_KEY_REAL);
+    const filaDos = await filaTemplatePorTenantYKey(
+      app,
+      TENANT_DOS,
+      SEED_KEY_REAL,
+    );
     expect(
       filaDos,
       porQueImportaElAislamiento(
@@ -376,16 +426,27 @@ describe("sembrar catálogo — POST /api/notifications/admin/seed-templates", (
     // Son DOS filas distintas — el catálogo es per-tenant, no compartido.
     expect(
       filaDos?.id,
-      porQueImportaElAislamiento(RUTA, "el gimnasio 2 y El Templo comparten la MISMA fila"),
+      porQueImportaElAislamiento(
+        RUTA,
+        "el gimnasio 2 y El Templo comparten la MISMA fila",
+      ),
     ).not.toBe(filaTemploAntes?.id);
   });
 
   it("control: la plantilla de El Templo sembrada antes sigue intacta después de que el gimnasio 2 siembra la suya", async () => {
     await postComo("/admin/seed-templates", templeAdminToken);
-    const antes = await filaTemplatePorTenantYKey(app, TENANT_TEMPLO, SEED_KEY_REAL);
+    const antes = await filaTemplatePorTenantYKey(
+      app,
+      TENANT_TEMPLO,
+      SEED_KEY_REAL,
+    );
 
     await postComo("/admin/seed-templates", dos.ownerToken);
-    const despues = await filaTemplatePorTenantYKey(app, TENANT_TEMPLO, SEED_KEY_REAL);
+    const despues = await filaTemplatePorTenantYKey(
+      app,
+      TENANT_TEMPLO,
+      SEED_KEY_REAL,
+    );
 
     expect(despues?.id).toBe(antes?.id);
     expect(despues?.title).toBe(antes?.title);
@@ -407,7 +468,10 @@ describe("crear regla propia — POST /api/notifications/admin/templates", () =>
     );
     expect(
       res.statusCode,
-      porQueImportaElAislamiento(RUTA, `esperaba 400, recibió ${res.statusCode}`),
+      porQueImportaElAislamiento(
+        RUTA,
+        `esperaba 400, recibió ${res.statusCode}`,
+      ),
     ).toBe(400);
     const body = JSON.parse(res.body) as { message: string };
     expect(body.message).toContain("fuera del tenant");
@@ -422,9 +486,16 @@ describe("crear regla propia — POST /api/notifications/admin/templates", () =>
   });
 
   it("control: cada gimnasio crea su regla propia en su tenant y NO la ve el otro", async () => {
-    const resTemplo = await postComo("/admin/templates", templeAdminToken, bodyReglaPropia());
+    const resTemplo = await postComo(
+      "/admin/templates",
+      templeAdminToken,
+      bodyReglaPropia(),
+    );
     expect(resTemplo.statusCode, resTemplo.body).toBe(201);
-    const creadaTemplo = JSON.parse(resTemplo.body) as { id: number; kind: string };
+    const creadaTemplo = JSON.parse(resTemplo.body) as {
+      id: number;
+      kind: string;
+    };
     expect(creadaTemplo.kind).toBe("custom");
 
     const resDos = await postComo(
@@ -442,11 +513,15 @@ describe("crear regla propia — POST /api/notifications/admin/templates", () =>
 
     // El listado de cada uno trae SOLO su regla propia.
     const listaTemplo = (
-      JSON.parse((await getComo("/admin/templates", templeAdminToken)).body) as {
+      JSON.parse(
+        (await getComo("/admin/templates", templeAdminToken)).body,
+      ) as {
         templates: Array<{ id: number; kind: string }>;
       }
     ).templates;
-    const idsTemplo = listaTemplo.filter((t) => t.kind === "custom").map((t) => t.id);
+    const idsTemplo = listaTemplo
+      .filter((t) => t.kind === "custom")
+      .map((t) => t.id);
     expect(idsTemplo).toEqual([creadaTemplo.id]);
 
     const listaDos = (
@@ -457,7 +532,10 @@ describe("crear regla propia — POST /api/notifications/admin/templates", () =>
     const idsDos = listaDos.filter((t) => t.kind === "custom").map((t) => t.id);
     expect(
       idsDos,
-      porQueImportaElAislamiento(RUTA, "el gimnasio 2 ve la regla propia de El Templo"),
+      porQueImportaElAislamiento(
+        RUTA,
+        "el gimnasio 2 ve la regla propia de El Templo",
+      ),
     ).toEqual([creadaDos.id]);
   });
 });
@@ -470,10 +548,16 @@ describe("borrar plantilla — DELETE /api/notifications/admin/templates/:id", (
   const RUTA = "DELETE /api/notifications/admin/templates/:id";
 
   it("aislamiento: el owner del gimnasio 2 no puede borrar la plantilla de El Templo (404 'no encontrado', NUNCA 403) y la fila sigue", async () => {
-    const res = await deleteComo(`/admin/templates/${templo.templateId}`, dos.ownerToken);
+    const res = await deleteComo(
+      `/admin/templates/${templo.templateId}`,
+      dos.ownerToken,
+    );
     expect(
       res.statusCode,
-      porQueImportaElAislamiento(RUTA, `esperaba 404, recibió ${res.statusCode}`),
+      porQueImportaElAislamiento(
+        RUTA,
+        `esperaba 404, recibió ${res.statusCode}`,
+      ),
     ).toBe(404);
     const body = JSON.parse(res.body) as { message: string };
     expect(body.message).toContain("Template no encontrado");
@@ -481,13 +565,19 @@ describe("borrar plantilla — DELETE /api/notifications/admin/templates/:id", (
     const filaTemplo = await plantillaPorId(app, templo.templateId);
     expect(
       filaTemplo,
-      porQueImportaElAislamiento(RUTA, "un DELETE ajeno borró la plantilla de El Templo"),
+      porQueImportaElAislamiento(
+        RUTA,
+        "un DELETE ajeno borró la plantilla de El Templo",
+      ),
     ).not.toBeNull();
     expect(filaTemplo?.tenantId).toBe(TENANT_TEMPLO);
   });
 
   it("control: El Templo borra su propia plantilla (misma key que la del gimnasio 2) y la del gimnasio 2 sigue intacta", async () => {
-    const res = await deleteComo(`/admin/templates/${templo.templateId}`, templeAdminToken);
+    const res = await deleteComo(
+      `/admin/templates/${templo.templateId}`,
+      templeAdminToken,
+    );
     expect(res.statusCode, res.body).toBe(200);
 
     expect(await plantillaPorId(app, templo.templateId)).toBeNull();
@@ -516,25 +606,40 @@ describe("preview de audiencia — POST /api/notifications/admin/templates/previ
 
   it("aislamiento: el gimnasio 2 no puede previsualizar con alcance a una sede de El Templo (400) y su conteo global NO incluye socios de El Templo", async () => {
     await activarSociosDeAmbosGimnasios();
-    const resAjena = await postComo("/admin/templates/preview-audience", dos.ownerToken, {
-      ...condicionHoy,
-      scopeBranchIds: [templo.branchId],
-    });
+    const resAjena = await postComo(
+      "/admin/templates/preview-audience",
+      dos.ownerToken,
+      {
+        ...condicionHoy,
+        scopeBranchIds: [templo.branchId],
+      },
+    );
     expect(
       resAjena.statusCode,
-      porQueImportaElAislamiento(RUTA, `esperaba 400, recibió ${resAjena.statusCode}`),
+      porQueImportaElAislamiento(
+        RUTA,
+        `esperaba 400, recibió ${resAjena.statusCode}`,
+      ),
     ).toBe(400);
 
     // Sin alcance = "todos MIS socios": tiene que dar lo mismo que acotado a
     // la única sede del gimnasio 2. Si sumara los de El Templo, difiere.
-    const resTodos = await postComo("/admin/templates/preview-audience", dos.ownerToken, condicionHoy);
+    const resTodos = await postComo(
+      "/admin/templates/preview-audience",
+      dos.ownerToken,
+      condicionHoy,
+    );
     expect(resTodos.statusCode, resTodos.body).toBe(200);
     const todos = (JSON.parse(resTodos.body) as { count: number }).count;
 
-    const resPropia = await postComo("/admin/templates/preview-audience", dos.ownerToken, {
-      ...condicionHoy,
-      scopeBranchIds: [gym2.branchId],
-    });
+    const resPropia = await postComo(
+      "/admin/templates/preview-audience",
+      dos.ownerToken,
+      {
+        ...condicionHoy,
+        scopeBranchIds: [gym2.branchId],
+      },
+    );
     expect(resPropia.statusCode, resPropia.body).toBe(200);
     const propia = (JSON.parse(resPropia.body) as { count: number }).count;
 
@@ -549,9 +654,15 @@ describe("preview de audiencia — POST /api/notifications/admin/templates/previ
 
   it("control: cada gimnasio cuenta a sus propios socios activos (al menos los de la fixture)", async () => {
     await activarSociosDeAmbosGimnasios();
-    const resDos = await postComo("/admin/templates/preview-audience", dos.ownerToken, condicionHoy);
+    const resDos = await postComo(
+      "/admin/templates/preview-audience",
+      dos.ownerToken,
+      condicionHoy,
+    );
     expect(resDos.statusCode, resDos.body).toBe(200);
-    expect((JSON.parse(resDos.body) as { count: number }).count).toBeGreaterThanOrEqual(1);
+    expect(
+      (JSON.parse(resDos.body) as { count: number }).count,
+    ).toBeGreaterThanOrEqual(1);
 
     const resTemplo = await postComo(
       "/admin/templates/preview-audience",
@@ -559,7 +670,9 @@ describe("preview de audiencia — POST /api/notifications/admin/templates/previ
       { ...condicionHoy, scopeBranchIds: [templo.branchId] },
     );
     expect(resTemplo.statusCode, resTemplo.body).toBe(200);
-    expect((JSON.parse(resTemplo.body) as { count: number }).count).toBeGreaterThanOrEqual(1);
+    expect(
+      (JSON.parse(resTemplo.body) as { count: number }).count,
+    ).toBeGreaterThanOrEqual(1);
   });
 });
 
@@ -572,7 +685,11 @@ describe("envío de prueba — POST /api/notifications/admin/templates/send-test
   const BODY = {
     title: `${MARCA_ISO03N} Prueba`,
     body: "Cuerpo de la prueba",
-    destination: { type: "app_section", section: "mi_templo", whatsappText: null },
+    destination: {
+      type: "app_section",
+      section: "mi_templo",
+      whatsappText: null,
+    },
   };
 
   it("aislamiento: el gimnasio 2 no puede mandarle una prueba a un socio de El Templo (404, indistinguible de inexistente) y no queda ninguna fila nueva", async () => {
@@ -584,7 +701,10 @@ describe("envío de prueba — POST /api/notifications/admin/templates/send-test
     });
     expect(
       res.statusCode,
-      porQueImportaElAislamiento(RUTA, `esperaba 404, recibió ${res.statusCode}`),
+      porQueImportaElAislamiento(
+        RUTA,
+        `esperaba 404, recibió ${res.statusCode}`,
+      ),
     ).toBe(404);
 
     const despues = await ultimaPendingDeUsuario(app, templo.memberId);
@@ -607,7 +727,10 @@ describe("envío de prueba — POST /api/notifications/admin/templates/send-test
     expect(res.statusCode, res.body).toBe(200);
     // Sin FCM inicializado en esta batería el envío real falla, pero la fila
     // se escribe igual (status sent -> failed). Lo que importa acá es el tenant.
-    const body = JSON.parse(res.body) as { status: string; notificationId?: number };
+    const body = JSON.parse(res.body) as {
+      status: string;
+      notificationId?: number;
+    };
     expect(["sent", "failed"]).toContain(body.status);
 
     const despues = await ultimaPendingDeUsuario(app, dos.memberId);
@@ -744,7 +867,11 @@ describe("actualizar preferencia — PUT /api/notifications/preferences", () => 
     });
     expect(res.statusCode, res.body).toBe(200);
 
-    const filaDos = await preferenciaPorUsuarioYCategoria(app, dos.memberId, "motivacion");
+    const filaDos = await preferenciaPorUsuarioYCategoria(
+      app,
+      dos.memberId,
+      "motivacion",
+    );
     expect(
       filaDos?.tenantId,
       porQueImportaElAislamiento(
@@ -755,7 +882,11 @@ describe("actualizar preferencia — PUT /api/notifications/preferences", () => 
     expect(filaDos?.enabled).toBe(false);
 
     // El Templo no sembró 'motivacion' — sigue sin fila propia (default).
-    const filaTemplo = await preferenciaPorUsuarioYCategoria(app, templo.memberId, "motivacion");
+    const filaTemplo = await preferenciaPorUsuarioYCategoria(
+      app,
+      templo.memberId,
+      "motivacion",
+    );
     expect(filaTemplo).toBeNull();
   });
 
@@ -766,11 +897,19 @@ describe("actualizar preferencia — PUT /api/notifications/preferences", () => 
     });
     expect(res.statusCode, res.body).toBe(200);
 
-    const filaTemplo = await preferenciaPorUsuarioYCategoria(app, templo.memberId, "motivacion");
+    const filaTemplo = await preferenciaPorUsuarioYCategoria(
+      app,
+      templo.memberId,
+      "motivacion",
+    );
     expect(filaTemplo?.tenantId).toBe(TENANT_TEMPLO);
     expect(filaTemplo?.enabled).toBe(false);
 
-    const filaDos = await preferenciaPorUsuarioYCategoria(app, dos.memberId, "motivacion");
+    const filaDos = await preferenciaPorUsuarioYCategoria(
+      app,
+      dos.memberId,
+      "motivacion",
+    );
     expect(filaDos).toBeNull();
   });
 });
@@ -794,7 +933,10 @@ describe("marcar abierta — POST /api/notifications/:id/opened", () => {
     const despuesDos = await plantillaPorId(app, dos.templateId);
     expect(
       despuesDos?.openedCount,
-      porQueImportaElAislamiento(RUTA, "openedCount de la plantilla propia no incrementó"),
+      porQueImportaElAislamiento(
+        RUTA,
+        "openedCount de la plantilla propia no incrementó",
+      ),
     ).toBe(1);
 
     const despuesTemplo = await plantillaPorId(app, templo.templateId);
@@ -808,7 +950,10 @@ describe("marcar abierta — POST /api/notifications/:id/opened", () => {
   });
 
   it("control: abrir la notificación propia de El Templo incrementa SU plantilla, la del gimnasio 2 queda en 0", async () => {
-    const res = await postComo(`/${templo.pendingId}/opened`, templo.memberToken);
+    const res = await postComo(
+      `/${templo.pendingId}/opened`,
+      templo.memberToken,
+    );
     expect(res.statusCode, res.body).toBe(200);
 
     const despuesTemplo = await plantillaPorId(app, templo.templateId);
@@ -816,5 +961,132 @@ describe("marcar abierta — POST /api/notifications/:id/opened", () => {
 
     const despuesDos = await plantillaPorId(app, dos.templateId);
     expect(despuesDos?.openedCount).toBe(0);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Bandeja de avisos — /api/members/notifications (fase 215, plan 14)
+// Familia aparte de `/api/notifications`: no mueve el conteo de 8 rutas.
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("bandeja de avisos — /api/members/notifications (fase 215, plan 14)", () => {
+  const BASE_BANDEJA = "/api/members/notifications";
+  const TITULO_TEMPLO = `${MARCA_ISO03N} bandeja templo`;
+  const TITULO_DOS = `${MARCA_ISO03N} bandeja gdos`;
+  let avisoTemploId: number;
+  let avisoDosId: number;
+
+  async function sembrarAviso(
+    tenantId: number,
+    userId: number,
+    title: string,
+  ): Promise<number> {
+    const [res] = await app.db.insert(schema.memberNotifications).values(
+      tenantValues(
+        { tenantId },
+        {
+          userId,
+          pendingNotificationId: null,
+          dedupeKey: `${MARCA_ISO03N}-bandeja-${tenantId}-${userId}`,
+          kind: "otro",
+          title,
+          body: "Cuerpo",
+          route: null,
+          destinationType: "app_section",
+          destinationSection: null,
+          whatsappText: null,
+          shownAt: new Date(Date.now() - 60_000),
+        },
+      ),
+    );
+    return res.insertId;
+  }
+
+  async function lecturaDelAviso(id: number): Promise<Date | null | undefined> {
+    const [fila] = await app.db
+      .select({ readAt: schema.memberNotifications.readAt })
+      .from(schema.memberNotifications)
+      .where(
+        and(
+          eq(schema.memberNotifications.id, id),
+          sql`/* tenant-safe: lectura de evidencia por PK propia, de la fila de cualquiera de los dos gimnasios */ 1 = 1`,
+        ),
+      );
+    return fila?.readAt;
+  }
+
+  beforeEach(async () => {
+    avisoTemploId = await sembrarAviso(
+      TENANT_TEMPLO,
+      templo.memberId,
+      TITULO_TEMPLO,
+    );
+    avisoDosId = await sembrarAviso(TENANT_DOS, dos.memberId, TITULO_DOS);
+  });
+
+  afterEach(async () => {
+    await app.db.execute(
+      sql`DELETE FROM member_notifications WHERE dedupe_key LIKE ${`${MARCA_ISO03N}-bandeja-%`} /* tenant-safe: limpieza de test, solo las filas sembradas por esta batería */`,
+    );
+  });
+
+  function getBandeja(url: string, token: string) {
+    return app.inject({
+      method: "GET",
+      url: `${BASE_BANDEJA}${url}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+  }
+
+  it("aislamiento: el socio del gimnasio 2 ve en su lista y su contador solo el aviso propio", async () => {
+    const lista = await getBandeja("", dos.memberToken);
+    expect(lista.statusCode, lista.body).toBe(200);
+    const cuerpo = JSON.parse(lista.body) as { items: { title: string }[] };
+    expect(
+      cuerpo.items.map((item) => item.title),
+      porQueImportaElAislamiento(
+        "GET /api/members/notifications",
+        "la lista del gimnasio 2 trajo avisos que no son suyos",
+      ),
+    ).toEqual([TITULO_DOS]);
+
+    const contador = await getBandeja("/unread-count", dos.memberToken);
+    expect(contador.statusCode, contador.body).toBe(200);
+    expect(JSON.parse(contador.body)).toEqual({ count: 1 });
+  });
+
+  it("control: el socio de El Templo ve solo el aviso propio", async () => {
+    const lista = await getBandeja("", templo.memberToken);
+    expect(lista.statusCode, lista.body).toBe(200);
+    const cuerpo = JSON.parse(lista.body) as { items: { title: string }[] };
+    expect(cuerpo.items.map((item) => item.title)).toEqual([TITULO_TEMPLO]);
+  });
+
+  it("aislamiento: marcar leído el aviso de El Templo con el token del gimnasio 2 responde 404 y no toca la fila", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: `${BASE_BANDEJA}/${avisoTemploId}/read`,
+      headers: { authorization: `Bearer ${dos.memberToken}` },
+    });
+    expect(
+      res.statusCode,
+      porQueImportaElAislamiento(
+        "POST /api/members/notifications/:id/read",
+        "el gimnasio 2 pudo marcar un aviso de El Templo",
+      ),
+    ).toBe(404);
+    expect(await lecturaDelAviso(avisoTemploId)).toBeNull();
+    expect(await lecturaDelAviso(avisoDosId)).toBeNull();
+  });
+
+  it("aislamiento: read-all del gimnasio 2 deja sin leer el aviso de El Templo", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: `${BASE_BANDEJA}/read-all`,
+      headers: { authorization: `Bearer ${dos.memberToken}` },
+    });
+    expect(res.statusCode, res.body).toBe(204);
+    expect(await lecturaDelAviso(avisoDosId)).not.toBeNull();
+    expect(await lecturaDelAviso(avisoTemploId)).toBeNull();
   });
 });

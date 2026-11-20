@@ -282,12 +282,13 @@ describe("criterio 3 — el cuerpo del cron corre una vez por gimnasio ACTIVO", 
 const DIR_JOBS = path.resolve(__dirname, "../../src/jobs");
 
 /**
- * Los 13 jobs de D-01 (extendido 2026-09-03 con notification-rules.ts, motor
+ * Los 14 jobs de D-01 (extendido 2026-09-03 con notification-rules.ts, motor
  * de reglas propias, y 2026-10-07 con marketing-meta.ts, CAPI + gasto de Meta,
  * fase 195-08, y marketing-google.ts, Search Console + GBP, fase 195-09, y
  * 2026-11-03 con weekly-board-close.ts, cierre semanal del Tablero, fase
  * 206-07, y office-auto-topics.ts, temas automáticos de Oficina, fase
- * 205-03). La
+ * 205-03, y 2026-11-17 con ficha-photo-mirror.ts, espejo privado de la foto de
+ * ficha, fase 214-13). La
  * lista es exhaustiva a propósito: un archivo nuevo la rompe aunque venga con
  * el sweep puesto, para que alguien mire el diff.
  */
@@ -295,6 +296,7 @@ const JOBS_ESPERADOS = [
   "auto-approve.ts",
   "auto-resume-pauses.ts",
   "expire-lost-leads.ts",
+  "ficha-photo-mirror.ts",
   "mark-no-shows.ts",
   "marketing-google.ts",
   "marketing-meta.ts",
@@ -344,7 +346,7 @@ function leerJobs(): Array<{ nombre: string; codigo: string }> {
 }
 
 describe("cobertura de D-01 — ningún job queda fuera del barrido por tenant", () => {
-  it("Test 6: src/jobs/ tiene exactamente los 13 jobs conocidos", () => {
+  it("Test 6: src/jobs/ tiene exactamente los 14 jobs conocidos", () => {
     const encontrados = leerJobs().map((j) => j.nombre);
 
     expect(

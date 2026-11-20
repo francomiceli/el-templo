@@ -22,22 +22,14 @@
       <q-card flat bordered class="q-mb-md">
         <q-card-section>
           <div class="row items-center q-gutter-md">
-            <!-- Photo + Level badge -->
+            <!-- Photo. 2026-11-19: se sacó el badge flotante con la letra del nivel (pedido de Franco).
+                 El nivel sigue en el subtítulo, al lado de la sede. -->
             <div class="relative-position">
               <MemberPhotoUpload
                 :userId="memberProfile.id"
-                :currentPhotoUrl="memberProfile.photoUrl"
+                :currentPhotoUrl="memberProfile.photoUrl ?? memberProfile.ownPhotoUrl ?? null"
+                :fromMember="!memberProfile.photoUrl && !!memberProfile.ownPhotoUrl"
                 @uploaded="onPhotoUploaded"
-              />
-              <!-- ALUM-05 (D-07): badge de nivel griego gateado por superficie Templo -->
-              <q-badge
-                v-if="greekLevelsEnabled"
-                rounded
-                floating
-                :color="levelColor(memberProfile.level)"
-                :label="greekLevel(memberProfile.level)"
-                class="text-weight-bold"
-                style="font-size: 14px; bottom: 28px; right: -4px"
               />
             </div>
 
@@ -1365,15 +1357,6 @@ async function loadSessionLevels(): Promise<void> {
 // Greek level display
 // =========================================================================
 
-const LEVEL_GREEK_MAP: Record<string, string> = {
-  kairos: '\u2609', // \u2609 kairos = tiempo/ciclo, glyph propio
-  alfa: '\u03B1',
-  delta: '\u0394',
-  sigma: '\u03A3',
-  omega: '\u03A9',
-  spartan: '\u03A9',
-};
-
 const LEVEL_NAMES: Record<string, string> = {
   kairos: 'Kairos',
   alfa: 'Alfa',
@@ -1382,10 +1365,6 @@ const LEVEL_NAMES: Record<string, string> = {
   omega: 'Omega',
   spartan: 'Spartan',
 };
-
-function greekLevel(level: string): string {
-  return LEVEL_GREEK_MAP[level.toLowerCase()] ?? level;
-}
 
 function levelDisplayName(level: string): string {
   return LEVEL_NAMES[level.toLowerCase()] ?? level;

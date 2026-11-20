@@ -424,8 +424,9 @@ const form = ref({
   goalPlanType: null as string | null,
   durationWeeks: null as number | null,
   sessionsPerWeekToAdvance: 3,
-  auraWeeklyBonus: 15,
-  auraCompletionBonus: 100,
+  // fase 214 D-19: escala nueva (una clase = 5), igual que el default de columna de la mig 0344
+  auraWeeklyBonus: 8,
+  auraCompletionBonus: 50,
 });
 
 const contentBlocks = ref<ContentBlockInput[]>([]);
@@ -666,8 +667,9 @@ watch(
         goalPlanType: null,
         durationWeeks: null,
         sessionsPerWeekToAdvance: 3,
-        auraWeeklyBonus: 15,
-        auraCompletionBonus: 100,
+        // fase 214 D-19: escala nueva (una clase = 5), igual que el default de columna de la mig 0344
+        auraWeeklyBonus: 8,
+        auraCompletionBonus: 50,
       };
       contentBlocks.value = [];
     }

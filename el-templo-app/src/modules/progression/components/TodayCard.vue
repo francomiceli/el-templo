@@ -82,6 +82,53 @@
             {{ model.secondary.label }}
           </button>
         </div>
+
+        <!-- Fase 215 (D-14, UI-SPEC Pantalla 1): quinta fila CONDICIONAL del regalo de Aura. No
+             reserva lugar: sin dato (cargando, sin nada para dar, falla de red o módulo apagado) no
+             hay fila y el alto fijo de las cuatro filas de arriba no cambia. El padre arma los
+             textos; la card solo los pinta. -->
+        <template v-if="gift && model.kind !== 'neutral'">
+          <template v-if="gift.kind === 'offer'">
+            <button
+              type="button"
+              class="today-card__gift-btn"
+              :aria-label="gift.ariaLabel"
+              @click="emit('open-gift')"
+            >
+              <span class="today-card__gift-spark" aria-hidden="true">✦</span>
+              <span class="today-card__gift-label">Dale Aura a un compañero</span>
+            </button>
+            <p class="today-card__gift-help">{{ gift.help }}</p>
+          </template>
+          <!-- #31: oculto con plan y algo para regalar. El texto lleva al interruptor de Perfil. -->
+          <button
+            v-else-if="gift.kind === 'hidden'"
+            type="button"
+            class="today-card__gift-notice"
+            :aria-label="gift.ariaLabel"
+            @click="goToCommunitySwitch"
+          >
+            <q-icon name="visibility_off" size="20px" aria-hidden="true" />
+            <span class="today-card__gift-text">
+              <template v-for="(part, i) in gift.parts" :key="i">
+                <b v-if="part.strong">{{ part.text }}</b>
+                <template v-else>{{ part.text }}</template>
+              </template>
+            </span>
+          </button>
+          <div v-else class="today-card__gift-given">
+            <!-- Con `anonymous` (la otra persona está oculta o sin nombre) no se dibuja a nadie. -->
+            <span v-if="gift.anonymous" class="today-card__gift-anon" aria-hidden="true">✦</span>
+            <MemberAvatar
+              v-else
+              :size="32"
+              :url="gift.receiver.photoUrl"
+              :first-name="gift.receiver.firstName"
+              :last-initial="gift.receiver.lastInitial"
+            />
+            <span class="today-card__gift-text">{{ gift.text }}</span>
+          </div>
+        </template>
       </div>
     </section>
   </div>
@@ -99,14 +146,32 @@
  */
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
+import MemberAvatar from 'src/components/MemberAvatar.vue'
 import type { TodayCardAction, TodayCardModel } from '../utils/today-card'
+
+/**
+ * Fila de regalo de Aura (fase 215, plan 21). Los textos ya vienen armados con `gift-view.ts`:
+ * `offer` es el botón dorado con su ayuda; `given` es la fila no interactiva "Le diste Aura a ...".
+ */
+type TodayCardGift =
+  | { kind: 'offer'; help: string; ariaLabel: string }
+  | { kind: 'hidden'; parts: ReadonlyArray<{ text: string; strong: boolean }>; ariaLabel: string }
+  | {
+      kind: 'given'
+      text: string
+      /** La otra persona está oculta o sin nombre: sin avatar ni nombre. */
+      anonymous: boolean
+      receiver: { firstName: string; lastInitial: string | null; photoUrl: string | null }
+    }
 
 const props = defineProps<{
   model: TodayCardModel
+  gift?: TodayCardGift | null
 }>()
 
 const emit = defineEmits<{
   'open-program': []
+  'open-gift': []
 }>()
 
 const router = useRouter()
@@ -116,6 +181,11 @@ const progressPercent = computed(() =>
     ? 0
     : Math.round(Math.min(Math.max(props.model.progress, 0), 1) * 100),
 )
+
+/** #31: lleva al interruptor "Aparecer en las listas" (la sección Comunidad de Perfil). */
+function goToCommunitySwitch(): void {
+  void router.push({ path: '/profile', hash: '#comunidad' })
+}
 
 function onAction(action: TodayCardAction): void {
   if (action.action === 'open-program') {
@@ -129,6 +199,8 @@ function onAction(action: TodayCardAction): void {
 </script>
 
 <style scoped lang="scss">
+@import 'src/css/premium-card';
+
 // Look: ganador del sketch 006 ("C3 + borde A"). La raíz es el marco con el borde degradé;
 // la superficie oscura va adentro. Texto SIEMPRE en color sólido (UI-SPEC): las decoraciones
 // (logo, halo, línea, borde, destello) son aria-hidden, no capturan toques y quedan detrás.
@@ -379,9 +451,130 @@ function onAction(action: TodayCardAction): void {
     cursor: pointer;
   }
 
+  // Fase 215 (UI-SPEC Pantalla 1): fila condicional del regalo de Aura, debajo de las acciones.
+  // El botón dorado es la ÚNICA excepción a "nunca dorado en botones". Borde: filete `pd-aura-frame`
+  // de 2px (mismo degradé del mixin) sobre el fondo marfil, con `padding-box` / `border-box`.
+  &__gift-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    box-sizing: border-box;
+    max-width: 100%;
+    height: 48px;
+    margin-top: 16px;
+    padding: 0 16px;
+    border: 2px solid transparent;
+    border-radius: 10px;
+    background:
+      linear-gradient(180deg, $pd-aura-ivory-a, $pd-gold-tint) padding-box,
+      linear-gradient(125deg, #b8954a 0%, #e6cf8e 30%, #fff6da 48%, #e6cf8e 64%, #b8954a 100%)
+        border-box;
+    color: $pd-aura-deep;
+    font-family: 'Geologica', sans-serif;
+    font-weight: 600;
+    font-size: 15px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+
+    @media (prefers-reduced-motion: no-preference) {
+      transition: transform 0.1s;
+
+      &:active {
+        transform: scale(0.97);
+      }
+    }
+  }
+
+  &__gift-spark {
+    flex: none;
+    color: $pd-aura-spark;
+  }
+
+  &__gift-label {
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__gift-help {
+    margin: 8px 0 0;
+    // Hasta 2 renglones; si el texto es más largo se corta.
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-family: 'Geologica', sans-serif;
+    font-weight: 400;
+    font-size: 13px;
+    line-height: 1.35;
+    color: $pd-cream-3;
+  }
+
+  &__gift-given {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-sizing: border-box;
+    margin-top: 16px;
+    padding: 8px 16px;
+    border-radius: 12px;
+    background: rgba(240, 230, 214, 0.1);
+  }
+
+  // #31: texto para quien está oculto. Botón de al menos 44 px de alto (zona táctil).
+  &__gift-notice {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 44px;
+    margin-top: 16px;
+    padding: 8px 16px;
+    border: 0;
+    border-radius: 12px;
+    background: rgba(240, 230, 214, 0.1);
+    color: $pd-cream;
+    text-align: left;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+
+    b {
+      font-weight: 600;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+  }
+
+  // Sin cara: el círculo del mismo tamaño que el avatar, con la chispa.
+  &__gift-anon {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(240, 230, 214, 0.14);
+    font-size: 16px;
+    line-height: 1;
+    color: $pd-aura-spark;
+  }
+
+  &__gift-text {
+    min-width: 0;
+    font-family: 'Geologica', sans-serif;
+    font-weight: 400;
+    font-size: 13px;
+    line-height: 1.35;
+    color: $pd-cream;
+  }
+
   &__btn:focus-visible,
-  &__link:focus-visible {
-    outline: 2px solid #e3c9a8;
+  &__link:focus-visible,
+  &__gift-btn:focus-visible,
+  &__gift-notice:focus-visible {
+    outline: 2px solid $pd-cream-2;
     outline-offset: 2px;
   }
 

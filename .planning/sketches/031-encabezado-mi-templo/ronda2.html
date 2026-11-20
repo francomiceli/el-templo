@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sketch 031 · ronda 2 — Ficha de Aura y selector de nivel</title>
+<link rel="stylesheet" href="../themes/default.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Geologica:wght@300;400;500;600;700&family=Montserrat:wght@600;700;800&family=Cinzel:wght@600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+<style>
+  :root { --page: #f2ede5; --ink: #2c2318; --ink-2: #6b6459; --terra: #96593a; --line: #e5dbcd; --sand: #f3ede4; --aura-gold: #d4b46a; --cream: #f0e6d6; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #e9e3da; font-family: 'Geologica', system-ui, sans-serif; color: var(--ink); }
+  .material-icons { font-size: inherit; line-height: 1; vertical-align: middle; }
+  #controls { position: sticky; top: 0; z-index: 50; background: #fff; border-bottom: 1px solid #ddd; padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; font: 13px system-ui; }
+  .ctl { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+  .ctl > span { color: #555; margin-right: 4px; font-weight: 600; }
+  .ctl button { border: 1px solid #ccc; background: #fafafa; border-radius: 6px; padding: 5px 9px; cursor: pointer; font: inherit; }
+  .ctl button.on { background: #2c2318; color: #fff; border-color: #2c2318; }
+  .stage { display: flex; gap: 32px; justify-content: center; align-items: flex-start; padding: 24px 16px 80px; flex-wrap: wrap; }
+  .col { display: flex; flex-direction: column; align-items: center; }
+  .col-label { font: 600 13px system-ui; text-align: center; margin-bottom: 4px; }
+  .col-sub { font: 12px system-ui; color: #666; text-align: center; max-width: 360px; margin-bottom: 10px; line-height: 1.4; min-height: 84px; }
+
+  .phone { position: relative; width: var(--w, 390px); height: 640px; border-radius: 28px 28px 0 0; overflow: hidden; box-shadow: 0 0 0 10px #1d1a17, 0 20px 50px rgba(0,0,0,.25); background: var(--page); transition: width .2s; display: flex; flex-direction: column; }
+  .appbar { flex: none; height: 56px; display: flex; align-items: center; gap: 10px; padding: 0 10px 0 14px; background: linear-gradient(135deg, #96593a, #b89b5e); color: #fff; font: 800 18px 'Montserrat', sans-serif; letter-spacing: .02em; }
+  .appbar i { width: 30px; height: 30px; border-radius: 7px; background: #f2ede5; }
+  .appbar .r { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+  .appbar .ib { width: 40px; height: 40px; display: grid; place-items: center; font-size: 24px; }
+  .greet { flex: none; display: flex; align-items: center; gap: 12px; background: linear-gradient(135deg, #96593a, #b89b5e); color: #fff; padding: 8px 16px 16px; }
+  .txt { flex: 1; min-width: 0; }
+  .name { margin: 0; font: 600 22px/1.2 'Montserrat', sans-serif; display: flex; align-items: center; gap: 6px; }
+  .since { margin: 3px 0 0; font-size: 13px; }
+  .seal { flex: none; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; color: #5b4310; background: linear-gradient(135deg, #f5dd7e, #e0b93f 55%, #b28a24); box-shadow: 0 1px 2px rgba(0,0,0,.25); }
+  .seal.terra { background: #f2ede5; color: var(--terra); }
+  .av { --s: 52px; flex: none; position: relative; width: var(--s); height: var(--s); border-radius: 50%; display: grid; place-items: center; background: rgba(255,255,255,.18); color: #fff; font: 700 18px 'Montserrat', sans-serif; box-shadow: 0 0 0 2px rgba(255,255,255,.8); }
+  .av img { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+  .av.add { border: 1.5px dashed rgba(255,255,255,.85); box-shadow: none; font-size: 24px; }
+  .av .bd { position: absolute; right: -4px; bottom: -4px; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: #2c2318; color: var(--aura-gold); font-size: 13px; }
+  .C1 .av:not(.add), .C2 .av:not(.add), .C3 .av:not(.add) { box-shadow: 0 0 0 2px #2c2318, 0 0 0 3.5px var(--aura-gold); }
+
+  /* cuerpo: la card de hoy real (aprox. del sketch 006) para medir si compite */
+  .body { flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .tc-wrap { border-radius: 21px; padding: 1.5px; background: linear-gradient(115deg, #4a3a2b 0%, #a35f3c 30%, #f0d2b4 45%, #a35f3c 60%, #4a3a2b 100%); background-size: 250% 250%; animation: flow 7s linear infinite; box-shadow: 0 10px 24px rgba(44,35,24,.2); }
+  @keyframes flow { 0% { background-position: 0% 50% } 100% { background-position: 250% 50% } }
+  .tc { position: relative; overflow: hidden; height: 190px; padding: 18px; border-radius: 20px; background: #2c2318; color: var(--cream); }
+  .tc::before { content: ''; position: absolute; right: -40px; bottom: -40px; width: 240px; height: 240px; background: radial-gradient(circle, rgba(163,95,60,.45), transparent 65%); animation: breathe 7s ease-in-out infinite; }
+  .tc::after { content: ''; position: absolute; left: 18px; right: 18px; bottom: 0; height: 2px; background: linear-gradient(90deg, transparent, #a35f3c, #e9bf9b, #a35f3c, transparent); }
+  @keyframes breathe { 0%, 100% { opacity: .75; transform: scale(1) } 50% { opacity: 1; transform: scale(1.08) } }
+  .tc small { position: relative; font: 700 11px 'Cinzel', serif; letter-spacing: .16em; color: #e3c9a8; }
+  .tc b { position: relative; display: block; margin-top: 8px; font: 700 22px 'Montserrat', sans-serif; }
+  .tc p { position: relative; margin: 6px 0 0; font-size: 14px; color: #c9bba6; }
+  .tc .cta { position: absolute; left: 18px; bottom: 18px; height: 40px; padding: 0 22px; border-radius: 999px; display: grid; place-items: center; background: linear-gradient(135deg, #a35f3c, #7e4529); color: #fff; font-weight: 600; font-size: 14px; }
+  .ph { height: 96px; border-radius: 16px; background: #fff; border: 1px solid var(--line); padding: 14px 16px; font: 800 12px 'Montserrat', sans-serif; letter-spacing: .08em; color: var(--terra); }
+
+  /* ── fichas de Aura ── */
+  .aura { flex: none; display: flex; flex-direction: column; align-items: center; min-width: 78px; }
+  .aura b { font: 800 22px/1 'Montserrat', sans-serif; }
+  .aura small { margin-top: 3px; font: 700 10px 'Cinzel', serif; letter-spacing: .18em; }
+  /* C1 · simple */
+  .C1 .aura { padding: 8px 14px; border-radius: 16px; background: #2c2318; box-shadow: 0 6px 16px rgba(44,35,24,.3), inset 0 0 0 1px rgba(212,180,106,.5); }
+  .C1 .aura b { color: #f0d58f; }
+  .C1 .aura small { color: var(--aura-gold); }
+  /* C2 · hermana premium: filete dorado fijo, número con brillo metálico, línea abajo. Sin movimiento */
+  .C2 .aura-w, .C3 .aura-w { flex: none; border-radius: 17px; padding: 1.5px; background: linear-gradient(125deg, #6b5320 0%, #d4b46a 28%, #fbeab0 46%, #d4b46a 62%, #6b5320 100%); box-shadow: 0 8px 18px rgba(44,35,24,.32); }
+  .C2 .aura, .C3 .aura { position: relative; overflow: hidden; padding: 9px 16px 10px; border-radius: 16px; background: radial-gradient(120% 120% at 100% 100%, #46351f 0%, #2c2318 55%); }
+  .C2 .aura::after, .C3 .aura::after { content: ''; position: absolute; left: 12px; right: 12px; bottom: 0; height: 1.5px; background: linear-gradient(90deg, transparent, #d4b46a, #fbeab0, #d4b46a, transparent); }
+  .C2 .aura b, .C3 .aura b { background: linear-gradient(180deg, #fbeab0 10%, #d4b46a 60%, #a8843a); -webkit-background-clip: text; background-clip: text; color: transparent; font-size: 24px; }
+  .C2 .aura small, .C3 .aura small { color: #e7cf8f; display: flex; align-items: center; gap: 4px; }
+  .C2 .aura small::before, .C3 .aura small::before { content: '✦'; font-size: 9px; font-family: system-ui; letter-spacing: 0; }
+  /* C3 · gemela: lo mismo, pero con el borde que fluye, halo que respira y destello */
+  .C3 .aura-w { background-size: 250% 250%; animation: flow 7s linear infinite; }
+  .C3 .aura::before { content: ''; position: absolute; top: 0; bottom: 0; left: -60%; width: 40%; background: linear-gradient(100deg, transparent, rgba(251,234,176,.35), transparent); animation: sheen 5s ease-in-out infinite; }
+  @keyframes sheen { 0%, 65% { left: -60% } 100% { left: 130% } }
+  .C3 .glow { position: absolute; right: 6px; top: 50%; width: 120px; height: 120px; margin-top: -60px; border-radius: 50%; background: radial-gradient(circle, rgba(212,180,106,.45), transparent 65%); animation: breathe 5s ease-in-out infinite; pointer-events: none; }
+  .C3 .greet { position: relative; }
+  .C3 .aura-w { position: relative; }
+
+  /* Entrenar: selector de nivel en la barra */
+  .lv { display: inline-flex; align-items: center; gap: 4px; height: 36px; padding: 0 6px 0 10px; border-radius: 999px; background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.35); font: 700 13px 'Montserrat', sans-serif; letter-spacing: .06em; cursor: pointer; }
+  .lv .g { font: 400 20px/1 'Geologica', sans-serif; }
+  .lv .material-icons { font-size: 18px; opacity: .9; }
+  .lv.solo { padding: 0 4px 0 10px; }
+  .tabs { flex: none; display: flex; gap: 6px; padding: 12px 16px 0; }
+  .tabs span { flex: 1; height: 38px; display: grid; place-items: center; border-radius: 12px; background: #fff; border: 1px solid var(--line); font: 700 12px 'Montserrat', sans-serif; color: var(--ink-2); }
+  .tabs span.on { background: #2c2318; color: var(--cream); border-color: #2c2318; }
+  .menu { position: absolute; top: 52px; right: 54px; z-index: 5; width: 190px; padding: 6px; border-radius: 14px; background: #fff; box-shadow: 0 12px 30px rgba(44,35,24,.3); font-size: 14px; display: none; }
+  .menu.show { display: block; }
+  .menu div { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 9px; color: var(--ink); cursor: pointer; }
+  .menu div:hover { background: var(--sand); }
+  .menu div.on { background: var(--sand); font-weight: 600; }
+  .menu .g { width: 22px; text-align: center; font-size: 18px; color: var(--terra); }
+</style>
+</head>
+<body>
+
+<div id="controls">
+  <div class="ctl" data-ctl="foto"><span>Foto</span>
+    <button data-v="si" class="on">Con foto</button><button data-v="no">Sin foto</button><button data-v="pend">En revisión</button>
+  </div>
+  <div class="ctl" data-ctl="ant"><span>Antigüedad</span>
+    <button data-v="2 años y 3 meses" class="on">2 años y 3 meses</button><button data-v="4 meses">4 meses</button>
+  </div>
+  <div class="ctl" data-ctl="sello"><span>Sello de antigüedad</span>
+    <button data-v="oro">Dorado (hoy)</button><button data-v="terra" class="on">Sin dorado</button><button data-v="no">Sin sello</button>
+  </div>
+  <div class="ctl" data-ctl="rol"><span>Quién</span>
+    <button data-v="alumno" class="on">Alumno</button><button data-v="staff">Staff (sin Aura)</button>
+  </div>
+  <div class="ctl" data-ctl="lv"><span>Selector en Entrenar</span>
+    <button data-v="full" class="on">Letra y nombre</button><button data-v="solo">Solo la letra</button>
+  </div>
+  <div class="ctl" data-ctl="w"><span>Ancho</span>
+    <button data-v="360">360</button><button data-v="390" class="on">390</button><button data-v="412">412</button>
+  </div>
+</div>
+
+<div class="stage">
+  <div class="col"><div class="col-label">C1 · Simple (la de la ronda 1)</div>
+    <div class="col-sub">La ficha oscura lisa con el número dorado. Ya sin selector de nivel y sin que los puntos lleven a ningún lado. Se ve arriba de la card de hoy real para medir cuánto compiten.</div>
+    <div class="phone C1" data-v="C1"></div></div>
+  <div class="col"><div class="col-label">C2 · Hermana premium</div>
+    <div class="col-sub">Mismo material que la card de hoy: filete dorado fino, número con brillo metálico y línea de luz abajo. Pero quieta: sin borde que fluye, sin halo ni destellos. Se nota fina sin pedir atención.</div>
+    <div class="phone C2" data-v="C2"></div></div>
+  <div class="col"><div class="col-label">C3 · Gemela</div>
+    <div class="col-sub">Lo mismo que C2 con todo el movimiento de la card de hoy: borde que fluye, halo que respira y un destello que cruza. Es la más llamativa, y hay dos cosas moviéndose en la misma pantalla.</div>
+    <div class="phone C3" data-v="C3"></div></div>
+  <div class="col"><div class="col-label">Entrenar · selector de nivel en la barra</div>
+    <div class="col-sub">El selector de nivel sale de Mi Templo y aparece solo en Entrenar, en la barra de arriba, a la izquierda del acceso al perfil. Tocalo para ver el menú.</div>
+    <div class="phone" data-v="ent"></div></div>
+</div>
+
+<script>
+  const s = { foto: 'si', ant: '2 años y 3 meses', sello: 'terra', rol: 'alumno', lv: 'full', menu: false }
+  const seal = () => s.sello === 'no' ? '' : `<span class="seal ${s.sello === 'terra' ? 'terra' : ''}"><span class="material-icons">verified</span></span>`
+  const avatar = () => s.foto === 'si' ? `<span class="av">FM<img src="https://randomuser.me/api/portraits/men/46.jpg" alt="" onerror="this.remove()"></span>`
+    : s.foto === 'pend' ? `<span class="av">FM<span class="bd"><span class="material-icons">schedule</span></span></span>`
+    : `<span class="av add"><span class="material-icons">add_a_photo</span></span>`
+  const hint = () => s.foto === 'no' ? 'Subí tu foto y sumá 5 de Aura' : s.foto === 'pend' ? 'Foto en revisión' : `${s.ant} en El Templo`
+  function ficha(v) {
+    if (s.rol === 'staff') return ''
+    const inner = `<div class="aura"><b>320</b><small>AURA</small></div>`
+    if (v === 'C1') return inner
+    return `${v === 'C3' ? '<span class="glow"></span>' : ''}<div class="aura-w">${inner}</div>`
+  }
+  const bar = (right = '') => `<div class="appbar"><i></i>EL TEMPLO<span class="r">${right}<span class="ib"><span class="material-icons">person</span></span><span class="ib"><span class="material-icons">logout</span></span></span></div>`
+  const today = `<div class="tc-wrap"><div class="tc"><small>HOY · MARTES</small><b>Deuteros II · Tren superior</b><p>18:00 · Mario Bravo</p><span class="cta">Ver la sesión</span></div></div><div class="ph">TUS SESIONES</div>`
+  function phone(v) {
+    if (v === 'ent') {
+      const lv = `<span class="lv ${s.lv === 'solo' ? 'solo' : ''}" data-lv><span class="g">Δ</span>${s.lv === 'full' ? 'DELTA' : ''}<span class="material-icons">expand_more</span></span>`
+      const menu = `<div class="menu ${s.menu ? 'show' : ''}">${[['κ', 'Kairos'], ['α', 'Alfa'], ['Δ', 'Delta', 1], ['Σ', 'Sigma'], ['Ω', 'Omega']].map(([g, n, on]) => `<div class="${on ? 'on' : ''}"><span class="g">${g}</span>${n}${on ? ' · tu nivel' : ''}</div>`).join('')}</div>`
+      return `${bar(lv)}${menu}<div class="tabs"><span class="on">Semana</span><span>Libre</span><span>Desafíos</span><span>Conquer</span></div><div class="body">${today}</div>`
+    }
+    return `${bar()}<div class="greet">${avatar()}<div class="txt"><h1 class="name">Franco${seal()}</h1><p class="since">${hint()}</p></div>${ficha(v)}</div><div class="body">${today}</div>`
+  }
+  function render() { document.querySelectorAll('.phone').forEach((p) => { p.innerHTML = phone(p.dataset.v) }) }
+  document.querySelectorAll('.ctl').forEach((ctl) => ctl.addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return
+    ctl.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b))
+    if (ctl.dataset.ctl === 'w') { document.querySelectorAll('.phone').forEach((p) => p.style.setProperty('--w', b.dataset.v + 'px')); return }
+    s[ctl.dataset.ctl] = b.dataset.v; render()
+  }))
+  document.body.addEventListener('click', (e) => { if (e.target.closest('[data-lv]')) { s.menu = !s.menu; render() } else if (s.menu && !e.target.closest('.menu') && !e.target.closest('#controls')) { s.menu = false; render() } })
+  render()
+</script>
+</body>
+</html>

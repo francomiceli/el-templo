@@ -70,6 +70,17 @@ export interface SlotAttendanceItem {
   // Registro del día del alumno (cómo llegó a la clase). Sólo lo completa el
   // server para coach + admin/dueño; null para gestión/recepción.
   checkIn: DayCheckIn | null;
+  // Fase 215 (D-15): regalo de Aura del profe. `null` o ausente = quien mira no
+  // regala como profe (dueño, admin, recepción): la fila no muestra nada.
+  gift?: SlotAttendanceGift | null;
   // Invitado que todavía no compró (etiqueta "Invitación"); null para el resto.
   invitation: RosterInvitation | null;
+}
+
+export type SlotGiftState = 'disponible' | 'dado' | 'anulado' | 'no_participa';
+
+export interface SlotAttendanceGift {
+  state: SlotGiftState;
+  amount: number;
+  reason: string | null;
 }

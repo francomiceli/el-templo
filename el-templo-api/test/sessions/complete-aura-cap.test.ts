@@ -23,6 +23,15 @@ import {
   todayStr,
   seedApprovedSession,
 } from "../helpers";
+import { AURA_AMOUNTS } from "../../src/modules/aura/amounts";
+import { AURA_TIME_RATIO } from "../../src/modules/sessions/proposed-time";
+import {
+  STANDARD_BLOCKS,
+  cleanupFixtureExercises,
+  rolesOf,
+  seedSessionWithBlocks,
+  startedAtForRatio,
+} from "./_aura-session-fixtures";
 
 const CTX_TEMPLO: TenantContext = { tenantId: 1 };
 
@@ -37,6 +46,16 @@ describe("POST /api/sessions/complete — dayId aprobado y tope diario de AURA",
   let app: FastifyInstance;
   let token: string;
   let memberId: number;
+  // Tiempo propuesto por dayId sembrado con bloques (D-20: el cierre valido manda
+  // un inicio que alcanza el 80 % y todos los bloques).
+  const proposedByDay = new Map<string, number>();
+
+  function startedAtFor(dayId: string): string {
+    const proposedSec = proposedByDay.get(dayId);
+    return proposedSec === undefined
+      ? new Date().toISOString()
+      : startedAtForRatio(proposedSec, AURA_TIME_RATIO);
+  }
 
   async function complete(
     dayId: string,
@@ -50,8 +69,8 @@ describe("POST /api/sessions/complete — dayId aprobado y tope diario de AURA",
       payload: {
         dayId,
         date: todayStr(),
-        startedAt: new Date().toISOString(),
-        blocksCompleted: ["INITIUM", "NUCLEUS"],
+        startedAt: startedAtFor(dayId),
+        blocksCompleted: rolesOf(STANDARD_BLOCKS),
         ...extra,
       },
     });
@@ -102,17 +121,6 @@ describe("POST /api/sessions/complete — dayId aprobado y tope diario de AURA",
   beforeAll(async () => {
     app = await createTestApp();
 
-    // AURA config determinista: 10 por sesion.
-    await app.db
-      .delete(schema.auraConfig)
-      .where(eq(schema.auraConfig.sourceType, "training_completion"));
-    await app.db.insert(schema.auraConfig).values({
-      sourceType: "training_completion",
-      defaultAmount: 10,
-      description: "Completed a training session",
-      isActive: true,
-    });
-
     const reg = await registerUser(app, {
       email: "complete-aura-cap@test.com",
       password: "password123",
@@ -121,10 +129,11 @@ describe("POST /api/sessions/complete — dayId aprobado y tope diario de AURA",
     token = reg.token;
     memberId = (reg.user as { id: number }).id;
 
-    await seedApprovedSession(app, DAY_LUNES);
-    await seedApprovedSession(app, DAY_MARTES);
+    for (const dayId of [DAY_LUNES, DAY_MARTES, DAY_CONCURRENT]) {
+      const seeded = await seedSessionWithBlocks(app, dayId, STANDARD_BLOCKS);
+      proposedByDay.set(dayId, seeded.proposedSec);
+    }
     await seedApprovedSession(app, DAY_PENDING, { status: "pending_review" });
-    await seedApprovedSession(app, DAY_CONCURRENT);
   });
 
   afterAll(async () => {
@@ -136,6 +145,7 @@ describe("POST /api/sessions/complete — dayId aprobado y tope diario de AURA",
           inArray(schema.sessions.dayId, SEEDED),
         ),
       );
+    await cleanupFixtureExercises(app);
     await app.close();
   });
 
@@ -178,7 +188,7 @@ describe("POST /api/sessions/complete — dayId aprobado y tope diario de AURA",
     expect(await auraBalance()).toBe(0);
   });
 
-  it("completar una sesion aprobada da 200 y 10 AURA, con la fila en el tenant del socio", async () => {
+  it("completar una sesion aprobada da 200 y AURA_AMOUNTS.training, con la fila en el tenant del socio", async () => {
     const res = await complete(DAY_LUNES);
 
     expect(res.statusCode).toBe(200);
@@ -186,7 +196,7 @@ describe("POST /api/sessions/complete — dayId aprobado y tope diario de AURA",
     const rows = await completedRows(DAY_LUNES);
     expect(rows).toHaveLength(1);
     expect(rows[0].tenantId).toBe(CTX_TEMPLO.tenantId);
-    expect(await auraBalance()).toBe(10);
+    expect(await auraBalance()).toBe(AURA_AMOUNTS.training);
 
     const txs = await trainingTxs();
     expect(txs).toHaveLength(1);
@@ -198,7 +208,7 @@ describe("POST /api/sessions/complete — dayId aprobado y tope diario de AURA",
 
     expect(res.statusCode).toBe(200);
     expect(await completedRows()).toHaveLength(2);
-    expect(await auraBalance()).toBe(10);
+    expect(await auraBalance()).toBe(AURA_AMOUNTS.training);
     expect(await trainingTxs()).toHaveLength(1);
   });
 
@@ -210,7 +220,7 @@ describe("POST /api/sessions/complete — dayId aprobado y tope diario de AURA",
     expect(rows).toHaveLength(1);
     expect(rows[0].rpe).toBe(9);
     expect(await completedRows()).toHaveLength(2);
-    expect(await auraBalance()).toBe(10);
+    expect(await auraBalance()).toBe(AURA_AMOUNTS.training);
   });
 
   it("dos POST concurrentes con un dayId nuevo: sin 500, una sola fila y sin AURA extra", async () => {

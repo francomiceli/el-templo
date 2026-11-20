@@ -1,5 +1,6 @@
 export { NotificationService } from "./service";
 export { notificationRoutes } from "./routes";
+export { inboxMemberRoutes } from "./inbox-routes";
 export type {
   NotificationCategory,
   NotificationStatus,

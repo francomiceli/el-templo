@@ -6,6 +6,7 @@
  * ("templo-training") y no generar la variante con barra final.
  */
 import type { FastifyPluginAsync } from "fastify";
+import { AURA_AMOUNTS } from "../aura/amounts";
 import { AuraService } from "../aura/service";
 import { attachCountryScope } from "../shared/country-scope";
 import { assertTenant } from "../shared/tenant";
@@ -146,6 +147,8 @@ export const freeBlocksRoutes: FastifyPluginAsync<
         completionId: result.completionId,
         durationSeconds: result.durationSeconds,
         auraAwarded: result.auraAwarded,
+        // Lo que paga la fuente; la app lo muestra solo si `auraAwarded` es true.
+        auraAmount: AURA_AMOUNTS.extraBlock,
         auraAvailableToday: result.auraAvailableToday,
       };
     },

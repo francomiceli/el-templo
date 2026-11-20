@@ -229,6 +229,22 @@ export const MEMBER_ROLES = [
   "coach_actividad",
 ] as const;
 
+/**
+ * Roles que revisan las fotos de perfil de la comunidad (la cola, aprobar,
+ * rechazar y quitar). Decisión de Franco del 2026-11-18 (fase 215, "Revisión de
+ * fotos", DECISIONES-REVISION-2026-11-18.md): `coach` y `coach_actividad` dejan
+ * de revisar (revoca la parte de revisión de la D-46) y siguen cargando la foto
+ * de ficha (`users.photo_url`) como siempre. El acotado por sede de `admin_sede`
+ * lo fuerza `enforcedBranchIds` / `enforceMemberBranchScope`, no este set.
+ */
+export const PHOTO_REVIEW_ROLES = [
+  "admin",
+  "owner",
+  "gestion",
+  "recepcion",
+  "admin_sede",
+] as const;
+
 /** Roles that can access payment management. */
 export const PAYMENT_ROLES = [
   "coach",

@@ -485,6 +485,23 @@ export async function limpiarSegundoGimnasio(
   await app.db.execute(
     sql`DELETE FROM stretch_catalog WHERE tenant_id = ${TENANT_DOS}`,
   );
+  // Foto propia (0346): FK a users (alumno y revisor), sale antes que users.
+  await app.db.execute(
+    sql`DELETE FROM member_photos WHERE tenant_id = ${TENANT_DOS}`,
+  );
+  // Regalos de Aura (0349): FK a users, branches y schedules, sale antes que ellos.
+  await app.db.execute(
+    sql`DELETE FROM aura_gifts WHERE tenant_id = ${TENANT_DOS}`,
+  );
+  // Bandeja de avisos (0350): FK a users, sale antes que users.
+  await app.db.execute(
+    sql`DELETE FROM member_notifications WHERE tenant_id = ${TENANT_DOS}`,
+  );
+  // Aperturas de la lista de anotados (0354): FK a users y schedules, sale antes
+  // que ellos.
+  await app.db.execute(
+    sql`DELETE FROM community_list_opens WHERE tenant_id = ${TENANT_DOS}`,
+  );
   // Histórico de recategorizaciones (0334): FK a users y branches, sale antes
   // que ambos.
   await app.db.execute(

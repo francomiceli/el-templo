@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   availabilityLevel,
   availabilityText,
+  bookedText,
   slotIsFull,
   spotsLeft,
   type SlotAvailabilityInput,
@@ -142,5 +143,16 @@ describe('modo prueba (cupo especial de SP)', () => {
   it('el umbral de "few" también rige en modo prueba (4 → few, 5 → available)', () => {
     expect(availabilityLevel(slot({ trialSpotsRemaining: 4 }), true)).toBe('few')
     expect(availabilityLevel(slot({ trialSpotsRemaining: 5 }), true)).toBe('available')
+  })
+})
+
+describe('bookedText', () => {
+  it.each([
+    [1, '1 anotado'],
+    [2, '2 anotados'],
+    [10, '10 anotados'],
+    [-3, '0 anotados'],
+  ])('%i → %s', (n, text) => {
+    expect(bookedText(n)).toBe(text)
   })
 })

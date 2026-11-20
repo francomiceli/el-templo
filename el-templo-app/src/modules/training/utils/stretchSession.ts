@@ -19,7 +19,7 @@ export const STRETCH_AURA_SECONDS = 180
 export const STRETCH_AURA_MARGIN_SECONDS = 2
 
 /**
- * true cuando ya se puede decir "Ya sumás +5 AURA": el servidor confirmó el `started` y pasaron
+ * true cuando ya se puede decir "Ya sumás AURA": el servidor confirmó el `started` y pasaron
  * 180 s + margen desde ESE momento (no desde el reloj visible). Sin confirmación, nunca.
  */
 export function stretchAuraReady(startedConfirmedAt: number | null, nowMs: number): boolean {
@@ -55,7 +55,9 @@ export const STRETCH_CLOSING_PHRASES: readonly string[] = [
 export function stretchClosingPhrase(localDate: string): string {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(localDate)
   if (!match) return STRETCH_CLOSING_PHRASES[0]
-  const day = Math.floor(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])) / 86_400_000)
+  const day = Math.floor(
+    Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])) / 86_400_000,
+  )
   return STRETCH_CLOSING_PHRASES[day % STRETCH_CLOSING_PHRASES.length]
 }
 

@@ -318,7 +318,16 @@ export const getMemberSchema = {
     },
   },
   response: {
-    200: memberProfileSchema,
+    // `ownPhotoUrl` (2026-11-19): foto propia aprobada del alumno, firmada del
+    // bucket privado, para la ficha cuando el staff no cargó una. Sin declararla
+    // acá el serializador la descartaría en silencio.
+    200: {
+      ...memberProfileSchema,
+      properties: {
+        ...memberProfileSchema.properties,
+        ownPhotoUrl: { type: ["string", "null"] },
+      },
+    },
     404: errorSchema,
   },
 };

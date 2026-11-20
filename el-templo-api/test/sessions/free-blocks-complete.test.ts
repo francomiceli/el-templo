@@ -29,6 +29,7 @@ import * as schema from "../../src/db/schema";
 import { createTestApp, createTestMember, cleanAllTestData } from "../helpers";
 import { todayInTz } from "../../src/modules/shared/date-utils";
 import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
+import { AURA_AMOUNTS } from "../../src/modules/aura/amounts";
 import { DAY_NAME_TO_NUMBER } from "../../src/modules/shared/training-constants";
 import {
   dateToDayName,
@@ -52,6 +53,7 @@ interface CompletePayload {
   completionId: number;
   durationSeconds: number;
   auraAwarded: boolean;
+  auraAmount: number;
   auraAvailableToday: boolean;
   error?: string;
 }
@@ -97,7 +99,8 @@ describe("cierre del bloque libre: POST /api/sessions/free-blocks/complete (197-
     vi.setSystemTime(new Date(`${wednesday}T15:00:00Z`));
     today = todayInTz(AR_TZ);
 
-    // aura_config no se da por sembrada: la fuente extra_block se re-siembra.
+    // aura_config no se da por sembrada: la fuente extra_block se re-siembra. El
+    // monto que se acredita ya no sale de acá sino de AURA_AMOUNTS (fase 214).
     await app.db
       .insert(schema.auraConfig)
       .values(
@@ -131,14 +134,12 @@ describe("cierre del bloque libre: POST /api/sessions/free-blocks/complete (197-
           eq(schema.dayModes.dayOfWeek, dayNumber),
         ),
       );
-    await app.db
-      .insert(schema.dayModes)
-      .values(
-        tenantValues(CTX_TEMPLO, {
-          dayOfWeek: dayNumber,
-          sessionMode: "regular",
-        }),
-      );
+    await app.db.insert(schema.dayModes).values(
+      tenantValues(CTX_TEMPLO, {
+        dayOfWeek: dayNumber,
+        sessionMode: "regular",
+      }),
+    );
 
     const member = await createPresencialMember(app, { level: LEVEL });
     token = member.token;
@@ -274,7 +275,7 @@ describe("cierre del bloque libre: POST /api/sessions/free-blocks/complete (197-
     expect(rows[0].exercisesCompleted).toEqual([idsA[0], idsA[1]]);
   });
 
-  it("10' sí: acredita 5 AURA (extra_block / extra_block_day / YYYYMMDD local) y agota el cupo del día", async () => {
+  it("10' sí: acredita la Aura del bloque libre (extra_block / extra_block_day / YYYYMMDD local) y agota el cupo del día", async () => {
     const before = await balance();
     const { status, body } = await postComplete({
       blockId: blockA,
@@ -284,14 +285,15 @@ describe("cierre del bloque libre: POST /api/sessions/free-blocks/complete (197-
 
     expect(status).toBe(200);
     expect(body.auraAwarded).toBe(true);
+    expect(body.auraAmount).toBe(AURA_AMOUNTS.extraBlock);
     expect(body.auraAvailableToday).toBe(false);
 
     const tx = await auraTx();
     expect(tx).toHaveLength(1);
-    expect(tx[0].amount).toBe(5);
+    expect(tx[0].amount).toBe(AURA_AMOUNTS.extraBlock);
     expect(tx[0].referenceType).toBe("extra_block_day");
     expect(tx[0].referenceId).toBe(dayKey(todayInTz(AR_TZ)));
-    expect(await balance()).toBe(before + 5);
+    expect(await balance()).toBe(before + AURA_AMOUNTS.extraBlock);
 
     const rows = await filas();
     expect(rows[0].auraAwarded).toBe(true);
@@ -323,7 +325,7 @@ describe("cierre del bloque libre: POST /api/sessions/free-blocks/complete (197-
     expect(largo.body.auraAwarded).toBe(true);
     expect(largo.body.auraAvailableToday).toBe(false);
     expect(await auraTx()).toHaveLength(1);
-    expect(await balance()).toBe(before + 5);
+    expect(await balance()).toBe(before + AURA_AMOUNTS.extraBlock);
   });
 
   it("primero sí, segundo no: dos cierres de >= 10' guardan 2 filas y acreditan una sola vez", async () => {
@@ -355,7 +357,7 @@ describe("cierre del bloque libre: POST /api/sessions/free-blocks/complete (197-
     await app.db.insert(schema.auraTransactions).values({
       userId,
       sourceType: "extra_block",
-      amount: 5,
+      amount: AURA_AMOUNTS.extraBlock,
       referenceType: "extra_block_day",
       referenceId: dayKey(todayInTz(AR_TZ)),
       description: "cobro previo",
@@ -409,7 +411,7 @@ describe("cierre del bloque libre: POST /api/sessions/free-blocks/complete (197-
     // Unión de los ejercicios de las dos vueltas.
     expect(rows[0].exercisesCompleted).toEqual([idsA[0], idsA[1]]);
     expect(await auraTx()).toHaveLength(1);
-    expect(await balance()).toBe(before + 5);
+    expect(await balance()).toBe(before + AURA_AMOUNTS.extraBlock);
   });
 
   it("zona de la sede: a las 02:30 UTC (23:30 en Buenos Aires) el día es el de la sede, no el UTC", async () => {

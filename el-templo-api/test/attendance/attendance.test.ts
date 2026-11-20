@@ -5,6 +5,7 @@ import {
   beforeAll,
   afterAll,
   beforeEach,
+  afterEach,
   vi,
 } from "vitest";
 import type { FastifyInstance } from "fastify";
@@ -14,8 +15,10 @@ import {
   getAuthToken,
   registerUser,
   cleanAllTestData,
+  createStaffUser,
   dateOffsetStr,
 } from "../helpers";
+import { setModuleFlag, restoreTemploFlags } from "../fixtures/module-flags";
 import { attendance } from "../../src/db/schema/attendance";
 import { completedSessions } from "../../src/db/schema/completed-sessions";
 import { financialTransactions } from "../../src/db/schema/financial-transactions";
@@ -23,6 +26,7 @@ import { transactionLinks } from "../../src/db/schema/transaction-links";
 import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
 import { appBranchName } from "../../src/modules/shared/app-branch-name";
+import { AURA_AMOUNTS } from "../../src/modules/aura/amounts";
 
 /**
  * Fase 172: `finance` entra en `TENANT_STRICT_MODULES`. El seed de cobro de
@@ -343,7 +347,9 @@ describe("Attendance API", () => {
         .where(eq(auraTransactions.userId, member.id));
 
       expect(auraRows.length).toBeGreaterThanOrEqual(1);
-      const attendanceAward = auraRows.find((r) => r.amount === 10);
+      const attendanceAward = auraRows.find(
+        (r) => r.amount === AURA_AMOUNTS.attendance,
+      );
       expect(attendanceAward).toBeTruthy();
     });
 
@@ -513,6 +519,147 @@ describe("Attendance API", () => {
 
       // Cleanup branch 2
       await app.db.delete(branches).where(eq(branches.id, branch2.id));
+    });
+
+    // ---------------------------------------------------------------------
+    // Fase 214 (plan 11, D-40, D-56, D-64): el check-in del socio informa lo
+    // que ESA asistencia acreditó de Aura. Sale del ledger, no del rol.
+    // ---------------------------------------------------------------------
+    describe("respuesta con Aura (fase 214)", () => {
+      const TODAY_REF_ID = 20260311; // el reloj fijo del archivo (miércoles 10:00 AR)
+
+      afterEach(async () => {
+        await restoreTemploFlags(app);
+      });
+
+      async function earnedOf(token: string): Promise<number> {
+        const res = await app.inject({
+          method: "GET",
+          url: "/api/auth/me",
+          headers: { authorization: `Bearer ${token}` },
+        });
+        expect(res.statusCode).toBe(200);
+        return (JSON.parse(res.body) as { auraEarned: number }).auraEarned;
+      }
+
+      async function checkInWith(
+        token: string,
+      ): Promise<{ statusCode: number; body: Record<string, unknown> }> {
+        const res = await app.inject({
+          method: "POST",
+          url: `${MEMBER_ATTENDANCE_URL}/check-in`,
+          headers: { authorization: `Bearer ${token}` },
+          payload: { qrToken: generateQrToken(testBranchId) },
+        });
+        return { statusCode: res.statusCode, body: JSON.parse(res.body) };
+      }
+
+      it("con dos asistencias previas: auraAwarded 5 y auraTotal = previo + 5", async () => {
+        const { member, memberToken } = await setupMemberWithSubscription();
+        await createBookingForNow(member.id, testBranchId);
+        for (const refId of [810001, 810002]) {
+          await app.db.insert(auraTransactions).values(
+            tenantValues(TEMPLO_CTX, {
+              userId: member.id,
+              sourceType: "attendance",
+              amount: AURA_AMOUNTS.attendance,
+              referenceType: "attendance",
+              referenceId: refId,
+            }),
+          );
+        }
+        const previo = await earnedOf(memberToken);
+        expect(previo).toBeGreaterThanOrEqual(2 * AURA_AMOUNTS.attendance);
+
+        const res = await checkInWith(memberToken);
+
+        expect(res.statusCode).toBe(201);
+        // Presentes en el JSON: el schema de respuesta no los recorta.
+        expect(res.body.auraAwarded).toBe(AURA_AMOUNTS.attendance);
+        expect(res.body.auraTotal).toBe(previo + AURA_AMOUNTS.attendance);
+      });
+
+      it("si la app ya sumó hoy (3), la asistencia suma la diferencia: auraAwarded 2 (D-64)", async () => {
+        const { member, memberToken } = await setupMemberWithSubscription();
+        await createBookingForNow(member.id, testBranchId);
+        await app.db.insert(auraTransactions).values(
+          tenantValues(TEMPLO_CTX, {
+            userId: member.id,
+            sourceType: "training_completion",
+            amount: AURA_AMOUNTS.training,
+            referenceType: "training_day",
+            referenceId: TODAY_REF_ID,
+          }),
+        );
+        const previo = await earnedOf(memberToken);
+
+        const res = await checkInWith(memberToken);
+
+        expect(res.statusCode).toBe(201);
+        const expected = AURA_AMOUNTS.attendance - AURA_AMOUNTS.training;
+        expect(res.body.auraAwarded).toBe(expected);
+        expect(res.body.auraTotal).toBe(previo + expected);
+      });
+
+      it("el profe que se auto-registra no acredita Aura: auraAwarded y auraTotal en null", async () => {
+        const email = `coach-checkin-aura-${Date.now().toString(36)}@test.com`;
+        await createStaffUser(app, {
+          email,
+          password: "coach-pass-123",
+          firstName: "Coach",
+          lastName: "Autoscan",
+          role: "coach",
+          branchId: testBranchId,
+        });
+        const coachToken = await getAuthToken(app, email, "coach-pass-123");
+
+        const res = await checkInWith(coachToken);
+
+        expect(res.statusCode).toBe(201);
+        expect(res.body).toHaveProperty("auraAwarded", null);
+        expect(res.body).toHaveProperty("auraTotal", null);
+      });
+
+      it("con templo-gamification apagado: los dos null y el check-in igual se registra", async () => {
+        const { member, memberToken } = await setupMemberWithSubscription();
+        await createBookingForNow(member.id, testBranchId);
+        await setModuleFlag(app, TENANT_TEMPLO, "templo-gamification", false);
+
+        const res = await checkInWith(memberToken);
+
+        expect(res.statusCode).toBe(201);
+        expect(res.body.status).toBe("confirmado");
+        expect(res.body).toHaveProperty("auraAwarded", null);
+        expect(res.body).toHaveProperty("auraTotal", null);
+        const rows = await app.db
+          .select({ id: attendance.id })
+          .from(attendance)
+          .where(eq(attendance.memberId, member.id));
+        expect(rows).toHaveLength(1);
+      });
+
+      it("el check-in forzado del admin sigue sin los campos de Aura", async () => {
+        const { member } = await setupMemberWithSubscription({
+          email: "force-no-aura-field@test.com",
+          dni: "60020077",
+        });
+
+        const res = await app.inject({
+          method: "POST",
+          url: `${ADMIN_ATTENDANCE_URL}/force`,
+          headers: { authorization: `Bearer ${adminToken}` },
+          payload: {
+            memberId: member.id,
+            branchId: testBranchId,
+            reason: "Sin campos de Aura",
+          },
+        });
+
+        expect(res.statusCode).toBe(201);
+        const body = JSON.parse(res.body);
+        expect(body).not.toHaveProperty("auraAwarded");
+        expect(body).not.toHaveProperty("auraTotal");
+      });
     });
   });
 
@@ -893,7 +1040,9 @@ describe("Attendance API", () => {
         .from(auraTransactions)
         .where(eq(auraTransactions.userId, member.id));
 
-      const attendanceAward = auraRows.find((r) => r.amount === 10);
+      const attendanceAward = auraRows.find(
+        (r) => r.amount === AURA_AMOUNTS.attendance,
+      );
       expect(attendanceAward).toBeTruthy();
 
       // Force check-in also mirrors as a presencial completed_sessions row.
@@ -904,10 +1053,12 @@ describe("Attendance API", () => {
       expect(sessions).toHaveLength(1);
       expect(sessions[0].goalPlanType).toBe("presencial");
 
-      // AURA shouldn't be doubled — only the attendance award (10), not a
-      // second 10 from a synthetic completed_session.
-      const tens = auraRows.filter((r) => r.amount === 10);
-      expect(tens).toHaveLength(1);
+      // AURA shouldn't be doubled — only the attendance award, not a
+      // second one from a synthetic completed_session.
+      const attendanceAwards = auraRows.filter(
+        (r) => r.amount === AURA_AMOUNTS.attendance,
+      );
+      expect(attendanceAwards).toHaveLength(1);
     });
   });
 });

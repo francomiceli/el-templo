@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sketch 035 — Bandeja de notificaciones</title>
+<link rel="stylesheet" href="../themes/default.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Geologica:wght@300;400;500;600;700&family=Montserrat:wght@600;700;800&family=Cinzel:wght@600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+<style>
+  :root { --page: #f2ede5; --ink: #2c2318; --ink-2: #6b6459; --terra: #96593a; --line: #e5dbcd; --sand: #f3ede4; --aura: #6a5217; --aura-tint: #f6efdc; --aura-gold: #c9a227; --cream: #f0e6d6; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #e9e3da; font-family: 'Geologica', system-ui, sans-serif; color: var(--ink); }
+  button { font: inherit; color: inherit; border: 0; background: none; padding: 0; cursor: pointer; }
+  .material-icons { font-size: inherit; line-height: 1; vertical-align: middle; }
+  #controls { position: sticky; top: 0; z-index: 50; background: #fff; border-bottom: 1px solid #ddd; padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; font: 13px system-ui; }
+  .ctl { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+  .ctl > span { color: #555; margin-right: 4px; font-weight: 600; }
+  .ctl button { border: 1px solid #ccc; background: #fafafa; border-radius: 6px; padding: 5px 9px; }
+  .ctl button.on { background: #2c2318; color: #fff; border-color: #2c2318; }
+  #stage { display: flex; gap: 32px; justify-content: center; align-items: flex-start; padding: 24px 16px 80px; flex-wrap: wrap; }
+  .col { display: flex; flex-direction: column; align-items: center; }
+  .col-label { font: 600 13px system-ui; text-align: center; margin-bottom: 4px; }
+  .col-sub { font: 12px system-ui; color: #666; text-align: center; max-width: 360px; margin-bottom: 10px; line-height: 1.4; min-height: 84px; }
+  .phone { position: relative; width: var(--w, 390px); height: 760px; border-radius: 28px; overflow: hidden; box-shadow: 0 0 0 10px #1d1a17, 0 20px 50px rgba(0,0,0,.25); background: var(--page); display: flex; flex-direction: column; transition: width .2s; }
+  .appbar { flex: none; height: 56px; display: flex; align-items: center; gap: 8px; padding: 0 6px 0 14px; background: linear-gradient(135deg, #96593a, #b89b5e); color: #fff; font: 800 18px 'Montserrat', sans-serif; white-space: nowrap; }
+  .appbar i { flex: none; width: 30px; height: 30px; border-radius: 7px; background: #f2ede5; }
+  .appbar .ttl { overflow: hidden; text-overflow: ellipsis; }
+  .appbar .r { margin-left: auto; display: flex; align-items: center; }
+  .ib { position: relative; width: 40px; height: 40px; display: grid; place-items: center; font-size: 24px; color: #fff; border-radius: 50%; }
+  .ib.on { background: rgba(255,255,255,.2); }
+  .dot { position: absolute; top: 6px; right: 5px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: #fbf8f3; color: var(--terra); font: 700 10px 'Montserrat', sans-serif; display: grid; place-items: center; box-shadow: 0 0 0 2px #a8744a; }
+  .lv { display: inline-flex; align-items: center; gap: 4px; height: 34px; padding: 0 4px 0 8px; margin-right: 2px; border-radius: 999px; background: rgba(44,35,24,.28); border: 1px solid rgba(255,255,255,.35); font: 700 12px 'Montserrat', sans-serif; letter-spacing: .06em; }
+  .lv .material-icons { font-size: 18px; }
+  .body { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .tc { height: 170px; border-radius: 20px; background: #2c2318; color: var(--cream); padding: 18px; }
+  .tc small { font: 700 11px 'Cinzel', serif; letter-spacing: .16em; color: #e3c9a8; }
+  .tc b { display: block; margin-top: 8px; font: 700 21px 'Montserrat', sans-serif; }
+  .ph { height: 90px; border-radius: 16px; background: #fff; border: 1px solid var(--line); padding: 14px 16px; font: 800 12px 'Montserrat', sans-serif; letter-spacing: .08em; color: var(--terra); }
+  .tabbar { flex: none; height: 56px; display: flex; justify-content: space-around; align-items: center; background: linear-gradient(135deg, #7d5d42, #96593a); color: #f2ede5; font-size: 10px; }
+  .tabbar span { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .tabbar .material-icons { font-size: 24px; }
+
+  /* filas de aviso */
+  .n { display: flex; gap: 12px; padding: 12px 16px; border-top: 1px solid #f1eadf; text-align: left; width: 100%; }
+  .n:first-of-type { border-top: 0; }
+  .n.new { background: #fffaf0; }
+  .n .ic { flex: none; position: relative; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--sand); color: var(--terra); font-size: 20px; overflow: hidden; }
+  .n .ic img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .n .ic.aura { background: var(--aura-tint); color: var(--aura-gold); box-shadow: inset 0 0 0 1.5px #d9bf74; }
+  .n .t { flex: 1; min-width: 0; font-size: 14.5px; line-height: 1.35; }
+  .n .t b { font-weight: 600; }
+  .n .t small { display: block; margin-top: 2px; font-size: 12.5px; color: var(--ink-2); }
+  .n .p { flex: none; align-self: center; padding: 1px 8px; border-radius: 999px; background: var(--aura-tint); color: var(--aura); font: 700 12.5px 'Montserrat', sans-serif; }
+  .n .u { flex: none; align-self: center; width: 8px; height: 8px; border-radius: 50%; background: var(--terra); }
+  .hd { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 8px; }
+  .hd h3 { margin: 0; font: 700 18px 'Montserrat', sans-serif; }
+  .hd button { font-size: 13px; color: var(--terra); text-decoration: underline; text-underline-offset: 3px; }
+  .day { padding: 10px 16px 4px; font: 800 11px 'Montserrat', sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); }
+  .empty { padding: 40px 24px; text-align: center; color: var(--ink-2); font-size: 14.5px; }
+  .empty .material-icons { display: block; margin: 0 auto 8px; font-size: 40px; color: #cdbfae; }
+
+  /* A: hoja desde abajo */
+  .veil { position: absolute; inset: 0; z-index: 20; background: rgba(44,35,24,.42); opacity: 0; pointer-events: none; transition: opacity .2s; }
+  .veil.show { opacity: 1; pointer-events: auto; }
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 21; max-height: 84%; display: flex; flex-direction: column; border-radius: 22px 22px 0 0; background: #fbf8f3; box-shadow: 0 -10px 40px rgba(44,35,24,.3); transform: translateY(105%); transition: transform .28s cubic-bezier(.2,.8,.2,1); }
+  .sheet.show { transform: none; }
+  .grip { width: 40px; height: 4px; margin: 8px auto 0; border-radius: 4px; background: #d9cfc1; }
+  .sheet .list { overflow-y: auto; padding-bottom: 12px; }
+  /* B: pantalla propia */
+  .page { flex: 1; overflow-y: auto; background: #fbf8f3; }
+  /* C: desplegable bajo la campana */
+  .pop { position: absolute; top: 54px; right: 8px; z-index: 21; width: calc(100% - 16px); max-height: 62%; overflow-y: auto; border-radius: 18px; background: #fbf8f3; box-shadow: 0 16px 40px rgba(44,35,24,.35); opacity: 0; transform: translateY(-8px); pointer-events: none; transition: all .18s; }
+  .pop.show { opacity: 1; transform: none; pointer-events: auto; }
+  .pop .more { display: block; width: 100%; padding: 12px; border-top: 1px solid var(--line); text-align: center; color: var(--terra); font-weight: 600; font-size: 14px; }
+
+  /* push */
+  .push { position: absolute; top: 8px; left: 8px; right: 8px; z-index: 40; display: flex; gap: 10px; padding: 10px 12px; border-radius: 16px; background: rgba(250,247,242,.97); box-shadow: 0 10px 30px rgba(0,0,0,.3); font-size: 13.5px; line-height: 1.3; transform: translateY(-130%); transition: transform .35s cubic-bezier(.2,.8,.2,1); }
+  .push.show { transform: none; }
+  .push i { flex: none; width: 34px; height: 34px; border-radius: 8px; background: linear-gradient(135deg, #96593a, #b89b5e); }
+  .push b { display: block; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<div id="controls">
+  <div class="ctl" data-ctl="un"><span>Sin leer</span>
+    <button data-v="3" class="on">3</button><button data-v="0">Ninguno</button><button data-v="vacia">Bandeja vacía</button>
+  </div>
+  <div class="ctl" data-ctl="tab"><span>Pestaña</span>
+    <button data-v="mt" class="on">Mi Templo</button><button data-v="ent">Entrenar (con selector de nivel)</button>
+  </div>
+  <div class="ctl" data-ctl="w"><span>Ancho</span>
+    <button data-v="360">360</button><button data-v="390" class="on">390</button><button data-v="412">412</button>
+  </div>
+  <div class="ctl"><button id="push" style="background:#2c2318;color:#fff;border-color:#2c2318">▶ Simular que llega un regalo</button></div>
+</div>
+
+<div id="stage">
+  <div class="col"><div class="col-label">A · Hoja desde abajo</div>
+    <div class="col-sub">La campana va entre el perfil y cerrar sesión, con el número de avisos sin leer. Al tocarla sube una hoja con la lista, igual que "Quiénes van". No se sale de la pantalla donde estabas.</div>
+    <div class="phone" data-v="A"></div></div>
+  <div class="col"><div class="col-label">B · Pantalla propia</div>
+    <div class="col-sub">La campana abre una pantalla "Notificaciones" a todo el alto, con los avisos agrupados por día y flecha para volver. Entra más historial; es una pantalla más para recorrer.</div>
+    <div class="phone" data-v="B"></div></div>
+  <div class="col"><div class="col-label">C · Desplegable bajo la campana</div>
+    <div class="col-sub">Un panel chico cae desde la campana con los últimos avisos y "Ver todos". Lo más rápido para echar un vistazo; en celular queda apretado y tapa el encabezado.</div>
+    <div class="phone" data-v="C"></div></div>
+</div>
+
+<script>
+  const N = [
+    { day: 'Hoy', who: 'women/44', t: '<b>Sofía M.</b> te dio Aura', s: 'Buena energía · hace 20 min', p: '+1' },
+    { day: 'Hoy', aura: 1, t: 'El profe <b>Fran</b> te dio Aura', s: 'Buena técnica · hace 1 h', p: '+2' },
+    { day: 'Hoy', ic: 'self_improvement', t: '¿Estás para un stretch?', s: 'Tu estiramiento de hoy está listo · hace 2 h' },
+    { day: 'Ayer', ic: 'photo_camera', t: 'Tu foto fue aprobada', s: 'Ya aparece en las listas de tus clases', p: '+5' },
+    { day: 'Ayer', ic: 'event_available', t: 'Mañana entrenás a las 18:00', s: 'Sesión grupal · Mario Bravo' },
+    { day: 'Esta semana', ic: 'workspace_premium', t: '¡2 años en El Templo!', s: 'Gracias por seguir viniendo', p: '+50' },
+    { day: 'Esta semana', ic: 'campaign', t: 'Novedad: nuevos horarios de sábado', s: 'Mirá la grilla de tu sede' },
+  ]
+  const s = { un: '3', tab: 'mt', open: { A: false, B: false, C: false } }
+  const unread = () => (s.un === '3' ? 3 : 0)
+  const row = (n, i) => `<button class="n ${i < unread() ? 'new' : ''}"><span class="ic ${n.aura ? 'aura' : ''}">${n.who ? `<img src="https://randomuser.me/api/portraits/${n.who}.jpg" alt="" onerror="this.remove()">` : n.aura ? '✦' : `<span class="material-icons">${n.ic}</span>`}</span><span class="t">${n.t}<small>${n.s}</small></span>${n.p ? `<span class="p">✦ ${n.p}</span>` : ''}${i < unread() ? '<span class="u"></span>' : ''}</button>`
+  function list(max, byDay) {
+    if (s.un === 'vacia') return `<div class="empty"><span class="material-icons">notifications_none</span>Todavía no tenés avisos.<br>Acá van a quedar los que te mande la app.</div>`
+    let out = '', last = ''
+    N.slice(0, max).forEach((n, i) => { if (byDay && n.day !== last) { out += `<div class="day">${n.day}</div>`; last = n.day } out += row(n, i) })
+    return out
+  }
+  const head = (v) => `<div class="hd"><h3>Notificaciones</h3>${unread() ? `<button data-act="read">Marcar todo como leído</button>` : ''}</div>`
+  const bell = (v) => `<button class="ib ${s.open[v] ? 'on' : ''}" data-act="bell" data-v="${v}"><span class="material-icons">${unread() ? 'notifications' : 'notifications_none'}</span>${unread() ? `<span class="dot">${unread()}</span>` : ''}</button>`
+  const bar = (v) => `<div class="appbar"><i></i><span class="ttl">${s.tab === 'ent' ? '' : 'EL TEMPLO'}</span><span class="r">${s.tab === 'ent' ? '<span class="lv">Δ DELTA<span class="material-icons">expand_more</span></span>' : ''}<span class="ib"><span class="material-icons">person</span></span>${bell(v)}<span class="ib"><span class="material-icons">logout</span></span></span></div>`
+  const tabbar = `<div class="tabbar">${[['account_balance', 'Mi Templo'], ['menu_book', 'Guía'], ['sports_mma', 'Entrenar'], ['event_available', 'Reservas'], ['card_membership', 'Planes']].map(([i, l]) => `<span><span class="material-icons">${i}</span>${l}</span>`).join('')}</div>`
+  const home = `<div class="body"><div class="tc"><small>HOY · MARTES</small><b>Deuteros II · Tren superior</b></div><div class="ph">TUS SESIONES</div></div>`
+  const pushEl = `<div class="push" data-push><i></i><span><b>Sofía M. te dio Aura ✦</b>Buena energía. Tocá para verlo.</span></div>`
+  function phone(v) {
+    if (v === 'B' && s.open.B) return `<div class="appbar"><button class="ib" data-act="bell" data-v="B"><span class="material-icons">arrow_back</span></button>Notificaciones<span class="r">${unread() ? '<button data-act="read" style="font:500 13px Geologica;color:#fff;text-decoration:underline;margin-right:10px">Marcar leído</button>' : ''}</span></div><div class="page">${list(7, true)}</div>${pushEl}`
+    const a = v === 'A' ? `<div class="veil ${s.open.A ? 'show' : ''}" data-act="bell" data-v="A"></div><div class="sheet ${s.open.A ? 'show' : ''}"><div class="grip"></div>${head()}<div class="list">${list(7, true)}</div></div>` : ''
+    const c = v === 'C' ? `<div class="veil ${s.open.C ? 'show' : ''}" style="background:rgba(44,35,24,.2)" data-act="bell" data-v="C"></div><div class="pop ${s.open.C ? 'show' : ''}">${head()}${list(4, false)}${s.un === 'vacia' ? '' : '<button class="more">Ver todos</button>'}</div>` : ''
+    return `${bar(v)}${home}${tabbar}${a}${c}${pushEl}`
+  }
+  function render() { document.querySelectorAll('.phone').forEach((p) => { p.innerHTML = phone(p.dataset.v) }) }
+  document.getElementById('stage').addEventListener('click', (e) => {
+    const t = e.target.closest('[data-act]'); if (!t) return
+    if (t.dataset.act === 'bell') s.open[t.dataset.v] = !s.open[t.dataset.v]
+    if (t.dataset.act === 'read') setCtl('un', '0')
+    render()
+  })
+  function setCtl(k, v) { document.querySelectorAll(`.ctl[data-ctl="${k}"] button`).forEach((x) => x.classList.toggle('on', x.dataset.v === v)); s[k] = v }
+  document.querySelectorAll('.ctl[data-ctl]').forEach((ctl) => ctl.addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return
+    if (ctl.dataset.ctl === 'w') { ctl.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); document.querySelectorAll('.phone').forEach((p) => p.style.setProperty('--w', b.dataset.v + 'px')); return }
+    setCtl(ctl.dataset.ctl, b.dataset.v); render()
+  }))
+  document.getElementById('push').addEventListener('click', () => { setCtl('un', '3'); render(); document.querySelectorAll('[data-push]').forEach((p) => { requestAnimationFrame(() => p.classList.add('show')); setTimeout(() => p.classList.remove('show'), 3200) }) })
+  render()
+</script>
+</body>
+</html>

@@ -19,6 +19,7 @@ import { and, eq, gte, inArray, like, lte, notLike, or } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../db/schema";
+import { AURA_AMOUNTS } from "../aura/amounts";
 import type { AuraService } from "../aura/service";
 import { todayInTz } from "../shared/date-utils";
 import {
@@ -370,7 +371,7 @@ export class FreeBlocksService {
    * Fase 197 D-12/D-13: cierre del bloque libre.
    *
    * Guarda el bloque en `extra_blocks_completed` con la duracion calculada en
-   * el SERVIDOR y, si corresponde, acredita +5 AURA (fuente `extra_block`).
+   * el SERVIDOR y, si corresponde, acredita AURA (fuente `extra_block`, monto en `AURA_AMOUNTS.extraBlock`).
    * Con `completionId` ("Seguir entrenando") actualiza la MISMA fila: la
    * duracion corre desde el inicio original y puede cruzar los 10'.
    *
@@ -544,6 +545,7 @@ export class FreeBlocksService {
       sourceType: "extra_block",
       referenceType: "extra_block_day",
       localDate: row.localDate,
+      amount: AURA_AMOUNTS.extraBlock,
       description: "Bloque libre del día",
     });
     if (!acreditada) return false;

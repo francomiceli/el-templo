@@ -470,12 +470,45 @@ import {
 // 2026-11-13: 557 -> 558 por el export a Excel de ese histórico:
 // GET /api/admin/reports/multibranch-reassignments/export, `tenant-scoped`.
 // 2026-11-13: + export de recategorizaciones en esta rama = 577.
-// 2026-11-19: 577 -> 580 por el seguimiento de invitados (la bandeja de Invitaciones como
+// 2026-11-17 fase 214: 577 -> 581 por las 4 rutas de foto propia del alumno
+// (upload-url, confirm, DELETE y report), `tenant-scoped` (`assertTenant` +
+// `tenantWhere` en el service).
+// 2026-11-18 fase 214 (plan 15): 581 -> 585 por las 4 rutas del staff para la
+// foto de perfil (cola GET, approve, reject y DELETE por `/:userId`),
+// `tenant-scoped` (`assertTenant` + `tenantWhere` en el service).
+// 2026-11-18 fase 214 (plan 16): 585 -> 587 por las 2 rutas de visibilidad del
+// alumno en la lista de anotados (PUT visibility y POST notice-seen),
+// `tenant-scoped` (`assertTenant` + `tenantValues`/`tenantWhere` en el service).
+// 2026-11-18 fase 214 (plan 17): 587 -> 588 por la ruta de anotados de un
+// horario (GET slots/:scheduleId/:date/attendees), `tenant-scoped` (`assertTenant`
+// + `tenantWhere` en cada tabla del join).
+// 2026-11-18 fase 214 (plan 18): 588 -> 589 por el detalle privado de Aura
+// (GET /api/members/aura/movements), `templo-module` (`templo-gamification`).
+// 2026-11-18 fase 215 (plan 06): 589 -> 592 por las rutas del regalo del alumno
+// (GET gifts/pending, GET gifts/candidates y POST gifts), `templo-module`
+// (`templo-gamification`).
+// 2026-11-18 fase 215 (plan 08): 592 -> 595 por las rutas del regalo del profe
+// (POST /api/admin/aura/gifts y GET/PUT /api/admin/aura/gift-settings),
+// `templo-module` (`templo-gamification`).
+// 2026-11-18 fase 215 (plan 09): 595 -> 596 por la anulación de un regalo
+// (POST /api/admin/aura/gifts/:id/void), `templo-module` (`templo-gamification`).
+// 2026-11-18 fase 215 (plan 10): 596 -> 597 por la lista de regalos y la
+// medición del staff (GET /api/admin/aura/gifts), `templo-module`
+// (`templo-gamification`).
+// 2026-11-18 fase 215 (plan 14): 597 -> 601 por las 4 rutas de la bandeja de
+// avisos (GET /api/members/notifications, GET unread-count, POST :id/read y
+// POST read-all), `tenant-scoped` (núcleo, sin `moduleScope`).
+// 2026-11-18 fase 215 (ajustes, plan C): 601 -> 602 por el conteo de regalos por
+// profe (GET /api/admin/aura/gifts/by-coach), `templo-module` (`templo-gamification`).
+// 2026-11-18 fase 215 (ajustes, plan D): 602 -> 604 por la celebración de Aura
+// (GET /api/members/aura/celebration y POST celebration/ack), `templo-module`
+// (`templo-gamification`).
+// 2026-11-19: 604 -> 607 por el seguimiento de invitados (la bandeja de Invitaciones como
 // lista de seguimiento): `GET /api/admin/referrals/invitations/pending-count`, `PATCH
 // /api/admin/referrals/invitations/:invitationId/followup` y `POST
 // /api/admin/referrals/invitations/:invitationId/notes`, las 3 `tenant-scoped`
 // (`assertTenant` + `tenantWhere`/`tenantValues` en el service).
-const ENTRADAS_BASELINE = 580;
+const ENTRADAS_BASELINE = 607;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -618,7 +651,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 580 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 607 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(

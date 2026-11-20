@@ -217,7 +217,7 @@ async function comoAdminGimnasioDos(
 
 /** Escritura app-facing con el token de socio/freemium indicado. */
 async function comoMemberGimnasioDos(
-  method: "POST" | "DELETE",
+  method: "POST" | "PUT" | "DELETE",
   url: string,
   token: string,
   payload?: Record<string, unknown>,
@@ -373,6 +373,13 @@ async function consultar<T>(consulta: SQL): Promise<T[]> {
     ? resultado[0]
     : (resultado as unknown as T[]);
   return filas ?? [];
+}
+
+/** Foto de las filas de member_profiles de El Templo (aislamiento de las escrituras del gimnasio 2). */
+async function perfilesDeElTemplo(): Promise<unknown[]> {
+  return consultar(
+    sql`SELECT /* tenant-safe: foto de las filas de El Templo para afirmar que la escritura del gimnasio 2 no las toca */ id, user_id, community_visible, community_notice_seen_at FROM member_profiles WHERE tenant_id = ${TENANT_TEMPLO} ORDER BY id`,
+  );
 }
 
 interface FotoDeSchedule {
@@ -1565,6 +1572,119 @@ describe("reservar clase (socio) — POST /api/members/scheduling/reserve", () =
       await tenantDeLaFila(app, "bookings", body.id),
       `${RUTA}: la reserva del socio del gimnasio ${TENANT_DOS} tiene que nacer con ese tenant_id.`,
     ).toBe(TENANT_DOS);
+  });
+});
+
+describe("visibilidad del alumno en la lista de anotados — PUT /api/members/scheduling/attendees/visibility", () => {
+  const RUTA = "PUT /api/members/scheduling/attendees/visibility";
+
+  it("aislamiento: la preferencia del socio del gimnasio 2 nace con tenant_id = TENANT_DOS y ninguna fila de member_profiles de El Templo cambia", async () => {
+    const antes = await perfilesDeElTemplo();
+    const res = await comoMemberGimnasioDos(
+      "PUT",
+      "/attendees/visibility",
+      gym2.socios[0].token,
+      { visible: false },
+    );
+    expect(
+      res.statusCode,
+      porQueImportaElControl(RUTA, gym2.socios[0].id) +
+        ` Respuesta: ${res.body}`,
+    ).toBe(200);
+
+    const filas = await consultar<{ id: number; t: number; visible: number }>(
+      sql`SELECT /* tenant-safe: la asercion ES leer el tenant_id de la fila escrita por el socio del gimnasio 2 */ id, tenant_id AS t, community_visible AS visible FROM member_profiles WHERE user_id = ${gym2.socios[0].id}`,
+    );
+    expect(
+      filas.length,
+      `${RUTA}: el upsert tiene que dejar UNA fila para el socio del gimnasio ${TENANT_DOS}.`,
+    ).toBe(1);
+    expect(
+      Number(filas[0].t),
+      `${RUTA}: la fila escrita tiene que nacer con tenant_id = ${TENANT_DOS}.`,
+    ).toBe(TENANT_DOS);
+    expect(Number(filas[0].visible)).toBe(0);
+
+    const despues = await perfilesDeElTemplo();
+    expect(
+      despues,
+      `${RUTA}: ninguna fila de member_profiles de El Templo puede cambiar por la escritura del gimnasio ${TENANT_DOS}.`,
+    ).toEqual(antes);
+  });
+
+  it("control: un body valido responde 200 con la preferencia guardada", async () => {
+    const res = await comoMemberGimnasioDos(
+      "PUT",
+      "/attendees/visibility",
+      gym2.socios[1].token,
+      { visible: true },
+    );
+    expect(
+      res.statusCode,
+      porQueImportaElControl(RUTA, gym2.socios[1].id) +
+        ` Respuesta: ${res.body}`,
+    ).toBe(200);
+    expect(JSON.parse(res.body)).toEqual({ visible: true, noticeSeen: false });
+  });
+});
+
+describe("aviso de visibilidad visto — POST /api/members/scheduling/attendees/notice-seen", () => {
+  const RUTA = "POST /api/members/scheduling/attendees/notice-seen";
+
+  it("aislamiento: la marca del socio del gimnasio 2 nace con tenant_id = TENANT_DOS y ninguna fila de member_profiles de El Templo cambia", async () => {
+    const antes = await perfilesDeElTemplo();
+    const res = await comoMemberGimnasioDos(
+      "POST",
+      "/attendees/notice-seen",
+      gym2.socios[0].token,
+    );
+    expect(
+      res.statusCode,
+      porQueImportaElControl(RUTA, gym2.socios[0].id) +
+        ` Respuesta: ${res.body}`,
+    ).toBe(204);
+
+    const filas = await consultar<{
+      id: number;
+      t: number;
+      visto: Date | null;
+    }>(
+      sql`SELECT /* tenant-safe: la asercion ES leer el tenant_id de la fila escrita por el socio del gimnasio 2 */ id, tenant_id AS t, community_notice_seen_at AS visto FROM member_profiles WHERE user_id = ${gym2.socios[0].id}`,
+    );
+    expect(
+      filas.length,
+      `${RUTA}: el upsert tiene que dejar UNA fila para el socio del gimnasio ${TENANT_DOS}.`,
+    ).toBe(1);
+    expect(
+      Number(filas[0].t),
+      `${RUTA}: la fila escrita tiene que nacer con tenant_id = ${TENANT_DOS}.`,
+    ).toBe(TENANT_DOS);
+    expect(filas[0].visto).not.toBeNull();
+
+    const despues = await perfilesDeElTemplo();
+    expect(
+      despues,
+      `${RUTA}: ninguna fila de member_profiles de El Templo puede cambiar por la escritura del gimnasio ${TENANT_DOS}.`,
+    ).toEqual(antes);
+  });
+
+  it("control: repetir la marca sigue respondiendo 204 (idempotente)", async () => {
+    const primera = await comoMemberGimnasioDos(
+      "POST",
+      "/attendees/notice-seen",
+      gym2.socios[1].token,
+    );
+    const segunda = await comoMemberGimnasioDos(
+      "POST",
+      "/attendees/notice-seen",
+      gym2.socios[1].token,
+    );
+    expect(
+      primera.statusCode,
+      porQueImportaElControl(RUTA, gym2.socios[1].id) +
+        ` Respuesta: ${primera.body}`,
+    ).toBe(204);
+    expect(segunda.statusCode).toBe(204);
   });
 });
 

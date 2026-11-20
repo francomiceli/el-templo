@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sketch 031 — Encabezado de Mi Templo</title>
+<link rel="stylesheet" href="../themes/default.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Geologica:wght@300;400;500;600;700&family=Montserrat:wght@600;700;800&family=Cinzel:wght@600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+<style>
+  :root { --page: #f2ede5; --ink: #2c2318; --ink-2: #6b6459; --terra: #96593a; --gold: #b89b5e; --line: #e5dbcd; --sand: #f3ede4; --aura: #7d6520; --aura-tint: #f6efdc; --aura-gold: #d4b46a; --cream: #f0e6d6; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #e9e3da; font-family: 'Geologica', system-ui, sans-serif; color: var(--ink); }
+  button { font: inherit; color: inherit; }
+  .material-icons { font-size: inherit; line-height: 1; vertical-align: middle; }
+  #controls { position: sticky; top: 0; z-index: 50; background: #fff; border-bottom: 1px solid #ddd; padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; font: 13px system-ui; }
+  .ctl { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+  .ctl > span { color: #555; margin-right: 4px; font-weight: 600; }
+  .ctl button { border: 1px solid #ccc; background: #fafafa; border-radius: 6px; padding: 5px 9px; cursor: pointer; }
+  .ctl button.on { background: #2c2318; color: #fff; border-color: #2c2318; }
+  h2.sec { margin: 28px 0 0; text-align: center; font: 700 15px system-ui; }
+  .stage { display: flex; gap: 32px; justify-content: center; align-items: flex-start; padding: 16px 16px 8px; flex-wrap: wrap; }
+  .col { display: flex; flex-direction: column; align-items: center; }
+  .col-label { font: 600 13px system-ui; text-align: center; margin-bottom: 4px; }
+  .col-sub { font: 12px system-ui; color: #666; text-align: center; max-width: 360px; margin-bottom: 10px; line-height: 1.4; min-height: 68px; }
+
+  .phone { position: relative; width: var(--w, 390px); height: 560px; border-radius: 28px 28px 0 0; overflow: hidden; box-shadow: 0 0 0 10px #1d1a17, 0 20px 50px rgba(0,0,0,.25); background: var(--page); transition: width .2s; display: flex; flex-direction: column; }
+  .appbar { flex: none; height: 56px; display: flex; align-items: center; gap: 10px; padding: 0 14px; background: linear-gradient(135deg, #96593a, #b89b5e); color: #fff; font: 800 18px 'Montserrat', sans-serif; letter-spacing: .02em; }
+  .appbar i { width: 30px; height: 30px; border-radius: 7px; background: #f2ede5; }
+  .appbar .sp { margin-left: auto; font-size: 22px; opacity: .9; }
+  .greet { flex: none; background: linear-gradient(135deg, #96593a, #b89b5e); color: #fff; padding: 8px 16px 14px; }
+  .body { flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .today { height: 150px; border-radius: 18px; background: #2c2318; color: var(--cream); padding: 16px; }
+  .today small { font: 700 11px 'Cinzel', serif; letter-spacing: .14em; color: #e3c9a8; }
+  .today b { display: block; margin-top: 6px; font: 700 20px 'Montserrat', sans-serif; }
+  .ph { height: 90px; border-radius: 16px; background: #fff; border: 1px solid var(--line); padding: 14px 16px; font: 800 12px 'Montserrat', sans-serif; letter-spacing: .08em; color: var(--terra); }
+
+  /* piezas comunes */
+  .av { --s: 44px; flex: none; position: relative; width: var(--s); height: var(--s); border-radius: 50%; display: grid; place-items: center; background: rgba(255,255,255,.18); color: #fff; font: 700 calc(var(--s) * .36) 'Montserrat', sans-serif; box-shadow: 0 0 0 2px rgba(255,255,255,.75); cursor: pointer; }
+  .av img { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+  .av.add { border: 1.5px dashed rgba(255,255,255,.85); box-shadow: none; font-size: calc(var(--s) * .48); }
+  .av .bd { position: absolute; right: -4px; bottom: -4px; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: #2c2318; color: var(--aura-gold); font-size: 13px; box-shadow: 0 0 0 2px #a8744a; }
+  .name { margin: 0; font: 600 22px/1.2 'Montserrat', sans-serif; color: #fff; display: flex; align-items: center; gap: 6px; }
+  .seal { flex: none; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; color: #5b4310; background: linear-gradient(135deg, #f5dd7e, #e0b93f 55%, #b28a24); box-shadow: 0 1px 2px rgba(0,0,0,.25); }
+  .seal.bronze { background: linear-gradient(135deg, #e9c9a8, #c98f63 55%, #96593a); color: #4a2a15; }
+  .seal.terra { background: #f2ede5; color: var(--terra); }
+  .lvl { display: flex; flex-direction: column; align-items: center; color: #fff; cursor: pointer; }
+  .lvl .g { font-size: 30px; line-height: 1; }
+  .lvl .t { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; }
+  .lvl .ch { font-size: 16px; opacity: .85; margin-bottom: -4px; }
+  .spark { color: var(--aura-gold); font-style: normal; }
+  .aura-btn { border: 0; cursor: pointer; }
+
+  /* Hoy */
+  .hoy .greet { display: flex; justify-content: space-between; align-items: flex-end; }
+  .hoy .date { margin: 2px 0 0; font-size: 13px; }
+
+  /* A · Una línea */
+  .A .greet { display: flex; align-items: center; gap: 12px; }
+  .A .txt { flex: 1; min-width: 0; }
+  .A .meta { margin: 3px 0 0; display: flex; align-items: center; gap: 8px; font-size: 13px; color: #fff; flex-wrap: wrap; }
+  .A .meta .dot { opacity: .6; }
+  .A .aura-btn { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px 2px 7px; border-radius: 999px; background: rgba(44,35,24,.55); color: #fff; font: 700 13px 'Montserrat', sans-serif; }
+
+  /* B · Dos fichas */
+  .B .greet { padding-bottom: 16px; }
+  .B .top { display: flex; align-items: center; gap: 12px; }
+  .B .top .txt { flex: 1; min-width: 0; }
+  .B .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+  .B .tile { padding: 9px 12px; border-radius: 14px; background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.28); color: #fff; text-align: left; }
+  .B .tile small { display: block; font: 700 10px 'Montserrat', sans-serif; letter-spacing: .1em; text-transform: uppercase; opacity: .85; }
+  .B .tile b { display: flex; align-items: center; gap: 5px; margin-top: 2px; font: 700 17px 'Montserrat', sans-serif; }
+  .B .tile .go { margin-left: auto; font-size: 18px; opacity: .8; }
+  .B .tile.aura-btn { background: rgba(44,35,24,.5); border-color: rgba(212,180,106,.55); }
+
+  /* C · Aura protagonista */
+  .C .greet { display: flex; align-items: center; gap: 12px; }
+  .C .av { --s: 52px; box-shadow: 0 0 0 2px #2c2318, 0 0 0 4px var(--aura-gold), 0 0 16px rgba(212,180,106,.7); }
+  .C .av.add { box-shadow: none; }
+  .C .txt { flex: 1; min-width: 0; }
+  .C .since { margin: 3px 0 0; font-size: 13px; color: #fff; display: flex; align-items: center; gap: 6px; }
+  .C .aura-btn { flex: none; display: flex; flex-direction: column; align-items: center; padding: 8px 14px; border-radius: 16px; background: #2c2318; color: var(--cream); box-shadow: 0 6px 16px rgba(44,35,24,.3), inset 0 0 0 1px rgba(212,180,106,.5); }
+  .C .aura-btn b { font: 800 22px/1 'Montserrat', sans-serif; color: #f0d58f; }
+  .C .aura-btn small { margin-top: 3px; font: 700 10px 'Cinzel', serif; letter-spacing: .16em; color: var(--aura-gold); }
+  .C .lvl-row { display: flex; align-items: center; gap: 6px; margin-top: 2px; font-size: 12px; color: #fff; opacity: .92; cursor: pointer; }
+
+  /* escritorio */
+  .desk { width: 1040px; max-width: 100%; height: 190px; border-radius: 12px; overflow: hidden; box-shadow: 0 0 0 6px #1d1a17, 0 16px 40px rgba(0,0,0,.2); display: flex; background: var(--page); }
+  .rail { flex: none; width: 64px; background: linear-gradient(180deg, #b89b5e, #96593a); display: flex; flex-direction: column; align-items: center; gap: 22px; padding-top: 16px; color: #fff; font-size: 24px; }
+  .rail i { width: 32px; height: 32px; border-radius: 7px; background: #f2ede5; }
+  .desk .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .desk .bar2 { height: 50px; background: linear-gradient(135deg, #96593a, #b89b5e); color: #fff; display: flex; align-items: center; padding: 0 16px; font: 800 18px 'Montserrat', sans-serif; }
+  .desk .greet { padding: 4px 16px 14px; }
+  .desk.B .tiles { max-width: 420px; }
+  .desk .rest { flex: 1; padding: 14px 16px; font: 800 12px 'Montserrat', sans-serif; letter-spacing: .08em; color: var(--terra); }
+
+  /* detalle de Aura */
+  .veil { position: fixed; inset: 0; z-index: 80; background: rgba(44,35,24,.5); display: grid; place-items: end center; opacity: 0; pointer-events: none; transition: opacity .2s; }
+  .veil.show { opacity: 1; pointer-events: auto; }
+  .sheet { width: 390px; max-width: 100%; max-height: 86vh; overflow-y: auto; border-radius: 22px 22px 0 0; background: #fbf8f3; transform: translateY(30px); transition: transform .25s; }
+  .veil.show .sheet { transform: none; }
+  .sheet .hero { padding: 22px 20px 20px; background: #2c2318; color: var(--cream); text-align: center; border-radius: 22px 22px 0 0; }
+  .sheet .hero small { font: 700 11px 'Cinzel', serif; letter-spacing: .18em; color: var(--aura-gold); }
+  .sheet .hero b { display: block; margin-top: 6px; font: 800 44px/1 'Montserrat', sans-serif; color: #f0d58f; }
+  .sheet .hero p { margin: 8px 0 0; font-size: 13.5px; color: #c9bba6; }
+  .sheet h4 { margin: 16px 20px 4px; font: 800 12px 'Montserrat', sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--terra); }
+  .mv { display: flex; align-items: center; gap: 12px; padding: 10px 20px; border-top: 1px solid #f1eadf; font-size: 14.5px; }
+  .mv .ic { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--sand); color: var(--terra); font-size: 18px; }
+  .mv span { flex: 1; }
+  .mv small { display: block; font-size: 12.5px; color: var(--ink-2); }
+  .mv b { font: 700 15px 'Montserrat', sans-serif; color: var(--aura); }
+  .mv b.neg { color: #a8423f; }
+  .more { display: block; width: calc(100% - 40px); margin: 12px 20px 20px; height: 42px; border-radius: 999px; border: 1.5px solid var(--terra); background: #fff; color: var(--terra); font-weight: 600; cursor: pointer; }
+</style>
+</head>
+<body>
+
+<div id="controls">
+  <div class="ctl" data-ctl="foto"><span>Foto</span>
+    <button data-v="si" class="on">Con foto</button><button data-v="no">Sin foto</button><button data-v="pend">En revisión</button>
+  </div>
+  <div class="ctl" data-ctl="ant"><span>Antigüedad</span>
+    <button data-v="2 años y 3 meses" class="on">2 años y 3 meses</button><button data-v="4 meses">4 meses</button><button data-v="3 semanas">3 semanas</button>
+  </div>
+  <div class="ctl" data-ctl="sello"><span>Sello</span>
+    <button data-v="oro" class="on">Dorado (hoy)</button><button data-v="terra">Sin dorado</button><button data-v="no">Sin sello</button>
+  </div>
+  <div class="ctl" data-ctl="nivel"><span>Selector de nivel</span>
+    <button data-v="1" class="on">Se queda</button><button data-v="0">Sale</button>
+  </div>
+  <div class="ctl" data-ctl="rol"><span>Quién</span>
+    <button data-v="alumno" class="on">Alumno</button><button data-v="staff">Staff (sin Aura)</button>
+  </div>
+  <div class="ctl" data-ctl="w"><span>Ancho</span>
+    <button data-v="360">360</button><button data-v="390" class="on">390</button><button data-v="412">412</button>
+  </div>
+</div>
+
+<h2 class="sec">Celular</h2>
+<div class="stage">
+  <div class="col"><div class="col-label">Hoy</div>
+    <div class="col-sub">"Hola, Franco!" con el sello, la fecha debajo y el selector de nivel a la derecha. Sin foto ni Aura.</div>
+    <div class="phone hoy" data-v="hoy"></div></div>
+  <div class="col"><div class="col-label">A · Una línea</div>
+    <div class="col-sub">Foto, nombre y debajo una sola línea con la antigüedad y los puntos en una pastilla oscura. Ocupa el mismo alto que hoy. Tocá los puntos para ver el detalle.</div>
+    <div class="phone A" data-v="A"></div></div>
+  <div class="col"><div class="col-label">B · Dos fichas</div>
+    <div class="col-sub">Foto y nombre arriba; abajo dos fichas del mismo tamaño: "En El Templo" y "Aura". Los dos datos pesan igual y la de Aura se nota tocable. Un renglón más alto.</div>
+    <div class="phone B" data-v="B"></div></div>
+  <div class="col"><div class="col-label">C · Aura protagonista</div>
+    <div class="col-sub">El Aura va en una ficha oscura con número dorado, hermana de la card de hoy, y la foto lleva un halo dorado. La antigüedad queda como dato chico bajo el nombre.</div>
+    <div class="phone C" data-v="C"></div></div>
+</div>
+
+<h2 class="sec">Escritorio</h2>
+<div class="stage" style="flex-direction:column;align-items:center;gap:22px;padding-bottom:80px">
+  <div class="col"><div class="col-label">A · Una línea</div><div class="desk A" data-d="A"></div></div>
+  <div class="col"><div class="col-label">B · Dos fichas</div><div class="desk B" data-d="B"></div></div>
+  <div class="col"><div class="col-label">C · Aura protagonista</div><div class="desk C" data-d="C"></div></div>
+</div>
+
+<div class="veil" id="veil"><div class="sheet">
+  <div class="hero"><small>TU AURA</small><b><span class="spark">✦</span> 320</b><p>Lo que fuiste sumando en El Templo</p></div>
+  <h4>Últimos movimientos</h4>
+  <div class="mv"><span class="ic"><span class="material-icons">how_to_reg</span></span><span>Asistencia<small>Hoy · Mario Bravo</small></span><b>+5</b></div>
+  <div class="mv"><span class="ic"><span class="material-icons">self_improvement</span></span><span>Estiramiento<small>Ayer</small></span><b>+1</b></div>
+  <div class="mv"><span class="ic"><span class="material-icons">how_to_reg</span></span><span>Asistencia<small>Ayer · Mario Bravo</small></span><b>+5</b></div>
+  <div class="mv"><span class="ic"><span class="material-icons">photo_camera</span></span><span>Foto de perfil<small>Lun 10 nov</small></span><b>+5</b></div>
+  <div class="mv"><span class="ic"><span class="material-icons">workspace_premium</span></span><span>2 años en El Templo<small>Sáb 8 nov</small></span><b>+50</b></div>
+  <div class="mv"><span class="ic"><span class="material-icons">undo</span></span><span>Asistencia anulada<small>Jue 6 nov</small></span><b class="neg">−5</b></div>
+  <div class="mv"><span class="ic"><span class="material-icons">fitness_center</span></span><span>Entrenamiento en la app<small>Mié 5 nov</small></span><b>+3</b></div>
+  <button class="more" id="close">Ver más</button>
+</div></div>
+
+<script>
+  const s = { foto: 'si', ant: '2 años y 3 meses', sello: 'oro', nivel: '1', rol: 'alumno' }
+  const sealFor = () => { if (s.sello === 'no' || s.ant === '3 semanas') return ''; const cls = s.sello === 'terra' ? 'terra' : s.ant === '4 meses' ? 'bronze' : ''; return `<span class="seal ${cls}"><span class="material-icons">verified</span></span>` }
+  const avatar = () => s.foto === 'si' ? `<span class="av">FM<img src="https://randomuser.me/api/portraits/men/46.jpg" alt="" onerror="this.remove()"></span>`
+    : s.foto === 'pend' ? `<span class="av">FM<span class="bd"><span class="material-icons">schedule</span></span></span>`
+    : `<span class="av add" title="Subí tu foto"><span class="material-icons">add_a_photo</span></span>`
+  const lvl = () => s.nivel === '1' ? `<span class="lvl"><span class="material-icons ch">keyboard_arrow_down</span><span class="g">Δ</span><span class="t">Delta</span></span>` : ''
+  const fotoHint = () => s.foto === 'no' ? 'Subí tu foto y sumá ✦ 5' : s.foto === 'pend' ? 'Foto en revisión' : ''
+  const staff = () => s.rol === 'staff'
+
+  function head(v) {
+    const nm = `<h1 class="name">Franco${sealFor()}</h1>`
+    if (v === 'hoy') return `<div class="greet"><div><h1 class="name">Hola, Franco!${sealFor()}</h1><p class="date">Hoy es martes 17 de noviembre</p></div>${lvl()}</div>`
+    if (v === 'A') {
+      const aura = staff() ? '' : `<span class="dot">·</span><button class="aura-btn" data-aura><span class="spark">✦</span>320</button>`
+      const hint = fotoHint() ? `<span class="dot">·</span><span>${fotoHint()}</span>` : ''
+      return `<div class="greet">${avatar()}<div class="txt">${nm}<p class="meta"><span>${s.ant} en El Templo</span>${aura}${hint}</p></div>${lvl()}</div>`
+    }
+    if (v === 'B') {
+      const aura = staff() ? '' : `<button class="tile aura-btn" data-aura><small>Aura</small><b><span class="spark">✦</span>320<span class="material-icons go">chevron_right</span></b></button>`
+      return `<div class="greet"><div class="top">${avatar()}<div class="txt">${nm}${fotoHint() ? `<p style="margin:2px 0 0;font-size:12.5px">${fotoHint()}</p>` : ''}</div>${lvl()}</div>
+        <div class="tiles" ${staff() ? 'style="grid-template-columns:1fr"' : ''}><div class="tile"><small>En El Templo</small><b>${s.ant}</b></div>${aura}</div></div>`
+    }
+    const aura = staff() ? '' : `<button class="aura-btn" data-aura><b>320</b><small>AURA</small></button>`
+    const lv = s.nivel === '1' ? `<span class="lvl-row">Nivel Δ Delta<span class="material-icons">expand_more</span></span>` : ''
+    return `<div class="greet">${avatar()}<div class="txt">${nm}<p class="since">${fotoHint() || s.ant + ' en El Templo'}</p>${lv}</div>${aura}</div>`
+  }
+  function render() {
+    document.querySelectorAll('.phone').forEach((p) => { p.innerHTML = `<div class="appbar"><i></i>EL TEMPLO<span class="material-icons sp">logout</span></div>${head(p.dataset.v)}<div class="body"><div class="today"><small>HOY</small><b>Deuteros II · Tren superior</b></div><div class="ph">TUS SESIONES</div></div>` })
+    document.querySelectorAll('.desk').forEach((d) => { d.innerHTML = `<div class="rail"><i></i><span class="material-icons">account_balance</span><span class="material-icons">sports_mma</span><span class="material-icons">event_available</span></div><div class="main"><div class="bar2">EL TEMPLO</div>${head(d.dataset.d)}<div class="rest">HOY · TUS SESIONES</div></div>` })
+  }
+  document.querySelectorAll('.ctl').forEach((ctl) => ctl.addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return
+    ctl.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b))
+    if (ctl.dataset.ctl === 'w') { document.querySelectorAll('.phone').forEach((p) => p.style.setProperty('--w', b.dataset.v + 'px')); return }
+    s[ctl.dataset.ctl] = b.dataset.v; render()
+  }))
+  const veil = document.getElementById('veil')
+  document.body.addEventListener('click', (e) => { if (e.target.closest('[data-aura]')) veil.classList.add('show'); else if (e.target === veil || e.target.id === 'close') veil.classList.remove('show') })
+  render()
+</script>
+</body>
+</html>

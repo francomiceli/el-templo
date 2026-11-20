@@ -1,5 +1,11 @@
 <template>
   <div class="entrenar-view">
+    <!-- Fase 214 (D-62): en escritorio no hay barra de arriba, el selector de nivel va en una fila
+         propia arriba de las pestañas (o de la vista sola si las pestañas están apagadas). -->
+    <div v-if="isDesktop && userStore.activeLevel !== null" class="entrenar-view__level-row">
+      <HeaderLevelDropdown variant="light" />
+    </div>
+
     <EntrenarTabs v-if="ENTRENAR_TABS_ENABLED" v-model="activeTab" />
 
     <!-- Panes con v-if (nunca v-show): la figura tiene que estar visible para medirse.
@@ -81,6 +87,7 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useQuasar } from 'quasar'
 import TemploLoader from 'src/components/TemploLoader.vue'
 import { ENTRENAR_TABS_ENABLED } from 'src/config/featureFlags'
 import { useUserStore } from 'src/stores/useUserStore'
@@ -92,6 +99,7 @@ import { ENTRENAR_TAB_FLAGS, queryTabKeys, tabFromQuery } from '../utils/entrena
 import ComingSoonPane from '../components/ComingSoonPane.vue'
 import SemanaTab from '../components/semana/SemanaTab.vue'
 import LibreTab from '../components/libre/LibreTab.vue'
+import HeaderLevelDropdown from '../components/HeaderLevelDropdown.vue'
 
 // Fase 201 D-09, D-17: Conquer en un chunk aparte (su fuente y su CSS no pesan en el resto de Entrenar)
 const ConquerTab = defineAsyncComponent(
@@ -104,7 +112,11 @@ const ConquerTab = defineAsyncComponent(
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
+const $q = useQuasar()
 const freeBlocks = useFreeBlocksStore()
+
+// Mismo corte que MainLayout (isDesktop): desde 768 px hay riel lateral y no hay barra de arriba.
+const isDesktop = computed(() => $q.screen.width >= 768)
 
 // ── Tab activa ──
 // Lista blanca según los flags (T-201-53): sin tabs no hay ninguna y todo `?tab=` abre Semana.
@@ -185,6 +197,12 @@ onUnmounted(() => {
 .entrenar-view {
   // Deja ver la foto de fondo (D-16 de la fase 199); el ancho (630 en escritorio) lo da MainLayout.
   background: transparent;
+
+  &__level-row {
+    display: flex;
+    justify-content: flex-end;
+    padding: 16px 16px 0;
+  }
 
   &__loading {
     display: flex;

@@ -17,7 +17,9 @@ export type AuraSourceType =
   // Fase 197 D-12: primer bloque libre del día que llega a 10 minutos
   | "extra_block"
   // Fase 213 D-08: estiramiento post-clase completo (todos marcados y 3 minutos)
-  | "stretch";
+  | "stretch"
+  // Fase 214 D-30: primera foto de perfil subida por el alumno y aprobada
+  | "profile_photo";
 
 export interface AwardInput {
   userId: number;

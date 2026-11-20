@@ -1,10 +1,15 @@
 // Module: aura
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { Logger } from "pino";
 import { auraTransactions, auraBalances, auraConfig } from "../../db/schema";
 import type { AwardInput, SpendInput } from "./types";
 import type * as schema from "../../db/schema";
+import {
+  tenantValues,
+  tenantWhere,
+  type TenantContext,
+} from "../shared/tenant";
 
 /**
  * Error thrown when a spend operation exceeds the user's available AURA balance.
@@ -19,6 +24,12 @@ export class InsufficientBalanceError extends Error {
 }
 
 type DbInstance = MySql2Database<typeof schema>;
+
+/**
+ * Handle de la transacción que abre quien llama (fase 215): mismo patrón que
+ * `TxHandle` de `finance/balance-service.ts`.
+ */
+export type AuraTx = Parameters<Parameters<DbInstance["transaction"]>[0]>[0];
 
 /**
  * AuraService manages the AURA economy: awarding, spending, and querying balances.
@@ -98,6 +109,71 @@ export class AuraService {
 
       return newBalance;
     });
+  }
+
+  /**
+   * Fase 215: acredita Aura DENTRO de una transacción abierta por quien llama.
+   *
+   * Existe para que el regalo y su fila del ledger nazcan juntos o no nazca
+   * ninguno (Pitfall 2 de la investigación): si algo falla después de llamar,
+   * el rollback de la transacción ajena deshace también la Aura.
+   *
+   * Diferencias con `award`:
+   * - NO abre transacción propia.
+   * - `amount` es obligatorio: no lee `aura_config`. Acepta negativos (la
+   *   anulación del regalo escribe -amount con otra referencia).
+   * - Estampa el `tenant_id` del gimnasio en el ledger y en `aura_balances`.
+   *
+   * @throws Ante una referencia repetida: el UNIQUE del ledger lanza un error de
+   *   clave duplicada (se detecta con `isDuplicateKeyError`).
+   * @returns El saldo nuevo del usuario.
+   */
+  async awardInTransaction(
+    tx: AuraTx,
+    ctx: TenantContext,
+    input: AwardInput & { amount: number },
+  ): Promise<number> {
+    const {
+      userId,
+      sourceType,
+      referenceType,
+      referenceId,
+      amount,
+      description,
+    } = input;
+
+    await tx.insert(auraTransactions).values(
+      tenantValues(ctx, {
+        userId,
+        sourceType,
+        amount,
+        referenceType: referenceType ?? null,
+        referenceId: referenceId ?? null,
+        description: description ?? null,
+      }),
+    );
+
+    await tx.execute(
+      sql`INSERT INTO aura_balances (tenant_id, user_id, balance)
+          VALUES (${ctx.tenantId}, ${userId}, ${amount})
+          ON DUPLICATE KEY UPDATE balance = balance + ${amount}`,
+    );
+
+    const balanceRows = await tx
+      .select({ balance: auraBalances.balance })
+      .from(auraBalances)
+      .where(
+        and(tenantWhere(auraBalances, ctx), eq(auraBalances.userId, userId)),
+      );
+
+    const newBalance = balanceRows[0]?.balance ?? 0;
+
+    this.log?.info(
+      { userId, sourceType, amount, newBalance, inTransaction: true },
+      "AURA awarded",
+    );
+
+    return newBalance;
   }
 
   /**

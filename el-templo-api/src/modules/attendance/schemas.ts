@@ -31,6 +31,22 @@ const attendanceRecordSchema = {
   },
 } as const;
 
+/**
+ * Respuesta del check-in del SOCIO (fase 214, D-40, D-56): el registro de
+ * asistencia más lo que esa asistencia acreditó de Aura. `attendanceRecordSchema`
+ * no se toca porque lo comparten el check-in forzado y el del admin.
+ * `auraAwarded`/`auraTotal` vienen en null si esa asistencia no acreditó (por
+ * ejemplo un profe que se auto-registra) o el módulo está apagado.
+ */
+export const memberCheckInResponseSchema = {
+  type: "object",
+  properties: {
+    ...attendanceRecordSchema.properties,
+    auraAwarded: { type: ["integer", "null"] },
+    auraTotal: { type: ["integer", "null"] },
+  },
+} as const;
+
 // =============================================================================
 // Admin Endpoints
 // =============================================================================
@@ -76,7 +92,7 @@ export const memberCheckInSchema = {
     },
   },
   response: {
-    201: attendanceRecordSchema,
+    201: memberCheckInResponseSchema,
     400: errorSchema,
   },
 };
@@ -145,6 +161,22 @@ const slotAttendanceItemSchema = {
         sleep: { type: ["string", "null"] },
       },
     },
+    // Fase 215 (D-15): estado del regalo del profe en esta fila. Solo lo
+    // completa el server cuando quien mira es profe de la sede de la clase;
+    // null para el resto y para quien no tiene asistencia. `disponible` es la
+    // única que muestra botón. Declarado acá porque fast-json-stringify
+    // descarta lo no declarado.
+    gift: {
+      type: ["object", "null"],
+      properties: {
+        state: {
+          type: "string",
+          enum: ["disponible", "dado", "anulado", "no_participa"],
+        },
+        amount: { type: "integer" },
+        reason: { type: ["string", "null"] },
+      },
+    },
     // Invitado que todavía no compró (invitación activa sin convertir y users.status
     // 'prueba'): accesos usados / presupuesto, para la etiqueta del profe. Null para
     // cualquier otro alumno. Declarado acá porque fast-json-stringify descarta lo no declarado.
@@ -172,6 +204,9 @@ export const slotAttendanceSchema = {
       type: "object",
       properties: {
         members: { type: "array", items: slotAttendanceItemSchema },
+        // Fase 215 (D-11): valor vigente del regalo del profe, o null si quien
+        // mira no regala como profe en esta clase.
+        coachGiftAmount: { type: ["integer", "null"] },
       },
     },
   },

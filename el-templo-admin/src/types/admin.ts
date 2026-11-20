@@ -31,6 +31,11 @@ export interface AdminUser {
   lastName: string;
   role: AdminRole;
   branchId: number;
+  /**
+   * Aura ganada que devuelve `GET /auth/me` (el login no la trae). `null` = el módulo de Aura del
+   * gimnasio está apagado (o la lectura falló): es la misma señal "Aura prendida" que usa la app.
+   */
+  auraEarned?: number | null;
 }
 
 export type SessionStatus = 'pending_review' | 'approved';

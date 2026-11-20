@@ -13,9 +13,9 @@
 
     <SummaryStats :stats="stats" />
 
-    <div v-if="auraAwarded" class="fb-sum__aura">
+    <div v-if="auraAwarded && auraAmount" class="fb-sum__aura">
       <q-icon name="auto_awesome" size="22px" aria-hidden="true" />
-      Sumaste 5 AURA
+      Sumaste {{ auraAmount }} AURA
     </div>
 
     <!-- D-12: menos de 10' con AURA todavía disponible hoy. Si sale, queda guardado sin AURA. -->
@@ -52,8 +52,10 @@ interface Props {
   completedExerciseIds: number[]
   /** Segundos de reloj del bloque */
   durationSeconds: number
-  /** true solo si el servidor acreditó los +5 AURA de este bloque */
+  /** true solo si el servidor acreditó AURA en este bloque */
   auraAwarded: boolean
+  /** Monto que acreditó el servidor; null = no lo mandó, la línea no aparece */
+  auraAmount?: number | null
   /** Terminó en menos de 10' y todavía hay AURA para cobrar hoy */
   canEarnAura: boolean
   /** Día en la sede, ej. "viernes 16" */

@@ -77,6 +77,8 @@ export const GYM_OWNED_TABLES = [
   "audit_log",
   "aura_balances",
   "aura_config",
+  // Regalos de Aura (fase 215, mig 0349): nace con tenant_id y strict
+  "aura_gifts",
   "aura_transactions",
   "aviso_events",
   "avisos",
@@ -99,6 +101,9 @@ export const GYM_OWNED_TABLES = [
   "check_in_responses",
   "class_coach_assignments",
   "coach_ratings",
+  // Aperturas de la lista de anotados (fase 214, mig 0354): nace con tenant_id y
+  // strict, ver TENANT_STRICT_MODULES.scheduling.
+  "community_list_opens",
   "completed_sessions",
   // Conquer v2 (fase 201, migs 0290-0291): nacen con tenant_id y strict, ver
   // TENANT_STRICT_MODULES.conquer. Las 4 de catálogo las siembra la 0292.
@@ -146,6 +151,10 @@ export const GYM_OWNED_TABLES = [
   "invitations",
   "member_logins",
   "member_notes",
+  // Bandeja de avisos (fase 215, mig 0350): nace con tenant_id y strict en notifications
+  "member_notifications",
+  // Foto propia (fase 214, mig 0346): nace con tenant_id y strict en members
+  "member_photos",
   "member_profiles",
   // Outbox de Meta Conversions API (fase 195, plan 08, migración 0273): nace con
   // tenant_id y strict (módulo `marketing`).
@@ -680,6 +689,7 @@ export const TENANT_STRICT_MODULES: Record<string, readonly string[]> = {
     "audit_log",
     "member_logins",
     "member_notes",
+    "member_photos",
     "member_profiles",
     "user_branches",
     "user_sepa_details",
@@ -692,8 +702,18 @@ export const TENANT_STRICT_MODULES: Record<string, readonly string[]> = {
     "subscription_schedules",
     "subscriptions",
   ],
-  scheduling: ["bookings", "holidays", "schedule_exceptions", "schedules"],
+  // 2026-11-19 (mig 0354): suma `community_list_opens` (aperturas de la lista de
+  // anotados), nace strict.
+  scheduling: [
+    "bookings",
+    "community_list_opens",
+    "holidays",
+    "schedule_exceptions",
+    "schedules",
+  ],
   auth: ["promo_plans", "refresh_tokens"],
+  // Fase 215: nace strict, sin deuda previa.
+  "aura-gifts": ["aura_gifts"],
   // 2026-11-13 (mig 0334): histórico de recategorizaciones multisucursal. Nace
   // strict, no hay deuda previa que tolerar.
   "branch-reassignments": ["branch_reassignments"],
@@ -741,6 +761,7 @@ export const TENANT_STRICT_MODULES: Record<string, readonly string[]> = {
   ],
   notifications: [
     "device_tokens",
+    "member_notifications",
     "notification_preferences",
     "notification_templates",
     "pending_notifications",

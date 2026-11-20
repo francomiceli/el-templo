@@ -195,7 +195,7 @@ describe("Notification Module", () => {
   // 2. Notification Preferences
   // =========================================================================
   describe("Notification Preferences", () => {
-    it("GET /api/notifications/preferences returns 200 with all 4 categories true by default", async () => {
+    it("GET /api/notifications/preferences returns 200 with all 5 categories true by default", async () => {
       const res = await app.inject({
         method: "GET",
         url: "/api/notifications/preferences",
@@ -209,7 +209,34 @@ describe("Notification Module", () => {
         programas: true,
         motivacion: true,
         anuncios: true,
+        regalos_aura: true,
       });
+    });
+
+    it("PUT /api/notifications/preferences apaga y vuelve a prender 'regalos_aura' (#30)", async () => {
+      const put = (enabled: boolean) =>
+        app.inject({
+          method: "PUT",
+          url: "/api/notifications/preferences",
+          headers: { authorization: `Bearer ${memberToken}` },
+          payload: { category: "regalos_aura", enabled },
+        });
+      const read = async () => {
+        const res = await app.inject({
+          method: "GET",
+          url: "/api/notifications/preferences",
+          headers: { authorization: `Bearer ${memberToken}` },
+        });
+        return JSON.parse(res.body).preferences as Record<string, boolean>;
+      };
+
+      expect((await put(false)).statusCode).toBe(200);
+      const apagado = await read();
+      expect(apagado.regalos_aura).toBe(false);
+      expect(apagado.motivacion).toBe(true);
+
+      expect((await put(true)).statusCode).toBe(200);
+      expect((await read()).regalos_aura).toBe(true);
     });
 
     it("PUT /api/notifications/preferences with valid category returns 200", async () => {

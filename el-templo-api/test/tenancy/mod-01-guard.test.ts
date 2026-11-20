@@ -61,13 +61,17 @@
  * -------------
  *   pnpm exec vitest run --no-file-parallelism test/tenancy/mod-01-guard.test.ts --hookTimeout=250000
  */
-import { describe, it, expect, beforeAll, beforeEach, afterEach, afterAll } from "vitest";
-import type { FastifyInstance } from "fastify";
 import {
-  createTestApp,
-  cleanAllTestData,
-  createTestMember,
-} from "../helpers";
+  describe,
+  it,
+  expect,
+  beforeAll,
+  beforeEach,
+  afterEach,
+  afterAll,
+} from "vitest";
+import type { FastifyInstance } from "fastify";
+import { createTestApp, cleanAllTestData, createTestMember } from "../helpers";
 import {
   seedSecondTenant,
   limpiarSegundoGimnasio,
@@ -222,6 +226,118 @@ describe("requireModule — templo-gamification (176-04, ModuleDef en modules/au
     // El handler de bar-challenge nunca devuelve 404 propio (200 en éxito,
     // 400 por schema, 401 sin token) — un 404 acá solo puede ser el guard.
     expect(res.statusCode).not.toBe(404);
+  });
+});
+
+describe("requireModule — templo-gamification: detalle privado de Aura (fase 214, plan 18)", () => {
+  const RUTA_MOVIMIENTOS = "/api/members/aura/movements";
+
+  function getMovimientosComo(token: string) {
+    return app.inject({
+      method: "GET",
+      url: RUTA_MOVIMIENTOS,
+      headers: { authorization: `Bearer ${token}` },
+    });
+  }
+
+  it("OFF: un socio del gimnasio 2 (sin flags) recibe el 404 exacto del guard", async () => {
+    const res = await getMovimientosComo(gym2.socios[0].token);
+
+    expect(res.statusCode).toBe(404);
+    expect(res.json()).toEqual(BODY_404_DEL_GUARD);
+  });
+
+  it("contraste: con el flag prendido ese 404 exacto desaparece", async () => {
+    await setModuleFlag(app, TENANT_DOS, "templo-gamification", true);
+
+    const res = await getMovimientosComo(gym2.socios[0].token);
+
+    expect(res.statusCode).toBe(200);
+  });
+});
+
+describe("requireModule — templo-gamification: regalo de Aura (fase 215, plan 06)", () => {
+  const RUTA_PENDIENTES = "/api/members/aura/gifts/pending";
+  const RUTA_REGALAR = "/api/members/aura/gifts";
+
+  function getPendientesComo(token: string) {
+    return app.inject({
+      method: "GET",
+      url: RUTA_PENDIENTES,
+      headers: { authorization: `Bearer ${token}` },
+    });
+  }
+
+  function postRegaloComo(token: string) {
+    return app.inject({
+      method: "POST",
+      url: RUTA_REGALAR,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { attendanceId: 1, receiverAttendanceId: 2, reason: "tecnica" },
+    });
+  }
+
+  it("OFF: con el módulo apagado para el gimnasio 2, pendientes y regalar dan el 404 exacto del guard", async () => {
+    const pendientes = await getPendientesComo(gym2.socios[0].token);
+    const regalar = await postRegaloComo(gym2.socios[0].token);
+
+    expect(pendientes.statusCode).toBe(404);
+    expect(pendientes.json()).toEqual(BODY_404_DEL_GUARD);
+    expect(regalar.statusCode).toBe(404);
+    expect(regalar.json()).toEqual(BODY_404_DEL_GUARD);
+  });
+
+  it("contraste: con el flag prendido, pendientes responde 200 con listas vacías y sin motivo de indisponibilidad", async () => {
+    await setModuleFlag(app, TENANT_DOS, "templo-gamification", true);
+
+    const res = await getPendientesComo(gym2.socios[0].token);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({
+      pending: [],
+      givenToday: [],
+      unavailableReason: null,
+    });
+  });
+});
+
+describe("requireModule — templo-gamification: celebración de Aura (fase 215, #33)", () => {
+  const RUTA_CELEBRACION = "/api/members/aura/celebration";
+
+  function getCelebracionComo(token: string) {
+    return app.inject({
+      method: "GET",
+      url: RUTA_CELEBRACION,
+      headers: { authorization: `Bearer ${token}` },
+    });
+  }
+
+  function postAckComo(token: string) {
+    return app.inject({
+      method: "POST",
+      url: `${RUTA_CELEBRACION}/ack`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { upToId: 1 },
+    });
+  }
+
+  it("OFF: con el módulo apagado para el gimnasio 2, la consulta y el ack dan el 404 exacto del guard", async () => {
+    const consulta = await getCelebracionComo(gym2.socios[0].token);
+    const ack = await postAckComo(gym2.socios[0].token);
+
+    expect(consulta.statusCode).toBe(404);
+    expect(consulta.json()).toEqual(BODY_404_DEL_GUARD);
+    expect(ack.statusCode).toBe(404);
+    expect(ack.json()).toEqual(BODY_404_DEL_GUARD);
+  });
+
+  it("contraste: con el flag prendido la consulta responde 200 y sin movimientos", async () => {
+    await setModuleFlag(app, TENANT_DOS, "templo-gamification", true);
+
+    const res = await getCelebracionComo(gym2.socios[0].token);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().movements).toEqual([]);
   });
 });
 

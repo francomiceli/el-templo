@@ -67,6 +67,7 @@ import { useAuthStore } from 'src/stores/useAuthStore';
 import { useAdminStore } from 'src/stores/useAdminStore';
 import { canAccessTraining } from 'src/utils/trainingAccess';
 import {
+  PHOTO_REVIEW_ROLES,
   CONQUER_MANAGER_ROLES,
   OFICINA_ROLES,
   NAV_MODEL,
@@ -117,6 +118,8 @@ function badgeCount(item: NavItem): number {
       return adminStore.conquerRequestsCount + adminStore.conquerCorrectionsCount;
     case 'oficina':
       return adminStore.oficinaBadgeCount;
+    case 'fotos':
+      return adminStore.photoReviewCount;
     default:
       return 0;
   }
@@ -153,6 +156,14 @@ const canSeeOficina = computed(() => {
   return role !== undefined && OFICINA_ROLES.includes(role);
 });
 
+// Quiénes revisan fotos de perfil (y ven su pelotita): PHOTO_REVIEW_ROLES, igual que la API.
+// Fase 214 D-45; los profes dejaron de revisar el 2026-11-18, así que no piden el conteo
+// (evita un 403 en la consola).
+const canSeePhotoReview = computed(() => {
+  const role = authStore.user?.role;
+  return role !== undefined && PHOTO_REVIEW_ROLES.includes(role);
+});
+
 async function handleLogout() {
   await authStore.logout();
   router.push('/login');
@@ -178,6 +189,9 @@ onMounted(() => {
   if (canSeeOficina.value) {
     adminStore.fetchOficinaBadge();
   }
+  if (canSeePhotoReview.value) {
+    adminStore.fetchPhotoReviewCount();
+  }
 });
 
 // Refresh pending count on route change (only for training viewers)
@@ -200,6 +214,9 @@ watch(
     }
     if (canSeeOficina.value) {
       adminStore.fetchOficinaBadge();
+    }
+    if (canSeePhotoReview.value) {
+      adminStore.fetchPhotoReviewCount();
     }
   }
 );

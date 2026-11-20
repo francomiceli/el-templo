@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { api } from 'src/boot/axios';
+import { useProfilePhotosApi } from 'src/composables/useProfilePhotosApi';
 import type { InvitationsPendingCount } from 'src/types/report';
 
 export interface LandingInboxCounts {
@@ -30,6 +31,9 @@ export const useAdminStore = defineStore('admin', () => {
   const conquerCorrectionsCount = ref(0);
   // Pelotita de Oficina (fase 205 D-08): menciones sin leer + temas asignados con novedades.
   const oficinaBadgeCount = ref(0);
+  // Pelotita de Fotos (fase 214 D-45): fotos de perfil pendientes de revisar + aprobadas
+  // con reportes. La API devuelve ambos conteos sobre el conjunto completo de la cola.
+  const photoReviewCount = ref(0);
 
   async function fetchPendingCount() {
     try {
@@ -106,6 +110,18 @@ export const useAdminStore = defineStore('admin', () => {
     }
   }
 
+  async function fetchPhotoReviewCount() {
+    try {
+      const queue = await useProfilePhotosApi().listQueue();
+      photoReviewCount.value = queue.counts
+        ? queue.counts.pending + queue.counts.reported
+        : queue.items.length;
+    } catch {
+      // Silently fail - badge will show nothing
+      photoReviewCount.value = 0;
+    }
+  }
+
   async function checkSessionCoverage() {
     try {
       const { data } = await api.get<{
@@ -133,6 +149,7 @@ export const useAdminStore = defineStore('admin', () => {
     conquerRequestsCount,
     conquerCorrectionsCount,
     oficinaBadgeCount,
+    photoReviewCount,
     fetchPendingCount,
     fetchAppTrialsPendingCount,
     fetchInvitationsPendingCount,
@@ -140,6 +157,7 @@ export const useAdminStore = defineStore('admin', () => {
     fetchConquerRequestsCount,
     fetchConquerCorrectionsCount,
     fetchOficinaBadge,
+    fetchPhotoReviewCount,
     checkSessionCoverage,
   };
 });

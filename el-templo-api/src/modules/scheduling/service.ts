@@ -22,6 +22,7 @@ import {
   gt,
   ne,
   isNull,
+  type SQL,
 } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
@@ -71,6 +72,56 @@ import {
   getScheduleException,
   type ScheduleExceptionRow,
 } from "./schedule-exceptions";
+
+/**
+ * Fase 214 (D-59, D-68): condicion compartida de "reserva vigente" para los
+ * numeros de anotados. Reserva en estado vigente de una cuenta NO borrada.
+ * Quien la usa une `users` (con su `tenantWhere`) y agrega el
+ * `tenantWhere(schema.bookings, ctx)` en su propio `.where()`. La card de la
+ * grilla (`getWeeklyGrid`) y la lista de anotados (`countSlotBookings`) salen
+ * de esta misma condicion, asi el numero de la card y el total de la lista no
+ * pueden diferir.
+ */
+export function vigentSlotBookingCondition(): SQL {
+  /* tenant-safe: fragmento de WHERE que solo nombra columnas, no lee filas. Quien lo usa lo combina SIEMPRE con tenantWhere(schema.bookings, ctx) y el join a users con tenantWhere(schema.users, ctx) (getWeeklyGrid y countSlotBookings) */
+  return and(
+    sql`${schema.bookings.status} IN ('reservado', 'qr_escaneado', 'confirmado')`,
+    isNull(schema.users.deletedAt),
+  ) as SQL;
+}
+
+/**
+ * Total de reservas vigentes no-trial de un horario en una fecha (incluye
+ * Wellhub, excluye cuentas borradas). Es el mismo numero que `bookedCount` de
+ * la grilla semanal.
+ */
+export async function countSlotBookings(
+  db: MySql2Database<typeof schema>,
+  ctx: TenantContext,
+  scheduleId: number,
+  date: string,
+): Promise<number> {
+  const [row] = await db
+    .select({ total: sql<number>`COUNT(*)` })
+    .from(schema.bookings)
+    .innerJoin(
+      schema.users,
+      and(
+        tenantWhere(schema.users, ctx),
+        eq(schema.users.id, schema.bookings.memberId),
+      ),
+    )
+    .where(
+      and(
+        tenantWhere(schema.bookings, ctx),
+        eq(schema.bookings.scheduleId, scheduleId),
+        eq(schema.bookings.bookingDate, date),
+        eq(schema.bookings.isTrial, false),
+        vigentSlotBookingCondition(),
+      ),
+    );
+  return Number(row?.total ?? 0);
+}
 
 export class SchedulingService {
   constructor(
@@ -392,13 +443,22 @@ export class SchedulingService {
           trialCount: sql<number>`SUM(CASE WHEN ${schema.bookings.isTrial} = TRUE THEN 1 ELSE 0 END)`,
         })
         .from(schema.bookings)
+        // Fase 214 (D-59, D-68): las cuentas borradas no cuentan en ningun
+        // numero. Misma condicion que `countSlotBookings` (anotados).
+        .innerJoin(
+          schema.users,
+          and(
+            tenantWhere(schema.users, ctx),
+            eq(schema.users.id, schema.bookings.memberId),
+          ),
+        )
         .where(
           and(
             tenantWhere(schema.bookings, ctx),
             inArray(schema.bookings.scheduleId, scheduleIds),
             gte(schema.bookings.bookingDate, weekStartDate),
             lte(schema.bookings.bookingDate, weekRangeEnd),
-            sql`${schema.bookings.status} IN ('reservado', 'qr_escaneado', 'confirmado')`,
+            vigentSlotBookingCondition(),
           ),
         )
         .groupBy(schema.bookings.scheduleId, schema.bookings.bookingDate);

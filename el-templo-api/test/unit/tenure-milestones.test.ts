@@ -7,6 +7,7 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { AURA_TENURE, tenureAuraFor } from "../../src/modules/aura/amounts";
 import {
   isMilestone,
   milestoneAura,
@@ -50,12 +51,17 @@ describe("tenure-milestones", () => {
   // ─── milestoneAura ──────────────────────────────────────────────────────────
 
   describe("milestoneAura", () => {
-    it("sigue la escalera 50 / 100 / 250 / +250", () => {
-      expect(milestoneAura(3)).toBe(50);
-      expect(milestoneAura(6)).toBe(100);
-      expect(milestoneAura(12)).toBe(250);
-      expect(milestoneAura(24)).toBe(250);
-      expect(milestoneAura(60)).toBe(250);
+    it("sigue la escalera 15 / 25 / 50 por año", () => {
+      expect(milestoneAura(3)).toBe(AURA_TENURE[3]);
+      expect(milestoneAura(6)).toBe(AURA_TENURE[6]);
+      expect(milestoneAura(12)).toBe(AURA_TENURE.yearly);
+      expect(milestoneAura(24)).toBe(AURA_TENURE.yearly);
+      expect(milestoneAura(60)).toBe(AURA_TENURE.yearly);
+    });
+
+    it("guarda literal: un año vale 50", () => {
+      // fase 214 D-19: un año = 50. Si cambia la constante, este test avisa.
+      expect(milestoneAura(12)).toBe(50);
     });
   });
 
@@ -141,17 +147,29 @@ describe("tenure-milestones", () => {
   describe("milestoneOnDate", () => {
     it("detecta el hito de 3 meses el día exacto", () => {
       const m = milestoneOnDate("2025-01-10T12:00:00Z", "2025-04-10");
-      expect(m).toEqual({ months: 3, label: "3 meses", aura: 50 });
+      expect(m).toEqual({
+        months: 3,
+        label: "3 meses",
+        aura: tenureAuraFor(3),
+      });
     });
 
     it("detecta 1 año con label y aura correctos", () => {
       const m = milestoneOnDate("2024-08-06T00:00:00Z", "2025-08-06");
-      expect(m).toEqual({ months: 12, label: "1 año", aura: 250 });
+      expect(m).toEqual({
+        months: 12,
+        label: "1 año",
+        aura: tenureAuraFor(12),
+      });
     });
 
     it("detecta 2 años", () => {
       const m = milestoneOnDate("2023-08-06T00:00:00Z", "2025-08-06");
-      expect(m).toEqual({ months: 24, label: "2 años", aura: 250 });
+      expect(m).toEqual({
+        months: 24,
+        label: "2 años",
+        aura: tenureAuraFor(24),
+      });
     });
 
     it("null en un mes que no es hito (ej. 9 meses)", () => {

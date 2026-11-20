@@ -24,6 +24,15 @@ import {
   todayStr,
   seedApprovedSession,
 } from "../helpers";
+import { AURA_AMOUNTS } from "../../src/modules/aura/amounts";
+import { AURA_TIME_RATIO } from "../../src/modules/sessions/proposed-time";
+import {
+  STANDARD_BLOCKS,
+  cleanupFixtureExercises,
+  rolesOf,
+  seedSessionWithBlocks,
+  startedAtForRatio,
+} from "../sessions/_aura-session-fixtures";
 
 const SUBSCRIPTIONS_URL = "/api/admin/subscriptions";
 const CTX_TEMPLO: TenantContext = { tenantId: 1 };
@@ -48,6 +57,16 @@ describe("POST /api/goal-plans/complete — dayId aprobado, plan activo y tope d
   let app: FastifyInstance;
   let token: string;
   let memberId: number;
+  // Tiempo propuesto por dayId sembrado con bloques (D-20: el cierre valido manda
+  // un inicio que alcanza el 80 % y todos los bloques).
+  const proposedByDay = new Map<string, number>();
+
+  function startedAtFor(dayId: string): string {
+    const proposedSec = proposedByDay.get(dayId);
+    return proposedSec === undefined
+      ? new Date().toISOString()
+      : startedAtForRatio(proposedSec, AURA_TIME_RATIO);
+  }
 
   async function complete(dayId: string, extra: Record<string, unknown> = {}) {
     return app.inject({
@@ -57,8 +76,8 @@ describe("POST /api/goal-plans/complete — dayId aprobado, plan activo y tope d
       payload: {
         dayId,
         date: todayStr(),
-        startedAt: new Date().toISOString(),
-        blocksCompleted: ["INITIUM", "NUCLEUS"],
+        startedAt: startedAtFor(dayId),
+        blocksCompleted: rolesOf(STANDARD_BLOCKS),
         ...extra,
       },
     });
@@ -111,16 +130,6 @@ describe("POST /api/goal-plans/complete — dayId aprobado, plan activo y tope d
       "admin@test.com",
       "adminpass123",
     );
-
-    await app.db
-      .delete(schema.auraConfig)
-      .where(eq(schema.auraConfig.sourceType, "goal_plan_completion"));
-    await app.db.insert(schema.auraConfig).values({
-      sourceType: "goal_plan_completion",
-      defaultAmount: 10,
-      description: "Completed a goal plan session",
-      isActive: true,
-    });
 
     const reg = await registerUser(app, {
       email: "gp-complete-aura-cap@test.com",
@@ -181,15 +190,14 @@ describe("POST /api/goal-plans/complete — dayId aprobado, plan activo y tope d
     });
     expect(assignRes.statusCode).toBe(201);
 
-    await seedApprovedSession(app, GP_LUNES, { goalPlanType: "tren_superior" });
-    await seedApprovedSession(app, GP_MARTES, {
-      goalPlanType: "tren_superior",
-    });
+    for (const dayId of [GP_LUNES, GP_MARTES, GP_CONCURRENT]) {
+      const seeded = await seedSessionWithBlocks(app, dayId, STANDARD_BLOCKS, {
+        goalPlanType: "tren_superior",
+      });
+      proposedByDay.set(dayId, seeded.proposedSec);
+    }
     await seedApprovedSession(app, GP_PENDING, {
       status: "pending_review",
-      goalPlanType: "tren_superior",
-    });
-    await seedApprovedSession(app, GP_CONCURRENT, {
       goalPlanType: "tren_superior",
     });
     await seedApprovedSession(app, GP_OTRO_TIPO, { goalPlanType: "empuje" });
@@ -205,6 +213,7 @@ describe("POST /api/goal-plans/complete — dayId aprobado, plan activo y tope d
           inArray(schema.sessions.dayId, SEEDED),
         ),
       );
+    await cleanupFixtureExercises(app);
     await app.close();
   });
 
@@ -269,7 +278,7 @@ describe("POST /api/goal-plans/complete — dayId aprobado, plan activo y tope d
     expect(await auraBalance()).toBe(0);
   });
 
-  it("completar una sesion del plan activo da 200 y 10 AURA, con la fila en el tenant del socio", async () => {
+  it("completar una sesion del plan activo da 200 y AURA_AMOUNTS.goalPlan, con la fila en el tenant del socio", async () => {
     const res = await complete(GP_LUNES);
 
     expect(res.statusCode).toBe(200);
@@ -277,7 +286,7 @@ describe("POST /api/goal-plans/complete — dayId aprobado, plan activo y tope d
     const rows = await completedRows(GP_LUNES);
     expect(rows).toHaveLength(1);
     expect(rows[0].tenantId).toBe(CTX_TEMPLO.tenantId);
-    expect(await auraBalance()).toBe(10);
+    expect(await auraBalance()).toBe(AURA_AMOUNTS.goalPlan);
 
     const txs = await goalPlanTxs();
     expect(txs).toHaveLength(1);
@@ -289,7 +298,7 @@ describe("POST /api/goal-plans/complete — dayId aprobado, plan activo y tope d
 
     expect(res.statusCode).toBe(200);
     expect(await completedRows()).toHaveLength(2);
-    expect(await auraBalance()).toBe(10);
+    expect(await auraBalance()).toBe(AURA_AMOUNTS.goalPlan);
     expect(await goalPlanTxs()).toHaveLength(1);
   });
 
@@ -301,7 +310,7 @@ describe("POST /api/goal-plans/complete — dayId aprobado, plan activo y tope d
     expect(rows).toHaveLength(1);
     expect(rows[0].rpe).toBe(9);
     expect(await completedRows()).toHaveLength(2);
-    expect(await auraBalance()).toBe(10);
+    expect(await auraBalance()).toBe(AURA_AMOUNTS.goalPlan);
   });
 
   it("dos POST concurrentes con un dayId nuevo: sin 500, una sola fila y sin AURA extra", async () => {

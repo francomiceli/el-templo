@@ -253,6 +253,8 @@ async function queueNovedadPush(
             destinationType: destination.type,
             destinationSection: destination.section,
             whatsappText: destination.whatsappText,
+            // Fase 215 (D-18): tipo de aviso para la bandeja.
+            inboxKind: "anuncios",
             status: "pending" as const,
             scheduledAt: now,
           }),

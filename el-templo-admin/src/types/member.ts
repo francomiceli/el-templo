@@ -188,6 +188,11 @@ export interface MemberProfile extends MemberListItem {
   segmentUpdatedAt: string | null;
   updatedAt: string;
   onboardingProfile: OnboardingProfileSummary | null;
+  /**
+   * Foto propia aprobada del alumno, firmada del bucket privado (2026-11-19). La ficha
+   * la muestra cuando el staff no cargó una (`photoUrl` nulo). Solo viene en el detalle.
+   */
+  ownPhotoUrl?: string | null;
   // Etiqueta de membresía: override manual (null = automático) + efectiva ya
   // resuelta server-side (override ?? sub vigente ?? 'paga').
   membershipKindOverride: MembershipKind | null;

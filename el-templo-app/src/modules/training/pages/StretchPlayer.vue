@@ -23,11 +23,12 @@
       />
     </div>
 
-    <!-- Pantalla final (D-07): el "+5" y los minutos salen de la respuesta del servidor (T-213-31) -->
+    <!-- Pantalla final (D-07): el monto de AURA y los minutos salen de la respuesta del servidor (T-213-31) -->
     <StretchDone
       v-else-if="stage === 'celebration' && lastResult"
       :minutes-label="stretchDoneMinutesLabel(lastResult)"
       :aura-awarded="lastResult.auraAwarded"
+      :aura-amount="lastResult.auraAmount ?? null"
       :local-date="localDate"
       @done="onDone"
     />
@@ -122,7 +123,7 @@
           :class="{ 'stretch-player__hint--ok': auraReady }"
           aria-live="polite"
         >
-          {{ auraReady ? 'Ya sumás +5 AURA al terminar' : 'Con 3 minutos sumás +5 AURA' }}
+          {{ auraReady ? 'Ya sumás AURA al terminar' : 'Con 3 minutos sumás AURA' }}
         </div>
       </div>
 
@@ -200,7 +201,7 @@ const clockLabel = computed(() => formatElapsedTime(player.elapsedSeconds.value)
 const footer = computed(() => stretchFooter(player.current.value ?? null))
 
 /**
- * "Ya sumás +5 AURA": cuenta desde que el servidor confirmó el `started`, no desde el minutero.
+ * "Ya sumás AURA": cuenta desde que el servidor confirmó el `started`, no desde el minutero.
  * Depende de `elapsedSeconds` solo para recalcularse cada segundo.
  */
 const auraReady = computed(() => {

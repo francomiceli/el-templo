@@ -7,7 +7,12 @@
  * All routes require authentication and coach/admin/owner/gestion role.
  */
 
-import { FastifyBaseLogger, FastifyPluginAsync, FastifyRequest } from "fastify";
+import {
+  FastifyBaseLogger,
+  FastifyPluginAsync,
+  FastifyReply,
+  FastifyRequest,
+} from "fastify";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -104,6 +109,7 @@ import {
   FINANCE_READ_ROLES,
   MEMBER_LIFECYCLE_ROLES,
   INVITATION_ROLES,
+  PHOTO_REVIEW_ROLES,
   isFinanceBlindRole,
 } from "../shared/permissions";
 import {
@@ -131,6 +137,21 @@ import {
   outstandingConceptsSchema,
 } from "../finance/schemas";
 import { handleServiceError } from "../shared/error-handler";
+import {
+  photoAdminDeleteSchema,
+  photoApproveSchema,
+  photoRejectSchema,
+  photoReviewQueueSchema,
+} from "./profile-photo-schemas";
+import { sendPhotoError } from "./profile-photo-routes";
+import {
+  approveProfilePhoto,
+  getApprovedOwnPhotoUrl,
+  listPhotoReviewQueue,
+  rejectProfilePhoto,
+  removeCommunityPhoto,
+} from "./profile-photo-service";
+import type { PhotoRejectionReason } from "../../db/schema";
 import { isDuplicateKeyError } from "../shared/sql-errors";
 
 export const memberRoutes: FastifyPluginAsync = async (fastify) => {
@@ -218,6 +239,47 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     // en silencio. Solo lo agarra el test de branch-access.
     return { branches };
   });
+
+  // =========================================================================
+  // Cola de fotos de perfil (fase 214 D-31/D-32, must be BEFORE :userId routes)
+  // =========================================================================
+
+  // GET /admin/members/profile-photos — pendientes y aprobadas reportadas, las
+  // reportadas primero, con el conteo para el badge del admin. Sin `:userId`
+  // `enforceMemberBranchScope` no la acota: el admin_sede se acota acá a mano
+  // con `enforcedBranchIds` (arreglo vacío = no ve nada).
+  //
+  // Revisan solo PHOTO_REVIEW_ROLES (decisión de Franco 2026-11-18): `coach` y
+  // `coach_actividad` pasan el guard del plugin (MEMBER_ROLES) pero acá reciben
+  // 403. Va como `onRequest` de cada ruta: corta antes de validar el cuerpo y
+  // antes de tocar el servicio o el storage.
+  const requirePhotoReviewRole = async (
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ) => {
+    if (
+      !(PHOTO_REVIEW_ROLES as readonly string[]).includes(request.user.role)
+    ) {
+      return reply.code(403).send({ error: "Acceso denegado" });
+    }
+  };
+
+  fastify.get(
+    "/profile-photos",
+    { schema: photoReviewQueueSchema, onRequest: requirePhotoReviewRole },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(request.scope, "members.profile_photos.queue");
+        return await listPhotoReviewQueue(
+          fastify,
+          ctx,
+          enforcedBranchIds(request.scope) ?? undefined,
+        );
+      } catch (err: unknown) {
+        sendPhotoError(err, reply, request.log, "members.profile_photos.queue");
+      }
+    },
+  );
 
   // =========================================================================
   // DNI Check (must be defined BEFORE :userId param routes)
@@ -784,6 +846,11 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         segmentUpdatedAt: profile?.segmentUpdatedAt?.toISOString() ?? null,
         avatarType: profile?.avatarType ?? null,
         onboardingProfile,
+        ownPhotoUrl: await getApprovedOwnPhotoUrl(
+          fastify,
+          ctx,
+          request.params.userId,
+        ),
       };
     },
   );
@@ -986,14 +1053,19 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           });
           // Fase 195-07 (D-18): mismo registro best-effort de origen que el
           // alta sin invitador.
-          await recordSignupAttributionBestEffort(fastify.db, request.log, ctx, {
-            userId: result.lead.id,
-            branchId: trialInput.branchId,
-            capturedVia: "admin_trial",
-            platform: "admin",
-            manualOrigin: origin,
-            manualCampaign: campaign,
-          });
+          await recordSignupAttributionBestEffort(
+            fastify.db,
+            request.log,
+            ctx,
+            {
+              userId: result.lead.id,
+              branchId: trialInput.branchId,
+              capturedVia: "admin_trial",
+              platform: "admin",
+              manualOrigin: origin,
+              manualCampaign: campaign,
+            },
+          );
           return reply.code(201).send({
             ...result.lead,
             invitation: result.invitation,
@@ -1698,6 +1770,25 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: "No encontrado", message: "Miembro no encontrado" });
       }
 
+      // Fotos de la comunidad (propias y de ficha) y sus archivos, igual que
+      // cuando el alumno borra la cuenta desde la app (`/me/delete-account`).
+      // Es el camino de las bajas pedidas por mail: la política de privacidad
+      // promete borrar los datos dentro de los 30 días, y la baja no se puede
+      // deshacer. Best-effort: si el almacenamiento falla, la baja sigue.
+      try {
+        await removeCommunityPhoto(
+          fastify,
+          ctx,
+          request.params.userId,
+          request.user.userId,
+        );
+      } catch (err: unknown) {
+        request.log.warn(
+          { err, userId: request.params.userId },
+          "No se pudieron quitar las fotos al dar de baja al alumno",
+        );
+      }
+
       request.log.info(
         { userId: request.params.userId, deletedBy: request.user.userId },
         "Member soft-deleted",
@@ -2023,6 +2114,107 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         targetUserId: request.body.targetUserId,
         moved: result.moved,
       };
+    },
+  );
+
+  // =========================================================================
+  // Revisión de fotos de perfil (fase 214 D-31, D-32, D-46, D-63)
+  // =========================================================================
+  //
+  // Siempre por `/:userId` (nunca `/:photoId`): `enforceMemberBranchScope` solo
+  // lee `params.userId`, así un admin_sede recibe 404 si el alumno es de otra
+  // sede. Aprueban, rechazan y quitan solo los PHOTO_REVIEW_ROLES (admin, owner,
+  // gestion, recepcion y admin_sede; `coach` y `coach_actividad` reciben 403 por
+  // `requirePhotoReviewRole`, decisión del 2026-11-18); el acotado por sede se
+  // fuerza solo para `admin_sede`. La lógica vive en `profile-photo-service.ts`: el servicio
+  // resuelve al socio vivo del tenant antes de tocar storage (404 indistinguible).
+
+  // POST /admin/members/:userId/profile-photo/approve  { photoId }
+  fastify.post<{ Params: { userId: number }; Body: { photoId: number } }>(
+    "/:userId/profile-photo/approve",
+    { schema: photoApproveSchema, onRequest: requirePhotoReviewRole },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(
+          request.scope,
+          "members.profile_photo.approve",
+        );
+        return await approveProfilePhoto(
+          fastify,
+          ctx,
+          request.params.userId,
+          request.user.userId,
+          request.body.photoId,
+        );
+      } catch (err: unknown) {
+        sendPhotoError(
+          err,
+          reply,
+          request.log,
+          "members.profile_photo.approve",
+        );
+      }
+    },
+  );
+
+  // POST /admin/members/:userId/profile-photo/reject  { reason, photoId }
+  fastify.post<{
+    Params: { userId: number };
+    Body: { reason: PhotoRejectionReason; photoId: number };
+  }>(
+    "/:userId/profile-photo/reject",
+    { schema: photoRejectSchema, onRequest: requirePhotoReviewRole },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(request.scope, "members.profile_photo.reject");
+        return await rejectProfilePhoto(
+          fastify,
+          ctx,
+          request.params.userId,
+          request.user.userId,
+          request.body.reason,
+          request.body.photoId,
+        );
+      } catch (err: unknown) {
+        sendPhotoError(err, reply, request.log, "members.profile_photo.reject");
+      }
+    },
+  );
+
+  // DELETE /admin/members/:userId/profile-photo — quita la foto visible (propia
+  // y de ficha, objeto público incluido). No toca el ledger de Aura.
+  fastify.delete<{ Params: { userId: number } }>(
+    "/:userId/profile-photo",
+    { schema: photoAdminDeleteSchema, onRequest: requirePhotoReviewRole },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(request.scope, "members.profile_photo.remove");
+        const [target] = await fastify.db
+          .select({ id: schema.users.id })
+          .from(schema.users)
+          .where(
+            and(
+              tenantWhere(schema.users, ctx),
+              eq(schema.users.id, request.params.userId),
+              isNull(schema.users.deletedAt),
+            ),
+          )
+          .limit(1);
+        if (!target) {
+          return reply
+            .code(404)
+            .send({ error: "No encontrado", message: "Miembro no encontrado" });
+        }
+        await removeCommunityPhoto(
+          fastify,
+          ctx,
+          request.params.userId,
+          request.user.userId,
+        );
+        return reply.code(204).send();
+      } catch (err: unknown) {
+        sendPhotoError(err, reply, request.log, "members.profile_photo.remove");
+      }
     },
   );
 

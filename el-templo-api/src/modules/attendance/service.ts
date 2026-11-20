@@ -43,7 +43,13 @@ import {
   notWellhubAttendanceSql,
   notWellhubBookingSql,
 } from "../shared/wellhub-sources";
-import { AuraService } from "../aura/service";
+import {
+  attendanceAuraAmountFor,
+  attendanceAuraCredited,
+} from "../aura/day-cap";
+import { localDateForBranch } from "../aura/daily-award";
+import { voidGiftsForAttendance } from "../aura/gift-void";
+import { AuraService, InsufficientBalanceError } from "../aura/service";
 import { CheckInService } from "../check-ins/service";
 import {
   loadInvitationRosterTags,
@@ -387,14 +393,23 @@ export class AttendanceService {
     });
 
     // Award AURA outside transaction (has its own transaction internally)
-    await this.auraService.award({
+    // D-64: si la app ya pagó Aura ese día, la asistencia acredita solo la
+    // diferencia hasta 5.
+    const auraAmount = await attendanceAuraAmountFor(this.db, ctx, {
       userId: memberId,
-      sourceType: "attendance",
-      referenceType: "attendance",
-      referenceId: recordId,
-      amount: 10,
-      description: "Asistencia confirmada",
+      attendanceId: recordId,
+      sessionDate: todayStr,
     });
+    if (auraAmount > 0) {
+      await this.auraService.award({
+        userId: memberId,
+        sourceType: "attendance",
+        referenceType: "attendance",
+        referenceId: recordId,
+        amount: auraAmount,
+        description: "Asistencia confirmada",
+      });
+    }
 
     // Mirror the check-in as a completed_sessions row so presencial members
     // get credit for showing up — same way an online session completion does.
@@ -524,7 +539,7 @@ export class AttendanceService {
    *
    * Bypasses all enforcement (subscription, overdue, weekly, monthly).
    * Creates attendance with source="manual" and status="confirmado".
-   * Awards 10 AURA immediately. Still decrements classesRemaining to keep budget accurate.
+   * Awards the attendance AURA immediately. Still decrements classesRemaining to keep budget accurate.
    *
    * Fase 173 (D-02, plan 173-07): `ctx` PRIMERO, se propaga a
    * `recordPresencialSession` y `getRecordById` (no hay lectura propia de
@@ -543,8 +558,11 @@ export class AttendanceService {
     // gimnasio (`canAccessBranch` → `resolveBranchDelGimnasio`).
     await this.assertMemberDelGimnasio(ctx, memberId);
 
-    // Insert attendance record
-    const todayStr = new Date().toISOString().split("T")[0];
+    // Insert attendance record. Fase 215 (#16): la fecha es el día LOCAL de la
+    // sede, no el de UTC: de 21:00 a 24:00 hora argentina el día UTC ya es el
+    // siguiente y la asistencia quedaba con la fecha de mañana (el tope del día
+    // de Aura, la reserva y el espejo de `completed_sessions` usan el día local).
+    const todayStr = await localDateForBranch(this.db, ctx, branchId);
     const result = await this.db.insert(schema.attendance).values(
       tenantValues(ctx, {
         memberId,
@@ -559,14 +577,23 @@ export class AttendanceService {
     const recordId = Number(result[0].insertId);
 
     // Award AURA immediately on force check-in
-    await this.auraService.award({
+    // D-64: el tope del día se calcula con el día LOCAL de la sede, el mismo que
+    // usa la app para su Aura y, desde la fase 215 (#16), el que guarda la fila.
+    const auraAmount = await attendanceAuraAmountFor(this.db, ctx, {
       userId: memberId,
-      sourceType: "attendance",
-      referenceType: "attendance",
-      referenceId: recordId,
-      amount: 10,
-      description: "Asistencia confirmada (manual)",
+      attendanceId: recordId,
+      sessionDate: todayStr,
     });
+    if (auraAmount > 0) {
+      await this.auraService.award({
+        userId: memberId,
+        sourceType: "attendance",
+        referenceType: "attendance",
+        referenceId: recordId,
+        amount: auraAmount,
+        description: "Asistencia confirmada (manual)",
+      });
+    }
 
     // Still decrement classesRemaining if applicable.
     // Fase 161 (GATE-02): forceCheckIn no tiene contexto de actividad
@@ -1053,16 +1080,24 @@ export class AttendanceService {
     const recordId = Number(result[0].insertId);
 
     // Award AURA immediately
-    await this.auraService.award({
+    // D-64: tope del día.
+    const auraAmount = await attendanceAuraAmountFor(this.db, ctx, {
       userId: memberId,
-      sourceType: "attendance",
-      referenceType: "attendance",
-      referenceId: recordId,
-      amount: 10,
-      description: reason
-        ? `Asistencia manual: ${reason}`
-        : "Asistencia confirmada (manual)",
+      attendanceId: recordId,
+      sessionDate: date,
     });
+    if (auraAmount > 0) {
+      await this.auraService.award({
+        userId: memberId,
+        sourceType: "attendance",
+        referenceType: "attendance",
+        referenceId: recordId,
+        amount: auraAmount,
+        description: reason
+          ? `Asistencia manual: ${reason}`
+          : "Asistencia confirmada (manual)",
+      });
+    }
 
     // Decrement classesRemaining if tracked
     if (
@@ -1192,6 +1227,35 @@ export class AttendanceService {
   }
 
   /**
+   * Anula los regalos de Aura de una asistencia y borra la fila, todo en una
+   * transacción (ME-03): si el borrado falla, los regalos siguen vigentes.
+   */
+  private async voidGiftsAndDeleteAttendance(
+    ctx: TenantContext,
+    attendanceId: number,
+    voidedBy: number | null,
+  ): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      await voidGiftsForAttendance(
+        this.db,
+        ctx,
+        attendanceId,
+        voidedBy,
+        this.log,
+        tx,
+      );
+      await tx
+        .delete(schema.attendance)
+        .where(
+          and(
+            tenantWhere(schema.attendance, ctx),
+            eq(schema.attendance.id, attendanceId),
+          ),
+        );
+    });
+  }
+
+  /**
    * Remove a check-in (coach undo). Deletes the attendance record,
    * restores classesRemaining, reverses AURA, and reverts booking status.
    *
@@ -1205,6 +1269,7 @@ export class AttendanceService {
   async removeCheckIn(
     attendanceId: number,
     ctx: TenantContext,
+    voidedBy: number | null = null,
   ): Promise<{ removed: boolean }> {
     // Get the attendance record
     const [attRecord] = await this.db
@@ -1247,14 +1312,10 @@ export class AttendanceService {
     // 'reservado'. Se usa `session_date` (Pitfall 8), no la fecha UTC de
     // `checked_in_at`.
     if (attRecord.source === "wellhub_manual") {
-      await this.db
-        .delete(schema.attendance)
-        .where(
-          and(
-            tenantWhere(schema.attendance, ctx),
-            eq(schema.attendance.id, attendanceId),
-          ),
-        );
+      // Fase 215 (D-08, ME-03): los regalos que esta asistencia dio o recibió
+      // se anulan sin aviso y en la MISMA transacción que el borrado. Fuera de
+      // todo try: si algo falla, no se anula ni se borra nada.
+      await this.voidGiftsAndDeleteAttendance(ctx, attendanceId, voidedBy);
 
       if (attRecord.scheduleId) {
         await this.db
@@ -1279,15 +1340,9 @@ export class AttendanceService {
       return { removed: true };
     }
 
-    // Delete the attendance record
-    await this.db
-      .delete(schema.attendance)
-      .where(
-        and(
-          tenantWhere(schema.attendance, ctx),
-          eq(schema.attendance.id, attendanceId),
-        ),
-      );
+    // Fase 215 (D-08, ME-03): igual que arriba, los regalos de esta asistencia
+    // se anulan y la asistencia se borra en una sola transacción.
+    await this.voidGiftsAndDeleteAttendance(ctx, attendanceId, voidedBy);
 
     // Restore classesRemaining +1.
     // Fase 161 (GATE-02): restaurar la clase a la sub correcta según si la
@@ -1314,28 +1369,50 @@ export class AttendanceService {
         );
     }
 
-    // Reverse AURA: spend 10 AURA as a reversal
+    // Reverse AURA (D-64): revierte exactamente lo que esa asistencia acreditó
+    // (leído del ledger). Con la app ya cobrada ese día pudo ser menos de 5, y
+    // si no acreditó nada no se descuenta nada.
     try {
-      await this.auraService.spend({
-        userId: attRecord.memberId,
-        amount: 10,
-        description: `Reversa asistencia #${attendanceId}`,
-        referenceType: "attendance_reversal",
-      });
-    } catch {
-      // If insufficient balance, just log it -- don't block the undo
-      this.log.warn(
-        { attendanceId, memberId: attRecord.memberId },
-        "Could not reverse AURA (insufficient balance)",
+      const credited = await attendanceAuraCredited(
+        this.db,
+        ctx,
+        attRecord.memberId,
+        attendanceId,
       );
+      if (credited > 0) {
+        await this.auraService.spend({
+          userId: attRecord.memberId,
+          amount: credited,
+          description: `Reversa asistencia #${attendanceId}`,
+          referenceType: "attendance_reversal",
+        });
+      } else {
+        this.log.info(
+          { attendanceId, memberId: attRecord.memberId },
+          "La asistencia no había acreditado Aura",
+        );
+      }
+    } catch (err: unknown) {
+      // Saldo insuficiente: se registra y no se bloquea el deshacer. Cualquier
+      // otro error (base, red) es real: se registra como error, no como saldo.
+      if (err instanceof InsufficientBalanceError) {
+        this.log.warn(
+          { attendanceId, memberId: attRecord.memberId },
+          "Could not reverse AURA (insufficient balance)",
+        );
+      } else {
+        this.log.error(
+          { err, attendanceId, memberId: attRecord.memberId },
+          "Could not reverse AURA (unexpected error)",
+        );
+      }
     }
 
-    // Compute the local date the check-in was filed under so we can
-    // revert booking + drop the mirror completed_sessions row consistently.
-    const dateStr =
-      attRecord.checkedInAt instanceof Date
-        ? attRecord.checkedInAt.toISOString().split("T")[0]
-        : String(attRecord.checkedInAt).split("T")[0];
+    // The date the check-in was filed under (the sede's local day, which is what
+    // `sessionDate` holds and what the booking and the mirror completed_sessions
+    // row use) so booking + mirror are reverted consistently. Not the UTC day of
+    // `checkedInAt`: at night they differ (fase 215, #16).
+    const dateStr = String(attRecord.sessionDate).split("T")[0];
 
     // Revert booking status if applicable
     if (attRecord.scheduleId) {
@@ -1420,7 +1497,7 @@ export class AttendanceService {
    * from real online/autonomous sessions. Best-effort: failures are logged
    * but do not bubble up (the check-in itself already succeeded).
    *
-   * No AURA is awarded here — the check-in path already grants 10 AURA via
+   * No AURA is awarded here — the check-in path already grants AURA via
    * sourceType='attendance', and we don't want presencial members to get
    * double credit.
    *

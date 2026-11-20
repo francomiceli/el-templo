@@ -77,7 +77,7 @@ const failedRequest = ref<'first' | 'more'>('first')
 
 const auraText = computed(() =>
   store.auraAvailableToday
-    ? '+5 AURA con el primero de hoy'
+    ? 'Sumás AURA con el primero de hoy'
     : 'Ya sumaste tu AURA de hoy · podés seguir entrenando',
 )
 

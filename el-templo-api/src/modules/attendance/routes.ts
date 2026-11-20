@@ -7,7 +7,9 @@
  *   and attendance history.
  */
 
+import { and, eq } from "drizzle-orm";
 import { FastifyPluginAsync } from "fastify";
+import * as schema from "../../db/schema";
 import { AttendanceService } from "./service";
 import { SubscriptionService } from "../subscriptions/service";
 import { AuraService } from "../aura/service";
@@ -24,10 +26,18 @@ import {
   removeCheckInSchema,
 } from "./schemas";
 
-import { ATTENDANCE_ROLES, CHECKIN_ROSTER_ROLES } from "../shared/permissions";
+import {
+  ATTENDANCE_ROLES,
+  CHECKIN_ROSTER_ROLES,
+  isCoachLikeRole,
+} from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
-import { assertTenant } from "../shared/tenant";
+import { assertTenant, tenantWhere } from "../shared/tenant";
+import { DEFAULT_TENANT_TIMEZONE } from "../shared/date-utils";
+import { AuraGiftService } from "../aura/gift-service";
 import { requireBranchAccess } from "../shared/branch-access";
+import { isModuleEnabled } from "../shared/module-flags";
+import { auraAwardedForReference, earnedAuraForUser } from "../aura/earned";
 
 // =============================================================================
 // Admin Routes (registered at /api/admin/attendance)
@@ -35,6 +45,8 @@ import { requireBranchAccess } from "../shared/branch-access";
 
 export const attendanceAdminRoutes: FastifyPluginAsync = async (fastify) => {
   const auraService = new AuraService(fastify.db);
+  // Fase 215 (D-15): estado del regalo del profe en el panel de asistencia.
+  const giftService = new AuraGiftService(fastify);
   const enrollmentService = new EnrollmentService(fastify.db, fastify.log);
   const subscriptionService = new SubscriptionService(
     fastify.db,
@@ -131,7 +143,68 @@ export const attendanceAdminRoutes: FastifyPluginAsync = async (fastify) => {
           request.params.date,
           { includeCheckIns },
         );
-        return result;
+
+        // Fase 215 (D-15): solo un profe consulta regalos. Para el resto del
+        // staff `coachGiftAmount` y `gift` van en null sin tocar la base.
+        let coachGiftAmount: number | null = null;
+        let byMember:
+          | Awaited<
+              ReturnType<typeof giftService.coachGiftStatesForSlot>
+            >["byMember"]
+          | null = null;
+        if (isCoachLikeRole(request.user.role)) {
+          const [slot] = await fastify.db
+            .select({
+              branchId: schema.schedules.branchId,
+              timezone: schema.branches.timezone,
+            })
+            .from(schema.schedules)
+            .innerJoin(
+              schema.branches,
+              and(
+                tenantWhere(schema.branches, ctx),
+                eq(schema.branches.id, schema.schedules.branchId),
+              ),
+            )
+            .where(
+              and(
+                tenantWhere(schema.schedules, ctx),
+                eq(schema.schedules.id, request.params.scheduleId),
+              ),
+            )
+            .limit(1);
+          if (slot) {
+            const gifts = await giftService.coachGiftStatesForSlot(
+              ctx,
+              {
+                userId: request.user.userId,
+                role: request.user.role,
+                branchIds: request.scope.branchIds,
+              },
+              {
+                scheduleId: request.params.scheduleId,
+                date: request.params.date,
+                branchId: slot.branchId,
+                timezone: slot.timezone ?? DEFAULT_TENANT_TIMEZONE,
+                members: result.members.map((member) => ({
+                  memberId: member.memberId,
+                  attendanceId: member.attendanceId,
+                })),
+              },
+            );
+            coachGiftAmount = gifts.coachGiftAmount;
+            byMember = gifts.byMember;
+          }
+        }
+
+        return {
+          ...result,
+          coachGiftAmount,
+          members: result.members.map((member) => ({
+            ...member,
+            gift: byMember?.get(member.memberId) ?? null,
+          })),
+        };
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "slot attendance");
       }
@@ -174,6 +247,7 @@ export const attendanceAdminRoutes: FastifyPluginAsync = async (fastify) => {
         const result = await attendanceService.removeCheckIn(
           request.params.attendanceId,
           ctx,
+          request.user.userId,
         );
         return result;
       } catch (err: unknown) {
@@ -227,14 +301,54 @@ export const attendanceMemberRoutes: FastifyPluginAsync = async (fastify) => {
           request.user.userId,
           request.body.qrToken,
         );
+        // Fase 214 (D-40, D-56): lo que ESTA asistencia acreditó de Aura, leído
+        // del ledger y no del rol. Por el tope del día (D-64) puede ser menos
+        // de 5. null si no acreditó (p. ej. auto-registro del profe) o el
+        // módulo está apagado. El check-in ya quedó registrado: la lectura del
+        // Aura nunca lo rompe.
+        let auraAwarded: number | null = null;
+        let auraTotal: number | null = null;
+        try {
+          if (
+            await isModuleEnabled(
+              ctx.tenantId,
+              "templo-gamification",
+              fastify.db,
+            )
+          ) {
+            const awarded = await auraAwardedForReference(
+              fastify.db,
+              ctx,
+              request.user.userId,
+              "attendance",
+              "attendance",
+              record.id,
+            );
+            if (awarded > 0) {
+              auraAwarded = awarded;
+              auraTotal = await earnedAuraForUser(
+                fastify.db,
+                ctx,
+                request.user.userId,
+              );
+            }
+          }
+        } catch (auraErr: unknown) {
+          auraAwarded = null;
+          auraTotal = null;
+          request.log.warn(
+            { err: auraErr },
+            "No se pudo leer el Aura del check-in",
+          );
+        }
         // Compat app: nombre largo para el regex baked del front (handler
         // member; el service es compartido con force/coach check-in del admin).
-        return reply
-          .code(201)
-          .send({
-            ...record,
-            branchName: appBranchName(record.branchName, ctx.tenantId),
-          });
+        return reply.code(201).send({
+          ...record,
+          branchName: appBranchName(record.branchName, ctx.tenantId),
+          auraAwarded,
+          auraTotal,
+        });
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "member check-in");
       }

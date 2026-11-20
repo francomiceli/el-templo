@@ -2,7 +2,8 @@
   <!-- Fase 213-10 (D-07): pantalla final del estiramiento. Corta: "Listo. X minutos de
        estiramiento", una frase y vuelta a Mi Templo; sin puntaje, sin notas y sin resumen.
        Fase 213-15: sin duración medida por el servidor (`minutesLabel` null) dice "Listo." sin cifra.
-       T-213-31: el "+5 AURA" sale SOLO de `auraAwarded`, que viene de la respuesta del servidor. -->
+       T-213-31: el monto de AURA sale SOLO de `auraAwarded` y `auraAmount`, que vienen de la respuesta
+       del servidor (D-23: ningún monto fijo en la app). -->
   <CelebrationFrame
     kicker="Estiramiento"
     title="Listo."
@@ -11,8 +12,8 @@
   >
     <p v-if="minutesLabel" class="sd-minutes">{{ minutesLabel }}</p>
 
-    <div v-if="auraAwarded" class="sd-aura">
-      <span class="sd-aura__amount">+5</span>
+    <div v-if="auraAwarded && auraAmount" class="sd-aura">
+      <span class="sd-aura__amount">+{{ auraAmount }}</span>
       <span class="sd-aura__label">AURA</span>
     </div>
 
@@ -28,8 +29,10 @@ import { stretchClosingPhrase } from '../../utils/stretchSession'
 interface Props {
   /** "7 minutos de estiramiento" de la RESPUESTA del servidor; null = sin duración medida */
   minutesLabel: string | null
-  /** true solo si el servidor acreditó los +5 AURA */
+  /** true solo si el servidor acreditó AURA */
   auraAwarded: boolean
+  /** Monto que acreditó el servidor; null = no lo mandó (servidor viejo), no se muestra */
+  auraAmount?: number | null
   /** Día local de la oferta (YYYY-MM-DD): elige la frase de cierre */
   localDate: string
 }
@@ -55,7 +58,7 @@ const phrase = computed(() => stretchClosingPhrase(props.localDate))
   color: $pd-cream;
 }
 
-// "+5 AURA": el único dorado de la pantalla (D-18)
+// Monto de AURA: el único dorado de la pantalla (D-18)
 .sd-aura {
   display: flex;
   flex-direction: column;

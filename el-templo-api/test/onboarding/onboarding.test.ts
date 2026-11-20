@@ -7,7 +7,9 @@ import {
   registerUser,
   cleanAllTestData,
   getAuthToken,
+  seedAuraBalance,
 } from "../helpers";
+import { AURA_AMOUNTS } from "../../src/modules/aura/amounts";
 
 describe("Onboarding Routes", () => {
   let app: FastifyInstance;
@@ -36,7 +38,7 @@ describe("Onboarding Routes", () => {
   // POST /api/onboarding/complete (V2 — avatar profiling)
   // -----------------------------------------------------------------
   describe("POST /api/onboarding/complete", () => {
-    it("creates profile with avatarType and suggestedProgram, awards 50 AURA", async () => {
+    it("creates profile with avatarType and suggestedProgram, acredita la Aura de onboarding", async () => {
       const { token } = await registerUser(app, {
         email: "onboard-success@test.com",
         password: "password123",
@@ -64,7 +66,37 @@ describe("Onboarding Routes", () => {
       expect(body.profile.suggestedProgram).toBeTruthy();
       expect(body.profile).toHaveProperty("onboardingCompletedAt");
       expect(body.profile.onboardingCompletedAt).toBeTruthy();
-      expect(body.auraAwarded).toBe(50);
+      expect(body.auraAwarded).toBe(AURA_AMOUNTS.onboarding);
+    });
+
+    it("auraAwarded es el monto acreditado aunque el usuario ya tenga saldo", async () => {
+      const { token, user } = await registerUser(app, {
+        email: "onboard-saldo-previo@test.com",
+        password: "password123",
+        branchId: 1,
+      });
+      const userId = Number(user.id);
+      const SALDO_PREVIO = 40;
+      await seedAuraBalance(app, userId, SALDO_PREVIO);
+
+      const res = await app.inject({
+        method: "POST",
+        url: "/api/onboarding/complete",
+        headers: { authorization: `Bearer ${token}` },
+        payload: validQuizAnswersV2,
+      });
+
+      expect(res.statusCode).toBe(201);
+      // La respuesta devuelve lo acreditado, no el saldo total.
+      expect(JSON.parse(res.body).auraAwarded).toBe(AURA_AMOUNTS.onboarding);
+
+      const [rows] = (await app.dbPool.query(
+        `SELECT balance FROM aura_balances WHERE user_id = ?`,
+        [userId],
+      )) as [RowDataPacket[], unknown];
+      expect(Number(rows[0].balance)).toBe(
+        SALDO_PREVIO + AURA_AMOUNTS.onboarding,
+      );
     });
 
     it("resolves avatar K for young female user", async () => {
@@ -100,7 +132,7 @@ describe("Onboarding Routes", () => {
         branchId: 1,
       });
 
-      // First completion — full flow, awards 50 AURA
+      // First completion — full flow, awards the onboarding Aura
       const first = await app.inject({
         method: "POST",
         url: "/api/onboarding/complete",
@@ -108,7 +140,7 @@ describe("Onboarding Routes", () => {
         payload: validQuizAnswersV2,
       });
       expect(first.statusCode).toBe(201);
-      expect(JSON.parse(first.body).auraAwarded).toBe(50);
+      expect(JSON.parse(first.body).auraAwarded).toBe(AURA_AMOUNTS.onboarding);
 
       // Second attempt with different answers — overwrites profile, no AURA
       const second = await app.inject({
@@ -534,7 +566,7 @@ describe("Onboarding Routes", () => {
       return Number(rows[0].total);
     }
 
-    it("dos envíos a la vez: los dos responden 201, una sola fila y 50 AURA una sola vez", async () => {
+    it("dos envíos a la vez: los dos responden 201, una sola fila y la Aura de onboarding una sola vez", async () => {
       const { token, userId } = await freshMember("doble");
 
       const [a, b] = await Promise.all([complete(token), complete(token)]);
@@ -545,28 +577,28 @@ describe("Onboarding Routes", () => {
         JSON.parse(a.body).auraAwarded,
         JSON.parse(b.body).auraAwarded,
       ].sort();
-      expect(awarded).toEqual([0, 50]);
+      expect(awarded).toEqual([0, AURA_AMOUNTS.onboarding]);
       const rows = await profileRows(userId);
       expect(rows).toHaveLength(1);
       expect(rows[0].completedAt).not.toBeNull();
       expect(rows[0].ageRange).toBe("25_34");
-      expect(await onboardingAura(userId)).toBe(50);
+      expect(await onboardingAura(userId)).toBe(AURA_AMOUNTS.onboarding);
     });
 
-    it("con la fila creada antes por las historias: completa el perfil y da los 50 AURA", async () => {
+    it("con la fila creada antes por las historias: completa el perfil y da la Aura de onboarding", async () => {
       const { token, userId } = await freshMember("historias-antes");
       expect((await introStories(token, "seen")).statusCode).toBe(200);
 
       const res = await complete(token);
 
       expect(res.statusCode).toBe(201);
-      expect(JSON.parse(res.body).auraAwarded).toBe(50);
+      expect(JSON.parse(res.body).auraAwarded).toBe(AURA_AMOUNTS.onboarding);
       const rows = await profileRows(userId);
       expect(rows).toHaveLength(1);
       expect(rows[0].completedAt).not.toBeNull();
       expect(rows[0].seenAt).not.toBeNull();
       expect(rows[0].ageRange).toBe("25_34");
-      expect(await onboardingAura(userId)).toBe(50);
+      expect(await onboardingAura(userId)).toBe(AURA_AMOUNTS.onboarding);
     });
 
     it("onboarding e historias a la vez: ninguno da 500 y la fila queda con los dos datos", async () => {
@@ -583,7 +615,7 @@ describe("Onboarding Routes", () => {
       expect(rows).toHaveLength(1);
       expect(rows[0].completedAt).not.toBeNull();
       expect(rows[0].seenAt).not.toBeNull();
-      expect(await onboardingAura(userId)).toBe(50);
+      expect(await onboardingAura(userId)).toBe(AURA_AMOUNTS.onboarding);
     });
 
     it("historias dos veces a la vez sobre un socio sin fila: los dos 200 y el seen estampado", async () => {

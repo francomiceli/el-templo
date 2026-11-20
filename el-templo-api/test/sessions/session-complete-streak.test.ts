@@ -19,8 +19,16 @@ import {
   getAuthToken,
   registerUser,
   cleanAllTestData,
-  seedApprovedSession,
 } from "../helpers";
+import { AURA_AMOUNTS } from "../../src/modules/aura/amounts";
+import { AURA_TIME_RATIO } from "../../src/modules/sessions/proposed-time";
+import {
+  STANDARD_BLOCKS,
+  cleanupFixtureExercises,
+  rolesOf,
+  seedSessionWithBlocks,
+  startedAtForRatio,
+} from "./_aura-session-fixtures";
 import { todayInTz } from "../../src/modules/shared/date-utils";
 import * as schema from "../../src/db/schema";
 
@@ -31,6 +39,9 @@ describe("Session Complete → AURA + Streak E2E", () => {
   let app: FastifyInstance;
   let memberToken: string;
   let memberId: number;
+  // Tiempo propuesto de W1-lunes-alfa (D-20: el cierre valido manda un inicio que
+  // alcanza el 80 % del tiempo propuesto y todos los bloques).
+  let proposedSecLunes: number;
 
   beforeAll(async () => {
     app = await createTestApp();
@@ -41,18 +52,17 @@ describe("Session Complete → AURA + Streak E2E", () => {
 
     // Tanda 2 / #4: completar exige un dayId aprobado (cleanAllTestData vacia
     // `sessions`, se siembra por test).
-    await seedApprovedSession(app, "W1-lunes-alfa");
-    await seedApprovedSession(app, "W1-martes-alfa");
+    const lunes = await seedSessionWithBlocks(
+      app,
+      "W1-lunes-alfa",
+      STANDARD_BLOCKS,
+    );
+    proposedSecLunes = lunes.proposedSec;
+    await seedSessionWithBlocks(app, "W1-martes-alfa", STANDARD_BLOCKS);
 
     // Clean and re-seed AURA config for this test suite
     await app.db.delete(schema.auraConfig);
     await app.db.insert(schema.auraConfig).values([
-      {
-        sourceType: "training_completion",
-        defaultAmount: 10,
-        description: "Completed a training session",
-        isActive: true,
-      },
       {
         sourceType: "streak_bonus",
         defaultAmount: 20,
@@ -82,6 +92,7 @@ describe("Session Complete → AURA + Streak E2E", () => {
   });
 
   afterAll(async () => {
+    await cleanupFixtureExercises(app);
     await app.close();
   });
 
@@ -96,9 +107,9 @@ describe("Session Complete → AURA + Streak E2E", () => {
       payload: {
         dayId: "W1-lunes-alfa",
         date: today,
-        startedAt: new Date().toISOString(),
+        startedAt: startedAtForRatio(proposedSecLunes, AURA_TIME_RATIO),
         rpe: 6,
-        blocksCompleted: ["INITIUM", "NUCLEUS", "ATHLOS"],
+        blocksCompleted: rolesOf(STANDARD_BLOCKS),
       },
     });
 
@@ -122,7 +133,7 @@ describe("Session Complete → AURA + Streak E2E", () => {
       (t) => t.sourceType === "training_completion",
     );
     expect(trainingTx).toBeDefined();
-    expect(trainingTx!.amount).toBe(10);
+    expect(trainingTx!.amount).toBe(AURA_AMOUNTS.training);
     // Tanda 2 / #4: premio por dia local de la sede (tope diario), ya no por
     // fila de completed_sessions.
     expect(trainingTx!.referenceType).toBe("training_day");

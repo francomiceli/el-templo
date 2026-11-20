@@ -16,6 +16,7 @@ import {
 import { NotFoundError, ConflictError, ForbiddenError } from "../shared/errors";
 import { tenantWhere, type TenantContext } from "../shared/tenant";
 import { buildVideoResolver } from "../shared/exercise-video-fallback";
+import { AURA_AMOUNTS } from "../aura/amounts";
 import type { AuraService } from "../aura/service";
 import type {
   CreateProgramInput,
@@ -105,8 +106,9 @@ export class ProgramsService {
 
     return rows.map((r) => ({
       ...r,
-      auraWeeklyBonus: r.auraWeeklyBonus ?? 15,
-      auraCompletionBonus: r.auraCompletionBonus ?? 100,
+      auraWeeklyBonus: r.auraWeeklyBonus ?? AURA_AMOUNTS.programWeekDefault,
+      auraCompletionBonus:
+        r.auraCompletionBonus ?? AURA_AMOUNTS.programCompletionDefault,
       createdAt: r.createdAt.toISOString(),
     }));
   }
@@ -195,8 +197,10 @@ export class ProgramsService {
       description: program.description,
       durationWeeks: program.durationWeeks,
       sessionsPerWeekToAdvance: program.sessionsPerWeekToAdvance,
-      auraWeeklyBonus: program.auraWeeklyBonus ?? 15,
-      auraCompletionBonus: program.auraCompletionBonus ?? 100,
+      auraWeeklyBonus:
+        program.auraWeeklyBonus ?? AURA_AMOUNTS.programWeekDefault,
+      auraCompletionBonus:
+        program.auraCompletionBonus ?? AURA_AMOUNTS.programCompletionDefault,
       goalPlanType: program.goalPlanType,
       isActive: program.isActive,
       createdAt: program.createdAt.toISOString(),
@@ -885,8 +889,10 @@ export class ProgramsService {
     }
 
     const program = programRows[0];
-    const auraWeeklyBonus = program.auraWeeklyBonus ?? 15;
-    const auraCompletionBonus = program.auraCompletionBonus ?? 100;
+    const auraWeeklyBonus =
+      program.auraWeeklyBonus ?? AURA_AMOUNTS.programWeekDefault;
+    const auraCompletionBonus =
+      program.auraCompletionBonus ?? AURA_AMOUNTS.programCompletionDefault;
 
     // 3. Increment sessionsCompletedThisWeek
     const newSessionCount = enrollment.sessionsCompletedThisWeek + 1;

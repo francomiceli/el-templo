@@ -33,6 +33,7 @@ import { and, eq, sql } from "drizzle-orm";
 import * as schema from "../../src/db/schema";
 import { createTestApp, cleanAllTestData } from "../helpers";
 import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
+import { AURA_AMOUNTS } from "../../src/modules/aura/amounts";
 import { shiftDate } from "../../src/modules/shared/week-dates";
 import type {
   StretchCompleteView,
@@ -75,7 +76,8 @@ describe("eventos y cierre del estiramiento: POST /api/sessions/stretch/{events,
 
   beforeEach(async () => {
     await cleanAllTestData(app);
-    // aura_config no se da por sembrada: la fuente stretch se re-siembra.
+    // aura_config no se da por sembrada: la fuente stretch se re-siembra. El
+    // monto que se acredita ya no sale de acá sino de AURA_AMOUNTS (fase 214).
     await app.db
       .insert(schema.auraConfig)
       .values(
@@ -270,7 +272,7 @@ describe("eventos y cierre del estiramiento: POST /api/sessions/stretch/{events,
 
   // ─── casos ─────────────────────────────────────────────────────────────
 
-  it("(a) started y complete 4 minutos después: acredita +5 AURA stretch y marca la fila", async () => {
+  it("(a) started y complete 4 minutos después: acredita la Aura de stretch y marca la fila", async () => {
     const { member } = await arrange();
     const { offerId } = await crearOferta(member.token);
 
@@ -283,6 +285,7 @@ describe("eventos y cierre del estiramiento: POST /api/sessions/stretch/{events,
     expect(res.status, JSON.stringify(res.body)).toBe(200);
     expect(res.body).not.toHaveProperty("allDone");
     expect(res.body.auraAwarded).toBe(true);
+    expect(res.body.auraAmount).toBe(AURA_AMOUNTS.stretch);
     expect(res.body.alreadyCompleted).toBe(false);
     expect(res.body.durationSeconds).toBeGreaterThanOrEqual(239);
     expect(res.body.durationSeconds).toBeLessThanOrEqual(241);
@@ -290,7 +293,7 @@ describe("eventos y cierre del estiramiento: POST /api/sessions/stretch/{events,
 
     const aura = await auraStretch(member.id);
     expect(aura).toHaveLength(1);
-    expect(aura[0].amount).toBe(5);
+    expect(aura[0].amount).toBe(AURA_AMOUNTS.stretch);
     expect(aura[0].referenceType).toBe("stretch_day");
 
     const row = await offerRow(offerId);
@@ -733,8 +736,11 @@ describe("eventos y cierre del estiramiento: POST /api/sessions/stretch/{events,
     const res = await postComplete(member.token, { offerId });
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);
+    // `auraAmount` (monto que paga la fuente, fase 214 plan 05) es parte del
+    // contrato: la app lo muestra solo si `auraAwarded` es true.
     expect(Object.keys(res.body).sort()).toEqual([
       "alreadyCompleted",
+      "auraAmount",
       "auraAwarded",
       "completedAt",
       "durationSeconds",
