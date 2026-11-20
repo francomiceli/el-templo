@@ -481,6 +481,7 @@ onBeforeUnmount(() => {
   // Celda con foto: botón que ocupa toda la celda (tocable de 44 o más: la cara mide 56).
   &__cell-btn {
     display: flex;
+    flex: 1 1 auto;
     flex-direction: column;
     align-items: center;
     gap: 4px;
@@ -500,11 +501,18 @@ onBeforeUnmount(() => {
     }
   }
 
+  // Hasta dos renglones (2026-11-20): en una columna de ~75 px "Maximiliano R." no entraba en uno y
+  // no había dónde leerlo completo. Corta entre palabras; una palabra que sola no entra se parte.
+  // Los "…" quedan solo para un nombre que no entra ni en dos.
   &__name {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
     max-width: 100%;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
+    text-align: center;
     font-size: 13px;
     font-weight: 400;
     line-height: 1.3;
@@ -515,9 +523,11 @@ onBeforeUnmount(() => {
     }
   }
 
-  // Fila de puntos: alto fijo para que los nombres queden alineados con o sin pastilla.
+  // Fila de puntos: alto fijo para que los nombres queden alineados con o sin pastilla. Va pegada
+  // abajo de la celda: si un nombre de la fila ocupa dos renglones, las pastillas siguen parejas.
   &__aura-row {
     display: flex;
+    margin-top: auto;
     align-items: center;
     justify-content: center;
     min-height: 20px;

@@ -537,7 +537,7 @@ $pd-wa-b: #0f6b52;
 }
 
 // Zona de arrastre de una hoja que sale de abajo (`useSheetSwipeDismiss`, 2026-11-20). Va en la
-// rayita: agranda el área que se puede agarrar (todo el ancho, ~30 px de alto) sin cambiar el dibujo,
+// rayita: agranda el área que se puede agarrar (200 px de ancho, ~30 px de alto) sin cambiar el dibujo,
 // y le saca al navegador el gesto vertical (si no, lo toma como scroll y cancela el arrastre).
 @mixin pd-sheet-drag-handle {
   position: relative;
@@ -548,8 +548,10 @@ $pd-wa-b: #0f6b52;
     position: absolute;
     top: -14px;
     bottom: -10px; // no tapa los botones de arriba de la cabecera
-    left: -50vw;
-    right: -50vw;
+    // Acotado a 200 px: Quasar le pone `overflow: auto` a la tarjeta del diálogo y una zona más
+    // ancha que la hoja (antes era ±50vw) la hacía scrollear de costado (2026-11-20).
+    left: -80px;
+    right: -80px;
   }
 }
 
