@@ -176,6 +176,7 @@ describe("getInvitationSettings (servicio)", () => {
       exMemberInactivityMonths: 6,
       latePurchaseWindowDays: 30,
       inviteePercent: 10,
+      followupNoBookingHours: 48,
       discountCapAmount: { AR: null, ES: null },
       perLinkPercent: 10,
       maxPercentCap: 40,

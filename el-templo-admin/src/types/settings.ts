@@ -22,6 +22,8 @@ export interface InvitationSettings {
   latePurchaseWindowDays: number;
   /** % de descuento del invitado que compra (0-50). */
   inviteePercent: number;
+  /** Horas sin reservar desde la activación para avisar que hay que contactarlo (0-240). */
+  followupNoBookingHours: number;
   /** Tope de descuento en dinero por país. `null` = sin tope. */
   discountCapAmount: Record<InvitationCapCountry, number | null>;
   /** Solo lectura: % por invitado activo (configuración AURA). */
@@ -49,7 +51,8 @@ export type InvitationIntKey =
   | 'reinviteWindowDays'
   | 'exMemberInactivityMonths'
   | 'latePurchaseWindowDays'
-  | 'inviteePercent';
+  | 'inviteePercent'
+  | 'followupNoBookingHours';
 
 export type InvitationSettingsLimits = Record<
   InvitationIntKey | 'accessesPerInvitation',

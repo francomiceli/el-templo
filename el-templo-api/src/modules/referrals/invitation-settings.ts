@@ -94,6 +94,14 @@ const INT_SETTINGS = {
     max: 180,
   },
   inviteePercent: { suffix: "invitee_percent", def: 10, min: 0, max: 50 },
+  // Horas desde la activación sin ninguna reserva para que un invitado de la app
+  // pase a la pelotita de "contactar" (2026-11-20). 0 = apenas se activa.
+  followupNoBookingHours: {
+    suffix: "followup_no_booking_hours",
+    def: 48,
+    min: 0,
+    max: 240,
+  },
 } as const;
 
 export type InvitationIntSettingName = keyof typeof INT_SETTINGS;
@@ -174,6 +182,7 @@ export const INVITATION_SETTING_DEFAULTS: Readonly<
   exMemberInactivityMonths: INT_SETTINGS.exMemberInactivityMonths.def,
   latePurchaseWindowDays: INT_SETTINGS.latePurchaseWindowDays.def,
   inviteePercent: INT_SETTINGS.inviteePercent.def,
+  followupNoBookingHours: INT_SETTINGS.followupNoBookingHours.def,
 };
 
 export interface InvitationSettings extends Record<

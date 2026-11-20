@@ -36,6 +36,7 @@
 // `tenant_id` sale del `ctx` del servidor, jamás del querystring.
 import { and, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
+import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { DEFAULT_TENANT_TIMEZONE, todayInTz } from "../shared/date-utils";
 import { tenantWhere, type TenantContext } from "../shared/tenant";
@@ -50,6 +51,7 @@ import {
 } from "./invitation-states";
 import { paidSinceActivationSql } from "./invitation-purchase";
 import { loadTrainedBranches } from "./invitation-trained-branches";
+import { getInvitationSettings } from "./invitation-settings";
 
 type DbInstance = MySql2Database<typeof schema>;
 
@@ -139,12 +141,16 @@ export interface InvitationPendingCount {
   /** Las de `open` sin ningún mensaje registrado. */
   uncontacted: number;
   /**
-   * Invitados que se activaron SOLOS desde la app (`self_service`), todavía tienen
-   * accesos (`con_accesos`) y nadie les escribió (0 mensajes). Sin este contador ventas
-   * recién se enteraba cuando los accesos ya habían terminado (caso real 2026-11-20).
-   * Las asistidas no cuentan: las carga el staff, que ya está en contacto.
+   * Invitados que se activaron SOLOS desde la app (`self_service`) hace al menos
+   * `followupNoBookingHours` horas (setting, default 48), todavía tienen accesos
+   * (`con_accesos`), no reservaron ninguna clase desde la activación (reserva no
+   * cancelada) y nadie les escribió (0 mensajes). Sin este contador ventas recién se
+   * enteraba cuando los accesos ya habían terminado (caso real 2026-11-20: activó, nunca
+   * reservó, vencido sin usar). El que reserva solo no necesita seguimiento: deja de
+   * contar apenas reserva. Las asistidas no cuentan: las carga el staff, que ya está en
+   * contacto.
    */
-  selfActivatedUncontacted: number;
+  selfActivatedWithoutBooking: number;
 }
 
 export interface InvitationLeadPage {
@@ -300,6 +306,22 @@ function followStatusRankSql(followStatusExpr: SQL): SQL {
 /** Fila cruda de la query de la bandeja. */
 type LeadDbRow = Awaited<ReturnType<InvitationLeadList["fetchPage"]>>[number];
 
+/**
+ * Reserva NO cancelada del invitado desde el inicio de sus accesos (cualquier estado
+ * menos `cancelado`: reservó, vino, faltó o quedó en lista de espera = ya se movió solo).
+ * Referencias a `invitations` como literal calificado: dentro de `.select()` Drizzle
+ * renderiza las columnas sin calificar y la correlación se rompería en silencio.
+ */
+function invitationBookingSinceActivationSql(ctx: TenantContext): SQL {
+  /* tenant-safe: subquery con su propio FROM bookings b acotada por b.tenant_id
+     inline; el resto son columnas de invitations del statement externo. */
+  return sql`SELECT 1 FROM bookings b
+    WHERE b.tenant_id = ${ctx.tenantId}
+      AND b.member_id = invitations.invited_user_id
+      AND b.booking_date >= invitations.access_starts_on
+      AND b.booking_status <> 'cancelado'`;
+}
+
 export class InvitationLeadList {
   constructor(private readonly db: DbInstance) {}
 
@@ -358,17 +380,25 @@ export class InvitationLeadList {
   /**
    * Contadores del aviso rojo: `open` = invitaciones en `para_contactar`, `uncontacted` =
    * las de `open` sin ningún mensaje registrado (`message_count = 0` o sin fila de
-   * seguimiento) y `selfActivatedUncontacted` = autogestionadas `con_accesos` sin ningún
-   * mensaje. UNA query, con los mismos joins y el mismo alcance que la bandeja.
+   * seguimiento) y `selfActivatedWithoutBooking` = autogestionadas `con_accesos`
+   * activadas hace al menos `followupNoBookingHours`, sin reservas desde la activación y
+   * sin ningún mensaje. UNA query, con los mismos joins y
+   * el mismo alcance que la bandeja.
    */
   async countPending(
     ctx: TenantContext,
+    log: FastifyBaseLogger,
     scope: Pick<InvitationLeadFilters, "country" | "branchIds"> = {},
   ): Promise<InvitationPendingCount> {
     if (scope.branchIds?.length === 0) {
-      return { open: 0, uncontacted: 0, selfActivatedUncontacted: 0 };
+      return { open: 0, uncontacted: 0, selfActivatedWithoutBooking: 0 };
     }
     const { followStatusExpr } = await this.buildExprs(ctx);
+    const { followupNoBookingHours } = await getInvitationSettings(
+      this.db,
+      ctx,
+      log,
+    );
     // Mismos joins que `fetchPage` que influyen en el estado y el alcance (sede, sub de accesos
     // y seguimiento): el invitado y el motivo no cambian ninguno de los dos contadores.
     const [row] = await this.db
@@ -379,9 +409,9 @@ export class InvitationLeadList {
         uncontacted: sql<
           number | string | null
         >`SUM(CASE WHEN ${followStatusExpr} = 'para_contactar' AND COALESCE(${schema.renewalFollowups.messageCount}, 0) = 0 THEN 1 ELSE 0 END)`,
-        selfActivatedUncontacted: sql<
+        selfActivatedWithoutBooking: sql<
           number | string | null
-        >`SUM(CASE WHEN ${followStatusExpr} = 'con_accesos' AND invitations.channel = 'self_service' AND COALESCE(${schema.renewalFollowups.messageCount}, 0) = 0 THEN 1 ELSE 0 END)`,
+        >`SUM(CASE WHEN ${followStatusExpr} = 'con_accesos' AND invitations.channel = 'self_service' AND COALESCE(${schema.renewalFollowups.messageCount}, 0) = 0 AND invitations.activated_at <= NOW() - INTERVAL ${followupNoBookingHours} HOUR AND NOT EXISTS (${invitationBookingSinceActivationSql(ctx)}) THEN 1 ELSE 0 END)`,
       })
       .from(schema.invitations)
       .innerJoin(
@@ -413,7 +443,7 @@ export class InvitationLeadList {
     return {
       open: Number(row?.open ?? 0),
       uncontacted: Number(row?.uncontacted ?? 0),
-      selfActivatedUncontacted: Number(row?.selfActivatedUncontacted ?? 0),
+      selfActivatedWithoutBooking: Number(row?.selfActivatedWithoutBooking ?? 0),
     };
   }
 

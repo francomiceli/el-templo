@@ -146,7 +146,7 @@ export async function getLeads(
 export interface PendingCountBody {
   open: number;
   uncontacted: number;
-  selfActivatedUncontacted: number;
+  selfActivatedWithoutBooking: number;
 }
 
 export async function getPendingCount(

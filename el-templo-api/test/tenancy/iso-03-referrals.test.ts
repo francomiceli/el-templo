@@ -813,7 +813,7 @@ describe("contador del aviso rojo — GET /api/admin/referrals/invitations/pendi
   ): Promise<{
     open: number;
     uncontacted: number;
-    selfActivatedUncontacted: number;
+    selfActivatedWithoutBooking: number;
   }> {
     const res = await getComo(
       "/api/admin/referrals/invitations/pending-count",
@@ -823,7 +823,7 @@ describe("contador del aviso rojo — GET /api/admin/referrals/invitations/pendi
     return JSON.parse(res.body) as {
       open: number;
       uncontacted: number;
-      selfActivatedUncontacted: number;
+      selfActivatedWithoutBooking: number;
     };
   }
 
@@ -852,7 +852,7 @@ describe("contador del aviso rojo — GET /api/admin/referrals/invitations/pendi
       expect(await leerContador(token)).toEqual({
         open: 0,
         uncontacted: 0,
-        selfActivatedUncontacted: 0,
+        selfActivatedWithoutBooking: 0,
       });
     }
   });
