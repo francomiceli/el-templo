@@ -10,11 +10,11 @@
     aria-labelledby="attendees-sheet-title"
     @update:model-value="onUpdateModelValue"
   >
-    <q-card v-if="schedule" class="ash">
-      <div class="ash__grab" aria-hidden="true" />
+    <q-card v-if="schedule" class="ash" :style="swipe.cardStyle.value">
+      <div class="ash__grab" aria-hidden="true" v-on="swipe.handlers" />
 
       <!-- Cabecera fija -->
-      <div class="ash__head">
+      <div class="ash__head" v-on="swipe.handlers">
         <p class="ash__kicker">QUIÉNES VAN</p>
         <h3 id="attendees-sheet-title" class="ash__title">{{ title }}</h3>
         <p class="ash__sub">
@@ -210,6 +210,7 @@ import AttendeePhotoDialog from 'src/components/AttendeePhotoDialog.vue'
 import MemberAvatar from 'src/components/MemberAvatar.vue'
 import { useBackButtonClose } from 'src/composables/useBackButtonClose'
 import { useCommunityApi } from 'src/composables/useCommunityApi'
+import { useSheetSwipeDismiss } from 'src/composables/useSheetSwipeDismiss'
 import { useUserStore } from 'src/stores/useUserStore'
 import {
   attendeeAriaLabel,
@@ -241,6 +242,12 @@ const router = useRouter()
 const userStore = useUserStore()
 const community = useCommunityApi()
 const backClose = useBackButtonClose(close)
+// Arrastrar la hoja hacia abajo la cierra (la rayita y la cabecera son la zona de arrastre).
+const swipe = useSheetSwipeDismiss({
+  isOpen: () => props.modelValue,
+  canDismiss: () => true,
+  onDismiss: close,
+})
 
 // Movimiento reducido: la hoja aparece sin transición y los esqueletos no pulsan.
 const dialogDuration = prefersReducedMotion() ? 0 : 280
@@ -380,6 +387,7 @@ watch(
 )
 
 onBeforeUnmount(() => {
+  swipe.cleanup()
   requestSeq++
   data.value = null
   backClose.cleanup()
@@ -404,6 +412,7 @@ onBeforeUnmount(() => {
   color: $pd-ink;
 
   &__grab {
+    @include pd-sheet-drag-handle;
     flex: none;
     align-self: center;
     width: 40px;
@@ -414,6 +423,7 @@ onBeforeUnmount(() => {
   }
 
   &__head {
+    @include pd-sheet-drag-head;
     flex: none;
     padding: 4px 20px 16px;
   }

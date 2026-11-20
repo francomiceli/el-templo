@@ -3,8 +3,8 @@
        pero con hoja blanca clara. El contenido es ProgramProgressCard (selector de programa,
        bloques de contenido y aviso de renovación). -->
   <q-dialog :model-value="modelValue" position="bottom" @update:model-value="onUpdateModelValue">
-    <q-card class="program-sheet">
-      <div class="program-sheet__handle" />
+    <q-card class="program-sheet" :style="swipe.cardStyle.value">
+      <div class="program-sheet__handle" v-on="swipe.handlers" />
       <h3 class="program-sheet__title">Tu programa</h3>
       <ProgramProgressCard
         v-if="progress"
@@ -32,6 +32,7 @@ import { Capacitor } from '@capacitor/core'
 import ProgramProgressCard from 'src/modules/programs/components/ProgramProgressCard.vue'
 import type { MemberEnrollmentProgress } from 'src/modules/programs/types'
 import { createLogger } from 'src/utils/logger'
+import { useSheetSwipeDismiss } from 'src/composables/useSheetSwipeDismiss'
 
 const log = createLogger('ProgramSheet')
 
@@ -58,6 +59,13 @@ function onUpdateModelValue(value: boolean): void {
 function close(): void {
   emit('update:modelValue', false)
 }
+
+// Arrastrar la hoja hacia abajo la cierra (la rayita es la zona de arrastre).
+const swipe = useSheetSwipeDismiss({
+  isOpen: () => props.modelValue,
+  canDismiss: () => true,
+  onDismiss: close,
+})
 
 async function attachBackListener(): Promise<void> {
   if (!Capacitor.isNativePlatform()) return
@@ -104,11 +112,13 @@ watch(
 )
 
 onBeforeUnmount(() => {
+  swipe.cleanup()
   detachBackListener()
 })
 </script>
 
 <style scoped lang="scss">
+@import 'src/css/premium-card';
 .program-sheet {
   width: 100%;
   max-width: 480px;
@@ -121,6 +131,7 @@ onBeforeUnmount(() => {
   box-shadow: none;
 
   &__handle {
+    @include pd-sheet-drag-handle;
     width: 40px;
     height: 4px;
     border-radius: 2px;

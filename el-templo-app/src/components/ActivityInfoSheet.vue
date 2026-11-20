@@ -2,8 +2,8 @@
   <!-- D-18: bottom sheet — primer precedente en el repo (sin BottomSheet de Quasar,
        para poder aplicar el styling de marca de PlanExpiryDialog/BranchPickerDialog). -->
   <q-dialog :model-value="modelValue" position="bottom" @update:model-value="onUpdateModelValue">
-    <q-card class="activity-info-sheet">
-      <div class="activity-info-sheet__handle" />
+    <q-card class="activity-info-sheet" :style="swipe.cardStyle.value">
+      <div class="activity-info-sheet__handle" v-on="swipe.handlers" />
 
       <q-card-section class="activity-info-sheet__body">
         <h3 class="activity-info-sheet__title">{{ title }}</h3>
@@ -32,7 +32,10 @@
 </template>
 
 <script setup lang="ts">
-defineProps<{
+import { onBeforeUnmount } from 'vue'
+import { useSheetSwipeDismiss } from 'src/composables/useSheetSwipeDismiss'
+
+const props = defineProps<{
   modelValue: boolean
   title: string
   description: string | null
@@ -49,10 +52,22 @@ function onUpdateModelValue(value: boolean): void {
 function onClose(): void {
   emit('update:modelValue', false)
 }
+
+// Arrastrar la hoja hacia abajo la cierra (la rayita es la zona de arrastre).
+const swipe = useSheetSwipeDismiss({
+  isOpen: () => props.modelValue,
+  canDismiss: () => true,
+  onDismiss: onClose,
+})
+
+onBeforeUnmount(() => {
+  swipe.cleanup()
+})
 </script>
 
 <style lang="scss" scoped>
 @import 'src/css/brand';
+@import 'src/css/premium-card';
 
 $terracotta: $brand-terracotta;
 $cream: #f2ede5;
@@ -73,6 +88,7 @@ $charcoal: #2e2a26;
 }
 
 .activity-info-sheet__handle {
+  @include pd-sheet-drag-handle;
   width: 40px;
   height: 4px;
   border-radius: 2px;

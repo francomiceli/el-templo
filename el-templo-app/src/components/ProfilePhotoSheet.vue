@@ -11,8 +11,8 @@
     @update:model-value="onUpdateModelValue"
     @hide="onHide"
   >
-    <q-card class="psheet">
-      <div class="psheet__grab" aria-hidden="true" />
+    <q-card class="psheet" :style="swipe.cardStyle.value">
+      <div class="psheet__grab" aria-hidden="true" v-on="swipe.handlers" />
 
       <!-- Vista previa de la foto preparada -->
       <template v-if="view === 'preview'">
@@ -169,6 +169,7 @@ import MemberAvatar from 'src/components/MemberAvatar.vue'
 import PhotoRulesDialog from 'src/components/PhotoRulesDialog.vue'
 import PremiumDialogCard from 'src/components/PremiumDialogCard.vue'
 import { useProfilePhoto } from 'src/composables/useProfilePhoto'
+import { useSheetSwipeDismiss } from 'src/composables/useSheetSwipeDismiss'
 import { useUserStore } from 'src/stores/useUserStore'
 import { AURA_AMOUNTS_UI } from 'src/constants/aura-amounts'
 import { rejectionReasonLabel } from 'src/utils/photo-messages'
@@ -184,7 +185,7 @@ import type { PhotoStatus } from 'src/types/community'
 
 type PhotoSource = 'camera' | 'gallery' | 'file'
 
-defineProps<{
+const props = defineProps<{
   modelValue: boolean
 }>()
 
@@ -232,6 +233,12 @@ const rejectionLine = computed(() => {
 
 // Mientras se sube o se quita, la hoja no se cierra por accidente (doble envío, T-214-21-03).
 const busy = computed(() => photoCtl.uploading.value || removing.value)
+// Arrastrar la hoja hacia abajo la cierra (la rayita y la cabecera son la zona de arrastre).
+const swipe = useSheetSwipeDismiss({
+  isOpen: () => props.modelValue,
+  canDismiss: () => !busy.value,
+  onDismiss: close,
+})
 
 function close(): void {
   emit('update:modelValue', false)
@@ -353,6 +360,7 @@ async function onConfirmRemove(): Promise<void> {
 }
 
 onBeforeUnmount(() => {
+  swipe.cleanup()
   photoCtl.cleanup()
 })
 </script>
@@ -377,6 +385,7 @@ onBeforeUnmount(() => {
   color: $pd-ink;
 
   &__grab {
+    @include pd-sheet-drag-handle;
     flex: none;
     align-self: center;
     width: 40px;
