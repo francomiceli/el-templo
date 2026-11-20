@@ -101,6 +101,9 @@ export const GYM_OWNED_TABLES = [
   "check_in_responses",
   "class_coach_assignments",
   "coach_ratings",
+  // Aperturas de la lista de anotados (fase 214, mig 0354): nace con tenant_id y
+  // strict, ver TENANT_STRICT_MODULES.scheduling.
+  "community_list_opens",
   "completed_sessions",
   // Conquer v2 (fase 201, migs 0290-0291): nacen con tenant_id y strict, ver
   // TENANT_STRICT_MODULES.conquer. Las 4 de catálogo las siembra la 0292.
@@ -699,7 +702,15 @@ export const TENANT_STRICT_MODULES: Record<string, readonly string[]> = {
     "subscription_schedules",
     "subscriptions",
   ],
-  scheduling: ["bookings", "holidays", "schedule_exceptions", "schedules"],
+  // 2026-11-19 (mig 0354): suma `community_list_opens` (aperturas de la lista de
+  // anotados), nace strict.
+  scheduling: [
+    "bookings",
+    "community_list_opens",
+    "holidays",
+    "schedule_exceptions",
+    "schedules",
+  ],
   auth: ["promo_plans", "refresh_tokens"],
   // Fase 215: nace strict, sin deuda previa.
   "aura-gifts": ["aura_gifts"],

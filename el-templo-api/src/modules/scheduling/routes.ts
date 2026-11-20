@@ -24,6 +24,7 @@ import { eq, and } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { SchedulingService } from "./service";
 import { AttendeesService } from "./attendees-service";
+import { recordListOpen } from "./list-opens";
 import { RATE_LIMITS } from "../shared/rate-limits";
 import { perUserRateLimit } from "../shared/per-user-rate-limit";
 import { ActivityService } from "./activity-service";
@@ -1499,12 +1500,23 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       try {
         const ctx = assertTenant(request.scope, "scheduling.attendees");
-        return await attendeesService.getSlotAttendees(
+        const view = await attendeesService.getSlotAttendees(
           ctx,
           request.user.userId,
           request.params.scheduleId,
           request.params.date,
         );
+        // Registro de aperturas (plan de lanzamiento): solo tras un 200, nunca
+        // rompe la lista (`recordListOpen` no lanza).
+        await recordListOpen(
+          fastify.db,
+          ctx,
+          request.log,
+          request.user.userId,
+          request.params.scheduleId,
+          request.params.date,
+        );
+        return view;
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "member slot attendees");
       }

@@ -253,6 +253,8 @@ const TABLES_TO_CLEAN = [
   schema.auraGifts,
   // Bandeja de avisos (0350): FK a users, sale antes que users.
   schema.memberNotifications,
+  // Aperturas de la lista de anotados (0354): FK a users y schedules, sale antes que ellos.
+  schema.communityListOpens,
   // Histórico de recategorizaciones (0334): FK a users y branches, basura de test
   // genuina (el cron de los tests la escribe), sale antes que ambos.
   schema.branchReassignments,

@@ -197,7 +197,8 @@ describe("Migraciones 0192-0195 — tenant_id en las 87 tablas gym-owned", () =>
     // + member_photos (fase 214, 2026-11-17, mig 0346, nace strict en members) = 136.
     // + aura_gifts (fase 215, 2026-11-18, mig 0349, nace strict en aura-gifts) = 137.
     // + member_notifications (fase 215, 2026-11-18, mig 0350, nace strict en notifications) = 138.
-    expect(report.gymOwnedChecked).toBe(138);
+    // + community_list_opens (fase 214, 2026-11-19, mig 0354, nace strict en scheduling) = 139.
+    expect(report.gymOwnedChecked).toBe(139);
   });
 
   // ─── 3. Exclusiones de diseño ───────────────────────────────────────────
