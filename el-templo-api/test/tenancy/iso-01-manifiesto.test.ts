@@ -508,7 +508,10 @@ import {
 // /api/admin/referrals/invitations/:invitationId/followup` y `POST
 // /api/admin/referrals/invitations/:invitationId/notes`, las 3 `tenant-scoped`
 // (`assertTenant` + `tenantWhere`/`tenantValues` en el service).
-const ENTRADAS_BASELINE = 607;
+// 2026-11-20: 607 -> 608 por las caras de los anotados del dia en la Reservas
+// (GET /api/members/scheduling/day-attendees), `tenant-scoped` (`assertTenant` +
+// `tenantWhere` en cada tabla del servicio).
+const ENTRADAS_BASELINE = 608;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -651,7 +654,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 607 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 608 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(

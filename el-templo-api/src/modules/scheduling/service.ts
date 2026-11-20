@@ -91,18 +91,24 @@ export function vigentSlotBookingCondition(): SQL {
 }
 
 /**
- * Total de reservas vigentes no-trial de un horario en una fecha (incluye
- * Wellhub, excluye cuentas borradas). Es el mismo numero que `bookedCount` de
- * la grilla semanal.
+ * Total de reservas vigentes no-trial de VARIOS horarios en una fecha, por
+ * horario (incluye Wellhub, excluye cuentas borradas). Un horario sin reservas
+ * no va en el Map. Una sola consulta agrupada: la usa la lista del dia
+ * (`getDayAttendees`) y, con un solo id, `countSlotBookings`.
  */
-export async function countSlotBookings(
+export async function countSlotBookingsBySchedule(
   db: MySql2Database<typeof schema>,
   ctx: TenantContext,
-  scheduleId: number,
+  scheduleIds: readonly number[],
   date: string,
-): Promise<number> {
-  const [row] = await db
-    .select({ total: sql<number>`COUNT(*)` })
+): Promise<Map<number, number>> {
+  const totals = new Map<number, number>();
+  if (scheduleIds.length === 0) return totals;
+  const rows = await db
+    .select({
+      scheduleId: schema.bookings.scheduleId,
+      total: sql<number>`COUNT(*)`,
+    })
     .from(schema.bookings)
     .innerJoin(
       schema.users,
@@ -114,13 +120,30 @@ export async function countSlotBookings(
     .where(
       and(
         tenantWhere(schema.bookings, ctx),
-        eq(schema.bookings.scheduleId, scheduleId),
+        inArray(schema.bookings.scheduleId, [...scheduleIds]),
         eq(schema.bookings.bookingDate, date),
         eq(schema.bookings.isTrial, false),
         vigentSlotBookingCondition(),
       ),
-    );
-  return Number(row?.total ?? 0);
+    )
+    .groupBy(schema.bookings.scheduleId);
+  for (const row of rows) totals.set(row.scheduleId, Number(row.total ?? 0));
+  return totals;
+}
+
+/**
+ * Total de reservas vigentes no-trial de un horario en una fecha (incluye
+ * Wellhub, excluye cuentas borradas). Es el mismo numero que `bookedCount` de
+ * la grilla semanal.
+ */
+export async function countSlotBookings(
+  db: MySql2Database<typeof schema>,
+  ctx: TenantContext,
+  scheduleId: number,
+  date: string,
+): Promise<number> {
+  const totals = await countSlotBookingsBySchedule(db, ctx, [scheduleId], date);
+  return totals.get(scheduleId) ?? 0;
 }
 
 export class SchedulingService {

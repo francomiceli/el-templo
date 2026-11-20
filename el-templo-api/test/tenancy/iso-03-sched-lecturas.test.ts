@@ -946,6 +946,64 @@ describe("anotados del horario — GET /api/members/scheduling/slots/:scheduleId
   });
 });
 
+describe("caras de los anotados del dia — GET /api/members/scheduling/day-attendees", () => {
+  const RUTA = "GET /api/members/scheduling/day-attendees";
+
+  it("aislamiento: un socio del gimnasio 2 pidiendo la sede de El Templo recibe 404 y ningun nombre de El Templo", async () => {
+    const [socioTemplo] = await app.db
+      .select({ firstName: schema.users.firstName })
+      .from(schema.users)
+      .where(
+        and(
+          tenantWhere(schema.users, CTX_TEMPLO),
+          eq(schema.users.id, fx.templo.userId),
+        ),
+      );
+    expect(socioTemplo, "el socio sembrado de El Templo existe").toBeDefined();
+
+    const res = await getMemberComo(
+      `/day-attendees?date=${fx.templo.bookingDate}&branchId=${fx.templo.branchId}`,
+      gym2.socios[0].token,
+    );
+
+    expect(
+      res.statusCode,
+      `${RUTA} le devolvio al socio del gimnasio ${TENANT_DOS} algo de la sede ${fx.templo.branchId} de El Templo: ` +
+        `la sede se busca con tenantWhere, un id ajeno tiene que ser 404 (indistinguible de uno inexistente).`,
+    ).toBe(404);
+    if (socioTemplo.firstName) {
+      expect(res.body).not.toContain(socioTemplo.firstName);
+    }
+    expect(res.body).not.toContain(`"faces"`);
+  });
+
+  it("control: el mismo socio SI recibe las caras de su propia sede, con su propia cara", async () => {
+    const res = await getMemberComo(
+      `/day-attendees?date=${fx.dos.bookingDate}&branchId=${gym2.branchId}`,
+      gym2.socios[0].token,
+    );
+
+    expect(
+      res.statusCode,
+      `${RUTA} fallo con la sede PROPIA del gimnasio ${TENANT_DOS}: ${res.body}`,
+    ).toBe(200);
+    const body = JSON.parse(res.body) as {
+      canSeeFaces: boolean;
+      slots: Array<{
+        scheduleId: number;
+        total: number;
+        faces: Array<{ isMe: boolean }>;
+      }>;
+    };
+    expect(body.canSeeFaces, res.body).toBe(true);
+    const slot = body.slots.find((s) => s.scheduleId === fx.dos.scheduleId);
+    expect(slot, porQueImportaElControl(RUTA, fx.dos.scheduleId)).toBeDefined();
+    expect(slot?.total, res.body).toBe(1);
+    expect(slot?.faces, res.body).toHaveLength(1);
+    expect(slot?.faces[0].isMe, res.body).toBe(true);
+  });
+});
+
 describe("reservas del socio — GET /api/members/scheduling/my-bookings", () => {
   const RUTA = "GET /api/members/scheduling/my-bookings";
 

@@ -1324,6 +1324,12 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "GET /api/members/scheduling/slots/:scheduleId/:date/attendees": {
     categoria: "tenant-scoped",
   },
+  // 2026-11-20 (D-59 revisada): primeras caras de los anotados de todos los
+  // horarios de una sede en un dia (fila de la Reservas). Solo lectura, misma
+  // regla de privacidad que la lista de un horario, cada tabla con `tenantWhere`.
+  "GET /api/members/scheduling/day-attendees": {
+    categoria: "tenant-scoped",
+  },
 
   // ── /api/members/sponsors (fase 199, patrocinadores) ─────────────────────
   // Feed del socio y eventos (escriben `sponsor_views`, gym-owned). El

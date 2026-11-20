@@ -90,6 +90,7 @@ import {
   communityVisibilitySchema,
   communityNoticeSeenSchema,
   slotAttendeesSchema,
+  dayAttendeesSchema,
   classLabelDescriptionsSchema,
   updateClassLabelDescriptionSchema,
   partnerBenefitSchema,
@@ -1519,6 +1520,37 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
         return view;
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "member slot attendees");
+      }
+    },
+  );
+
+  // GET /day-attendees — 2026-11-20 (D-59 revisada por Franco): primeras caras
+  // de los anotados de todos los horarios de una sede en un dia, para la fila de
+  // la Reservas. Mismas reglas que la lista de un horario (servicio) y mismos
+  // topes, en su propio balde. NO registra la apertura de la lista
+  // (`recordListOpen` es la metrica de "abrio la lista completa").
+  fastify.get<{ Querystring: { date: string; branchId?: number } }>(
+    "/day-attendees",
+    {
+      schema: dayAttendeesSchema,
+      config: { rateLimit: RATE_LIMITS.dayAttendees },
+      preHandler: perUserRateLimit(
+        fastify,
+        RATE_LIMITS.dayAttendeesPerUser,
+        "day-attendees",
+      ),
+    },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(request.scope, "scheduling.dayAttendees");
+        return await attendeesService.getDayAttendees(
+          ctx,
+          request.user.userId,
+          request.query.branchId,
+          request.query.date,
+        );
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "member day attendees");
       }
     },
   );
