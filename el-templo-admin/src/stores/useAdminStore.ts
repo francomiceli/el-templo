@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { api } from 'src/boot/axios';
 import { useProfilePhotosApi } from 'src/composables/useProfilePhotosApi';
 import type { InvitationsPendingCount } from 'src/types/report';
@@ -10,6 +10,10 @@ export interface LandingInboxCounts {
   franchise: number;
 }
 
+function emptyInvitationsPending(): InvitationsPendingCount {
+  return { open: 0, uncontacted: 0, selfActivatedUncontacted: 0 };
+}
+
 export const useAdminStore = defineStore('admin', () => {
   const pendingCount = ref(0);
   const lowSessionsAlert = ref(false);
@@ -17,10 +21,17 @@ export const useAdminStore = defineStore('admin', () => {
   // Pelotita de Reportes: SP creadas desde la app pendientes de que gestión
   // inicie el seguimiento (dentro del país del usuario).
   const appTrialsPendingCount = ref(0);
-  // Invitados "para contactar" (open) y, de ellos, los que no tienen ningún mensaje
-  // (uncontacted): numerito rojo de la pestaña Invitaciones, suma a la pelotita de Reportes
-  // y aviso en Renovaciones. El API ya lo acota por rol/sede.
-  const invitationsPending = ref<InvitationsPendingCount>({ open: 0, uncontacted: 0 });
+  // Invitados "para contactar" (open), de ellos los que no tienen ningún mensaje
+  // (uncontacted), y los que se activaron solos desde la app y nadie contactó todavía
+  // (selfActivatedUncontacted). El aviso de Renovaciones usa open/uncontacted. El API
+  // ya lo acota por rol/sede.
+  const invitationsPending = ref<InvitationsPendingCount>(emptyInvitationsPending());
+  // Numerito rojo de la pestaña Invitaciones (suma a la pelotita de Reportes): invitados
+  // sin ningún mensaje, tanto los que terminaron sus accesos como los recién activados
+  // por la app (que hay que contactar MIENTRAS tienen accesos).
+  const invitationsBadgeCount = computed(
+    () => invitationsPending.value.uncontacted + invitationsPending.value.selfActivatedUncontacted
+  );
   // Pelotitas del grupo Landing: leads del sitio público todavía en estado
   // "new" (Academy, Labs, Franquicias). Un solo request para las tres.
   const landingInbox = ref<LandingInboxCounts>({ academy: 0, labs: 0, franchise: 0 });
@@ -62,10 +73,14 @@ export const useAdminStore = defineStore('admin', () => {
       const { data } = await api.get<InvitationsPendingCount>(
         '/admin/referrals/invitations/pending-count'
       );
-      invitationsPending.value = { open: data.open, uncontacted: data.uncontacted };
+      invitationsPending.value = {
+        open: data.open,
+        uncontacted: data.uncontacted,
+        selfActivatedUncontacted: data.selfActivatedUncontacted,
+      };
     } catch {
       // Silently fail - badge will show 0
-      invitationsPending.value = { open: 0, uncontacted: 0 };
+      invitationsPending.value = emptyInvitationsPending();
     }
   }
 
@@ -145,6 +160,7 @@ export const useAdminStore = defineStore('admin', () => {
     weeksAhead,
     appTrialsPendingCount,
     invitationsPending,
+    invitationsBadgeCount,
     landingInbox,
     conquerRequestsCount,
     conquerCorrectionsCount,

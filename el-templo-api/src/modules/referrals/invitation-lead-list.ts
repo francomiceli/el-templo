@@ -138,6 +138,13 @@ export interface InvitationPendingCount {
   open: number;
   /** Las de `open` sin ningún mensaje registrado. */
   uncontacted: number;
+  /**
+   * Invitados que se activaron SOLOS desde la app (`self_service`), todavía tienen
+   * accesos (`con_accesos`) y nadie les escribió (0 mensajes). Sin este contador ventas
+   * recién se enteraba cuando los accesos ya habían terminado (caso real 2026-11-20).
+   * Las asistidas no cuentan: las carga el staff, que ya está en contacto.
+   */
+  selfActivatedUncontacted: number;
 }
 
 export interface InvitationLeadPage {
@@ -351,13 +358,16 @@ export class InvitationLeadList {
   /**
    * Contadores del aviso rojo: `open` = invitaciones en `para_contactar`, `uncontacted` =
    * las de `open` sin ningún mensaje registrado (`message_count = 0` o sin fila de
-   * seguimiento). UNA query, con los mismos joins y el mismo alcance que la bandeja.
+   * seguimiento) y `selfActivatedUncontacted` = autogestionadas `con_accesos` sin ningún
+   * mensaje. UNA query, con los mismos joins y el mismo alcance que la bandeja.
    */
   async countPending(
     ctx: TenantContext,
     scope: Pick<InvitationLeadFilters, "country" | "branchIds"> = {},
   ): Promise<InvitationPendingCount> {
-    if (scope.branchIds?.length === 0) return { open: 0, uncontacted: 0 };
+    if (scope.branchIds?.length === 0) {
+      return { open: 0, uncontacted: 0, selfActivatedUncontacted: 0 };
+    }
     const { followStatusExpr } = await this.buildExprs(ctx);
     // Mismos joins que `fetchPage` que influyen en el estado y el alcance (sede, sub de accesos
     // y seguimiento): el invitado y el motivo no cambian ninguno de los dos contadores.
@@ -369,6 +379,9 @@ export class InvitationLeadList {
         uncontacted: sql<
           number | string | null
         >`SUM(CASE WHEN ${followStatusExpr} = 'para_contactar' AND COALESCE(${schema.renewalFollowups.messageCount}, 0) = 0 THEN 1 ELSE 0 END)`,
+        selfActivatedUncontacted: sql<
+          number | string | null
+        >`SUM(CASE WHEN ${followStatusExpr} = 'con_accesos' AND invitations.channel = 'self_service' AND COALESCE(${schema.renewalFollowups.messageCount}, 0) = 0 THEN 1 ELSE 0 END)`,
       })
       .from(schema.invitations)
       .innerJoin(
@@ -400,6 +413,7 @@ export class InvitationLeadList {
     return {
       open: Number(row?.open ?? 0),
       uncontacted: Number(row?.uncontacted ?? 0),
+      selfActivatedUncontacted: Number(row?.selfActivatedUncontacted ?? 0),
     };
   }
 

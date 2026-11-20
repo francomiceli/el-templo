@@ -84,11 +84,11 @@
         icon="card_giftcard"
       >
         <q-badge
-          v-if="adminStore.invitationsPending.uncontacted > 0"
+          v-if="adminStore.invitationsBadgeCount > 0"
           color="negative"
           floating
           rounded
-          :label="adminStore.invitationsPending.uncontacted"
+          :label="adminStore.invitationsBadgeCount"
         />
       </q-tab>
       <!-- Fase 204 (D-16): reporte Wellhub. Autocarga: no pasa por fetchTabData. -->

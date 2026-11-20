@@ -810,13 +810,21 @@ describe("contador del aviso rojo — GET /api/admin/referrals/invitations/pendi
 
   async function leerContador(
     token: string,
-  ): Promise<{ open: number; uncontacted: number }> {
+  ): Promise<{
+    open: number;
+    uncontacted: number;
+    selfActivatedUncontacted: number;
+  }> {
     const res = await getComo(
       "/api/admin/referrals/invitations/pending-count",
       token,
     );
     expect(res.statusCode, `${RUTA} falló: ${res.body}`).toBe(200);
-    return JSON.parse(res.body) as { open: number; uncontacted: number };
+    return JSON.parse(res.body) as {
+      open: number;
+      uncontacted: number;
+      selfActivatedUncontacted: number;
+    };
   }
 
   it("aislamiento: el staff del gimnasio 2 cuenta solo SUS invitados (2), el de El Templo solo el suyo (1) — nunca la suma", async () => {
@@ -841,7 +849,11 @@ describe("contador del aviso rojo — GET /api/admin/referrals/invitations/pendi
 
   it("control: cada staff recibe 200 sobre SU gimnasio, también sin invitados (cero 403 por tenant)", async () => {
     for (const token of [gym2.adminToken, templeAdminToken]) {
-      expect(await leerContador(token)).toEqual({ open: 0, uncontacted: 0 });
+      expect(await leerContador(token)).toEqual({
+        open: 0,
+        uncontacted: 0,
+        selfActivatedUncontacted: 0,
+      });
     }
   });
 });
