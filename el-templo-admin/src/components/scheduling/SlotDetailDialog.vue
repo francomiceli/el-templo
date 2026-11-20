@@ -602,6 +602,14 @@
                     </q-btn>
                     <q-tooltip v-if="member.isWellhub">{{ WELLHUB_MANAGED_TOOLTIP }}</q-tooltip>
                   </span>
+                  <AttendanceGiftAction
+                    :enabled="giftUiEnabled"
+                    :attendance-id="member.attendanceId"
+                    :gift="member.gift"
+                    :member-name="member.memberName"
+                    :disabled-note="giftDisabledNote"
+                    @give="openGift(member)"
+                  />
                   <span v-if="member.attendanceId">
                     <q-btn
                       flat
@@ -812,6 +820,19 @@
           :lock-branch="true"
           @created="onTrialMemberCreated"
         />
+
+        <!-- Regalo de Aura del profe (fase 215): una sola ventana para todas las filas. -->
+        <CoachGiftDialog
+          v-if="giftTarget && coachGiftAmount !== null"
+          v-model="giftDialogOpen"
+          :member-name="giftTarget.memberName"
+          :first-name="firstNameOf(giftTarget.memberName)"
+          :attendance-id="giftTarget.attendanceId"
+          :amount="coachGiftAmount"
+          @given="onGiftGiven"
+          @already-given="onGiftAlreadyGiven"
+          @stale="onGiftStale"
+        />
       </q-card-section>
 
       <q-card-actions align="right">
@@ -919,6 +940,11 @@ import TrialMemberFormDialog from 'src/components/TrialMemberFormDialog.vue';
 import MemberTags from 'src/components/scheduling/MemberTags.vue';
 import InvitationTag from 'src/components/scheduling/InvitationTag.vue';
 import CheckInChips from 'src/components/scheduling/CheckInChips.vue';
+import AttendanceGiftAction from 'src/components/scheduling/AttendanceGiftAction.vue';
+import CoachGiftDialog from 'src/components/CoachGiftDialog.vue';
+import type { GiftReasonCode } from 'src/config/gift-reasons';
+import { COACH_ACTIVIDAD_ROLE, TEMPLO_ENABLED } from 'src/config/templo-config';
+import { coachGiftDisabledNote, firstNameOf } from 'src/utils/coach-gift-view';
 import type { BranchOption, MemberProfile } from 'src/types/member';
 import type {
   SlotDetailView,
@@ -973,6 +999,8 @@ const emit = defineEmits<{
 
 const slotDetail = ref<SlotDetailView | null>(null);
 const attendanceList = ref<SlotAttendanceItem[]>([]);
+/** Valor del regalo del profe; `null` si quien mira no puede dar Aura en esta clase. */
+const coachGiftAmount = ref<number | null>(null);
 const loadingSlotDetail = ref(false);
 const loadingAttendance = ref(false);
 const loading = computed(() => loadingSlotDetail.value || loadingAttendance.value);
@@ -1291,11 +1319,65 @@ async function loadSlotDetail(scheduleId: number, date: string) {
   }
 }
 
+// ─── Regalo de Aura del profe (fase 215, D-15) ────────────────────────────
+// La API decide quién puede dar y a quién (`gift` por fila); acá solo la ventana y la marca
+// optimista de "dado". Antes vivía en `SlotAttendancePanel`, que no se abría desde ninguna pantalla.
+
+interface GiftTarget {
+  attendanceId: number;
+  memberName: string;
+}
+
+/**
+ * Con el módulo de Aura apagado en el gimnasio no hay nada de regalos: la misma señal que usa la
+ * app (`auraEarned` de `/auth/me`, en null con el módulo apagado).
+ */
+const giftUiEnabled = computed(() => TEMPLO_ENABLED && authStore.auraEnabled);
+const giftDialogOpen = ref(false);
+const giftTarget = ref<GiftTarget | null>(null);
+
+const giftDisabledNote = computed(() => {
+  const role = authStore.user?.role;
+  return coachGiftDisabledNote(role === 'coach' || role === COACH_ACTIVIDAD_ROLE);
+});
+
+function openGift(member: SlotAttendanceItem) {
+  if (!member.attendanceId) return;
+  giftTarget.value = { attendanceId: member.attendanceId, memberName: member.memberName };
+  giftDialogOpen.value = true;
+}
+
+function markGiftGiven(amount: number | null, reason: GiftReasonCode | null) {
+  const target = giftTarget.value;
+  if (!target) return;
+  const row = attendanceList.value.find((m) => m.attendanceId === target.attendanceId);
+  if (!row?.gift) return;
+  row.gift = {
+    state: 'dado',
+    amount: amount ?? row.gift.amount,
+    reason,
+  };
+}
+
+function onGiftGiven(payload: { amount: number; reason: GiftReasonCode }) {
+  markGiftGiven(payload.amount, payload.reason);
+}
+
+function onGiftAlreadyGiven() {
+  markGiftGiven(null, null);
+}
+
+/** La API dijo que la fila cambió (asistencia borrada, ventana vencida): se recarga la lista. */
+function onGiftStale() {
+  if (props.scheduleId) void loadAttendance(props.scheduleId, props.date);
+}
+
 async function loadAttendance(scheduleId: number, date: string) {
   loadingAttendance.value = true;
   try {
     const result = await attendanceApi.getSlotAttendance(scheduleId, date);
     attendanceList.value = result.members;
+    coachGiftAmount.value = result.coachGiftAmount ?? null;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
     log.error('Error loading attendance', { error: message });
