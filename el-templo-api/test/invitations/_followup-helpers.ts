@@ -142,17 +142,24 @@ export async function getLeads(
   return { statusCode: res.statusCode, body: res.body as LeadsPageBody };
 }
 
+/** Cuerpo de `GET /invitations/pending-count`. */
+export interface PendingCountBody {
+  open: number;
+  uncontacted: number;
+  selfActivatedUncontacted: number;
+}
+
 export async function getPendingCount(
   app: FastifyInstance,
   token: string,
 ): Promise<{
   statusCode: number;
-  body: { uncontacted: number; open: number };
+  body: PendingCountBody;
 }> {
   const res = await sendJson(app, "GET", `${BASE}/pending-count`, token);
   return {
     statusCode: res.statusCode,
-    body: res.body as { uncontacted: number; open: number },
+    body: res.body as PendingCountBody,
   };
 }
 

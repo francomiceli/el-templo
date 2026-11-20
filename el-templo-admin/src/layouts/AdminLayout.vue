@@ -107,7 +107,7 @@ function badgeCount(item: NavItem): number {
     case 'app-trials':
       return adminStore.appTrialsPendingCount;
     case 'reportes':
-      return adminStore.appTrialsPendingCount + adminStore.invitationsPending.uncontacted;
+      return adminStore.appTrialsPendingCount + adminStore.invitationsBadgeCount;
     case 'landing-academy':
       return adminStore.landingInbox.academy;
     case 'landing-labs':

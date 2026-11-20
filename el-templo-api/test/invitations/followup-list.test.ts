@@ -441,10 +441,10 @@ describe("Bandeja de invitados como lista de seguimiento", () => {
   // ─── pending-count ─────────────────────────────────────────────────────
 
   describe("GET /invitations/pending-count", () => {
-    it("sin invitaciones: { open: 0, uncontacted: 0 }", async () => {
+    it("sin invitaciones: todo en 0", async () => {
       expect(await getPendingCount(app, token)).toEqual({
         statusCode: 200,
-        body: { open: 0, uncontacted: 0 },
+        body: { open: 0, uncontacted: 0, selfActivatedUncontacted: 0 },
       });
     });
 
@@ -467,6 +467,7 @@ describe("Bandeja de invitados como lista de seguimiento", () => {
         await insertFollowup(row.subscriptionId, row.userId, { messageCount });
       }
       // Nada de esto es "para contactar": vigente, convertido, compró tarde y no_sigue.
+      // (La vigente sí suma en `selfActivatedUncontacted`: autogestión, 0 mensajes.)
       await createInvitedUser(ctx, env, inviter.id, {});
       await createInvitedUser(ctx, env, inviter.id, {
         converted: true,
@@ -492,7 +493,11 @@ describe("Bandeja de invitados como lista de seguimiento", () => {
       const res = await getPendingCount(app, token);
 
       expect(res.statusCode).toBe(200);
-      expect(res.body).toEqual({ open: 4, uncontacted: 2 });
+      expect(res.body).toEqual({
+        open: 4,
+        uncontacted: 2,
+        selfActivatedUncontacted: 1,
+      });
       // Coherente con la bandeja: open == total de la bandeja filtrada por para_contactar.
       const filtered = await getLeads(
         app,
@@ -514,6 +519,7 @@ describe("Bandeja de invitados como lista de seguimiento", () => {
       expect((await getPendingCount(app, token)).body).toEqual({
         open: 2,
         uncontacted: 2,
+        selfActivatedUncontacted: 0,
       });
 
       const first = await sendJson(
@@ -527,6 +533,7 @@ describe("Bandeja de invitados como lista de seguimiento", () => {
       expect((await getPendingCount(app, token)).body).toEqual({
         open: 2,
         uncontacted: 1,
+        selfActivatedUncontacted: 0,
       });
 
       const closed = await sendJson(
@@ -543,6 +550,63 @@ describe("Bandeja de invitados como lista de seguimiento", () => {
       expect((await getPendingCount(app, token)).body).toEqual({
         open: 1,
         uncontacted: 0,
+        selfActivatedUncontacted: 0,
+      });
+    });
+
+    it("selfActivatedUncontacted = autogestionadas con accesos y sin ningún mensaje (las asistidas, las ya contactadas, las vencidas y las anuladas no)", async () => {
+      const inviter = await createInviterWithCode(ctx);
+      // Cuentan: autogestión con accesos, sin fila de seguimiento y con fila en 0 mensajes.
+      await createInvitedUser(ctx, env, inviter.id, {});
+      const zero = await createInvitedUser(ctx, env, inviter.id, {});
+      await insertFollowup(zero.subscriptionId, zero.userId, {
+        messageCount: 0,
+      });
+      // También cuenta si ya entrenó una vez y le quedan accesos.
+      await createInvitedUser(ctx, env, inviter.id, { remaining: 3 });
+      // No cuentan: asistida (la cargó el staff), ya contactada, vencida (va a
+      // `uncontacted`), compró y anulada.
+      await createInvitedUser(ctx, env, inviter.id, { channel: "assisted" });
+      const contacted = await createInvitedUser(ctx, env, inviter.id, {});
+      await insertFollowup(contacted.subscriptionId, contacted.userId, {
+        messageCount: 1,
+      });
+      await createInvitedUser(ctx, env, inviter.id, { expiresOffset: -1 });
+      await createInvitedUser(ctx, env, inviter.id, { converted: true });
+      await createInvitedUser(ctx, env, inviter.id, { status: "voided" });
+
+      const res = await getPendingCount(app, token);
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toEqual({
+        open: 1,
+        uncontacted: 1,
+        selfActivatedUncontacted: 3,
+      });
+      expect(
+        (await list.countPending(ctx.tenant)).selfActivatedUncontacted,
+      ).toBe(3);
+    });
+
+    it("selfActivatedUncontacted baja al registrar el primer mensaje desde la bandeja", async () => {
+      const inviter = await createInviterWithCode(ctx);
+      const fresh = await createInvitedUser(ctx, env, inviter.id, {});
+      expect(
+        (await getPendingCount(app, token)).body.selfActivatedUncontacted,
+      ).toBe(1);
+
+      const res = await sendJson(
+        app,
+        "PATCH",
+        `${BASE}/${fresh.invitationId}/followup`,
+        token,
+        { messageCount: 1 },
+      );
+      expect(res.statusCode, res.raw).toBe(200);
+      expect((await getPendingCount(app, token)).body).toEqual({
+        open: 0,
+        uncontacted: 0,
+        selfActivatedUncontacted: 0,
       });
     });
   });

@@ -384,6 +384,8 @@ export interface InvitationsPendingCount {
   open: number;
   /** De los `open`, los que no tienen ningún mensaje registrado. */
   uncontacted: number;
+  /** Se activaron solos desde la app, todavía tienen accesos y nadie les escribió. */
+  selfActivatedUncontacted: number;
 }
 
 export interface InvitationLeadList {

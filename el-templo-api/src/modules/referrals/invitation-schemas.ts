@@ -343,6 +343,7 @@ export const invitationPendingCountRouteSchema = {
       properties: {
         uncontacted: { type: "integer" },
         open: { type: "integer" },
+        selfActivatedUncontacted: { type: "integer" },
       },
     },
   },

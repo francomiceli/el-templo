@@ -178,10 +178,12 @@ describe("Seguimiento de invitados — roles y alcance", () => {
       expect((await getPendingCount(app, sede)).body).toEqual({
         open: 1,
         uncontacted: 1,
+        selfActivatedUncontacted: 0,
       });
       expect((await getPendingCount(app, both)).body).toEqual({
         open: 2,
         uncontacted: 2,
+        selfActivatedUncontacted: 0,
       });
     });
 
@@ -273,6 +275,7 @@ describe("Seguimiento de invitados — roles y alcance", () => {
       expect((await getPendingCount(app, sede)).body).toEqual({
         open: 0,
         uncontacted: 0,
+        selfActivatedUncontacted: 0,
       });
       const res = await sendJson(
         app,
