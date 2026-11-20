@@ -188,6 +188,12 @@ const NUMERIC_FIELD_DEFS: NumericFieldDef[] = [
     suffix: '%',
     hint: 'Porcentaje que recibe quien compra',
   },
+  {
+    key: 'followupNoBookingHours',
+    label: 'Aviso de invitado sin reservar',
+    suffix: 'horas',
+    hint: 'Si se activó por la app y no reservó, avisa para contactarlo',
+  },
 ];
 
 // Los rangos son los que devuelve el servidor (`limits`): no se duplican acá (LO-03).
@@ -232,6 +238,7 @@ function emptyForm(): FormState {
     exMemberInactivityMonths: null,
     latePurchaseWindowDays: null,
     inviteePercent: null,
+    followupNoBookingHours: null,
     caps: { AR: null, ES: null },
     accesses: { AR: null, ES: null },
   };
@@ -289,6 +296,7 @@ function formFromSettings(s: InvitationSettings): FormState {
     exMemberInactivityMonths: s.exMemberInactivityMonths,
     latePurchaseWindowDays: s.latePurchaseWindowDays,
     inviteePercent: s.inviteePercent,
+    followupNoBookingHours: s.followupNoBookingHours,
     // El tope arranca vacío (= sin tope) y se puede borrar (null).
     caps: { AR: s.discountCapAmount.AR, ES: s.discountCapAmount.ES },
     accesses: { AR: s.accessesPerInvitation.AR, ES: s.accessesPerInvitation.ES },

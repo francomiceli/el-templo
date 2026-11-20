@@ -15,6 +15,7 @@ import * as schema from "../../src/db/schema";
 import { addDays } from "../../src/modules/shared/date-utils";
 import { tenantValues } from "../../src/modules/shared/tenant";
 import { InvitationLeadList } from "../../src/modules/referrals/invitation-lead-list";
+import { setInvitationSettings } from "../../src/modules/referrals/invitation-settings";
 import {
   createInvitedUser,
   createInviterWithCode,
@@ -444,7 +445,7 @@ describe("Bandeja de invitados como lista de seguimiento", () => {
     it("sin invitaciones: todo en 0", async () => {
       expect(await getPendingCount(app, token)).toEqual({
         statusCode: 200,
-        body: { open: 0, uncontacted: 0, selfActivatedUncontacted: 0 },
+        body: { open: 0, uncontacted: 0, selfActivatedWithoutBooking: 0 },
       });
     });
 
@@ -467,7 +468,7 @@ describe("Bandeja de invitados como lista de seguimiento", () => {
         await insertFollowup(row.subscriptionId, row.userId, { messageCount });
       }
       // Nada de esto es "para contactar": vigente, convertido, compró tarde y no_sigue.
-      // (La vigente sí suma en `selfActivatedUncontacted`: autogestión, 0 mensajes.)
+      // (La vigente sí suma en `selfActivatedWithoutBooking`: autogestión, 0 mensajes.)
       await createInvitedUser(ctx, env, inviter.id, {});
       await createInvitedUser(ctx, env, inviter.id, {
         converted: true,
@@ -496,7 +497,7 @@ describe("Bandeja de invitados como lista de seguimiento", () => {
       expect(res.body).toEqual({
         open: 4,
         uncontacted: 2,
-        selfActivatedUncontacted: 1,
+        selfActivatedWithoutBooking: 1,
       });
       // Coherente con la bandeja: open == total de la bandeja filtrada por para_contactar.
       const filtered = await getLeads(
@@ -505,7 +506,7 @@ describe("Bandeja de invitados como lista de seguimiento", () => {
         "?followStatus=para_contactar",
       );
       expect(filtered.body.total).toBe(res.body.open);
-      expect((await list.countPending(ctx.tenant)).open).toBe(res.body.open);
+      expect((await list.countPending(ctx.tenant, app.log)).open).toBe(res.body.open);
     });
 
     it("baja al registrar el primer mensaje (uncontacted) y deja de contar al pasar a no_renovo (open)", async () => {
@@ -519,7 +520,7 @@ describe("Bandeja de invitados como lista de seguimiento", () => {
       expect((await getPendingCount(app, token)).body).toEqual({
         open: 2,
         uncontacted: 2,
-        selfActivatedUncontacted: 0,
+        selfActivatedWithoutBooking: 0,
       });
 
       const first = await sendJson(
@@ -533,7 +534,7 @@ describe("Bandeja de invitados como lista de seguimiento", () => {
       expect((await getPendingCount(app, token)).body).toEqual({
         open: 2,
         uncontacted: 1,
-        selfActivatedUncontacted: 0,
+        selfActivatedWithoutBooking: 0,
       });
 
       const closed = await sendJson(
@@ -550,22 +551,69 @@ describe("Bandeja de invitados como lista de seguimiento", () => {
       expect((await getPendingCount(app, token)).body).toEqual({
         open: 1,
         uncontacted: 0,
-        selfActivatedUncontacted: 0,
+        selfActivatedWithoutBooking: 0,
       });
     });
 
-    it("selfActivatedUncontacted = autogestionadas con accesos y sin ningún mensaje (las asistidas, las ya contactadas, las vencidas y las anuladas no)", async () => {
+    /** Reserva del invitado en una clase de la sede del fixture (fecha relativa a hoy). */
+    async function book(
+      userId: number,
+      dayOffset: number,
+      status: "reservado" | "cancelado" | "no_show" = "reservado",
+    ): Promise<void> {
+      const [activity] = await app.db
+        .insert(schema.activities)
+        .values(
+          tenantValues(ctx.tenant, {
+            name: `act-inv-${userId}-${dayOffset}-${status}`,
+            description: "clase de prueba",
+          }),
+        )
+        .$returningId();
+      const [schedule] = await app.db
+        .insert(schema.schedules)
+        .values(
+          tenantValues(ctx.tenant, {
+            branchId: env.branchId,
+            activityId: activity.id,
+            dayOfWeek: 1,
+            startTime: "08:00",
+            endTime: "09:00",
+          }),
+        )
+        .$returningId();
+      await app.db.insert(schema.bookings).values(
+        tenantValues(ctx.tenant, {
+          memberId: userId,
+          scheduleId: schedule.id,
+          bookingDate: addDays(env.today, dayOffset),
+          status,
+        }),
+      );
+    }
+
+    it("selfActivatedWithoutBooking = autogestionadas con accesos, activadas hace 48 h o más, sin reservas y sin mensajes", async () => {
       const inviter = await createInviterWithCode(ctx);
-      // Cuentan: autogestión con accesos, sin fila de seguimiento y con fila en 0 mensajes.
+      // Cuentan (activadas hace 5 días, default del fixture):
+      // sin fila de seguimiento, con fila en 0 mensajes, con una reserva SOLO cancelada,
+      // y con una reserva ANTERIOR a la activación (p. ej. una SP vieja).
       await createInvitedUser(ctx, env, inviter.id, {});
       const zero = await createInvitedUser(ctx, env, inviter.id, {});
       await insertFollowup(zero.subscriptionId, zero.userId, {
         messageCount: 0,
       });
-      // También cuenta si ya entrenó una vez y le quedan accesos.
-      await createInvitedUser(ctx, env, inviter.id, { remaining: 3 });
-      // No cuentan: asistida (la cargó el staff), ya contactada, vencida (va a
-      // `uncontacted`), compró y anulada.
+      const cancelled = await createInvitedUser(ctx, env, inviter.id, {});
+      await book(cancelled.userId, 1, "cancelado");
+      const oldBooking = await createInvitedUser(ctx, env, inviter.id, {});
+      await book(oldBooking.userId, -30);
+      // No cuentan: reservó (a futuro), reservó y faltó, activada hace menos de 48 h,
+      // asistida (la cargó el staff), ya contactada, vencida (va a `uncontacted`),
+      // compró y anulada.
+      const booked = await createInvitedUser(ctx, env, inviter.id, {});
+      await book(booked.userId, 2);
+      const noShow = await createInvitedUser(ctx, env, inviter.id, {});
+      await book(noShow.userId, -1, "no_show");
+      await createInvitedUser(ctx, env, inviter.id, { activatedDaysAgo: 1 });
       await createInvitedUser(ctx, env, inviter.id, { channel: "assisted" });
       const contacted = await createInvitedUser(ctx, env, inviter.id, {});
       await insertFollowup(contacted.subscriptionId, contacted.userId, {
@@ -581,18 +629,54 @@ describe("Bandeja de invitados como lista de seguimiento", () => {
       expect(res.body).toEqual({
         open: 1,
         uncontacted: 1,
-        selfActivatedUncontacted: 3,
+        selfActivatedWithoutBooking: 4,
       });
       expect(
-        (await list.countPending(ctx.tenant)).selfActivatedUncontacted,
-      ).toBe(3);
+        (await list.countPending(ctx.tenant, app.log))
+          .selfActivatedWithoutBooking,
+      ).toBe(4);
     });
 
-    it("selfActivatedUncontacted baja al registrar el primer mensaje desde la bandeja", async () => {
+    it("selfActivatedWithoutBooking respeta el setting de horas: en 0 cuenta apenas se activa", async () => {
+      const inviter = await createInviterWithCode(ctx);
+      await createInvitedUser(ctx, env, inviter.id, { activatedDaysAgo: 0 });
+      expect(
+        (await getPendingCount(app, token)).body.selfActivatedWithoutBooking,
+      ).toBe(0);
+
+      await setInvitationSettings(app.db, ctx.tenant, {
+        followupNoBookingHours: 0,
+      });
+      try {
+        expect(
+          (await getPendingCount(app, token)).body.selfActivatedWithoutBooking,
+        ).toBe(1);
+      } finally {
+        // El setting vive en tenant_settings, que la limpieza entre tests no borra.
+        await setInvitationSettings(app.db, ctx.tenant, {
+          followupNoBookingHours: 48,
+        });
+      }
+    });
+
+    it("selfActivatedWithoutBooking deja de contar apenas el invitado reserva", async () => {
       const inviter = await createInviterWithCode(ctx);
       const fresh = await createInvitedUser(ctx, env, inviter.id, {});
       expect(
-        (await getPendingCount(app, token)).body.selfActivatedUncontacted,
+        (await getPendingCount(app, token)).body.selfActivatedWithoutBooking,
+      ).toBe(1);
+
+      await book(fresh.userId, 1);
+      expect(
+        (await getPendingCount(app, token)).body.selfActivatedWithoutBooking,
+      ).toBe(0);
+    });
+
+    it("selfActivatedWithoutBooking baja al registrar el primer mensaje desde la bandeja", async () => {
+      const inviter = await createInviterWithCode(ctx);
+      const fresh = await createInvitedUser(ctx, env, inviter.id, {});
+      expect(
+        (await getPendingCount(app, token)).body.selfActivatedWithoutBooking,
       ).toBe(1);
 
       const res = await sendJson(
@@ -606,7 +690,7 @@ describe("Bandeja de invitados como lista de seguimiento", () => {
       expect((await getPendingCount(app, token)).body).toEqual({
         open: 0,
         uncontacted: 0,
-        selfActivatedUncontacted: 0,
+        selfActivatedWithoutBooking: 0,
       });
     });
   });

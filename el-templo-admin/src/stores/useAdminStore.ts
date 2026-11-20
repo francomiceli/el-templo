@@ -11,7 +11,7 @@ export interface LandingInboxCounts {
 }
 
 function emptyInvitationsPending(): InvitationsPendingCount {
-  return { open: 0, uncontacted: 0, selfActivatedUncontacted: 0 };
+  return { open: 0, uncontacted: 0, selfActivatedWithoutBooking: 0 };
 }
 
 export const useAdminStore = defineStore('admin', () => {
@@ -22,15 +22,15 @@ export const useAdminStore = defineStore('admin', () => {
   // inicie el seguimiento (dentro del país del usuario).
   const appTrialsPendingCount = ref(0);
   // Invitados "para contactar" (open), de ellos los que no tienen ningún mensaje
-  // (uncontacted), y los que se activaron solos desde la app y nadie contactó todavía
-  // (selfActivatedUncontacted). El aviso de Renovaciones usa open/uncontacted. El API
+  // (uncontacted), y los que se activaron solos desde la app, no reservaron ninguna clase
+  // y nadie contactó todavía (selfActivatedWithoutBooking). El aviso de Renovaciones usa open/uncontacted. El API
   // ya lo acota por rol/sede.
   const invitationsPending = ref<InvitationsPendingCount>(emptyInvitationsPending());
   // Numerito rojo de la pestaña Invitaciones (suma a la pelotita de Reportes): invitados
-  // sin ningún mensaje, tanto los que terminaron sus accesos como los recién activados
-  // por la app (que hay que contactar MIENTRAS tienen accesos).
+  // sin ningún mensaje, tanto los que terminaron sus accesos como los que se activaron
+  // por la app y no reservan (hay que contactarlos MIENTRAS tienen accesos).
   const invitationsBadgeCount = computed(
-    () => invitationsPending.value.uncontacted + invitationsPending.value.selfActivatedUncontacted
+    () => invitationsPending.value.uncontacted + invitationsPending.value.selfActivatedWithoutBooking
   );
   // Pelotitas del grupo Landing: leads del sitio público todavía en estado
   // "new" (Academy, Labs, Franquicias). Un solo request para las tres.
@@ -76,7 +76,7 @@ export const useAdminStore = defineStore('admin', () => {
       invitationsPending.value = {
         open: data.open,
         uncontacted: data.uncontacted,
-        selfActivatedUncontacted: data.selfActivatedUncontacted,
+        selfActivatedWithoutBooking: data.selfActivatedWithoutBooking,
       };
     } catch {
       // Silently fail - badge will show 0

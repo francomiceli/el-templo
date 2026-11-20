@@ -208,7 +208,11 @@ export const referralAdminRoutes: FastifyPluginAsync = async (fastify) => {
         request.scope,
         "referrals.invitations.pendingCount",
       );
-      return leadList.countPending(ctx, followupReadScopeOf(request));
+      return leadList.countPending(
+        ctx,
+        request.log,
+        followupReadScopeOf(request),
+      );
     },
   );
 
