@@ -4,6 +4,7 @@ import { api } from 'src/boot/axios'
 import { useUserStore } from 'src/stores/useUserStore'
 import { toAvatarJpeg } from 'src/utils/avatar-image'
 import { photoErrorMessage } from 'src/utils/photo-messages'
+import { asUploadFile } from 'src/utils/upload-body'
 import { createLogger } from 'src/utils/logger'
 
 // Fase 214 (plan 20): lógica de la foto de perfil propia. Sin pantallas (las dibuja la hoja del
@@ -14,6 +15,8 @@ import { createLogger } from 'src/utils/logger'
 //    ubicación). El `File` o el base64 originales nunca llegan al `body` del PUT.
 //  - El PUT va con `fetch` pelado: nunca con `api` (axios), que agregaría el token de la app y no
 //    puede viajar al host del almacenamiento.
+//  - El cuerpo del PUT es un `File`, nunca un `Blob` suelto: en la app nativa `CapacitorHttp`
+//    reemplaza `fetch` y un `Blob` llega al bucket como `{}` (ver `utils/upload-body.ts`).
 //  - Los logs no llevan `uploadUrl` ni `key`: solo el status HTTP y una causa corta.
 
 /** Si el envío de la foto no termina en este tiempo, se corta. */
@@ -173,7 +176,7 @@ export function useProfilePhoto() {
       const res = await fetch(uploadUrl, {
         method: 'PUT',
         headers: { 'Content-Type': 'image/jpeg' },
-        body: blob,
+        body: asUploadFile(blob, 'avatar.jpg', 'image/jpeg'),
         signal: controller.signal,
       })
       if (!res.ok) {

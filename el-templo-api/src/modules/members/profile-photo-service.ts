@@ -191,6 +191,12 @@ async function reencodeStoredPhoto(
     clean = await reencodeProfilePhoto(original);
   } catch (err: unknown) {
     if (!(err instanceof InvalidPhotoError)) throw err;
+    // Un rechazo de negocio (400) no deja rastro en Sentry: este warn es lo único
+    // que dice por qué falló (incidente 2026-11-20, `{}` en vez de JPEG).
+    fastify.log.warn(
+      { userId, bytes: original.length },
+      "profile photo rejected: not a decodable JPEG",
+    );
     await removeBestEffort(fastify, store, key, "la foto que no es una imagen");
     throw new AppError(
       "No pudimos procesar la foto, probá de nuevo",
@@ -269,6 +275,14 @@ export async function confirmProfilePhoto(
     head.contentLength > PHOTO_MAX_BYTES ||
     head.contentType !== PHOTO_CONTENT_TYPE
   ) {
+    fastify.log.warn(
+      {
+        userId,
+        bytes: head.contentLength,
+        contentType: head.contentType,
+      },
+      "profile photo rejected: size or content type",
+    );
     // ME-03: el objeto rechazado no lo referencia ninguna fila y nadie lo
     // borraría: se elimina acá para que no quede ocupando el bucket.
     await removeBestEffort(
