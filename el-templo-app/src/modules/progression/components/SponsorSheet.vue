@@ -6,11 +6,11 @@
     <q-card
       v-if="current"
       class="sponsor-sheet"
-      :style="{ '--b-bg': current.bgColor, '--b-fg': current.textColor }"
+      :style="[{ '--b-bg': current.bgColor, '--b-fg': current.textColor }, swipe.cardStyle.value]"
     >
-      <div class="sponsor-sheet__grab" />
+      <div class="sponsor-sheet__grab" v-on="swipe.handlers" />
 
-      <div class="sponsor-sheet__head">
+      <div class="sponsor-sheet__head" v-on="swipe.handlers">
         <span class="sponsor-sheet__logo">
           <img
             v-if="current.logoUrl"
@@ -94,6 +94,7 @@ import { useSponsorsStore, type Sponsor } from 'src/stores/useSponsorsStore'
 import { useUserStore } from 'src/stores/useUserStore'
 import { copyWithFallback } from 'src/utils/clipboard'
 import { useBackButtonClose } from 'src/composables/useBackButtonClose'
+import { useSheetSwipeDismiss } from 'src/composables/useSheetSwipeDismiss'
 import { monogram } from '../utils/sponsors'
 
 const props = defineProps<{
@@ -112,6 +113,12 @@ const router = useRouter()
 const store = useSponsorsStore()
 const userStore = useUserStore()
 const backClose = useBackButtonClose(close)
+// Arrastrar la hoja hacia abajo la cierra (la rayita y la cabecera son la zona de arrastre).
+const swipe = useSheetSwipeDismiss({
+  isOpen: () => props.modelValue,
+  canDismiss: () => true,
+  onDismiss: close,
+})
 
 // Copia local de la marca: el padre limpia `sponsor` al cerrar y el contenido no debe
 // desaparecer en plena animación de salida.
@@ -190,11 +197,13 @@ watch(
 )
 
 onBeforeUnmount(() => {
+  swipe.cleanup()
   backClose.cleanup()
 })
 </script>
 
 <style scoped lang="scss">
+@import 'src/css/premium-card';
 .sponsor-sheet {
   display: flex;
   flex-direction: column;
@@ -210,6 +219,7 @@ onBeforeUnmount(() => {
   font-family: 'Geologica', sans-serif;
 
   &__grab {
+    @include pd-sheet-drag-handle;
     flex: none;
     align-self: center;
     width: 40px;
@@ -220,6 +230,7 @@ onBeforeUnmount(() => {
   }
 
   &__head {
+    @include pd-sheet-drag-head;
     display: flex;
     align-items: center;
     gap: 12px;

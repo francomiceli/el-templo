@@ -35,6 +35,13 @@ export const RATE_LIMITS = {
    */
   attendeesPerUser: { max: 40, timeWindow: "1 minute" },
   /**
+   * 2026-11-20: caras de los anotados de TODO el dia en la Reservas (una
+   * llamada por dia/sede que mira el alumno, no por horario). Mismos topes que
+   * `attendees`, pero en su propio balde para no gastar el de la lista abierta.
+   */
+  dayAttendees: { max: 120, timeWindow: "1 minute" },
+  dayAttendeesPerUser: { max: 40, timeWindow: "1 minute" },
+  /**
    * Fase 215: dar el regalo de Aura. Por IP en `config` (Wi-Fi compartido en la
    * sede) y por usuario en el `preHandler`. En el uso normal no se nota.
    */

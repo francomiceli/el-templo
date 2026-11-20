@@ -14,11 +14,11 @@
     @show="focusTitle"
     @hide="resetState"
   >
-    <q-card class="gsheet">
-      <div class="gsheet__grab" aria-hidden="true" />
+    <q-card class="gsheet" :style="swipe.cardStyle.value">
+      <div class="gsheet__grab" aria-hidden="true" v-on="swipe.handlers" />
 
       <!-- Cabecera fija -->
-      <div class="gsheet__head">
+      <div class="gsheet__head" v-on="swipe.handlers">
         <p class="gsheet__kicker">DAR AURA</p>
         <h3 id="give-aura-title" ref="titleEl" class="gsheet__title" tabindex="-1">
           ¿A quién de tu clase?
@@ -178,6 +178,7 @@ import { useQuasar } from 'quasar'
 import MemberAvatar from 'src/components/MemberAvatar.vue'
 import { useAuraGiftsApi } from 'src/composables/useAuraGiftsApi'
 import { useBackButtonClose } from 'src/composables/useBackButtonClose'
+import { useSheetSwipeDismiss } from 'src/composables/useSheetSwipeDismiss'
 import { GIFT_REASONS, type GiftReasonCode } from 'src/constants/gift-reasons'
 import { useUserStore } from 'src/stores/useUserStore'
 import type { GiftCandidate, PendingGift } from 'src/types/aura-gifts'
@@ -250,6 +251,12 @@ const expiredText = ref('')
 const selectedId = ref<number | null>(null)
 const selectedReason = ref<GiftReasonCode | null>(null)
 const sending = ref(false)
+// Arrastrar la hoja hacia abajo la cierra (la rayita y la cabecera son la zona de arrastre).
+const swipe = useSheetSwipeDismiss({
+  isOpen: () => dialogOpen.value,
+  canDismiss: () => !sending.value,
+  onDismiss: close,
+})
 
 const titleEl = ref<HTMLElement | null>(null)
 const reasonsTitleEl = ref<HTMLElement | null>(null)
@@ -471,6 +478,7 @@ watch(
 )
 
 onBeforeUnmount(() => {
+  swipe.cleanup()
   requestSeq++
   clearRevealTimer()
   backClose.cleanup()
@@ -489,10 +497,12 @@ onBeforeUnmount(() => {
   color: $pd-ink;
 
   &__grab {
+    @include pd-sheet-drag-handle;
     @include pd-sheet-grabber;
   }
 
   &__head {
+    @include pd-sheet-drag-head;
     flex: none;
     padding: 4px 20px 16px;
   }

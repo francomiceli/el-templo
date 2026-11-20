@@ -26,9 +26,17 @@
 // Solo se puede pedir un horario que quien mira ve en su grilla: activo, de una
 // sede activa, no virtual y del mismo pais que su sede. Cualquier otro caso es
 // un 404 indistinguible. Ventana de fechas: hoy..hoy+31 (dia local de la sede).
+//
+// `getDayAttendees` (2026-11-20, D-59 revisada: caras en la fila de la
+// Reservas) sirve las primeras caras de TODOS los horarios de una sede en un
+// dia, en lote. Reusa las mismas reglas que la lista de un horario: mismas
+// funciones (`assertSlotScope`, `loadSlotBookers`, `visibleBookers`) y mismo
+// orden. NO registra la apertura de la lista (`recordListOpen` es la metrica de
+// "abrio la lista completa"): esto es solo la vista previa de la fila.
 
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
+import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../db/schema";
 import { earnedAuraByUsers } from "../aura/earned";
 import { resolveCommunityPhotos } from "../members/profile-photo-service";
@@ -45,8 +53,11 @@ import {
   listAccess,
   type ListAccessReason,
 } from "./community-visibility";
-import { getViewerCommunityState } from "./community-service";
-import { countSlotBookings } from "./service";
+import {
+  getViewerCommunityState,
+  type ViewerCommunityState,
+} from "./community-service";
+import { countSlotBookings, countSlotBookingsBySchedule } from "./service";
 
 /** Dias hacia adelante que se puede consultar (hoy incluido). */
 const MAX_DAYS_AHEAD = 31;
@@ -68,6 +79,133 @@ export interface SlotAttendeesView {
   attendees: SlotAttendee[];
   hiddenCount: number;
   viewer: { visible: boolean; noticeSeen: boolean };
+}
+
+/** Cuantas caras se muestran por horario en la fila de la Reservas. */
+export const DAY_FACES_LIMIT = 4;
+
+/** Cara de la fila del dia: lo minimo para dibujar el circulo. */
+export interface DayFace {
+  firstName: string;
+  lastInitial: string | null;
+  photoUrl: string | null;
+  isMe: boolean;
+}
+
+export interface DayAttendeesView {
+  canSeeFaces: boolean;
+  slots: Array<{ scheduleId: number; total: number; faces: DayFace[] }>;
+}
+
+/** Pais y zona de la sede de un horario / de la sede pedida. */
+interface SlotScope {
+  country: string;
+  timezone: string | null;
+}
+
+/**
+ * Alcance comun: la sede tiene que ser del mismo pais que quien mira (404
+ * indistinguible si no) y la fecha cae en hoy..hoy+31 en el dia local de la
+ * sede (400). Devuelve "hoy" en la zona de la sede.
+ */
+function assertSlotScope(
+  scope: SlotScope | undefined,
+  viewerCountry: string,
+  date: string,
+): string {
+  if (!scope || scope.country !== viewerCountry) {
+    throw new NotFoundError("No encontrado");
+  }
+  const today = todayInTz(scope.timezone ?? DEFAULT_TENANT_TIMEZONE);
+  if (date < today || date > addDays(today, MAX_DAYS_AHEAD)) {
+    throw new BadRequestError("Fecha fuera de rango");
+  }
+  return today;
+}
+
+/** Quien mira puede ver la lista: staff, o alumno con plan en vigor y visible. */
+function viewerAccess(state: ViewerCommunityState) {
+  return listAccess({
+    isStaff: state.isStaff,
+    hasPlanInEffect: state.hasPlanInEffect,
+    viewerVisible: state.visible,
+  });
+}
+
+/**
+ * Reservas vigentes no-trial de cuentas no borradas de uno o varios horarios en
+ * una fecha, en el orden de la lista (D-01: `bookedAt`, luego `bookings.id`).
+ * Solo se seleccionan los campos que la salida necesita (el apellido completo,
+ * el telefono, el email, el rol y el origen no se leen).
+ */
+async function loadSlotBookers(
+  db: MySql2Database<typeof schema>,
+  ctx: TenantContext,
+  scheduleIds: readonly number[],
+  date: string,
+) {
+  if (scheduleIds.length === 0) return [];
+  return db
+    .select({
+      scheduleId: schema.bookings.scheduleId,
+      userId: schema.users.id,
+      firstName: schema.users.firstName,
+      lastInitial: sql<string | null>`LEFT(${schema.users.lastName}, 1)`,
+      dateOfBirth: schema.users.dateOfBirth,
+      branchCountry: schema.branches.country,
+      preference: schema.memberProfiles.communityVisible,
+    })
+    .from(schema.bookings)
+    .innerJoin(
+      schema.users,
+      and(
+        tenantWhere(schema.users, ctx),
+        eq(schema.users.id, schema.bookings.memberId),
+      ),
+    )
+    .innerJoin(
+      schema.branches,
+      and(
+        tenantWhere(schema.branches, ctx),
+        eq(schema.branches.id, schema.users.branchId),
+      ),
+    )
+    .leftJoin(
+      schema.memberProfiles,
+      and(
+        tenantWhere(schema.memberProfiles, ctx),
+        eq(schema.memberProfiles.userId, schema.users.id),
+      ),
+    )
+    .where(
+      and(
+        tenantWhere(schema.bookings, ctx),
+        inArray(schema.bookings.scheduleId, [...scheduleIds]),
+        eq(schema.bookings.bookingDate, date),
+        eq(schema.bookings.isTrial, false),
+        inArray(schema.bookings.status, [
+          "reservado",
+          "qr_escaneado",
+          "confirmado",
+        ]),
+        sql`${schema.users.deletedAt} IS NULL`,
+      ),
+    )
+    .orderBy(asc(schema.bookings.bookedAt), asc(schema.bookings.id));
+}
+
+type SlotBooker = Awaited<ReturnType<typeof loadSlotBookers>>[number];
+
+/** Los ocultos no generan fila (T-214-17-05). Conserva el orden. */
+function visibleBookers(rows: SlotBooker[], today: string): SlotBooker[] {
+  return rows.filter((row) =>
+    effectiveVisible({
+      preference: row.preference ?? null,
+      dateOfBirth: row.dateOfBirth,
+      branchCountry: row.branchCountry,
+      todayLocal: today,
+    }),
+  );
 }
 
 export class AttendeesService {
@@ -109,22 +247,11 @@ export class AttendeesService {
       )
       .limit(1);
 
-    if (!slot || slot.country !== state.branchCountry) {
-      throw new NotFoundError("No encontrado");
-    }
-
-    const today = todayInTz(slot.timezone ?? DEFAULT_TENANT_TIMEZONE);
-    if (date < today || date > addDays(today, MAX_DAYS_AHEAD)) {
-      throw new BadRequestError("Fecha fuera de rango");
-    }
+    const today = assertSlotScope(slot, state.branchCountry, date);
 
     const total = await countSlotBookings(db, ctx, scheduleId, date);
 
-    const access = listAccess({
-      isStaff: state.isStaff,
-      hasPlanInEffect: state.hasPlanInEffect,
-      viewerVisible: state.visible,
-    });
+    const access = viewerAccess(state);
     const viewer = { visible: state.visible, noticeSeen: state.noticeSeen };
 
     if (!access.canSeeList) {
@@ -139,64 +266,8 @@ export class AttendeesService {
     }
 
     // Una sola consulta: reservas vigentes no-trial de cuentas no borradas.
-    // Solo se seleccionan los campos que la salida necesita (el apellido
-    // completo, el telefono, el email, el rol y el origen no se leen).
-    const rows = await db
-      .select({
-        userId: schema.users.id,
-        firstName: schema.users.firstName,
-        lastInitial: sql<string | null>`LEFT(${schema.users.lastName}, 1)`,
-        dateOfBirth: schema.users.dateOfBirth,
-        branchCountry: schema.branches.country,
-        preference: schema.memberProfiles.communityVisible,
-      })
-      .from(schema.bookings)
-      .innerJoin(
-        schema.users,
-        and(
-          tenantWhere(schema.users, ctx),
-          eq(schema.users.id, schema.bookings.memberId),
-        ),
-      )
-      .innerJoin(
-        schema.branches,
-        and(
-          tenantWhere(schema.branches, ctx),
-          eq(schema.branches.id, schema.users.branchId),
-        ),
-      )
-      .leftJoin(
-        schema.memberProfiles,
-        and(
-          tenantWhere(schema.memberProfiles, ctx),
-          eq(schema.memberProfiles.userId, schema.users.id),
-        ),
-      )
-      .where(
-        and(
-          tenantWhere(schema.bookings, ctx),
-          eq(schema.bookings.scheduleId, scheduleId),
-          eq(schema.bookings.bookingDate, date),
-          eq(schema.bookings.isTrial, false),
-          inArray(schema.bookings.status, [
-            "reservado",
-            "qr_escaneado",
-            "confirmado",
-          ]),
-          sql`${schema.users.deletedAt} IS NULL`,
-        ),
-      )
-      .orderBy(asc(schema.bookings.bookedAt), asc(schema.bookings.id));
-
-    // Los ocultos no generan fila (T-214-17-05).
-    const shown = rows.filter((row) =>
-      effectiveVisible({
-        preference: row.preference ?? null,
-        dateOfBirth: row.dateOfBirth,
-        branchCountry: row.branchCountry,
-        todayLocal: today,
-      }),
-    );
+    const rows = await loadSlotBookers(db, ctx, [scheduleId], date);
+    const shown = visibleBookers(rows, today);
     const shownIds = shown.map((row) => row.userId);
 
     const gamification = await isModuleEnabled(
@@ -232,5 +303,112 @@ export class AttendeesService {
       hiddenCount: Math.max(0, total - attendees.length),
       viewer,
     };
+  }
+
+  /**
+   * Primeras caras de los anotados de TODOS los horarios de una sede en un dia
+   * (fila de la Reservas). En lote: una consulta de totales, una de reservas
+   * (solo si quien mira puede ver caras), el tope de `DAY_FACES_LIMIT` por
+   * horario ANTES de resolver fotos, y una sola resolucion de fotos para la
+   * union. Mismas reglas de acceso, visibilidad, orden y alcance que
+   * `getSlotAttendees`. Sin permiso para ver caras: solo totales y `faces`
+   * vacio. Un horario sin reservas no va en la lista.
+   */
+  async getDayAttendees(
+    ctx: TenantContext,
+    viewerUserId: number,
+    branchId: number | undefined,
+    date: string,
+  ): Promise<DayAttendeesView> {
+    const db = this.fastify.db;
+
+    const state = await getViewerCommunityState(db, ctx, viewerUserId);
+    // Sin `branchId` se usa la sede del propio alumno (igual que la grilla).
+    const targetBranchId = branchId ?? state.branchId;
+
+    // Sede activa y no virtual (el mismo criterio que el horario de un slot).
+    const [branch] = await db
+      .select({
+        country: schema.branches.country,
+        timezone: schema.branches.timezone,
+      })
+      .from(schema.branches)
+      .where(
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, targetBranchId),
+          eq(schema.branches.isActive, true),
+          eq(schema.branches.isVirtual, false),
+        ),
+      )
+      .limit(1);
+    const today = assertSlotScope(branch, state.branchCountry, date);
+
+    const schedules = await db
+      .select({ id: schema.schedules.id })
+      .from(schema.schedules)
+      .where(
+        and(
+          tenantWhere(schema.schedules, ctx),
+          eq(schema.schedules.branchId, targetBranchId),
+          eq(schema.schedules.isActive, true),
+        ),
+      );
+    const scheduleIds = schedules.map((row) => row.id);
+
+    const totals = await countSlotBookingsBySchedule(
+      db,
+      ctx,
+      scheduleIds,
+      date,
+    );
+    const access = viewerAccess(state);
+    const withTotals = (faces: Map<number, DayFace[]>) =>
+      [...totals.entries()]
+        .sort(([a], [b]) => a - b)
+        .map(([scheduleId, total]) => ({
+          scheduleId,
+          total,
+          faces: faces.get(scheduleId) ?? [],
+        }));
+
+    if (!access.canSeeList || totals.size === 0) {
+      return {
+        canSeeFaces: access.canSeeList,
+        slots: withTotals(new Map()),
+      };
+    }
+
+    const rows = await loadSlotBookers(db, ctx, [...totals.keys()], date);
+    const shown = visibleBookers(rows, today);
+
+    // Tope por horario ANTES de pedir fotos; el orden global ya es el de la lista.
+    const perSlot = new Map<number, SlotBooker[]>();
+    for (const row of shown) {
+      const list = perSlot.get(row.scheduleId) ?? [];
+      if (list.length < DAY_FACES_LIMIT) {
+        list.push(row);
+        perSlot.set(row.scheduleId, list);
+      }
+    }
+    const photos = await resolveCommunityPhotos(
+      this.fastify,
+      ctx,
+      [...perSlot.values()].flat().map((row) => row.userId),
+    );
+
+    const faces = new Map<number, DayFace[]>();
+    for (const [scheduleId, list] of perSlot) {
+      faces.set(
+        scheduleId,
+        list.map((row) => ({
+          firstName: row.firstName ?? "",
+          lastInitial: row.lastInitial || null,
+          photoUrl: photos.get(row.userId)?.url ?? null,
+          isMe: row.userId === viewerUserId,
+        })),
+      );
+    }
+    return { canSeeFaces: true, slots: withTotals(faces) };
   }
 }

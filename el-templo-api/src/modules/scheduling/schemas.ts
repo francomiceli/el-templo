@@ -1395,3 +1395,58 @@ export const updateClassLabelDescriptionSchema = {
     400: errorSchema,
   },
 };
+
+/**
+ * 2026-11-20 (D-59 revisada): primeras caras de los anotados de todos los
+ * horarios de una sede en un dia.
+ *
+ * GET /api/members/scheduling/day-attendees?date=YYYY-MM-DD&branchId=N
+ * Cada cara declara SOLO nombre de pila, inicial, foto firmada e `isMe`: ni id
+ * de usuario ni apellido completo.
+ */
+export const dayAttendeesSchema = {
+  querystring: {
+    type: "object",
+    required: ["date"],
+    properties: {
+      date: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      branchId: { type: "integer", minimum: 1 },
+    },
+  },
+  response: {
+    200: {
+      type: "object",
+      required: ["canSeeFaces", "slots"],
+      additionalProperties: false,
+      properties: {
+        canSeeFaces: { type: "boolean" },
+        slots: {
+          type: "array",
+          items: {
+            type: "object",
+            required: ["scheduleId", "total", "faces"],
+            additionalProperties: false,
+            properties: {
+              scheduleId: { type: "integer" },
+              total: { type: "integer" },
+              faces: {
+                type: "array",
+                items: {
+                  type: "object",
+                  additionalProperties: false,
+                  required: ["firstName", "lastInitial", "photoUrl", "isMe"],
+                  properties: {
+                    firstName: { type: "string" },
+                    lastInitial: { type: ["string", "null"] },
+                    photoUrl: { type: ["string", "null"] },
+                    isMe: { type: "boolean" },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+};

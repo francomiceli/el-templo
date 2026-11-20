@@ -9,8 +9,8 @@
     aria-labelledby="aura-sheet-title"
     @update:model-value="onUpdateModelValue"
   >
-    <q-card class="asheet">
-      <div class="asheet__grab" aria-hidden="true" />
+    <q-card class="asheet" :style="swipe.cardStyle.value">
+      <div class="asheet__grab" aria-hidden="true" v-on="swipe.handlers" />
 
       <!-- Error de la primera página: sin total que mostrar -->
       <template v-if="status === 'error'">
@@ -99,6 +99,7 @@ import axios from 'axios'
 import { useQuasar } from 'quasar'
 import { useAuraApi } from 'src/composables/useAuraApi'
 import { useBackButtonClose } from 'src/composables/useBackButtonClose'
+import { useSheetSwipeDismiss } from 'src/composables/useSheetSwipeDismiss'
 import { useUserStore } from 'src/stores/useUserStore'
 import {
   formatAura,
@@ -127,6 +128,12 @@ const $q = useQuasar()
 const userStore = useUserStore()
 const auraApi = useAuraApi()
 const backClose = useBackButtonClose(close)
+// Arrastrar la hoja hacia abajo la cierra (la rayita y la cabecera son la zona de arrastre).
+const swipe = useSheetSwipeDismiss({
+  isOpen: () => props.modelValue,
+  canDismiss: () => true,
+  onDismiss: close,
+})
 
 // Movimiento reducido: la hoja aparece sin transición y los esqueletos no pulsan.
 const dialogDuration = prefersReducedMotion() ? 0 : 280
@@ -260,6 +267,7 @@ watch(
 )
 
 onBeforeUnmount(() => {
+  swipe.cleanup()
   requestSeq++
   backClose.cleanup()
   auraApi.cleanup()
@@ -286,6 +294,7 @@ onBeforeUnmount(() => {
   color: $pd-ink;
 
   &__grab {
+    @include pd-sheet-drag-handle;
     flex: none;
     align-self: center;
     width: 40px;

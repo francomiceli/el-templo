@@ -535,3 +535,25 @@ $pd-wa-b: #0f6b52;
   border-radius: 2px;
   background: #d9cfc1;
 }
+
+// Zona de arrastre de una hoja que sale de abajo (`useSheetSwipeDismiss`, 2026-11-20). Va en la
+// rayita: agranda el área que se puede agarrar (todo el ancho, ~30 px de alto) sin cambiar el dibujo,
+// y le saca al navegador el gesto vertical (si no, lo toma como scroll y cancela el arrastre).
+@mixin pd-sheet-drag-handle {
+  position: relative;
+  touch-action: none;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: -14px;
+    bottom: -10px; // no tapa los botones de arriba de la cabecera
+    left: -50vw;
+    right: -50vw;
+  }
+}
+
+// La cabecera fija de una hoja también arrastra (sin scroll propio: no pelea con nada).
+@mixin pd-sheet-drag-head {
+  touch-action: none;
+}

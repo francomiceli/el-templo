@@ -35,6 +35,20 @@ export interface SlotAttendees {
   viewer: { visible: boolean; noticeSeen: boolean }
 }
 
+/** Cara de la fila "N anotados" de la Reservas: lo mínimo para dibujar el círculo. */
+export interface DayFace {
+  firstName: string
+  lastInitial: string | null
+  photoUrl: string | null
+  isMe: boolean
+}
+
+/** `GET /members/scheduling/day-attendees`: hasta 4 caras por horario del día de una sede. */
+export interface DayAttendees {
+  canSeeFaces: boolean
+  slots: Array<{ scheduleId: number; total: number; faces: DayFace[] }>
+}
+
 export interface AuraMovement {
   id: number
   amount: number
