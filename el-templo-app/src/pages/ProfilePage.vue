@@ -249,6 +249,11 @@
       </section>
 
       <div class="profile-card">
+        <!-- 2026-11-20: "Cerrar sesión" se mudó acá desde la barra de arriba (ahí quedó el perfil). -->
+        <button type="button" class="profile-row profile-row--link" @click="logout">
+          <q-icon name="logout" size="22px" class="profile-row__icon" aria-hidden="true" />
+          <span class="profile-row__value profile-row__value--grow">Cerrar sesión</span>
+        </button>
         <button
           type="button"
           class="profile-row profile-row--link profile-row--danger"
@@ -361,6 +366,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useUserStore, MEMBER_STATE_MAX_AGE_MS } from 'stores/useUserStore'
 import { useAuthStore } from 'stores/useAuthStore'
+import { useLogout } from 'src/composables/useLogout'
 import { api } from 'src/boot/axios'
 import { createLogger } from 'src/utils/logger'
 import { extractError } from 'src/utils/extract-error'
@@ -389,6 +395,7 @@ const $q = useQuasar()
 const community = useCommunityApi()
 const userStore = useUserStore()
 const authStore = useAuthStore()
+const { logout } = useLogout()
 const deadline = useLoadDeadline()
 
 /**
