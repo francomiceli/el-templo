@@ -152,12 +152,13 @@ describe("tenant-tables — clasificación canónica de tablas (COL-01)", () => 
     // 2026-11-17 sumó `member_photos` (fase 214, mig 0346, nace strict en members): 135 -> 136, 140 -> 141.
     // 2026-11-18 sumó `aura_gifts` (fase 215, mig 0349, nace strict en aura-gifts): 136 -> 137, 141 -> 142.
     // 2026-11-18 sumó `member_notifications` (fase 215, mig 0350, nace strict en notifications): 137 -> 138, 142 -> 143.
-    expect(GYM_OWNED_TABLES.length).toBe(138);
+    // 2026-11-19 sumó `community_list_opens` (fase 214, mig 0354, nace strict en scheduling): 138 -> 139, 143 -> 144.
+    expect(GYM_OWNED_TABLES.length).toBe(139);
     expect(TENANT_EXEMPT_TABLES.length).toBe(5);
     // Sin duplicados dentro de cada lista.
     expect(gymOwned.size).toBe(GYM_OWNED_TABLES.length);
     expect(exempt.size).toBe(TENANT_EXEMPT_TABLES.length);
-    expect(schemaTables.size).toBe(143);
+    expect(schemaTables.size).toBe(144);
     expect(gymOwned.size + exempt.size).toBe(schemaTables.size);
   });
 
@@ -474,7 +475,14 @@ describe("TENANT_STRICT_MODULES (fase 170, D-05/D-06)", () => {
       "subscription_schedules",
       "subscriptions",
     ],
-    scheduling: ["bookings", "holidays", "schedule_exceptions", "schedules"],
+    // 2026-11-19 (mig 0354): suma `community_list_opens`, nace strict.
+    scheduling: [
+      "bookings",
+      "community_list_opens",
+      "holidays",
+      "schedule_exceptions",
+      "schedules",
+    ],
     auth: ["promo_plans", "refresh_tokens"],
     // Fase 215 (mig 0349): regalos de Aura. Nace strict.
     "aura-gifts": ["aura_gifts"],
