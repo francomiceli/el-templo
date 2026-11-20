@@ -152,6 +152,10 @@ describe('iconForKind', () => {
   it('aura_gift → null (usa avatar o chispa)', () => {
     expect(iconForKind('aura_gift')).toBeNull()
   })
+
+  it('aura (Aura celebrada) → null (usa la chispa)', () => {
+    expect(iconForKind('aura')).toBeNull()
+  })
 })
 
 describe('badgeText y bellAriaLabel', () => {

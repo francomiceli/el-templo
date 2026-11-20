@@ -1,6 +1,6 @@
 <template>
   <!-- Fase 214 (plan 22): detalle privado de Aura (Pantalla 5 del UI-SPEC, D-13, D-57, D-66). Hoja
-       clara con el total, los últimos movimientos (solo texto y monto, sin íconos) y "Ver más".
+       clara con el total, los últimos pasos (solo texto y monto, sin íconos) y "Ver más".
        Solo lee lo del propio socio: la ruta no recibe ningún id (T-214-22-01). -->
   <q-dialog
     :model-value="modelValue"
@@ -37,7 +37,7 @@
 
         <!-- Cargando: seis filas de esqueleto -->
         <div v-if="status === 'loading'" class="asheet__list" role="status" aria-busy="true">
-          <span class="asheet__sr">Cargando tus movimientos</span>
+          <span class="asheet__sr">Cargando tus últimos pasos</span>
           <div v-for="n in 6" :key="n" class="asheet__row asheet__row--skel" aria-hidden="true">
             <div class="asheet__skel-left">
               <q-skeleton :animation="skeletonAnimation" type="text" width="160px" height="15px" />
@@ -49,13 +49,14 @@
 
         <!-- Vacío -->
         <div v-else-if="rows.length === 0" class="asheet__empty">
-          <h3 class="asheet__empty-title">Todavía no hay movimientos</h3>
+          <h3 class="asheet__empty-title">Todavía no sumaste Aura</h3>
           <p class="asheet__empty-text">Cuando sumes Aura, la vas a ver acá.</p>
         </div>
 
         <!-- Movimientos -->
         <template v-else>
-          <h3 class="asheet__block-title">Últimos movimientos</h3>
+          <!-- "Últimos pasos" y no "movimientos" (2026-11-20, Franco): sonaba a resumen de banco. -->
+          <h3 class="asheet__block-title">Últimos pasos</h3>
           <div class="asheet__list" role="list">
             <div
               v-for="row in rows"

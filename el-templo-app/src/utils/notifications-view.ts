@@ -73,10 +73,15 @@ const KIND_ICONS = new Map<string, string>([
 ])
 
 const GIFT_KIND = 'aura_gift'
+/** Aura celebrada en pantalla que queda en la bandeja (foto de perfil, rachas, programas...). */
+const AURA_KIND = 'aura'
 
-/** Ícono de Material para el tipo de aviso; `null` en los regalos (llevan avatar o chispa). */
+/**
+ * Ícono de Material para el tipo de aviso; `null` en los de Aura (regalos y Aura celebrada), que
+ * llevan la chispa ✦ (o la cara de quien regaló).
+ */
 export function iconForKind(kind: string): string | null {
-  if (kind === GIFT_KIND) return null
+  if (kind === GIFT_KIND || kind === AURA_KIND) return null
   return KIND_ICONS.get(kind) ?? 'notifications'
 }
 

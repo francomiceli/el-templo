@@ -68,8 +68,9 @@
                 :aria-label="rowAria(item)"
                 @click="onTap(item)"
               >
-                <!-- Ícono: cara de quien regaló, chispa del profe (o de quien no se nombra) o ícono por
-                     tipo. Con `anonymous` no se dibuja a nadie: ni nombre, ni inicial, ni foto. -->
+                <!-- Ícono: cara de quien regaló, chispa del profe (o de quien no se nombra, o de la Aura
+                     celebrada) o ícono por tipo. Con `anonymous` no se dibuja a nadie: ni nombre, ni
+                     inicial, ni foto. -->
                 <MemberAvatar
                   v-if="item.gift && item.gift.giverKind === 'alumno' && !item.gift.anonymous"
                   :size="40"
@@ -78,7 +79,7 @@
                   :last-initial="item.gift.giverLastInitial"
                 />
                 <span
-                  v-else-if="item.gift"
+                  v-else-if="item.gift || iconForKind(item.kind) === null"
                   class="notif__circle notif__circle--gift"
                   aria-hidden="true"
                   >✦</span
