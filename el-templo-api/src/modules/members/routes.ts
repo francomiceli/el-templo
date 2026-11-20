@@ -1770,6 +1770,25 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: "No encontrado", message: "Miembro no encontrado" });
       }
 
+      // Fotos de la comunidad (propias y de ficha) y sus archivos, igual que
+      // cuando el alumno borra la cuenta desde la app (`/me/delete-account`).
+      // Es el camino de las bajas pedidas por mail: la política de privacidad
+      // promete borrar los datos dentro de los 30 días, y la baja no se puede
+      // deshacer. Best-effort: si el almacenamiento falla, la baja sigue.
+      try {
+        await removeCommunityPhoto(
+          fastify,
+          ctx,
+          request.params.userId,
+          request.user.userId,
+        );
+      } catch (err: unknown) {
+        request.log.warn(
+          { err, userId: request.params.userId },
+          "No se pudieron quitar las fotos al dar de baja al alumno",
+        );
+      }
+
       request.log.info(
         { userId: request.params.userId, deletedBy: request.user.userId },
         "Member soft-deleted",

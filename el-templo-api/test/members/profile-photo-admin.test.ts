@@ -975,3 +975,119 @@ describe("POST /auth/me/delete-account (fotos)", () => {
     expect((await photoRowById(app, foto.id)).status).toBe("quitada");
   });
 });
+
+// ── baja del alumno desde el admin ──────────────────────────────────
+
+describe("DELETE /admin/members/:userId (fotos)", () => {
+  function deleteMember(token: string, userId: number) {
+    return app.inject({
+      method: "DELETE",
+      url: `${ADMIN}/${userId}`,
+      headers: auth(token),
+    });
+  }
+
+  it("la baja quita las fotos propias y de ficha, borra sus archivos y deja registrado quién", async () => {
+    vi.stubEnv("R2_PUBLIC_URL", FOTO_PUBLIC_URL);
+    const remove = vi.fn(async () => undefined);
+    const removePublic = vi.fn(async () => undefined);
+    mockPrivateMedia({ remove, removePublic });
+    const staff = await createConquerStaff(app, "admin");
+    const m = await createTestMember(app);
+    const publicUrl = `${FOTO_PUBLIC_URL}/members/photos/${m.id}-1700000000000.jpg`;
+    await setUserPhotoUrl(app, m.id, publicUrl);
+    const propia = await seedMemberPhoto(app, m.id, { status: "aprobada" });
+    const ficha = await seedMemberPhoto(app, m.id, {
+      origin: "ficha",
+      status: "aprobada",
+      sourceUrl: publicUrl,
+    });
+    const pendiente = await seedMemberPhoto(app, m.id, {
+      storageKey: `${propia.storageKey}.pendiente`,
+    });
+
+    const res = await deleteMember(staff.token, m.id);
+
+    expect(res.statusCode).toBe(204);
+    const rows = await photoRowsOf(app, m.id);
+    expect(rows.map((row) => row.status)).toEqual([
+      "quitada",
+      "quitada",
+      "quitada",
+    ]);
+    expect(rows.every((row) => row.reviewedBy === staff.id)).toBe(true);
+    expect(remove).toHaveBeenCalledWith(propia.storageKey);
+    expect(remove).toHaveBeenCalledWith(ficha.storageKey);
+    expect(remove).toHaveBeenCalledWith(pendiente.storageKey);
+    expect(removePublic).toHaveBeenCalledWith(
+      publicKeyFromFichaUrl(publicUrl, m.id),
+    );
+    expect(await readUserPhotoUrl(app, m.id)).toBeNull();
+  });
+
+  it("si el almacenamiento falla al borrar, la baja igual responde 204 y las filas quedan quitadas", async () => {
+    vi.stubEnv("R2_PUBLIC_URL", FOTO_PUBLIC_URL);
+    mockPrivateMedia({
+      remove: async () => {
+        throw new Error("R2 caído");
+      },
+      removePublic: async () => {
+        throw new Error("R2 caído");
+      },
+    });
+    const staff = await createConquerStaff(app, "admin");
+    const m = await createTestMember(app);
+    await setUserPhotoUrl(
+      app,
+      m.id,
+      `${FOTO_PUBLIC_URL}/members/photos/${m.id}-1700000000000.jpg`,
+    );
+    const foto = await seedMemberPhoto(app, m.id, { status: "aprobada" });
+
+    const res = await deleteMember(staff.token, m.id);
+
+    expect(res.statusCode).toBe(204);
+    expect((await photoRowById(app, foto.id)).status).toBe("quitada");
+    expect(await readUserPhotoUrl(app, m.id)).toBeNull();
+  });
+
+  it("sin storage configurado la baja sigue y las filas igual quedan quitadas", async () => {
+    vi.stubEnv("R2_PRIVATE_BUCKET_NAME", "");
+    const staff = await createConquerStaff(app, "admin");
+    const m = await createTestMember(app);
+    const foto = await seedMemberPhoto(app, m.id, { status: "aprobada" });
+
+    const res = await deleteMember(staff.token, m.id);
+
+    expect(res.statusCode).toBe(204);
+    expect((await photoRowById(app, foto.id)).status).toBe("quitada");
+  });
+
+  it("un alumno sin fotos se da de baja igual (204) y no se toca el almacenamiento", async () => {
+    const remove = vi.fn(async () => undefined);
+    const removePublic = vi.fn(async () => undefined);
+    mockPrivateMedia({ remove, removePublic });
+    const staff = await createConquerStaff(app, "admin");
+    const m = await createTestMember(app);
+
+    const res = await deleteMember(staff.token, m.id);
+
+    expect(res.statusCode).toBe(204);
+    expect(remove).not.toHaveBeenCalled();
+    expect(removePublic).not.toHaveBeenCalled();
+  });
+
+  it("una baja rechazada (staff, no alumno) no toca sus fotos", async () => {
+    const remove = vi.fn(async () => undefined);
+    mockPrivateMedia({ remove });
+    const staff = await createConquerStaff(app, "admin");
+    const otro = await createConquerStaff(app, "gestion");
+    const foto = await seedMemberPhoto(app, otro.id, { status: "aprobada" });
+
+    const res = await deleteMember(staff.token, otro.id);
+
+    expect(res.statusCode).toBe(400);
+    expect((await photoRowById(app, foto.id)).status).toBe("aprobada");
+    expect(remove).not.toHaveBeenCalled();
+  });
+});
