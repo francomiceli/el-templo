@@ -796,6 +796,19 @@
               :aria-label="`Ver quiénes van a las ${formatTime(slot.startTime)}. ${whoText(slot)}`"
               @click.stop="openAttendees(slot)"
             >
+              <!-- Caras de los primeros anotados (2026-11-20, D-59 revisada): decorativas, el
+                   aria-label del botón ya dice quiénes van. Sin caras queda solo el número. -->
+              <span v-if="facesFor(slot).length > 0" class="slot-card__faces" aria-hidden="true">
+                <MemberAvatar
+                  v-for="(face, i) in facesFor(slot)"
+                  :key="i"
+                  class="slot-card__face"
+                  :size="28"
+                  :url="face.photoUrl"
+                  :first-name="face.firstName"
+                  :last-initial="face.lastInitial"
+                />
+              </span>
               <span class="slot-card__who-text">{{ whoText(slot) }}</span>
               <q-icon
                 name="chevron_right"
@@ -1084,6 +1097,7 @@ import PremiumDialogCard from 'src/components/PremiumDialogCard.vue'
 import BranchPickerDialog from 'src/components/BranchPickerDialog.vue'
 import ActivityInfoSheet from 'src/components/ActivityInfoSheet.vue'
 import AttendeesSheet from 'src/components/AttendeesSheet.vue'
+import MemberAvatar from 'src/components/MemberAvatar.vue'
 import TurnoHeader from 'src/components/TurnoHeader.vue'
 import { splitDaySections } from 'src/utils/turno-sections'
 import { needsExplicitGridLoad } from 'src/utils/reservas-initial-load'
@@ -1097,6 +1111,7 @@ import {
 import { shortBranchName } from 'src/modules/progression/utils/today-card'
 import ReservasRulesNote from 'src/components/ReservasRulesNote.vue'
 import { useSchedulingApi } from 'src/composables/useSchedulingApi'
+import { useCommunityApi } from 'src/composables/useCommunityApi'
 import type {
   TrialEligibility,
   BranchOption,
@@ -1105,6 +1120,7 @@ import type {
 import { useUserStore } from 'src/stores/useUserStore'
 import { useTodayBookingStore } from 'src/stores/useTodayBookingStore'
 import { createLogger } from 'src/utils/logger'
+import { dayFacesKey, facesBySchedule, facesForSlot, type DayFacesState } from 'src/utils/day-faces'
 import {
   fullLineLabel,
   passChipLabel,
@@ -1124,6 +1140,7 @@ import type {
   DayOfWeek,
 } from 'src/types/scheduling'
 import { DAY_LABELS, DAY_LABELS_FULL, BOOKING_STATUS_LABELS } from 'src/types/scheduling'
+import type { DayFace } from 'src/types/community'
 import { todayInTz, dowInTz, zonedWallClockToUtc, isWallClockPast } from 'src/utils/tz'
 import { buildWhatsAppUrl } from 'src/utils/whatsapp'
 import { buildGoogleCalendarUrl } from 'src/utils/calendar-link'
@@ -1149,6 +1166,7 @@ const {
   reserveEspecialTrial,
   cleanup,
 } = useSchedulingApi()
+const { getDayAttendees, cleanup: cleanupCommunityApi } = useCommunityApi()
 const bonusUsage = ref<{
   applicable: boolean
   used?: number
@@ -1794,6 +1812,60 @@ function openAttendees(slot: WeeklySlotView): void {
   attendeesOpen.value = true
 }
 
+// Caras de los anotados del día (2026-11-20, D-59 revisada por Franco: variante C del sketch 030).
+// Un pedido por día y sede para todas las filas. Se pide al cambiar el día o la sede y cuando la
+// grilla se recarga con otros cupos (tras reservar o cancelar). Si no se puede ver o falla, la
+// fila queda como siempre: solo el número.
+/** Sede que se está viendo: la que pide la grilla (`undefined` = la del propio alumno). */
+const gridBranchId = computed<number | undefined>(() =>
+  isTrialMode.value || isPartnerWeekMode.value
+    ? (trialBranchId.value ?? undefined)
+    : isMultiBranch.value
+      ? (selectedBranchId.value ?? undefined)
+      : undefined,
+)
+
+const dayFaces = ref<DayFacesState | null>(null)
+let dayFacesRequest = 0
+
+/** Filas que muestran "N anotados": sin ellas no hay nada que pedir. */
+const whoRowSlots = computed(() => selectedDaySlots.value.filter((s) => showWhoRow(s)))
+const whoRowSignature = computed(() =>
+  whoRowSlots.value.map((s) => `${s.id}:${s.bookedCount}`).join(','),
+)
+const currentDayFacesKey = computed(() =>
+  dayFacesKey(dateForDay(selectedDay.value), gridBranchId.value ?? null),
+)
+
+function facesFor(slot: WeeklySlotView): DayFace[] {
+  return facesForSlot(dayFaces.value, currentDayFacesKey.value, slot.id)
+}
+
+async function loadDayFaces(): Promise<void> {
+  const request = ++dayFacesRequest
+  if (whoRowSlots.value.length === 0) {
+    dayFaces.value = null
+    return
+  }
+  const key = currentDayFacesKey.value
+  try {
+    const data = await getDayAttendees(dateForDay(selectedDay.value), gridBranchId.value)
+    // Un cambio rápido de día o sede deja esta respuesta vieja: no se pinta.
+    if (request !== dayFacesRequest) return
+    dayFaces.value = { key, bySchedule: facesBySchedule(data) }
+  } catch (err: unknown) {
+    if (request !== dayFacesRequest) return
+    dayFaces.value = null
+    log.warn('No se pudieron cargar las caras de los anotados', {
+      error: extractError(err, 'unknown'),
+    })
+  }
+}
+
+watch([currentDayFacesKey, whoRowSignature], () => {
+  void loadDayFaces()
+})
+
 const attendeesSheetSlot = computed<AttendeesSheetSlot | null>(() => {
   const slot = attendeesSlot.value
   if (!slot) return null
@@ -2354,13 +2426,7 @@ function applyStoreTrialEligibility(): void {
 
 async function loadGrid() {
   try {
-    const branchId =
-      isTrialMode.value || isPartnerWeekMode.value
-        ? (trialBranchId.value ?? undefined)
-        : isMultiBranch.value
-          ? (selectedBranchId.value ?? undefined)
-          : undefined
-    const data = await getWeeklyGrid(formatWeekStart(weekStart.value), branchId)
+    const data = await getWeeklyGrid(formatWeekStart(weekStart.value), gridBranchId.value)
 
     // Adopt the viewing branch's timezone. If this is the first load or
     // the user just switched branches, realign weekStart / selectedDay to
@@ -2479,7 +2545,10 @@ onMounted(async () => {
   if (needsExplicitGridLoad(prevBranch, selectedBranchId.value)) loadGrid()
 })
 
-onBeforeUnmount(() => cleanup())
+onBeforeUnmount(() => {
+  cleanup()
+  cleanupCommunityApi()
+})
 </script>
 
 <style scoped lang="scss">
@@ -3092,6 +3161,22 @@ onBeforeUnmount(() => cleanup())
       outline: 2px solid $pd-terra-ink;
       outline-offset: 2px;
       border-radius: 4px;
+    }
+  }
+
+  // Pila de caras (sketch 030, variante C): círculos de 28 que se pisan 9 px, con aro del color de
+  // la card para separarlos.
+  &__faces {
+    display: inline-flex;
+    flex: none;
+  }
+
+  &__face {
+    margin-left: -9px;
+    box-shadow: 0 0 0 2px #fff;
+
+    &:first-child {
+      margin-left: 0;
     }
   }
 

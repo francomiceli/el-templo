@@ -39,7 +39,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 
-type AvatarSize = 32 | 40 | 52 | 56 | 64 | 120 | 160
+type AvatarSize = 28 | 32 | 40 | 52 | 56 | 64 | 120 | 160
 
 const props = withDefaults(
   defineProps<{
@@ -51,7 +51,7 @@ const props = withDefaults(
     ring?: 'gold' | 'white' | null
     /**
      * Insignia: `review` (foto en revisión) o `camera` (invita a subir una foto). En los tamaños
-     * 32 y 40 (bandeja y card de regalo, fase 215) no se dibuja: no entra sin tapar la cara.
+     * 28, 32 y 40 (bandeja y card de regalo, fase 215) no se dibuja: no entra sin tapar la cara.
      */
     badge?: 'review' | 'camera' | null
   }>(),
@@ -83,11 +83,12 @@ const initials = computed(() => {
 
 const ringClass = computed(() => (props.ring ? `member-avatar--ring-${props.ring}` : ''))
 
-const showBadge = computed(() => props.size !== 32 && props.size !== 40)
+const showBadge = computed(() => props.size !== 28 && props.size !== 32 && props.size !== 40)
 
 // Label numérico 13 para 32 y 40 (fase 215), Heading 18 para la cara de 56 y Display 22 para el
 // resto (UI-SPEC, Tipografía).
 const initialsClass = computed(() => {
+  if (props.size === 28) return 'member-avatar__initials--tiny'
   if (props.size === 32 || props.size === 40) return 'member-avatar__initials--label'
   return props.size === 56 ? 'member-avatar__initials--heading' : 'member-avatar__initials--display'
 })
@@ -145,6 +146,11 @@ function onImageError(): void {
     line-height: 1.2;
     color: #fff;
     user-select: none;
+
+    // Pila de caras de la fila "N anotados" (28 px).
+    &--tiny {
+      font-size: 10px;
+    }
 
     &--label {
       font-size: 13px;

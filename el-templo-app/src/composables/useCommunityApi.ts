@@ -1,5 +1,5 @@
 import { api } from 'src/boot/axios'
-import type { SlotAttendees } from 'src/types/community'
+import type { DayAttendees, SlotAttendees } from 'src/types/community'
 
 /**
  * Cliente de la comunidad (fase 214): anotados de un horario, visibilidad propia, aviso visto y
@@ -11,6 +11,17 @@ export function useCommunityApi() {
     const response = await api.get<SlotAttendees>(
       `/members/scheduling/slots/${scheduleId}/${date}/attendees`,
     )
+    return response.data
+  }
+
+  /**
+   * Primeras caras de los anotados de todos los horarios de una sede en un día (fila de la
+   * Reservas). No cuenta como "abrir la lista". Sin `branchId` el servidor usa la sede del alumno.
+   */
+  async function getDayAttendees(date: string, branchId?: number): Promise<DayAttendees> {
+    const params: Record<string, string | number> = { date }
+    if (branchId) params.branchId = branchId
+    const response = await api.get<DayAttendees>('/members/scheduling/day-attendees', { params })
     return response.data
   }
 
@@ -36,5 +47,5 @@ export function useCommunityApi() {
     // No subscriptions or timers to clean up
   }
 
-  return { getSlotAttendees, setVisibility, markNoticeSeen, reportPhoto, cleanup }
+  return { getSlotAttendees, getDayAttendees, setVisibility, markNoticeSeen, reportPhoto, cleanup }
 }

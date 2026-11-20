@@ -227,6 +227,11 @@ de rachas salen de `streak-reward.ts`. La preferencia de visibilidad va en `memb
   acreditación al staff no se toca. Sigue vigente D-52: la lista no devuelve rol ni origen.
 - **D-59:** La card del horario muestra **solo el número de anotados** como botón para abrir la hoja
   (sketch 030, variante C2). No se agregan caras a la grilla semanal.
+  - **Revisada el 2026-11-20 por Franco: variante C (caras + número).** La fila "N anotados" muestra
+    hasta 4 caras superpuestas antes del número (círculos de 28, solape de 9, aro del color de la card);
+    tocar la fila sigue abriendo la hoja. Sin permiso para ver caras (mismas reglas que la hoja) o si el
+    pedido falla, queda solo el número. Endpoint `GET /members/scheduling/day-attendees`; la grilla
+    semanal (`/weekly`) no cambia.
 - **D-60:** La **ficha oscura de Aura del encabezado queda descartada.** Franco: "no me convence que sea
   oscuro el fondo de lo de aura". Se mantiene la estructura de la variante C (foto, nombre, antigüedad y
   Aura a la derecha). El tratamiento se elige en la ronda 3 (`031-encabezado-mi-templo/ronda3.html`).
