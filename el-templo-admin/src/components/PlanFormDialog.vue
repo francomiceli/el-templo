@@ -632,6 +632,14 @@ watch(
       // Solo online pierde clases/semana — el pase especial las conserva
       if (newCategory !== 'especial') form.value.classesPerWeek = null;
     }
+    if (newCategory === 'especial') {
+      // Hotfix 2026-11-23: el pase especial no otorga programas y su sección
+      // queda oculta. Sin esto el Foundation precargado en presencial viajaba
+      // igual y asignar el pase reiniciaba la inscripción del socio.
+      form.value.linkedProgramId = null;
+      form.value.grantsAllPrograms = false;
+      form.value.programIds = [];
+    }
     if (newCategory !== 'especial') {
       form.value.monthlyClassBudget = null;
       form.value.requiresPresencial = false;
@@ -812,9 +820,13 @@ async function onSubmit() {
       // Solo el pase especial (el server responde 400 en otra categoría). Vacío
       // = null (línea Aura); en edición el null también vacía una línea previa.
       specialLine: isEspecial.value ? form.value.specialLine?.trim() || null : undefined,
-      linkedProgramId: form.value.grantsAllPrograms
-        ? undefined
-        : (form.value.linkedProgramId ?? undefined),
+      // Especial: siempre null (no otorga programas). Resto: en edición el null
+      // VACÍA el campo (antes `?? undefined` no persistía el borrado).
+      linkedProgramId: isEspecial.value
+        ? null
+        : form.value.grantsAllPrograms
+          ? undefined
+          : (form.value.linkedProgramId ?? (isEditMode.value ? null : undefined)),
       // WR-04 (156): 'todos los programas' solo aplica a planes NO presenciales.
       grantsAllPrograms: effectiveGrantsAll,
       // PLAN-03 (D-08): la lista viaja solo si NO da acceso a todos; con all=true
@@ -841,6 +853,7 @@ async function onSubmit() {
         ...payload,
         classesPerWeek: payload.classesPerWeek ?? undefined,
         monthlyClassBudget: payload.monthlyClassBudget ?? undefined,
+        linkedProgramId: payload.linkedProgramId ?? undefined,
         country: form.value.country,
       });
     }
