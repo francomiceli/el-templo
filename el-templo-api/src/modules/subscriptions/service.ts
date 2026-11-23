@@ -1123,9 +1123,20 @@ export class SubscriptionService {
     input: CreatePlanInput,
   ): Promise<PlanDetail> {
     const planCategory = input.planCategory ?? "presencial";
-    const linkedProgramId = input.linkedProgramId ?? null;
-    const grantsAllPrograms = input.grantsAllPrograms ?? false;
-    const programIds = input.programIds ?? [];
+    // Hotfix 2026-11-23: el pase especial NO otorga programas. Si llegara un
+    // programa vinculado (el admin precargaba Foundation al abrir el form en
+    // presencial y no lo limpiaba al pasar a especial), asignar el pase le
+    // reiniciaba al socio su inscripción a ese programa desde la semana 1. Se
+    // descarta lo que venga, igual que al sacar un plan de especial se limpian
+    // sus campos exclusivos.
+    const isEspecial = planCategory === "especial";
+    const linkedProgramId = isEspecial
+      ? null
+      : (input.linkedProgramId ?? null);
+    const grantsAllPrograms = isEspecial
+      ? false
+      : (input.grantsAllPrograms ?? false);
+    const programIds = isEspecial ? [] : (input.programIds ?? []);
     const monthlyClassBudget = input.monthlyClassBudget ?? null;
     const requiresPresencial = input.requiresPresencial ?? false;
     const specialLine = normalizeSpecialLine(input.specialLine);
@@ -1266,17 +1277,27 @@ export class SubscriptionService {
     if (input.grantsAllPrograms !== undefined)
       updateData.grantsAllPrograms = input.grantsAllPrograms;
 
-    // Effective program list for the invariant: the incoming list when
-    // provided, otherwise the plan's current persisted list (D-06).
-    const effectiveProgramIds =
-      input.programIds !== undefined
-        ? input.programIds
-        : await this.getPlanProgramIds(ctx, planId);
-
     const effectiveCategory =
       input.planCategory !== undefined
         ? input.planCategory
         : existing.planCategory;
+
+    // Hotfix 2026-11-23: un plan que queda especial pierde todo programa
+    // (vinculado, "todos" y lista), venga lo que venga en el input. Ver
+    // createPlan: asignar un pase con programa reiniciaba la inscripción.
+    const isEspecialFinal = effectiveCategory === "especial";
+    if (isEspecialFinal) {
+      updateData.linkedProgramId = null;
+      updateData.grantsAllPrograms = false;
+    }
+    const programIdsToPersist = isEspecialFinal ? [] : input.programIds;
+
+    // Effective program list for the invariant: the incoming list when
+    // provided, otherwise the plan's current persisted list (D-06).
+    const effectiveProgramIds =
+      programIdsToPersist !== undefined
+        ? programIdsToPersist
+        : await this.getPlanProgramIds(ctx, planId);
 
     // Al sacar un plan de `especial` los campos exclusivos del pase se limpian
     // solos (no tiene sentido pedirle al admin que los mande en null).
@@ -1333,12 +1354,12 @@ export class SubscriptionService {
     this.assertPlanInvariants({
       planCategory: effectiveCategory,
       linkedProgramId:
-        input.linkedProgramId !== undefined
-          ? input.linkedProgramId
+        updateData.linkedProgramId !== undefined
+          ? updateData.linkedProgramId
           : existing.linkedProgramId,
       grantsAllPrograms:
-        input.grantsAllPrograms !== undefined
-          ? input.grantsAllPrograms
+        updateData.grantsAllPrograms !== undefined
+          ? updateData.grantsAllPrograms
           : existing.grantsAllPrograms,
       hasProgramList: effectiveProgramIds.length > 0,
       monthlyClassBudget:
@@ -1360,8 +1381,8 @@ export class SubscriptionService {
     // list replacement + plan patch run atomically. Renombrar a un nombre tomado
     // (activo o archivado) → 409 claro (merge v5.4: multi-programa + hotfix eb2b18de).
     await this.db.transaction(async (tx) => {
-      if (input.programIds !== undefined) {
-        await this.assertProgramsExist(ctx, tx, input.programIds);
+      if (programIdsToPersist !== undefined) {
+        await this.assertProgramsExist(ctx, tx, programIdsToPersist);
       }
 
       if (Object.keys(updateData).length > 0) {
@@ -1383,8 +1404,8 @@ export class SubscriptionService {
         }
       }
 
-      if (input.programIds !== undefined) {
-        await this.persistPlanPrograms(ctx, tx, planId, input.programIds);
+      if (programIdsToPersist !== undefined) {
+        await this.persistPlanPrograms(ctx, tx, planId, programIdsToPersist);
       }
     });
 
