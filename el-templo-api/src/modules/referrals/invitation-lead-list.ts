@@ -394,6 +394,8 @@ export class InvitationLeadList {
       return { open: 0, uncontacted: 0, selfActivatedWithoutBooking: 0 };
     }
     const { followStatusExpr } = await this.buildExprs(ctx);
+    // deploy: `activated_at` es DATETIME al segundo; con el setting en 0 cuenta
+    // desde el segundo siguiente a la activacion (fix de test 2026-11-23).
     const { followupNoBookingHours } = await getInvitationSettings(
       this.db,
       ctx,
