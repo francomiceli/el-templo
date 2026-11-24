@@ -621,7 +621,12 @@ export async function createInvitedUser(
     invitedUserId: invitee.id,
     branchId: env.branchId,
     subscriptionId,
-    activatedAt: new Date(Date.now() - activatedDaysAgo * DAY_MS),
+    // Al segundo entero: DATETIME redondea los milisegundos (a veces hacia
+    // arriba) y con `activatedDaysAgo: 0` la activacion quedaba un segundo
+    // "en el futuro" respecto de NOW() (test inestable, CI staging 2026-11-23).
+    activatedAt: new Date(
+      Math.floor((Date.now() - activatedDaysAgo * DAY_MS) / 1000) * 1000,
+    ),
     accessStartsOn: addDays(env.today, -activatedDaysAgo),
     accessExpiresOn: addDays(env.today, expiresOffset),
     channel: spec.channel,
