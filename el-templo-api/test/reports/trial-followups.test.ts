@@ -266,6 +266,20 @@ async function leadStatusOf(userId: number): Promise<{
   return row;
 }
 
+async function bookingStatusOf(bookingId: number): Promise<{
+  status: string;
+  cancelledAt: Date | null;
+}> {
+  const [row] = await ctx.app.db
+    .select({
+      status: schema.bookings.status,
+      cancelledAt: schema.bookings.cancelledAt,
+    })
+    .from(schema.bookings)
+    .where(eq(schema.bookings.id, bookingId));
+  return row;
+}
+
 describe("Cadencia de mensajes en Sesiones de Prueba — followup + franjas (2026-09-26)", () => {
   beforeAll(async () => {
     ctx.app = await createTestApp();
@@ -473,6 +487,93 @@ describe("Cadencia de mensajes en Sesiones de Prueba — followup + franjas (202
     const lead = await leadStatusOf(userId);
     expect(lead.leadStatus).toBe("perdido");
     expect(lead.leadStatusSource).toBe("manual");
+
+    // La SP ya ocurrió (faltó): su reserva NO se toca — es historia del reporte.
+    expect(await bookingStatusOf(bookingId)).toMatchObject({
+      status: "reservado",
+      cancelledAt: null,
+    });
+  });
+
+  // ─── Perdida ANTES de la clase (2026-11-24, caso Malvina Lamenza) ──────
+
+  it('acción "lost" sobre una SP futura cancela la reserva (libera el lugar), deja auditoría y la fila sigue como Perdida', async () => {
+    const userId = await seedLead({ firstName: "LesionadaFinde" });
+    const bookingId = await seedBooking({ userId, bookingDateOffsetDays: 3 });
+    await followupUpdate(ctx.ownerToken, bookingId, {
+      action: { type: "mark_sent", code: "M1" },
+    });
+
+    const lost = await followupUpdate(ctx.ownerToken, bookingId, {
+      action: { type: "lost", reason: "otro", note: "Se lesionó el finde." },
+    });
+    expect(lost.statusCode).toBe(200);
+    expect(lost.body.bookingId).toBe(bookingId);
+    expect(lost.body.sessionStatus).toBe("perdida");
+    expect(lost.body.reschedules).toBe(0);
+    expect(lost.body.followup).toMatchObject({
+      lostReason: "otro",
+      lostNote: "Se lesionó el finde.",
+    });
+
+    const booking = await bookingStatusOf(bookingId);
+    expect(booking.status).toBe("cancelado");
+    expect(booking.cancelledAt).not.toBeNull();
+    expect((await leadStatusOf(userId)).leadStatus).toBe("perdido");
+
+    const audit = await ctx.app.db
+      .select({
+        action: schema.auditLog.action,
+        targetKind: schema.auditLog.targetKind,
+      })
+      .from(schema.auditLog)
+      .where(eq(schema.auditLog.targetId, bookingId));
+    expect(audit).toContainEqual({
+      action: "trial_booking_cancelled",
+      targetKind: "booking",
+    });
+
+    // La sesión cancelada sigue listada en el reporte, como Perdida y sin
+    // contarse como reagenda.
+    const report = await getReport(ctx.ownerToken, "?limit=200");
+    const row = report.body.rows.find((r) => r.bookingId === bookingId);
+    expect(row).toMatchObject({ sessionStatus: "perdida", reschedules: 0 });
+  });
+
+  it('acción "lost" cancela solo las SP por venir del lead: la pasada queda intacta', async () => {
+    const userId = await seedLead({ firstName: "DosSesiones" });
+    const pastBookingId = await seedBooking({
+      userId,
+      bookingDateOffsetDays: -14,
+    });
+    const futureBookingId = await seedBooking({
+      userId,
+      bookingDateOffsetDays: 4,
+    });
+
+    const lost = await followupUpdate(ctx.ownerToken, pastBookingId, {
+      action: { type: "lost", reason: "horario", note: null },
+    });
+    expect(lost.statusCode).toBe(200);
+
+    expect((await bookingStatusOf(pastBookingId)).status).toBe("reservado");
+    expect((await bookingStatusOf(futureBookingId)).status).toBe("cancelado");
+  });
+
+  it("una SP cancelada por otro motivo (sin Perdida) sigue fuera del reporte y cuenta como reagenda", async () => {
+    const userId = await seedLead({ firstName: "CanceloSola" });
+    const cancelledId = await seedBooking({ userId, bookingDateOffsetDays: 2 });
+    await ctx.app.db
+      .update(schema.bookings)
+      .set({ status: "cancelado", cancelledAt: new Date() })
+      .where(eq(schema.bookings.id, cancelledId));
+    const activeId = await seedBooking({ userId, bookingDateOffsetDays: 5 });
+
+    const report = await getReport(ctx.ownerToken, "?limit=200");
+    const ids = report.body.rows.map((r) => r.bookingId);
+    expect(ids).not.toContain(cancelledId);
+    const active = report.body.rows.find((r) => r.bookingId === activeId);
+    expect(active).toMatchObject({ reschedules: 1 });
   });
 
   // ─── Cierre de rama ─────────────────────────────────────────────────────
