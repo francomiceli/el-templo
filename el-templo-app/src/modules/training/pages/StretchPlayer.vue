@@ -382,10 +382,13 @@ onUnmounted(() => {
   min-height: 0;
 }
 
+// Mismo alto que la historia del player del día (`BlockProgressionView`): con menos, el video
+// (object-fit: cover) queda como una franja y el pie con nombre y dosis tapa la parte importante
 .stretch-player__story {
   position: relative;
   flex: none;
-  height: clamp(180px, 28vh, 260px);
+  height: 45vh;
+  min-height: 240px;
   background: linear-gradient(135deg, #1e1b18 0%, #2e2a26 50%, #3d3732 100%);
   color: #fff;
 }
