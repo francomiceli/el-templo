@@ -1,3 +1,4 @@
+// deploy: redeploy de la API tras CI rojo por tenancy en tests (hotfixes SP Perdida + lista de espera, paths-filter, 2026-11-24)
 // SP por venir al marcar el lead como Perdido (2026-11-24, caso Malvina
 // Lamenza).
 //
