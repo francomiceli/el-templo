@@ -569,6 +569,11 @@
             outlined
           />
           <q-input v-model="lostNote" type="textarea" autogrow dense outlined label="Nota (opcional)" />
+          <!-- 2026-11-24: la API cancela la SP que todavía no empezó y libera el lugar. -->
+          <div v-if="lostDialogRow && lostDialogRow.attended === null" class="text-caption text-grey-8">
+            Si la clase del {{ formatDateDdMmYyyy(lostDialogRow.bookingDate) }} a las
+            {{ lostDialogRow.startTime }} todavía no empezó, se cancela la reserva y se libera el lugar.
+          </div>
         </q-card-section>
         <q-card-actions align="right">
           <q-btn flat label="Cancelar" v-close-popup />

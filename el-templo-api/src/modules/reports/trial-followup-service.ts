@@ -18,7 +18,9 @@
  *   - Deshacer un mensaje con el siguiente ya enviado → 409 (evita huecos en
  *     la cadena).
  *   - "Perdida" manual reusa `MemberService.updateLead` (mismo criterio que
- *     el PATCH de leads existente) — NO se duplica esa lógica acá.
+ *     el PATCH de leads existente) — NO se duplica esa lógica acá. Además
+ *     cancela las SP del lead que todavía no ocurrieron y libera el lugar
+ *     (2026-11-24, `cancelUpcomingTrialBookings`).
  *   - Marcar cualquier mensaje sella `users.trial_followup_started_at` si
  *     estaba en null (absorbe el botón viejo "Iniciar seguimiento").
  *   - Nunca se borran sesiones ni followups — solo se actualizan campos.
@@ -33,6 +35,11 @@ import { tenantValues, tenantWhere, type TenantContext } from "../shared/tenant"
 import { auditLog } from "../shared/audit-log";
 import type { TxHandle } from "../finance/balance-service";
 import { MemberService } from "../members/service";
+import {
+  cancelUpcomingTrialBookings,
+  type CancelledTrialBooking,
+} from "../scheduling/trial-bookings-on-lost";
+import { deletePendingTrialReminders } from "../scheduling/trial-reminder";
 import { ReportsService } from "./service";
 import type {
   TrialFollowupAction,
@@ -213,6 +220,7 @@ export class TrialFollowupService {
     }
 
     let updatedFollowupId = 0;
+    let cancelledTrials: CancelledTrialBooking[] = [];
     await this.db.transaction(async (tx: TxHandle) => {
       await tx
         .insert(schema.trialFollowups)
@@ -286,17 +294,43 @@ export class TrialFollowupService {
         targetId: updatedFollowupId,
         payload: { bookingId, before: before ?? null, action, after: next },
       });
+
+      if (action.type === "lost") {
+        // Reusa la lógica existente del PATCH de leads (no se duplica acá).
+        // Dentro de la tx: motivo, lead Perdido y SP canceladas son
+        // atómicos. Corre ANTES del re-fetch de abajo para que la fila
+        // devuelta ya refleje `sessionStatus: 'perdida'`.
+        await this.memberService.updateLead(
+          ctx,
+          scope.userId,
+          { leadStatus: "perdido" },
+          tx,
+        );
+        // 2026-11-24 (caso Malvina Lamenza): una SP dada por perdida ANTES de
+        // la clase seguía ocupando el lugar. Se cancelan las que no ocurrieron.
+        cancelledTrials = await cancelUpcomingTrialBookings(tx, ctx, {
+          userId: scope.userId,
+          actorId: actor.userId,
+        });
+      }
     });
 
-    if (action.type === "lost") {
-      // Reusa la lógica existente del PATCH de leads (no se duplica acá) —
-      // fuera de la tx de arriba: `MemberService.updateLead` no acepta un
-      // `TxHandle` externo (deuda documentada, ver SUMMARY del plan). Corre
-      // ANTES del re-fetch de abajo para que la fila devuelta ya refleje
-      // `sessionStatus: 'perdida'` sin necesitar un segundo GET.
-      await this.memberService.updateLead(ctx, scope.userId, {
-        leadStatus: "perdido",
-      });
+    if (cancelledTrials.length > 0) {
+      this.log.info(
+        { userId: scope.userId, bookingIds: cancelledTrials.map((b) => b.bookingId) },
+        "Trial bookings cancelled on lead marked lost",
+      );
+      // El recordatorio "tu sesión de prueba es mañana" ya no corresponde.
+      // Un fallo acá no deshace la Perdida (mismo criterio que trials-service).
+      try {
+        await deletePendingTrialReminders(this.db, ctx, scope.userId);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : "Unknown error";
+        this.log.error(
+          { err: message, userId: scope.userId },
+          "Failed to clean up trial reminder",
+        );
+      }
     }
 
     const row = await this.reportsService.getTrialSessionRowByBookingId(

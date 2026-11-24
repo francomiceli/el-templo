@@ -2378,7 +2378,9 @@ export class ReportsService {
    * la Fase 114-05, que deduplicaba por lead vía una derived table
    * `latest_trial` (`MAX(booking.id)` por `member_id`). Incluye las sesiones
    * canceladas que tienen una hija de reagenda (se muestran como
-   * "Reagendada"); las canceladas por cualquier otro motivo siguen fuera.
+   * "Reagendada") y las canceladas al marcarlas Perdida antes de la clase
+   * (2026-11-24, tienen `lost_reason`); las canceladas por cualquier otro
+   * motivo siguen fuera.
    *
    * SIN paginar en SQL: `sessionStatus`/`nextAction`/`pendingThisShift` son
    * DERIVADOS (motor `trial-cadence.ts`) y dependen de contexto que no vive
@@ -2575,7 +2577,13 @@ export class ReportsService {
         (SELECT COUNT(*) FROM ${schema.bookings} AS rc
           WHERE rc.member_id = u.id
             AND rc.is_trial = 1
-            AND rc.booking_status = 'cancelado') AS reschedules,
+            AND rc.booking_status = 'cancelado'
+            AND NOT EXISTS (
+              SELECT 1 FROM ${schema.trialFollowups} AS lrc
+              WHERE lrc.tenant_id = ${ctx.tenantId}
+                AND lrc.booking_id = rc.id
+                AND lrc.lost_reason IS NOT NULL
+            )) AS reschedules,
         tf.id                          AS followup_id,
         tf.m1_sent_at                  AS m1_sent_at,
         tf.m1_sent_by                  AS m1_sent_by,
@@ -2622,6 +2630,7 @@ export class ReportsService {
             SELECT 1 FROM ${schema.trialFollowups} AS ctf
             WHERE ctf.tenant_id = ${ctx.tenantId} AND ctf.rescheduled_from_booking_id = b.id
           )
+          OR tf.lost_reason IS NOT NULL
         )
         ${extraConds}
       ORDER BY b.booking_date DESC, b.id DESC
