@@ -4,7 +4,8 @@
  * GET /api/members/scheduling/day-attendees?date=YYYY-MM-DD&branchId=N
  *
  * Misma privacidad que la lista de un horario (`attendees.test.ts`), en lote:
- * hasta 4 caras por horario en el orden de la lista, totales que cuentan a los
+ * hasta 4 caras por horario (primero quien tiene foto, 2026-11-23, y despues el
+ * orden de la lista), totales que cuentan a los
  * ocultos, y SIN registrar la apertura de la lista (`community_list_opens`).
  * Fechas relativas a hoy en la zona de la sede y usuarios siempre por fabrica
  * (ningun id de `users` hardcodeado).
@@ -626,6 +627,81 @@ describe("Caras de los anotados del dia (D-59 revisada)", () => {
     expect(caras.find((f) => f.firstName === conFoto.firstName)?.photoUrl).toBe(
       `https://r2.test/get/${foto.storageKey}`,
     );
+  });
+
+  it("prioridad a quien tiene foto: van primero (en orden de reserva) y la hoja completa no cambia su orden", async () => {
+    mockPrivateMedia();
+    const yo = await crearAlumnoConPlan();
+    const otros: Persona[] = [];
+    for (let i = 0; i < 5; i += 1) otros.push(await crearAlumnoConPlan());
+    const base = Date.now() - 600_000;
+    // Orden de reserva: yo, otros[0..4]. Tienen foto otros[2] y otros[4].
+    await reservar(yo.id, { bookedAt: new Date(base) });
+    for (const [i, p] of otros.entries()) {
+      await reservar(p.id, { bookedAt: new Date(base + (i + 1) * 1000) });
+    }
+    await seedMemberPhoto(app, otros[2].id, { status: "aprobada" });
+    await seedMemberPhoto(app, otros[4].id, { status: "aprobada" });
+
+    const dia = await pedirOk(yo.token);
+    const caras = slotDe(dia, scheduleId)?.faces ?? [];
+
+    expect(caras.map((f) => f.firstName)).toEqual([
+      otros[2].firstName,
+      otros[4].firstName,
+      yo.firstName,
+      otros[0].firstName,
+    ]);
+    expect(caras.map((f) => f.photoUrl !== null)).toEqual([
+      true,
+      true,
+      false,
+      false,
+    ]);
+    expect(slotDe(dia, scheduleId)?.total).toBe(6);
+
+    const lista = await app.inject({
+      method: "GET",
+      url: `${MEMBER_URL}/slots/${scheduleId}/${today}/attendees`,
+      headers: { authorization: `Bearer ${yo.token}` },
+    });
+    const hoja = JSON.parse(lista.body) as {
+      attendees: Array<{ firstName: string }>;
+    };
+    expect(hoja.attendees.map((a) => a.firstName)).toEqual(
+      [yo, ...otros].map((p) => p.firstName),
+    );
+  });
+
+  it("la foto pendiente no da prioridad y solo se firman las fotos de las caras que se muestran", async () => {
+    const presignGet = vi.fn(
+      async (key: string) => `https://r2.test/get/${key}`,
+    );
+    mockPrivateMedia({ presignGet });
+    const yo = await crearAlumnoConPlan();
+    const pendiente = await crearAlumnoConPlan();
+    const conFoto: Persona[] = [];
+    for (let i = 0; i < 5; i += 1) conFoto.push(await crearAlumnoConPlan());
+    const base = Date.now() - 600_000;
+    await reservar(yo.id, { bookedAt: new Date(base) });
+    await reservar(pendiente.id, { bookedAt: new Date(base + 1000) });
+    for (const [i, p] of conFoto.entries()) {
+      await reservar(p.id, { bookedAt: new Date(base + (i + 2) * 1000) });
+    }
+    await seedMemberPhoto(app, pendiente.id, { status: "pendiente" });
+    for (const p of conFoto) {
+      await seedMemberPhoto(app, p.id, { status: "aprobada" });
+    }
+
+    const dia = await pedirOk(yo.token);
+    const caras = slotDe(dia, scheduleId)?.faces ?? [];
+
+    // 5 con foto aprobada: entran las 4 primeras por orden de reserva.
+    expect(caras.map((f) => f.firstName)).toEqual(
+      conFoto.slice(0, 4).map((p) => p.firstName),
+    );
+    expect(caras.every((f) => f.photoUrl !== null)).toBe(true);
+    expect(presignGet).toHaveBeenCalledTimes(4);
   });
 
   // ── Metrica de aperturas ──────────────────────────────────────────────────

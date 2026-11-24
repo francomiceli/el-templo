@@ -1577,9 +1577,13 @@ async function executePause() {
     refreshAll();
     showPauseDialog.value = false;
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error desconocido';
-    log.error('Error pausing subscription', { error: message });
-    $q.notify({ type: 'negative', message: 'Error pausando suscripcion' });
+    const message = extractError(err, 'Error pausando suscripcion');
+    if (isExpectedClientError(err)) {
+      log.warn('Pause rejected by server', { error: message });
+    } else {
+      log.error('Error pausing subscription', { error: message });
+    }
+    $q.notify({ type: 'negative', message, timeout: 5000 });
   } finally {
     actionLoading.value = false;
   }
@@ -1681,9 +1685,13 @@ function confirmResume() {
       emit('subscription-changed');
       refreshAll();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Error desconocido';
-      log.error('Error resuming subscription', { error: message });
-      $q.notify({ type: 'negative', message: 'Error reanudando suscripcion' });
+      const message = extractError(err, 'Error reanudando suscripcion');
+      if (isExpectedClientError(err)) {
+        log.warn('Resume rejected by server', { error: message });
+      } else {
+        log.error('Error resuming subscription', { error: message });
+      }
+      $q.notify({ type: 'negative', message, timeout: 5000 });
     } finally {
       actionLoading.value = false;
     }
