@@ -515,7 +515,7 @@
               </q-item-section>
             </q-item>
             <q-item
-              v-for="member in attendanceList"
+              v-for="member in attendanceRows"
               :key="`${member.memberId}-${member.bookingId ?? 'walk'}`"
               :class="member.attendanceId ? 'bg-green-1' : ''"
             >
@@ -558,6 +558,9 @@
                   </template>
                   <template v-else-if="!member.bookingId">
                     <span class="text-grey-5">(sin reserva)</span>
+                  </template>
+                  <template v-else-if="isWaitlistMember(member)">
+                    <span class="text-warning">{{ waitlistCaption(member) }}</span>
                   </template>
                   <template v-else>
                     <span class="text-grey-5">Reservado</span>
@@ -1141,14 +1144,45 @@ const headerDateLabel = computed(() => {
 
 const headerStartTime = computed(() => slotDetail.value?.schedule.startTime ?? '');
 
+// 2026-11-24 (clase 17 h Constitución): la lista del día trae también a los
+// de lista de espera. Figuraban como "Reservado" y sumaban en el total de
+// presentes (0/23 con 20 reservados + 1 SP + 2 en espera), lo que parecía
+// sobrecupo. Ahora van al final, marcados, y solo cuentan si se les marcó
+// asistencia (vinieron igual).
+function isWaitlistMember(member: SlotAttendanceItem): boolean {
+  return member.bookingStatus === 'lista_espera';
+}
+
+function waitlistCaption(member: SlotAttendanceItem): string {
+  const position = slotDetail.value?.bookings.find(
+    (b) => b.id === member.bookingId
+  )?.waitlistPosition;
+  return position ? `Lista de espera · posición ${position}` : 'Lista de espera';
+}
+
+const attendanceRows = computed(() => [
+  ...attendanceList.value.filter((m) => !isWaitlistMember(m)),
+  ...attendanceList.value.filter((m) => isWaitlistMember(m)),
+]);
+
+const capacityText = computed(() => {
+  const max = slotDetail.value?.maxCapacity ?? 0;
+  const trials = activeTrialBookings.value.length;
+  return `Cupo ${activeRegularBookings.value.length}/${max}${trials > 0 ? ` + ${trials} SP` : ''}`;
+});
+
 const summaryText = computed(() => {
+  const waiting = waitlistBookings.value.length;
+  const waitingText = waiting > 0 ? ` · ${waiting} en espera` : '';
   if (!isPastOrToday.value) {
     const max = slotDetail.value?.maxCapacity ?? 0;
-    return `${activeRegularBookings.value.length}/${max} reservas`;
+    return `${activeRegularBookings.value.length}/${max} reservas${waitingText}`;
   }
-  const total = attendanceList.value.length;
-  const attended = attendanceList.value.filter((m) => m.attendanceId).length;
-  return `${attended}/${total} presentes`;
+  const expected = attendanceList.value.filter(
+    (m) => !isWaitlistMember(m) || m.attendanceId
+  );
+  const attended = expected.filter((m) => m.attendanceId).length;
+  return `${attended}/${expected.length} presentes · ${capacityText.value}${waitingText}`;
 });
 
 // Horario eliminado (definitivo): distinto de cancelado — no se reactiva.
