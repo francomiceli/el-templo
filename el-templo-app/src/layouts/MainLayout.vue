@@ -34,10 +34,13 @@
           class="header-level-bar"
         />
 
-        <!-- Fase 215 (D-17): de derecha a izquierda, salir, campana y perfil; los tres de 44x44. -->
+        <!-- Fase 215 (D-17) y 2026-11-20: de derecha a izquierda, perfil y campana, los dos de 44x44.
+             "Cerrar sesión" se mudó a Mi Perfil (arriba de "Eliminar cuenta") y el perfil ocupó su
+             lugar en la punta; la campana quedó donde estaba. -->
         <!-- 2026-11-19 (sketch 038): el botón de perfil lleva el ícono y, si hay foto, la foto en el
              mismo lugar. En Mi Templo la foto aparece cuando la del encabezado queda tapada por la
              barra; en las demás pantallas está siempre. Sin foto queda el ícono. -->
+        <NotificationBell v-if="authStore.isAuthenticated" class="bar-btn-44" />
         <q-btn
           v-if="authStore.isAuthenticated"
           flat
@@ -58,17 +61,6 @@
             @image-error="barPhotoFailed = true"
           />
           <q-tooltip>Mi Perfil</q-tooltip>
-        </q-btn>
-        <NotificationBell v-if="authStore.isAuthenticated" class="bar-btn-44" />
-        <q-btn
-          v-if="authStore.isAuthenticated"
-          flat
-          round
-          icon="logout"
-          class="bar-btn-44"
-          @click="onLogout"
-        >
-          <q-tooltip>Cerrar sesion</q-tooltip>
         </q-btn>
       </q-toolbar>
 
@@ -255,6 +247,7 @@ import AddressPromptDialog from 'src/components/AddressPromptDialog.vue'
 import MiTemploHeader from 'src/components/MiTemploHeader.vue'
 import MemberAvatar from 'src/components/MemberAvatar.vue'
 import NotificationBell from 'src/components/NotificationBell.vue'
+import { useLogout } from 'src/composables/useLogout'
 import NotificationCountBadge from 'src/components/NotificationCountBadge.vue'
 import { useNotificationsInboxStore } from 'src/stores/useNotificationsInboxStore'
 import { bellAriaLabel } from 'src/utils/notifications-view'
@@ -268,6 +261,7 @@ import { DEFAULT_BRANCH_TZ } from 'src/utils/tz'
 import { nextHeaderPhotoHidden, showsBarPhoto, shownPhotoUrl } from 'src/utils/bar-profile-photo'
 
 const $q = useQuasar()
+const { logout: onLogout } = useLogout()
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
@@ -610,11 +604,7 @@ function isTabActive(tab: MobileTab): boolean {
   return route.path.startsWith(tabTo)
 }
 
-async function onLogout() {
-  await authStore.logout()
-  $q.notify({ type: 'positive', message: 'Sesión cerrada' })
-  router.push('/login')
-}
+
 </script>
 
 <style scoped lang="scss">

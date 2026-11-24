@@ -3,6 +3,7 @@ import { Capacitor } from '@capacitor/core'
 import { api } from 'src/boot/axios'
 import { useUserStore } from 'src/stores/useUserStore'
 import { toAvatarJpeg } from 'src/utils/avatar-image'
+import { photoFailureCause } from 'src/utils/photo-failure'
 import { photoErrorMessage } from 'src/utils/photo-messages'
 import { asUploadFile } from 'src/utils/upload-body'
 import { createLogger } from 'src/utils/logger'
@@ -30,6 +31,9 @@ interface UploadUrlResponse {
   contentType: string
   expiresIn: number
 }
+
+/** De dónde salió la foto: cámara o galería del teléfono, o `<input type="file">` en la web. */
+type PhotoFrom = 'camera' | 'photos' | 'file'
 
 /** Base64 (sin prefijo data:) a Blob. */
 function base64ToBlob(base64: string, mime: string): Blob {
@@ -63,7 +67,7 @@ export function useProfilePhoto() {
   }
 
   /** Recorta y re-codifica; deja el blob listo y la vista previa armada. */
-  async function prepare(source: Blob): Promise<boolean> {
+  async function prepare(source: Blob, from: PhotoFrom): Promise<boolean> {
     error.value = null
     try {
       const blob = await toAvatarJpeg(source)
@@ -75,9 +79,17 @@ export function useProfilePhoto() {
       preparedBlob = null
       revokePreview()
       const code = typeof err === 'object' && err !== null && 'code' in err ? err.code : null
-      log.warn('avatar prepare failed', {
-        cause: code === 'DECODE' ? 'decode' : err instanceof Error ? err.name : 'unknown',
-      })
+      const details = {
+        stage: 'prepare',
+        from,
+        mime: source.type || null,
+        bytes: source.size,
+        ...photoFailureCause(err),
+      }
+      // En la web, un formato que el navegador no abre (HEIC en escritorio) es esperable y la
+      // persona recibe un mensaje accionable: no va a Sentry. Todo lo demás sí (ver photo-failure).
+      if (code === 'DECODE' && from === 'file') log.warn('avatar prepare failed', details)
+      else log.error('avatar prepare failed', details)
       // Una falla del canvas que no es de formato se trata como "no se pudo procesar".
       error.value = photoErrorMessage(code === 'DECODE' ? err : { response: { status: 400 } })
       return false
@@ -115,7 +127,11 @@ export function useProfilePhoto() {
     try {
       cam = await import('@capacitor/camera')
     } catch (err: unknown) {
-      log.warn('camera plugin unavailable', { error: err instanceof Error ? err.name : 'unknown' })
+      log.error('camera plugin unavailable', {
+        stage: 'plugin',
+        from: which,
+        ...photoFailureCause(err),
+      })
       error.value = photoErrorMessage({ response: { status: 400 } })
       return false
     }
@@ -136,10 +152,15 @@ export function useProfilePhoto() {
         saveToGallery: false,
       })
       if (!photo.base64String) {
+        log.error('getPhoto returned no image', {
+          stage: 'empty',
+          from: which,
+          format: photo.format ?? null,
+        })
         error.value = photoErrorMessage({ response: { status: 400 } })
         return false
       }
-      return await prepare(base64ToBlob(photo.base64String, mimeFromFormat(photo.format)))
+      return await prepare(base64ToBlob(photo.base64String, mimeFromFormat(photo.format)), which)
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err)
       // Cancelar la cámara o la galería no es un error.
@@ -148,7 +169,9 @@ export function useProfilePhoto() {
         error.value = photoErrorMessage({ code: 'PERMISSION' })
         return false
       }
-      log.warn('getPhoto failed', { error: err instanceof Error ? err.name : 'unknown' })
+      // El texto del plugin ("Error loading image", "Unable to convert image to jpeg"...) es lo
+      // único que dice qué pasó: va a Sentry (caso iPhone 16 Pro / iOS 26.6, 2026-11-24).
+      log.error('getPhoto failed', { stage: 'pick', from: which, ...photoFailureCause(err) })
       error.value = photoErrorMessage({ response: { status: 400 } })
       return false
     }
@@ -164,7 +187,7 @@ export function useProfilePhoto() {
 
   /** Web: archivo elegido en un `<input type="file">`. */
   function pickFromFile(file: File): Promise<boolean> {
-    return prepare(file)
+    return prepare(file, 'file')
   }
 
   /** PUT directo a la URL firmada, sin el token de la app. Tira `{ code: 'PUT' }` si falla. */

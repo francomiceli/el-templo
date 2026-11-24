@@ -16,6 +16,10 @@ import { perUserRateLimit } from "../shared/per-user-rate-limit";
 import { assertTenant } from "../shared/tenant";
 import { ackCelebration, getCelebration } from "./celebration-service";
 import {
+  markCelebrationInboxRead,
+  recordCelebrationInbox,
+} from "./celebration-inbox";
+import {
   celebrationAckSchema,
   celebrationSchema,
   type CelebrationAckBody,
@@ -42,7 +46,13 @@ export const auraCelebrationRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       try {
         const ctx = assertTenant(request.scope, "aura.member.celebration");
-        return await getCelebration(fastify.db, ctx, request.user.userId);
+        const userId = request.user.userId;
+        const result = await getCelebration(fastify.db, ctx, userId);
+        // Lo que se celebra en pantalla también queda en Notificaciones (sin push).
+        if (result.count > 0) {
+          await recordCelebrationInbox(fastify.db, request.log, ctx, userId);
+        }
+        return result;
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "aura.member.celebration");
       }
@@ -65,6 +75,14 @@ export const auraCelebrationRoutes: FastifyPluginAsync = async (fastify) => {
         const ctx = assertTenant(request.scope, "aura.member.celebration.ack");
         await ackCelebration(
           fastify.db,
+          ctx,
+          request.user.userId,
+          request.body.upToId,
+        );
+        // Ya lo vio en pantalla: el aviso de la bandeja no cuenta como nuevo.
+        await markCelebrationInboxRead(
+          fastify.db,
+          request.log,
           ctx,
           request.user.userId,
           request.body.upToId,
