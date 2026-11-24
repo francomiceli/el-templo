@@ -276,7 +276,12 @@ async function bookingStatusOf(bookingId: number): Promise<{
       cancelledAt: schema.bookings.cancelledAt,
     })
     .from(schema.bookings)
-    .where(eq(schema.bookings.id, bookingId));
+    .where(
+      and(
+        tenantWhere(schema.bookings, TEMPLO_CTX),
+        eq(schema.bookings.id, bookingId),
+      ),
+    );
   return row;
 }
 
@@ -527,7 +532,13 @@ describe("Cadencia de mensajes en Sesiones de Prueba — followup + franjas (202
         targetKind: schema.auditLog.targetKind,
       })
       .from(schema.auditLog)
-      .where(eq(schema.auditLog.targetId, bookingId));
+      .where(
+        and(
+          tenantWhere(schema.auditLog, TEMPLO_CTX),
+          eq(schema.auditLog.targetKind, "booking"),
+          eq(schema.auditLog.targetId, bookingId),
+        ),
+      );
     expect(audit).toContainEqual({
       action: "trial_booking_cancelled",
       targetKind: "booking",
@@ -566,7 +577,12 @@ describe("Cadencia de mensajes en Sesiones de Prueba — followup + franjas (202
     await ctx.app.db
       .update(schema.bookings)
       .set({ status: "cancelado", cancelledAt: new Date() })
-      .where(eq(schema.bookings.id, cancelledId));
+      .where(
+        and(
+          tenantWhere(schema.bookings, TEMPLO_CTX),
+          eq(schema.bookings.id, cancelledId),
+        ),
+      );
     const activeId = await seedBooking({ userId, bookingDateOffsetDays: 5 });
 
     const report = await getReport(ctx.ownerToken, "?limit=200");
