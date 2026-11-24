@@ -533,21 +533,26 @@ export async function reportProfilePhoto(
 
 let warnedNoStorage = false;
 
+/** Foto elegida para un usuario, todavía sin firmar. */
+export interface PickedCommunityPhoto {
+  id: number;
+  storageKey: string;
+}
+
 /**
  * Qué foto se muestra a los demás por usuario (D-43): la propia aprobada y, si
  * no hay, el espejo privado de la ficha cuya `source_url` es la `photo_url`
- * actual. Siempre URL firmada (estable por hora, así el navegador cachea): NUNCA
- * `users.photo_url` ni nada con el id del usuario. SOLO LECTURA: la copia de la
- * ficha la hace el job del plan 13. Sin foto, el usuario no va en el Map.
+ * actual. SOLO base de datos, sin firmar ni tocar el storage: sirve para saber
+ * quién tiene foto antes de decidir a quién mostrar (caras de la Reservas,
+ * 2026-11-23). Sin foto, el usuario no va en el Map.
  */
-export async function resolveCommunityPhotos(
+export async function pickCommunityPhotos(
   fastify: FastifyInstance,
   ctx: TenantContext,
   userIds: readonly number[],
-  opts: { expiresSec?: number } = {},
-): Promise<Map<number, CommunityPhoto>> {
-  const result = new Map<number, CommunityPhoto>();
-  if (userIds.length === 0) return result;
+): Promise<Map<number, PickedCommunityPhoto>> {
+  const chosen = new Map<number, PickedCommunityPhoto>();
+  if (userIds.length === 0) return chosen;
   const ids = [...new Set(userIds)];
 
   const [photos, users] = await Promise.all([
@@ -579,7 +584,45 @@ export async function resolveCommunityPhotos(
         ),
       ),
   ]);
-  if (photos.length === 0) return result;
+  if (photos.length === 0) return chosen;
+
+  const currentFichaUrl = new Map<number, string>();
+  for (const user of users) {
+    if (user.photoUrl !== null) currentFichaUrl.set(user.id, user.photoUrl);
+  }
+
+  // Por usuario: la propia aprobada gana a la de ficha; entre varias, la última.
+  const own = new Map<number, PickedCommunityPhoto>();
+  const ficha = new Map<number, PickedCommunityPhoto>();
+  for (const photo of photos) {
+    if (photo.origin === "alumno") {
+      own.set(photo.userId, { id: photo.id, storageKey: photo.storageKey });
+    } else if (
+      photo.sourceUrl !== null &&
+      photo.sourceUrl === currentFichaUrl.get(photo.userId)
+    ) {
+      ficha.set(photo.userId, { id: photo.id, storageKey: photo.storageKey });
+    }
+  }
+  for (const id of ids) {
+    const pick = own.get(id) ?? ficha.get(id);
+    if (pick) chosen.set(id, pick);
+  }
+  return chosen;
+}
+
+/**
+ * Firma las fotos ya elegidas por `pickCommunityPhotos`. Siempre URL firmada
+ * (estable por hora, así el navegador cachea): NUNCA `users.photo_url` ni nada
+ * con el id del usuario. Sin storage privado no hay fotos (se ven iniciales).
+ */
+export async function signCommunityPhotos(
+  fastify: FastifyInstance,
+  chosen: ReadonlyMap<number, PickedCommunityPhoto>,
+  opts: { expiresSec?: number } = {},
+): Promise<Map<number, CommunityPhoto>> {
+  const result = new Map<number, CommunityPhoto>();
+  if (chosen.size === 0) return result;
 
   let store: PrivateMediaStore;
   try {
@@ -597,30 +640,6 @@ export async function resolveCommunityPhotos(
     throw err;
   }
 
-  const currentFichaUrl = new Map<number, string>();
-  for (const user of users) {
-    if (user.photoUrl !== null) currentFichaUrl.set(user.id, user.photoUrl);
-  }
-
-  // Por usuario: la propia aprobada gana a la de ficha; entre varias, la última.
-  const chosen = new Map<number, { id: number; storageKey: string }>();
-  const own = new Map<number, { id: number; storageKey: string }>();
-  const ficha = new Map<number, { id: number; storageKey: string }>();
-  for (const photo of photos) {
-    if (photo.origin === "alumno") {
-      own.set(photo.userId, { id: photo.id, storageKey: photo.storageKey });
-    } else if (
-      photo.sourceUrl !== null &&
-      photo.sourceUrl === currentFichaUrl.get(photo.userId)
-    ) {
-      ficha.set(photo.userId, { id: photo.id, storageKey: photo.storageKey });
-    }
-  }
-  for (const id of ids) {
-    const pick = own.get(id) ?? ficha.get(id);
-    if (pick) chosen.set(id, pick);
-  }
-
   const expiresSec = opts.expiresSec ?? AVATAR_LIST_GET_EXPIRES_SEC;
   await Promise.all(
     [...chosen.entries()].map(async ([userId, pick]) => {
@@ -631,6 +650,21 @@ export async function resolveCommunityPhotos(
     }),
   );
   return result;
+}
+
+/**
+ * Foto que ven los demás, ya firmada: `pickCommunityPhotos` +
+ * `signCommunityPhotos`. SOLO LECTURA: la copia de la ficha la hace el job del
+ * plan 13. Sin foto, el usuario no va en el Map.
+ */
+export async function resolveCommunityPhotos(
+  fastify: FastifyInstance,
+  ctx: TenantContext,
+  userIds: readonly number[],
+  opts: { expiresSec?: number } = {},
+): Promise<Map<number, CommunityPhoto>> {
+  const chosen = await pickCommunityPhotos(fastify, ctx, userIds);
+  return signCommunityPhotos(fastify, chosen, opts);
 }
 
 // ---------------------------------------------------------------------------

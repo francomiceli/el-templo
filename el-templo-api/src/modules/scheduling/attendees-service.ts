@@ -30,8 +30,9 @@
 // `getDayAttendees` (2026-11-20, D-59 revisada: caras en la fila de la
 // Reservas) sirve las primeras caras de TODOS los horarios de una sede en un
 // dia, en lote. Reusa las mismas reglas que la lista de un horario: mismas
-// funciones (`assertSlotScope`, `loadSlotBookers`, `visibleBookers`) y mismo
-// orden. NO registra la apertura de la lista (`recordListOpen` es la metrica de
+// funciones (`assertSlotScope`, `loadSlotBookers`, `visibleBookers`). Orden:
+// primero quienes tienen foto (2026-11-23) y despues el de la lista. NO
+// registra la apertura de la lista (`recordListOpen` es la metrica de
 // "abrio la lista completa"): esto es solo la vista previa de la fila.
 
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
@@ -39,7 +40,11 @@ import type { FastifyInstance } from "fastify";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../db/schema";
 import { earnedAuraByUsers } from "../aura/earned";
-import { resolveCommunityPhotos } from "../members/profile-photo-service";
+import {
+  pickCommunityPhotos,
+  resolveCommunityPhotos,
+  signCommunityPhotos,
+} from "../members/profile-photo-service";
 import {
   addDays,
   DEFAULT_TENANT_TIMEZONE,
@@ -208,6 +213,32 @@ function visibleBookers(rows: SlotBooker[], today: string): SlotBooker[] {
   );
 }
 
+/**
+ * Caras de cada horario en la fila de la Reservas: hasta `DAY_FACES_LIMIT`,
+ * primero quienes tienen foto (pedido de Franco 2026-11-23: la fila se ve
+ * viva) y, dentro de cada grupo, el orden de la lista (por hora de reserva).
+ * La hoja completa NO cambia su orden: esto es solo la vista previa.
+ */
+export function pickDayFaces<T extends { scheduleId: number; userId: number }>(
+  shown: readonly T[],
+  hasPhoto: (userId: number) => boolean,
+): Map<number, T[]> {
+  const bySlot = new Map<number, { withPhoto: T[]; without: T[] }>();
+  for (const row of shown) {
+    const group = bySlot.get(row.scheduleId) ?? { withPhoto: [], without: [] };
+    (hasPhoto(row.userId) ? group.withPhoto : group.without).push(row);
+    bySlot.set(row.scheduleId, group);
+  }
+  const perSlot = new Map<number, T[]>();
+  for (const [scheduleId, group] of bySlot) {
+    perSlot.set(
+      scheduleId,
+      [...group.withPhoto, ...group.without].slice(0, DAY_FACES_LIMIT),
+    );
+  }
+  return perSlot;
+}
+
 export class AttendeesService {
   constructor(private readonly fastify: FastifyInstance) {}
 
@@ -308,10 +339,11 @@ export class AttendeesService {
   /**
    * Primeras caras de los anotados de TODOS los horarios de una sede en un dia
    * (fila de la Reservas). En lote: una consulta de totales, una de reservas
-   * (solo si quien mira puede ver caras), el tope de `DAY_FACES_LIMIT` por
-   * horario ANTES de resolver fotos, y una sola resolucion de fotos para la
-   * union. Mismas reglas de acceso, visibilidad, orden y alcance que
-   * `getSlotAttendees`. Sin permiso para ver caras: solo totales y `faces`
+   * (solo si quien mira puede ver caras), quien tiene foto (solo base), el
+   * tope de `DAY_FACES_LIMIT` por horario con prioridad a quien tiene foto
+   * (`pickDayFaces`), y la firma solo de esas fotos. Mismas reglas de acceso,
+   * visibilidad y alcance que `getSlotAttendees`. Sin permiso para ver
+   * caras: solo totales y `faces`
    * vacio. Un horario sin reservas no va en la lista.
    */
   async getDayAttendees(
@@ -382,19 +414,23 @@ export class AttendeesService {
     const rows = await loadSlotBookers(db, ctx, [...totals.keys()], date);
     const shown = visibleBookers(rows, today);
 
-    // Tope por horario ANTES de pedir fotos; el orden global ya es el de la lista.
-    const perSlot = new Map<number, SlotBooker[]>();
-    for (const row of shown) {
-      const list = perSlot.get(row.scheduleId) ?? [];
-      if (list.length < DAY_FACES_LIMIT) {
-        list.push(row);
-        perSlot.set(row.scheduleId, list);
-      }
-    }
-    const photos = await resolveCommunityPhotos(
+    // Quién tiene foto (solo base, sin firmar) para darle prioridad.
+    const picked = await pickCommunityPhotos(
       this.fastify,
       ctx,
-      [...perSlot.values()].flat().map((row) => row.userId),
+      shown.map((row) => row.userId),
+    );
+    const perSlot = pickDayFaces(shown, (userId) => picked.has(userId));
+
+    // Se firman solo las fotos de las caras que se muestran.
+    const photos = await signCommunityPhotos(
+      this.fastify,
+      new Map(
+        [...perSlot.values()].flat().flatMap((row) => {
+          const pick = picked.get(row.userId);
+          return pick ? [[row.userId, pick] as const] : [];
+        }),
+      ),
     );
 
     const faces = new Map<number, DayFace[]>();
