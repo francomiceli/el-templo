@@ -4,7 +4,7 @@ import { useAuthStore } from 'stores/useAuthStore'
 import type { AuthUser } from 'stores/useAuthStore'
 import { useUserStore } from 'stores/useUserStore'
 import { useCardHadContentStore } from 'stores/useCardHadContentStore'
-import { api, runRefresh, isSessionRejectedStatus } from './axios'
+import { api, runRefresh, isSessionRejectedStatus, onSessionRejected } from './axios'
 import { useTokenStorage } from 'src/composables/useTokenStorage'
 import { createLogger } from 'src/utils/logger'
 import { NETWORK_WAIT_MS, withTimeout } from 'src/utils/with-timeout'
@@ -118,6 +118,10 @@ export async function runAuthBoot(): Promise<void> {
   const authStore = useAuthStore()
   const userStore = useUserStore()
   const { getAccessToken, getRefreshToken, clearTokens, hasLegacyOnly } = useTokenStorage()
+
+  // Antes de cualquier return: quien arranca sin sesión y se loguea después
+  // también necesita que un rechazo del servidor lo saque (ver boot/axios.ts).
+  onSessionRejected(() => authStore.clearAuth())
 
   let accessToken = await getAccessToken()
   const refreshToken = await getRefreshToken()

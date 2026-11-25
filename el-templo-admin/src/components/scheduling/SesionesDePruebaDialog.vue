@@ -175,6 +175,7 @@ import { createLogger } from 'src/utils/logger';
 import { useSchedulingApi } from 'src/composables/useSchedulingApi';
 import type { TrialListBranchGroup, TrialListItem } from 'src/types/scheduling';
 import { extractError } from 'src/utils/extract-error';
+import { trialsWhatsappText } from 'src/utils/trials-whatsapp-text';
 import WhatsappIcon from 'src/components/icons/WhatsappIcon.vue';
 import RescheduleTrialDialog from 'src/components/scheduling/RescheduleTrialDialog.vue';
 
@@ -348,17 +349,7 @@ function shiftLabel(value: Shift): string {
 
 function copyForWhatsapp(): void {
   if (groups.value.length === 0) return;
-  const lines: string[] = [];
-  lines.push(`*Sesiones de Prueba — ${dateInput.value} (${shiftLabel(shift.value)})*`);
-  for (const group of groups.value) {
-    lines.push('');
-    lines.push(`*${group.branchName}* (${group.trials.length})`);
-    for (const t of group.trials) {
-      const phone = t.phone ? ` · ${t.phone}` : '';
-      lines.push(`• ${t.startTime} — ${t.firstName} ${t.lastName}${phone}`);
-    }
-  }
-  const text = lines.join('\n');
+  const text = trialsWhatsappText(groups.value, dateInput.value, shiftLabel(shift.value));
   navigator.clipboard
     .writeText(text)
     .then(() => $q.notify({ type: 'positive', message: 'Copiado' }))

@@ -51,6 +51,8 @@
 	<string>El Templo usa el micrófono solo cuando grabás un video para que tu coach corrija tu técnica en Conquer.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>El Templo accede a tu galería sólo si elegís una foto o un video desde el dispositivo en lugar de tomarlo con la cámara.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>El Templo no guarda fotos en tu galería. iOS pide este permiso para que la app pueda usar la cámara.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>

@@ -1,5 +1,6 @@
 import { boot } from 'quasar/wrappers'
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios'
+import type { Router } from 'vue-router'
 import { Capacitor } from '@capacitor/core'
 import { useTokenStorage } from 'src/composables/useTokenStorage'
 import { createLogger } from 'src/utils/logger'
@@ -269,15 +270,44 @@ export function createAuthErrorHandler(instance: AxiosInstance, onRedirect: () =
   }
 }
 
-export default boot(({ app, router }) => {
-  const { clearTokens } = useTokenStorage()
+// ---------------------------------------------------------------------------
+// Sesión rechazada por el servidor (app 1.9.9). Borrar los tokens guardados no
+// alcanza: `useAuthStore` tiene su propia copia en memoria (`token`/`user`) y,
+// si queda llena, `isAuthenticated` sigue en true, el guard del router devuelve
+// /login a home y el socio queda adentro con todos los pedidos en 401 hasta
+// cerrar la app (Sentry: "[AuraDetailSheet] No se pudo cargar el detalle de
+// Aura", junto a WeekData y current program). boot/auth.ts registra acá la
+// limpieza de la sesión en memoria: este archivo no puede importar el store
+// porque el store importa `api` de acá (ciclo).
+// ---------------------------------------------------------------------------
 
-  const onRedirect = async (): Promise<void> => {
+let clearSessionState: () => void = () => {}
+
+/** Registra qué limpiar en memoria cuando el servidor rechaza la sesión. */
+export function onSessionRejected(clear: () => void): void {
+  clearSessionState = clear
+}
+
+/**
+ * Arma el `onRedirect` del interceptor: borra tokens, limpia la sesión en
+ * memoria y recién después navega a /login, así el guard ya ve "sin sesión".
+ */
+export function createSessionRejectedRedirect(
+  router: Pick<Router, 'currentRoute' | 'push'>,
+  clearTokens: () => Promise<void>,
+): () => Promise<void> {
+  return async () => {
     await clearTokens()
+    clearSessionState()
     if (router.currentRoute.value.path !== '/login') {
       await router.push('/login')
     }
   }
+}
+
+export default boot(({ app, router }) => {
+  const { clearTokens } = useTokenStorage()
+  const onRedirect = createSessionRejectedRedirect(router, clearTokens)
 
   // Response interceptor - handle 401 with refresh lock + single retry.
   api.interceptors.response.use((response) => response, createAuthErrorHandler(api, onRedirect))

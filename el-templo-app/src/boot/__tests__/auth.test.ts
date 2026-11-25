@@ -87,11 +87,13 @@ vi.mock('stores/useCardHadContentStore', () => ({
 
 const apiGet = vi.fn()
 const runRefresh = vi.fn()
+const onSessionRejected = vi.fn()
 
 vi.mock('../axios', () => ({
   api: { get: (...args: unknown[]) => apiGet(...args) },
   runRefresh: (...args: unknown[]) => runRefresh(...args),
   isSessionRejectedStatus: (status: number | undefined) => status === 401 || status === 403,
+  onSessionRejected: (...args: unknown[]) => onSessionRejected(...args),
 }))
 
 import { runAuthBoot, BOOT_NETWORK_TIMEOUT_MS } from '../auth'
@@ -144,6 +146,20 @@ describe('boot/auth.ts — runAuthBoot (App 1.7.9, causa raíz de deslogueos)', 
     tokenState.legacyOnly = false
     authStoreMock.token = null
     authStoreMock.user = null
+  })
+
+  it('registra clearAuth para cuando el servidor rechaza la sesión, aun sin token guardado (1.9.9)', async () => {
+    authStoreMock.token = 'x'
+    authStoreMock.user = { id: 7 }
+
+    await runAuthBoot()
+
+    expect(onSessionRejected).toHaveBeenCalledTimes(1)
+    const clear = onSessionRejected.mock.calls[0]?.[0] as () => void
+    clear()
+    expect(authStoreMock.clearAuth).toHaveBeenCalledTimes(1)
+    expect(authStoreMock.token).toBeNull()
+    expect(authStoreMock.user).toBeNull()
   })
 
   it('sin access token guardado, no hace nada', async () => {
