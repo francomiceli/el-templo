@@ -55,6 +55,7 @@ import {
   loadInvitationRosterTags,
   type InvitationRosterTag,
 } from "../referrals/invitation-roster-tag";
+import { shownAuraByUsers } from "../aura/earned";
 import type { DayCheckIn } from "../check-ins/types";
 import type {
   AttendanceRecord,
@@ -695,6 +696,9 @@ export class AttendanceService {
       // 'prueba'): accesos usados / presupuesto, para la etiqueta del profe. Null para
       // cualquier otro alumno (socio común o invitado que ya compró).
       invitation: InvitationRosterTag | null;
+      // Aura ganada del alumno, para que el profe la vea en Horarios. Null si es 0
+      // o si el gimnasio no tiene `templo-gamification` (ver shownAuraByUsers).
+      aura: number | null;
     }>;
   }> {
     // Fecha de cobertura para el pill "Venc" (bug Joaquim Mas 2026-07-07).
@@ -794,6 +798,7 @@ export class AttendanceService {
         birthdayLabel: string | null;
         checkIn: DayCheckIn | null;
         invitation: InvitationRosterTag | null;
+        aura: number | null;
       }
     >();
 
@@ -820,6 +825,7 @@ export class AttendanceService {
         birthdayLabel: birthdayLabelOn(b.dateOfBirth, date),
         checkIn: null,
         invitation: null,
+        aura: null,
       });
       createdAtByMember.set(b.memberId, b.createdAt);
     }
@@ -858,6 +864,7 @@ export class AttendanceService {
           birthdayLabel: birthdayLabelOn(a.dateOfBirth, date),
           checkIn: null,
           invitation: null,
+          aura: null,
         });
       }
       createdAtByMember.set(a.memberId, a.createdAt);
@@ -907,6 +914,15 @@ export class AttendanceService {
       const tags = await loadInvitationRosterTags(this.db, ctx, memberIds);
       for (const [memberId, entry] of memberMap) {
         entry.invitation = tags.get(memberId) ?? null;
+      }
+    }
+
+    // ─── Aura de cada alumno (para el profe) ────────────────────────────────
+    // UNA consulta en lote por roster. Solo las que son mayores a 0.
+    if (memberIds.length > 0) {
+      const aura = await shownAuraByUsers(this.db, ctx, memberIds);
+      for (const [memberId, entry] of memberMap) {
+        entry.aura = aura.get(memberId) ?? null;
       }
     }
 

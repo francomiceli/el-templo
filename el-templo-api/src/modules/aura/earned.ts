@@ -15,6 +15,7 @@ import { and, eq, inArray, sql, type SQL } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../db/schema";
 import { tenantWhere, type TenantContext } from "../shared/tenant";
+import { isModuleEnabled } from "../shared/module-flags";
 import type { AuraSourceType } from "./types";
 
 type DbInstance = MySql2Database<typeof schema>;
@@ -108,4 +109,27 @@ export async function auraAwardedForReference(
       ),
     );
   return toAmount(row?.total);
+}
+
+/**
+ * Aura ganada para MOSTRAR al lado de cada persona de una lista: la de anotados de
+ * la app y el roster de Horarios del panel. Solo trae los ids con más de 0, y nada
+ * si el gimnasio no tiene `templo-gamification`. Quien la usa hace
+ * `map.get(id) ?? null`: null = no se muestra.
+ */
+export async function shownAuraByUsers(
+  db: DbInstance,
+  ctx: TenantContext,
+  userIds: readonly number[],
+): Promise<Map<number, number>> {
+  const shown = new Map<number, number>();
+  if (userIds.length === 0) return shown;
+  if (!(await isModuleEnabled(ctx.tenantId, "templo-gamification", db))) {
+    return shown;
+  }
+  const earned = await earnedAuraByUsers(db, ctx, userIds);
+  for (const [userId, points] of earned) {
+    if (points > 0) shown.set(userId, points);
+  }
+  return shown;
 }

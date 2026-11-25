@@ -338,6 +338,7 @@
                     :end-date="booking.endDate"
                     :timezone="branchTimezone"
                   />
+                  <RosterAura :aura="booking.aura" class="q-ml-xs" />
                   <q-badge
                     v-if="isVisitorBooking(booking)"
                     color="warning"
@@ -399,6 +400,7 @@
                       :end-date="booking.endDate"
                       :timezone="branchTimezone"
                     />
+                    <RosterAura :aura="booking.aura" class="q-ml-xs" />
                     <q-badge
                       v-if="isVisitorBooking(booking)"
                       color="warning"
@@ -463,6 +465,7 @@
                       :end-date="booking.endDate"
                       :timezone="branchTimezone"
                     />
+                    <RosterAura :aura="booking.aura" class="q-ml-xs" />
                     <q-badge
                       v-if="isVisitorBooking(booking)"
                       color="warning"
@@ -559,6 +562,7 @@
                     :timezone="branchTimezone"
                     class="q-ml-xs"
                   />
+                  <RosterAura :aura="member.aura" class="q-ml-xs" />
                 </q-item-label>
                 <q-item-label caption>
                   <template v-if="member.attendanceId && member.checkedInAt">
@@ -949,6 +953,7 @@ import { useMembersApi } from 'src/composables/useMembersApi';
 import { extractError, isExpectedClientError } from 'src/utils/extract-error';
 import TrialMemberFormDialog from 'src/components/TrialMemberFormDialog.vue';
 import MemberTags from 'src/components/scheduling/MemberTags.vue';
+import RosterAura from 'src/components/scheduling/RosterAura.vue';
 import InvitationTag from 'src/components/scheduling/InvitationTag.vue';
 import CheckInChips from 'src/components/scheduling/CheckInChips.vue';
 import AttendanceGiftAction from 'src/components/scheduling/AttendanceGiftAction.vue';
@@ -1208,9 +1213,7 @@ const summaryText = computed(() => {
     const max = slotDetail.value?.maxCapacity ?? 0;
     return `${activeRegularBookings.value.length}/${max} reservas${waitingText}`;
   }
-  const expected = attendanceList.value.filter(
-    (m) => !isWaitlistMember(m) || m.attendanceId
-  );
+  const expected = attendanceList.value.filter((m) => !isWaitlistMember(m) || m.attendanceId);
   const attended = expected.filter((m) => m.attendanceId).length;
   return `${attended}/${expected.length} presentes · ${capacityText.value}${waitingText}`;
 });

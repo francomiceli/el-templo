@@ -63,6 +63,7 @@ import {
 } from "../shared/errors";
 import { HolidayService } from "./holiday-service";
 import { loadInvitationRosterTags } from "../referrals/invitation-roster-tag";
+import { shownAuraByUsers } from "../aura/earned";
 import {
   getEffectiveCapacity,
   resolveEffectiveCapacity,
@@ -719,12 +720,12 @@ export class SchedulingService {
       )
       .orderBy(schema.bookings.bookedAt);
 
-    // Etiqueta "invitado" para el profe: UNA consulta en lote por roster.
-    const invitationTags = await loadInvitationRosterTags(
-      this.db,
-      ctx,
-      bookingRows.map((r) => r.memberId),
-    );
+    // Etiqueta "invitado" y Aura para el profe: UNA consulta en lote por roster cada una.
+    const rosterMemberIds = bookingRows.map((r) => r.memberId);
+    const [invitationTags, aura] = await Promise.all([
+      loadInvitationRosterTags(this.db, ctx, rosterMemberIds),
+      shownAuraByUsers(this.db, ctx, rosterMemberIds),
+    ]);
 
     const bookings: BookingRecord[] = bookingRows.map((r) => ({
       id: r.id,
@@ -752,6 +753,7 @@ export class SchedulingService {
       memberBranchName: r.memberBranchName ?? null,
       source: r.source ?? null,
       invitation: invitationTags.get(r.memberId) ?? null,
+      aura: aura.get(r.memberId) ?? null,
     }));
 
     // Query attendance records for this branch + date

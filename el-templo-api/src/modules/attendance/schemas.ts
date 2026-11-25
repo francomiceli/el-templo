@@ -187,6 +187,9 @@ const slotAttendanceItemSchema = {
         accessesBudget: { type: ["integer", "null"] },
       },
     },
+    // Aura ganada del alumno, para el profe. Null si es 0 o si el gimnasio no tiene
+    // `templo-gamification`. Declarado acá porque fast-json-stringify descarta lo no declarado.
+    aura: { type: ["integer", "null"] },
   },
 } as const;
 

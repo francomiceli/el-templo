@@ -39,7 +39,7 @@ import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../db/schema";
-import { earnedAuraByUsers } from "../aura/earned";
+import { shownAuraByUsers } from "../aura/earned";
 import {
   pickCommunityPhotos,
   resolveCommunityPhotos,
@@ -51,7 +51,6 @@ import {
   todayInTz,
 } from "../shared/date-utils";
 import { BadRequestError, NotFoundError } from "../shared/errors";
-import { isModuleEnabled } from "../shared/module-flags";
 import { tenantWhere, type TenantContext } from "../shared/tenant";
 import {
   effectiveVisible,
@@ -301,27 +300,19 @@ export class AttendeesService {
     const shown = visibleBookers(rows, today);
     const shownIds = shown.map((row) => row.userId);
 
-    const gamification = await isModuleEnabled(
-      ctx.tenantId,
-      "templo-gamification",
-      db,
-    );
-    const [photos, earned] = await Promise.all([
+    const [photos, aura] = await Promise.all([
       resolveCommunityPhotos(this.fastify, ctx, shownIds),
-      gamification
-        ? earnedAuraByUsers(db, ctx, shownIds)
-        : Promise.resolve(new Map<number, number>()),
+      shownAuraByUsers(db, ctx, shownIds),
     ]);
 
     const attendees: SlotAttendee[] = shown.map((row) => {
       const photo = photos.get(row.userId);
-      const points = earned.get(row.userId) ?? 0;
       return {
         firstName: row.firstName ?? "",
         lastInitial: row.lastInitial || null,
         photoUrl: photo?.url ?? null,
         photoId: photo?.photoId ?? null,
-        aura: gamification && points > 0 ? points : null,
+        aura: aura.get(row.userId) ?? null,
         isMe: row.userId === viewerUserId,
       };
     });

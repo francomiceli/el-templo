@@ -75,6 +75,8 @@ export interface SlotAttendanceItem {
   gift?: SlotAttendanceGift | null;
   // Invitado que todavía no compró (etiqueta "Invitación"); null para el resto.
   invitation: RosterInvitation | null;
+  /** Aura ganada del alumno; null si es 0 o si el gimnasio no tiene Aura. */
+  aura?: number | null;
 }
 
 export type SlotGiftState = 'disponible' | 'dado' | 'anulado' | 'no_participa';
