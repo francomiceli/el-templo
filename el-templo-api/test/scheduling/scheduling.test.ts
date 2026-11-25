@@ -43,6 +43,7 @@ import { auraTransactions } from "../../src/db/schema/aura-transactions";
 import { auraBalances } from "../../src/db/schema/aura-balances";
 import { memberNotes } from "../../src/db/schema/member-notes";
 import { branches } from "../../src/db/schema/branches";
+import { trialFollowups } from "../../src/db/schema/trial-followups";
 import { subscriptionSchedules } from "../../src/db/schema/subscription-schedules";
 import {
   deviceTokens,
@@ -690,6 +691,65 @@ describe("Scheduling API", () => {
         );
       expect(bookingRow.status).toBe("reservado");
       expect(bookingRow.cancelledAt).toBeNull();
+    });
+
+    // Mig 0360: con el historial cancelado conviviendo, el alumno puede tener
+    // una reserva viva en el turno mientras el horario estuvo cerrado (p. ej. el
+    // admin lo agregó a mano). Restaurar la cancelada chocaría con el índice
+    // único (500): se saltea a quien ya tiene una viva.
+    it("PUT toggle on NO restaura la cancelada si el alumno ya tiene una reserva viva en el turno", async () => {
+      const { member, memberToken } = await setupMemberWithSubscription();
+      const activity = await createActivity();
+      const futureSlot = getFutureSlot();
+      const slot = await createScheduleSlot(
+        activity.id,
+        futureSlot.dayOfWeek,
+        futureSlot.startTime,
+        futureSlot.endTime,
+      );
+
+      const reserveRes = await app.inject({
+        method: "POST",
+        url: `${MEMBER_URL}/reserve`,
+        headers: { authorization: `Bearer ${memberToken}` },
+        payload: { scheduleId: slot.id, date: futureSlot.date },
+      });
+      expect(reserveRes.statusCode).toBe(201);
+      const bookingId = JSON.parse(reserveRes.body).id as number;
+
+      await app.inject({
+        method: "PUT",
+        url: `${ADMIN_URL}/schedules/${slot.id}/toggle`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { isActive: false, inactiveReason: "Cierre transitorio" },
+      });
+
+      // Reserva viva nueva del mismo turno mientras estaba cerrado.
+      await app.db.insert(bookings).values(
+        tenantValues(TEMPLO_CTX, {
+          memberId: member.id,
+          scheduleId: slot.id,
+          bookingDate: futureSlot.date,
+          status: "reservado",
+        }),
+      );
+
+      const enableRes = await app.inject({
+        method: "PUT",
+        url: `${ADMIN_URL}/schedules/${slot.id}/toggle`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { isActive: true },
+      });
+      expect(enableRes.statusCode).toBe(200);
+      expect(JSON.parse(enableRes.body).restoredBookings).toBe(0);
+
+      const [oldRow] = await app.db
+        .select({ status: bookings.status })
+        .from(bookings)
+        .where(
+          and(tenantWhere(bookings, TEMPLO_CTX), eq(bookings.id, bookingId)),
+        );
+      expect(oldRow.status).toBe("cancelado");
     });
 
     it("PUT toggle on does NOT restore bookings cancelled before the deactivation", async () => {
@@ -1400,6 +1460,192 @@ describe("Scheduling API", () => {
 
       expect(res2.statusCode).toBe(409);
       expect(JSON.parse(res2.body).message).toContain("Ya tenes una reserva");
+    });
+
+    // Mig 0360 — caso María Eugenia Rossi (2026-11-25): le movieron la clase de
+    // prueba de turno después de mandarle el seguimiento (trial_followups) y, ya
+    // alumna, quiso entrar al turno original. reserve() borraba la prueba
+    // cancelada para liberar el índice único → el FK del seguimiento lo impedía
+    // → 500. Ahora la cancelada queda como historial y la nueva va al lado.
+    describe("historial cancelado (mig 0360)", () => {
+      async function seedCancelledTrialWithFollowup(
+        memberId: number,
+        scheduleId: number,
+        date: string,
+      ): Promise<number> {
+        const [ins] = await app.db.insert(bookings).values(
+          tenantValues(TEMPLO_CTX, {
+            memberId,
+            scheduleId,
+            bookingDate: date,
+            status: "cancelado",
+            isTrial: true,
+            cancelledAt: new Date(),
+          }),
+        );
+        const bookingId = (ins as { insertId: number }).insertId;
+        await app.db.insert(trialFollowups).values(
+          tenantValues(TEMPLO_CTX, { bookingId, m1SentAt: new Date() }),
+        );
+        return bookingId;
+      }
+
+      async function slotRows(memberId: number, scheduleId: number, date: string) {
+        return app.db
+          .select({ id: bookings.id, status: bookings.status, isTrial: bookings.isTrial })
+          .from(bookings)
+          .where(
+            and(
+              tenantWhere(bookings, TEMPLO_CTX),
+              eq(bookings.memberId, memberId),
+              eq(bookings.scheduleId, scheduleId),
+              eq(bookings.bookingDate, date),
+            ),
+          );
+      }
+
+      it("alumno reserva el turno de su prueba cancelada con seguimiento: 201 y la prueba queda intacta", async () => {
+        const { member, memberToken } = await setupMemberWithSubscription();
+        const activity = await createActivity();
+        const futureSlot = getFutureSlot();
+        const slot = await createScheduleSlot(
+          activity.id,
+          futureSlot.dayOfWeek,
+          futureSlot.startTime,
+          futureSlot.endTime,
+        );
+        const trialId = await seedCancelledTrialWithFollowup(
+          member.id,
+          slot.id,
+          futureSlot.date,
+        );
+
+        const res = await app.inject({
+          method: "POST",
+          url: `${MEMBER_URL}/reserve`,
+          headers: { authorization: `Bearer ${memberToken}` },
+          payload: { scheduleId: slot.id, date: futureSlot.date },
+        });
+
+        expect(res.statusCode).toBe(201);
+        const body = JSON.parse(res.body);
+        expect(body.id).not.toBe(trialId);
+        expect(body.status).toBe("reservado");
+
+        const rows = await slotRows(member.id, slot.id, futureSlot.date);
+        expect(rows).toHaveLength(2);
+        const trial = rows.find((r) => r.id === trialId)!;
+        expect(trial.status).toBe("cancelado");
+        expect(trial.isTrial).toBe(true);
+        const followups = await app.db
+          .select({ id: trialFollowups.id })
+          .from(trialFollowups)
+          .where(
+            and(
+              tenantWhere(trialFollowups, TEMPLO_CTX),
+              eq(trialFollowups.bookingId, trialId),
+            ),
+          );
+        expect(followups).toHaveLength(1);
+      });
+
+      it("el admin agrega al alumno al turno de su prueba cancelada con seguimiento: 201", async () => {
+        const { member } = await setupMemberWithSubscription();
+        const activity = await createActivity();
+        const futureSlot = getFutureSlot();
+        const slot = await createScheduleSlot(
+          activity.id,
+          futureSlot.dayOfWeek,
+          futureSlot.startTime,
+          futureSlot.endTime,
+        );
+        const trialId = await seedCancelledTrialWithFollowup(
+          member.id,
+          slot.id,
+          futureSlot.date,
+        );
+
+        const res = await app.inject({
+          method: "POST",
+          url: `${ADMIN_URL}/bookings`,
+          headers: { authorization: `Bearer ${adminToken}` },
+          payload: {
+            scheduleId: slot.id,
+            memberId: member.id,
+            date: futureSlot.date,
+          },
+        });
+
+        expect(res.statusCode).toBe(201);
+        const rows = await slotRows(member.id, slot.id, futureSlot.date);
+        expect(rows).toHaveLength(2);
+        expect(rows.find((r) => r.id === trialId)?.status).toBe("cancelado");
+      });
+
+      it("cancelar y volver a reservar conserva la cancelada; una 2ª viva da 409", async () => {
+        const { member, memberToken } = await setupMemberWithSubscription();
+        const activity = await createActivity();
+        const futureSlot = getFutureSlot();
+        const slot = await createScheduleSlot(
+          activity.id,
+          futureSlot.dayOfWeek,
+          futureSlot.startTime,
+          futureSlot.endTime,
+        );
+        const reserve = () =>
+          app.inject({
+            method: "POST",
+            url: `${MEMBER_URL}/reserve`,
+            headers: { authorization: `Bearer ${memberToken}` },
+            payload: { scheduleId: slot.id, date: futureSlot.date },
+          });
+
+        const first = await reserve();
+        expect(first.statusCode).toBe(201);
+        const firstId = JSON.parse(first.body).id as number;
+        await app.db
+          .update(bookings)
+          .set({ status: "cancelado", cancelledAt: new Date() })
+          .where(and(tenantWhere(bookings, TEMPLO_CTX), eq(bookings.id, firstId)));
+
+        const second = await reserve();
+        expect(second.statusCode).toBe(201);
+        expect(JSON.parse(second.body).id).not.toBe(firstId);
+
+        const third = await reserve();
+        expect(third.statusCode).toBe(409);
+        expect(JSON.parse(third.body).message).toContain("Ya tenes una reserva");
+
+        const rows = await slotRows(member.id, slot.id, futureSlot.date);
+        expect(rows.map((r) => r.status).sort()).toEqual(["cancelado", "reservado"]);
+      });
+
+      it("la base admite varias canceladas del mismo turno pero no dos vivas", async () => {
+        const member = await createMember();
+        const activity = await createActivity();
+        const futureSlot = getFutureSlot();
+        const slot = await createScheduleSlot(
+          activity.id,
+          futureSlot.dayOfWeek,
+          futureSlot.startTime,
+          futureSlot.endTime,
+        );
+        const row = (status: "cancelado" | "no_show" | "reservado" | "lista_espera") =>
+          tenantValues(TEMPLO_CTX, {
+            memberId: member.id,
+            scheduleId: slot.id,
+            bookingDate: futureSlot.date,
+            status,
+          });
+
+        await app.db.insert(bookings).values(row("cancelado"));
+        await app.db.insert(bookings).values(row("cancelado"));
+        await app.db.insert(bookings).values(row("no_show"));
+        await app.db.insert(bookings).values(row("reservado"));
+        await expect(
+          app.db.insert(bookings).values(row("lista_espera")),
+        ).rejects.toThrow();
+      });
     });
 
     it("DELETE cancel booking returns 200 and promotes lista_espera", async () => {

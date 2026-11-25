@@ -1009,6 +1009,12 @@ export class AttendanceService {
           eq(schema.bookings.bookingDate, date),
         ),
       )
+      // Mig 0360: puede haber historial cancelado del mismo turno. Manda la
+      // reserva viva (si hay); si no, la más reciente.
+      .orderBy(
+        sql`(${schema.bookings.activeSlot} IS NULL)`,
+        desc(schema.bookings.id),
+      )
       .limit(1);
     const isWellhubVisit = isWellhubBookingSource(wellhubLookupBooking?.source);
 
@@ -1135,27 +1141,47 @@ export class AttendanceService {
         );
     }
 
-    // Upsert booking so walk-in check-ins (no prior booking, or booking
-    // cancelled/no_show/waitlisted) are reflected in bookedCount,
-    // slot-occupancy analytics, and any other query that drives off the
-    // bookings table. The unique index on (member_id, schedule_id,
-    // booking_date) means at most one row exists per tuple, so ON
-    // DUPLICATE KEY UPDATE handles every prior state atomically.
+    // Reflejar el presente en `bookings` (bookedCount, ocupación, analytics)
+    // para walk-ins (sin reserva) y reservas canceladas/no_show/en espera.
+    //
+    // Mig 0360: el índice único solo cubre reservas VIVAS, así que un ODKU ya
+    // no "ve" una cancelada/no_show y crearía una fila confirmada AL LADO: el
+    // alumno quedaría ausente y presente en la misma clase. El presente del
+    // profe CORRIGE la reserva de esa clase: se actualiza la fila encontrada
+    // arriba (`wellhubLookupBooking`: la viva si hay, si no la muerta más
+    // reciente — si es muerta no hay viva, así que no choca) y solo sin
+    // ninguna fila se inserta. El INSERT conserva el ODKU por si una reserva
+    // viva entró entre la lectura y acá.
     //
     // Fase 174.1 (174.1-02, hallazgo con-06-lint): `tenant_id` va como columna
     // EXPLÍCITA desde `ctx.tenantId` — mismo patrón que
     // `subscriptions/booking-population.ts` (T-174-01-T). Este INSERT crudo
     // vía `sql` template no pasa por `tenantValues`; sin la columna la fila
-    // nace en el DEFAULT 1 de la tabla. Solo afecta la rama INSERT: si la fila
-    // ya existe, ON DUPLICATE KEY UPDATE no toca `tenant_id`.
-    await this.db.execute(sql`
-      INSERT INTO bookings (member_id, schedule_id, booking_date, booking_status, tenant_id)
-      VALUES (${memberId}, ${scheduleId}, ${date}, 'confirmado', ${ctx.tenantId})
-      ON DUPLICATE KEY UPDATE
-        cancelled_at = NULL,
-        waitlist_position = NULL,
-        booking_status = 'confirmado'
-    `);
+    // nace en el DEFAULT 1 de la tabla.
+    if (wellhubLookupBooking) {
+      await this.db
+        .update(schema.bookings)
+        .set({
+          status: "confirmado",
+          cancelledAt: null,
+          waitlistPosition: null,
+        })
+        .where(
+          and(
+            tenantWhere(schema.bookings, ctx),
+            eq(schema.bookings.id, wellhubLookupBooking.id),
+          ),
+        );
+    } else {
+      await this.db.execute(sql`
+        INSERT INTO bookings (member_id, schedule_id, booking_date, booking_status, tenant_id)
+        VALUES (${memberId}, ${scheduleId}, ${date}, 'confirmado', ${ctx.tenantId})
+        ON DUPLICATE KEY UPDATE
+          cancelled_at = NULL,
+          waitlist_position = NULL,
+          booking_status = 'confirmado'
+      `);
+    }
 
     // Mirror as completed_sessions (presencial). See checkIn() for rationale.
     await this.recordPresencialSession(ctx, {
@@ -1206,7 +1232,9 @@ export class AttendanceService {
 
     // La reserva Wellhub ya existe (la encontramos arriba): se confirma y se
     // limpian los estados previos (cancelada / lista de espera) como en el
-    // upsert de la rama propia, pero sin tocar `source`.
+    // upsert de la rama propia, pero sin tocar `source`. Mig 0360: SOLO esa
+    // fila (la viva si hay, si no la más reciente): con historial cancelado del
+    // mismo turno, confirmar todas chocaría con el índice único.
     await this.db
       .update(schema.bookings)
       .set({
@@ -1217,6 +1245,9 @@ export class AttendanceService {
       .where(
         and(
           tenantWhere(schema.bookings, ctx),
+          p.bookingId !== null
+            ? eq(schema.bookings.id, p.bookingId)
+            : sql`FALSE`,
           eq(schema.bookings.memberId, p.memberId),
           eq(schema.bookings.scheduleId, p.scheduleId),
           eq(schema.bookings.bookingDate, p.date),

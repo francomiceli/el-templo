@@ -439,6 +439,13 @@ export class TrialService {
             eq(schema.bookings.bookingDate, input.date),
           ),
         )
+        // Mig 0360: puede haber varias filas del turno (historial cancelado).
+        // Primero la viva (si existe, se reusa como antes y no hay choque con el
+        // índice único) y si no, la más reciente.
+        .orderBy(
+          sql`(${schema.bookings.activeSlot} IS NULL)`,
+          desc(schema.bookings.id),
+        )
         .limit(1);
 
       if (existing) {
@@ -1038,6 +1045,13 @@ export class TrialService {
             eq(schema.bookings.bookingDate, input.bookingDate),
           ),
         )
+        // Mig 0360: puede haber varias filas del turno (historial cancelado).
+        // Primero la viva (si existe, se reusa como antes y no hay choque con el
+        // índice único) y si no, la más reciente.
+        .orderBy(
+          sql`(${schema.bookings.activeSlot} IS NULL)`,
+          desc(schema.bookings.id),
+        )
         .limit(1);
 
       if (existing) {
@@ -1321,7 +1335,36 @@ export class TrialService {
             eq(schema.bookings.isTrial, true),
           ),
         )
+        // Mig 0360: puede haber varias filas del turno (historial cancelado).
+        // Primero la viva (si existe, se reusa como antes y no hay choque con el
+        // índice único) y si no, la más reciente.
+        .orderBy(
+          sql`(${schema.bookings.activeSlot} IS NULL)`,
+          desc(schema.bookings.id),
+        )
         .limit(1);
+
+      // Mig 0360: con el historial cancelado conviviendo, el alumno puede tener
+      // una reserva REGULAR viva en el turno destino y solo pruebas canceladas.
+      // Reactivar una de esas chocaría con el índice único (500): se corta con
+      // 409 antes, igual que cualquier reserva duplicada.
+      const [liveRegular] = await tx
+        .select({ id: schema.bookings.id })
+        .from(schema.bookings)
+        .where(
+          and(
+            tenantWhere(schema.bookings, ctx),
+            eq(schema.bookings.memberId, userId),
+            eq(schema.bookings.scheduleId, input.scheduleId),
+            eq(schema.bookings.bookingDate, input.date),
+            eq(schema.bookings.isTrial, false),
+            sql`${schema.bookings.activeSlot} = 1`,
+          ),
+        )
+        .limit(1);
+      if (liveRegular) {
+        throw new ConflictError("Ya tiene una reserva en ese horario");
+      }
 
       if (existing) {
         // Anti-ciclo (SPEC "Reagenda"): si el booking reactivado es un

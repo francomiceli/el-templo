@@ -201,6 +201,48 @@ export async function populateBookings(
 
   if (toInsert.length === 0) return 0;
 
+  // Mig 0360: el índice único ya no cubre las reservas muertas, así que el
+  // ODKU de abajo no "ve" un no_show y crearía una reserva nueva para una clase
+  // que ya se registró como falta (con fromDate = hoy). Antes el no_show
+  // bloqueaba el INSERT y el IF lo dejaba intacto: se mantiene ese resultado
+  // filtrando acá los turnos con no_show.
+  const memberIds = [...new Set(toInsert.map((v) => v.memberId))];
+  const noShows = await db
+    .select({
+      memberId: schema.bookings.memberId,
+      scheduleId: schema.bookings.scheduleId,
+      bookingDate: schema.bookings.bookingDate,
+    })
+    .from(schema.bookings)
+    .where(
+      and(
+        tenantWhere(schema.bookings, ctx),
+        inArray(schema.bookings.memberId, memberIds),
+        inArray(schema.bookings.scheduleId, [
+          ...new Set(toInsert.map((v) => v.scheduleId)),
+        ]),
+        gte(schema.bookings.bookingDate, fromDate),
+        eq(schema.bookings.status, "no_show"),
+      ),
+    );
+  if (noShows.length > 0) {
+    const noShowKeys = new Set(
+      noShows.map((b) => `${b.memberId}|${b.scheduleId}|${b.bookingDate}`),
+    );
+    const before = toInsert.length;
+    for (let i = toInsert.length - 1; i >= 0; i--) {
+      const v = toInsert[i];
+      if (noShowKeys.has(`${v.memberId}|${v.scheduleId}|${v.bookingDate}`)) {
+        toInsert.splice(i, 1);
+      }
+    }
+    if (toInsert.length === 0) return 0;
+    log.debug(
+      { subId, skippedNoShow: before - toInsert.length },
+      "populateBookings: turnos con no_show salteados",
+    );
+  }
+
   // Build INSERT IGNORE directly against the underlying mysql2 connection
   // to avoid building deeply-nested sql`` templates (stack overflow on
   // larger batches). 500 rows is well within MySQL placeholder limits.
@@ -213,18 +255,16 @@ export async function populateBookings(
     ) => Promise<[{ affectedRows: number }, unknown]>;
   };
 
-  // ON DUPLICATE KEY UPDATE handles the case where a stale `cancelado` row
-  // exists for the same (member_id, schedule_id, booking_date) tuple — the
-  // unique index `idx_bookings_member_schedule_date` would otherwise block
-  // re-population (silent INSERT IGNORE drop) and leave the member without
-  // an active reservation. Common path: cancelFutureBookings() during a plan
-  // change/renewal sets future rows to 'cancelado' (preserving history) and
-  // the new sub re-uses the same scheduleIds.
+  // ON DUPLICATE KEY UPDATE: desde la mig 0360 el índice único
+  // (`idx_bookings_member_schedule_date_active`) solo cubre reservas VIVAS, así
+  // que el ODKU solo dispara contra una viva del mismo turno y la deja intacta
+  // (idempotente: los IF no cambian nada si no es 'cancelado'). Una cancelada
+  // del mismo turno (p. ej. por cancelFutureBookings() en un cambio de plan o
+  // renovación) ya no choca: se inserta una reserva NUEVA y la cancelada queda
+  // como historial. Los IF quedan por si se corre contra una base sin la 0360.
   //
   // SET ordering matters: cancelled_at and waitlist_position read the OLD
   // booking_status value via IF(), so booking_status MUST be updated last.
-  // Only `cancelado` rows are reactivated; `reservado`/`lista_espera` are
-  // left untouched (idempotent).
   const BATCH = 500;
   let affected = 0;
   for (let i = 0; i < toInsert.length; i += BATCH) {

@@ -18,9 +18,12 @@ import {
   inArray,
   isNull,
   isNotNull,
+  desc,
+  type SQL,
 } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
+import { ACTIVE_SLOT_BOOKING_STATUSES } from "../../db/schema/bookings";
 import { SubscriptionService } from "../subscriptions/service";
 import { NotificationService } from "../notifications/service";
 import { emitOccupancyChange } from "../shared/occupancy-events";
@@ -396,9 +399,12 @@ export class BookingService {
       }
     }
 
-    // 8. Check no duplicate booking
+    // 8. Check no duplicate booking. Solo cuentan las reservas VIVAS: desde la
+    //    mig 0360 una cancelada/no_show del mismo turno queda como historial y
+    //    la nueva se crea al lado (antes se borraba → 500 si tenía un
+    //    seguimiento de prueba colgado, caso María Eugenia Rossi 2026-11-25).
     const [duplicate] = await this.db
-      .select({ id: schema.bookings.id, status: schema.bookings.status })
+      .select({ id: schema.bookings.id })
       .from(schema.bookings)
       .where(
         and(
@@ -406,19 +412,13 @@ export class BookingService {
           eq(schema.bookings.memberId, memberId),
           eq(schema.bookings.scheduleId, scheduleId),
           eq(schema.bookings.bookingDate, date),
+          inArray(schema.bookings.status, [...ACTIVE_SLOT_BOOKING_STATUSES]),
         ),
       )
       .limit(1);
 
     if (duplicate) {
-      if (
-        duplicate.status === "reservado" ||
-        duplicate.status === "qr_escaneado" ||
-        duplicate.status === "confirmado" ||
-        duplicate.status === "lista_espera"
-      ) {
-        throw new ConflictError("Ya tenes una reserva en este horario");
-      }
+      throw new ConflictError("Ya tenes una reserva en este horario");
     }
 
     // 8b. One booking per day, per activity category. Las ESPECIALES (pase
@@ -489,21 +489,6 @@ export class BookingService {
             ),
           );
         waitlistPosition = (Number(maxPos?.maxPos) ?? 0) + 1;
-      }
-
-      // If there's a cancelled duplicate, delete it first to avoid unique constraint
-      if (
-        duplicate &&
-        (duplicate.status === "cancelado" || duplicate.status === "no_show")
-      ) {
-        await tx
-          .delete(schema.bookings)
-          .where(
-            and(
-              tenantWhere(schema.bookings, ctx),
-              eq(schema.bookings.id, duplicate.id),
-            ),
-          );
       }
 
       const result = await tx.insert(schema.bookings).values(
@@ -1000,9 +985,10 @@ export class BookingService {
       }
     }
 
-    // Check no duplicate
+    // Check no duplicate: solo reservas VIVAS (mig 0360). Una cancelada/no_show
+    // del mismo turno ya no se borra: queda como historial y la nueva va al lado.
     const [duplicate] = await this.db
-      .select({ id: schema.bookings.id, status: schema.bookings.status })
+      .select({ id: schema.bookings.id })
       .from(schema.bookings)
       .where(
         and(
@@ -1010,32 +996,15 @@ export class BookingService {
           eq(schema.bookings.memberId, memberId),
           eq(schema.bookings.scheduleId, scheduleId),
           eq(schema.bookings.bookingDate, date),
+          inArray(schema.bookings.status, [...ACTIVE_SLOT_BOOKING_STATUSES]),
         ),
       )
       .limit(1);
 
     if (duplicate) {
-      if (
-        duplicate.status === "reservado" ||
-        duplicate.status === "qr_escaneado" ||
-        duplicate.status === "confirmado" ||
-        duplicate.status === "lista_espera"
-      ) {
-        throw new ConflictError(
-          "El miembro ya tiene una reserva en este horario",
-        );
-      }
-      // Remove cancelado/no_show duplicate
-      if (duplicate.status === "cancelado" || duplicate.status === "no_show") {
-        await this.db
-          .delete(schema.bookings)
-          .where(
-            and(
-              tenantWhere(schema.bookings, ctx),
-              eq(schema.bookings.id, duplicate.id),
-            ),
-          );
-      }
+      throw new ConflictError(
+        "El miembro ya tiene una reserva en este horario",
+      );
     }
 
     // Check capacity
@@ -1673,24 +1642,14 @@ export class BookingService {
     if (!scheduleRow) return 0;
     const today = todayInTz(scheduleRow.branchTimezone);
 
-    const result = await this.db
-      .update(schema.bookings)
-      .set({
-        status: "reservado",
-        cancelledAt: null,
-        waitlistPosition: null,
-      })
-      .where(
-        and(
-          tenantWhere(schema.bookings, ctx),
-          eq(schema.bookings.scheduleId, scheduleId),
-          eq(schema.bookings.status, "cancelado"),
-          gte(schema.bookings.cancelledAt, deactivatedAt),
-          gte(schema.bookings.bookingDate, today),
-        ),
-      );
-
-    const affected = Number(result[0].affectedRows ?? 0);
+    const affected = await this.reactivateCancelledBookings(
+      ctx,
+      scheduleId,
+      and(
+        gte(schema.bookings.cancelledAt, deactivatedAt),
+        gte(schema.bookings.bookingDate, today),
+      ),
+    );
     if (affected > 0) {
       this.log.info(
         { scheduleId, affected, deactivatedAt },
@@ -1716,6 +1675,81 @@ export class BookingService {
     date: string,
     cancelledAtCutoff: Date,
   ): Promise<number> {
+    const affected = await this.reactivateCancelledBookings(
+      ctx,
+      scheduleId,
+      and(
+        eq(schema.bookings.bookingDate, date),
+        gte(schema.bookings.cancelledAt, cancelledAtCutoff),
+      ),
+    );
+    if (affected > 0) {
+      this.log.info(
+        { scheduleId, date, affected },
+        "Restored bookings cancelled by per-date cancellation",
+      );
+    }
+    return affected;
+  }
+
+  /**
+   * Vuelve a `reservado` las reservas canceladas de un horario que cumplen
+   * `filter`, salvo que el alumno ya tenga una reserva VIVA en ese mismo turno
+   * (mig 0360: desde que las canceladas quedan como historial, el alumno pudo
+   * re-reservar el turno y reactivar la cancelada chocaría con el índice único
+   * → ER_DUP_ENTRY). Si hay varias canceladas del mismo turno se reactiva una
+   * sola (la más reciente). En dos pasos porque MySQL no deja un UPDATE con
+   * subconsulta sobre la misma tabla (error 1093).
+   */
+  private async reactivateCancelledBookings(
+    ctx: TenantContext,
+    scheduleId: number,
+    filter: SQL | undefined,
+  ): Promise<number> {
+    const candidates = await this.db
+      .select({
+        id: schema.bookings.id,
+        memberId: schema.bookings.memberId,
+        bookingDate: schema.bookings.bookingDate,
+      })
+      .from(schema.bookings)
+      .where(
+        and(
+          tenantWhere(schema.bookings, ctx),
+          eq(schema.bookings.scheduleId, scheduleId),
+          eq(schema.bookings.status, "cancelado"),
+          filter,
+        ),
+      )
+      .orderBy(desc(schema.bookings.id));
+    if (candidates.length === 0) return 0;
+
+    const live = await this.db
+      .select({
+        memberId: schema.bookings.memberId,
+        bookingDate: schema.bookings.bookingDate,
+      })
+      .from(schema.bookings)
+      .where(
+        and(
+          tenantWhere(schema.bookings, ctx),
+          eq(schema.bookings.scheduleId, scheduleId),
+          inArray(schema.bookings.bookingDate, [
+            ...new Set(candidates.map((c) => c.bookingDate)),
+          ]),
+          inArray(schema.bookings.status, [...ACTIVE_SLOT_BOOKING_STATUSES]),
+        ),
+      );
+    const taken = new Set(live.map((r) => `${r.memberId}|${r.bookingDate}`));
+    const ids: number[] = [];
+    for (const c of candidates) {
+      const key = `${c.memberId}|${c.bookingDate}`;
+      if (taken.has(key)) continue;
+      taken.add(key); // una sola por turno: la más reciente (orden desc)
+      ids.push(c.id);
+    }
+    if (ids.length === 0) return 0;
+
     const result = await this.db
       .update(schema.bookings)
       .set({
@@ -1726,21 +1760,11 @@ export class BookingService {
       .where(
         and(
           tenantWhere(schema.bookings, ctx),
-          eq(schema.bookings.scheduleId, scheduleId),
-          eq(schema.bookings.bookingDate, date),
+          inArray(schema.bookings.id, ids),
           eq(schema.bookings.status, "cancelado"),
-          gte(schema.bookings.cancelledAt, cancelledAtCutoff),
         ),
       );
-
-    const affected = Number(result[0].affectedRows ?? 0);
-    if (affected > 0) {
-      this.log.info(
-        { scheduleId, date, affected },
-        "Restored bookings cancelled by per-date cancellation",
-      );
-    }
-    return affected;
+    return Number(result[0].affectedRows ?? 0);
   }
 
   /**
@@ -1957,14 +1981,16 @@ export class BookingService {
         ) {
           holidaysSkipped++;
         } else {
-          // Check if booking already exists. Pull the status too so we can
-          // distinguish between a live booking (skip) and a stale `cancelado`
-          // row (reactivate). Without the reactivation branch, plan changes
-          // and renewals that re-use the same scheduleIds silently lose the
-          // alumno's slot — the unique index `idx_bookings_member_schedule_date`
-          // collides and the new booking is never created. Same shape of bug
-          // that populateBookings had with INSERT IGNORE.
-          const [existing] = await this.db
+          // Filas previas del turno (mig 0360: puede haber varias — a lo sumo
+          // una viva más historial cancelado/no_show).
+          //  - hay una viva → se deja como está.
+          //  - hay un no_show → se deja (la clase ya se registró como falta).
+          //  - solo canceladas → se crea una reserva NUEVA sin chequear cupo (la
+          //    asignación fija del admin manda sobre el cupo, igual que
+          //    populateBookings y la mig 0122). Antes se reactivaba la cancelada,
+          //    lo que borraba su historial; con el índice viejo era la única
+          //    forma de no perder el turno en cambios de plan y renovaciones.
+          const existingRows = await this.db
             .select({ id: schema.bookings.id, status: schema.bookings.status })
             .from(schema.bookings)
             .where(
@@ -1974,28 +2000,26 @@ export class BookingService {
                 eq(schema.bookings.scheduleId, sched.id),
                 eq(schema.bookings.bookingDate, dateStr),
               ),
-            )
-            .limit(1);
+            );
+          const hasLiveOrNoShow = existingRows.some(
+            (r) =>
+              r.status === "no_show" ||
+              (ACTIVE_SLOT_BOOKING_STATUSES as readonly string[]).includes(r.status),
+          );
+          const existing = hasLiveOrNoShow
+            ? existingRows[0]
+            : existingRows.find((r) => r.status === "cancelado");
 
-          if (existing && existing.status === "cancelado") {
-            // Reactivate stale cancelado so the alumno gets a usable booking.
-            // Capacity is intentionally not re-checked: the admin's fixed
-            // assignment trumps the slot cap (consistent with populateBookings
-            // and migration 0122). May push the slot 1-over capacity if a
-            // waitlister was already promoted into this seat.
-            await this.db
-              .update(schema.bookings)
-              .set({
+          if (!hasLiveOrNoShow && existing) {
+            await this.db.insert(schema.bookings).values(
+              tenantValues(ctx, {
+                memberId,
+                scheduleId: sched.id,
+                bookingDate: dateStr,
                 status: "reservado",
-                cancelledAt: null,
                 waitlistPosition: null,
-              })
-              .where(
-                and(
-                  tenantWhere(schema.bookings, ctx),
-                  eq(schema.bookings.id, existing.id),
-                ),
-              );
+              }),
+            );
             totalGenerated++;
           } else if (!existing) {
             // Check capacity for waitlist — capacity is per the slot's own
@@ -2044,8 +2068,7 @@ export class BookingService {
             );
             totalGenerated++;
           }
-          // else: existing booking with active status (reservado/lista_espera/
-          // qr_escaneado/confirmado/no_show) — leave as-is.
+          // else: ya hay una reserva viva o un no_show en el turno — se deja.
         }
 
         // Move to next week

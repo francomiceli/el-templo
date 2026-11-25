@@ -37,6 +37,7 @@ import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
+import { ACTIVE_SLOT_BOOKING_STATUSES } from "../../db/schema/bookings";
 import { todayInTz } from "../shared/date-utils";
 import { emitOccupancyChange } from "../shared/occupancy-events";
 import {
@@ -712,8 +713,10 @@ export class WellhubService {
 
     const outcome: RequestOutcome = await this.db.transaction(
       async (tx): Promise<RequestOutcome> => {
+        // Solo cuentan las reservas VIVAS (mig 0360): una cancelada/no_show del
+        // mismo turno queda como historial y la nueva se crea al lado.
         const [duplicate] = await tx
-          .select({ id: schema.bookings.id, status: schema.bookings.status })
+          .select({ id: schema.bookings.id })
           .from(schema.bookings)
           .where(
             and(
@@ -721,16 +724,12 @@ export class WellhubService {
               eq(schema.bookings.memberId, visitorId),
               eq(schema.bookings.scheduleId, slot.scheduleId),
               eq(schema.bookings.bookingDate, slot.sessionDate),
+              inArray(schema.bookings.status, [...ACTIVE_SLOT_BOOKING_STATUSES]),
             ),
           )
           .limit(1);
 
-        if (
-          duplicate &&
-          ["reservado", "qr_escaneado", "confirmado", "lista_espera"].includes(
-            duplicate.status,
-          )
-        ) {
+        if (duplicate) {
           return {
             decision: "REJECTED",
             rejectionCategory: "USER_ALREADY_BOOKED",
@@ -749,19 +748,6 @@ export class WellhubService {
             rejectionCategory: "CLASS_IS_FULL",
             bookingId: null,
           };
-        }
-
-        // Igual que reserve(): una reserva cancelada/no_show previa se borra
-        // para no chocar con el unique (member, schedule, fecha).
-        if (duplicate && ["cancelado", "no_show"].includes(duplicate.status)) {
-          await tx
-            .delete(schema.bookings)
-            .where(
-              and(
-                tenantWhere(schema.bookings, ctx),
-                eq(schema.bookings.id, duplicate.id),
-              ),
-            );
         }
 
         const inserted = await tx.insert(schema.bookings).values(

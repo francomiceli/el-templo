@@ -228,6 +228,30 @@ describe("Fase 215-04: elegibilidad del regalo", () => {
       expect(lista.map((c) => c.userId)).toEqual([normal.id]);
     });
 
+    // Mig 0360 (caso María Eugenia Rossi): la prueba cancelada ya no se borra
+    // cuando la persona, ya alumna, reserva el mismo turno. Con una reserva
+    // NORMAL vigente en la clase, aparece como cualquier compañero.
+    it("incluye a quien tiene la prueba cancelada y además una reserva normal vigente en la clase", async () => {
+      const giver = await darAlumno();
+      const yaAlumna = await companiero();
+      await seedBooking(app, {
+        memberId: yaAlumna.id,
+        scheduleId: cls.scheduleId,
+        bookingDate: cls.sessionDate,
+        isTrial: true,
+        status: "cancelado",
+      });
+      await seedBooking(app, {
+        memberId: yaAlumna.id,
+        scheduleId: cls.scheduleId,
+        bookingDate: cls.sessionDate,
+      });
+
+      const lista = await caras(giver.id);
+
+      expect(lista.map((c) => c.userId)).toContain(yaAlumna.id);
+    });
+
     it("excluye al usuario borrado", async () => {
       const giver = await darAlumno();
       await companiero({ deletedAt: new Date() });
