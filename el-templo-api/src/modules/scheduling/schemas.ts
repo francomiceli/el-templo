@@ -227,7 +227,8 @@ export const createActivitySchema = {
         minimum: 0,
         maximum: 1440,
       },
-      // Aura por asistencia (0358). `null` = la de siempre (5), 0 = no da Aura.
+      // Aura por asistencia (0358). `null` = la de su categoría (especial 10,
+      // regular 5), 0 = no da Aura.
       auraAmount: {
         type: ["integer", "null"],
         minimum: 0,
@@ -286,7 +287,8 @@ export const updateActivitySchema = {
         minimum: 0,
         maximum: 1440,
       },
-      // Aura por asistencia (0358). `null` = la de siempre (5), 0 = no da Aura.
+      // Aura por asistencia (0358). `null` = la de su categoría (especial 10,
+      // regular 5), 0 = no da Aura.
       auraAmount: {
         type: ["integer", "null"],
         minimum: 0,

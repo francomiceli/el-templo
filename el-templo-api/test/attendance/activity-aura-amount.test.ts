@@ -221,17 +221,20 @@ describe("Aura por asistencia por actividad (0358)", () => {
 
   /**
    * Horario del miércoles 10:00 (dentro de la ventana de check-in) de una
-   * actividad regular con la Aura indicada, y reserva de hoy.
+   * actividad (regular salvo `isSpecial`) con la Aura indicada, y reserva de
+   * hoy.
    */
   async function createBookedSlotForNow(
     memberId: number,
     auraAmount: number | null,
+    isSpecial = false,
   ): Promise<{ scheduleId: number }> {
     counter += 1;
     const [act] = await app.db.insert(activities).values(
       tenantValues(TEMPLO_CTX, {
         name: `Master Aura ${counter}`,
         auraAmount,
+        isSpecial,
       }),
     );
     const [sch] = await app.db.insert(schedules).values(
@@ -273,11 +276,20 @@ describe("Aura por asistencia por actividad (0358)", () => {
     return { attendanceId: (JSON.parse(res.body) as { id: number }).id };
   }
 
+  /**
+   * Presente del profe. Para una especial no hace falta el pase: sin
+   * suscripción que la cubra el presente igual entra (solo con advertencia).
+   */
   async function coachCheckIn(
     memberId: number,
     auraAmount: number | null,
+    isSpecial = false,
   ): Promise<number> {
-    const { scheduleId } = await createBookedSlotForNow(memberId, auraAmount);
+    const { scheduleId } = await createBookedSlotForNow(
+      memberId,
+      auraAmount,
+      isSpecial,
+    );
     const res = await app.inject({
       method: "POST",
       url: `${ADMIN_ATTENDANCE_URL}/slot/${scheduleId}/${TODAY}/check-in`,
@@ -495,6 +507,41 @@ describe("Aura por asistencia por actividad (0358)", () => {
       expect(await attendanceAward(memberId, attendanceId)).toBe(
         MASTERCLASS_AURA,
       );
+      await expectBalanceMatchesLedger(memberId);
+    });
+
+    it("especial sin valor propio acredita 10", async () => {
+      const { memberId } = await setupMember();
+
+      const attendanceId = await coachCheckIn(memberId, null, true);
+
+      expect(await attendanceAward(memberId, attendanceId)).toBe(
+        AURA_AMOUNTS.attendanceSpecial,
+      );
+      expect(AURA_AMOUNTS.attendanceSpecial).toBe(10);
+      await expectBalanceMatchesLedger(memberId);
+    });
+
+    it("especial con valor propio acredita el propio (no 10)", async () => {
+      const { memberId } = await setupMember();
+
+      const attendanceId = await coachCheckIn(memberId, MASTERCLASS_AURA, true);
+
+      expect(await attendanceAward(memberId, attendanceId)).toBe(
+        MASTERCLASS_AURA,
+      );
+    });
+
+    it("tope del día: con 3 de app la especial de 10 acredita 7", async () => {
+      const { memberId } = await setupMember();
+      await seedTrainingAura(memberId);
+
+      const attendanceId = await coachCheckIn(memberId, null, true);
+
+      expect(await attendanceAward(memberId, attendanceId)).toBe(
+        AURA_AMOUNTS.attendanceSpecial - AURA_AMOUNTS.training,
+      );
+      expect(await balanceOf(memberId)).toBe(AURA_AMOUNTS.attendanceSpecial);
       await expectBalanceMatchesLedger(memberId);
     });
 

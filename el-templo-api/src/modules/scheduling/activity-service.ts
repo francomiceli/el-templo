@@ -89,7 +89,7 @@ export class ActivityService {
         // Cortes por actividad (0326): NULL cuando no se envía → default global.
         bookingCloseMinutes: bookingCloseMinutes ?? null,
         cancelCloseMinutes: cancelCloseMinutes ?? null,
-        // Aura por asistencia (0358): NULL cuando no se envía → la de siempre.
+        // Aura por asistencia (0358): NULL cuando no se envía → la de su categoría.
         auraAmount: auraAmount ?? null,
       }),
     );
@@ -236,7 +236,7 @@ export class ActivityService {
       updateData.bookingCloseMinutes = data.bookingCloseMinutes;
     if (data.cancelCloseMinutes !== undefined)
       updateData.cancelCloseMinutes = data.cancelCloseMinutes;
-    // Aura por asistencia (0358): mismo patrón, `null` vuelve a la de siempre.
+    // Aura por asistencia (0358): mismo patrón, `null` vuelve a la de su categoría.
     if (data.auraAmount !== undefined) updateData.auraAmount = data.auraAmount;
 
     if (Object.keys(updateData).length > 0) {

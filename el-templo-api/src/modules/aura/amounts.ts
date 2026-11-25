@@ -14,6 +14,10 @@
 
 export const AURA_AMOUNTS = {
   attendance: 5,
+  // 2026-11-25 (pedido de Franco): una actividad especial (pase, masterclass,
+  // Verticales...) vale el doble que una clase de la semana. Es el default de
+  // las especiales sin Aura propia (activities.aura_amount NULL, mig 0358).
+  attendanceSpecial: 10,
   // Solo referencia histórica (0344): desde D-64 la reversa de una asistencia
   // devuelve lo que el ledger dice que acreditó (attendanceAuraCredited).
   attendanceReversal: 5,
@@ -64,12 +68,16 @@ export const ACTIVITY_AURA_MAX = 50;
 
 /**
  * Aura que vale el presente en una clase de la actividad (migración 0358): la
- * configurada en `activities.aura_amount` o, si es NULL, la de siempre (5).
- * Un presente sin horario (check-in forzado por admin) también vale la de
- * siempre.
+ * configurada en `activities.aura_amount` o, si es NULL, la de su categoría
+ * (especial 10, regular 5). Un presente sin horario (check-in forzado por
+ * admin) vale la de una clase regular.
  */
 export function attendanceAuraFor(
   activityAuraAmount: number | null | undefined,
+  isSpecial: boolean,
 ): number {
-  return activityAuraAmount ?? AURA_AMOUNTS.attendance;
+  if (activityAuraAmount !== null && activityAuraAmount !== undefined) {
+    return activityAuraAmount;
+  }
+  return isSpecial ? AURA_AMOUNTS.attendanceSpecial : AURA_AMOUNTS.attendance;
 }

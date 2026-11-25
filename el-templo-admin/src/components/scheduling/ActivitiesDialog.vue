@@ -188,7 +188,7 @@
             class="col"
             min="0"
             :max="MAX_AURA_AMOUNT"
-            :hint="`Vacío = ${DEFAULT_AURA_AMOUNT} (lo estándar). 0 = no da Aura`"
+            :hint="auraHint(activityForm.isSpecial)"
             :rules="[validateAuraAmount]"
           />
         </div>
@@ -306,7 +306,7 @@
             outlined
             min="0"
             :max="MAX_AURA_AMOUNT"
-            :hint="`Vacío = ${DEFAULT_AURA_AMOUNT} (lo estándar). 0 = no da Aura`"
+            :hint="auraHint(auraDialog.isSpecial)"
             :rules="[validateAuraAmount]"
           />
           <div class="text-caption text-grey-7 q-mt-md">
@@ -416,10 +416,23 @@ const DEFAULT_BOOKING_CLOSE_MINUTES = 5;
 const DEFAULT_CANCEL_CLOSE_MINUTES = 20;
 const MAX_CLOSE_MINUTES = 1440;
 
-// Aura por asistencia (0358). Espejo de AURA_AMOUNTS.attendance y
-// ACTIVITY_AURA_MAX de la API (aura/amounts.ts); la API valida igual.
+// Aura por asistencia (0358). Espejo de AURA_AMOUNTS.attendance /
+// attendanceSpecial y ACTIVITY_AURA_MAX de la API (aura/amounts.ts); la API
+// valida igual. Vacío = la de la categoría de la actividad.
 const DEFAULT_AURA_AMOUNT = 5;
+const DEFAULT_SPECIAL_AURA_AMOUNT = 10;
 const MAX_AURA_AMOUNT = 50;
+
+/** Aura que vale el presente si la actividad no tiene una propia. */
+function defaultAuraFor(isSpecial: boolean): number {
+  return isSpecial ? DEFAULT_SPECIAL_AURA_AMOUNT : DEFAULT_AURA_AMOUNT;
+}
+
+/** Hint del campo de Aura según la categoría de la actividad. */
+function auraHint(isSpecial: boolean): string {
+  const kind = isSpecial ? 'de las especiales' : 'de las clases regulares';
+  return `Vacío = ${defaultAuraFor(isSpecial)} (lo estándar ${kind}). 0 = no da Aura`;
+}
 
 /**
  * Campo numérico opcional (vacío = default de la API): vacío o entero entre 0
@@ -459,7 +472,9 @@ function cutoffSummary(act: ActivityRecord): string {
 /** Aura por asistencia efectiva de la actividad para la fila de la lista. */
 function auraSummary(act: ActivityRecord): string {
   if (act.auraAmount === 0) return 'No da Aura por asistencia';
-  if (act.auraAmount === null) return `${DEFAULT_AURA_AMOUNT} de Aura por asistencia (lo estándar)`;
+  if (act.auraAmount === null) {
+    return `${defaultAuraFor(act.isSpecial)} de Aura por asistencia (lo estándar)`;
+  }
   return `${act.auraAmount} de Aura por asistencia`;
 }
 
@@ -469,15 +484,24 @@ const auraDialog = ref<{
   open: boolean;
   activityId: number | null;
   activityName: string;
+  isSpecial: boolean;
   auraAmount: number | string | null;
   saving: boolean;
-}>({ open: false, activityId: null, activityName: '', auraAmount: null, saving: false });
+}>({
+  open: false,
+  activityId: null,
+  activityName: '',
+  isSpecial: false,
+  auraAmount: null,
+  saving: false,
+});
 
 function openAuraDialog(act: ActivityRecord) {
   auraDialog.value = {
     open: true,
     activityId: act.id,
     activityName: act.name,
+    isSpecial: act.isSpecial,
     auraAmount: act.auraAmount,
     saving: false,
   };

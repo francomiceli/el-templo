@@ -46,7 +46,8 @@ export interface ActivityRecord {
   cancelCloseMinutes: number | null;
   /**
    * Aura que acredita el presente en una clase de esta actividad.
-   * `null` = la de siempre (5). 0 = no da Aura. Mirrors the API (migración 0358).
+   * `null` = la de su categoría (especial 10, regular 5). 0 = no da Aura.
+   * Mirrors the API (migración 0358).
    */
   auraAmount: number | null;
   createdAt: string;
