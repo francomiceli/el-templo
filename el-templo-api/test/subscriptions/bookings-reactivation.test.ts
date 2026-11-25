@@ -10,6 +10,12 @@
  * bookings reservado. Después del fix: la fila cancelado se reactiva a
  * reservado.
  *
+ * Mig 0360 (caso María Eugenia Rossi, 2026-11-25): el índice único pasa a
+ * cubrir solo reservas VIVAS. La cancelada ya no se reactiva in-place: queda
+ * como historial y se crea una reserva NUEVA al lado. El contrato que importa
+ * (el alumno no se queda sin su turno) se afirma con
+ * `futureCancelledWithoutLive` = 0 y la cantidad de reservadas.
+ *
  * Estos tests son end-to-end vía la API real (change-plan + renew) más una
  * prueba directa de la migración 0122 que limpia el estado heredado en prod.
  */
@@ -105,7 +111,40 @@ describe("Subscriptions API — bookings reactivation (cancelado → reservado)"
     return Number(rows[0].c);
   }
 
-  it("change-plan a fixed más caro con mismos scheduleIds reactiva los cancelados", async () => {
+  /**
+   * Turnos futuros (horario, fecha) del alumno que tienen una fila cancelada y
+   * NINGUNA viva: es exactamente el bug original (el alumno pierde el turno).
+   */
+  async function futureCancelledWithoutLive(
+    memberId: number,
+    scheduleIds: number[],
+  ): Promise<number> {
+    const rows = await app.db
+      .select({ scheduleId: bookings.scheduleId, bookingDate: bookings.bookingDate, status: bookings.status })
+      .from(bookings)
+      .where(
+        sql`${bookings.tenantId} = ${TENANT_TEMPLO}
+            AND ${bookings.memberId} = ${memberId}
+            AND ${bookings.scheduleId} IN (${sql.join(
+              scheduleIds.map((id) => sql`${id}`),
+              sql`, `,
+            )})
+            AND ${bookings.bookingDate} > CURDATE()`,
+      );
+    const live = new Set(
+      rows
+        .filter((r) => r.status !== "cancelado" && r.status !== "no_show")
+        .map((r) => `${r.scheduleId}|${r.bookingDate}`),
+    );
+    const cancelledSlots = new Set(
+      rows
+        .filter((r) => r.status === "cancelado")
+        .map((r) => `${r.scheduleId}|${r.bookingDate}`),
+    );
+    return [...cancelledSlots].filter((k) => !live.has(k)).length;
+  }
+
+  it("change-plan a fixed más caro con mismos scheduleIds no pierde los turnos", async () => {
     // Bug exacto reportado: el admin cambia el plan reutilizando los turnos
     // ya asignados. Antes del fix las nuevas bookings se perdían silenciosamente.
     const planA = await createPlan(app, adminToken, {
@@ -157,26 +196,19 @@ describe("Subscriptions API — bookings reactivation (cancelado → reservado)"
     });
     expect(changeRes.statusCode).toBe(201);
 
-    // Después del cambio: las mismas (member, schedule, fecha) futuras deben
-    // estar reservado, NO cancelado (la fila se reactivó in-place gracias al
-    // ON DUPLICATE KEY UPDATE en populateBookings y al ramo cancelado→reservado
-    // en generateFixedBookings).
+    // Después del cambio: cada turno futuro tiene su reserva VIVA (mig 0360:
+    // la cancelada por cancelFutureBookings queda como historial al lado).
     const reservedAfter = await futureBookingCount(
       member.id,
       slots,
       "reservado",
     );
-    const cancelledAfter = await futureBookingCount(
-      member.id,
-      slots,
-      "cancelado",
-    );
 
     expect(reservedAfter).toBeGreaterThan(0);
-    expect(cancelledAfter).toBe(0);
-    // El unique index garantiza una fila por (member, schedule, date).
-    // Si el reactivation falla quedaría cancelado, no reservado.
+    // El índice único garantiza UNA viva por (member, schedule, date): la
+    // misma cantidad de reservadas que antes, sin duplicados.
     expect(reservedAfter).toBe(reservedBefore);
+    expect(await futureCancelledWithoutLive(member.id, slots)).toBe(0);
   });
 
   it("renew con plan fixed reactiva los cancelados al expirar la sub vieja", async () => {
@@ -232,14 +264,10 @@ describe("Subscriptions API — bookings reactivation (cancelado → reservado)"
       slots,
       "reservado",
     );
-    const cancelledAfter = await futureBookingCount(
-      member.id,
-      slots,
-      "cancelado",
-    );
 
     expect(reservedAfter).toBeGreaterThan(0);
-    expect(cancelledAfter).toBe(0);
+    // Mig 0360: puede quedar historial cancelado, pero ningún turno sin viva.
+    expect(await futureCancelledWithoutLive(member.id, slots)).toBe(0);
   });
 
   it("change-plan no toca bookings reservado activos de OTRO alumno en el mismo slot", async () => {

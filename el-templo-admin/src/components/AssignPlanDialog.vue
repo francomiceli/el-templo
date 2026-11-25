@@ -277,6 +277,17 @@
                 <div class="text-caption text-grey-7 q-mt-xs">
                   Se cobra la diferencia entre planes. No se prorratea por los días sin usar.
                 </div>
+                <div
+                  v-if="(changePlanPreviewData?.currentPlan.outstandingDebt ?? 0) > 0"
+                  class="text-caption text-negative q-mt-xs"
+                >
+                  Debe
+                  {{
+                    formatPrice(changePlanPreviewData!.currentPlan.outstandingDebt, displayCurrency)
+                  }}
+                  del plan actual: no cuenta como pagado. Esa deuda queda en 0 al confirmar el
+                  cambio.
+                </div>
               </div>
 
               <!-- 'después': fecha de inicio editable. Default = vencimiento
@@ -614,6 +625,19 @@
                       <span class="text-caption text-grey-6 q-ml-xs">
                         ({{ changePlanPreviewData.proration!.remainingDetail }})
                       </span>
+                    </q-item-section>
+                  </q-item>
+                  <!-- Caso Camila Gallardo: el crédito asume el plan actual pago; lo que
+                       todavía debe se suma al cobro y la deuda vieja queda en 0. -->
+                  <q-item v-if="changePlanPreviewData.currentPlan.outstandingDebt > 0">
+                    <q-item-section>Deuda del plan actual</q-item-section>
+                    <q-item-section side class="text-negative">
+                      +{{
+                        formatPrice(
+                          changePlanPreviewData.currentPlan.outstandingDebt,
+                          displayCurrency
+                        )
+                      }}
                     </q-item-section>
                   </q-item>
                   <q-separator spaced />
@@ -1304,7 +1328,14 @@ const isKeepMode = computed(() => props.mode === 'change' && changeMode.value ==
 // 'mantener vencimiento': informational breakdown of the suggested difference
 // (new plan price at the selected price type − amount already paid).
 const keepNewPlanPrice = computed(() => getBasePrice());
-const keepAlreadyPaid = computed(() => changePlanPreviewData.value?.currentPlan.pricePaid ?? 0);
+// "Ya pagó" = lo efectivamente pagado: precio del plan actual menos lo que todavía
+// debe (caso Camila Gallardo: Flex+ sin cobrar mostraba "Ya pagó 80.000"). Al
+// confirmar, el server salda esa deuda vieja: la diferencia sugerida ya la incluye.
+const keepAlreadyPaid = computed(() => {
+  const current = changePlanPreviewData.value?.currentPlan;
+  if (!current) return 0;
+  return Math.max(0, current.pricePaid - (current.outstandingDebt ?? 0));
+});
 const priceTypeLabel = computed(() => PRICE_TYPE_LABELS[assignForm.value.priceTypeApplied]);
 
 // Derived start mode for the payload + summary logic that still thinks in the
@@ -2143,8 +2174,7 @@ watch(resolvedPaquetePlan, (plan) => {
 // selected price type) − amount already paid for the current plan. Re-run
 // whenever the price type changes or the keep option is (re)selected.
 function recomputeKeepDiff() {
-  const paid = changePlanPreviewData.value?.currentPlan.pricePaid ?? 0;
-  keepDiffAmount.value = Math.max(0, getBasePrice() - paid);
+  keepDiffAmount.value = Math.max(0, getBasePrice() - keepAlreadyPaid.value);
 }
 
 function onChangeMode(mode: 'now_reset' | 'now_keep' | 'after_current') {

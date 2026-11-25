@@ -45,11 +45,20 @@
               >
                 <q-icon name="schedule" size="14px" class="q-mr-xs" />{{ cutoffSummary(act) }}
               </q-item-label>
+              <q-item-label
+                caption
+                :class="act.auraAmount !== null ? 'text-deep-orange-8' : 'text-grey-6'"
+              >
+                <q-icon name="auto_awesome" size="14px" class="q-mr-xs" />{{ auraSummary(act) }}
+              </q-item-label>
             </q-item-section>
             <q-item-section side>
               <div class="row items-center q-gutter-xs">
                 <q-btn flat dense round icon="schedule" size="sm" @click="openCutoffsDialog(act)">
                   <q-tooltip>Horarios para reservar y cancelar</q-tooltip>
+                </q-btn>
+                <q-btn flat dense round icon="auto_awesome" size="sm" @click="openAuraDialog(act)">
+                  <q-tooltip>Aura por asistencia</q-tooltip>
                 </q-btn>
                 <q-btn flat dense round icon="edit" size="sm" @click="startEditActivity(act)" />
                 <q-btn
@@ -170,6 +179,18 @@
             :hint="`Vacío = ${DEFAULT_CANCEL_CLOSE_MINUTES} min antes del inicio`"
             :rules="[validateCloseMinutes]"
           />
+          <q-input
+            v-model="activityForm.auraAmount"
+            label="Aura por asistencia"
+            type="number"
+            dense
+            outlined
+            class="col"
+            min="0"
+            :max="MAX_AURA_AMOUNT"
+            :hint="auraHint(activityForm.isSpecial)"
+            :rules="[validateAuraAmount]"
+          />
         </div>
       </q-card-section>
     </q-card>
@@ -269,6 +290,35 @@
         </q-card-actions>
       </q-card>
     </q-dialog>
+
+    <q-dialog v-model="auraDialog.open">
+      <q-card style="width: 420px; max-width: 92vw">
+        <q-card-section>
+          <div class="text-subtitle1 text-weight-medium">Aura por asistencia</div>
+          <div class="text-caption text-grey-7">{{ auraDialog.activityName }}</div>
+        </q-card-section>
+        <q-card-section class="q-pt-none">
+          <q-input
+            v-model="auraDialog.auraAmount"
+            label="Aura que suma cada presente en esta clase"
+            type="number"
+            dense
+            outlined
+            min="0"
+            :max="MAX_AURA_AMOUNT"
+            :hint="auraHint(auraDialog.isSpecial)"
+            :rules="[validateAuraAmount]"
+          />
+          <div class="text-caption text-grey-7 q-mt-md">
+            Aplica a los presentes que se den desde ahora. Lo que ya se acreditó no cambia.
+          </div>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Cancelar" v-close-popup />
+          <q-btn color="primary" label="Guardar" :loading="auraDialog.saving" @click="onSaveAura" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </div>
 </template>
 
@@ -319,6 +369,8 @@ const activityForm = ref<{
   // maxCapacity: el q-input number puede devolver string; vacío = default.
   bookingCloseMinutes: number | string | null;
   cancelCloseMinutes: number | string | null;
+  // Aura por asistencia (0358). Mismo tratamiento; vacío = la de siempre.
+  auraAmount: number | string | null;
 }>(emptyActivityForm());
 const editingActivity = ref<ActivityRecord | null>(null);
 
@@ -364,22 +416,47 @@ const DEFAULT_BOOKING_CLOSE_MINUTES = 5;
 const DEFAULT_CANCEL_CLOSE_MINUTES = 20;
 const MAX_CLOSE_MINUTES = 1440;
 
-/** Valida un corte en minutos: vacío (default) o entero entre 0 y 1440. */
-function validateCloseMinutes(v: number | string | null): true | string {
-  if (v === null || v === undefined || v === '') return true;
-  const n = Number(v);
-  return (
-    (Number.isInteger(n) && n >= 0 && n <= MAX_CLOSE_MINUTES) ||
-    `Tiene que ser un entero entre 0 y ${MAX_CLOSE_MINUTES}`
-  );
+// Aura por asistencia (0358). Espejo de AURA_AMOUNTS.attendance /
+// attendanceSpecial y ACTIVITY_AURA_MAX de la API (aura/amounts.ts); la API
+// valida igual. Vacío = la de la categoría de la actividad.
+const DEFAULT_AURA_AMOUNT = 5;
+const DEFAULT_SPECIAL_AURA_AMOUNT = 10;
+const MAX_AURA_AMOUNT = 50;
+
+/** Aura que vale el presente si la actividad no tiene una propia. */
+function defaultAuraFor(isSpecial: boolean): number {
+  return isSpecial ? DEFAULT_SPECIAL_AURA_AMOUNT : DEFAULT_AURA_AMOUNT;
 }
 
-/** Normaliza un corte a `number | null` (vacío/inválido → null = default). */
-function normalizeCloseMinutes(v: number | string | null): number | null {
+/** Hint del campo de Aura según la categoría de la actividad. */
+function auraHint(isSpecial: boolean): string {
+  const kind = isSpecial ? 'de las especiales' : 'de las clases regulares';
+  return `Vacío = ${defaultAuraFor(isSpecial)} (lo estándar ${kind}). 0 = no da Aura`;
+}
+
+/**
+ * Campo numérico opcional (vacío = default de la API): vacío o entero entre 0
+ * y `max`. El q-input number puede devolver string, number o ''.
+ */
+function validateOptionalInt(v: number | string | null, max: number): true | string {
+  if (v === null || v === undefined || v === '') return true;
+  const n = Number(v);
+  return (Number.isInteger(n) && n >= 0 && n <= max) || `Tiene que ser un entero entre 0 y ${max}`;
+}
+
+/** Normaliza un campo numérico opcional a `number | null` (vacío/inválido → null = default). */
+function normalizeOptionalInt(v: number | string | null, max: number): number | null {
   if (v === null || v === undefined || v === '') return null;
   const n = Number(v);
-  return Number.isInteger(n) && n >= 0 && n <= MAX_CLOSE_MINUTES ? n : null;
+  return Number.isInteger(n) && n >= 0 && n <= max ? n : null;
 }
+
+const validateCloseMinutes = (v: number | string | null) =>
+  validateOptionalInt(v, MAX_CLOSE_MINUTES);
+const normalizeCloseMinutes = (v: number | string | null) =>
+  normalizeOptionalInt(v, MAX_CLOSE_MINUTES);
+const validateAuraAmount = (v: number | string | null) => validateOptionalInt(v, MAX_AURA_AMOUNT);
+const normalizeAuraAmount = (v: number | string | null) => normalizeOptionalInt(v, MAX_AURA_AMOUNT);
 
 function hasCustomCutoffs(act: ActivityRecord): boolean {
   return act.bookingCloseMinutes !== null || act.cancelCloseMinutes !== null;
@@ -390,6 +467,66 @@ function cutoffSummary(act: ActivityRecord): string {
   const booking = act.bookingCloseMinutes ?? DEFAULT_BOOKING_CLOSE_MINUTES;
   const cancel = act.cancelCloseMinutes ?? DEFAULT_CANCEL_CLOSE_MINUTES;
   return `Reserva hasta ${booking} min antes · Cancelación hasta ${cancel} min antes`;
+}
+
+/** Aura por asistencia efectiva de la actividad para la fila de la lista. */
+function auraSummary(act: ActivityRecord): string {
+  if (act.auraAmount === 0) return 'No da Aura por asistencia';
+  if (act.auraAmount === null) {
+    return `${defaultAuraFor(act.isSpecial)} de Aura por asistencia (lo estándar)`;
+  }
+  return `${act.auraAmount} de Aura por asistencia`;
+}
+
+// ─── Diálogo de Aura por asistencia (por actividad existente) ───────────────
+
+const auraDialog = ref<{
+  open: boolean;
+  activityId: number | null;
+  activityName: string;
+  isSpecial: boolean;
+  auraAmount: number | string | null;
+  saving: boolean;
+}>({
+  open: false,
+  activityId: null,
+  activityName: '',
+  isSpecial: false,
+  auraAmount: null,
+  saving: false,
+});
+
+function openAuraDialog(act: ActivityRecord) {
+  auraDialog.value = {
+    open: true,
+    activityId: act.id,
+    activityName: act.name,
+    isSpecial: act.isSpecial,
+    auraAmount: act.auraAmount,
+    saving: false,
+  };
+}
+
+async function onSaveAura() {
+  const dialog = auraDialog.value;
+  if (dialog.activityId === null) return;
+  if (validateAuraAmount(dialog.auraAmount) !== true) return;
+  dialog.saving = true;
+  try {
+    // Solo la Aura: el PUT deja intacto todo lo que no viaja.
+    await schedulingApi.updateActivity(dialog.activityId, {
+      auraAmount: normalizeAuraAmount(dialog.auraAmount),
+    });
+    $q.notify({ type: 'positive', message: 'Aura por asistencia actualizada' });
+    dialog.open = false;
+    await loadActivities();
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error saving activity aura amount', { error: message });
+    $q.notify({ type: 'negative', message: extractError(err, 'Error guardando la Aura') });
+  } finally {
+    dialog.saving = false;
+  }
 }
 
 // ─── Diálogo de horarios para reservar (por actividad existente) ────────────
@@ -454,6 +591,7 @@ function emptyActivityForm() {
     specialLine: null,
     bookingCloseMinutes: null,
     cancelCloseMinutes: null,
+    auraAmount: null,
   };
 }
 
@@ -496,6 +634,7 @@ function startEditActivity(act: ActivityRecord) {
     specialLine: act.specialLine ?? null,
     bookingCloseMinutes: act.bookingCloseMinutes ?? null,
     cancelCloseMinutes: act.cancelCloseMinutes ?? null,
+    auraAmount: act.auraAmount ?? null,
   };
 }
 
@@ -509,9 +648,11 @@ async function onSaveActivity() {
   if (validateCapacity(activityForm.value.maxCapacity) !== true) return;
   if (validateCloseMinutes(activityForm.value.bookingCloseMinutes) !== true) return;
   if (validateCloseMinutes(activityForm.value.cancelCloseMinutes) !== true) return;
+  if (validateAuraAmount(activityForm.value.auraAmount) !== true) return;
   const maxCapacity = normalizeCapacity(activityForm.value.maxCapacity);
   const bookingCloseMinutes = normalizeCloseMinutes(activityForm.value.bookingCloseMinutes);
   const cancelCloseMinutes = normalizeCloseMinutes(activityForm.value.cancelCloseMinutes);
+  const auraAmount = normalizeAuraAmount(activityForm.value.auraAmount);
   // Solo aplica a especiales; vacío = null (línea Aura). El server igual la limpia si no es especial.
   const specialLine = activityForm.value.isSpecial
     ? activityForm.value.specialLine?.trim() || null
@@ -526,6 +667,7 @@ async function onSaveActivity() {
         specialLine,
         bookingCloseMinutes,
         cancelCloseMinutes,
+        auraAmount,
       });
       $q.notify({ type: 'positive', message: 'Actividad actualizada' });
     } else {
@@ -537,6 +679,7 @@ async function onSaveActivity() {
         specialLine,
         bookingCloseMinutes,
         cancelCloseMinutes,
+        auraAmount,
       });
       $q.notify({ type: 'positive', message: 'Actividad creada' });
     }

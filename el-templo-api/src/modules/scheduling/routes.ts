@@ -323,6 +323,7 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
       specialLine?: string | null;
       bookingCloseMinutes?: number | null;
       cancelCloseMinutes?: number | null;
+      auraAmount?: number | null;
     };
   }>(
     "/activities",
@@ -364,6 +365,7 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
       specialLine?: string | null;
       bookingCloseMinutes?: number | null;
       cancelCloseMinutes?: number | null;
+      auraAmount?: number | null;
     };
   }>(
     "/activities/:activityId",

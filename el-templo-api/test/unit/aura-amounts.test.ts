@@ -10,6 +10,8 @@ import {
   AURA_AMOUNTS,
   AURA_STREAK,
   AURA_TENURE,
+  ACTIVITY_AURA_MAX,
+  attendanceAuraFor,
   tenureAuraFor,
 } from "../../src/modules/aura/amounts";
 
@@ -60,5 +62,20 @@ describe("aura amounts (fase 214, D-18 y D-19)", () => {
     for (const amount of perDay) {
       expect(amount).toBeLessThanOrEqual(AURA_AMOUNTS.attendance);
     }
+  });
+
+  it("Aura por asistencia de una actividad (0358): la propia o la de su categoría", () => {
+    expect(AURA_AMOUNTS.attendanceSpecial).toBe(10);
+    // Sin valor propio: regular 5, especial 10.
+    expect(attendanceAuraFor(null, false)).toBe(AURA_AMOUNTS.attendance);
+    expect(attendanceAuraFor(undefined, false)).toBe(AURA_AMOUNTS.attendance);
+    expect(attendanceAuraFor(null, true)).toBe(AURA_AMOUNTS.attendanceSpecial);
+    // El valor propio manda sobre la categoría.
+    expect(attendanceAuraFor(15, false)).toBe(15);
+    expect(attendanceAuraFor(15, true)).toBe(15);
+    expect(attendanceAuraFor(3, true)).toBe(3);
+    // 0 es un valor propio (la actividad no da Aura), no "sin configurar".
+    expect(attendanceAuraFor(0, true)).toBe(0);
+    expect(ACTIVITY_AURA_MAX).toBe(50);
   });
 });

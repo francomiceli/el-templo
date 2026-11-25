@@ -31,6 +31,7 @@ export function useSchedulingApi() {
     specialLine?: string | null;
     bookingCloseMinutes?: number | null;
     cancelCloseMinutes?: number | null;
+    auraAmount?: number | null;
   }): Promise<ActivityRecord> {
     loading.value = true;
     error.value = null;
@@ -72,6 +73,7 @@ export function useSchedulingApi() {
       specialLine?: string | null;
       bookingCloseMinutes?: number | null;
       cancelCloseMinutes?: number | null;
+      auraAmount?: number | null;
     }
   ): Promise<ActivityRecord> {
     loading.value = true;

@@ -64,6 +64,7 @@ import {
 import { HolidayService } from "./holiday-service";
 import { loadInvitationRosterTags } from "../referrals/invitation-roster-tag";
 import { shownAuraByUsers } from "../aura/earned";
+import { dedupeRosterRows } from "./roster-dedupe";
 import {
   getEffectiveCapacity,
   resolveEffectiveCapacity,
@@ -668,7 +669,7 @@ export class SchedulingService {
     // `schema.branches` ya podría estar en uso en otro JOIN de este archivo.
     const memberBranch = alias(schema.branches, "member_branch");
 
-    const bookingRows = await this.db
+    const allBookingRows = await this.db
       .select({
         id: schema.bookings.id,
         memberId: schema.bookings.memberId,
@@ -719,6 +720,11 @@ export class SchedulingService {
         ),
       )
       .orderBy(schema.bookings.bookedAt);
+
+    // Mig 0360: el historial cancelado/no_show convive con la reserva nueva del
+    // mismo turno. El roster muestra UNA fila por alumno: la viva si la hay; si
+    // no, la muerta más reciente (como antes, cuando solo existía una fila).
+    const bookingRows = dedupeRosterRows(allBookingRows);
 
     // Etiqueta "invitado" y Aura para el profe: UNA consulta en lote por roster cada una.
     const rosterMemberIds = bookingRows.map((r) => r.memberId);

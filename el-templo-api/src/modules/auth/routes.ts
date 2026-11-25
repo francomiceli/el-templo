@@ -64,6 +64,7 @@ import {
 import { recordRegisterAttribution } from "../marketing/attribution-service";
 import type { SignupAttributionBody } from "../marketing/attribution-service";
 import { RATE_LIMITS } from "../shared/rate-limits";
+import { reportUnexpectedError } from "../shared/error-handler";
 
 interface RegisterBody {
   email: string;
@@ -276,6 +277,10 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           .limit(1);
 
         if (defaultBranch.length === 0) {
+          reportUnexpectedError(
+            new Error("Sucursal ONLINE predeterminada no configurada"),
+            "auth register",
+          );
           return reply.code(500).send({
             error: "Error del servidor",
             message: "Sucursal predeterminada no configurada",
@@ -295,6 +300,10 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         request.log.error(
           { branchId },
           "Sucursal sin gimnasio resoluble en el autorregistro",
+        );
+        reportUnexpectedError(
+          new Error("Sucursal sin gimnasio resoluble en el autorregistro"),
+          "auth register",
         );
         return reply.code(500).send({
           error: "Error del servidor",

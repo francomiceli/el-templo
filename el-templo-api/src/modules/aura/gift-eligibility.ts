@@ -385,7 +385,13 @@ export async function listEligibleClassmates(
   for (const row of rows) {
     if (seen.has(row.userId)) continue;
     seen.add(row.userId);
-    if (trialMembers.has(row.userId)) continue;
+    // Quien vino de prueba no aparece (aunque la prueba esté cancelada), salvo
+    // que en esta clase tenga además una reserva NORMAL vigente: mig 0360, la
+    // prueba cancelada ya no se borra cuando la persona, ya alumna, reserva el
+    // mismo turno (caso María Eugenia Rossi). Antes la normal la reemplazaba.
+    if (trialMembers.has(row.userId) && !bookedAtByMember.has(row.userId)) {
+      continue;
+    }
     const visible = effectiveVisible({
       preference: row.preference ?? null,
       dateOfBirth: row.dateOfBirth,

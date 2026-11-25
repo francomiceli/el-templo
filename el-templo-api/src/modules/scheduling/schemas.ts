@@ -2,6 +2,7 @@
  * Fastify JSON schemas for Scheduling API request/response validation.
  */
 import { DERIVED_LABEL_DESCRIPTION_KEYS } from "./label-descriptions";
+import { ACTIVITY_AURA_MAX } from "../aura/amounts";
 
 /**
  * Fase 180 Plan 10 (RES-05, D-23, T-180-44): enum cerrado de modos
@@ -47,6 +48,8 @@ const activityRecordSchema = {
     // Cortes por actividad (0326). Declarados o se strippean.
     bookingCloseMinutes: { type: ["integer", "null"] },
     cancelCloseMinutes: { type: ["integer", "null"] },
+    // Aura por asistencia (0358). Declarada o se strippea.
+    auraAmount: { type: ["integer", "null"] },
     createdAt: { type: "string" },
     updatedAt: { type: "string" },
   },
@@ -224,6 +227,13 @@ export const createActivitySchema = {
         minimum: 0,
         maximum: 1440,
       },
+      // Aura por asistencia (0358). `null` = la de su categoría (especial 10,
+      // regular 5), 0 = no da Aura.
+      auraAmount: {
+        type: ["integer", "null"],
+        minimum: 0,
+        maximum: ACTIVITY_AURA_MAX,
+      },
     },
   },
   response: {
@@ -276,6 +286,13 @@ export const updateActivitySchema = {
         type: ["integer", "null"],
         minimum: 0,
         maximum: 1440,
+      },
+      // Aura por asistencia (0358). `null` = la de su categoría (especial 10,
+      // regular 5), 0 = no da Aura.
+      auraAmount: {
+        type: ["integer", "null"],
+        minimum: 0,
+        maximum: ACTIVITY_AURA_MAX,
       },
     },
   },

@@ -259,6 +259,39 @@ describe("Reschedule Trial API (Fase 164-01, REPRO-01)", () => {
     expect(newRow.bookingDate).toBe(date);
   });
 
+  // Mig 0360: el historial cancelado convive con reservas nuevas, así que el
+  // turno destino puede tener una reserva NORMAL viva más una prueba cancelada.
+  // Reactivar la prueba chocaría con el índice único (500): es 409.
+  it("devuelve 409 si en el turno destino ya tiene una reserva normal viva (y una prueba cancelada)", async () => {
+    const activity = await createActivity();
+    const slotA = await createScheduleSlot(activity.id, 4, "10:00", "11:00");
+    const slotB = await createScheduleSlot(activity.id, 4, "12:00", "13:00");
+    const date = futureDate();
+
+    const userId = await createPruebaUser();
+    const oldBookingId = await seedTrialBooking(userId, slotA.id, date);
+    await seedTrialBooking(userId, slotB.id, date, "cancelado");
+    await app.db.insert(bookings).values({
+      tenantId: CTX.tenantId,
+      memberId: userId,
+      scheduleId: slotB.id,
+      bookingDate: date,
+      status: "reservado",
+      isTrial: false,
+    });
+
+    const res = await app.inject({
+      method: "POST",
+      url: rescheduleUrl(oldBookingId),
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { scheduleId: slotB.id, date, branchId: testBranchId },
+    });
+
+    expect(res.statusCode).toBe(409);
+    // La prueba original sigue viva: la reagenda no hizo nada.
+    expect((await bookingById(oldBookingId)).status).toBe("reservado");
+  });
+
   // ─── Case 2: fires the Perdido → En seguimiento reset (source auto) ───────
 
   it("dispara el reset Perdido → En seguimiento con source 'auto' (pisa un manual)", async () => {

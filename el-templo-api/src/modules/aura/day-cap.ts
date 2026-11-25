@@ -15,7 +15,6 @@
 import { and, eq, ne, or, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../db/schema";
-import { AURA_AMOUNTS } from "./amounts";
 import { tenantWhere, type TenantContext } from "../shared/tenant";
 
 type DbInstance = MySql2Database<typeof schema>;
@@ -119,27 +118,37 @@ export async function appAuraOnLocalDay(
 /**
  * Monto de Aura que le corresponde a una asistencia (D-64).
  *
- * El día vale como mucho 5 por UNA asistencia más la app y el plan a medida:
+ * `classAmount` es lo que vale la clase (`attendanceAuraFor`: la Aura propia de
+ * la actividad, migración 0358, o 5). El día vale como mucho eso por UNA
+ * asistencia más la app y el plan a medida:
  * - Si ya hubo otra asistencia con Aura ese mismo día (otra categoría de
- *   actividad), esta paga 5 como siempre.
- * - Si no, absorbe lo que la app ya cobró: con 3 de app acredita 2.
+ *   actividad), esta paga su valor completo.
+ * - Si no, absorbe lo que la app ya cobró: una clase de 5 con 3 de app acredita
+ *   2, una masterclass de 15 con 3 de app acredita 12.
  *
  * `attendanceId` es la fila recién insertada (se excluye de la lectura del día).
- * Devuelve 0 si la app ya cubrió el tope: en ese caso no se escribe fila.
+ * Devuelve 0 si la app ya cubrió el tope o si la actividad no da Aura (0): en
+ * ese caso no se escribe fila.
  */
 export async function attendanceAuraAmountFor(
   db: DbInstance,
   ctx: TenantContext,
-  input: { userId: number; attendanceId: number; sessionDate: string },
+  input: {
+    userId: number;
+    attendanceId: number;
+    sessionDate: string;
+    classAmount: number;
+  },
 ): Promise<number> {
-  const { userId, attendanceId, sessionDate } = input;
+  const { userId, attendanceId, sessionDate, classAmount } = input;
+  if (classAmount <= 0) return 0;
   const earlier = await attendanceAuraOnLocalDay(db, ctx, userId, sessionDate, {
     excludeAttendanceId: attendanceId,
   });
-  if (earlier > 0) return AURA_AMOUNTS.attendance;
+  if (earlier > 0) return classAmount;
 
   const app = await appAuraOnLocalDay(db, ctx, userId, sessionDate);
-  return Math.max(0, AURA_AMOUNTS.attendance - app);
+  return Math.max(0, classAmount - app);
 }
 
 /**

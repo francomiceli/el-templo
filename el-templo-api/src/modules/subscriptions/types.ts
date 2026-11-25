@@ -738,10 +738,16 @@ export interface ChangePlanPreview {
     name: string;
     priceRegular: number;
     pricePaid: number;
+    /**
+     * Lo que se DEBE todavía de la membresía vigente (saldo > 0, incluye eslabones
+     * 'changed' anteriores). El cambio inmediato lo suma a `netAmount` y lo salda;
+     * "mantener vencimiento" lo resta de lo "ya pagado" (caso Camila Gallardo).
+     */
+    outstandingDebt: number;
   };
   targetPlan: { id: number; name: string; priceRegular: number };
   proration: ProrationResult | null; // null if not allowed
-  netAmount: number | null; // null if not allowed; new plan priceRegular minus proration credit, minus the winning partner/invitation discount (parity with changePlanNow)
+  netAmount: number | null; // null if not allowed; new plan priceRegular minus proration credit, minus the winning partner/invitation discount, plus the current plan's outstanding debt (parity with changePlanNow)
   // Fase 194-17 (D-08/D-10c/D-21): descuento por invitación que `changePlanNow`
   // va a cobrar sobre el neto post-prorrateo. `percent` = % nominal, `amount` =
   // monto ya recortado por el tope en dinero del país (ya restado de netAmount),

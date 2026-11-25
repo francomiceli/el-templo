@@ -394,8 +394,8 @@ export const TENANT_UNIQUE_ALLOWLIST: Record<string, string> = {
     "Derivada de FK scopeada: primer campo `member_id` → `users`. El saldo por (target_kind, target_id, currency) es del socio, así que la unicidad ya está encerrada en su tenant.",
   "blog_post_tags.post_tag_unique":
     "Derivada de FK scopeada: primer campo `post_id` → `blog_posts`, tabla gym-owned con `tenant_id`. Es la tabla puente del blog: no puede unir un post de un tenant con un tag de otro sin violar su propia FK.",
-  "bookings.idx_bookings_member_schedule_date":
-    "Derivada de FK scopeada: primer campo `member_id` → `users`. Una reserva por socio, horario y día — el socio ancla el tenant.",
+  "bookings.idx_bookings_member_schedule_date_active":
+    "Derivada de FK scopeada: primer campo `member_id` → `users`. Una reserva VIVA por socio, horario y día (mig 0360: `active_slot` es NULL en canceladas/no_show) — el socio ancla el tenant.",
   "campaign_sends.uniq_campaign_user":
     "Derivada de FK scopeada: primer campo `campaign_id` → `campaigns`, que lleva `tenant_id`. Un envío por campaña y destinatario, dentro de la campaña de un solo gimnasio.",
   "check_in_responses.uq_check_in_daily":
