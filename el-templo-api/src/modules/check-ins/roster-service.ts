@@ -74,7 +74,9 @@ export class CheckInRosterService {
           tenantWhere(schema.users, ctx),
           eq(schema.schedules.branchId, branchId),
           eq(schema.bookings.bookingDate, date),
-          sql`${schema.bookings.status} IN ('reservado', 'qr_escaneado', 'confirmado', 'lista_espera')`,
+          // Sin 'lista_espera' (2026-11-25): no tienen lugar. Si vinieron igual, entran por
+          // la asistencia registrada (abajo).
+          sql`${schema.bookings.status} IN ('reservado', 'qr_escaneado', 'confirmado')`,
         ),
       );
 

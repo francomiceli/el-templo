@@ -167,13 +167,15 @@ describe("Registros del día del staff (check-ins roster + slot)", () => {
     scheduleId: number,
     bId: number,
     date: string,
+    status: "reservado" | "lista_espera" = "reservado",
   ): Promise<void> {
     await app.db.insert(schema.bookings).values({
       memberId,
       scheduleId,
       branchId: bId,
       bookingDate: date,
-      status: "reservado",
+      status,
+      waitlistPosition: status === "lista_espera" ? 1 : null,
     });
   }
 
@@ -287,6 +289,27 @@ describe("Registros del día del staff (check-ins roster + slot)", () => {
     expect(body.entries).toHaveLength(1);
     expect(body.entries[0].memberId).toBe(m);
     expect(body.entries[0].checkIn.sleep).toBe("bien");
+  });
+
+  // 2026-11-25: la lista de espera no es asistente (no tiene lugar). Si vino igual y le dieron
+  // el presente, cuenta por la asistencia registrada.
+  it("no cuenta a los de lista de espera, salvo que hayan asistido", async () => {
+    const scheduleId = await insertSchedule(branchId);
+    const booked = await insertMember("Reservada", branchId);
+    const waiting = await insertMember("Esperando", branchId);
+    const waitingCame = await insertMember("VinoIgual", branchId);
+    await book(booked, scheduleId, branchId, TODAY);
+    await book(waiting, scheduleId, branchId, TODAY, "lista_espera");
+    await book(waitingCame, scheduleId, branchId, TODAY, "lista_espera");
+    await attend(waitingCame, branchId, TODAY);
+    await seedCheckIn(waiting, "energy", "bajo", TODAY);
+
+    const res = await roster(coachToken);
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.attendeeCount).toBe(2); // Reservada + VinoIgual
+    const ids = body.entries.map((e: { memberId: number }) => e.memberId);
+    expect(ids).not.toContain(waiting);
   });
 
   it("filtra por sede: no muestra asistentes de otra sucursal", async () => {
