@@ -19,6 +19,7 @@ import { readAffectedRows } from "../shared/affected-rows";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
+import { ACTIVE_SLOT_BOOKING_STATUSES } from "../../db/schema/bookings";
 import type { TxHandle } from "../finance/balance-service";
 import { auditLog } from "../shared/audit-log";
 import { todayInTz } from "../shared/date-utils";
@@ -37,13 +38,6 @@ type DbInstance = MySql2Database<typeof schema>;
 /** Pool o handle de transacción (mismo patrón que `referrals/invitation-rules`). */
 type Executor = DbInstance | TxHandle;
 
-/** Estados de una reserva que ocupan lugar: la unión no las pisa. */
-const LIVE_BOOKING_STATUSES = [
-  "reservado",
-  "qr_escaneado",
-  "confirmado",
-  "lista_espera",
-] as const;
 
 /** Cuántas reservas Wellhub recientes trae la card (D-20). */
 const RECENT_BOOKINGS_LIMIT = 10;
@@ -530,10 +524,10 @@ export class MemberWellhubService {
         }
         const gympassId = source.gympassId;
 
-        // Choques con el unique (member_id, schedule_id, booking_date): si las
-        // dos fichas tienen reserva viva para la misma clase y día, se rechaza.
-        // Si una de las dos está muerta (cancelada / no_show) se borra esa para
-        // que la reserva viva (o la del duplicado) pueda pasar al destino.
+        // Choques con el índice único (mig 0360: alumno, horario, día, solo
+        // reservas VIVAS): si las dos fichas tienen reserva viva para la misma
+        // clase y día, se rechaza. Las muertas (cancelada / no_show) ya no
+        // chocan: pasan al destino como historial, no se borran.
         const bookingColumns = {
           id: schema.bookings.id,
           scheduleId: schema.bookings.scheduleId,
@@ -560,34 +554,19 @@ export class MemberWellhubService {
           );
 
         const isLive = (status: string) =>
-          (LIVE_BOOKING_STATUSES as readonly string[]).includes(status);
+          (ACTIVE_SLOT_BOOKING_STATUSES as readonly string[]).includes(status);
         const keyOf = (b: { scheduleId: number; bookingDate: string }) =>
           `${b.scheduleId}|${b.bookingDate}`;
-        const targetByKey = new Map(
-          targetBookings.map((b) => [keyOf(b), b] as const),
+        const targetLiveKeys = new Set(
+          targetBookings.filter((b) => isLive(b.status)).map(keyOf),
         );
-        const deadToDelete: number[] = [];
         for (const sb of sourceBookings) {
-          const tb = targetByKey.get(keyOf(sb));
-          if (!tb) continue;
-          if (isLive(sb.status) && isLive(tb.status)) {
+          if (isLive(sb.status) && targetLiveKeys.has(keyOf(sb))) {
             throw new WellhubMergeError(
               409,
               "Las dos fichas tienen reserva para la misma clase el mismo día",
             );
           }
-          // Se borra la muerta; si las dos están muertas, la del duplicado.
-          deadToDelete.push(isLive(sb.status) ? tb.id : sb.id);
-        }
-        if (deadToDelete.length > 0) {
-          await tx
-            .delete(schema.bookings)
-            .where(
-              and(
-                tenantWhere(schema.bookings, ctx),
-                inArray(schema.bookings.id, deadToDelete),
-              ),
-            );
         }
 
         // `users.gympass_id` es UNIQUE global: primero se libera en el

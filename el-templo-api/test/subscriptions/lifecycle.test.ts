@@ -954,6 +954,24 @@ describe("Subscriptions API — Lifecycle", () => {
         return rows[0]?.amount ?? null;
       }
 
+      async function setSubBalance(
+        memberId: number,
+        subId: number,
+        amount: number,
+      ) {
+        await app.db
+          .update(schema.balances)
+          .set({ amount })
+          .where(
+            and(
+              tenantWhere(schema.balances, TEMPLO_CTX),
+              eq(schema.balances.memberId, memberId),
+              eq(schema.balances.targetKind, "subscription"),
+              eq(schema.balances.targetId, subId),
+            ),
+          );
+      }
+
       async function changePlanUnpaid(memberId: number, planId: number) {
         const res = await app.inject({
           method: "POST",
@@ -1013,8 +1031,11 @@ describe("Subscriptions API — Lifecycle", () => {
             ),
           );
         expect(oldRow.status).toBe("changed");
-        // Precondición del bug: el cambio NO salda la deuda del plan viejo.
-        expect(await subBalance(member.id, subA)).toBe(seededA);
+        // Desde el caso Camila Gallardo (2026-11-25) el cambio ya salda la deuda
+        // del plan viejo (la suma al cobro nuevo). Las cadenas de ANTES del fix
+        // la tienen viva: se simula ese dato histórico para probar el cancel.
+        expect(await subBalance(member.id, subA)).toBe(0);
+        await setSubBalance(member.id, subA, seededA!);
 
         await cancel(member.id);
 
@@ -1060,18 +1081,11 @@ describe("Subscriptions API — Lifecycle", () => {
         const subB = await changePlanUnpaid(member.id, planB.id);
         const subC = await changePlanUnpaid(member.id, planC.id);
 
-        // Saldo a favor en el eslabón del medio: no se toca.
-        await app.db
-          .update(schema.balances)
-          .set({ amount: -5000 })
-          .where(
-            and(
-              tenantWhere(schema.balances, TEMPLO_CTX),
-              eq(schema.balances.memberId, member.id),
-              eq(schema.balances.targetKind, "subscription"),
-              eq(schema.balances.targetId, subB),
-            ),
-          );
+        // Dato histórico (cambios previos al fix del 2026-11-25, que dejaban la
+        // deuda viva en el eslabón 'changed') en A, y saldo a favor en el
+        // eslabón del medio: no se toca.
+        await setSubBalance(member.id, subA, 7000);
+        await setSubBalance(member.id, subB, -5000);
 
         await cancel(member.id);
 

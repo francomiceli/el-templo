@@ -441,11 +441,14 @@ describe("Fase 204 D-05/D-21: unir duplicado Wellhub con alumno existente", () =
 
     expect(statusCode).toBe(200);
     expect((body as MergeBody).ok).toBe(true);
-    // La reserva viva del duplicado termino en el destino, sola para esa clase.
+    // La reserva viva del duplicado termino en el destino. Mig 0360: la muerta
+    // del destino ya no se borra — queda como historial al lado.
     const targetBookings = await bookingsOf(targetId);
-    expect(targetBookings).toHaveLength(1);
-    expect(targetBookings[0].id).toBe(sourceBookingId);
-    expect(targetBookings[0].status).toBe("reservado");
+    expect(targetBookings).toHaveLength(2);
+    const moved = targetBookings.find((b) => b.id === sourceBookingId);
+    expect(moved?.status).toBe("reservado");
+    const dead = targetBookings.find((b) => b.id !== sourceBookingId);
+    expect(dead?.status).toBe("cancelado");
     expect((await getUser(targetId))?.gympassId).toBe(visitor.gympassId);
   });
 

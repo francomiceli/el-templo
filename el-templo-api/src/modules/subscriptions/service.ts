@@ -4411,11 +4411,12 @@ export class SubscriptionService {
    * Ids de los planes ANTERIORES de una cadena de cambios de plan, desde
    * `previousId` hacia atrás, mientras cada eslabón sea del mismo alumno y esté
    * en status 'changed'. Corta en el primer eslabón que no cumple (p.ej. la sub
-   * vencida de la que salió una renovación). Lee con el `tx` del caller.
+   * vencida de la que salió una renovación). Lee con el `tx` del caller (o con
+   * `this.db` fuera de una transacción).
    */
   private async findChangedPredecessorIds(
     ctx: TenantContext,
-    tx: TxHandle,
+    tx: TxHandle | MySql2Database<typeof schema>,
     userId: number,
     previousId: number | null,
   ): Promise<number[]> {
@@ -4443,6 +4444,49 @@ export class SubscriptionService {
       nextId = prev.previousSubscriptionId;
     }
     return ids;
+  }
+
+  /**
+   * Lo que el alumno todavía DEBE de la membresía vigente al cambiarla de plan:
+   * saldo positivo de la sub más el de los eslabones 'changed' anteriores de la
+   * misma cadena (deuda que quedó colgada de cambios hechos antes del fix).
+   *
+   * Caso Camila Gallardo (2026-11-25): Flex+ de 80.000 asignado SIN cobrar y,
+   * el mismo día, cambio a 3 meses. El prorrateo acreditaba los 80.000 como si
+   * estuvieran pagos y la deuda quedaba aparte en la sub vieja. Ahora el cambio
+   * inmediato suma esta deuda al cobro nuevo y salda la vieja (ver
+   * `changePlanNow`). Saldos a favor (< 0) no cuentan ni se tocan.
+   */
+  private async getChangeOutstandingDebt(
+    ctx: TenantContext,
+    tx: TxHandle | MySql2Database<typeof schema>,
+    userId: number,
+    sub: Pick<SubscriptionDetail, "id" | "previousSubscriptionId">,
+  ): Promise<{ amount: number; subIds: number[] }> {
+    const subIds = [
+      sub.id,
+      ...(await this.findChangedPredecessorIds(
+        ctx,
+        tx,
+        userId,
+        sub.previousSubscriptionId,
+      )),
+    ];
+    const [row] = await tx
+      .select({
+        total: sql<string | null>`SUM(${schema.balances.amount})`,
+      })
+      .from(schema.balances)
+      .where(
+        and(
+          tenantWhere(schema.balances, ctx),
+          eq(schema.balances.memberId, userId),
+          eq(schema.balances.targetKind, "subscription"),
+          inArray(schema.balances.targetId, subIds),
+          sql`${schema.balances.amount} > 0`,
+        ),
+      );
+    return { amount: Number(row?.total ?? 0), subIds };
   }
 
   /**
@@ -4589,11 +4633,20 @@ export class SubscriptionService {
       throw new NotFoundError("Plan destino no encontrado");
     }
 
+    // Deuda de la membresía vigente: el cambio inmediato la suma al cobro (y
+    // "mantener vencimiento" la descuenta de lo "ya pagado" en el admin).
+    const { amount: outstandingDebt } = await this.getChangeOutstandingDebt(
+      ctx,
+      this.db,
+      userId,
+      sub,
+    );
     const currentPlanInfo = {
       id: currentPlan.id,
       name: currentPlan.name,
       priceRegular: currentPlan.priceRegular,
       pricePaid: sub.pricePaid,
+      outstandingDebt,
     };
     const targetPlanInfo = {
       id: targetPlan.id,
@@ -4655,7 +4708,9 @@ export class SubscriptionService {
       currentPlan: currentPlanInfo,
       targetPlan: targetPlanInfo,
       proration,
-      netAmount: settlement.finalPrice,
+      // Paridad con `changePlanNow`: la deuda vigente va DESPUÉS de los
+      // descuentos (partner/invitación no rebajan una deuda).
+      netAmount: settlement.finalPrice + outstandingDebt,
       invitationDiscountPercent: settlement.invitationPercent,
       invitationDiscountAmount: settlement.invitationAmount,
       invitationDiscountCapped: settlement.invitationCapped,
@@ -4848,7 +4903,22 @@ export class SubscriptionService {
       prorateToMonthEnd: input.prorateToMonthEnd,
     });
 
-    const netAmount = settlement.finalPrice;
+    // Caso Camila Gallardo (2026-11-25): el crédito de arriba asume que el plan
+    // vigente está pago. Lo que todavía se debe de él se SUMA al cobro nuevo y la
+    // deuda vieja se salda dentro de la tx (más abajo): una sola cuenta, en la
+    // membresía nueva. Va después de los descuentos (no rebajan una deuda). Con
+    // precio personalizado ("mantener vencimiento" o override) el monto del admin
+    // es el final (D-20): el admin ya la ve y la descuenta de lo "ya pagado".
+    const outstanding = await this.getChangeOutstandingDebt(
+      ctx,
+      this.db,
+      userId,
+      existingSub,
+    );
+    const debtCarried =
+      resolved.priceOverrideAmount !== null ? 0 : outstanding.amount;
+
+    const netAmount = settlement.finalPrice + debtCarried;
     const resolvedPriceType: PriceType = resolved.priceType;
     let resolvedOverrideAmount: number | null;
     let resolvedOverrideReason: string | null;
@@ -4863,7 +4933,9 @@ export class SubscriptionService {
     } else {
       // Neto post-prorrateo ANTES de partner/invitación (como hoy: el descuento
       // vive en sus columnas `referral_*`/`partner_*`, no en el override).
-      resolvedOverrideAmount = priceAfterFilter;
+      // La deuda arrastrada entra al precio de la sub (pricePaid = override −
+      // descuentos sigue valiendo).
+      resolvedOverrideAmount = priceAfterFilter + debtCarried;
       // T-176-25: el texto persistido debe quedar byte a byte. El core arma
       // la razón acá (es quien conoce `proration.remainingValue`/`remainingDetail`
       // — el módulo no los ve) leyendo `resolved.exclusive`/`resolved.applied`
@@ -4877,6 +4949,10 @@ export class SubscriptionService {
       resolvedOverrideReason = exclusiveBenefit
         ? `Cambio de plan (${exclusiveBenefit}): credito $${proration.remainingValue} (${proration.remainingDetail})`
         : `Cambio de plan: credito $${proration.remainingValue} (${proration.remainingDetail})`;
+      // Sin deuda el texto queda byte a byte como antes (T-176-25).
+      if (debtCarried > 0) {
+        resolvedOverrideReason += ` + deuda del plan anterior $${debtCarried}`;
+      }
     }
 
     const { boardingPassUsed } = readModuleColumns(resolved);
@@ -5143,6 +5219,26 @@ export class SubscriptionService {
           tx,
         );
 
+        // ── Deuda del plan anterior: se salda (caso Camila Gallardo) ──
+        // Pasó al cobro de la sub nueva (o, con precio personalizado, el admin
+        // la contempló en su monto): la vieja queda en 0, igual que al cancelar.
+        // Misma tx que el cobro nuevo: si algo falla, la deuda vieja vuelve.
+        // Solo positivos: un saldo a favor sobrevive.
+        if (outstanding.amount > 0) {
+          await tx
+            .update(schema.balances)
+            .set({ amount: 0, lastRecomputedAt: new Date() })
+            .where(
+              and(
+                tenantWhere(schema.balances, ctx),
+                eq(schema.balances.memberId, userId),
+                eq(schema.balances.targetKind, "subscription"),
+                inArray(schema.balances.targetId, outstanding.subIds),
+                sql`${schema.balances.amount} > 0`,
+              ),
+            );
+        }
+
         // ── Recompute user.status (R5/D-01) ──
         await this.recomputeUserStatus(ctx, userId, tx);
 
@@ -5267,6 +5363,8 @@ export class SubscriptionService {
           oldPlan: existingSub.planName,
           newPlan: targetPlan.name,
           prorationCredit: proration.remainingValue,
+          debtCarried,
+          debtSettled: outstanding.amount,
           netAmount,
           adminId,
         },

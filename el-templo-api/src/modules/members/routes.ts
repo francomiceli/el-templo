@@ -136,7 +136,10 @@ import {
   financialHistorySchema,
   outstandingConceptsSchema,
 } from "../finance/schemas";
-import { handleServiceError } from "../shared/error-handler";
+import {
+  handleServiceError,
+  reportUnexpectedError,
+} from "../shared/error-handler";
 import {
   photoAdminDeleteSchema,
   photoApproveSchema,
@@ -994,6 +997,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         }
 
         request.log.error({ err }, "Error creating member");
+        reportUnexpectedError(err, "create member");
         return reply.code(500).send({
           error: "Error del servidor",
           message: "Error al crear miembro",
@@ -1118,6 +1122,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
             .send({ error: "Solicitud invalida", message: err.message });
         }
         request.log.error({ err }, "Error creating trial member");
+        reportUnexpectedError(err, "create trial member");
         return reply.code(500).send({
           error: "Error del servidor",
           message: "Error al crear sesión de prueba",
@@ -1171,6 +1176,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
         request.log.error({ err }, "Error converting freemium to trial");
+        reportUnexpectedError(err, "convert freemium to trial");
         return reply.code(500).send({
           error: "Error del servidor",
           message: "Error al convertir a sesión de prueba",
@@ -1540,6 +1546,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         }
 
         request.log.error({ err }, "Error updating member");
+        reportUnexpectedError(err, "update member");
         return reply.code(500).send({
           error: "Error del servidor",
           message: "Error al actualizar miembro",

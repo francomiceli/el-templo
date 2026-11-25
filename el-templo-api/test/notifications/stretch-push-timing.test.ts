@@ -263,8 +263,7 @@ describe("push ¿Estiraste?: momento y elegibilidad (213-07, SPEC 5.2 parte 1)",
       arm: "push_30",
       attend: false,
     });
-    // `idx_bookings_member_schedule_date` es unico: un socio tiene UNA reserva
-    // por horario y fecha. Se prueba la misma reserva en sus dos estados.
+    // Se prueba la misma reserva en sus dos estados (no_show y cancelado).
     await app.db.insert(schema.bookings).values(
       tenantValues(CTX_TEMPLO, {
         memberId: member.id,

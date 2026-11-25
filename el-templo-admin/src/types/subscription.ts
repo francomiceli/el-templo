@@ -504,10 +504,19 @@ export interface ProrationResult {
 export interface ChangePlanPreview {
   allowed: boolean;
   reason?: string;
-  currentPlan: { id: number; name: string; priceRegular: number; pricePaid: number };
+  currentPlan: {
+    id: number;
+    name: string;
+    priceRegular: number;
+    pricePaid: number;
+    // Lo que todavía debe del plan actual. El cambio inmediato lo suma al cobro;
+    // "mantener vencimiento" lo resta de lo "ya pagado" (caso Camila Gallardo).
+    outstandingDebt: number;
+  };
   targetPlan: { id: number; name: string; priceRegular: number };
   proration: ProrationResult | null;
-  // Neto post-prorrateo Y post-descuento ganador (paridad con el cobro real).
+  // Neto post-prorrateo Y post-descuento ganador, MÁS la deuda del plan actual
+  // (paridad con el cobro real).
   netAmount: number | null;
   // Fase 194-17 (D-08/D-10c/D-21): descuento por invitación que cobra changePlanNow
   // (% nominal; monto ya recortado por el tope) y cuál de los descuentos ganó.
