@@ -538,6 +538,14 @@
                     class="q-ml-xs"
                   />
                   <q-badge
+                    v-if="isWaitlistMember(member)"
+                    color="deep-purple-7"
+                    :label="waitlistBadgeLabel(waitlistPositionOf(member))"
+                    class="q-ml-xs"
+                  >
+                    <q-tooltip>Lista de espera: todavía no tiene lugar en la clase</q-tooltip>
+                  </q-badge>
+                  <q-badge
                     v-if="member.isWellhub"
                     :color="WELLHUB_COLOR"
                     :label="WELLHUB_LABEL"
@@ -960,6 +968,7 @@ import type { SlotAttendanceItem } from 'src/types/attendance';
 import { WELLHUB_COLOR, WELLHUB_LABEL } from 'src/utils/wellhub-label';
 import { todayInTz } from 'src/utils/tz';
 import { formatDate } from 'src/utils/format-date';
+import { waitlistBadgeLabel, waitlistCheckInMessage } from 'src/utils/waitlist-attendance';
 import { useAuthStore } from 'src/stores/useAuthStore';
 import { isBranchScopedRole } from 'src/utils/branch-scope';
 
@@ -1153,11 +1162,32 @@ function isWaitlistMember(member: SlotAttendanceItem): boolean {
   return member.bookingStatus === 'lista_espera';
 }
 
+function waitlistPositionOf(member: SlotAttendanceItem): number | null {
+  return (
+    slotDetail.value?.bookings.find((b) => b.id === member.bookingId)?.waitlistPosition ?? null
+  );
+}
+
 function waitlistCaption(member: SlotAttendanceItem): string {
-  const position = slotDetail.value?.bookings.find(
-    (b) => b.id === member.bookingId
-  )?.waitlistPosition;
+  const position = waitlistPositionOf(member);
   return position ? `Lista de espera · posición ${position}` : 'Lista de espera';
+}
+
+// 2026-11-25: darle el presente a alguien de la lista de espera lo pasa a confirmado aunque la
+// clase esté llena (el backend lo permite a propósito: vino igual). Ahora el profe lo confirma
+// viendo el puesto y el cupo. Lo usan la fila (quickCheckIn) y el buscador (onSubmitAdd).
+function confirmWaitlistCheckIn(member: SlotAttendanceItem, onOk: () => void): void {
+  $q.dialog({
+    title: 'Está en lista de espera',
+    message: waitlistCheckInMessage({
+      memberName: member.memberName,
+      position: waitlistPositionOf(member),
+      booked: activeRegularBookings.value.length,
+      maxCapacity: slotDetail.value?.maxCapacity ?? 0,
+    }),
+    cancel: { flat: true, label: 'Volver' },
+    ok: { color: 'primary', label: 'Dar presente' },
+  }).onOk(onOk);
 }
 
 const attendanceRows = computed(() => [
@@ -1586,6 +1616,17 @@ async function onSubmitAdd() {
     });
     return;
   }
+  // Presente por el buscador a alguien que ya figura en la lista de espera: mismo aviso que la fila.
+  if (effectiveMode.value !== 'reserve') {
+    const selectedId = slotAddMember.value.id;
+    const waitlisted = attendanceList.value.find(
+      (m) => m.memberId === selectedId && isWaitlistMember(m) && !m.attendanceId
+    );
+    if (waitlisted) {
+      confirmWaitlistCheckIn(waitlisted, () => void doSubmitAdd());
+      return;
+    }
+  }
   await doSubmitAdd();
 }
 
@@ -1647,7 +1688,15 @@ async function doSubmitAdd() {
 
 // ─── Attendance row actions ─────────────────────────────────────────────────
 
-async function quickCheckIn(member: SlotAttendanceItem) {
+function quickCheckIn(member: SlotAttendanceItem) {
+  if (isWaitlistMember(member)) {
+    confirmWaitlistCheckIn(member, () => void doQuickCheckIn(member));
+    return;
+  }
+  void doQuickCheckIn(member);
+}
+
+async function doQuickCheckIn(member: SlotAttendanceItem) {
   if (!props.scheduleId) return;
   try {
     const result = await attendanceApi.coachCheckIn(

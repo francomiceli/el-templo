@@ -693,13 +693,25 @@
                   </span>
                 </template>
                 <template v-else-if="isSlotBooked(slot)">
-                  <span class="slot-card__chip slot-card__chip--ok">
+                  <span
+                    v-if="slotWaitlistBooking(slot)"
+                    class="slot-card__chip slot-card__chip--waitlist"
+                  >
+                    <q-icon name="hourglass_empty" size="16px" />{{
+                      waitlistChipLabel(slotWaitlistBooking(slot)?.waitlistPosition ?? null)
+                    }}
+                  </span>
+                  <span v-else class="slot-card__chip slot-card__chip--ok">
                     <q-icon name="check" size="16px" />Reservado
                   </span>
                   <button
                     type="button"
                     class="link-btn"
-                    :aria-label="`Cancelar reserva de las ${formatTime(slot.startTime)}`"
+                    :aria-label="
+                      slotWaitlistBooking(slot)
+                        ? `Salir de la lista de espera de las ${formatTime(slot.startTime)}`
+                        : `Cancelar reserva de las ${formatTime(slot.startTime)}`
+                    "
                     @click.stop="cancelSlotBooking(slot)"
                   >
                     Cancelar
@@ -1142,6 +1154,14 @@ import type {
 import { DAY_LABELS, DAY_LABELS_FULL, BOOKING_STATUS_LABELS } from 'src/types/scheduling'
 import type { DayFace } from 'src/types/community'
 import { todayInTz, dowInTz, zonedWallClockToUtc, isWallClockPast } from 'src/utils/tz'
+import {
+  cancelPromptMessage,
+  cancelSuccessMessage,
+  countsAsNextClass,
+  holdsSpot,
+  isWaitlistStatus,
+  waitlistChipLabel,
+} from 'src/utils/waitlist-view'
 import { buildWhatsAppUrl } from 'src/utils/whatsapp'
 import { buildGoogleCalendarUrl } from 'src/utils/calendar-link'
 
@@ -1490,11 +1510,18 @@ function openCoverageWhatsApp(): void {
   showCoverageDialog.value = false
 }
 
-const cancelDialog = ref({
+const cancelDialog = ref<{
+  show: boolean
+  message: string
+  loading: boolean
+  bookingId: number
+  status: BookingRecord['status']
+}>({
   show: false,
   message: '',
   loading: false,
   bookingId: 0,
+  status: 'reservado',
 })
 
 // Partner free-week reserve dialog (Phase 179, D-05/D-06) — no phone capture,
@@ -1691,8 +1718,9 @@ const nextBooking = computed<BookingRecord | null>(() => {
   return (
     myBookings.value
       .filter((b) => {
-        if (b.status !== 'reservado' && b.status !== 'qr_escaneado' && b.status !== 'lista_espera')
-          return false
+        // 2026-11-25: la lista de espera NO es "Tu próxima clase" (un alumno fue creyendo que
+        // tenía lugar). Se ve en la tarjeta del horario con su cartel.
+        if (!countsAsNextClass(b.status)) return false
         return zonedWallClockToUtc(b.bookingDate, b.startTime, tz) > now
       })
       .sort((a, b) => {
@@ -1707,17 +1735,21 @@ const nextBooking = computed<BookingRecord | null>(() => {
 
 function dayHasBooking(day: DayOfWeek): boolean {
   const date = dateForDay(day)
-  return myBookings.value.some(
-    (b) =>
-      b.bookingDate === date &&
-      ['reservado', 'qr_escaneado', 'confirmado', 'lista_espera'].includes(b.status),
-  )
+  // Solo lugares tomados: estar en lista de espera no marca el día "con reserva".
+  return myBookings.value.some((b) => b.bookingDate === date && holdsSpot(b.status))
 }
 
 // ─── Slot state helpers ─────────────────────────────────────────────
 
+/** Tiene algo en este horario: reserva O lista de espera (ver `slotWaitlistBooking`). */
 function isSlotBooked(slot: WeeklySlotView): boolean {
   return bookedScheduleIds.value.has(slot.id)
+}
+
+/** La anotación en lista de espera de este horario (ese día), o null si no está en espera. */
+function slotWaitlistBooking(slot: WeeklySlotView): BookingRecord | null {
+  const booking = findBookingForSlot(slot)
+  return booking && isWaitlistStatus(booking.status) ? booking : null
 }
 
 function findBookingForSlot(slot: WeeklySlotView): BookingRecord | null {
@@ -1755,7 +1787,8 @@ function isSlotPast(slot: WeeklySlotView): boolean {
 
 function slotCardClass(slot: WeeklySlotView): Record<string, boolean> {
   return {
-    'slot-card--booked': isSlotBooked(slot) && !isSlotAttended(slot),
+    'slot-card--booked': isSlotBooked(slot) && !isSlotAttended(slot) && !slotWaitlistBooking(slot),
+    'slot-card--waitlist': !!slotWaitlistBooking(slot) && !isSlotAttended(slot),
     'slot-card--attended': isSlotAttended(slot),
     'slot-card--full': slotIsFull(slot) && !isSlotBooked(slot) && !isSlotAttended(slot),
     'slot-card--holiday': isSlotHoliday(slot),
@@ -2351,9 +2384,14 @@ function promptCancelBooking(booking: BookingRecord) {
   const dayLabel = DAY_LABELS_FULL[booking.dayOfWeek as DayOfWeek] ?? ''
   cancelDialog.value = {
     show: true,
-    message: `¿Cancelar tu reserva del ${dayLabel.toLowerCase()} a las ${formatTime(booking.startTime)}?`,
+    message: cancelPromptMessage(
+      booking.status,
+      dayLabel.toLowerCase(),
+      formatTime(booking.startTime),
+    ),
     loading: false,
     bookingId: booking.id,
+    status: booking.status,
   }
 }
 
@@ -2362,7 +2400,7 @@ async function confirmCancel() {
   try {
     await cancelBooking(cancelDialog.value.bookingId)
     cancelDialog.value.show = false
-    $q.notify({ type: 'positive', message: 'Reserva cancelada' })
+    $q.notify({ type: 'positive', message: cancelSuccessMessage(cancelDialog.value.status) })
     void todayBookingStore.load()
     await loadGrid()
     // Phase 162 (Pitfall 3): cancelar una especial devuelve el crédito — recargar el pase.
@@ -3103,6 +3141,12 @@ onBeforeUnmount(() => {
     box-shadow: 0 6px 18px rgba(63, 106, 71, 0.12);
   }
 
+  // Lista de espera (2026-11-25): borde violeta punteado — anotado, pero SIN lugar todavía.
+  &--waitlist {
+    border-color: #6b4a7e;
+    border-style: dashed;
+  }
+
   &--attended {
     border-color: #3f6a47;
   }
@@ -3283,6 +3327,15 @@ onBeforeUnmount(() => {
     font-size: 13px;
     color: #3f6a47;
     background: #e9f0e6;
+  }
+
+  // Violeta = lista de espera, igual que el cartel "LE" del profe en el admin.
+  &__chip--waitlist {
+    height: 28px;
+    padding: 0 10px;
+    font-size: 13px;
+    color: #5e3f70; // 7.2:1 sobre #efe7f3
+    background: #efe7f3;
   }
 
   // Phase 162 (E2/E3): estados de bloqueo del plan especial. Tono apagado, NUNCA rojo — no es un
