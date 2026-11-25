@@ -38,6 +38,11 @@ export interface ActivityRecord {
    */
   bookingCloseMinutes: number | null;
   cancelCloseMinutes: number | null;
+  /**
+   * Aura que acredita el presente en una clase de esta actividad (0358).
+   * NULL = la de siempre (AURA_AMOUNTS.attendance, 5). 0 = no da Aura.
+   */
+  auraAmount: number | null;
   createdAt: string;
   updatedAt: string;
 }

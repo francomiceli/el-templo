@@ -41,6 +41,11 @@ export const activities = mysqlTable("activities", {
   // BOOKING_CANCEL_WINDOW_MINUTES en scheduling/booking-constants.ts).
   bookingCloseMinutes: int("booking_close_minutes"),
   cancelCloseMinutes: int("cancel_close_minutes"),
+  // Aura por asistencia (2026-11-25, migración 0358): cuánta Aura acredita el
+  // presente en una clase de esta actividad. NULL = la de siempre
+  // (AURA_AMOUNTS.attendance, 5). Pensado para eventos especiales (una
+  // masterclass vale más que una clase de la semana).
+  auraAmount: int("aura_amount"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });

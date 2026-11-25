@@ -47,6 +47,7 @@ import {
   attendanceAuraAmountFor,
   attendanceAuraCredited,
 } from "../aura/day-cap";
+import { attendanceAuraFor } from "../aura/amounts";
 import { localDateForBranch } from "../aura/daily-award";
 import { voidGiftsForAttendance } from "../aura/gift-void";
 import { AuraService, InsufficientBalanceError } from "../aura/service";
@@ -156,6 +157,8 @@ export class AttendanceService {
         activityName: schema.activities.name,
         isSpecial: schema.activities.isSpecial,
         specialLine: schema.activities.specialLine,
+        // Aura por asistencia de la actividad (0358), NULL = la de siempre.
+        auraAmount: schema.activities.auraAmount,
       })
       .from(schema.bookings)
       .innerJoin(
@@ -400,6 +403,7 @@ export class AttendanceService {
       userId: memberId,
       attendanceId: recordId,
       sessionDate: todayStr,
+      classAmount: attendanceAuraFor(matchingBooking.auraAmount),
     });
     if (auraAmount > 0) {
       await this.auraService.award({
@@ -580,10 +584,12 @@ export class AttendanceService {
     // Award AURA immediately on force check-in
     // D-64: el tope del día se calcula con el día LOCAL de la sede, el mismo que
     // usa la app para su Aura y, desde la fase 215 (#16), el que guarda la fila.
+    // Sin horario no hay actividad: vale la Aura de siempre (0358).
     const auraAmount = await attendanceAuraAmountFor(this.db, ctx, {
       userId: memberId,
       attendanceId: recordId,
       sessionDate: todayStr,
+      classAmount: attendanceAuraFor(null),
     });
     if (auraAmount > 0) {
       await this.auraService.award({
@@ -970,6 +976,8 @@ export class AttendanceService {
         branchId: schema.schedules.branchId,
         isSpecial: schema.activities.isSpecial,
         specialLine: schema.activities.specialLine,
+        // Aura por asistencia de la actividad (0358), NULL = la de siempre.
+        auraAmount: schema.activities.auraAmount,
       })
       .from(schema.schedules)
       .innerJoin(
@@ -1101,6 +1109,7 @@ export class AttendanceService {
       userId: memberId,
       attendanceId: recordId,
       sessionDate: date,
+      classAmount: attendanceAuraFor(schedule.auraAmount),
     });
     if (auraAmount > 0) {
       await this.auraService.award({

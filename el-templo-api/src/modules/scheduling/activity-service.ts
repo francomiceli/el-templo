@@ -10,7 +10,11 @@ import { eq, and, ne } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { ConflictError, NotFoundError } from "../shared/errors";
-import { tenantWhere, tenantValues, type TenantContext } from "../shared/tenant";
+import {
+  tenantWhere,
+  tenantValues,
+  type TenantContext,
+} from "../shared/tenant";
 import type { ActivityRecord, AffectedScheduleRef } from "./types";
 import { normalizeSpecialLine } from "./special-line";
 
@@ -38,6 +42,7 @@ export class ActivityService {
       specialLine?: string | null;
       bookingCloseMinutes?: number | null;
       cancelCloseMinutes?: number | null;
+      auraAmount?: number | null;
     },
   ): Promise<ActivityRecord> {
     const {
@@ -48,6 +53,7 @@ export class ActivityService {
       specialLine,
       bookingCloseMinutes,
       cancelCloseMinutes,
+      auraAmount,
     } = data;
     // Phase 113 (D-16): reject duplicate name across ACTIVE activities.
     // Inactive activities don't block reuse — admins can recreate by name
@@ -83,6 +89,8 @@ export class ActivityService {
         // Cortes por actividad (0326): NULL cuando no se envía → default global.
         bookingCloseMinutes: bookingCloseMinutes ?? null,
         cancelCloseMinutes: cancelCloseMinutes ?? null,
+        // Aura por asistencia (0358): NULL cuando no se envía → la de siempre.
+        auraAmount: auraAmount ?? null,
       }),
     );
 
@@ -127,6 +135,7 @@ export class ActivityService {
       specialLine?: string | null;
       bookingCloseMinutes?: number | null;
       cancelCloseMinutes?: number | null;
+      auraAmount?: number | null;
     },
   ): Promise<ActivityRecord> {
     const existing = await this.getActivity(ctx, id);
@@ -227,6 +236,8 @@ export class ActivityService {
       updateData.bookingCloseMinutes = data.bookingCloseMinutes;
     if (data.cancelCloseMinutes !== undefined)
       updateData.cancelCloseMinutes = data.cancelCloseMinutes;
+    // Aura por asistencia (0358): mismo patrón, `null` vuelve a la de siempre.
+    if (data.auraAmount !== undefined) updateData.auraAmount = data.auraAmount;
 
     if (Object.keys(updateData).length > 0) {
       await this.db
@@ -252,7 +263,9 @@ export class ActivityService {
     const [row] = await this.db
       .select()
       .from(schema.activities)
-      .where(and(tenantWhere(schema.activities, ctx), eq(schema.activities.id, id)));
+      .where(
+        and(tenantWhere(schema.activities, ctx), eq(schema.activities.id, id)),
+      );
 
     if (!row) return null;
     return this.mapActivityRow(row);
@@ -274,6 +287,7 @@ export class ActivityService {
       specialLine: row.specialLine ?? null,
       bookingCloseMinutes: row.bookingCloseMinutes ?? null,
       cancelCloseMinutes: row.cancelCloseMinutes ?? null,
+      auraAmount: row.auraAmount ?? null,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };

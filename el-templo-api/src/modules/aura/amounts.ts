@@ -54,3 +54,22 @@ export function tenureAuraFor(months: number): number {
   if (months === 6) return AURA_TENURE[6];
   return AURA_TENURE.yearly;
 }
+
+/**
+ * Tope de la Aura por asistencia que se puede configurar en una actividad
+ * (migración 0358). 50 = lo mismo que terminar un programa o un año de
+ * antigüedad: ninguna clase suelta debería valer más que eso.
+ */
+export const ACTIVITY_AURA_MAX = 50;
+
+/**
+ * Aura que vale el presente en una clase de la actividad (migración 0358): la
+ * configurada en `activities.aura_amount` o, si es NULL, la de siempre (5).
+ * Un presente sin horario (check-in forzado por admin) también vale la de
+ * siempre.
+ */
+export function attendanceAuraFor(
+  activityAuraAmount: number | null | undefined,
+): number {
+  return activityAuraAmount ?? AURA_AMOUNTS.attendance;
+}
