@@ -938,6 +938,7 @@ export const changePlanPreviewSchema = {
             name: { type: "string" },
             priceRegular: { type: "integer" },
             pricePaid: { type: "integer" },
+            outstandingDebt: { type: "integer" },
           },
         },
         targetPlan: {
