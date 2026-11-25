@@ -127,7 +127,16 @@ vi.mock('axios', async () => {
   }
 })
 
-import { createAuthErrorHandler, runRefresh, __resetRefreshLock } from '../axios'
+import { ref } from 'vue'
+import type { Router } from 'vue-router'
+import {
+  createAuthErrorHandler,
+  createSessionRejectedRedirect,
+  onSessionRejected,
+  runRefresh,
+  __resetRefreshLock,
+} from '../axios'
+import { resolveGuardRedirect } from 'src/router/guards'
 
 function make401(url: string): AxiosError {
   const err = new Error('Unauthorized') as AxiosError
@@ -290,5 +299,94 @@ describe('axios refresh lock (D-02, Req 9)', () => {
 
     await expect(handler(canceled)).rejects.toBe(canceled)
     expect(canceled.message).toBe('canceled')
+  })
+})
+
+// App 1.9.9: el servidor rechaza la sesión → además de los tokens hay que vaciar la sesión en
+// memoria (useAuthStore) ANTES de navegar. Si no, el guard ve "logueado yendo a /login", lo
+// manda a home y el socio queda adentro con todo en 401 (Sentry AuraDetailSheet/WeekData).
+describe('createSessionRejectedRedirect (sesión rechazada → login de verdad)', () => {
+  // Sesión en memoria como la tiene useAuthStore: isAuthenticated = token && user.
+  const session = { token: 'old-access' as string | null, user: { id: 7 } as unknown }
+  const isAuthenticated = (): boolean => !!session.token && !!session.user
+  const clearSession = vi.fn(() => {
+    session.token = null
+    session.user = null
+  })
+
+  /** Router falso cuyo push corre la misma decisión que el guard real, con la sesión de ese momento. */
+  function makeRouter(path: string) {
+    const guardDecisions: Array<ReturnType<typeof resolveGuardRedirect>> = []
+    const push = vi.fn(async (to: string) => {
+      guardDecisions.push(
+        resolveGuardRedirect({
+          toName: to === '/login' ? 'login' : undefined,
+          toPath: to,
+          fromName: 'home',
+          isAuthenticated: isAuthenticated(),
+          role: 'member',
+          onboardingCompleted: true,
+          isFreemium: false,
+          hasActiveBarAttempt: false,
+        }),
+      )
+    })
+    const router = { currentRoute: ref({ path }), push } as unknown as Pick<
+      Router,
+      'currentRoute' | 'push'
+    >
+    return { router, push, guardDecisions }
+  }
+
+  const clearTokens = vi.fn(async () => {
+    tokenState.access = null
+    tokenState.refresh = null
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    session.token = 'old-access'
+    session.user = { id: 7 }
+    tokenState.access = 'old-access'
+    tokenState.refresh = 'refresh-1'
+    tokenState.legacyOnly = false
+    refreshBehavior = 'ok'
+    onSessionRejected(clearSession)
+  })
+
+  it('borra tokens y sesión en memoria, y el guard deja entrar a /login (no rebota a home)', async () => {
+    const { router, push, guardDecisions } = makeRouter('/mi-templo')
+
+    await createSessionRejectedRedirect(router, clearTokens)()
+
+    expect(clearTokens).toHaveBeenCalledTimes(1)
+    expect(clearSession).toHaveBeenCalledTimes(1)
+    expect(isAuthenticated()).toBe(false)
+    expect(push).toHaveBeenCalledWith('/login')
+    expect(guardDecisions).toEqual([true])
+  })
+
+  it('ya en /login no vuelve a navegar, pero igual vacía la sesión', async () => {
+    const { router, push } = makeRouter('/login')
+
+    await createSessionRejectedRedirect(router, clearTokens)()
+
+    expect(clearSession).toHaveBeenCalledTimes(1)
+    expect(push).not.toHaveBeenCalled()
+  })
+
+  it('de punta a punta: 401 en el refresh desde Mi Templo termina en /login sin sesión', async () => {
+    refreshBehavior = 'rejected'
+    __resetRefreshLock()
+    const { router, guardDecisions } = makeRouter('/mi-templo')
+    const handler = createAuthErrorHandler(
+      vi.fn() as unknown as AxiosInstance,
+      createSessionRejectedRedirect(router, clearTokens),
+    )
+
+    await expect(handler(make401('/aura/me'))).rejects.toBeDefined()
+
+    expect(isAuthenticated()).toBe(false)
+    expect(guardDecisions).toEqual([true])
   })
 })
