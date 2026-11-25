@@ -42,6 +42,7 @@ interface GenerateAiBody {
 
 import { OWNER_ROLES } from "../shared/permissions";
 import { RATE_LIMITS } from "../shared/rate-limits";
+import { reportUnexpectedError } from "../shared/error-handler";
 
 // ---------- JSON Schemas ----------
 
@@ -285,6 +286,7 @@ export const franchiseRoutes: FastifyPluginAsync = async (fastify) => {
           { err: message, agentType, applicationId: request.params.id },
           "AI generation failed",
         );
+        reportUnexpectedError(err, "franchise AI generation");
         return reply
           .status(500)
           .send({ error: "Error generando contenido AI" });
