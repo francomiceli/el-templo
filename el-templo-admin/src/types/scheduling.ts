@@ -168,6 +168,8 @@ export interface BookingRecord {
   // Invitado que todavía no compró (etiqueta "Invitación" del profe). Solo lo trae el detalle
   // de una clase (`GET /schedules/:id/detail`); en el resto de las respuestas no viene.
   invitation?: RosterInvitation | null;
+  /** Aura ganada del alumno (roster de Horarios); null si es 0 o si el gimnasio no tiene Aura. */
+  aura?: number | null;
 }
 
 export interface HolidayRecord {

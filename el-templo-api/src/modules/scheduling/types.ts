@@ -180,6 +180,11 @@ export interface BookingRecord {
    * constructores de BookingRecord lo dejan sin definir.
    */
   invitation?: InvitationRosterTag | null;
+  /**
+   * Aura ganada del alumno, para el profe en el roster de Horarios. `null` si es 0 o si el
+   * gimnasio no tiene `templo-gamification`. Opcional: solo lo setea `getSlotDetail`.
+   */
+  aura?: number | null;
 }
 
 /**
