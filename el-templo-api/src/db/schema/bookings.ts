@@ -86,6 +86,15 @@ export const bookings = mysqlTable(
       table.bookingDate,
       table.status,
     ),
+    // Mig 0361: sirve a las búsquedas "reservas de un rango de días de todo el
+    // gimnasio" (el recordatorio de clase, `anticipatedBookingsToday`, cada 5
+    // min). Sin esto MySQL recorría todas las reservas del gimnasio: ningún
+    // otro índice empieza por la fecha.
+    index("idx_bookings_tenant_date_status").on(
+      table.tenantId,
+      table.bookingDate,
+      table.status,
+    ),
     // Mig 0360: el único incluye `activeSlot` (NULL para canceladas/no_show y
     // MySQL admite múltiples NULL) → solo choca una segunda reserva VIVA.
     uniqueIndex("idx_bookings_member_schedule_date_active").on(
