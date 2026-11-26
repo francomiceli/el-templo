@@ -1,0 +1,18 @@
+-- Índice para buscar las reservas de un rango de días de todo el gimnasio.
+-- El recordatorio de clase (notifications/anticipated-bookings.ts,
+-- anticipatedBookingsToday) corre cada 5 minutos y filtra bookings por
+--   tenant_id = ? AND booking_status IN (...) AND booking_date BETWEEN ? AND ?
+-- Ningún índice de bookings empieza por la fecha (booking_date es siempre la
+-- 2da columna, detrás de schedule_id, member_id o is_trial), así que MySQL
+-- recorría todas las reservas del gimnasio. Medido en prod el 2026-11-25 con
+-- performance_schema: 78.091 filas examinadas y 346 ms de promedio por
+-- ejecución, 288 ejecuciones por día. La tabla además crece más rápido desde
+-- la mig 0360, que deja las canceladas como historial en vez de borrarlas.
+-- Orden de columnas: tenant_id (igualdad), booking_date (rango) y al final
+-- booking_status, que filtra dentro del índice sin ir a la fila. OJO la
+-- columna física es booking_status (primer argumento del mysqlEnum), aunque
+-- la propiedad TS sea status -- igual que en las migs 0035 y 0188.
+-- Escrita a mano (db:generate está roto por drift previo, ver el skill
+-- el-templo-db-migrations). Sin punto y coma en los comentarios (el parser
+-- corta por ellos). Solo índice, sin datos.
+CREATE INDEX `idx_bookings_tenant_date_status` ON `bookings` (`tenant_id`, `booking_date`, `booking_status`);
