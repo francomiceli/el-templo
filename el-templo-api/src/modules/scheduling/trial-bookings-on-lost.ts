@@ -1,5 +1,5 @@
 // deploy: redeploy de la API tras CI rojo por tenancy en tests (hotfixes SP Perdida + lista de espera, paths-filter, 2026-11-24)
-// deploy: push conjunto 11-25 (Aura 0358/0359 + cambio de plan con deuda + mig 0360 + Sentry), redeploy de la API tras CI rojo por tenancy en el test de la 0359 (paths-filter, 2026-11-25)
+// deploy: push conjunto 11-25 (Aura 0358/0359 + cambio de plan con deuda + mig 0360 + Sentry), redeploy de la API tras CI rojo por tenancy en el test de la 0359, 2 intentos (paths-filter, 2026-11-25)
 // SP por venir al marcar el lead como Perdido (2026-11-24, caso Malvina
 // Lamenza).
 //

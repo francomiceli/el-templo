@@ -142,7 +142,13 @@ async function balanceAndLedger(
 
 async function runRetro(): Promise<void> {
   for (const stmt of RETRO_STATEMENTS) {
-    await app.db.execute(sql.raw(stmt));
+    // Como en el test de la 0315: la migración corre tal cual la aplica el
+    // runner (sin sentinel), sobre todos los gimnasios.
+    await app.db.execute(
+      sql.raw(
+        `/* tenant-safe: migracion aplicada tal cual la corre el runner, revaloriza el ledger de todos los gimnasios */ ${stmt}`,
+      ),
+    );
   }
 }
 
