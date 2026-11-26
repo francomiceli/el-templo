@@ -19,6 +19,7 @@ import path from "node:path";
 import { createTestApp, cleanAllTestData, registerUser } from "../helpers";
 import * as schema from "../../src/db/schema";
 import { splitSqlStatements } from "../../src/db/run-migrations";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 
 const MIGRATION = path.resolve(
   __dirname,
@@ -60,9 +61,9 @@ async function insSchedule(opts: {
     [`Retro 0359 ${seq}`, opts.isSpecial ? 1 : 0, opts.auraAmount ?? null],
   )) as unknown as [{ insertId: number }, unknown];
   const [sch] = (await app.dbPool.query(
-    `INSERT INTO schedules (activity_id, branch_id, day_of_week, start_time, end_time, is_active)
-     VALUES (?, ?, 3, '10:00', '11:00', 1)`,
-    [act.insertId, branchId],
+    `INSERT INTO schedules (tenant_id, activity_id, branch_id, day_of_week, start_time, end_time, is_active)
+     VALUES (?, ?, ?, 3, '10:00', '11:00', 1)`,
+    [TENANT_TEMPLO, act.insertId, branchId],
   )) as unknown as [{ insertId: number }, unknown];
   return Number(sch.insertId);
 }

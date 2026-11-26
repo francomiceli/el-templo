@@ -280,6 +280,7 @@
 // deploy: forzar build del admin tras el CI rojo del hotfix de renovación fin de mes (tests de prorrateo, paths-filter, 2026-10-30)
 // deploy: fase 213 estiramiento, redeploy tras CI rojo por 3 tests del API (paths-filter, 2026-11-12)
 // deploy: hotfixes SP Perdida + lista de espera en Horarios, redeploy tras CI rojo por tenancy en tests (paths-filter, 2026-11-24)
+// deploy: push conjunto 11-25 (Aura por actividad + cambio de plan con deuda), redeploy tras CI rojo por tenancy en el test de la 0359 (paths-filter, 2026-11-25)
 import { ref, computed, onMounted, watch } from 'vue';
 import { useQuasar, type QTableProps } from 'quasar';
 import { createLogger } from 'src/utils/logger';
