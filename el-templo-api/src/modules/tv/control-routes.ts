@@ -118,6 +118,12 @@ export const tvControlRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get<{ Querystring: TvControlContextQuery }>(
     "/control/screen",
     {
+      // Sin las dos líneas de log por pedido ("incoming request" / "request
+      // completed"): cada televisor sondea cada 750 ms y esas líneas eran el
+      // 86 % del log de la API, que por eso conservaba solo un día y medio de
+      // historial (medido en prod, 2026-11-25). Los avisos y errores de esta
+      // ruta se siguen registrando.
+      logLevel: "warn",
       schema: tvControlScreenSchema,
       preHandler: [requireBranchAccess({ from: "query.branchId" })],
     },

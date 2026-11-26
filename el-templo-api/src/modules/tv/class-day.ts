@@ -17,7 +17,6 @@ import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../db/schema";
 import type { FormatParams } from "../admin/format-params";
 import { todayInTz } from "../shared/date-utils";
-import { buildVideoResolver } from "../shared/exercise-video-fallback";
 import {
   DAY_NAME_TO_NUMBER,
   DAY_OF_WEEK_MAP,
@@ -337,15 +336,14 @@ export async function resolveClassDayForDate(
           .orderBy(asc(schema.sessionPrescriptions.sortOrder))
       : [];
 
-  // 4b. Si la fila prescrita no tiene video, usar el de otra copia del mismo
-  //     ejercicio en el catálogo (ver shared/exercise-video-fallback.ts).
-  const resolveVideo = await buildVideoResolver(
-    db,
-    prescriptionRows.map((p) => ({
-      exerciseId: p.exerciseId,
-      videoUrl: p.videoKey,
-    })),
-  );
+  // 4b. SIN fallback de video entre copias del catálogo (2026-11-25). La
+  //     pantalla del TV no muestra videos desde el rediseño de 2026-08, pero
+  //     este camino corre en CADA sondeo (cada 750 ms por televisor) y la
+  //     búsqueda de la copia hermana no puede usar índice: medida en prod era
+  //     la consulta nº 1 de MySQL (28 % del tiempo total de consultas). El
+  //     `videoKey` sigue viajando con el video PROPIO de la fila. Si el TV
+  //     vuelve a mostrar videos, resolver la copia hermana fuera del sondeo
+  //     (ver shared/exercise-video-fallback.ts).
 
   // 5. Agrupar en Maps (una pasada por tabla).
   const prescriptionsByBlock = new Map<number, ClassDayPrescription[]>();
@@ -364,7 +362,7 @@ export async function resolveClassDayForDate(
       exerciseType: p.exerciseType,
       weighted: p.weighted,
       sortOrder: p.sortOrder,
-      videoKey: resolveVideo(p.exerciseId, p.videoKey),
+      videoKey: p.videoKey,
       exerciseCategory: p.exerciseCategory,
       exerciseCategorySecondary: p.exerciseCategorySecondary,
       exerciseRoute: p.exerciseRoute,
