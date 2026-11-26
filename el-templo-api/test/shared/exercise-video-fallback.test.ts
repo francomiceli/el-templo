@@ -53,7 +53,9 @@ async function limpiarTenantAjeno(): Promise<void> {
   await app.db
     .delete(schema.exercises)
     .where(eq(schema.exercises.tenantId, TENANT_AJENO));
-  await app.db.delete(schema.tenants).where(eq(schema.tenants.id, TENANT_AJENO));
+  await app.db
+    .delete(schema.tenants)
+    .where(eq(schema.tenants.id, TENANT_AJENO));
 }
 
 /** Sesión aprobada con un bloque y una prescripción por ejercicio dado. */
@@ -198,8 +200,16 @@ describe("findSiblingVideoUrls — copia hermana con video", () => {
 
   it("entre copias de la misma ruta, gana la más nueva (id mayor)", async () => {
     const sinVideo = await seedExercise({ name: "PQ", route: "SU" });
-    await seedExercise({ name: "PQ", route: "SU", videoUrl: "exercises/vieja.mp4" });
-    await seedExercise({ name: "PQ", route: "SU", videoUrl: "exercises/nueva.mp4" });
+    await seedExercise({
+      name: "PQ",
+      route: "SU",
+      videoUrl: "exercises/vieja.mp4",
+    });
+    await seedExercise({
+      name: "PQ",
+      route: "SU",
+      videoUrl: "exercises/nueva.mp4",
+    });
 
     const map = await findSiblingVideoUrls(app.db, [sinVideo]);
 
@@ -262,7 +272,9 @@ describe("buildVideoResolver", () => {
       { exerciseId: null, videoUrl: null },
     ]);
 
-    expect(resolve(propio, "exercises/propio.mp4")).toBe("exercises/propio.mp4");
+    expect(resolve(propio, "exercises/propio.mp4")).toBe(
+      "exercises/propio.mp4",
+    );
     expect(resolve(sinVideo, null)).toBe("exercises/propio.mp4");
     expect(resolve(huerfano, "")).toBeNull();
     expect(resolve(null, null)).toBeNull();
@@ -291,7 +303,11 @@ describe("call sites — lo que ve el alumno", () => {
     ]);
   });
 
-  it("resolveClassDay (TV) usa el video de la copia hermana", async () => {
+  // 2026-11-25: el TV dejó de mostrar videos (rediseño de 2026-08) y este
+  // camino corre en cada sondeo (cada 750 ms por televisor). La búsqueda de la
+  // copia hermana era la consulta nº 1 de MySQL en prod, así que se sacó de
+  // acá: el TV devuelve solo el video propio de la fila prescrita.
+  it("resolveClassDay (TV) NO busca el video de la copia hermana", async () => {
     const [branch] = await app.db
       .insert(schema.branches)
       .values({
@@ -301,14 +317,20 @@ describe("call sites — lo que ve el alumno", () => {
         timezone: "America/Argentina/Buenos_Aires",
       })
       .$returningId();
-    await app.db.delete(schema.dayModes).where(eq(schema.dayModes.dayOfWeek, 2));
+    await app.db
+      .delete(schema.dayModes)
+      .where(eq(schema.dayModes.dayOfWeek, 2));
     await app.db.insert(schema.dayModes).values({
       dayOfWeek: 2,
       sessionMode: "regular",
     });
     const sinVideo = await seedExercise({ name: "CRAB WALK" });
     await seedExercise({ name: "CRAB WALK", videoUrl: "exercises/crab.mp4" });
-    await seedSession("W1-martes-alfa", [sinVideo]);
+    const conVideo = await seedExercise({
+      name: "BEAST WALK",
+      videoUrl: "exercises/beast.mp4",
+    });
+    await seedSession("W1-martes-alfa", [sinVideo, conVideo]);
 
     const classDay = await resolveClassDay(
       app.db,
@@ -316,7 +338,11 @@ describe("call sites — lo que ve el alumno", () => {
       TUESDAY_NOON_UTC,
     );
 
-    const prescription = classDay.sessions[0].blocks[0].prescriptions[0];
-    expect(prescription.videoKey).toBe("exercises/crab.mp4");
+    const videoKeys = classDay.sessions[0].blocks[0].prescriptions.map(
+      (p) => p.videoKey,
+    );
+    // Sin video propio queda en null aunque exista una copia con video; el
+    // video propio de la fila sí viaja.
+    expect(videoKeys).toEqual([null, "exercises/beast.mp4"]);
   });
 });
