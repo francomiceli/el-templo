@@ -1,3 +1,4 @@
+// deploy: forzar build del admin tras el CI rojo del hotfix de domiciliación (11-26)
 /**
  * "Dejar de domiciliar desde" (domiciliación España, mig 0362 del API).
  *

@@ -589,7 +589,21 @@ describe("Domiciliación bancaria (SEPA)", () => {
     expect(await storedStopFrom(member.id)).toBeNull();
   });
 
-  it.each(["2026-13", "2026-00", "2026-1", "2026-12-01", "diciembre", ""])(
+  it("PUT stopFrom vacío ('') lo borra igual que null (ajv coerciona '' a null)", async () => {
+    const member = await createTestMember(app, {
+      firstName: "Silvia",
+      lastName: "StopVacio",
+      branchId: esBranchId,
+    });
+    await putSepa(member.id, { ...DATOS_COMPLETOS, stopFrom: "2099-09" });
+
+    const put = await putSepa(member.id, { ...DATOS_COMPLETOS, stopFrom: "" });
+    expect(put.statusCode).toBe(200);
+    expect(put.body.sepaDetails?.stopFrom).toBeNull();
+    expect(await storedStopFrom(member.id)).toBeNull();
+  });
+
+  it.each(["2026-13", "2026-00", "2026-1", "2026-12-01", "diciembre"])(
     "PUT stopFrom inválido (%s) → 400 y no persiste",
     async (stopFrom) => {
       const member = await createTestMember(app, {

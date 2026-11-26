@@ -2173,6 +2173,7 @@ export class MemberService {
         iban: sepa.iban ? normalizeIban(sepa.iban) : null,
         // Ausente = no tocar (otro formulario que no conoce el campo no lo
         // borra). null = sigue domiciliado. "YYYY-MM" se guarda como día 1.
+        // Un "" llega ya convertido a null por ajv (coerceTypes): también borra.
         ...(sepa.stopFrom !== undefined && {
           stopFrom: sepa.stopFrom ? `${sepa.stopFrom}-01` : null,
         }),
