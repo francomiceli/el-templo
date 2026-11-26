@@ -3,7 +3,13 @@
 // estos 7 campos solo aplican a sucursales ES, por eso no viven en users.
 // El "deudor" (titular de la cuenta) puede no ser el socio (p. ej. madre/padre),
 // por eso debtor_name/nif son independientes de users.first_name/dni.
-import { mysqlTable, int, varchar, timestamp } from "drizzle-orm/mysql-core";
+import {
+  mysqlTable,
+  int,
+  varchar,
+  timestamp,
+  date,
+} from "drizzle-orm/mysql-core";
 import { relations } from "drizzle-orm";
 import { users } from "./users";
 import { tenantIdColumn } from "./tenant-column";
@@ -30,6 +36,10 @@ export const userSepaDetails = mysqlTable("user_sepa_details", {
   // Normalizado server-side (sin espacios, mayúsculas) y validado mod-97 en
   // MemberService.updateMember antes de persistir.
   iban: varchar("iban", { length: 34 }),
+  // Mes desde el que el socio deja de domiciliarse (avisó la baja). Se guarda
+  // el día 1 del mes. NULL = sigue domiciliado. Desde ese mes la fila del
+  // export para el banco sale en rojo con el motivo (mig 0362).
+  stopFrom: date("stop_from", { mode: "string" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });

@@ -209,6 +209,12 @@ export interface SepaDetails {
   country: string;
   nif: string | null;
   iban: string | null;
+  /**
+   * Mes ("YYYY-MM") desde el que el socio deja de domiciliarse (avisó la
+   * baja). `null` = sigue domiciliado. Desde ese mes su fila del export sale
+   * en rojo con el motivo en "Observación".
+   */
+  stopFrom: string | null;
 }
 
 export interface MemberProfile {
@@ -476,6 +482,11 @@ export interface UpdateMemberInput {
     country?: string | null;
     nif?: string | null;
     iban?: string | null;
+    /**
+     * Mes "YYYY-MM" desde el que deja de domiciliarse. `null` lo borra
+     * (sigue domiciliado). Ausente = no tocar el valor guardado.
+     */
+    stopFrom?: string | null;
   };
 }
 
@@ -540,6 +551,16 @@ export interface SepaExportRow {
   codigoPostal: string;
   poblacion: string;
   pais: string;
+  /**
+   * Por qué la fila sale en rojo (o va a salir): falta IBAN/titular, o el
+   * socio deja de domiciliarse desde un mes. Vacío si está todo en orden.
+   */
+  observacion: string;
+  /**
+   * La fila sale en rojo: le faltan IBAN o titular (el banco la rechaza), o ya
+   * llegó el mes desde el que deja de domiciliarse (no hay que cobrarle).
+   */
+  enRojo: boolean;
 }
 
 // ─── Phase 105: Outstanding-balance aggregates ────────────────────────

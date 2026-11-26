@@ -11,6 +11,9 @@
  *    403 para roles sin permiso y para scope de país ≠ ES.
  *  - Fase 194 D-25: columnas Importe/Moneda (price_paid de la membresía vigente,
  *    descuento incluido) y el plan nunca es uno `is_trial` (invitación).
+ *  - "Dejar de domiciliar desde" (mig 0362): stopFrom en la ficha (guardar,
+ *    conservar, borrar, validar) y en el export (fila en rojo desde ese mes,
+ *    motivo en "Observación").
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
@@ -411,11 +414,12 @@ describe("Domiciliación bancaria (SEPA)", () => {
     });
 
     const { headers, rows } = await exportRows(esAdminToken);
-    // Las 11 columnas históricas no se reordenan: Importe/Moneda al final (ME-08: rotulados como último cobro, no como próximo débito).
-    expect(headers.slice(-3)).toEqual([
+    // Las 11 columnas históricas no se reordenan: Importe/Moneda al final (ME-08: rotulados como último cobro, no como próximo débito), y detrás Observación (mig 0362).
+    expect(headers.slice(-4)).toEqual([
       "Pais",
       "Importe último cobro",
       "Moneda último cobro",
+      "Observación",
     ]);
     expect(headers[0]).toBe("Socio");
     const row = rows.find((r) => r.socio === "Marta ConDescuento");
@@ -483,5 +487,240 @@ describe("Domiciliación bancaria (SEPA)", () => {
     expect(row?.plan).toBe("Sin plan");
     expect(row?.importe ?? null).toBeNull();
     expect(row?.plan).not.toBe("Invitación ES D25c");
+  });
+
+  // ─── "Dejar de domiciliar desde" (mig 0362) ──────────────────────────
+
+  async function putSepa(
+    userId: number,
+    sepaDetails: Record<string, unknown>,
+  ): Promise<{
+    statusCode: number;
+    body: {
+      sepaDetails: { stopFrom: string | null; iban: string | null } | null;
+    };
+  }> {
+    const res = await app.inject({
+      method: "PUT",
+      url: `/api/admin/members/${userId}`,
+      headers: { authorization: `Bearer ${esAdminToken}` },
+      payload: { sepaDetails },
+    });
+    return { statusCode: res.statusCode, body: JSON.parse(res.body) };
+  }
+
+  async function storedStopFrom(userId: number): Promise<string | null> {
+    const [row] = await app.db
+      .select({ stopFrom: schema.userSepaDetails.stopFrom })
+      .from(schema.userSepaDetails)
+      .where(
+        and(
+          tenantWhere(schema.userSepaDetails, TEMPLO_CTX),
+          eq(schema.userSepaDetails.userId, userId),
+        ),
+      );
+    return row?.stopFrom ?? null;
+  }
+
+  const DATOS_COMPLETOS = {
+    debtorName: "Titular Completo",
+    nif: "12345678Z",
+    iban: VALID_IBAN,
+    address: "Calle Mayor 3",
+    postalCode: "28003",
+    city: "Madrid",
+    country: "ES",
+  };
+
+  it("PUT stopFrom 'YYYY-MM' → se guarda como día 1 y el GET lo devuelve como mes", async () => {
+    const member = await createTestMember(app, {
+      firstName: "Sara",
+      lastName: "StopGuardar",
+      branchId: esBranchId,
+    });
+    const put = await putSepa(member.id, {
+      ...DATOS_COMPLETOS,
+      stopFrom: "2099-12",
+    });
+    expect(put.statusCode).toBe(200);
+    expect(put.body.sepaDetails?.stopFrom).toBe("2099-12");
+    expect(await storedStopFrom(member.id)).toBe("2099-12-01");
+
+    const get = await app.inject({
+      method: "GET",
+      url: `/api/admin/members/${member.id}`,
+      headers: { authorization: `Bearer ${esAdminToken}` },
+    });
+    expect(get.statusCode).toBe(200);
+    expect(JSON.parse(get.body).sepaDetails.stopFrom).toBe("2099-12");
+  });
+
+  it("PUT sepaDetails sin stopFrom conserva el mes guardado (ausente = no tocar)", async () => {
+    const member = await createTestMember(app, {
+      firstName: "Sol",
+      lastName: "StopConserva",
+      branchId: esBranchId,
+    });
+    await putSepa(member.id, { ...DATOS_COMPLETOS, stopFrom: "2099-11" });
+
+    const put = await putSepa(member.id, {
+      ...DATOS_COMPLETOS,
+      address: "Otra Calle 9",
+    });
+    expect(put.statusCode).toBe(200);
+    expect(put.body.sepaDetails?.stopFrom).toBe("2099-11");
+    expect(await storedStopFrom(member.id)).toBe("2099-11-01");
+  });
+
+  it("PUT stopFrom null lo borra (vuelve a domiciliarse)", async () => {
+    const member = await createTestMember(app, {
+      firstName: "Simón",
+      lastName: "StopBorra",
+      branchId: esBranchId,
+    });
+    await putSepa(member.id, { ...DATOS_COMPLETOS, stopFrom: "2099-10" });
+
+    const put = await putSepa(member.id, {
+      ...DATOS_COMPLETOS,
+      stopFrom: null,
+    });
+    expect(put.statusCode).toBe(200);
+    expect(put.body.sepaDetails?.stopFrom).toBeNull();
+    expect(await storedStopFrom(member.id)).toBeNull();
+  });
+
+  it.each(["2026-13", "2026-00", "2026-1", "2026-12-01", "diciembre", ""])(
+    "PUT stopFrom inválido (%s) → 400 y no persiste",
+    async (stopFrom) => {
+      const member = await createTestMember(app, {
+        firstName: "Sergio",
+        lastName: `StopInvalido${stopFrom.length}${stopFrom.slice(-2)}`,
+        branchId: esBranchId,
+      });
+      const put = await putSepa(member.id, { ...DATOS_COMPLETOS, stopFrom });
+      expect(put.statusCode).toBe(400);
+      expect(await storedStopFrom(member.id)).toBeNull();
+    },
+  );
+
+  interface SepaRowMarca {
+    socio: string;
+    observacion: string;
+    enRojo: boolean;
+  }
+
+  /** Lee nombre, Observación y si la fila está pintada (fill rojo claro). */
+  async function exportMarcas(): Promise<SepaRowMarca[]> {
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/admin/members/export-sepa",
+      headers: { authorization: `Bearer ${esAdminToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const wb = new Workbook();
+    await wb.xlsx.load(
+      res.rawPayload as unknown as Parameters<Workbook["xlsx"]["load"]>[0],
+    );
+    const sheet = wb.worksheets[0];
+    const headers: string[] = [];
+    sheet.getRow(1).eachCell((cell) => headers.push(String(cell.value ?? "")));
+    const col = (name: string): number => headers.indexOf(name) + 1;
+    const rows: SepaRowMarca[] = [];
+    sheet.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) return;
+      const fill = row.getCell(col("Socio")).fill;
+      const argb =
+        fill && fill.type === "pattern" ? fill.fgColor?.argb : undefined;
+      rows.push({
+        socio: String(row.getCell(col("Socio")).value ?? ""),
+        observacion: String(row.getCell(col("Observación")).value ?? ""),
+        enRojo: argb === "FFFFE0E0",
+      });
+    });
+    return rows;
+  }
+
+  async function socioActivoES(
+    firstName: string,
+    lastName: string,
+  ): Promise<number> {
+    const ctx = fixtureCtx(app);
+    const plan = await createMembershipPlan(ctx, {
+      country: "ES",
+      name: `Plan ${lastName}`,
+    });
+    const member = await createTestMember(app, {
+      firstName,
+      lastName,
+      branchId: esBranchId,
+    });
+    await createActiveSub(ctx, { userId: member.id, planId: plan.id });
+    return member.id;
+  }
+
+  it("export: mes de baja ya llegado → fila en rojo con 'No domiciliar desde'", async () => {
+    const id = await socioActivoES("Bea", "BajaVigente");
+    await putSepa(id, { ...DATOS_COMPLETOS, stopFrom: "2020-01" });
+
+    const row = (await exportMarcas()).find(
+      (r) => r.socio === "Bea BajaVigente",
+    );
+    expect(row).toBeDefined();
+    expect(row?.enRojo).toBe(true);
+    expect(row?.observacion).toBe("No domiciliar desde enero 2020");
+  });
+
+  it("export: mes de baja futuro → fila normal pero la Observación ya avisa", async () => {
+    const id = await socioActivoES("Bruno", "BajaFutura");
+    await putSepa(id, { ...DATOS_COMPLETOS, stopFrom: "2099-12" });
+
+    const row = (await exportMarcas()).find(
+      (r) => r.socio === "Bruno BajaFutura",
+    );
+    expect(row).toBeDefined();
+    expect(row?.enRojo).toBe(false);
+    expect(row?.observacion).toBe("Deja de domiciliarse desde diciembre 2099");
+  });
+
+  it("export: borrar el mes de baja → la fila vuelve a la normalidad", async () => {
+    const id = await socioActivoES("Bárbara", "BajaDeshecha");
+    await putSepa(id, { ...DATOS_COMPLETOS, stopFrom: "2020-01" });
+    await putSepa(id, { ...DATOS_COMPLETOS, stopFrom: null });
+
+    const row = (await exportMarcas()).find(
+      (r) => r.socio === "Bárbara BajaDeshecha",
+    );
+    expect(row).toBeDefined();
+    expect(row?.enRojo).toBe(false);
+    expect(row?.observacion).toBe("");
+  });
+
+  it("export: sin IBAN ni titular sigue en rojo, ahora con el motivo", async () => {
+    await socioActivoES("Bianca", "SinDatos");
+
+    const row = (await exportMarcas()).find(
+      (r) => r.socio === "Bianca SinDatos",
+    );
+    expect(row).toBeDefined();
+    expect(row?.enRojo).toBe(true);
+    expect(row?.observacion).toBe("Falta IBAN y titular");
+  });
+
+  it("export: sin IBAN y con baja vigente → rojo con los dos motivos", async () => {
+    const id = await socioActivoES("Benja", "SinIbanYBaja");
+    await putSepa(id, {
+      ...DATOS_COMPLETOS,
+      iban: null,
+      stopFrom: "2020-01",
+    });
+
+    const row = (await exportMarcas()).find(
+      (r) => r.socio === "Benja SinIbanYBaja",
+    );
+    expect(row).toBeDefined();
+    expect(row?.enRojo).toBe(true);
+    expect(row?.observacion).toBe(
+      "Falta IBAN · No domiciliar desde enero 2020",
+    );
   });
 });

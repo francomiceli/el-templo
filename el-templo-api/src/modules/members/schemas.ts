@@ -167,6 +167,7 @@ const memberProfileSchema = {
         country: { type: "string" },
         nif: { type: ["string", "null"] },
         iban: { type: ["string", "null"] },
+        stopFrom: { type: ["string", "null"] },
       },
     },
   },
@@ -700,6 +701,13 @@ export const updateMemberSchema = {
           // 34 es el máximo ISO; el límite alto (42) tolera espacios de
           // formato que el service quita al normalizar.
           iban: { type: ["string", "null"], maxLength: 42 },
+          // Mes "YYYY-MM" desde el que deja de domiciliarse. null = sigue.
+          stopFrom: {
+            anyOf: [
+              { type: "string", pattern: "^[0-9]{4}-(0[1-9]|1[0-2])$" },
+              { type: "null" },
+            ],
+          },
         },
       },
     },

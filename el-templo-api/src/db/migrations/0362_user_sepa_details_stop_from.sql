@@ -1,0 +1,11 @@
+-- Domiciliación (España): mes desde el que el socio deja de domiciliarse.
+-- Pedido de la sede de España: una alumna avisa que se da de baja el mes que
+-- viene y hoy el export mensual para el banco la sigue listando igual mientras
+-- su plan esté vigente. Con esta columna la gestión lo marca en la ficha y la
+-- fila del export sale en rojo desde ese mes, con el motivo en la columna
+-- Observación. Se guarda el día 1 del mes elegido (la UI elige solo el mes).
+-- NULL = sigue domiciliado. Borrarlo deshace la marca.
+-- Escrita a mano (db:generate está roto por drift previo, ver el skill
+-- el-templo-db-migrations). Sin punto y coma en los comentarios (el parser
+-- corta por ellos). Solo columna nueva nullable, sin datos.
+ALTER TABLE `user_sepa_details` ADD COLUMN `stop_from` date NULL AFTER `iban`;

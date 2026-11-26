@@ -84,6 +84,7 @@ import {
   isWellhubAttendanceRawSql,
 } from "../shared/wellhub-sources";
 import { alias } from "drizzle-orm/mysql-core";
+import { todayInTz } from "../shared/date-utils";
 import type { MemberSegment } from "../segmentation/types";
 
 /**
@@ -1023,6 +1024,7 @@ export class MemberService {
         country: schema.userSepaDetails.country,
         nif: schema.userSepaDetails.nif,
         iban: schema.userSepaDetails.iban,
+        stopFrom: schema.userSepaDetails.stopFrom,
       })
       .from(schema.userSepaDetails)
       .where(
@@ -1094,7 +1096,9 @@ export class MemberService {
           }
         : null,
       latestTrial,
-      sepaDetails: sepaRow ?? null,
+      sepaDetails: sepaRow
+        ? { ...sepaRow, stopFrom: sepaStopFromMonth(sepaRow.stopFrom) }
+        : null,
       isWellhub: Boolean(row.isWellhub),
       showWellhubLabel: Boolean(row.showWellhubLabel),
     };
@@ -2167,6 +2171,11 @@ export class MemberService {
         country: normalize(sepa.country)?.toUpperCase() ?? "ES",
         nif: normalize(sepa.nif)?.toUpperCase() ?? null,
         iban: sepa.iban ? normalizeIban(sepa.iban) : null,
+        // Ausente = no tocar (otro formulario que no conoce el campo no lo
+        // borra). null = sigue domiciliado. "YYYY-MM" se guarda como día 1.
+        ...(sepa.stopFrom !== undefined && {
+          stopFrom: sepa.stopFrom ? `${sepa.stopFrom}-01` : null,
+        }),
       };
       // Fase 173 (T-173-18-01): `tenantValues` — `id` ya se verificó del
       // propio gimnasio arriba (guarda de tenant al inicio del método), pero
@@ -2762,6 +2771,8 @@ export class MemberService {
         postalCode: schema.userSepaDetails.postalCode,
         city: schema.userSepaDetails.city,
         country: schema.userSepaDetails.country,
+        stopFrom: schema.userSepaDetails.stopFrom,
+        branchTimezone: schema.branches.timezone,
       })
       .from(schema.users)
       .innerJoin(
@@ -2784,6 +2795,7 @@ export class MemberService {
       .where(and(...conditions))
       .orderBy(schema.users.lastName, schema.users.firstName);
 
+    const now = new Date();
     return rows.map((r) => ({
       socio: `${r.firstName ?? ""} ${r.lastName ?? ""}`.trim(),
       email: r.email ?? "",
@@ -2799,6 +2811,14 @@ export class MemberService {
       codigoPostal: r.postalCode ?? "",
       poblacion: r.city ?? "",
       pais: r.country ?? "",
+      ...sepaExportFlags({
+        iban: r.iban,
+        debtorName: r.debtorName,
+        stopFromMonth: sepaStopFromMonth(r.stopFrom),
+        // Mes en curso en la sede: el archivo se arma para el mes del banco
+        // de esa sede, no el de UTC (de noche el 31 sería ya el mes siguiente).
+        currentMonth: todayInTz(r.branchTimezone, now).slice(0, 7),
+      }),
     }));
   }
 
@@ -3019,4 +3039,71 @@ export class MemberService {
       .map((r) => ({ level: r.level as TrainingLevel, count: Number(r.count) }))
       .filter((r) => r.count > 0);
   }
+}
+
+// ─── Domiciliación: "dejar de domiciliar desde" ─────────────────────────
+
+const MESES = [
+  "enero",
+  "febrero",
+  "marzo",
+  "abril",
+  "mayo",
+  "junio",
+  "julio",
+  "agosto",
+  "septiembre",
+  "octubre",
+  "noviembre",
+  "diciembre",
+] as const;
+
+/** DATE guardado ("YYYY-MM-01") → mes "YYYY-MM" que ve la API. */
+export function sepaStopFromMonth(stored: string | null): string | null {
+  return stored ? stored.slice(0, 7) : null;
+}
+
+/** "2026-12" → "diciembre 2026". */
+function mesLegible(month: string): string {
+  const [year, mm] = month.split("-");
+  return `${MESES[Number(mm) - 1]} ${year}`;
+}
+
+/**
+ * Marca y motivo de una fila del export de domiciliación.
+ *
+ * En rojo si el banco la rechazaría (falta IBAN o titular) o si ya llegó el
+ * mes desde el que el socio deja de domiciliarse. Si ese mes todavía no llegó,
+ * la fila NO va en rojo pero la observación ya lo avisa: el archivo de fin de
+ * mes a veces se arma unos días antes del débito del mes siguiente.
+ * Comparar "YYYY-MM" como texto es seguro (ancho fijo, mismo orden).
+ */
+export function sepaExportFlags(params: {
+  iban: string | null;
+  debtorName: string | null;
+  stopFromMonth: string | null;
+  currentMonth: string;
+}): { observacion: string; enRojo: boolean } {
+  const motivos: string[] = [];
+  const faltaIban = !params.iban;
+  const faltaTitular = !params.debtorName;
+  if (faltaIban && faltaTitular) motivos.push("Falta IBAN y titular");
+  else if (faltaIban) motivos.push("Falta IBAN");
+  else if (faltaTitular) motivos.push("Falta titular");
+
+  let bajaVigente = false;
+  if (params.stopFromMonth) {
+    bajaVigente = params.stopFromMonth <= params.currentMonth;
+    const mes = mesLegible(params.stopFromMonth);
+    motivos.push(
+      bajaVigente
+        ? `No domiciliar desde ${mes}`
+        : `Deja de domiciliarse desde ${mes}`,
+    );
+  }
+
+  return {
+    observacion: motivos.join(" · "),
+    enRojo: faltaIban || faltaTitular || bajaVigente,
+  };
 }

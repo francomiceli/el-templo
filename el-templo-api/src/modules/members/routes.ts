@@ -505,6 +505,10 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         // con este número.
         { header: "Importe último cobro", key: "importe", width: 20 },
         { header: "Moneda último cobro", key: "moneda", width: 20 },
+        // Por qué la fila está (o va a estar) en rojo: falta IBAN/titular o el
+        // socio deja de domiciliarse desde un mes (marcado en su ficha). Al
+        // final, como Importe/Moneda, para no correr las columnas que ya usan.
+        { header: "Observación", key: "observacion", width: 40 },
       ];
 
       const headerRow = sheet.getRow(1);
@@ -515,7 +519,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         fgColor: { argb: "FFE0E0E0" },
       };
 
-      for (const { amount, currency, ...row } of rows) {
+      for (const { amount, currency, enRojo, ...row } of rows) {
         const added = sheet.addRow({
           ...row,
           importe: amount,
@@ -523,7 +527,9 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         });
         // Marca visual: sin IBAN o sin deudor el banco rechaza la fila —
         // resaltarla evita que un socio activo quede sin debitar en el mes.
-        if (!row.iban || !row.deudor) {
+        // También en rojo desde el mes en que deja de domiciliarse (marcado en
+        // su ficha): no hay que cobrarle. El motivo va en "Observación".
+        if (enRojo) {
           added.fill = {
             type: "pattern",
             pattern: "solid",

@@ -175,6 +175,8 @@ export interface SepaDetails {
   country: string;
   nif: string | null;
   iban: string | null;
+  /** Mes "YYYY-MM" desde el que deja de domiciliarse (avisó la baja). null = sigue. */
+  stopFrom: string | null;
 }
 
 export interface MemberProfile extends MemberListItem {
@@ -400,6 +402,8 @@ export interface UpdateMemberInput {
     country?: string | null;
     nif?: string | null;
     iban?: string | null;
+    /** Mes "YYYY-MM". null = sigue domiciliado. */
+    stopFrom?: string | null;
   };
 }
 

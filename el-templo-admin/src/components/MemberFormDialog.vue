@@ -560,6 +560,20 @@
                   />
                 </div>
               </div>
+              <div class="row q-col-gutter-sm">
+                <div class="col-12 col-sm-6">
+                  <q-select
+                    v-model="form.sepaStopFrom"
+                    :options="sepaStopFromSelectOptions"
+                    label="Dejar de domiciliar desde"
+                    dense
+                    outlined
+                    emit-value
+                    map-options
+                    hint="Si avisó la baja: desde ese mes sale en rojo en el reporte de domiciliación"
+                  />
+                </div>
+              </div>
             </template>
 
             <!-- Contacto de Emergencia -->
@@ -620,6 +634,7 @@ import { extractError, isExpectedClientError } from 'src/utils/extract-error';
 import { normalizePhone } from 'src/utils/phone';
 import ReferrerSelect from './ReferrerSelect.vue';
 import { isValidIban } from 'src/utils/iban';
+import { sepaStopFromOptions } from 'src/utils/sepa-stop-from';
 import type { MemberProfile, BranchOption, UpdateMemberInput } from 'src/types/member';
 
 const log = createLogger('MemberFormDialog');
@@ -669,13 +684,11 @@ const actorCanResetPasswords = computed(() => {
 // desde Usuarios — el backend responde 400 si se intenta.
 const TEMP_PASSWORD_RESETTABLE_ROLES: readonly string[] = ['member', 'coach'];
 const targetIsResettable = computed(() =>
-  TEMP_PASSWORD_RESETTABLE_ROLES.includes(props.member?.role ?? ''),
+  TEMP_PASSWORD_RESETTABLE_ROLES.includes(props.member?.role ?? '')
 );
-const canResetPassword = computed(
-  () => actorCanResetPasswords.value && targetIsResettable.value,
-);
+const canResetPassword = computed(() => actorCanResetPasswords.value && targetIsResettable.value);
 const showStaffPasswordHint = computed(
-  () => actorCanResetPasswords.value && !targetIsResettable.value,
+  () => actorCanResetPasswords.value && !targetIsResettable.value
 );
 
 async function onResetPasswordClick(): Promise<void> {
@@ -757,6 +770,7 @@ const form = ref({
   sepaPostalCode: '',
   sepaCity: '',
   sepaCountry: 'ES',
+  sepaStopFrom: null as string | null,
 });
 
 // "Invitado por" (opcional) — D-17/D-24: en el alta con plan pago es un vínculo de
@@ -765,6 +779,9 @@ const form = ref({
 // atribución retroactiva de la ficha.
 const referrer = ref<number | null>(null);
 const referrerSelect = ref<{ reset: () => void } | null>(null);
+
+// "Dejar de domiciliar desde": mes en curso + 12, más el guardado si es viejo.
+const sepaStopFromSelectOptions = computed(() => sepaStopFromOptions(form.value.sepaStopFrom));
 
 // Sección SEPA: gateada por el país de la sucursal seleccionada EN el form
 // (no la guardada) — al mover un socio a una sede ES los campos aparecen en
@@ -978,6 +995,7 @@ watch(
         sepaPostalCode: sepa?.postalCode ?? '',
         sepaCity: sepa?.city ?? '',
         sepaCountry: sepa?.country ?? 'ES',
+        sepaStopFrom: sepa?.stopFrom ?? null,
       };
     } else {
       // Create mode: reset everything
@@ -1005,6 +1023,7 @@ watch(
         sepaPostalCode: '',
         sepaCity: '',
         sepaCountry: 'ES',
+        sepaStopFrom: null,
       };
       // Reset la atribución de referido en cada apertura del alta.
       referrer.value = null;
@@ -1142,6 +1161,7 @@ async function onSubmit() {
           postalCode: form.value.sepaPostalCode || null,
           city: form.value.sepaCity || null,
           country: form.value.sepaCountry || null,
+          stopFrom: form.value.sepaStopFrom,
         };
       }
       const wasPrueba = props.member.status === 'prueba';

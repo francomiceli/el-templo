@@ -139,6 +139,13 @@
               <div class="text-caption text-grey-7">Código Postal — Población — País</div>
               <div class="text-body1">{{ sepaLocationLine }}</div>
             </div>
+            <div v-if="sepaStopFrom" class="col-12">
+              <div class="text-caption text-grey-7">Dejar de domiciliar desde</div>
+              <div class="text-body1 text-negative text-weight-medium row items-center no-wrap">
+                <q-icon name="event_busy" class="q-mr-xs" />
+                {{ sepaStopFromText }}
+              </div>
+            </div>
           </div>
         </template>
         <div v-else class="text-grey-5 text-italic">
@@ -178,6 +185,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import type { MemberProfile } from 'src/types/member';
+import { sepaStopFromLabel, sepaStopFromReached } from 'src/utils/sepa-stop-from';
 
 // =========================================================================
 // Props
@@ -259,8 +267,25 @@ const hasSepaDetails = computed(() => {
   const sepa = props.member.sepaDetails;
   if (!sepa) return false;
   return Boolean(
-    sepa.debtorName ?? sepa.nif ?? sepa.iban ?? sepa.address ?? sepa.postalCode ?? sepa.city
+    sepa.debtorName ??
+    sepa.nif ??
+    sepa.iban ??
+    sepa.address ??
+    sepa.postalCode ??
+    sepa.city ??
+    sepa.stopFrom
   );
+});
+
+// "Dejar de domiciliar desde": en rojo, con aviso de si ya rige en el reporte.
+const sepaStopFrom = computed(() => props.member.sepaDetails?.stopFrom ?? null);
+const sepaStopFromText = computed(() => {
+  const month = sepaStopFrom.value;
+  if (!month) return '';
+  const label = sepaStopFromLabel(month);
+  return sepaStopFromReached(month)
+    ? `${label} — ya sale en rojo en el reporte`
+    : `${label} — sale en rojo en el reporte desde ese mes`;
 });
 
 const sepaLocationLine = computed(() => {
