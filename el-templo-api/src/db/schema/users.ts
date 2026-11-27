@@ -207,6 +207,11 @@ export const users = mysqlTable(
     membershipKindOverride: membershipKindOverrideEnum,
     // Phase 103: staff disable flag (semantically only applies to non-member roles).
     staffDisabled: boolean("staff_disabled").notNull().default(false),
+    // 2026-11-27: permiso por persona para dar el regalo de Aura del profe a
+    // quien da clases sin tener rol de profe (p. ej. recepción en Barcelona).
+    // Solo cuenta para recepción y gestión; profes, admins de sede y admins ya
+    // regalan por su rol. Ver `aura/coach-gift-givers.ts`.
+    canGiveAura: boolean("can_give_aura").notNull().default(false),
     deletedAt: timestamp("deleted_at"),
     boardingPassUsed: boolean("boarding_pass_used").default(false).notNull(),
     // Phase 102-07: trial→alumno conversion timestamp. Set once, on first

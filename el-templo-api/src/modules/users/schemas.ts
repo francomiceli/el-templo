@@ -32,6 +32,8 @@ export const listStaffSchema = {
           // branchIds (coach/recepción) projected for the UI.
           country: { type: "string", nullable: true },
           branchIds: { type: "array", items: { type: "integer" } },
+          // 2026-11-27: permiso por persona para dar Aura de profe.
+          canGiveAura: { type: "boolean" },
           createdAt: { type: "string", format: "date-time" },
         },
       },
@@ -84,6 +86,9 @@ export const createStaffSchema = {
         items: { type: "integer" },
         default: [],
       },
+      // 2026-11-27: permiso por persona para dar Aura de profe. Solo cuenta
+      // para recepción y gestión (ver aura/coach-gift-givers.ts).
+      canGiveAura: { type: "boolean", default: false },
     },
     additionalProperties: false,
     // Phase 110 REQ-9 (4th rule): members must NOT carry branchIds. AJV-level
@@ -113,6 +118,7 @@ export const createStaffSchema = {
         branchId: { type: "integer" },
         country: { type: "string", nullable: true },
         branchIds: { type: "array", items: { type: "integer" } },
+        canGiveAura: { type: "boolean" },
       },
     },
   },
@@ -163,6 +169,9 @@ export const updateStaffSchema = {
         type: "array",
         items: { type: "integer" },
       },
+      // 2026-11-27: permiso por persona para dar Aura de profe. Sin default:
+      // ausente = no se toca.
+      canGiveAura: { type: "boolean" },
     },
     additionalProperties: false,
     // Phase 110 REQ-9 (4th rule): mirror of createStaffSchema.

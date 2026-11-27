@@ -75,6 +75,7 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
           // 201 reply so the admin form can hydrate without a follow-up GET.
           country: request.body.country ?? null,
           branchIds: request.body.branchIds ?? [],
+          canGiveAura: request.body.canGiveAura ?? false,
         });
       } catch (err: unknown) {
         // Phase 110: validateStaffCardinality throws statusCode=400 — coerce

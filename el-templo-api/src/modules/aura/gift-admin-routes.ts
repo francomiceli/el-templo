@@ -13,8 +13,9 @@
 //                        alcance que la lista; ajustes de la 215, ME-06)
 //
 // Roles (cada ruta con su propio chequeo, además del guard de staff):
-//   - POST: solo profes (`isCoachLikeRole`). La sede sale de `request.scope`,
-//     nunca del body.
+//   - POST: profes, admin de sede, admin y quien tenga el permiso por persona
+//     (`coach-gift-givers.ts`, lo controla el servicio). La sede sale de
+//     `request.scope`, nunca del body.
 //   - GET (settings y lista): dueño, admin y admin_sede. La lista se acota por
 //     sede con `requireBranchAccess` (403 si la sede pedida no es del actor) y
 //     `enforcedBranchIds` (el admin_sede sin `branchId` ve solo sus sedes).
@@ -37,7 +38,6 @@ import {
   ADMIN_ROLES,
   ADMIN_SEDE_ROLE,
   ALL_STAFF_ROLES,
-  isCoachLikeRole,
 } from "../shared/permissions";
 import {
   assertTenant,
@@ -130,15 +130,10 @@ export const auraGiftAdminRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: coachGiveGiftSchema },
     async (request, reply) => {
       try {
-        if (!isCoachLikeRole(request.user.role)) return denyGift(reply);
         const ctx = assertTenant(request.scope, "aura.admin.gift");
         const result = await service.giveCoachGift(
           ctx,
-          {
-            userId: request.user.userId,
-            role: request.user.role,
-            branchIds: request.scope.branchIds,
-          },
+          { userId: request.user.userId, scope: request.scope },
           request.body,
         );
         return reply.code(201).send({ amount: result.amount });

@@ -49,9 +49,11 @@ import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyInstance } from "fastify";
 import * as schema from "../../db/schema";
 import { resolveCommunityPhotos } from "../members/profile-photo-service";
+import { userCanGiveCoachGift } from "./coach-gift-givers";
 import { DEFAULT_TENANT_TIMEZONE, todayInTz } from "../shared/date-utils";
 import { isModuleEnabled } from "../shared/module-flags";
-import { isCoachLikeRole } from "../shared/permissions";
+import { canAccessBranch } from "../shared/branch-access";
+import type { CountryScope } from "../shared/country-scope";
 import { isDuplicateKeyError } from "../shared/sql-errors";
 import {
   tenantValues,
@@ -158,11 +160,14 @@ export interface GiveMemberGiftResult {
   amount: number;
 }
 
-/** Quien regala como profe: rol y sedes salen del scope del servidor. */
+/**
+ * Quien regala como profe. El rol y las sedes salen del scope del servidor
+ * (`scope.role`, y `canAccessBranch` para la sede). Quién regala se decide en
+ * `coach-gift-givers.ts`.
+ */
 export interface CoachGiftViewer {
   userId: number;
-  role: string;
-  branchIds: readonly number[];
+  scope: CountryScope;
 }
 
 export interface GiveCoachGiftInput {
@@ -493,6 +498,22 @@ export class AuraGiftService {
   }
 
   /**
+   * ¿Este staff da el regalo de profe? Por su rol o por el permiso por persona
+   * (ver `coach-gift-givers.ts`). No mira la sede.
+   */
+  async canGiveCoachGifts(
+    ctx: TenantContext,
+    viewer: CoachGiftViewer,
+  ): Promise<boolean> {
+    return userCanGiveCoachGift(
+      this.db,
+      ctx,
+      viewer.userId,
+      viewer.scope.role,
+    );
+  }
+
+  /**
    * Regalo del profe (D-03, D-11, D-15). Una vez por persona y por día de
    * clase, sin tope de cantidad; acredita el valor vigente del gimnasio y lo
    * guarda en la fila para que anular revierta exactamente eso.
@@ -503,7 +524,9 @@ export class AuraGiftService {
     input: GiveCoachGiftInput,
     now: Date = new Date(),
   ): Promise<GiveCoachGiftResult> {
-    if (!isCoachLikeRole(coach.role)) throw new GiftError("REGALO_SIN_PERMISO");
+    if (!(await this.canGiveCoachGifts(ctx, coach))) {
+      throw new GiftError("REGALO_SIN_PERMISO");
+    }
     const { reason } = input;
     if (!isGiftReason(reason)) throw new GiftError("REGALO_NO_DISPONIBLE");
 
@@ -511,7 +534,7 @@ export class AuraGiftService {
       const cls = await loadClassAttendance(tx, ctx, input.attendanceId);
       // Inexistente o sin horario (no es una clase): 404 sin más detalle.
       if (!cls) throw new GiftError("REGALO_NO_ENCONTRADO");
-      if (!coach.branchIds.includes(cls.branchId)) {
+      if (!(await canAccessBranch(coach.scope, cls.branchId, this.db))) {
         throw new GiftError("REGALO_SIN_PERMISO");
       }
 
@@ -646,8 +669,8 @@ export class AuraGiftService {
     for (const member of input.members) byMember.set(member.memberId, null);
 
     const enabled =
-      isCoachLikeRole(viewer.role) &&
-      viewer.branchIds.includes(input.branchId) &&
+      (await this.canGiveCoachGifts(ctx, viewer)) &&
+      (await canAccessBranch(viewer.scope, input.branchId, this.db)) &&
       (await isModuleEnabled(ctx.tenantId, "templo-gamification", this.db));
     if (!enabled) return { coachGiftAmount: null, byMember };
 

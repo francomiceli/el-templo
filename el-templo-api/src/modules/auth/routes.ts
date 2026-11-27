@@ -56,6 +56,7 @@ import {
 } from "./refresh-token-service";
 import { enabledModulesFor } from "../shared/module-flags";
 import { earnedAuraForUser } from "../aura/earned";
+import { canGiveCoachGift } from "../aura/coach-gift-givers";
 import {
   getOwnPhotoState,
   removeCommunityPhoto,
@@ -1028,6 +1029,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           // Dirección del socio (calle y altura): la carga él mismo desde el
           // pop-up / Perfil (PUT /me/address) o recepción desde el admin.
           address: users.address,
+          canGiveAura: users.canGiveAura,
         })
         .from(users)
         .where(and(tenantWhere(users, ctx), eq(users.id, userId)))
@@ -1226,6 +1228,10 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         memberSince: user.createdAt.toISOString(),
         enabledModules,
         auraEarned,
+        // 2026-11-27: ¿da el regalo de Aura del profe? (por rol o por el
+        // permiso por persona). El admin lo usa para el aviso del panel de
+        // asistencia. La sede la controla la API en cada clase.
+        canGiveCoachGift: canGiveCoachGift(user.role, user.canGiveAura),
         // Fase 214 (D-32, D-43): foto propia firmada y su estado.
         photoUrl: photo.url,
         photo,

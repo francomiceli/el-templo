@@ -139,19 +139,49 @@ describe("Fase 215-08: regalo del profe y panel de asistencia", () => {
       .where(eq(schema.tenantSettings.settingKey, COACH_GIFT_SETTING_KEY));
   }
 
-  /** Empleado de la sede indicada, ya autenticado. */
-  async function staffToken(role: string, branchId: number): Promise<string> {
+  /**
+   * Empleado de la sede indicada, ya autenticado. `canGiveAura` prende el
+   * permiso por persona (2026-11-27); `country` fuerza el país de un admin o
+   * gestión (sin él, sale de la sede).
+   */
+  async function staffToken(
+    role: string,
+    branchId: number,
+    opts: { canGiveAura?: boolean; country?: "AR" | "ES" } = {},
+  ): Promise<string> {
     staffSeq += 1;
     const email = `staff-215-${role}-${staffSeq}-${Date.now().toString(36)}@test.com`;
-    await createStaffUser(app, {
+    const userId = await createStaffUser(app, {
       email,
       password: COACH_PASSWORD,
       firstName: "Staff",
       lastName: `Regalo${staffSeq}`,
       role,
       branchId,
+      ...(opts.country !== undefined ? { country: opts.country } : {}),
     });
+    if (opts.canGiveAura) {
+      await app.db
+        .update(schema.users)
+        .set({ canGiveAura: true })
+        .where(
+          and(
+            tenantWhere(schema.users, GIFT_CTX),
+            eq(schema.users.id, userId),
+          ),
+        );
+    }
     return getAuthToken(app, email, COACH_PASSWORD);
+  }
+
+  async function getMe(token: string): Promise<{ canGiveCoachGift?: boolean }> {
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/auth/me",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(200);
+    return res.json() as { canGiveCoachGift?: boolean };
   }
 
   /** Alumno (sin plan) con asistencia a la clase `clase`. */
@@ -374,13 +404,13 @@ describe("Fase 215-08: regalo del profe y panel de asistencia", () => {
       expect(await ledgerSum(app, a.id)).toBe(0);
     });
 
-    it("(6) admin, dueño, admin de sede y recepción reciben 403 al dar el regalo", async () => {
+    it("(6) dueño, y recepción y gestión SIN el permiso reciben 403 al dar el regalo", async () => {
       const a = await alumno();
       const tokens = [
-        adminToken,
+        adminToken, // la cuenta sembrada `admin@test.com` es dueño
         await staffToken("owner", cls.branchId),
-        await staffToken("admin_sede", cls.branchId),
         await staffToken("recepcion", cls.branchId),
+        await staffToken("gestion", cls.branchId),
       ];
 
       for (const token of tokens) {
@@ -390,6 +420,106 @@ describe("Fase 215-08: regalo del profe y panel de asistencia", () => {
       }
       expect(await filasDelRegalo(a.id)).toEqual([]);
       expect(await ledgerSum(app, a.id)).toBe(0);
+    });
+
+    // 2026-11-27: en Barcelona dan clases un admin y un recepcionista.
+    it("(6b) admin de sede, admin del país, profe de actividad, y recepción y gestión CON el permiso dan el regalo como profe", async () => {
+      const givers: Array<[string, string]> = [
+        ["admin_sede", await staffToken("admin_sede", cls.branchId)],
+        ["admin", await staffToken("admin", cls.branchId)],
+        ["coach_actividad", await staffToken("coach_actividad", cls.branchId)],
+        [
+          "recepcion",
+          await staffToken("recepcion", cls.branchId, { canGiveAura: true }),
+        ],
+        [
+          "gestion",
+          await staffToken("gestion", cls.branchId, { canGiveAura: true }),
+        ],
+      ];
+
+      for (const [role, token] of givers) {
+        const a = await alumno();
+        const res = await darRegalo(token, a);
+        expect({ role, status: res.statusCode }).toEqual({ role, status: 201 });
+        expect(res.body.amount).toBe(2);
+        const filas = await filasDelRegalo(a.id);
+        expect(filas).toHaveLength(1);
+        expect(filas[0]).toMatchObject({ giverKind: "profe", amount: 2 });
+        expect(await ledgerSum(app, a.id)).toBe(2);
+      }
+    });
+
+    it("(6c) con el rol o el permiso pero fuera de su sede o país: 403 y no se acredita nada", async () => {
+      const a = await alumno();
+      const otraSede = await otraClase({
+        tz: "America/Argentina/Buenos_Aires",
+      });
+      // Admin del OTRO país que el de la sede de la clase.
+      const [sedeDeLaClase] = await app.db
+        .select({ country: schema.branches.country })
+        .from(schema.branches)
+        .where(
+          and(
+            tenantWhere(schema.branches, GIFT_CTX),
+            eq(schema.branches.id, cls.branchId),
+          ),
+        )
+        .limit(1);
+      const otroPais = sedeDeLaClase?.country === "ES" ? "AR" : "ES";
+      const tokens = [
+        await staffToken("admin_sede", otraSede.branchId),
+        await staffToken("recepcion", otraSede.branchId, { canGiveAura: true }),
+        await staffToken("admin", cls.branchId, { country: otroPais }),
+      ];
+
+      for (const token of tokens) {
+        const res = await darRegalo(token, a);
+        expect(res.statusCode).toBe(403);
+        expect(res.body.code).toBe("REGALO_SIN_PERMISO");
+      }
+      expect(await filasDelRegalo(a.id)).toEqual([]);
+      expect(await ledgerSum(app, a.id)).toBe(0);
+    });
+
+    it("(6d) el permiso no sirve para el dueño: con can_give_aura prendido sigue en 403", async () => {
+      const a = await alumno();
+      const dueno = await staffToken("owner", cls.branchId, {
+        canGiveAura: true,
+      });
+
+      const res = await darRegalo(dueno, a);
+
+      expect(res.statusCode).toBe(403);
+      expect(res.body.code).toBe("REGALO_SIN_PERMISO");
+    });
+
+    it("(6e) /auth/me dice quién regala: profe, admin de sede, admin y recepción con permiso sí, dueño y recepción sin permiso no", async () => {
+      const casos: Array<[string, string, boolean]> = [
+        ["coach", coachToken, true],
+        ["admin_sede", await staffToken("admin_sede", cls.branchId), true],
+        ["admin", await staffToken("admin", cls.branchId), true],
+        [
+          "recepcion con permiso",
+          await staffToken("recepcion", cls.branchId, { canGiveAura: true }),
+          true,
+        ],
+        ["recepcion", await staffToken("recepcion", cls.branchId), false],
+        ["dueño", adminToken, false],
+        [
+          "dueño con permiso",
+          await staffToken("owner", cls.branchId, { canGiveAura: true }),
+          false,
+        ],
+      ];
+
+      for (const [caso, token, esperado] of casos) {
+        const me = await getMe(token);
+        expect({ caso, canGiveCoachGift: me.canGiveCoachGift }).toEqual({
+          caso,
+          canGiveCoachGift: esperado,
+        });
+      }
     });
   });
 
@@ -507,6 +637,44 @@ describe("Fase 215-08: regalo del profe y panel de asistencia", () => {
       expect(res.body.members.length).toBeGreaterThanOrEqual(2);
       for (const member of res.body.members) {
         expect(member).toHaveProperty("gift", null);
+      }
+    });
+
+    it("(10b) admin de sede, admin y recepción con permiso ven el regalo en el panel; recepción sin permiso y de otra sede no", async () => {
+      await alumno();
+
+      const conRegalo = [
+        await staffToken("admin_sede", cls.branchId),
+        await staffToken("admin", cls.branchId),
+        await staffToken("recepcion", cls.branchId, { canGiveAura: true }),
+      ];
+      for (const token of conRegalo) {
+        const res = await getPanel(token);
+        expect(res.statusCode).toBe(200);
+        expect(res.body.coachGiftAmount).toBe(2);
+        const conAsistencia = res.body.members.filter(
+          (m) => m.attendanceId !== null,
+        );
+        expect(conAsistencia.length).toBeGreaterThanOrEqual(1);
+        for (const member of conAsistencia) {
+          expect(member.gift?.state).toBe("disponible");
+        }
+      }
+
+      const otraSede = await otraClase({
+        tz: "America/Argentina/Buenos_Aires",
+      });
+      const sinRegalo = [
+        await staffToken("recepcion", cls.branchId),
+        await staffToken("recepcion", otraSede.branchId, { canGiveAura: true }),
+      ];
+      for (const token of sinRegalo) {
+        const res = await getPanel(token);
+        expect(res.statusCode).toBe(200);
+        expect(res.body.coachGiftAmount).toBeNull();
+        for (const member of res.body.members) {
+          expect(member.gift).toBeNull();
+        }
       }
     });
   });

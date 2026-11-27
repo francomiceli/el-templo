@@ -39,9 +39,12 @@ export function coachGiftCellKind(input: {
   }
 }
 
-/** Nota del botón gris: a un profe de otra sede le dice "de esta sede". */
-export function coachGiftDisabledNote(isCoachLike: boolean): string {
-  return isCoachLike
+/**
+ * Nota del botón gris. A quien regala (profe, admin de sede, admin o con el permiso por persona)
+ * pero mira una clase de otra sede le dice "de esta sede".
+ */
+export function coachGiftDisabledNote(canGiveCoachGift: boolean): string {
+  return canGiveCoachGift
     ? 'Solo los profes de esta sede pueden dar Aura'
     : 'Solo los profes pueden dar Aura';
 }

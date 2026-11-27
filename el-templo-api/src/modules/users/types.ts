@@ -27,6 +27,9 @@ export interface StaffUser {
   // Phase 110 REQ-2: operational branch ids (coach/recepción only).
   // Empty array for admin / gestion / owner / member.
   branchIds: number[];
+  // 2026-11-27: permiso por persona para dar Aura de profe (solo cuenta para
+  // recepción y gestión, ver aura/coach-gift-givers.ts).
+  canGiveAura: boolean;
   createdAt: Date;
 }
 
@@ -50,6 +53,7 @@ export interface CreateStaffInput {
   // service). MUST be empty/absent for admin / gestion / owner / tv / member
   // (REQ-9 rule 4 for member).
   branchIds?: number[];
+  canGiveAura?: boolean;
 }
 
 export interface UpdateStaffInput {
@@ -68,4 +72,5 @@ export interface UpdateStaffInput {
   branchId?: number;
   country?: "AR" | "ES" | null;
   branchIds?: number[];
+  canGiveAura?: boolean;
 }

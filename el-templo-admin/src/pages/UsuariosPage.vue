@@ -167,6 +167,15 @@
               Requerido al menos una sede
             </div>
           </div>
+          <!-- 2026-11-27: permiso por persona para dar Aura de profe. Profes, admins de sede y
+               admins ya regalan por su rol; el dueño nunca. -->
+          <div v-if="needsGiftPermission" class="q-mt-md">
+            <q-toggle v-model="form.canGiveAura" label="Puede dar Aura" color="primary" />
+            <div class="text-caption text-grey-6">
+              Para quien da clases con este rol: regala Aura a los alumnos de sus clases, como un
+              profe.
+            </div>
+          </div>
         </q-card-section>
 
         <q-card-section v-if="usersApi.error.value" class="text-negative q-pt-none">
@@ -217,6 +226,7 @@ const form = ref({
   // Phase 110 D-11: country only required for admin/gestion; branchIds only required for coach/recepción.
   country: null as 'AR' | 'ES' | null,
   branchIds: [] as number[],
+  canGiveAura: false,
 });
 
 // =========================================================================
@@ -256,6 +266,10 @@ const OPERATIONAL_BRANCH_ROLES = new Set(['coach', 'recepcion', 'admin_sede', 'c
 
 const needsCountry = computed(() => COUNTRY_ROLES.has(form.value.role));
 const needsOperationalBranches = computed(() => OPERATIONAL_BRANCH_ROLES.has(form.value.role));
+// 2026-11-27: roles que regalan Aura de profe solo con el permiso por persona (misma lista que
+// `COACH_GIFT_PERMISSION_ROLES` de la API, aura/coach-gift-givers.ts).
+const GIFT_PERMISSION_ROLES = new Set(['recepcion', 'gestion']);
+const needsGiftPermission = computed(() => GIFT_PERMISSION_ROLES.has(form.value.role));
 
 const countryOptions = [
   { label: 'Argentina', value: 'AR' as const },
@@ -384,6 +398,7 @@ function resetForm() {
     branchId: null,
     country: null,
     branchIds: [],
+    canGiveAura: false,
   };
   usersApi.error.value = null;
 }
@@ -406,6 +421,7 @@ function openEditDialog(user: StaffUser) {
     // Phase 110: pre-populate new staff-scope fields from the row.
     country: user.country,
     branchIds: [...user.branchIds],
+    canGiveAura: user.canGiveAura,
   };
   usersApi.error.value = null;
   dialogOpen.value = true;
@@ -434,6 +450,9 @@ async function handleSave() {
     if (needsOperationalBranches.value) {
       input.branchIds = form.value.branchIds;
     }
+    // Con un rol que no usa el permiso se guarda apagado: si después vuelve a recepción no
+    // reaparece prendido sin que nadie lo haya elegido.
+    input.canGiveAura = needsGiftPermission.value && form.value.canGiveAura;
 
     try {
       await usersApi.updateUser(editingUser.value.id, input);
@@ -495,6 +514,9 @@ async function handleSave() {
       }
       if (operationalBranchesRequired) {
         createPayload.branchIds = form.value.branchIds;
+      }
+      if (needsGiftPermission.value && form.value.canGiveAura) {
+        createPayload.canGiveAura = true;
       }
       await usersApi.createUser(createPayload);
       dialogOpen.value = false;

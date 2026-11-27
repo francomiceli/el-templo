@@ -959,7 +959,7 @@ import CheckInChips from 'src/components/scheduling/CheckInChips.vue';
 import AttendanceGiftAction from 'src/components/scheduling/AttendanceGiftAction.vue';
 import CoachGiftDialog from 'src/components/CoachGiftDialog.vue';
 import type { GiftReasonCode } from 'src/config/gift-reasons';
-import { COACH_ACTIVIDAD_ROLE, TEMPLO_ENABLED } from 'src/config/templo-config';
+import { TEMPLO_ENABLED } from 'src/config/templo-config';
 import { coachGiftDisabledNote, firstNameOf } from 'src/utils/coach-gift-view';
 import type { BranchOption, MemberProfile } from 'src/types/member';
 import type {
@@ -1403,10 +1403,10 @@ const giftUiEnabled = computed(() => TEMPLO_ENABLED && authStore.auraEnabled);
 const giftDialogOpen = ref(false);
 const giftTarget = ref<GiftTarget | null>(null);
 
-const giftDisabledNote = computed(() => {
-  const role = authStore.user?.role;
-  return coachGiftDisabledNote(role === 'coach' || role === COACH_ACTIVIDAD_ROLE);
-});
+// Quién regala lo decide la API (rol o permiso por persona, `canGiveCoachGift` de `/auth/me`).
+const giftDisabledNote = computed(() =>
+  coachGiftDisabledNote(authStore.user?.canGiveCoachGift === true),
+);
 
 function openGift(member: SlotAttendanceItem) {
   if (!member.attendanceId) return;

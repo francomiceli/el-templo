@@ -36,6 +36,11 @@ export interface AdminUser {
    * gimnasio está apagado (o la lectura falló): es la misma señal "Aura prendida" que usa la app.
    */
   auraEarned?: number | null;
+  /**
+   * ¿Da el regalo de Aura del profe? (`GET /auth/me`, 2026-11-27). Lo calcula la API por rol o por
+   * el permiso por persona. Solo decide el texto del aviso: la sede la controla la API en cada clase.
+   */
+  canGiveCoachGift?: boolean;
 }
 
 export type SessionStatus = 'pending_review' | 'approved';

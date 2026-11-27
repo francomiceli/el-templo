@@ -67,7 +67,7 @@ describe('coachGiftCellKind', () => {
 });
 
 describe('textos', () => {
-  it('nota del botón gris según el rol', () => {
+  it('nota del botón gris según si la persona regala', () => {
     expect(coachGiftDisabledNote(true)).toBe('Solo los profes de esta sede pueden dar Aura');
     expect(coachGiftDisabledNote(false)).toBe('Solo los profes pueden dar Aura');
   });

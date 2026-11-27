@@ -135,6 +135,7 @@ export class UserService {
         branchName: schema.branches.name,
         staffDisabled: schema.users.staffDisabled,
         country: schema.users.country,
+        canGiveAura: schema.users.canGiveAura,
         createdAt: schema.users.createdAt,
       })
       .from(schema.users)
@@ -239,6 +240,7 @@ export class UserService {
     const passwordHash = await argon2.hash(input.password);
     const country = input.country ?? null;
     const branchIds = input.branchIds ?? [];
+    const canGiveAura = input.canGiveAura ?? false;
 
     return this.db.transaction(async (tx) => {
       // ADO-07: resolver la sede del alta/promoción ANTES de escribir nada.
@@ -267,6 +269,7 @@ export class UserService {
             branchUpdatedAt: new Date(),
             branchSource: "manual" as const,
             country,
+            canGiveAura,
           })
           .where(
             and(
@@ -302,6 +305,7 @@ export class UserService {
               branchUpdatedAt: new Date(),
               branchSource: "manual" as const,
               country,
+              canGiveAura,
               // Phase 103-06 (BLOCKER 1): staff inserts explicitly status=null.
               status: null,
             }),
@@ -432,6 +436,8 @@ export class UserService {
     if (input.email !== undefined) baseUpdateFields.email = input.email;
     if (input.role !== undefined) baseUpdateFields.role = input.role;
     if (input.country !== undefined) baseUpdateFields.country = input.country;
+    if (input.canGiveAura !== undefined)
+      baseUpdateFields.canGiveAura = input.canGiveAura;
 
     if (input.password) {
       baseUpdateFields.passwordHash = await argon2.hash(input.password);
@@ -499,6 +505,7 @@ export class UserService {
           branchName: schema.branches.name,
           staffDisabled: schema.users.staffDisabled,
           country: schema.users.country,
+          canGiveAura: schema.users.canGiveAura,
           createdAt: schema.users.createdAt,
         })
         .from(schema.users)

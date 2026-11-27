@@ -26,11 +26,7 @@ import {
   removeCheckInSchema,
 } from "./schemas";
 
-import {
-  ATTENDANCE_ROLES,
-  CHECKIN_ROSTER_ROLES,
-  isCoachLikeRole,
-} from "../shared/permissions";
+import { ATTENDANCE_ROLES, CHECKIN_ROSTER_ROLES } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
 import { assertTenant, tenantWhere } from "../shared/tenant";
 import { DEFAULT_TENANT_TIMEZONE } from "../shared/date-utils";
@@ -144,15 +140,21 @@ export const attendanceAdminRoutes: FastifyPluginAsync = async (fastify) => {
           { includeCheckIns },
         );
 
-        // Fase 215 (D-15): solo un profe consulta regalos. Para el resto del
-        // staff `coachGiftAmount` y `gift` van en null sin tocar la base.
+        // Fase 215 (D-15): solo quien da el regalo de profe consulta regalos
+        // (profes, admin de sede, admin o con el permiso por persona, ver
+        // `aura/coach-gift-givers.ts`). Para el resto del staff
+        // `coachGiftAmount` y `gift` van en null.
         let coachGiftAmount: number | null = null;
         let byMember:
           | Awaited<
               ReturnType<typeof giftService.coachGiftStatesForSlot>
             >["byMember"]
           | null = null;
-        if (isCoachLikeRole(request.user.role)) {
+        const giftViewer = {
+          userId: request.user.userId,
+          scope: request.scope,
+        };
+        if (await giftService.canGiveCoachGifts(ctx, giftViewer)) {
           const [slot] = await fastify.db
             .select({
               branchId: schema.schedules.branchId,
@@ -176,11 +178,7 @@ export const attendanceAdminRoutes: FastifyPluginAsync = async (fastify) => {
           if (slot) {
             const gifts = await giftService.coachGiftStatesForSlot(
               ctx,
-              {
-                userId: request.user.userId,
-                role: request.user.role,
-                branchIds: request.scope.branchIds,
-              },
+              giftViewer,
               {
                 scheduleId: request.params.scheduleId,
                 date: request.params.date,
